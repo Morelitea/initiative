@@ -53,7 +53,7 @@ Counters take decimals, so a fundraising total in pounds and pence works as well
 
 ## Sharing and comments
 
-Counter groups share like every other tool — **Viewer**, **Editor**, **Owner**, or everyone in the initiative — and can be bulk-edited from the list view. Each group has its own comment thread, switchable off under **Settings → Advanced**.
+Counter groups share like every other tool — **Viewer**, **Editor**, **Owner**, or everyone in the initiative — and can be bulk-edited from the list view. Each group has its own comment thread, switchable off under **Settings → Details**.
 
 ## Related
 

@@ -79,7 +79,7 @@ Every tool, without exception:
 
 - **Shares the same way** — Viewer, Editor, Owner, or everyone in the initiative.
 - **Takes tags**, so a tag pulls together everything on one subject regardless of what kind of thing it is. See [Tags](tags.md).
-- **Has a comment thread**, switchable off per item under **Settings → Advanced**.
+- **Has a comment thread**, switchable off per item under **Settings → Details**.
 - **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
 - **Goes to the Trash** when deleted, not to oblivion.
 - **Turns up in [My Tools](your-space.md#my-tools)**, gathered with everything else of its kind from every community you're in.

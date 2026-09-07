@@ -79,7 +79,7 @@ Land on a month and the board starts there. Pins step aside while you're back th
 
 Notices share exactly like everything else: **Viewer**, **Editor** or **Owner** per notice, or open to the whole initiative.
 
-Every notice has its own comment thread and its own reactions. Switch the thread off under **Settings → Advanced** for the notice that's genuinely just an announcement — the room booking doesn't need a discussion.
+Every notice has its own comment thread and its own reactions. Switch the thread off under **Settings → Details** for the notice that's genuinely just an announcement — the room booking doesn't need a discussion.
 
 ## Related
 

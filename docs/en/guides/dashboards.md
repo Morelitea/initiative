@@ -55,7 +55,7 @@ Some marketplace tiles are custom **widgets**. They run in an isolated sandbox a
 
 Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Since "look at this" is the entire use case, they're often the one thing a group opens right up.
 
-Each dashboard has its own comment thread, which is an excellent place to argue about what a number actually means. Switch it off under **Settings → Advanced** if you'd rather that argument happened somewhere else.
+Each dashboard has its own comment thread, which is an excellent place to argue about what a number actually means. Switch it off under **Settings → Details** if you'd rather that argument happened somewhere else.
 
 ## Related
 
