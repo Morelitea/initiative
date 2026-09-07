@@ -35,6 +35,7 @@ import { CommentSection } from "@/components/comments/CommentSection";
 import { Markdown } from "@/components/Markdown";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
+import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
@@ -559,7 +560,7 @@ export const TaskEditPage = () => {
   }
 
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("edit.loadingTask")}</p>;
+    return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {

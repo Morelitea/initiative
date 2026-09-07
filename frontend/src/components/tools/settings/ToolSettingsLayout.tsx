@@ -21,10 +21,12 @@
 import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import {
   type ToolMutation,
   type ToolSettingsEntity,
@@ -184,7 +186,9 @@ export const ToolSettingsLayout = ({
           advancedExtra,
         }}
       >
-        <Outlet />
+        <Suspense fallback={<SettingsPaneSkeleton />}>
+          <Outlet />
+        </Suspense>
       </ToolSettingsProvider>
 
       {children}

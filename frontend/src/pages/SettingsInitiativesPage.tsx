@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/command";
 import { DataTable } from "@/components/ui/data-table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -60,7 +61,7 @@ const PmFullAccessCell = ({ initiativeId }: { initiativeId: number }) => {
   );
 
   if (rolesQuery.isLoading) {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+    return <Skeleton className="h-6 w-11 rounded-full" />;
   }
 
   // A failed roles fetch (or a missing PM role) must NOT fall through to the
@@ -192,7 +193,7 @@ const InitiativeManagersCell = ({
   };
 
   if (rolesQuery.isLoading) {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+    return <Skeleton className="h-9 w-36" />;
   }
 
   // Same reasoning as the full-access toggle: an unusable picker must say so

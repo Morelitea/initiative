@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { StorageSettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
+import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,7 +124,11 @@ export const SettingsStoragePage = () => {
   }
 
   if (storageQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("storage.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("storage.loading")}>
+        <FormSkeleton fields={3} />
+      </SkeletonRegion>
+    );
   }
 
   if (storageQuery.isError || !storageQuery.data) {

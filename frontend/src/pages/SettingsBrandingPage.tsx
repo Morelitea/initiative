@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,7 +61,9 @@ export const SettingsBrandingPage = () => {
         </CardHeader>
         <CardContent>
           {interfaceQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">{t("branding.loadingInterface")}</p>
+            <SkeletonRegion label={t("branding.loadingInterface")}>
+              <FormSkeleton card={false} fields={2} />
+            </SkeletonRegion>
           ) : interfaceQuery.isError ? (
             <p className="text-destructive text-sm">{t("branding.interfaceError")}</p>
           ) : (

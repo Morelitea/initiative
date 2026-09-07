@@ -12,6 +12,12 @@
     <!-- The Outfit font is self-hosted (bundled via @fontsource-variable/outfit
          in main.tsx), so no third-party font hosts are contacted. -->
     <title>Initiative</title>
+    <!-- Theme before first paint: the class and background the app will settle
+         on, so a reload does not flash white while its modules load. Both are
+         served from the app's own origin, which the CSP's script-src allows
+         where an inline script would not be. -->
+    <link rel="stylesheet" href="/theme-boot.css" />
+    <script src="/theme-boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

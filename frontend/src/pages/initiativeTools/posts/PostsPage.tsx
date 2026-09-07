@@ -10,6 +10,7 @@ import { PostCard } from "@/components/initiativeTools/posts/PostCard";
 import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/posts/PostsFilterBar";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TimelineRail } from "@/components/timeline/TimelineRail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -289,10 +290,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
         />
 
         {postsQuery.isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("loading")}
-          </div>
+          <SkeletonRegion label={t("loading")}>
+            <CardGridSkeleton count={3} className="space-y-4" />
+          </SkeletonRegion>
         ) : postsQuery.isError ? (
           <p className="text-destructive text-sm">{t("loadError")}</p>
         ) : posts.length > 0 ? (

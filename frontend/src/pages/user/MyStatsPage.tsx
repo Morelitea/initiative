@@ -1,7 +1,12 @@
-import { Clock, Flame, Loader2, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { Clock, Flame, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  CardGridSkeleton,
+  ContentCardSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { GuildBreakdownChart } from "@/components/stats/GuildBreakdownChart";
 import { HeatmapChart } from "@/components/stats/HeatmapChart";
 import { StatsMetricCard } from "@/components/stats/StatsMetricCard";
@@ -59,10 +64,13 @@ export function MyStatsPage() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("page.loading")}
-        </div>
+        <SkeletonRegion label={t("page.loading")} className="space-y-6">
+          <CardGridSkeleton
+            count={4}
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
+          />
+          <ContentCardSkeleton lines={3} />
+        </SkeletonRegion>
       )}
 
       {/* Error state */}

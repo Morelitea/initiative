@@ -1,14 +1,5 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  Loader2,
-  MapPin,
-  SearchX,
-  Settings,
-  ShieldAlert,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { CalendarDays, MapPin, SearchX, Settings, ShieldAlert, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +7,7 @@ import { type RSVPStatus, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import { StatusMessage } from "@/components/StatusMessage";
+import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -192,10 +184,9 @@ export function EventDetailPage() {
 
   if (eventQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("loadingEvent")}
-      </div>
+      <SkeletonRegion label={t("loadingEvent")}>
+        <DetailPageSkeleton actions={2} />
+      </SkeletonRegion>
     );
   }
 

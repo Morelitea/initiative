@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { Loader2, Plus, SearchX, Settings, ShieldAlert } from "lucide-react";
+import { Plus, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +17,11 @@ import { QueueTimeline } from "@/components/initiativeTools/queues/QueueTimeline
 import { QueueViewToggle } from "@/components/initiativeTools/queues/QueueViewToggle";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { StatusMessage } from "@/components/StatusMessage";
+import {
+  DetailPageSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -155,10 +160,11 @@ export function QueueDetailPage() {
 
   if (queueQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("loadingQueue")}
-      </div>
+      <SkeletonRegion label={t("loadingQueue")}>
+        <DetailPageSkeleton actions={3}>
+          <ListSkeleton rows={5} rowClassName="rounded-lg border bg-card p-3" />
+        </DetailPageSkeleton>
+      </SkeletonRegion>
     );
   }
 

@@ -70,8 +70,10 @@ describe("DataJobsTable", () => {
 
     renderWithProviders(<DataJobsTable />);
 
+    // The placeholder table has rows of its own, so wait for the data proper.
+    await screen.findByRole("button", { name: /download/i });
     // Newest first: the queued import (created now) leads.
-    const rows = await screen.findAllByRole("row");
+    const rows = screen.getAllByRole("row");
     // header + 3 data rows
     expect(rows).toHaveLength(4);
     // Direction badges (the column HEADER also says "Export"; badges are the

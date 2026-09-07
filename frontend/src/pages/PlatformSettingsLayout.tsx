@@ -1,8 +1,9 @@
 import { Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
@@ -82,7 +83,9 @@ export const PlatformSettingsLayout = () => {
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />
-      <Outlet />
+      <Suspense fallback={<SettingsPaneSkeleton />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 };

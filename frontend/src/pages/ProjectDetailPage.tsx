@@ -15,6 +15,7 @@ import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsS
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ProjectDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,7 @@ export const ProjectDetailPage = () => {
   }
 
   if (projectQuery.isLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("detail.loading")}</p>;
+    return <ProjectDetailSkeleton label={t("detail.loading")} />;
   }
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {

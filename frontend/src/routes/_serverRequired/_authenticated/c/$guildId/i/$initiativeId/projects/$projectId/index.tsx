@@ -76,70 +76,74 @@ export const Route = createFileRoute(
   }),
   // The prefetch depends on the search params, so the loader has to see them.
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps }) => {
+  loader: ({ context, params, deps }) => {
     const projectId = Number(params.projectId);
     const guildId = Number(params.guildId);
     const { queryClient } = context;
 
-    // Prefetch in background - don't block navigation on failure
-    try {
-      const [project, presets] = await Promise.all([
-        queryClient.ensureQueryData<ProjectRead>({
-          queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
-          queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
+    // Warm the cache without holding the navigation on it: the page draws
+    // its placeholder at once and the reads land into it. A failed prefetch
+    // is swallowed here; the page fetches for itself and reports the error.
+    void (async () => {
+      try {
+        const [project, presets] = await Promise.all([
+          queryClient.ensureQueryData<ProjectRead>({
+            queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
+            queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
+            staleTime: 30_000,
+          }),
+          queryClient.ensureQueryData<FilterPresetListResponse>({
+            queryKey: getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
+              guildId,
+              projectId
+            ),
+            queryFn: () =>
+              listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
+            staleTime: 60_000,
+          }),
+          queryClient.ensureQueryData({
+            queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+              guildId,
+              projectId
+            ),
+            queryFn: () =>
+              listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
+            staleTime: 60_000,
+          }),
+        ]);
+
+        // Resolve exactly the way the section does, and build the params with the
+        // same function, so the prefetch lands on the key the component asks for.
+        // These used to be two separate implementations that had drifted, and the
+        // prefetched entry was never read.
+        const { spec } = resolvePresetState<TaskFilterSpec, TaskViewMode>({
+          search: deps,
+          presets: (presets.items ?? []).map((preset) => ({
+            ...preset,
+            filters: specFromApi(preset.filters),
+          })),
+          stored: storedSpec(queryClient, projectId),
+          allowedViews: TASK_VIEW_MODES,
+          defaultView: project.default_view_mode,
+          fallbackView: "table",
+          emptySpec: EMPTY_TASK_FILTERS,
+          equals: taskFiltersEqual,
+        });
+        const taskParams = buildTaskListParams(spec, { projectId });
+
+        // Deliberately not awaited: re-running the loader on a preset change must
+        // not block the navigation on a task refetch.
+        void queryClient.ensureQueryData({
+          queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
+          // page_size=0 walks the server's fetch-all windows for the full set
+          // (same queryFn shape as useTasks, which shares this cache key).
+          queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
           staleTime: 30_000,
-        }),
-        queryClient.ensureQueryData<FilterPresetListResponse>({
-          queryKey: getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
-            guildId,
-            projectId
-          ),
-          queryFn: () =>
-            listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
-          staleTime: 60_000,
-        }),
-        queryClient.ensureQueryData({
-          queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
-            guildId,
-            projectId
-          ),
-          queryFn: () =>
-            listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
-          staleTime: 60_000,
-        }),
-      ]);
-
-      // Resolve exactly the way the section does, and build the params with the
-      // same function, so the prefetch lands on the key the component asks for.
-      // These used to be two separate implementations that had drifted, and the
-      // prefetched entry was never read.
-      const { spec } = resolvePresetState<TaskFilterSpec, TaskViewMode>({
-        search: deps,
-        presets: (presets.items ?? []).map((preset) => ({
-          ...preset,
-          filters: specFromApi(preset.filters),
-        })),
-        stored: storedSpec(queryClient, projectId),
-        allowedViews: TASK_VIEW_MODES,
-        defaultView: project.default_view_mode,
-        fallbackView: "table",
-        emptySpec: EMPTY_TASK_FILTERS,
-        equals: taskFiltersEqual,
-      });
-      const taskParams = buildTaskListParams(spec, { projectId });
-
-      // Deliberately not awaited: re-running the loader on a preset change must
-      // not block the navigation on a task refetch.
-      void queryClient.ensureQueryData({
-        queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
-        // page_size=0 walks the server's fetch-all windows for the full set
-        // (same queryFn shape as useTasks, which shares this cache key).
-        queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
-        staleTime: 30_000,
-      });
-    } catch {
-      // Silently fail - component will fetch its own data
-    }
+        });
+      } catch {
+        // Silently fail - component will fetch its own data
+      }
+    })();
   },
   component: lazyRouteComponent(() =>
     import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage }))

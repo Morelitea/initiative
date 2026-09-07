@@ -15,7 +15,6 @@
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +25,7 @@ import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments"
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
 import { PageBanner } from "@/components/PageBanner";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
 import { isToolSortField, type ToolSortField, ToolTable } from "@/components/toolBrowser/ToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,10 +261,9 @@ export function GuildHomePage() {
                     box that found nothing is in its toolbar, and taking it
                     away would leave no way to unsay the search. */}
                 {isLoading ? (
-                  <div className="flex items-center gap-2 p-2 text-muted-foreground text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t("loading")}
-                  </div>
+                  <SkeletonRegion label={t("loading")}>
+                    <TableSkeleton rows={5} columns={5} pagination />
+                  </SkeletonRegion>
                 ) : isError ? (
                   <p className="p-2 text-destructive text-sm">{t("loadError")}</p>
                 ) : totalCount === 0 && !query ? (

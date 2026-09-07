@@ -18,6 +18,7 @@ import {
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
@@ -227,9 +228,9 @@ export const MyTasksPage = () => {
                   keep claiming them while the rows came back in the saved
                   order. The filters resolve from the same request. */}
               {table.isInitialLoad || !table.preferencesLoaded ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
+                <SkeletonRegion>
+                  <TableSkeleton rows={8} columns={6} pagination />
+                </SkeletonRegion>
               ) : table.hasError ? (
                 <p className="py-8 text-center text-destructive text-sm">
                   {t("myTasks.loadError")}

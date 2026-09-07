@@ -6,11 +6,12 @@ import {
   useLocation,
   useParams,
 } from "@tanstack/react-router";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { GuildHomeSkeleton, PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 
@@ -77,18 +78,12 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
 });
 
 /** The guild subtree's waiting state — shown while the guild list is still
- *  arriving, and while this tab is catching up to the URL's guild. */
-function GuildLoading() {
-  const { t } = useTranslation("common");
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Loader2
-        role="status"
-        aria-label={t("loading")}
-        className="h-8 w-8 animate-spin text-muted-foreground"
-      />
-    </div>
-  );
+ *  arriving, and while this tab is catching up to the URL's guild. The front
+ *  page gets its own outline; anything deeper gets a page's. */
+function GuildLoading({ guildId }: { guildId: number }) {
+  const { pathname } = useLocation();
+  const atHome = pathname === `/c/${guildId}` || pathname === `/c/${guildId}/`;
+  return atHome ? <GuildHomeSkeleton /> : <PageSkeleton />;
 }
 
 export function GuildLayout() {
@@ -112,7 +107,7 @@ export function GuildLayout() {
   }, [guildId, isMember, syncGuildFromUrl]);
 
   if (loading) {
-    return <GuildLoading />;
+    return <GuildLoading guildId={guildId} />;
   }
 
   if (!guild) {
@@ -136,7 +131,7 @@ export function GuildLayout() {
   // straight onto another guild's URL from issuing a page of guild-scoped
   // requests against the guild this tab started on and then repeating them.
   if (activeGuildId !== guildId) {
-    return <GuildLoading />;
+    return <GuildLoading guildId={guildId} />;
   }
 
   // A suspended guild only stays listed for its guild admins (members lose

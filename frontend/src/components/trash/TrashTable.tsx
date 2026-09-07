@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { EntityType, TrashItem } from "@/api/generated/initiativeAPI.schemas";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -79,9 +80,9 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
 
   if (isLoading) {
     return (
-      <p className="text-muted-foreground text-sm">
-        {t("common:loading", { defaultValue: "Loading..." })}
-      </p>
+      <SkeletonRegion>
+        <TableSkeleton rows={4} columns={4} toolbar={false} />
+      </SkeletonRegion>
     );
   }
 

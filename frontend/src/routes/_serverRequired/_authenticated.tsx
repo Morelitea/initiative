@@ -18,6 +18,7 @@ import { CreateActionProvider } from "@/components/navigation/CreateActionContex
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
+import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +48,7 @@ import { getActiveRecentKey } from "@/lib/recentRoute";
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
  */
-const PageLoader = () => (
-  <div className="flex items-center justify-center py-20">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-  </div>
-);
+const PageLoader = () => <PageSkeleton />;
 
 /**
  * Full-screen loading state shown while auth is being determined.

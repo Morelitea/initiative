@@ -2,7 +2,6 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ChevronRight,
-  Loader2,
   Minus,
   MoreVertical,
   Pencil,
@@ -18,6 +17,7 @@ import { CounterFormDialog } from "@/components/initiativeTools/counters/Counter
 import { CounterNumberView } from "@/components/initiativeTools/counters/views/CounterNumberView";
 import { CounterProgressBarView } from "@/components/initiativeTools/counters/views/CounterProgressBarView";
 import { CounterSegmentedClockView } from "@/components/initiativeTools/counters/views/CounterSegmentedClockView";
+import { CounterFocusSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -121,10 +121,7 @@ export function CounterDetailPage() {
   if (groupQuery.isLoading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("loadingGroup")}
-        </div>
+        <CounterFocusSkeleton label={t("loadingGroup")} />
       </div>
     );
   }
