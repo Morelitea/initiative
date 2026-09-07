@@ -231,7 +231,12 @@ function AppLayout() {
           to a grown textarea, a `scrollIntoView`, a devtools panel in the flow:
           each parks the whole app, chrome included, somewhere it cannot be
           scrolled back from. `clip` makes it what it reads as: not a scroller. */}
-      <div className="flex h-screen flex-col overflow-clip bg-background">
+      {/* `relative`, so that this box is the containing block for anything
+          absolutely positioned with no nearer positioned ancestor. A clip only
+          applies to descendants whose containing-block chain runs through it;
+          the rest are laid out against the document, and it is the document
+          that grows to fit them. */}
+      <div className="relative flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
         <div className="flex min-h-0 flex-1">
           <SidebarProvider
@@ -304,11 +309,26 @@ function AppLayout() {
                     dragged the whole app sideways. Wide content owns its own
                     scroller here — the tool rail and every table already do —
                     so the shell says no to the axis rather than offering a bar
-                    nothing should need. */}
+                    nothing should need.
+
+                    `relative`, so this is the containing block for anything on
+                    a page that is absolutely positioned with no positioned
+                    ancestor of its own -- every `sr-only` label, for one. Those
+                    are laid out against the containing block, not the flow, so
+                    without this they sat outside the scroller at their in-flow
+                    offset from the top of the page, and a long enough page --
+                    a comment thread, a delete label on each comment -- put
+                    them below the window. The document grew to fit them, and
+                    whatever then asked for a scroll (focus moving into the
+                    composer, a wheel over anything that was not the scroller)
+                    moved the whole app, chrome included, up out of the window.
+                    Measured: fifteen comments made the document 3057px tall in
+                    a 900px window. Inside `main` they scroll with the comment
+                    they label. */}
                 <main
                   data-app-scroll=""
                   data-scroll-restoration-id="app-main"
-                  className="min-w-0 flex-1 overflow-y-auto overflow-x-clip"
+                  className="relative min-w-0 flex-1 overflow-y-auto overflow-x-clip"
                 >
                   {/* A grid, and `min-h-full` rather than `h-full`, because
                       this sits between the scrollport and the page and must
