@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The whole app no longer scrolls out of the window on a long comment thread.** On a task with enough comments, or a file document with them, focusing the comment box or scrolling over the sidebar moved the entire app — sidebar, header and all — up out of view, leaving a blank band underneath that nothing could scroll back from. The hidden "Delete" label on each comment was being measured against the window instead of the page, and enough of them below the fold made the window itself scrollable.
+
 ## [0.66.0] - 2026-09-07
 
 ### Added

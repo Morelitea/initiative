@@ -28,6 +28,13 @@ const scrollerTag = (): string => {
   return match[0];
 };
 
+/** The viewport-sized box the whole app sits in — the one carrying `overflow-clip`. */
+const shellTag = (): string => {
+  const match = shellSource().match(/<div\b[^>]*\bh-screen\b[^>]*\boverflow-clip\b[^>]*>/s);
+  if (!match) throw new Error("no h-screen overflow-clip shell in the app layout");
+  return match[0];
+};
+
 /** The first element inside that `<main>` — the one holding the page width. */
 const contentTag = (): string => {
   const after = shellSource().split(scrollerTag())[1] ?? "";
@@ -56,6 +63,20 @@ describe("the app scroller", () => {
 
   it("still spans the row it sits in", () => {
     expect(scrollerTag()).toMatch(/\bflex-1\b/);
+  });
+
+  // An absolutely positioned descendant with no positioned ancestor -- every
+  // `sr-only` label -- is laid out against the document, not the scroller, at
+  // its in-flow offset from the top of the page. Deep in a long comment thread
+  // that offset is below the window, the document grows to fit it, and any
+  // scroll request then moves the whole app rather than the page. Measured:
+  // fifteen comments, a 3057px document in a 900px window.
+  it("is the containing block for what it scrolls", () => {
+    expect(scrollerTag()).toMatch(/\brelative\b/);
+  });
+
+  it("clips at a shell that is itself positioned, so nothing escapes to the document", () => {
+    expect(shellTag()).toMatch(/\brelative\b/);
   });
 
   // Taking the width off the scroller is only half of it: the width has to
