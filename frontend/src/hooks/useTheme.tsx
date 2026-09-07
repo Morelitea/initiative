@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { syncFaviconWithTheme } from "@/lib/favicon";
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setFirstPaintHint, setItem } from "@/lib/storage";
 
 type Theme = "light" | "dark" | "system";
 type ResolvedTheme = Exclude<Theme, "system">;
@@ -21,7 +21,8 @@ interface ThemeContextValue {
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 // Also read by public/theme-boot.js, which paints the first frame in the
-// right theme before this provider mounts; keep the two in step.
+// right theme before this provider mounts; keep the two in step. On native
+// the value is mirrored into localStorage for it (see setFirstPaintHint).
 const THEME_STORAGE_KEY = "initiative-theme";
 const THEME_CYCLE: Theme[] = ["system", "light", "dark"];
 
@@ -74,6 +75,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     setItem(THEME_STORAGE_KEY, theme);
+    setFirstPaintHint(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   useEffect(() => {

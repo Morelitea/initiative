@@ -1,25 +1,3 @@
-import { Suspense } from "react";
-
-/**
- * THE settings frame every tool gets.
- *
- * Rename, describe, tag, share, and delete are identical for all six tools, so
- * they live here once. Everything the frame needs is derived from the `tool`
- * value — breadcrumb labels, section routes, the tag mutation — and all of its
- * copy comes from the shared `common:toolSettings.*` namespace, so adding a
- * tool costs a wrapper that names its data hooks and nothing else.
- *
- * The sections are real routes — `/settings/access` is a place, not a piece of
- * component state — so sharing can be linked to, and the back button walks
- * back through the sections that were visited. The bar still looks and behaves
- * like tabs; selecting one navigates.
- *
- * A tool with genuinely extra settings passes cards as `detailsExtra` /
- * `advancedExtra`, or names a whole extra section in `extraTabs` and serves it
- * from a route beside the shared ones; the shell stays the same shape for
- * every tool.
- */
-
 /**
  * THE settings frame every tool gets.
  *
@@ -43,6 +21,7 @@ import { Suspense } from "react";
 import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";

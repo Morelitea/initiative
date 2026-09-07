@@ -19,7 +19,19 @@ describe("SkeletonRegion", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading…");
-    expect(within(region).getByTestId("child")).toBeInTheDocument();
+    const child = within(region).getByTestId("child");
+    expect(child).toBeInTheDocument();
+    expect(child.parentElement).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps a placeholder table out of the accessibility tree", () => {
+    render(
+      <SkeletonRegion>
+        <TableSkeleton rows={2} columns={2} />
+      </SkeletonRegion>
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("announces a page's own label when given one", () => {

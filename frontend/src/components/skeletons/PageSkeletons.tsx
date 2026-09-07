@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils";
  *
  * Every placeholder is a `role="status"` region carrying a visually hidden
  * label, so assistive tech hears that the page is loading while sighted
- * readers see the shape of what is coming.
+ * readers see the shape of what is coming. The bars themselves are hidden
+ * from the accessibility tree, so a table placeholder is never announced as
+ * an empty table.
  */
 
 /** Stable keys for a placeholder list — an index key is the lint rule this
@@ -50,8 +52,11 @@ export interface SkeletonRegionProps {
 export const SkeletonRegion = ({ label, className, children }: SkeletonRegionProps) => {
   const { t } = useTranslation("common");
   return (
-    <div role="status" aria-busy="true" className={className} data-testid="skeleton-region">
-      {children}
+    <div role="status" aria-busy="true" data-testid="skeleton-region">
+      {/* The bars are decoration: a reader hears the label, not an empty table. */}
+      <div aria-hidden="true" className={className}>
+        {children}
+      </div>
       <span className="sr-only">{label ?? t("loading")}</span>
     </div>
   );
