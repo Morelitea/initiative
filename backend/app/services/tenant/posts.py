@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 from sqlalchemy.orm import selectinload
-from sqlalchemy import false
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -314,27 +313,18 @@ async def mark_read(
     permanently unread. The ids may span initiatives, so the second is asked
     per row rather than once for the request.
     """
-    from sqlalchemy import or_
     from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-    from app.core.role_context import override_sharing_initiatives
 
     if not post_ids:
         return 0
     now = datetime.now(timezone.utc)
-    full_access = override_sharing_initiatives()
-    reachable = or_(
-        permissions_service.dac_scope_clause(
-            Tool.post, Post.id, user_id, guild_id=guild_id
-        ),
-        Post.initiative_id.in_(tuple(full_access)) if full_access else false(),
-    )
+    # Sharing (including the "Full access" override) is the table's own policy,
+    # so the statement asks only what this endpoint adds to it.
     readable = (
         await session.exec(
             select(Post.id).where(
                 Post.id.in_(tuple(post_ids)),
                 Post.created_by != user_id,
-                reachable,
                 visibility_clause(user_id, guild_id=guild_id),
             )
         )
@@ -470,9 +460,6 @@ async def list_post_ids_for_export(
         # it is in no export either. A backup therefore does not carry drafts,
         # which is the trade this one rule makes.
         is_published_clause(),
-        permissions_service.dac_scope_clause(
-            Tool.post, Post.id, current_user.id, guild_id=guild_id
-        ),
     ]
     statement = (
         select(Post.id)

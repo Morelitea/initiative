@@ -222,16 +222,10 @@ async def list_document_ids_for_export(
     Deterministic order for stable backup output."""
     from sqlmodel import select
 
-    from app.core.tools import Tool
-    from app.services import permissions as permissions_service
-
     if not initiative_ids:
         return []
     conditions = [
         Document.initiative_id.in_(initiative_ids),
-        permissions_service.dac_scope_clause(
-            Tool.document, Document.id, current_user.id, guild_id=guild_id
-        ),
     ]
     statement = select(Document.id).where(*conditions).order_by(Document.id.asc())
     return list(await session.exec(statement))
@@ -627,19 +621,12 @@ async def get_backlinks(
     guild_id: int,
 ) -> list[Document]:
     """Documents that link to this one, through the same sharing gate the
-    document list applies."""
-    from app.core.tools import Tool
-    from app.services import permissions as permissions_service
-
+    document list applies — the table's own policy, which narrows this
+    statement as it narrows that one."""
     stmt = (
         select(Document)
         .join(DocumentLink, DocumentLink.source_document_id == Document.id)
-        .where(
-            DocumentLink.target_document_id == document_id,
-            permissions_service.dac_scope_clause(
-                Tool.document, Document.id, user_id, guild_id=guild_id
-            ),
-        )
+        .where(DocumentLink.target_document_id == document_id)
         .order_by(Document.updated_at.desc())
     )
 

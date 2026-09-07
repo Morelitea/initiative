@@ -13,7 +13,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.services import permissions as permissions_service
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
 from app.services.permissions import (
@@ -151,9 +150,6 @@ async def list_counter_group_ids_for_export(
     conditions = [
         CounterGroup.initiative_id.in_(initiative_ids),
         Initiative.counter_groups_enabled == True,  # noqa: E712
-        permissions_service.dac_scope_clause(
-            Tool.counter_group, CounterGroup.id, current_user.id, guild_id=guild_id
-        ),
     ]
     statement = (
         select(CounterGroup.id)

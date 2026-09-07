@@ -11,14 +11,14 @@ Same signature, so this is a plain replacement: no policy or default needs
 redeclaring, and the rendered RLS picks the new body up immediately.
 
 Revision ID: 20260907_0236
-Revises: 20260907_0233
+Revises: 20260907_0235
 Create Date: 2026-09-07
 """
 
 from alembic import op
 
 revision = "20260907_0236"
-down_revision = "20260907_0233"
+down_revision = "20260907_0235"
 branch_labels = None
 depends_on = None
 

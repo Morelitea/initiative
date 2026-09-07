@@ -1032,16 +1032,18 @@ async def _allowed_project_ids(
     those markers sit beside.
     """
     conditions = [
-        permissions_service.dac_scope_clause(
-            Tool.project, Project.id, user.id, guild_id=guild_id
-        )
-        if project_id is not None
-        else permissions_service.granted_scope_clause(
-            Tool.project, Project.id, user.id, guild_id=guild_id
-        ),
         Initiative.guild_id == guild_id,
         Project.is_archived == False,  # noqa: E712
     ]
+    if project_id is None:
+        # Spanning initiatives, the answer is what has been shared with the
+        # reader, which is a narrower question than "may I reach it" — so it
+        # stays here rather than resting on the table's own policy.
+        conditions.append(
+            permissions_service.granted_scope_clause(
+                Tool.project, Project.id, user.id, guild_id=guild_id
+            )
+        )
     if not include_templates:
         conditions.append(Project.is_template == False)  # noqa: E712
     stmt = select(Project.id).join(Project.initiative).where(*conditions)
