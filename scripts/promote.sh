@@ -750,7 +750,11 @@ do_cherry_pick() {
         local current
         current=$(read_version)
         new_version=$(calc_new_version "$current")
-        branch="hotfix/v$new_version"
+        # tag-release.yml tags a merged PR only when its head branch starts with
+        # "release/v", and reads the version from what follows. A version-bumping
+        # hotfix is a release, so it has to carry that prefix or the merge lands a
+        # bumped VERSION on main with no tag, no image, and no GitHub Release.
+        branch="release/v$new_version"
         echo -e "${BOLD}Version: $current → $new_version${NC}"
     else
         branch="hotfix/$DATE"

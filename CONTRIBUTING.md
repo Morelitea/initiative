@@ -169,9 +169,9 @@ Only project maintainers (@jordandrako, @LeeJMorel) have admin access to `main`.
 |--------|---------|
 | `main` | Production — admin-only, every commit is deployable |
 | `dev` | Integration — all feature work merges here via PR |
-| `release/vX.Y.Z` | Release prep — version bump + changelog stamp |
+| `release/vX.Y.Z` | Release prep — version bump + changelog stamp, from `dev` or from a cherry-picked hotfix. This prefix is what triggers the tag and Docker build on merge |
 | `promote/YYYY-MM-DD` | Code-only promotion (no version change) |
-| `hotfix/vX.Y.Z` | Cherry-pick urgent fixes to main |
+| `hotfix/YYYY-MM-DD` | Cherry-pick urgent fixes to main without a version bump |
 | `rollback/vX.Y.Z` | Revert a bad release |
 
 Contributors open PRs to `dev`. Maintainers promote `dev` to `main` when ready to release.
