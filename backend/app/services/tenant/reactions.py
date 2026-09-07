@@ -66,6 +66,10 @@ class ReactionValidationError(ReactionError):
     """The payload is refused."""
 
 
+class ReactionDisabledError(ReactionError):
+    """The target takes no reactions — its own switch is off."""
+
+
 @dataclass(frozen=True)
 class TargetContext:
     """A loaded, authorized reaction target.
@@ -144,6 +148,10 @@ async def _resolve_post(
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     if post.initiative is not None and not post.initiative.posts_enabled:
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
+    # The notice's own switch, the counterpart to a thread's. Off means it
+    # takes none and shows none, keeping the ones already on it.
+    if not post.reactions_enabled:
+        raise ReactionDisabledError(ReactionMessages.DISABLED)
     # A notice that has not gone up has nothing to react to, and saying
     # otherwise would say it exists.
     if permissions_service.hidden_from_reader(Tool.post, post, cast(int, user.id)):
@@ -286,7 +294,8 @@ async def toggle_reaction(
         target_id=target_id,
         user=user,
         guild_id=guild_id,
-        access="write",
+        # Reacting is answering, not editing: it takes reaching the target.
+        access="read",
     )
 
     # A toggle is one decision made of three statements — is it there, take it

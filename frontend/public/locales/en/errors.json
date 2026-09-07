@@ -548,5 +548,6 @@
   "POST_POLL_DUPLICATE_CHOICE": "Two choices say the same thing.",
   "POST_POLL_RESULTS_HIDDEN": "The results are hidden until you answer.",
   "POST_POLL_NOT_PUBLISHED": "This notice isn't up yet, so its poll can't be answered.",
-  "UNKNOWN_TIMEZONE": "That is not a time zone we recognize."
+  "UNKNOWN_TIMEZONE": "That is not a time zone we recognize.",
+  "REACTION_DISABLED": "This notice is not taking reactions."
 }

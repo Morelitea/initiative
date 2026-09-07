@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TagPicker } from "@/components/tags";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useSetPostReactions } from "@/hooks/usePostReactions";
 import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
@@ -30,16 +32,22 @@ export const ToolSettingsDetailsPage = () => {
   const [descriptionValue, setDescriptionValue] = useState(entity.description ?? "");
   const [tags, setTags] = useState<TagSummary[]>(entity.tags ?? []);
   const [commentsEnabled, setCommentsEnabled] = useState(entity.comments_enabled);
+  const [reactionsEnabled, setReactionsEnabled] = useState(entity.reactions_enabled ?? true);
 
   useEffect(() => {
     setNameValue(entity.name);
     setDescriptionValue(entity.description ?? "");
     setTags(entity.tags ?? []);
     setCommentsEnabled(entity.comments_enabled);
+    setReactionsEnabled(entity.reactions_enabled ?? true);
   }, [entity]);
 
   const setToolTags = useSetToolTags(tool);
   const setToolComments = useSetToolComments(tool);
+  const setPostReactions = useSetPostReactions();
+  // Only a post takes reactions of its own; everywhere else they hang off a
+  // comment, and the thread's own switch above already answers for them.
+  const showsReactionSwitch = tool === Tool.post;
 
   const handleDetailsSave = () => {
     const trimmedName = nameValue.trim();
@@ -142,6 +150,32 @@ export const ToolSettingsDetailsPage = () => {
           />
         </CardHeader>
       </Card>
+
+      {showsReactionSwitch && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle>{t("toolSettings.reactions")}</CardTitle>
+              <CardDescription>{t("toolSettings.reactionsDescription")}</CardDescription>
+            </div>
+            <Switch
+              id="tool-settings-reactions-enabled"
+              checked={reactionsEnabled}
+              onCheckedChange={(value) => {
+                // Saved on flip, like the comment switch above it.
+                const previous = reactionsEnabled;
+                setReactionsEnabled(value);
+                setPostReactions.mutate(
+                  { id: entity.id, enabled: value },
+                  { onError: () => setReactionsEnabled(previous) }
+                );
+              }}
+              disabled={!canManage || setPostReactions.isPending}
+              aria-label={t("toolSettings.reactionsToggle")}
+            />
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 };

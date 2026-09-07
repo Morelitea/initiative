@@ -33,7 +33,7 @@ from sqlalchemy.schema import CheckConstraint, CreateTable
 from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
-    PERSONAL_STATE_TABLES,
+    dac_asks_at_write,
     InitiativePath,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
@@ -176,11 +176,10 @@ def _table_block(table: str, path: InitiativePath) -> str:
     for suffix, command, clause, write in _COMMANDS:
         pred = path.predicate(table, write)
         if path.dac is not None:
-            # A reader's own record of a resource is written by reading it, so
-            # its sharing leg stays at read level whatever the command.
-            sharing = path.dac.predicate(
-                table, write and table not in PERSONAL_STATE_TABLES
-            )
+            # What the command asks of sharing is per table: changing content
+            # takes write on the resource, where responding to it (a comment,
+            # a reaction) and keeping a reader's own record of it do not.
+            sharing = path.dac.predicate(table, dac_asks_at_write(table, command))
             # A resource has no sharing before it exists, so the table that IS
             # the resource carries no leg on INSERT — creating one answers to
             # the initiative-role gate instead. A child table keeps it: adding a

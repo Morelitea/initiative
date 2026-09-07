@@ -179,12 +179,15 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Reacting is a read-level gesture — anyone who can see the
               notice can react to it — so the bar is offered to every
-              reader, not only to whoever may edit. */}
-          <ReactionBar
-            targetType={ReactionTarget.post}
-            targetId={post.id}
-            groups={post.reactions}
-          />
+              reader, not only to whoever may edit. A notice with reactions
+              turned off shows none: there is nothing to join. */}
+          {post.reactions_enabled && (
+            <ReactionBar
+              targetType={ReactionTarget.post}
+              targetId={post.id}
+              groups={post.reactions}
+            />
+          )}
           {/* The thread, from the board. A count says there is a conversation
               worth opening; nothing said so far is an invitation rather than a
               "0", which reads as an absence. Both land on the post, because the

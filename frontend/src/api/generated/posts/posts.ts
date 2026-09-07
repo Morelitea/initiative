@@ -31,6 +31,7 @@ import type {
   PostCreate,
   PostListResponse,
   PostPinUpdate,
+  PostReactionSettings,
   PostRead,
   PostReadMarks,
   PostReadReceipt,
@@ -1163,6 +1164,116 @@ export const useSetPostPinApiV1GGuildIdPostsPostIdPinPut = <
 > => {
   return useMutation(
     getSetPostPinApiV1GGuildIdPostsPostIdPinPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Turn reactions on a notice on or off.
+ *
+ * The counterpart to the generic comment switch, and it asks the same level:
+ * write access on the post, which is what putting the notice up took. There
+ * is no generic route for it because a post is the only thing that takes
+ * reactions of its own — everywhere else they hang off a comment, and that
+ * thread's own switch already answers.
+ *
+ * Turning it off keeps the reactions already there, the same way turning a
+ * thread off keeps its comments: the board stops showing the bar and the API
+ * stops serving or adding to it until the switch goes back on.
+ * @summary Set Post Reaction Settings
+ */
+export const setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut = (
+  guildId: number,
+  postId: number,
+  postReactionSettings: BodyType<PostReactionSettings>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostReactionSettings>(
+    {
+      url: `/api/v1/g/${guildId}/posts/${postId}/reactions`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: postReactionSettings,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>,
+    TError,
+    { guildId: number; postId: number; data: BodyType<PostReactionSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PostReactionSettings> },
+  TContext
+> => {
+  const mutationKey = ["setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>,
+    { guildId: number; postId: number; data: BodyType<PostReactionSettings> }
+  > = (props) => {
+    const { guildId, postId, data } = props ?? {};
+
+    return setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut(
+      guildId,
+      postId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>
+>;
+export type SetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPutMutationBody =
+  BodyType<PostReactionSettings>;
+export type SetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Post Reaction Settings
+ */
+export const useSetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>,
+      TError,
+      { guildId: number; postId: number; data: BodyType<PostReactionSettings> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PostReactionSettings> },
+  TContext
+> => {
+  return useMutation(
+    getSetPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPutMutationOptions(options),
     queryClient
   );
 };

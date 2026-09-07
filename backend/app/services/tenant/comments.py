@@ -624,7 +624,9 @@ async def create_comment(
         entity_id=entity_id,
         guild_id=guild_id,
         user=author,
-        access="write",
+        # Answering a thread is not editing what it hangs off — reaching the
+        # parent is the gate, and its comment switch is the other half.
+        access="read",
     )
     if parent_comment and getattr(parent_comment, column) != ctx.entity_id:
         raise CommentValidationError(CommentMessages.PARENT_MISMATCH)

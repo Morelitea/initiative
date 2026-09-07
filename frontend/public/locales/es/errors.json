@@ -548,5 +548,6 @@
   "POST_POLL_DUPLICATE_CHOICE": "Dos opciones dicen lo mismo.",
   "POST_POLL_RESULTS_HIDDEN": "Los resultados están ocultos hasta que respondas.",
   "POST_POLL_NOT_PUBLISHED": "Esta publicación aún no está publicada, su encuesta no puede responderse.",
-  "UNKNOWN_TIMEZONE": "No reconocemos esa zona horaria."
+  "UNKNOWN_TIMEZONE": "No reconocemos esa zona horaria.",
+  "REACTION_DISABLED": "Este aviso no admite reacciones."
 }
