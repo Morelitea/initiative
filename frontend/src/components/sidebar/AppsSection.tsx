@@ -42,7 +42,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppRead } from "@/api/generated/initiativeAPI.schemas";
+import { type GuildAppRead, ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -166,7 +166,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild size="sm">
-                  <Link to={gp("/marketplace")} search={{ kind: "app" }}>
+                  <Link to={gp("/marketplace")} search={{ kind: ListingKind.app }}>
                     {isGuildAdmin ? <Plus className="h-4 w-4" /> : <Store className="h-4 w-4" />}
                     <span>{isGuildAdmin ? t("apps:add") : t("apps:browse")}</span>
                   </Link>
