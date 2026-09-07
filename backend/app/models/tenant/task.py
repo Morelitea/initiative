@@ -2,7 +2,17 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+)
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
@@ -71,7 +81,16 @@ class TaskStatus(CreatedByMixin, table=True):
 class TaskAssignee(SQLModel, table=True):
     __tablename__ = "task_assignees"
 
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
+    # ``Task.assignees`` is a read-only view over this table, so nothing in the
+    # ORM clears these rows when a task is hard-deleted. The database does.
+    task_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("tasks.id", ondelete="CASCADE"),
+            primary_key=True,
+            nullable=False,
+        )
+    )
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
     guild_id: Optional[int] = Field(
         default=None, foreign_key="guilds.id", nullable=True

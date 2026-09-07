@@ -13,12 +13,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
+from app.models.tenant.task import Task
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.services.tenant.trash_purge import _run_purge_pass
 from app.testing.factories import (
     create_guild,
     create_initiative,
     create_project,
+    create_task,
     create_user,
 )
 
@@ -250,3 +252,43 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
         )
     ).scalar_one()
     assert count == 0, "reactivated guild's due trash must purge again"
+
+
+async def test_a_task_with_assignees_can_be_purged(session: AsyncSession):
+    """``task_assignees`` rows go with the task.
+
+    ``Task.assignees`` is read-only, so the ORM clears nothing there; the
+    foreign key is what takes them. Without the cascade a purge — by hand from
+    the trash, or by this worker on retention — dies on
+    ``task_assignees_task_id_fkey`` and comes back to the same task every hour.
+    """
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    task = await create_task(session, project, assignees=[user])
+
+    await soft_delete_entity(
+        session, task, deleted_by_user_id=user.id, retention_days=1
+    )
+    await session.commit()
+
+    refreshed = (
+        await session.exec(select_including_deleted(Task).where(Task.id == task.id))
+    ).one()
+    refreshed.purge_at = datetime.now(timezone.utc) - timedelta(days=2)
+    session.add(refreshed)
+    await session.commit()
+
+    await _run_purge_pass(session, now=datetime.now(timezone.utc))
+    await session.commit()
+
+    assert (
+        await session.exec(select_including_deleted(Task).where(Task.id == task.id))
+    ).one_or_none() is None
+    left = await session.exec(
+        text("SELECT count(*) FROM task_assignees WHERE task_id = :t").bindparams(
+            t=task.id
+        )
+    )
+    assert left.one()[0] == 0
