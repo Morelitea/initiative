@@ -196,6 +196,62 @@ stamp_min_native_version() {
     fi
 }
 
+# The Alembic head of the tree as it stands, read from the revision files alone —
+# no database and no server. Empty when the backend venv is absent, which the
+# callers report rather than guessing a value.
+current_alembic_head() {
+    [[ -x backend/.venv/bin/python ]] || return 0
+    (cd backend && .venv/bin/python -c "
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+print(ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
+" 2>/dev/null) || true
+}
+
+# Record the Alembic head this release ships, and stage it so it lands in the
+# version-bump commit. Every revision at or before the committed value has run
+# on somebody's database and can no longer be edited in place — see "Never edit
+# a migration that has shipped" in CLAUDE.md.
+stamp_released_migration() {
+    local head current
+    head=$(current_alembic_head)
+    # Read through a file test rather than `cat … | tr … || echo`: a failing cat
+    # inside a pipeline leaves the exit status to tr, so that fallback never
+    # fires and the value comes back empty.
+    current=""
+    [[ -f RELEASED_MIGRATION ]] && current=$(tr -d '[:space:]' < RELEASED_MIGRATION)
+    [[ -n "$current" ]] || current="unknown"
+    if [[ -z "$head" ]]; then
+        warn "  Could not read the Alembic head (no backend/.venv) → RELEASED_MIGRATION stays $current"
+    elif [[ "$head" == "$current" ]]; then
+        info "  No new migrations → RELEASED_MIGRATION stays $current"
+    else
+        echo "$head" > RELEASED_MIGRATION
+        git add RELEASED_MIGRATION
+        warn "  RELEASED_MIGRATION $current → $head (revisions up to here are frozen from now on)"
+    fi
+}
+
+# Report (without staging) where RELEASED_MIGRATION would land, mirroring
+# stamp_released_migration's decision. Used in the release preview / dry run.
+preview_released_migration() {
+    local head current
+    head=$(current_alembic_head)
+    # Read through a file test rather than `cat … | tr … || echo`: a failing cat
+    # inside a pipeline leaves the exit status to tr, so that fallback never
+    # fires and the value comes back empty.
+    current=""
+    [[ -f RELEASED_MIGRATION ]] && current=$(tr -d '[:space:]' < RELEASED_MIGRATION)
+    [[ -n "$current" ]] || current="unknown"
+    if [[ -z "$head" ]]; then
+        warn "  RELEASED_MIGRATION: cannot read the Alembic head (no backend/.venv); stays $current"
+    elif [[ "$head" == "$current" ]]; then
+        info "  RELEASED_MIGRATION: stays $current (no new migrations)"
+    else
+        warn "  RELEASED_MIGRATION: $current → $head (frozen from now on)"
+    fi
+}
+
 # Report (without staging) whether MIN_NATIVE_VERSION would move, mirroring
 # stamp_min_native_version's decision. Used in the release preview / dry run.
 preview_min_native_version() {
@@ -436,6 +492,7 @@ do_release() {
     echo -e "${BOLD}Version: $current → $new_version${NC}"
     preview_changelog "$new_version"
     preview_min_native_version "origin/main" "origin/dev" "$new_version"
+    preview_released_migration
 
     if $DRY_RUN; then
         info "Dry run complete — no changes made."
@@ -457,6 +514,9 @@ do_release() {
 
     # Move the native min-version forward if the native shell changed since main.
     stamp_min_native_version "origin/main" "origin/dev" "$new_version"
+
+    # Freeze the revisions this release carries.
+    stamp_released_migration
 
     git add VERSION CHANGELOG.md
     git commit -m "bump version to $new_version"
@@ -746,6 +806,7 @@ do_cherry_pick() {
         fi
         # Move the native min-version forward if the cherry-picked changes touch the shell.
         stamp_min_native_version "origin/main" "HEAD" "$new_version"
+        stamp_released_migration
         git commit -m "bump version to $new_version"
     fi
 
