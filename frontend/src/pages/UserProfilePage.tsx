@@ -1,5 +1,5 @@
 import { useParams } from "@tanstack/react-router";
-import { Loader2, UserX } from "lucide-react";
+import { UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
@@ -7,6 +7,7 @@ import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ProfilePageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
@@ -49,11 +50,7 @@ export const UserProfilePage = () => {
   const { data: communities } = useUserCommunities(handle);
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProfilePageSkeleton />;
   }
 
   if (!profile) {

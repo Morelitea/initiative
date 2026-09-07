@@ -1,6 +1,6 @@
 import { useRouter, useSearch } from "@tanstack/react-router";
 import type { SortingState } from "@tanstack/react-table";
-import { LayoutGrid, Loader2, Plus, Table, Tags } from "lucide-react";
+import { LayoutGrid, Plus, Table, Tags } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -38,6 +38,7 @@ import {
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
+import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -713,10 +714,9 @@ export const DocumentsView = ({
           </CardHeader>
         </Card>
       ) : documentsQuery.isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("page.loading")}
-        </div>
+        <SkeletonRegion label={t("page.loading")}>
+          <CardGridSkeleton />
+        </SkeletonRegion>
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">{t("page.loadError")}</p>
       ) : viewMode === "tags" ? (

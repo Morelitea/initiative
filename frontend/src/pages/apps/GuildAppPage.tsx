@@ -25,6 +25,11 @@ import {
   createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
 } from "@/api/generated/apps/apps";
 import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
+import {
+  EditorSkeleton,
+  SkeletonPillRow,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
@@ -247,10 +252,10 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
 
   if (detail.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("common:loading")}
-      </div>
+      <SkeletonRegion className="space-y-4">
+        <SkeletonPillRow count={3} pillClassName="h-8 w-24" />
+        <EditorSkeleton className="min-h-[60vh]" />
+      </SkeletonRegion>
     );
   }
 

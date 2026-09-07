@@ -20,6 +20,8 @@ interface ThemeContextValue {
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
+// Also read by public/theme-boot.js, which paints the first frame in the
+// right theme before this provider mounts; keep the two in step.
 const THEME_STORAGE_KEY = "initiative-theme";
 const THEME_CYCLE: Theme[] = ["system", "light", "dark"];
 

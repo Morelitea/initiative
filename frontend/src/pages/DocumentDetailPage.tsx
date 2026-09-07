@@ -92,6 +92,7 @@ import {
   loadWhiteboardScene,
   stampWhiteboardSceneCache,
 } from "@/components/documents/whiteboardSceneCache";
+import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -932,12 +933,7 @@ export const DocumentDetailPage = () => {
   }
 
   if (documentQuery.isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("detail.loading")}
-      </div>
-    );
+    return <DocumentDetailSkeleton label={t("detail.loading")} />;
   }
 
   if (documentQuery.isError || !document) {

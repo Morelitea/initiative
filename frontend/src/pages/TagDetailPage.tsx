@@ -1,7 +1,6 @@
 import { Navigate, useParams, useRouter } from "@tanstack/react-router";
 import {
   ListTodo,
-  Loader2,
   ScrollText,
   SearchX,
   Settings,
@@ -13,6 +12,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { TagDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TagTasksTable } from "@/components/tasks/TagTasksTable";
 import {
   AlertDialog,
@@ -64,11 +64,7 @@ export const TagDetailPage = () => {
   }
 
   if (tagLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <TagDetailSkeleton />;
   }
 
   if (tagError || !tag) {

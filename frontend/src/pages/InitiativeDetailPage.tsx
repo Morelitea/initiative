@@ -1,11 +1,16 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { ChevronDown, Loader2, SearchX, Settings } from "lucide-react";
+import { ChevronDown, SearchX, Settings } from "lucide-react";
 import { type ComponentType, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
+import {
+  InitiativePageSkeleton,
+  SkeletonRegion,
+  ToolListSkeleton,
+} from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -120,12 +125,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   }
 
   if (initiativeQuery.isLoading || permissionsLoading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("detail.loadingInitiative")}
-      </div>
-    );
+    return <InitiativePageSkeleton label={t("detail.loadingInitiative")} />;
   }
 
   if (!initiative) {
@@ -155,14 +155,14 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     );
   }
 
-  // Local Suspense fallback for tab content — keeps the spinner below the tabs
-  // while a lazily-loaded i18n namespace (queues/events/counters) resolves,
-  // instead of letting the suspension bubble up to a full-page fallback.
+  // Local Suspense fallback for tab content — keeps the placeholder below the
+  // tabs while a lazily-loaded i18n namespace (queues/events/counters)
+  // resolves, instead of letting the suspension bubble up to a full-page
+  // fallback.
   const tabFallback = (
-    <div className="mt-6 flex items-center gap-2 text-muted-foreground text-sm">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {t("common:loading")}
-    </div>
+    <SkeletonRegion className="mt-6">
+      <ToolListSkeleton />
+    </SkeletonRegion>
   );
 
   // Description + counts, rendered inline on wide screens and inside the

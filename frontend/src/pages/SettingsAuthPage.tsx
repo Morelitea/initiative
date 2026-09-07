@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
+import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +70,11 @@ export const SettingsAuthPage = () => {
     if (!isPlatformAdmin) {
       return <p className="text-muted-foreground text-sm">{t("auth.adminOnly")}</p>;
     }
-    return <p className="text-muted-foreground text-sm">{t("auth.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("auth.loading")}>
+        <FormSkeleton fields={5} />
+      </SkeletonRegion>
+    );
   }
 
   if (!isPlatformAdmin) {

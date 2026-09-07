@@ -13,7 +13,7 @@
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Loader2, Search, SearchX, TriangleAlert } from "lucide-react";
+import { Search, SearchX, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +21,7 @@ import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MemberResultRow } from "@/components/search/MemberResultRow";
 import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -266,9 +267,9 @@ function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefi
 
 function Loading() {
   return (
-    <div className="flex h-40 items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-    </div>
+    <SkeletonRegion className="py-2">
+      <ListSkeleton rows={6} />
+    </SkeletonRegion>
   );
 }
 

@@ -4,6 +4,7 @@ import {
   AIConnectionManager,
   type ConnectionMutations,
 } from "@/components/settings/AIConnectionManager";
+import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
@@ -51,7 +52,11 @@ export const SettingsGuildAIPage = () => {
   }
 
   if (modeQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("ai.loading")}>
+        <FormSkeleton fields={2} />
+      </SkeletonRegion>
+    );
   }
 
   if (modeQuery.isError || !modeQuery.data) {

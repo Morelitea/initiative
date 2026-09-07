@@ -14,12 +14,17 @@
  */
 
 import { Link, Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import {
+  FormSkeleton,
+  PageHeaderSkeleton,
+  SettingsPaneSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -78,10 +83,10 @@ export const InitiativeSettingsLayout = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("settings.loadingInitiative")}
-      </div>
+      <SkeletonRegion label={t("settings.loadingInitiative")} className="space-y-6">
+        <PageHeaderSkeleton dot tabs={5} />
+        <FormSkeleton />
+      </SkeletonRegion>
     );
   }
 
@@ -147,7 +152,9 @@ export const InitiativeSettingsLayout = () => {
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />
-      <Outlet />
+      <Suspense fallback={<SettingsPaneSkeleton />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Loader2, Plus, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -43,6 +43,11 @@ import {
   PropertyFilter,
   type PropertyFilterCondition,
 } from "@/components/properties/PropertyFilter";
+import {
+  CalendarPageSkeleton,
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
@@ -723,10 +728,9 @@ export const CalendarsView = ({
       )}
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("loading")}
-        </div>
+        <SkeletonRegion label={t("loading")}>
+          <CardGridSkeleton />
+        </SkeletonRegion>
       ) : guildScope && calendars.length === 0 ? (
         /* An empty grid would read as "nothing is happening" rather than
            "there is nothing to happen in yet". */
@@ -809,7 +813,7 @@ export function CalendarFocusPage() {
   // until the read resolves: a guild calendar (the app) must never flash the
   // guild-wide view, whose fetches reach into initiative content.
   if (!calendar) {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+    return <CalendarPageSkeleton />;
   }
 
   const isGuildCalendar = calendar.initiative_id == null;

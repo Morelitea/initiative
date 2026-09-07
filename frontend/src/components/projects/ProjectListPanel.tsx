@@ -30,6 +30,11 @@ import {
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
+import {
+  CardGridSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
@@ -250,7 +255,13 @@ export const ProjectListPanel = ({
       <ProjectsFilterBar {...view.filterBarProps} />
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">{loadingLabel}</p>
+        <SkeletonRegion label={loadingLabel}>
+          {viewMode === "list" ? (
+            <ListSkeleton rows={4} avatar={false} rowClassName="rounded-lg border bg-card p-4" />
+          ) : (
+            <CardGridSkeleton count={4} className="grid gap-4 md:grid-cols-2" />
+          )}
+        </SkeletonRegion>
       ) : isError ? (
         <p className="text-destructive text-sm">{errorLabel}</p>
       ) : projects.length === 0 ? (

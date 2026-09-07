@@ -13,16 +13,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import {
-  ArrowDownUp,
-  ArrowLeft,
-  LayoutGrid,
-  List,
-  Loader2,
-  Plus,
-  RotateCcw,
-  Settings,
-} from "lucide-react";
+import { ArrowDownUp, ArrowLeft, LayoutGrid, List, Plus, RotateCcw, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -34,6 +25,11 @@ import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import {
+  CardGridSkeleton,
+  DetailPageSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -175,10 +171,11 @@ export function CounterGroupDetailPage() {
 
   if (groupQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("loadingGroup")}
-      </div>
+      <SkeletonRegion label={t("loadingGroup")}>
+        <DetailPageSkeleton actions={4}>
+          <CardGridSkeleton count={3} />
+        </DetailPageSkeleton>
+      </SkeletonRegion>
     );
   }
 

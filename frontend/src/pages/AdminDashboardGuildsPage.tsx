@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -420,7 +421,11 @@ export const AdminDashboardGuildsPage = () => {
   }
 
   if (guildsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("guilds.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("guilds.loading")}>
+        <TableSkeleton rows={6} columns={5} />
+      </SkeletonRegion>
+    );
   }
 
   if (guildsQuery.isError || !guildsQuery.data) {
