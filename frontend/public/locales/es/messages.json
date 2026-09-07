@@ -38,7 +38,8 @@
     "noMatches": "Nadie coincide.",
     "empty": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
     "unreachable": "No disponible",
-    "showMore": "Mostrar más"
+    "showMore": "Mostrar más",
+    "favorites": "Favoritos"
   },
   "receipt": {
     "sent": "Enviado",

@@ -193,10 +193,10 @@ export function MyMessagesPage() {
 
   // An account that has not answered the age question cannot message anybody
   // and nobody can message it, so there is no list to show and no conversation
-  // to open: every control on this page would refuse. The question is the
-  // page, the way it is on My Contacts, rather than a notice on top of an
-  // empty one -- and it is asked here rather than only in Settings, because
-  // this is where somebody arrives wanting to use the thing it gates.
+  // to open: every control on this page would refuse. So the question is the
+  // page, rather than a notice on top of an empty one -- and it is asked here
+  // as well as in Settings, because this is where somebody arrives wanting to
+  // use the thing it gates.
   if (settingsLoaded && !canMessage) {
     return (
       <div className="space-y-4">

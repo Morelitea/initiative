@@ -2,7 +2,7 @@
  * The roster a community's member count leads to.
  *
  * The page adds a surface rather than a source: it asks the same contacts
- * aggregate My Contacts reads, for one community. So what is worth asserting
+ * aggregate the new-conversation picker reads, for one community. So what is worth asserting
  * here is that it asks for the right one, pages within it, and offers each
  * person the same way in that they get anywhere else.
  */

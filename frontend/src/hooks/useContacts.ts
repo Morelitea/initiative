@@ -1,11 +1,14 @@
 /**
- * The reads and one write behind My Contacts.
+ * Who there is to reach, and the one write that stars them.
  *
- * The sections are a single server-side aggregate — the backend walks the
+ * The rosters are a single server-side aggregate — the backend walks the
  * reader's communities the way every other "my" page does — and the starred
  * list is a second read, because a favorite may be somebody you share no
- * community with. Paging one community deeper is a third: a request for that
- * community alone.
+ * community with. Growing one community past its first page is a third: a
+ * request for that community alone.
+ *
+ * These were My Contacts' reads; the page is gone and the new-conversation
+ * picker on My Messages makes them now.
  */
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,15 +18,14 @@ import {
   getListContactSectionsApiV1MeContactsGetQueryKey,
   getListFavoriteContactsApiV1MeContactsFavoritesGetQueryKey,
   listContactSectionsApiV1MeContactsGet,
-  listFavoriteContactsApiV1MeContactsFavoritesGet,
   useAddFavoriteContactApiV1MeContactsFavoritesUserIdPut,
   useListContactSectionsApiV1MeContactsGet,
   useListFavoriteContactsApiV1MeContactsFavoritesGet,
   useRemoveFavoriteContactApiV1MeContactsFavoritesUserIdDelete,
 } from "@/api/generated/contacts/contacts";
 
-/** Members shown per community at a time. */
-export const CONTACTS_PAGE_SIZE = 20;
+/** Members read per community at a time. */
+const CONTACTS_PAGE_SIZE = 20;
 
 /** How long a page of a community stays fresh enough to reuse. */
 const PAGE_STALE_MS = 30_000;
@@ -33,26 +35,12 @@ const sectionParams = (search: string) =>
 
 const favoriteParams = (search: string) => (search.trim() ? { search } : undefined);
 
-/** One community, one page — the request a section makes for itself. */
+/** One community, one page — the request a roster makes for itself. */
 const guildPageParams = (guildId: number, page: number, search: string) => ({
   guild_ids: [guildId],
   page,
   page_size: CONTACTS_PAGE_SIZE,
   ...(search.trim() ? { search } : {}),
-});
-
-/** Query keys and params the route loader prefetches under. */
-export const contactsPrefetch = (search: string) => ({
-  sections: {
-    params: sectionParams(search),
-    queryKey: getListContactSectionsApiV1MeContactsGetQueryKey(sectionParams(search)),
-    queryFn: () => listContactSectionsApiV1MeContactsGet(sectionParams(search)),
-  },
-  favorites: {
-    params: favoriteParams(search),
-    queryKey: getListFavoriteContactsApiV1MeContactsFavoritesGetQueryKey(favoriteParams(search)),
-    queryFn: () => listFavoriteContactsApiV1MeContactsFavoritesGet(favoriteParams(search)),
-  },
 });
 
 /**
@@ -67,8 +55,11 @@ export const useContactSections = (search: string, options?: { enabled?: boolean
     query: { enabled: options?.enabled ?? true },
   });
 
-export const useFavoriteContacts = (search: string) =>
-  useListFavoriteContactsApiV1MeContactsFavoritesGet(favoriteParams(search));
+/** The reader's starred people. `enabled` for the same reason as above. */
+export const useFavoriteContacts = (search: string, options?: { enabled?: boolean }) =>
+  useListFavoriteContactsApiV1MeContactsFavoritesGet(favoriteParams(search), {
+    query: { enabled: options?.enabled ?? true },
+  });
 
 /**
  * A page of one community beyond its first.
@@ -77,10 +68,6 @@ export const useFavoriteContacts = (search: string) =>
  * once a reader pages a section forward. Each page is its own cache entry, so
  * stepping back to one already read is immediate.
  */
-export const useContactSectionPage = (guildId: number, page: number, search: string) =>
-  useListContactSectionsApiV1MeContactsGet(guildPageParams(guildId, page, search), {
-    query: { enabled: page > 1, staleTime: PAGE_STALE_MS },
-  });
 
 /**
  * Everybody else in one community, past the first page.
@@ -103,24 +90,6 @@ export const useMoreCommunityContacts = (guildId: number, search: string, enable
     enabled,
     staleTime: PAGE_STALE_MS,
   });
-
-/** Warm the page a pager button would land on, before it is clicked. */
-export const usePrefetchContactSectionPage = () => {
-  const queryClient = useQueryClient();
-
-  return useCallback(
-    (guildId: number, page: number, search: string) => {
-      if (page <= 1) return;
-      const params = guildPageParams(guildId, page, search);
-      void queryClient.prefetchQuery({
-        queryKey: getListContactSectionsApiV1MeContactsGetQueryKey(params),
-        queryFn: () => listContactSectionsApiV1MeContactsGet(params),
-        staleTime: PAGE_STALE_MS,
-      });
-    },
-    [queryClient]
-  );
-};
 
 /**
  * Star or unstar somebody.

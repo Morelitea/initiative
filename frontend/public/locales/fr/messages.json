@@ -38,7 +38,8 @@
     "noMatches": "Personne ne correspond.",
     "empty": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
     "unreachable": "Injoignable",
-    "showMore": "Afficher plus"
+    "showMore": "Afficher plus",
+    "favorites": "Favoris"
   },
   "receipt": {
     "sent": "Envoyé",

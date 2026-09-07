@@ -40,7 +40,7 @@ You decide, under **User settings → Privacy**. The setting covers who may *ask
 Every one of these ends in a **request** you accept or decline. *Anyone* widens who may ask; it never lets somebody write to you unasked.
 
 !!! info "New accounts start Private"
-    Which means nobody can reach you until you open it up — and your [My Contacts](your-space.md#my-contacts) sections start empty for the same reason. Whoever runs your server picks the setting new accounts are created with, and the shipped default is **Private**. Changing it later affects only accounts made after the change; it never opens or closes an existing one.
+    Which means nobody can reach you until you open it up — and your [My Messages](your-space.md#my-messages) list starts empty for the same reason. Whoever runs your server picks the setting new accounts are created with, and the shipped default is **Private**. Changing it later affects only accounts made after the change; it never opens or closes an existing one.
 
 Whatever you choose, a **connection** always lets the two of you message each other. That's the point of one.
 
@@ -54,7 +54,7 @@ Whatever you choose, a **connection** always lets the two of you message each ot
 
 A connection is a mutual link between two accounts. Someone asks, you accept, and from then on you can reach each other — even if you stop sharing a community, or never shared one.
 
-Add someone by their full handle, including the number (`sam#1234`), from **User settings → Privacy → Connections**, or from the actions menu on their row in **My Contacts** or on their profile.
+Add someone by their full handle, including the number (`sam#1234`), from **User settings → Privacy → Connections**, from the **+** on My Messages, or from the actions menu on their profile.
 
 Removing a connection asks you to confirm, because it may take your ability to message each other with it — Initiative tells you which case you're in before you decide.
 
@@ -64,11 +64,11 @@ If you're not connected, you send a **request to message**. A request is exactly
 
 Accept it and a conversation opens for both of you. Decline it and the request simply goes away — there's no "declined" state left hanging over anybody, and either of you can ask again another time.
 
-Requests waiting on you are under **User settings → Privacy → Pending**, and on **My Contacts**.
+Requests waiting on you are on **My Messages**, above the conversations, and under **User settings → Privacy → Pending**.
 
 ## Ignoring someone
 
-Ignoring is the firm answer, for when the polite one hasn't worked. From the actions menu on any profile or contact row, choose **Ignore**.
+Ignoring is the firm answer, for when the polite one hasn't worked. From the actions menu on any profile, conversation or roster row, choose **Ignore**.
 
 An ignored account stops reaching you entirely: no notification when they mention, reply to, or react to you, and nothing they send arrives — messages, message requests, connection requests. They're not told. You'll still see each other's activity in communities you share, and you can both use every tool normally, because ignoring is about contact rather than about work.
 
@@ -103,5 +103,5 @@ The tools that *do* work are the ones above: people control who can reach them, 
 ## Related
 
 - [Private messages](../security/private-messages.md) — what encryption does and doesn't cover, and what can be handed over.
-- [Your space](your-space.md#my-contacts) — finding the people you know.
+- [Your space](your-space.md#my-messages) — finding the people you know.
 - [Notifications](notifications.md) — choosing what you're told about.

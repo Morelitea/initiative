@@ -38,7 +38,8 @@
     "noMatches": "Nobody matches.",
     "empty": "Nobody to show. You share no communities with anyone yet.",
     "unreachable": "Not reachable",
-    "showMore": "Show more"
+    "showMore": "Show more",
+    "favorites": "Favorites"
   },
   "receipt": {
     "sent": "Sent",

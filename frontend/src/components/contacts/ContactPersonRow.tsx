@@ -25,9 +25,9 @@ interface ContactPersonRowProps {
  * One person in a contacts *ledger* — connections, pending requests, ignored
  * accounts — wherever that ledger is rendered.
  *
- * Distinct from `ContactRow`, which is the directory row on My Contacts: that
- * one sits on the page's shared column template and opens a conversation. This
- * is a list item with buttons, and the two are not the same shape.
+ * A list item with buttons, not a row you click through: the thing to do about
+ * somebody in a ledger is answer them, so the actions are on the row rather
+ * than behind it.
  */
 export const ContactPersonRow = ({ user, detail, children }: ContactPersonRowProps) => (
   <li className="flex items-center gap-3 py-2">

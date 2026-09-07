@@ -3,7 +3,7 @@
  *
  * What is worth asserting here is what moved: that a row addresses its person
  * rather than holding a selection of its own, that somebody waiting on an
- * answer can be answered without leaving for My Contacts, and that the arrow
+ * answer can be answered without leaving the list, and that the arrow
  * climbs back out. The thread itself is the page's business and is proved
  * there.
  */
@@ -113,7 +113,7 @@ describe("the messages sidebar", () => {
     );
   });
 
-  it("answers somebody waiting without leaving for My Contacts", async () => {
+  it("answers somebody waiting without leaving the list", async () => {
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [], incoming: [grant(9, "robin")], outgoing: [] },
     });

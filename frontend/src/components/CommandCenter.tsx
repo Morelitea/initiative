@@ -14,7 +14,7 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
@@ -249,7 +249,6 @@ export function CommandCenter() {
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myTools"), path: "/my-tools", icon: LayoutGrid },
-      { label: t("pages.myContacts"), path: "/contacts", icon: Users },
       { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.mySettings"), path: "/profile", icon: UserCog },

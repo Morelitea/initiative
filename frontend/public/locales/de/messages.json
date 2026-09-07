@@ -38,7 +38,8 @@
     "noMatches": "Niemand passt dazu.",
     "empty": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
     "unreachable": "Nicht erreichbar",
-    "showMore": "Mehr anzeigen"
+    "showMore": "Mehr anzeigen",
+    "favorites": "Favoriten"
   },
   "receipt": {
     "sent": "Gesendet",

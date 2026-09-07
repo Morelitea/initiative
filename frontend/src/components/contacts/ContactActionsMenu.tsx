@@ -62,8 +62,8 @@ interface ContactActionsMenuProps {
  * Until this existed the writes had no caller: ignoring was reachable only by
  * already knowing somebody's exact handle and opening Settings, which is the
  * opposite of the moment somebody reaches for it. So the menu goes where the
- * person is — their profile, their row on My Contacts, a community's roster,
- * a conversation in the list.
+ * person is — their profile, a community's roster, a conversation in the
+ * list, a row in the picker.
  *
  * It holds *everything* one account can do about another, and each surface
  * names only what it already offers beside it. That way the menu is the
