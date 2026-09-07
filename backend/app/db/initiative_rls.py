@@ -658,6 +658,10 @@ INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
 #:
 #: Membership is a statement about the table, not about the gate: initiative
 #: membership and the schema boundary still apply in full.
+#: Responding to something asks nothing of write — named, so the tables that
+#: are one gesture and its bookkeeping cannot drift apart.
+_RESPONDING: frozenset[str] = frozenset()
+
 DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
     "project_orders": frozenset(),
     "project_favorites": frozenset(),
@@ -665,8 +669,12 @@ DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
     "post_reads": frozenset(),
     "post_poll_votes": frozenset(),
     "calendar_event_attendees": frozenset(),
-    "comments": frozenset(),
-    "reactions": frozenset(),
+    "comments": _RESPONDING,
+    "reactions": _RESPONDING,
+    # The queued line describing a reaction is written in the SAME request as
+    # the reaction, so it answers at the same level. It shares
+    # ``reactions_path``; this is the other half of that sharing.
+    "reaction_digest_items": _RESPONDING,
 }
 
 #: The default: a command that writes asks at write level.
