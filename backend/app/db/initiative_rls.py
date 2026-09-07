@@ -42,91 +42,6 @@ PathBuilder = Callable[[str, bool], str]
 # expression yielding that row's initiative id (or NULL).
 RowLocator = Callable[[str], str]
 
-# A DAC builder has the same shape as a PathBuilder but may answer None, for a
-# table no tool's sharing governs — the guild's own vocabulary, an initiative's
-# configuration. None renders no leg at all rather than a `true` one.
-DacBuilder = Callable[[str, bool], "str | None"]
-
-#: Every tool's own table, keyed by table name. The sharing gate is DERIVED from
-#: this rather than declared per table: a row is governed by the tool it belongs
-#: to, and a table that belongs to none is governed by none. So a seventh tool
-#: gates its own rows and its children's the day its table exists.
-_TOOL_BY_TABLE: dict[str, Tool] = {tool.plural: tool for tool in Tool}
-
-
-@dataclass(frozen=True)
-class DacPath:
-    """How a row names the resource whose sharing governs it — gate 4, as SQL.
-
-    ``predicate`` renders the ``public.resource_access(...)`` leg that the
-    table's policies AND onto the initiative one, or None where nothing governs
-    the table. ``self_governed`` marks a table that IS the shared resource; its
-    INSERT carries no leg, because a resource has no sharing until it exists
-    (see ``app.db.guild_ddl``).
-    """
-
-    predicate: DacBuilder
-    self_governed: bool = False
-
-
-def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
-    """One ``public.resource_access`` call, in policy form."""
-    return (
-        f"public.resource_access({tool}, {resource_id}, {_UID}, "
-        f"{initiative}, {'true' if write else 'false'})"
-    )
-
-
-def _dac_self(tool: Tool | None = None) -> DacPath:
-    """The row IS the shared resource. Which tool that is comes from the table
-    name at render time, so a table that is no tool's renders nothing; a caller
-    reaching the table under an alias (reactions, below) names the tool itself.
-    """
-
-    def build(t: str, w: bool) -> str | None:
-        governing = tool if tool is not None else _TOOL_BY_TABLE.get(t)
-        if governing is None:
-            return None
-        return _resource_call(
-            f"'{governing.value}'", f"{t}.id", f"{t}.initiative_id", w
-        )
-
-    return DacPath(predicate=build, self_governed=True)
-
-
-def _dac_via(
-    parent: str, fk: str, *, parent_pk: str = "id", alias: str = "dac"
-) -> DacPath:
-    """The row is shared as part of its parent — a task by its project."""
-    tool = _TOOL_BY_TABLE.get(parent)
-    if tool is None:
-        return DacPath(predicate=lambda t, w: None)
-
-    return DacPath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} {alias} "
-            f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
-            + _resource_call(
-                f"'{tool.value}'", f"{alias}.id", f"{alias}.initiative_id", w
-            )
-            + ")"
-        )
-    )
-
-
-def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
-    """Two hops to the governing resource: ``table.<fk> -> mid -> parent`` — a
-    subtask by its task's project, an attendee by its event's calendar."""
-    tool = _TOOL_BY_TABLE[parent]
-    return DacPath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
-            f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
-            + _resource_call("'" + tool.value + "'", "dpar.id", "dpar.initiative_id", w)
-            + ")"
-        )
-    )
-
 
 @dataclass(frozen=True)
 class InitiativePath:
@@ -141,10 +56,6 @@ class InitiativePath:
 
     predicate: PathBuilder
     initiative_expr: RowLocator
-    #: The sharing leg (gate 4), ANDed onto ``predicate`` by the DDL renderer.
-    #: Derived by the factories below from the parent a table already declares,
-    #: so it is never a second list to keep in step.
-    dac: DacPath | None = None
 
 
 #: The routed guild-admin leg, for rows that span every initiative in a guild.
@@ -155,12 +66,23 @@ def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
 
+def _resource_access(table: str, write: bool) -> str:
+    """The sharing decision for a row that stores which resource governs it.
+
+    ``dac_tool``/``dac_id`` name that resource — often a parent — so the check
+    needs no join. A NULL ``dac_tool`` means the row answers to no sharing.
+    """
+    return (
+        f"public.resource_access({table}.dac_tool, {table}.dac_id, {_UID}, "
+        f"{table}.initiative_id, {'true' if write else 'false'})"
+    )
+
+
 def direct() -> InitiativePath:
     """The table has its own ``initiative_id`` column."""
     return InitiativePath(
         predicate=lambda t, w: _access(f"{t}.initiative_id", w),
         initiative_expr=lambda r: f"{r}.initiative_id",
-        dac=_dac_self(),
     )
 
 
@@ -176,7 +98,6 @@ def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.{parent_pk} = {r}.{fk})"
         ),
-        dac=_dac_via(parent, fk, parent_pk=parent_pk),
     )
 
 
@@ -192,7 +113,6 @@ def via_task_project(fk: str = "task_id") -> InitiativePath:
             f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
             f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.{fk})"
         ),
-        dac=_dac_two_hop("tasks", "project_id", "projects", fk),
     )
 
 
@@ -208,7 +128,6 @@ def via_queue_item(fk: str = "queue_item_id") -> InitiativePath:
             f"(SELECT q.initiative_id FROM queue_items qi "  # noqa: S608
             f"JOIN queues q ON q.id = qi.queue_id WHERE qi.id = {r}.{fk})"
         ),
-        dac=_dac_two_hop("queue_items", "queue_id", "queues", fk),
     )
 
 
@@ -224,7 +143,6 @@ def via_post_poll(fk: str = "poll_id") -> InitiativePath:
             f"(SELECT po.initiative_id FROM post_polls pp "  # noqa: S608
             f"JOIN posts po ON po.id = pp.post_id WHERE pp.id = {r}.{fk})"
         ),
-        dac=_dac_two_hop("post_polls", "post_id", "posts", fk),
     )
 
 
@@ -241,12 +159,11 @@ def via_event_calendar(fk: str = "calendar_event_id") -> InitiativePath:
             f"(SELECT cal.initiative_id FROM calendar_events ce "  # noqa: S608
             f"JOIN calendars cal ON cal.id = ce.calendar_id WHERE ce.id = {r}.{fk})"
         ),
-        dac=_dac_two_hop("calendar_events", "calendar_id", "calendars", fk),
     )
 
 
 def via_property(
-    entity_from: str, entity_pred: str, entity_init: str, dac: DacPath | None = None
+    entity_from: str, entity_pred: str, entity_init: str
 ) -> InitiativePath:
     """Property-value rows: join the entity and ``property_definitions`` and
     require both resolve to the SAME initiative, then check access on it.
@@ -273,7 +190,6 @@ def via_property(
             f"(SELECT pd.initiative_id FROM property_definitions pd "  # noqa: S608
             f"WHERE pd.id = {r}.property_id)"
         ),
-        dac=dac,
     )
 
 
@@ -305,28 +221,6 @@ _COMMENT_PARENTS: tuple[tuple[str, str, str, str], ...] = (
 COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(col for col, *_ in _COMMENT_PARENTS)
 
 
-def _comments_dac() -> DacPath:
-    """Which tool's sharing governs a comment — its one parent's.
-
-    Derived from ``_COMMENT_PARENTS``, so the sharing legs and the membership
-    legs are the same list read twice. A comment on a task is the one parent
-    whose resource is not its own column: a task is shared as part of its
-    project.
-    """
-
-    def build(t: str, w: bool) -> str:
-        legs = []
-        for col, *_ in _COMMENT_PARENTS:
-            if col == "task_id":
-                leg = _dac_two_hop("tasks", "project_id", "projects", col)
-            else:
-                leg = _dac_via(Tool(col.removesuffix("_id")).plural, col)
-            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, w)})")
-        return "(" + " OR ".join(legs) + ")"
-
-    return DacPath(predicate=build)
-
-
 def comments_path() -> InitiativePath:
     """Comments hang off exactly one parent — a task or any tool entity —
     declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
@@ -347,7 +241,7 @@ def comments_path() -> InitiativePath:
         )
         return f"COALESCE({lookups})"
 
-    return InitiativePath(predicate=build, initiative_expr=locate, dac=_comments_dac())
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
 def reactions_path() -> InitiativePath:
@@ -363,25 +257,6 @@ def reactions_path() -> InitiativePath:
         ReactionTarget.comment: comments_path(),
         ReactionTarget.post: direct(),
     }
-    # The same targets, read for sharing. A post answers for itself and is
-    # named explicitly, because under an alias the table name no longer says
-    # which tool it is.
-    dac_legs: dict[ReactionTarget, DacPath] = {
-        ReactionTarget.comment: _comments_dac(),
-        ReactionTarget.post: _dac_self(Tool.post),
-    }
-
-    def build_dac(t: str, w: bool) -> str:
-        return (
-            "("
-            + " OR ".join(
-                f"({t}.target_type = '{target.value}' AND EXISTS ("
-                f"SELECT 1 FROM {target.table} rdac WHERE rdac.id = {t}.target_id "
-                f"AND {path.predicate('rdac', w)}))"
-                for target, path in dac_legs.items()
-            )
-            + ")"
-        )
 
     def build(t: str, w: bool) -> str:
         return (
@@ -404,9 +279,7 @@ def reactions_path() -> InitiativePath:
         )
         return f"(CASE {r}.target_type {arms} END)"
 
-    return InitiativePath(
-        predicate=build, initiative_expr=locate, dac=DacPath(predicate=build_dac)
-    )
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
@@ -458,15 +331,9 @@ def search_entries_path() -> InitiativePath:
             f"(CASE WHEN {t}.initiative_id IS NULL "
             f"THEN true "
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+            f" AND {_resource_access(t, w)}"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",
-        # The index stores the governing pair, so the leg needs no join. Every
-        # other table derives the same call from its parent.
-        dac=DacPath(
-            predicate=lambda t, w: _resource_call(
-                f"{t}.dac_tool", f"{t}.dac_id", f"{t}.initiative_id", w
-            )
-        ),
     )
 
 
@@ -487,17 +354,7 @@ def recent_views_path() -> InitiativePath:
         )
         return f"(CASE {r}.entity_type {arms} END)"
 
-    def build_dac(t: str, w: bool) -> str:
-        legs = [
-            f"({t}.entity_type = '{etype}' AND "
-            f"{_dac_via(tbl, 'entity_id').predicate(t, w)})"
-            for etype, tbl in RECENT_ENTITY_TABLES.items()
-        ]
-        return "(" + " OR ".join(legs) + ")"
-
-    return InitiativePath(
-        predicate=build, initiative_expr=locate, dac=DacPath(predicate=build_dac)
-    )
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
 def document_links_path() -> InitiativePath:
@@ -512,18 +369,9 @@ def document_links_path() -> InitiativePath:
             f"AND {_access('documents.initiative_id', w)})"
         )
 
-    def _dac_leg(fk: str, t: str, w: bool) -> str:
-        return str(_dac_via("documents", fk, alias=f"dac_{fk}").predicate(t, w))
-
     return InitiativePath(
         predicate=lambda t, w: (
             f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
-        ),
-        dac=DacPath(
-            predicate=lambda t, w: (
-                f"({_dac_leg('source_document_id', t, w)} AND "
-                f"{_dac_leg('target_document_id', t, w)})"
-            )
         ),
         # Both endpoints clear the same gate to exist, so the source names the
         # initiative the link belongs to.
@@ -547,9 +395,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "dashboards": direct(),
     "posts": direct(),
     "property_definitions": direct(),
-    # Sharing itself. It carries no sharing leg of its own: resource_access
-    # reads this table, so a policy here that called it would not resolve.
-    # ``direct()`` derives none, because the table is no tool's own.
     "resource_grants": direct(),
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
@@ -602,22 +447,17 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "calendar_event_tags": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
-        "documents d",
-        "d.id = {t}.document_id",
-        "d.initiative_id",
-        _dac_via("documents", "document_id"),
+        "documents d", "d.id = {t}.document_id", "d.initiative_id"
     ),
     "task_property_values": via_property(
         "tasks tk JOIN projects pr ON pr.id = tk.project_id",
         "tk.id = {t}.task_id",
         "pr.initiative_id",
-        _dac_two_hop("tasks", "project_id", "projects", "task_id"),
     ),
     "calendar_event_property_values": via_property(
         "calendar_events ce JOIN calendars cal ON cal.id = ce.calendar_id",
         "ce.id = {t}.event_id",
         "cal.initiative_id",
-        _dac_two_hop("calendar_events", "calendar_id", "calendars", "event_id"),
     ),
     # Multi-parent
     "comments": comments_path(),
@@ -636,62 +476,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 
 # Derived — the classification follows the registry, never duplicates it.
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
-
-
-#: Which commands ask the sharing gate at WRITE level, for the tables that
-#: deviate from the default — where every writing command does.
-#:
-#: An entry states what the table's own endpoints state, so the policy and the
-#: service ask the same question of the same row:
-#:
-#: - **Nothing** for a reader's own record OF a resource — a favourite, a view,
-#:   a read receipt, a poll answer, an RSVP. Reordering and favouriting a
-#:   project, recording a view, marking a notice read, answering a poll and
-#:   answering an invitation are all endpoints that take read access; the RSVP
-#:   one says so in as many words ("RSVPing is answering an invitation, not
-#:   editing the event").
-#: - **Nothing** for comments and reactions. Responding to something is not
-#:   editing it: you may answer a notice you cannot rewrite. What gates a
-#:   response is whether you can reach the thing at all, plus the thread's own
-#:   switch — so every command here asks at read, and the switch is the
-#:   endpoint's to apply.
-#:
-#: Membership is a statement about the table, not about the gate: initiative
-#: membership and the schema boundary still apply in full.
-#: Responding to something asks nothing of write — named, so the tables that
-#: are one gesture and its bookkeeping cannot drift apart.
-_RESPONDING: frozenset[str] = frozenset()
-
-DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
-    "project_orders": frozenset(),
-    "project_favorites": frozenset(),
-    "recent_views": frozenset(),
-    "post_reads": frozenset(),
-    "post_poll_votes": frozenset(),
-    "calendar_event_attendees": frozenset(),
-    "comments": _RESPONDING,
-    "reactions": _RESPONDING,
-    # The queued line describing a reaction is written in the SAME request as
-    # the reaction, so it answers at the same level. It shares
-    # ``reactions_path``; this is the other half of that sharing.
-    "reaction_digest_items": _RESPONDING,
-}
-
-#: The default: a command that writes asks at write level.
-ALL_WRITE_COMMANDS: frozenset[str] = frozenset({"INSERT", "UPDATE", "DELETE"})
-
-assert DAC_WRITE_COMMANDS.keys() <= INITIATIVE_SCOPED_TABLES, (
-    "DAC_WRITE_COMMANDS names a table that is not initiative-scoped: "
-    f"{sorted(DAC_WRITE_COMMANDS.keys() - INITIATIVE_SCOPED_TABLES)}"
-)
-assert all(
-    commands <= ALL_WRITE_COMMANDS for commands in DAC_WRITE_COMMANDS.values()
-), "DAC_WRITE_COMMANDS names a command that does not write"
-
-
-def dac_asks_at_write(table: str, command: str) -> bool:
-    """Whether ``table``'s sharing leg asks at write level for ``command``."""
-    return command in DAC_WRITE_COMMANDS.get(table, ALL_WRITE_COMMANDS)
 
 
 # ---------------------------------------------------------------------------

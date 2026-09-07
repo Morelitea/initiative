@@ -207,12 +207,17 @@ async def list_project_ids_for_export(
     still enforce their own access level per entity."""
     from sqlmodel import select
 
+    from app.core.tools import Tool
     from app.models.tenant.project import Project
+    from app.services import permissions as permissions_service
 
     if not initiative_ids:
         return []
     conditions = [
         Project.initiative_id.in_(initiative_ids),
+        permissions_service.dac_scope_clause(
+            Tool.project, Project.id, current_user.id, guild_id=guild_id
+        ),
     ]
     statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
     return list(await session.exec(statement))

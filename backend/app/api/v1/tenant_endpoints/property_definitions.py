@@ -18,6 +18,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import PropertyMessages
+from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -43,6 +44,7 @@ from app.schemas.tenant.tag import (
     TaggedEventSummary,
     TaggedTaskSummary,
 )
+from app.services import permissions as permissions_service
 from app.services.tenant import properties as properties_service
 
 router = APIRouter()
@@ -335,11 +337,25 @@ async def get_property_entities(
     """
     defn = await _get_definition_or_404(session, definition_id)
 
+    task_project_scope = permissions_service.dac_scope_clause(
+        Tool.project,
+        Task.project_id,
+        current_user.id,
+        guild_id=guild_context.guild_id,
+    )
+    doc_scope = permissions_service.dac_scope_clause(
+        Tool.document,
+        Document.id,
+        current_user.id,
+        guild_id=guild_context.guild_id,
+    )
+
     tasks_stmt = (
         select(Task)
         .join(TaskPropertyValue, TaskPropertyValue.task_id == Task.id)
         .where(
             TaskPropertyValue.property_id == defn.id,
+            task_project_scope,
         )
         .options(selectinload(Task.project))
     )
@@ -360,6 +376,7 @@ async def get_property_entities(
         .join(DocumentPropertyValue, DocumentPropertyValue.document_id == Document.id)
         .where(
             DocumentPropertyValue.property_id == defn.id,
+            doc_scope,
         )
         .options(selectinload(Document.initiative))
     )

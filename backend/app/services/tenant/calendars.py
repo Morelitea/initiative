@@ -168,9 +168,14 @@ async def list_calendar_ids_for_export(
     applies in both shapes — the narrowing composes with it rather than
     replacing it, so a disabled initiative exports nothing here just as it
     lists nothing everywhere else."""
+    from app.services import permissions as permissions_service
 
     conditions = [
         tool_enabled_clause(),
+        # The same sharing gate the list endpoint applies.
+        permissions_service.dac_scope_clause(
+            Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
+        ),
     ]
     if initiative_id is not None:
         conditions.append(Calendar.initiative_id == initiative_id)

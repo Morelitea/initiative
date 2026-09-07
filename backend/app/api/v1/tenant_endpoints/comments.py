@@ -19,6 +19,9 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User
+from app.services.permissions import (
+    dac_scope_clause,
+)
 from app.schemas.tenant.comment import (
     CommentAuthor,
     CommentCreate,
@@ -129,7 +132,15 @@ async def recent_comments(
     legs = [
         and_(
             Comment.task_id.isnot(None),
-            Comment.task_id.in_(select(Task.id)),
+            Comment.task_id.in_(
+                select(Task.id)
+                .join(Project, Project.id == Task.project_id)
+                .where(
+                    dac_scope_clause(
+                        Tool.project, Project.id, user_id, guild_id=guild_id
+                    )
+                )
+            ),
         )
     ]
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
@@ -137,7 +148,10 @@ async def recent_comments(
         fk = getattr(Comment, target.column)
         # The entity's own comment switch gates its thread, so it gates the
         # feed too.
-        parent_ids = select(model.id).where(model.comments_enabled.is_(True))
+        parent_ids = select(model.id).where(
+            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id),
+            model.comments_enabled.is_(True),
+        )
         if target.feature_disabled is not None:
             # The tool's master switch gates the thread, so it gates the feed
             # too. A parent that names no initiative (a guild calendar) has no
