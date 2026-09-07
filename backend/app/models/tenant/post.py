@@ -75,6 +75,14 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         ),
     )
     name: str = Field(nullable=False, max_length=255)
+    # The counterpart to ``comments_enabled``: a notice people read without
+    # reacting to it. On posts rather than in a mixin, because reactions hang
+    # off comments and off posts and off nothing else.
+    reactions_enabled: bool = Field(
+        default=True,
+        nullable=False,
+        sa_column_kwargs={"server_default": "true"},
+    )
     body: dict = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),

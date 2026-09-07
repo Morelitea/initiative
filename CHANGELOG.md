@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A notice can take reactions, or not.** Posts now have a reactions switch beside the comments one, under the notice's settings. It is on to begin with, so nothing changes until you turn it off — and turning it off keeps the reactions already there, the way turning a thread off keeps its comments; the board simply stops showing the bar until you turn it back on. Reactions belong to comments and to notices and to nothing else, so this is the one place the switch appears.
+
 ### Changed
 
 - **Viewing something now lets you join the conversation about it.** Anyone a project, document, notice, queue, counter group or calendar has been shared with as a viewer can comment on it and react, where both used to take edit access. Answering something is not editing it — you can reply to a notice you have no business rewriting, the way you always could on a thread you were merely reading. Whether a thread is open at all is still the tool's own comment setting, and a viewer still cannot change the thing itself.

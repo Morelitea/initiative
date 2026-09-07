@@ -343,6 +343,7 @@ class ReactionMessages:
     NOT_FOUND = "REACTION_NOT_FOUND"
     INVALID_EMOJI = "REACTION_INVALID_EMOJI"
     TOO_MANY = "REACTION_TOO_MANY"
+    DISABLED = "REACTION_DISABLED"
 
 
 class SettingsMessages:

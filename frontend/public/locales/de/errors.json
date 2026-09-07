@@ -548,5 +548,6 @@
   "POST_POLL_DUPLICATE_CHOICE": "Zwei Antwortmöglichkeiten sagen dasselbe.",
   "POST_POLL_RESULTS_HIDDEN": "Die Ergebnisse bleiben verborgen, bis du abgestimmt hast.",
   "POST_POLL_NOT_PUBLISHED": "Dieser Beitrag ist noch nicht veröffentlicht, seine Umfrage kann nicht beantwortet werden.",
-  "UNKNOWN_TIMEZONE": "Diese Zeitzone kennen wir nicht."
+  "UNKNOWN_TIMEZONE": "Diese Zeitzone kennen wir nicht.",
+  "REACTION_DISABLED": "Diese Mitteilung nimmt keine Reaktionen an."
 }

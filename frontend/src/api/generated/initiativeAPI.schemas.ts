@@ -4495,6 +4495,7 @@ export interface PostRead {
   read_count: number;
   my_permission_level: string | null;
   comments_enabled: boolean;
+  reactions_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -4519,6 +4520,17 @@ export interface PostListResponse {
 export interface PostPinUpdate {
   pinned?: boolean;
   expires_at?: string | null;
+}
+
+/**
+ * The reactions switch on one notice — the body and the reply of
+ * ``PUT /posts/{post_id}/reactions``.
+ *
+ * The comment switch has a generic route because every tool is commentable;
+ * this one does not, because only a post takes reactions of its own.
+ */
+export interface PostReactionSettings {
+  reactions_enabled: boolean;
 }
 
 /**

@@ -61,6 +61,7 @@ from app.schemas.tenant.post import (
     PostListResponse,
     PostPinUpdate,
     PostRead,
+    PostReactionSettings,
     PostUpdate,
     post_body_too_long,
     post_reader,
@@ -818,6 +819,36 @@ async def delete_post(
 # ---------------------------------------------------------------------------
 # Sharing (resource grants)
 # ---------------------------------------------------------------------------
+
+
+@router.put("/{post_id}/reactions", response_model=PostReactionSettings)
+async def set_post_reaction_settings(
+    post_id: int,
+    settings_in: PostReactionSettings,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostReactionSettings:
+    """Turn reactions on a notice on or off.
+
+    The counterpart to the generic comment switch, and it asks the same level:
+    write access on the post, which is what putting the notice up took. There
+    is no generic route for it because a post is the only thing that takes
+    reactions of its own — everywhere else they hang off a comment, and that
+    thread's own switch already answers.
+
+    Turning it off keeps the reactions already there, the same way turning a
+    thread off keeps its comments: the board stops showing the bar and the API
+    stops serving or adding to it until the switch goes back on.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context, access="write"
+    )
+    post.reactions_enabled = settings_in.reactions_enabled
+    post.updated_at = datetime.now(timezone.utc)
+    session.add(post)
+    await session.commit()
+    return PostReactionSettings(reactions_enabled=post.reactions_enabled)
 
 
 @router.put("/{post_id}/grants", response_model=PostRead)

@@ -37,6 +37,8 @@ def _raise(exc: reactions_service.ReactionError) -> NoReturn:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, reactions_service.ReactionPermissionError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, reactions_service.ReactionDisabledError):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
