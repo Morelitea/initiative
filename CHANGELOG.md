@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-09-07
+
 ### Added
 
 - **Posts: a bulletin board for an initiative.** A new tool, beside Documents and Calendars: a place an initiative says things out loud — a change of plan, a date, a welcome. Posts are written in the full editor, so a notice can carry pictures and live smart chips that go on showing a task's current column long after it was written, and each one is shared, tagged, commented on and reacted to like anything else here — or has its own comments turned off. The board reads newest first and loads five notices at a time as you scroll rather than paging, keeping only the ones near your screen loaded, so an hour of scrolling costs the same as a minute of it. Every notice is signed: whoever wrote it, above the headline, the way a comment is.
