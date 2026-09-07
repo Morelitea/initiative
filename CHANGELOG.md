@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.1] - 2026-09-07
+
+### Fixed
+
+- **Upgrading no longer stops when Initiative connects to its database as the database's own owner.** An install from before Initiative had its own least-privilege login names one PostgreSQL role for everything, and 0.66 asks for a fourth connection made as the database owner — which on those installs is that same role. Startup then tried to give it the shape a purpose-made provisioning login gets, PostgreSQL refused (`permission denied to alter role`), and the app never came up. Startup now leaves a role that is already a superuser with exactly the privileges it had, and goes on to everything else. The banner asking you to move that connection to `app_provisioner` is unchanged, and it is still worth doing.
+
+- **The direct-message privacy setting that was never added.** A deployment that ran 0.65 got the direct-message settings table without the column behind the read-receipts switch, and 0.66 had no way to notice: opening messaging settings failed with `column user_dm_settings.send_receipts does not exist`. The column is now added wherever it is missing.
+
+- **Purging a task somebody was assigned to.** Emptying one from the trash failed outright, and the hourly clean-up that removes trash past its retention came back to the same task every hour and failed there too. Assignments are now removed with the task, as every other part of it already was.
+
+- **Handing a community's content to another admin.** Both *Claim unowned content* and *Transfer ownership*, on the community's member screens, failed with a permission error instead of moving anything: the check that the recipient is an admin was reading the account list through a connection that a community's screens deliberately cannot read it through. It now reads the same member roster the rest of those screens do.
+
+- **The whole app no longer scrolls out of the window on a long comment thread.** On a task with enough comments, or a file document with them, focusing the comment box or scrolling over the sidebar moved the entire app — sidebar, header and all — up out of view, leaving a blank band underneath that nothing could scroll back from. The hidden "Delete" label on each comment was being measured against the window instead of the page, and enough of them below the fold made the window itself scrollable.
+
 ## [0.66.0] - 2026-09-07
 
 ### Added
