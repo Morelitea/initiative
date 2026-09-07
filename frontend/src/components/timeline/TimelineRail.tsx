@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { ChevronsUpDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -44,6 +45,37 @@ const MIN_TICK = 0.35;
  *  is the content somebody is reading. */
 const RAIL_HIT_WIDTH = "w-11";
 
+/** How long the thumb stays up after the feed stops moving. Long enough to
+ *  reach for, short enough that it is not sitting over what somebody settled
+ *  down to read. */
+const REST_MS = 1400;
+
+/**
+ * The scroller the rail is riding in, found by walking up from the rail rather
+ * than named by the caller — so the next tool that drops a rail beside its own
+ * feed gets the appearing thumb without wiring anything.
+ */
+const scrollParent = (node: HTMLElement | null): HTMLElement | Window | null => {
+  for (let element = node?.parentElement ?? null; element; element = element.parentElement) {
+    const { overflowY } = getComputedStyle(element);
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      element.scrollHeight > element.clientHeight
+    )
+      return element;
+  }
+  return typeof window === "undefined" ? null : window;
+};
+
+/** How far down the scroller is, 0 at the top and 1 at the bottom. */
+const scrollProgress = (target: HTMLElement | Window): number => {
+  const [at, range] =
+    target instanceof Window
+      ? [window.scrollY, document.documentElement.scrollHeight - window.innerHeight]
+      : [target.scrollTop, target.scrollHeight - target.clientHeight];
+  return range > 0 ? Math.min(Math.max(at / range, 0), 1) : 0;
+};
+
 /**
  * A draggable rail of periods, for jumping a long feed to a date.
  *
@@ -52,10 +84,22 @@ const RAIL_HIT_WIDTH = "w-11";
  * One control that behaves the same on a phone and a desktop rather than a
  * hover affordance with a separate mobile substitute.
  *
+ * What differs by screen is only how much of it is standing there when nobody
+ * is using it. A wide screen has room beside the feed, so the rail sits in it
+ * and stays. A phone does not: there the rail is an overlay costing no width,
+ * and it comes and goes in three steps —
+ *
+ * - **idle**: nothing, and nothing to tap by accident either;
+ * - **peek**: the feed is moving, so a thumb at the edge says how far down it
+ *   the reader is, and fades a moment after they stop;
+ * - **open**: the thumb has been grabbed, and the whole rail is there — ticks,
+ *   years, and the bubble naming the month under the finger.
+ *
  * Each stop is a real `<button>`, so the rail is a list somebody can tab
  * through and a screen reader can read, and the dragging is layered on top of
- * that rather than replacing it. `touch-action: none` on the rail is what
- * stops a drag scrolling the page underneath it.
+ * that rather than replacing it. Tabbing into it opens it, which is why the
+ * hidden state is drawn with opacity rather than taken out of the page.
+ * `touch-action: none` is what stops a drag scrolling the page underneath it.
  *
  * Density is drawn, not counted: a tick's length is its share of the busiest
  * month, which is what makes a year of quiet months and one loud one legible
@@ -77,6 +121,41 @@ export function TimelineRail<T extends TimelineStop>({
   const [dragging, setDragging] = useState<{ stop: T; offset: number; moved: boolean } | null>(
     null
   );
+  // The feed has moved in the last moment. What summons the thumb on a phone,
+  // where there is nothing else standing there to reach for.
+  const [moving, setMoving] = useState(false);
+  // How far down the feed the reader is, which is where the thumb sits. Read
+  // off the scroller rather than derived from `activePeriod`: a thumb is a
+  // scrollbar's, and it has to move with the feed. Placing it at the active
+  // month's tick would leave it still through a busy month and then leap a
+  // whole step at the boundary — and a pinned notice lifted to the top of the
+  // feed from some other month would send it down the rail and back again in
+  // the space of one card.
+  const [progress, setProgress] = useState(0);
+  // The rail is being used — hovered, or held. Distinct from `moving`: this is
+  // what opens it the rest of the way.
+  const [engaged, setEngaged] = useState(false);
+
+  const open = engaged || dragging !== null;
+  const state = open ? "open" : moving ? "peek" : "idle";
+
+  useEffect(() => {
+    const target = scrollParent(railRef.current);
+    if (!target) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setProgress(scrollProgress(target));
+    const onScroll = () => {
+      setProgress(scrollProgress(target));
+      setMoving(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setMoving(false), REST_MS);
+    };
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      target.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+  }, []);
 
   const busiest = useMemo(
     () => stops.reduce((most, stop) => Math.max(most, stop.count), 1),
@@ -111,22 +190,39 @@ export function TimelineRail<T extends TimelineStop>({
     [stopAt]
   );
 
+  // Under the finger while dragging, and otherwise as far down the rail as the
+  // reader is down the feed.
+  const thumbTop = dragging ? `${dragging.offset}px` : `${progress * 100}%`;
+
   if (stops.length === 0) return null;
 
   return (
     <div
       ref={railRef}
+      data-state={state}
       // `touch-action: none` so a drag down the rail scrubs it rather than
       // scrolling the feed behind it.
       className={cn(
-        "relative flex shrink-0 touch-none select-none flex-col justify-between py-1",
+        "relative shrink-0 touch-none select-none transition-opacity duration-200",
         RAIL_HIT_WIDTH,
+        // On a phone the rail overlays the feed — a negative margin cancels its
+        // own width, so the notices get the whole screen and the rail costs
+        // nothing when it is not being used. From `sm` up there is room for it
+        // beside the feed, where it simply stays.
+        "-ml-11 sm:ml-0",
+        // Hidden means untouchable: an invisible strip down the edge of a card
+        // would swallow taps meant for the notice under it.
+        state === "idle" && "pointer-events-none opacity-0",
+        state === "peek" && "pointer-events-none opacity-100",
+        "focus-within:pointer-events-auto focus-within:opacity-100",
+        "sm:pointer-events-auto sm:opacity-100",
         className
       )}
       aria-label={t("timeline.label")}
       onPointerDown={(event) => {
         // Capture, so the drag keeps tracking once the finger leaves the rail.
         event.currentTarget.setPointerCapture(event.pointerId);
+        setEngaged(true);
         track(event, false);
       }}
       onPointerMove={(event) => {
@@ -140,54 +236,100 @@ export function TimelineRail<T extends TimelineStop>({
         // the rail's own space has no button to fall through to, so it is
         // picked here.
         const wasDrag = dragging?.moved ?? false;
-        const onButton = (event.target as Element | null)?.closest("button") != null;
+        const target = event.target as Element | null;
+        const onButton = target?.closest("button") != null;
+        const onThumb = target?.closest('[data-slot="timeline-thumb"]') != null;
         setDragging(null);
-        if (stop && (wasDrag || !onButton)) onPick(stop);
+        setEngaged(false);
+        if (stop && (wasDrag || (!onButton && !onThumb))) onPick(stop);
       }}
-      onPointerCancel={() => setDragging(null)}
+      onPointerCancel={() => {
+        setDragging(null);
+        setEngaged(false);
+      }}
+      // A mouse opens the rail by arriving at it; a finger has the thumb.
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") setEngaged(true);
+      }}
+      onPointerLeave={() => {
+        if (!dragging) setEngaged(false);
+      }}
     >
-      {stops.map((stop, index) => {
-        const isActive = stop.period === activePeriod;
-        const isUnderFinger = dragging?.stop.period === stop.period;
-        // A year label where the year changes, and on the first stop, so the
-        // top of the rail always says what it is showing. It sits in the flow
-        // above its first tick rather than beside the rail — anything placed
-        // outside the rail's own width lands on top of the feed it is next to.
-        const group = formatGroup(stop);
-        const startsGroup = index === 0 || formatGroup(stops[index - 1]) !== group;
-        return (
-          <div key={stop.period} className="flex flex-col items-end gap-0.5">
-            {startsGroup && (
-              <span
-                aria-hidden
-                className="pointer-events-none pr-0.5 text-[0.625rem] text-muted-foreground leading-none tabular-nums"
+      {/* The months themselves. Only drawn once the rail is open, because on a
+          phone they are drawn over the feed: a thumb says where you are, and a
+          full rail is for when you have said you want one. */}
+      <div
+        className={cn(
+          "absolute inset-0 flex flex-col justify-between py-1 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0",
+          "sm:opacity-100"
+        )}
+      >
+        {stops.map((stop, index) => {
+          const isActive = stop.period === activePeriod;
+          const isUnderFinger = dragging?.stop.period === stop.period;
+          // A year label where the year changes, and on the first stop, so the
+          // top of the rail always says what it is showing. It sits in the flow
+          // above its first tick rather than beside the rail — anything placed
+          // outside the rail's own width lands on top of the feed it is next
+          // to. Overlaying one, it carries its own backing so the year stays
+          // readable over whatever it happens to cross.
+          const group = formatGroup(stop);
+          const startsGroup = index === 0 || formatGroup(stops[index - 1]) !== group;
+          return (
+            <div key={stop.period} className="flex flex-col items-end gap-0.5">
+              {startsGroup && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none rounded-full bg-background/80 px-1 text-[0.625rem] text-muted-foreground tabular-nums leading-none backdrop-blur-[2px]"
+                >
+                  {group}
+                </span>
+              )}
+              <button
+                type="button"
+                title={formatLabel(stop)}
+                aria-label={formatLabel(stop)}
+                aria-current={isActive ? "true" : undefined}
+                onClick={() => onPick(stop)}
+                className="group flex h-3 w-full items-center justify-end pr-0.5"
               >
-                {group}
-              </span>
-            )}
-            <button
-              type="button"
-              title={formatLabel(stop)}
-              aria-label={formatLabel(stop)}
-              aria-current={isActive ? "true" : undefined}
-              onClick={() => onPick(stop)}
-              className="group flex h-3 w-full items-center justify-end pr-0.5"
-            >
-              <span
-                className={cn(
-                  "h-0.5 rounded-full transition-colors",
-                  isActive || isUnderFinger
-                    ? "bg-primary"
-                    : "bg-muted-foreground/30 group-hover:bg-muted-foreground/60"
-                )}
-                style={{
-                  width: `${Math.round((MIN_TICK + (1 - MIN_TICK) * (stop.count / busiest)) * 100)}%`,
-                }}
-              />
-            </button>
-          </div>
-        );
-      })}
+                <span
+                  className={cn(
+                    "h-0.5 rounded-full transition-colors",
+                    isActive || isUnderFinger
+                      ? "bg-primary"
+                      : "bg-muted-foreground/30 group-hover:bg-muted-foreground/60"
+                  )}
+                  style={{
+                    width: `${Math.round((MIN_TICK + (1 - MIN_TICK) * (stop.count / busiest)) * 100)}%`,
+                  }}
+                />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* The thumb: where the reader is in the months, and on a phone the one
+          thing there is to grab. It carries its own `pointer-events` because
+          the rail around it has none while it is only peeking — the events it
+          receives still bubble to the rail's own handlers, so grabbing it is
+          grabbing the rail. Hidden from a screen reader, which has the ticks:
+          this is the touch target, not a second control. */}
+      <span
+        aria-hidden
+        data-slot="timeline-thumb"
+        style={{ top: thumbTop }}
+        className={cn(
+          "absolute right-0 flex size-7 -translate-y-1/2 touch-none items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-sm transition-opacity duration-200",
+          state === "idle" ? "pointer-events-none" : "pointer-events-auto",
+          open && "text-primary",
+          "sm:hidden"
+        )}
+      >
+        <ChevronsUpDown className="size-3.5" />
+      </span>
 
       {/* The bubble, naming the month under the finger. Only while dragging:
           a label that is always there is a legend, not a readout. */}

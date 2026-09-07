@@ -55,7 +55,18 @@ export const EmojiPicker = ({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-fit p-0" align="start">
+        {/*
+          The popover is capped at the room Radix measured for it rather than
+          at the picker's own 340px: on a phone the keyboard takes most of the
+          screen while the search field is focused, and a fixed height would
+          run off the top edge. The picker is a flex child so the emoji list
+          gives way first — search and footer stay where they are.
+        */}
+        <PopoverContent
+          className="flex max-h-[var(--radix-popover-content-available-height)] w-fit flex-col overflow-hidden p-0"
+          align="start"
+          collisionPadding={8}
+        >
           <EmojiPickerBase
             className="h-[340px]"
             onEmojiSelect={({ emoji }) => {

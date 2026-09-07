@@ -317,8 +317,11 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
             )}
             {/* The rail rides alongside the feed and stays put while it
                 scrolls, so a jump is always one reach away rather than
-                something to scroll back to. */}
-            <div className="mx-auto flex w-full max-w-3xl gap-2">
+                something to scroll back to. On a phone there is no room to
+                stand it beside anything: it overlays the feed's edge — its own
+                negative margin is what gives the notices the full width — and
+                shows itself while the board is moving. */}
+            <div className="mx-auto flex w-full max-w-3xl sm:gap-2">
               <div ref={listRef} className="flex min-w-0 flex-1 flex-col">
                 <div style={{ height: paddingTop }} />
                 {virtualItems.map((item) => (

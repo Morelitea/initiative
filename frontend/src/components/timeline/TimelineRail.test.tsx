@@ -13,9 +13,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TimelineRail, type TimelineStop } from "./TimelineRail";
 
@@ -39,7 +39,14 @@ const renderRail = (props: Partial<Parameters<typeof TimelineRail>[0]> = {}) =>
     />
   );
 
+/** The rail itself — the element that says which state it is in. */
+const rail = () => document.querySelector<HTMLElement>("[data-state]") as HTMLElement;
+
 describe("TimelineRail", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("offers every period as its own button", () => {
     renderRail();
 
@@ -124,6 +131,54 @@ describe("TimelineRail", () => {
     await userEvent.click(screen.getByRole("button", { name: "Month 2026-03" }));
 
     expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  // The rail overlays the feed on a phone, so what it costs when nobody is
+  // using it is the whole point: nothing drawn, and nothing to tap by accident
+  // over the notice underneath.
+  it("stays out of the way until the feed moves", () => {
+    vi.useFakeTimers();
+    renderRail();
+
+    expect(rail()).toHaveAttribute("data-state", "idle");
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+    expect(rail()).toHaveAttribute("data-state", "peek");
+
+    // And it goes away again once the reader settles, rather than sitting over
+    // what they stopped to read.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(rail()).toHaveAttribute("data-state", "idle");
+  });
+
+  // Peeking is a thumb saying where you are. The months themselves — ticks,
+  // years, the bubble — are what grabbing it is for.
+  it("opens the whole rail once it is grabbed", () => {
+    renderRail();
+
+    fireEvent.pointerDown(rail(), { clientY: 10 });
+    expect(rail()).toHaveAttribute("data-state", "open");
+
+    fireEvent.pointerUp(rail(), { clientY: 10 });
+    expect(rail()).toHaveAttribute("data-state", "idle");
+  });
+
+  // The thumb is the handle, not a stop: a tap on it opens the rail, and
+  // re-anchoring the feed to the month it was already showing would be a jolt
+  // in exchange for nothing.
+  it("does not jump when the thumb is tapped rather than dragged", () => {
+    const onPick = vi.fn();
+    const { container } = renderRail({ onPick });
+    const thumb = container.querySelector('[data-slot="timeline-thumb"]');
+
+    fireEvent.pointerDown(rail(), { clientY: 10 });
+    fireEvent.pointerUp(rail(), { clientY: 10, target: thumb });
+
+    expect(onPick).not.toHaveBeenCalled();
   });
 
   it("keeps its labels inside its own width", () => {

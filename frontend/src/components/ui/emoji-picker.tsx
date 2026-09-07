@@ -41,7 +41,7 @@ function EmojiPicker({
       locale={emojiLocale(i18n.language)}
       emojibaseUrl={__EMOJIBASE_URL__}
       className={cn(
-        "isolate flex h-full w-fit flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+        "isolate flex h-full min-h-0 w-fit flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
         className
       )}
       data-slot="emoji-picker"
@@ -58,7 +58,7 @@ function EmojiPickerSearch({
   const { t } = useTranslation("common");
   return (
     <div
-      className={cn("flex h-9 items-center gap-2 border-b px-3", className)}
+      className={cn("flex h-9 shrink-0 items-center gap-2 border-b px-3", className)}
       data-slot="emoji-picker-search-wrapper"
     >
       <SearchIcon className="size-4 shrink-0 opacity-50" />
@@ -114,7 +114,7 @@ function EmojiPickerContent({
   const { t } = useTranslation("common");
   return (
     <EmojiPickerPrimitive.Viewport
-      className={cn("relative flex-1 outline-hidden", className)}
+      className={cn("relative min-h-0 flex-1 outline-hidden", className)}
       data-slot="emoji-picker-viewport"
       {...props}
     >
@@ -148,7 +148,7 @@ function EmojiPickerFooter({ className, ...props }: React.ComponentProps<"div">)
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 max-w-(--frimousse-viewport-width) items-center gap-1 border-t p-2",
+        "flex w-full min-w-0 max-w-(--frimousse-viewport-width) shrink-0 items-center gap-1 border-t p-2",
         className
       )}
       data-slot="emoji-picker-footer"
