@@ -1,14 +1,10 @@
-"""The task dataset — the fields a task can be filtered by.
+"""The task dataset — what a table cannot say about a task.
 
-Lifted from ``_build_task_filter_fields`` without changing what any of them
-answers. The resolvers are the same clauses; what is new is that each field now
-also says what it *is*, so a client can draw a control for it and a query
-surface can type-check it without either restating this list.
-
-Columns are derived from the model rather than enumerated, which is what the old
-builder did and what keeps a new column filterable the day it is added. The
-override table below is only for the ones whose control cannot be inferred from
-a SQL type — an integer that is a person is not an integer to whoever picks one.
+The columns are not here. They are read off ``Task`` itself, because a foreign
+key already names the picker that fills it and a SQL type already says whether
+it orders. What is left is the part no table carries: the five fields that are a
+subquery rather than a column, and the two columns that exist for a feature's
+own bookkeeping.
 """
 
 from __future__ import annotations
@@ -16,121 +12,33 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import (
-    Boolean,
-    Date,
-    DateTime,
-    Integer,
-    Numeric,
-    case,
-    func,
-    literal,
-    text,
-)
+from sqlalchemy import case, func, literal, text
 from sqlmodel import select
 
 from app.core.messages import TaskMessages
 from app.core.tools import Tool
 from app.models.tenant.project import Project
-from app.models.tenant.tag import Tag, TaskTag
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.schemas.query import FilterOp
+from app.services.fields.derive import derive_fields, options_for
 from app.services.fields.spec import (
-    ControlKind,
-    Dataset,
     EQUALITY,
-    FieldContext,
-    FieldSpec,
-    FieldType,
     MEMBERSHIP,
     ORDERED,
-    SortContext,
     TEXTUAL,
-    column,
+    ControlKind,
+    Dataset,
+    FieldContext,
+    FieldSpec,
+    SortContext,
     computed,
-    sort_only,
 )
 from app.services.tenant import properties as properties_service
 
-#: Columns worth ordering by. Filterability is the default for a column and
-#: orderability is not — most columns narrow usefully, few of them make a
-#: sensible ordering, and a sort list nobody can read is not a feature.
-_SORTABLE = frozenset(
-    {
-        "position",
-        "title",
-        "due_date",
-        "start_date",
-        "priority",
-        "created_at",
-        "updated_at",
-    }
-)
-
-#: Task fields a filter control does not offer, beyond the shared conventions.
-#:
-#: ``initiative_ids`` exists for the cross-guild "my tasks" views, which already
-#: know their initiative; a dashboard reads its own and a binding cannot say
-#: otherwise. The recurrence columns are a feature's internal state — a JSON
-#: rule, the strategy that applies it, and a counter — not something anybody
-#: filters a board by.
-_HIDDEN = frozenset(
-    {
-        # A property filter names one property and a value for it, so a control
-        # for it has to choose the property first and then offer that
-        # property's own values. Until there is such a control, offering the
-        # field would hand somebody a text box whose contents this resolver
-        # cannot read — it takes an object, not a string. Still filterable by a
-        # stored definition, which is how the tasks page uses it.
-        "property_values",
-        "initiative_ids",
-        "recurrence",
-        "recurrence_strategy",
-        "recurrence_occurrence_count",
-    }
-)
-
-#: Controls that a SQL type cannot imply. Everything absent here is inferred.
-_CONTROL_OVERRIDES: dict[str, tuple[FieldType, ControlKind]] = {
-    "project_id": (FieldType.reference, ControlKind.project),
-    "task_status_id": (FieldType.reference, ControlKind.task_status),
-    "priority": (FieldType.enum, ControlKind.priority),
-    "created_by": (FieldType.reference, ControlKind.member),
-    "deleted_by": (FieldType.reference, ControlKind.member),
-}
-
-
-def _infer(col: Any) -> tuple[FieldType, ControlKind]:
-    """A column's type and control, where the SQL type is enough to say."""
-    sql_type = col.type
-    if isinstance(sql_type, Boolean):
-        return FieldType.boolean, ControlKind.boolean
-    if isinstance(sql_type, (DateTime, Date)):
-        return FieldType.date, ControlKind.date
-    if isinstance(sql_type, (Integer, Numeric)):
-        return FieldType.number, ControlKind.number
-    return FieldType.text, ControlKind.text
-
-
-def _model_columns() -> tuple[FieldSpec, ...]:
-    specs = []
-    for col in Task.__table__.columns:
-        attr = getattr(Task, col.name)
-        field_type, control = _CONTROL_OVERRIDES.get(col.name) or _infer(col)
-        specs.append(
-            column(
-                col.name,
-                attr,
-                type=field_type,
-                kind=control,
-                sortable=col.name in _SORTABLE,
-                nullable=bool(col.nullable),
-            )
-        )
-    return tuple(specs)
-
-
-# --- the fields a column cannot express ------------------------------------
+#: Columns that are the recurrence feature's own state — the strategy that
+#: applies a rule and the counter that tracks it. Real columns, filterable by a
+#: stored definition, and not something anybody narrows a board by.
+_INTERNAL = frozenset({"recurrence_strategy", "recurrence_occurrence_count"})
 
 
 def _status_category(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
@@ -167,21 +75,6 @@ def _assignee_ids(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
     return Task.id.in_(subq)
 
 
-def _tag_ids(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
-    if not value:
-        return None
-    subq = (
-        select(TaskTag.task_id)
-        .join(Tag, Tag.id == TaskTag.tag_id)
-        .where(
-            TaskTag.tag_id.in_(tuple(value)),
-            Tag.guild_id == ctx.guild_id,
-        )
-        .distinct()
-    )
-    return Task.id.in_(subq)
-
-
 def _initiative_ids(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
     if not value:
         return None
@@ -210,18 +103,6 @@ def _property_values(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
     return properties_service.build_single_property_clause(
         "task", pid, op, value.get("value"), defn
     )
-
-
-#: What each resolver actually handles. Narrower than the type would suggest,
-#: and deliberately so: ``_status_category`` and ``_tag_ids`` build an ``IN``
-#: over their value, so ``in_`` is the one operator each of them answers.
-_IN_ONLY = frozenset({FilterOp.in_})
-_IN_OR_EMPTY = frozenset({FilterOp.in_, FilterOp.is_null})
-
-#: A custom property answers whichever operators its own type supports; the
-#: dispatch inside ``build_single_property_clause`` decides, so this one really
-#: is as wide as it looks.
-_ANY_OP = EQUALITY | MEMBERSHIP | ORDERED | TEXTUAL
 
 
 def _date_group(ctx: SortContext) -> Any:
@@ -269,57 +150,71 @@ def _date_group(ctx: SortContext) -> Any:
     )
 
 
-_COMPUTED: tuple[FieldSpec, ...] = (
-    sort_only(
-        "date_group",
-        _date_group,
-        type=FieldType.number,
-        kind=ControlKind.number,
-    ),
-    computed(
-        "status_category",
-        _status_category,
-        type=FieldType.enum,
-        kind=ControlKind.status_category,
-        ops=_IN_ONLY,
-    ),
-    computed(
-        "assignee_ids",
-        _assignee_ids,
-        type=FieldType.reference,
-        kind=ControlKind.member,
-        # The one computed field where "is empty" means something: a task with
-        # no row in task_assignees at all.
-        ops=_IN_OR_EMPTY,
-        nullable=True,
-    ),
-    computed(
-        "tag_ids",
-        _tag_ids,
-        type=FieldType.reference,
-        kind=ControlKind.tag,
-        ops=_IN_ONLY,
-    ),
-    computed(
-        "initiative_ids",
-        _initiative_ids,
-        type=FieldType.reference,
-        kind=ControlKind.initiative,
-        ops=_IN_ONLY,
-    ),
-    computed(
-        "property_values",
-        _property_values,
-        type=FieldType.text,
-        kind=ControlKind.property_value,
-        ops=_ANY_OP,
-        nullable=True,
-    ),
-)
+#: What each resolver actually handles. Narrower than the type would suggest,
+#: and deliberately so: ``_status_category`` builds an ``IN`` over its value, so
+#: ``in_`` is the one operator it answers.
+_IN_ONLY = frozenset({FilterOp.in_})
+
+#: A custom property answers whichever operators its own type supports; the
+#: dispatch inside ``build_single_property_clause`` decides, so this one really
+#: is as wide as it looks.
+_ANY_OP = EQUALITY | MEMBERSHIP | ORDERED | TEXTUAL
+
+
+def _computed() -> tuple[FieldSpec, ...]:
+    return (
+        FieldSpec(
+            name="date_group",
+            kind=ControlKind.number,
+            ops=frozenset(),
+            sort=_date_group,
+            filterable=False,
+            sortable=True,
+        ),
+        computed(
+            "status_category",
+            _status_category,
+            kind=ControlKind.select,
+            ops=_IN_ONLY,
+            # The categories a status can be in, read off the column that
+            # stores them rather than restated here or on the client.
+            options=options_for(TaskStatus.__table__.columns["category"]),
+        ),
+        computed(
+            "assignee_ids",
+            _assignee_ids,
+            kind=ControlKind.member,
+            # The one computed field where "is empty" means something: a task
+            # with no row in task_assignees at all.
+            ops=frozenset({FilterOp.in_, FilterOp.is_null}),
+            nullable=True,
+        ),
+        computed(
+            "initiative_ids",
+            _initiative_ids,
+            kind=ControlKind.initiative,
+            ops=_IN_ONLY,
+            # For the cross-guild "my tasks" views, which pass it themselves. A
+            # dashboard already knows its initiative and cannot say otherwise.
+            offer=False,
+        ),
+        computed(
+            "property_values",
+            _property_values,
+            kind=ControlKind.property_value,
+            ops=_ANY_OP,
+            nullable=True,
+            # A property filter names one property and a value for it, so a
+            # control has to choose the property before it can offer values.
+            # Until there is such a control, this is filterable by a stored
+            # definition only — which is how the tasks page uses it.
+            offer=False,
+        ),
+    )
 
 
 def build() -> Dataset:
-    """The dataset, with its model columns resolved.
+    """The dataset, with its columns read off the model.
 
     Built on call rather than at import so the columns are read once the mappers
     are configured, and so a test can rebuild it.
@@ -328,6 +223,5 @@ def build() -> Dataset:
         model=Task,
         tool=Tool.project,
         name_override="tasks",
-        fields=_model_columns() + _COMPUTED,
-        hidden=_HIDDEN,
+        fields=derive_fields(Task, internal=_INTERNAL) + _computed(),
     )

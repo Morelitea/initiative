@@ -53,10 +53,8 @@ import {
   fieldSpec,
   isGroup,
   isRelativeDate,
+  optionLabelKey,
 } from "@/lib/widgets/conditions";
-
-const STATUS_CATEGORIES = ["backlog", "todo", "in_progress", "done"] as const;
-const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 export interface FilterBuilderProps {
   value: FilterNode[];
@@ -92,14 +90,6 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
 
   const options = useMemo(
     () => ({
-      status_category: STATUS_CATEGORIES.map((category) => ({
-        value: category,
-        label: t(`tasks:statusCategory.${category}` as const),
-      })),
-      priority: PRIORITIES.map((priority) => ({
-        value: priority,
-        label: t(`tasks:priority.${priority}` as const),
-      })),
       project: (projects.data?.items ?? [])
         .filter((project) => project.initiative_id === initiativeId)
         .map((project) => ({ value: String(project.id), label: project.name })),
@@ -222,8 +212,6 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
 }
 
 type Options = {
-  status_category: { value: string; label: string }[];
-  priority: { value: string; label: string }[];
   project: { value: string; label: string }[];
   tag: { value: string; label: string }[];
   member: { value: string; label: string }[];
@@ -317,7 +305,7 @@ function ValueControl({
   options: Options;
   onChange: (value: ConditionValue) => void;
 }) {
-  const { t } = useTranslation(["dashboards", "common"]);
+  const { t } = useTranslation(["dashboards", "tasks", "common"]);
   const spec = fieldSpec(fields, leaf.field);
 
   // "Is empty" compares against nothing, so there is nothing to choose.
@@ -325,16 +313,19 @@ function ValueControl({
 
   if (spec?.multiple) {
     const list = Array.isArray(leaf.value) ? leaf.value.map(String) : [];
+    // A closed vocabulary carries its own values; everything else is a lookup
+    // this screen already loads.
     const optionList =
-      spec.kind === "status_category"
-        ? options.status_category
-        : spec.kind === "priority"
-          ? options.priority
-          : spec.kind === "member"
-            ? options.member
-            : spec.kind === "tag"
-              ? options.tag
-              : [];
+      spec.kind === "select"
+        ? (spec.options ?? []).map((value) => ({
+            value,
+            label: t(optionLabelKey(leaf.field, value), { defaultValue: value }),
+          }))
+        : spec.kind === "member"
+          ? options.member
+          : spec.kind === "tag"
+            ? options.tag
+            : [];
     return (
       <MultiSelect
         selectedValues={list}

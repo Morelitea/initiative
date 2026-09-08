@@ -6,9 +6,7 @@ from app.services.fields.registry import (
     allowed_fields,
     allowed_ops,
     dataset,
-    dataset_names,
     describe,
-    field,
     sort_expression,
     sort_fields,
 )
@@ -31,9 +29,7 @@ __all__ = [
     "allowed_fields",
     "allowed_ops",
     "dataset",
-    "dataset_names",
     "describe",
-    "field",
     "sort_expression",
     "sort_fields",
 ]

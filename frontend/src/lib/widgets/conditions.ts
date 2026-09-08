@@ -85,7 +85,28 @@ export interface FilterFieldSpec {
   ops: readonly FilterOp[];
   /** Whether the control picks several values at once. */
   multiple?: boolean;
+  /** The values this field accepts, when it accepts a closed set of them.
+   *  Sent by the server, read off the column that stores them — so a value
+   *  added by a migration is offered here without a frontend release. */
+  options?: readonly string[];
 }
+
+/** Where a closed vocabulary's labels live, by the field that holds it.
+ *
+ *  The *values* arrive from the server; only their wording is ours, and these
+ *  two vocabularies are already translated for the task UI. A field absent here
+ *  renders its raw value, which is what a newly added enum should do until
+ *  somebody writes words for it. */
+const OPTION_LABEL_NAMESPACES: Record<string, string> = {
+  status_category: "tasks:statusCategory",
+  priority: "tasks:priority",
+};
+
+/** The translation key for one option of a closed vocabulary. */
+export const optionLabelKey = (field: string, value: string | number): string => {
+  const namespace = OPTION_LABEL_NAMESPACES[field];
+  return namespace ? `${namespace}.${value}` : String(value);
+};
 
 /** The server's description, in the shape the controls read.
  *
@@ -98,6 +119,7 @@ export const toFilterFieldSpec = (described: FieldDescription): FilterFieldSpec 
   kind: described.kind,
   ops: described.ops,
   multiple: described.multiple,
+  options: described.options,
 });
 
 /**

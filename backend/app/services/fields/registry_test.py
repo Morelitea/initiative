@@ -14,8 +14,9 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.models.tenant.task import Task
+from app.models.tenant.task import Task, TaskAssignee
 from app.schemas.query import FilterOp
+from app.services.fields.derive import derive_fields
 from app.services.fields import (
     FieldContext,
     allowed_fields,
@@ -65,23 +66,54 @@ VIRTUAL_FIELDS = {
 }
 
 
+#: Columns a comparison cannot be built against, and why. Everything else on
+#: the model becomes a field without anybody listing it.
+NOT_FILTERABLE = {
+    "recurrence": "a JSON rule — no operator means anything against it",
+    "guild_id": "references a table no picker browses, and a request is "
+    "already scoped to one guild",
+}
+
+
 class TestCoverage:
-    def test_every_model_column_is_filterable(self):
-        """The old builder auto-populated from the model. So does this."""
+    def test_every_model_column_a_control_can_fill_is_filterable(self):
+        """Derived from the model, so a column added tomorrow is filterable
+        the day it is added."""
         resolved = allowed_fields("tasks", _ctx())
         for col in Task.__table__.columns:
+            if col.name in NOT_FILTERABLE:
+                continue
             assert col.name in resolved, f"{col.name} lost its filter field"
+
+    def test_the_columns_left_out_are_left_out_for_a_reason(self):
+        resolved = allowed_fields("tasks", _ctx())
+        assert set(NOT_FILTERABLE).isdisjoint(resolved)
+
+    def test_a_taggable_model_gets_its_tag_filter_without_asking(self):
+        """Nearly everything is taggable and everything taggable binds the same
+        way, so no dataset declares that it has tags. The model's entry in the
+        tag registry is the whole of the difference between one and the next."""
+        assert "tag_ids" in {spec.name for spec in derive_fields(Task)}
+
+    def test_a_model_with_no_tags_gets_no_tag_filter(self):
+        assert "tag_ids" not in {spec.name for spec in derive_fields(TaskAssignee)}
+
+    def test_a_decorated_string_column_is_still_a_column(self):
+        """SQLModel wraps a plain ``str`` field in its own type rather than
+        subclassing the SQL one, so a deriver that asks without unwrapping
+        loses every string on the model."""
+        assert "title" in allowed_fields("tasks", _ctx())
 
     def test_the_virtual_fields_are_all_present(self):
         resolved = allowed_fields("tasks", _ctx())
         assert VIRTUAL_FIELDS <= set(resolved)
 
     def test_nothing_else_crept_in(self):
-        """The set is exactly the columns plus the five — a field nobody asked
-        for is as much a change as a missing one."""
+        """The set is exactly the fillable columns plus the five — a field
+        nobody asked for is as much a change as a missing one."""
         resolved = set(allowed_fields("tasks", _ctx()))
-        expected = {c.name for c in Task.__table__.columns} | VIRTUAL_FIELDS
-        assert resolved == expected
+        columns = {c.name for c in Task.__table__.columns} - set(NOT_FILTERABLE)
+        assert resolved == columns | VIRTUAL_FIELDS
 
     def test_columns_pass_through_and_virtuals_are_callable(self):
         resolved = allowed_fields("tasks", _ctx())
@@ -162,7 +194,9 @@ class TestVirtualFields:
         assert resolve(FilterOp.eq, {"property_id": "abc"}) is None
 
 
-#: What ``_task_sort_fields`` offered before the registry.
+#: What ``_task_sort_fields`` offered before any of this was derived. Ordering
+#: is now read off the column's type, which admits a few more; these are the
+#: ones a caller already relies on and none of them may go.
 SORTABLE_FIELDS = {
     "position",
     "title",
@@ -176,8 +210,21 @@ SORTABLE_FIELDS = {
 
 
 class TestSorting:
-    def test_the_sortable_set_is_unchanged(self):
-        assert set(sort_fields("tasks", _ctx())) == SORTABLE_FIELDS
+    def test_everything_that_was_orderable_still_is(self):
+        assert SORTABLE_FIELDS <= set(sort_fields("tasks", _ctx()))
+
+    def test_a_reference_is_not_an_ordering(self):
+        """Ordering by a foreign key sorts by row id, which is an ordering of
+        the storage rather than of anything a reader can see."""
+        sortable = set(sort_fields("tasks", _ctx()))
+        assert sortable.isdisjoint({"project_id", "task_status_id", "created_by"})
+
+    def test_long_form_text_is_not_an_ordering(self):
+        """A short title orders usefully; a body of prose orders by its first
+        character, which is never what anybody wanted."""
+        sortable = set(sort_fields("tasks", _ctx()))
+        assert "title" in sortable
+        assert "description" not in sortable
 
     def test_a_sortable_column_orders_by_itself(self):
         assert sort_fields("tasks", _ctx())["title"] is Task.title
@@ -264,9 +311,36 @@ class TestDescription:
 
     def test_an_entry_carries_what_a_control_needs(self):
         by_name = {entry["name"]: entry for entry in describe("tasks")}
-        assert by_name["priority"]["kind"] == "priority"
+        assert by_name["priority"]["kind"] == "select"
         assert by_name["assignee_ids"]["kind"] == "member"
         assert by_name["due_date"]["type"] == "date"
+
+    def test_a_reference_takes_its_control_from_the_table_it_points_at(self):
+        """An integer that references ``users`` is a person, not a number.
+        The foreign key says so, so no dataset restates it."""
+        by_name = {entry["name"]: entry for entry in describe("tasks")}
+        assert by_name["created_by"]["kind"] == "member"
+        assert by_name["project_id"]["kind"] == "project"
+        assert by_name["task_status_id"]["kind"] == "task_status"
+
+    def test_a_closed_vocabulary_carries_its_own_values(self):
+        """Straight off the column that stores them, so a client keeps no copy
+        and a value added by a migration is offered without a release."""
+        by_name = {entry["name"]: entry for entry in describe("tasks")}
+        assert by_name["priority"]["options"] == list(
+            Task.__table__.columns["priority"].type.enums
+        )
+        assert by_name["status_category"]["options"] == [
+            "backlog",
+            "todo",
+            "in_progress",
+            "done",
+        ]
+
+    def test_a_field_with_no_closed_set_carries_no_options(self):
+        by_name = {entry["name"]: entry for entry in describe("tasks")}
+        assert by_name["due_date"]["options"] == []
+        assert by_name["assignee_ids"]["options"] == []
 
     def test_it_carries_no_resolvers(self):
         """What a field compiles to is ours; a client gets the description."""
@@ -276,8 +350,8 @@ class TestDescription:
 
 class TestOperatorEnforcement:
     def test_a_field_declares_only_operators_its_resolver_handles(self):
-        """``_status_category`` and ``_tag_ids`` build an ``IN`` over their
-        value, so ``in_`` is the one operator each of them answers."""
+        """The status-category and tag resolvers each build an ``IN`` over
+        their value, so ``in_`` is the one operator each of them answers."""
         ops = allowed_ops("tasks")
         assert ops["status_category"] == {FilterOp.in_}
         assert ops["tag_ids"] == {FilterOp.in_}
