@@ -45,6 +45,7 @@ nav = [
     "en/getting-started/index.md",
     "en/getting-started/create-account.md",
     "en/getting-started/signing-in.md",
+    "en/getting-started/install-the-app.md",
     "en/getting-started/a-quick-tour.md",
     "en/getting-started/your-first-community.md",
   ] },

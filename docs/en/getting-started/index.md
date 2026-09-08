@@ -12,7 +12,7 @@ You don't need experience with project management software. You don't need to kn
 
 - **A browser.** Computer, tablet, phone, whatever's nearest. There is nothing to install.
 - **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you* are the one setting this up for everybody, you want the [administrator guide](../admin/index.md) instead, and our sympathies.
-- **Optional: the mobile app**, if you'd like notifications on your phone.
+- **Optional: [the app](install-the-app.md)**, if you'd like an icon on your home screen, or notifications on your phone.
 
 !!! info "Nobody's set anything up yet?"
     Then somebody has to run it somewhere. Hosting it yourself is free and open source; a paid hosted version is on the way for people who'd rather not. See [Self-host or let us host it](../self-host-or-hosted.md).
