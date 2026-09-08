@@ -288,12 +288,31 @@ export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-
  * — the engine's source name is the KEBAB SINGULAR of the tool. */
 export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
 
+/**
+ * The `{tool}_id` field that names one tool entity in a payload, e.g.
+ * "counter_group_id".
+ *
+ * One spelling, three uses: the comment column a thread hangs off (backend
+ * `_COMMENT_PARENTS`), the id the realtime bus puts in a comment envelope, and
+ * the single-entity export selector. They agree because they are this rule.
+ */
+export const toolIdParam = (tool: Tool): string => `${tool}_id`;
+
 /** Single-entity export selector param, e.g. "counter_group_id". */
-export const toolExportIdParam = (tool: Tool): string => `${tool}_id`;
+export const toolExportIdParam = toolIdParam;
 
 /** The envelope ``type`` discriminator a tool's single-entity export emits —
  * the same value its importer registers under: the kebab-singular. */
 export const toolEnvelopeType = (tool: Tool): string => `initiative-${toolKebabSingular(tool)}`;
+
+/**
+ * Which tool a resource name identifies, or null for anything else.
+ *
+ * The realtime bus names a resource by the tool's own enum value, so this is a
+ * membership test rather than a table — a new tool's events route themselves.
+ */
+export const toolForResourceName = (resource: string | undefined): Tool | null =>
+  TOOLS.find((tool) => tool === resource) ?? null;
 
 /** Inverse of {@link toolEnvelopeType}: which tool an envelope belongs to,
  * or null for an unknown/backup type. */

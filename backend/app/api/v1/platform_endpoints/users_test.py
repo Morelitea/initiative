@@ -23,7 +23,7 @@ from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
-from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
+from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH, UserSelfUpdate
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
@@ -112,6 +112,37 @@ async def test_update_current_user_notification_preferences(
     data = response.json()
     assert data["email_task_assignment"] is False
     assert data["email_overdue_tasks"] is False
+
+
+@pytest.mark.integration
+async def test_update_every_notification_channel_toggle(
+    client: AsyncClient, session: AsyncSession
+):
+    """Every category on the settings page can actually be switched off.
+
+    The handler used to write a hand-listed subset, so a toggle the list had
+    missed came straight back on at the next refetch.
+    """
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    fields = [
+        name
+        for name in UserSelfUpdate.model_fields
+        if name.startswith(("email_", "push_"))
+    ]
+    assert "email_direct_messages" in fields
+    assert "push_comment_reactions" in fields
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={field: False for field in fields},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [field for field in fields if data[field] is not False] == []
 
 
 async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:

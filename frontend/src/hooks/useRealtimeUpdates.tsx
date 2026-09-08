@@ -1,16 +1,18 @@
 import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  invalidateAllDocuments,
-  invalidateAllProjects,
   invalidateAllTasks,
-  invalidateDocument,
-  invalidateDocumentComments,
   invalidateProject,
   invalidateProjectActivity,
+  invalidateRecentComments,
+  invalidateTask,
   invalidateTaskComments,
+  invalidateTool,
+  invalidateToolComments,
 } from "@/api/query-keys";
+import { TOOLS, toolForResourceName, toolIdParam } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
@@ -55,26 +57,63 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
 // lives inside the socket effect so it dies with the socket.
 const TASK_EVENT_DEBOUNCE_MS = 300;
 
-const handleProjectEvent = () => {
-  void invalidateAllProjects();
+/** One id off an event envelope, or null when the frame does not carry it. */
+const eventId = (data: Record<string, unknown> | undefined, key: string): number | null => {
+  const raw = data?.[key];
+  if (raw === null || raw === undefined) return null;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(value) ? value : null;
 };
 
-const handleCommentEvent = (data?: Record<string, unknown>) => {
-  const taskId = typeof data?.task_id === "number" ? data.task_id : Number(data?.task_id);
-  if (Number.isFinite(taskId)) {
-    void invalidateTaskComments(taskId);
-  }
-  const documentId =
-    typeof data?.document_id === "number" ? data.document_id : Number(data?.document_id);
-  if (Number.isFinite(documentId)) {
-    void invalidateDocumentComments(documentId);
-    void invalidateDocument(documentId);
-  }
-  void invalidateAllDocuments();
-  const projectId =
-    typeof data?.project_id === "number" ? data.project_id : Number(data?.project_id);
-  if (Number.isFinite(projectId)) {
+/**
+ * A tool entity moved — its own row and its tool's lists are now stale.
+ *
+ * Derived from the registry rather than a case per tool: the bus names a
+ * resource by the tool's own enum value, and `invalidateTool` is a
+ * `Record<Tool, …>`, so a new tool is live the day it ships.
+ */
+export const handleToolEvent = (tool: Tool, data?: Record<string, unknown>) => {
+  const id = eventId(data, toolIdParam(tool));
+  if (id === null) return;
+  invalidateTool(tool, id);
+};
+
+/**
+ * A comment (or a reaction on one) landed somewhere in this initiative.
+ *
+ * A comment hangs off exactly one parent — a task, or any tool entity — and the
+ * envelope carries that parent's `{parent}_id`, mirroring the backend's
+ * `_COMMENT_PARENTS`. Walking the tool registry means the ninth tool's threads
+ * are live without touching this function; hard-coding the parents is what left
+ * every tool but tasks waiting for the next refetch.
+ *
+ * Both the thread AND the parent are refreshed: the surfaces around a thread
+ * (a post card, a document card) show a comment count that has just moved.
+ */
+export const handleCommentEvent = (data?: Record<string, unknown>) => {
+  // The guild's recent-activity list is a comment feed of its own.
+  void invalidateRecentComments();
+  // A project's activity feed lists comments from its tasks as well as its own,
+  // which is why the envelope names the project of a task comment too.
+  const projectId = eventId(data, "project_id");
+  if (projectId !== null) {
     void invalidateProjectActivity(projectId);
+  }
+  const taskId = eventId(data, "task_id");
+  if (taskId !== null) {
+    void invalidateTaskComments(taskId);
+    // The task's own comment count. Its board and list cards ride on the
+    // debounced task-event path, which a comment is not.
+    void invalidateTask(taskId);
+    // That `project_id` was the task's project, not a second parent: a comment
+    // has exactly one.
+    return;
+  }
+  for (const tool of TOOLS) {
+    const id = eventId(data, toolIdParam(tool));
+    if (id === null) continue;
+    void invalidateToolComments(tool, id);
+    handleToolEvent(tool, data);
   }
 };
 
@@ -184,14 +223,18 @@ export const useRealtimeUpdates = () => {
             case "task":
               handleTaskEvent(payload.ids);
               break;
-            case "project":
-              handleProjectEvent();
-              break;
             case "comment":
               handleCommentEvent(payload.ids);
               break;
-            default:
+            default: {
+              // Every other resource on the bus is a tool, named by its own
+              // enum value — projects, and posts whose reactions just moved.
+              const tool = toolForResourceName(payload.resource);
+              if (tool) {
+                handleToolEvent(tool, payload.ids);
+              }
               break;
+            }
           }
         } catch {
           // ignore malformed messages
