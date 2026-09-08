@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Viewing something now lets you join the conversation about it.** Anyone a project, document, notice, queue, counter group or calendar has been shared with as a viewer can comment on it and react, where both used to take edit access. Answering something is not editing it — you can reply to a notice you have no business rewriting, the way you always could on a thread you were merely reading. Whether a thread is open at all is still the tool's own comment setting, and a viewer still cannot change the thing itself.
 
+### Fixed
+
+- **Direct messages could not set up a device on a deployed server.** Opening *My Messages* failed with *this device could not be set up*, on every install, while working perfectly in development. The encryption the messages run on is WebAssembly, and a browser only compiles WebAssembly a page's security policy makes room for — the worker that ratchets messages was served without that room, so the browser refused to compile it before it had done anything. It is now served the same narrow policy the dashboard widget sandbox already had: its own script, WebAssembly, and nothing else. The app-wide policy is unchanged, and still forbids WebAssembly everywhere else.
+
 ## [0.66.1] - 2026-09-07
 
 ### Fixed

@@ -4,6 +4,11 @@
  * Key material stays in this context: the main thread posts a request and
  * receives a result, and the pickles it holds are ciphertext it cannot open
  * without the pickle key, which never leaves here either.
+ *
+ * The filename is part of the contract: vodozemac is WebAssembly, and a worker
+ * takes its policy from the response that served its own script, so the backend
+ * matches this bundle's built path to answer with a policy that admits
+ * WebAssembly compilation. See `ratchet.worker.test.ts`.
  */
 
 import {

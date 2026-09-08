@@ -111,9 +111,10 @@ export default defineConfig({
   },
   worker: {
     // Worker bundles land in their own directory so a served response can be
-    // matched by path. The backend keys the widget sandbox's policy off
-    // `assets/workers/sandbox.worker-` — see `_WIDGET_SANDBOX_ASSET` in
-    // backend/app/main.py, which is pinned by tests on both sides.
+    // matched by path. The backend keys the WebAssembly workers' policy off
+    // `assets/workers/sandbox.worker-` and `assets/workers/ratchet.worker-` —
+    // see `_WASM_WORKER_ASSET_PREFIXES` in backend/app/main.py, which is pinned
+    // by tests on both sides.
     rolldownOptions: {
       output: {
         entryFileNames: "assets/workers/[name]-[hash].js",

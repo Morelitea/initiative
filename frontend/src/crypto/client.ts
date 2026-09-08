@@ -14,6 +14,7 @@
  * Tests that exercise the ratchet itself import `./engine` directly.
  */
 
+import type { RatchetMethod } from "./ratchet.worker";
 import type {
   AccountCreated,
   Decrypted,
@@ -22,7 +23,6 @@ import type {
   KeysGenerated,
   OutboundSession,
 } from "./types";
-import type { RatchetMethod } from "./worker";
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -62,7 +62,7 @@ export function ratchetSupported(): boolean {
 function ensureWorker(): Worker {
   if (typeof Worker === "undefined") throw new RatchetUnavailableError();
   if (worker === null) {
-    worker = new Worker(new URL("./worker.ts", import.meta.url), {
+    worker = new Worker(new URL("./ratchet.worker.ts", import.meta.url), {
       type: "module",
     });
     worker.onmessage = (event: MessageEvent<{ id: number; result?: unknown; error?: string }>) => {
