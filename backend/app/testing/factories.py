@@ -428,12 +428,20 @@ async def create_initiative(
     """
     await route_session_to_guild(session, guild.id)
 
-    defaults = {
+    from app.core.tools import Tool as _Tool
+
+    defaults: dict[str, Any] = {
         "name": f"Test Initiative {datetime.now(timezone.utc).timestamp()}",
         "description": "A test initiative",
         "guild_id": guild.id,
-        "queues_enabled": True,
-        "counter_groups_enabled": True,
+        # Every tool the initiative can switch on, switched on — derived from
+        # the enum, so a new tool is usable the day it exists. A test about a
+        # tool being OFF says so by overriding its own switch.
+        **{
+            tool.view_permission: True
+            for tool in _Tool
+            if tool.view_permission in Initiative.model_fields
+        },
     }
 
     initiative_data = {**defaults, **overrides}
