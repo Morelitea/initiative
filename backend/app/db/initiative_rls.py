@@ -151,7 +151,11 @@ def _dac_self(tool: Tool | None = None) -> DacPath:
             f"{t}.initiative_id",
             command,
             w,
-            creating=command == "INSERT",
+            # An INSERT is the resource being made only where the table IS the
+            # resource. A caller that names the tool reached it under an alias
+            # (a reaction on a notice), and there the INSERT is the reaction's:
+            # the notice already exists and answers for itself.
+            creating=command == "INSERT" and tool is None,
         )
 
     return DacPath(predicate=build, self_governed=True)

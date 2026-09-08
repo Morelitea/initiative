@@ -305,7 +305,11 @@ async def test_check_initiative_permission_falls_back_to_default(session: AsyncS
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    initiative = await create_initiative(session, guild, admin)
+    # The product's own defaults are what this checks, so the factory's
+    # ordinary-member convenience is turned off.
+    initiative = await create_initiative(
+        session, guild, admin, member_tool_access=False
+    )
 
     member = await create_user(session, email="member@example.com")
     await create_guild_membership(session, user=member, guild=guild)
