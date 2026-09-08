@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Editing a comment reported an error it had not had.** Saving a change to a comment came back as a server error, on every surface a comment lives on, even though the edit itself had gone through — so the edit looked broken, retrying looked broken, and the only way past it was to delete the comment and write it again. The reply now carries the edited comment back whole, author and reactions included, the way posting one always did.
+
 - **Direct messages could not set up a device on a deployed server.** Opening *My Messages* failed with *this device could not be set up*, on every install, while working perfectly in development. The encryption the messages run on is WebAssembly, and a browser only compiles WebAssembly a page's security policy makes room for — the worker that ratchets messages was served without that room, so the browser refused to compile it before it had done anything. It is now served the same narrow policy the dashboard widget sandbox already had: its own script, WebAssembly, and nothing else. The app-wide policy is unchanged, and still forbids WebAssembly everywhere else.
 
 ## [0.66.1] - 2026-09-07
