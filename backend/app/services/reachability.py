@@ -28,14 +28,56 @@ def _model_for(table: str) -> Optional[type[SQLModel]]:
     return None
 
 
+def _comment_initiative():
+    """A comment's initiative, through whichever parent it names.
+
+    A comment hangs off exactly one of them, so the parents are tried in the
+    order they are declared for the policies and the first that answers wins.
+    A comment on a task is the one whose parent is not a tool entity: a task
+    belongs to a project.
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.core.tools import Tool
+    from app.db.initiative_rls import COMMENT_PARENT_COLUMNS
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+
+    lookups = []
+    for column in COMMENT_PARENT_COLUMNS:
+        if column == "task_id":
+            lookups.append(
+                select(Project.initiative_id)
+                .join(Task, Task.project_id == Project.id)
+                .where(Task.id == Comment.task_id)
+                .scalar_subquery()
+            )
+            continue
+        parent = _model_for(Tool(column.removesuffix("_id")).plural)
+        if parent is None:  # pragma: no cover - a tool always has a table
+            continue
+        lookups.append(
+            select(parent.initiative_id)
+            .where(parent.id == getattr(Comment, column))
+            .scalar_subquery()
+        )
+    return sa_func.coalesce(*lookups)
+
+
 def _initiative_query(model: Any, row_id: int):
     """A select yielding ``row_id``'s initiative, or nothing if it is not there.
 
     Most tables carry ``initiative_id``. A task does not — it belongs to a
-    project — so it is read through the join its own policies use.
+    project — and a comment names one of several parents, so each is read
+    through the same chain its own policies use.
     """
+    from app.models.tenant.comment import Comment
+
     live = getattr(model, "deleted_at", None)
-    if hasattr(model, "initiative_id"):
+    if model is Comment:
+        statement = select(_comment_initiative()).where(Comment.id == row_id)
+    elif hasattr(model, "initiative_id"):
         statement = select(model.initiative_id).where(model.id == row_id)
     else:
         from app.models.tenant.project import Project
