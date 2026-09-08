@@ -412,23 +412,30 @@ async def insufficient_privilege_handler(
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
-# The widget sandbox worker, and only it, is served with a policy that admits
+# The two WebAssembly workers — the dashboard widget sandbox and the direct
+# message ratchet — and only they, are served with a policy that admits
 # WebAssembly. Vite emits worker bundles into `assets/workers/` with a content
 # hash (see `worker.rolldownOptions` in frontend/vite.config.ts), so the match is
-# by directory + stem; the literal is pinned by tests on both sides.
-_WIDGET_SANDBOX_ASSET_PREFIX = "assets/workers/sandbox.worker-"
-_WIDGET_SANDBOX_CSP = settings.widget_sandbox_content_security_policy
+# by directory + stem; the literals are pinned by tests on both sides.
+_WASM_WORKER_ASSET_PREFIXES = (
+    "assets/workers/sandbox.worker-",
+    "assets/workers/ratchet.worker-",
+)
+_WASM_WORKER_CSP = settings.wasm_worker_content_security_policy
 
 
-def _is_widget_sandbox_asset(path: str) -> bool:
-    """True for the one built file that carries the widget sandbox policy.
+def _is_wasm_worker_asset(path: str) -> bool:
+    """True for the built files that carry the WebAssembly worker policy.
 
     The hash varies per build, so the tail is open — but only as far as the one
     filename: anything nested below that name is an ordinary asset.
     """
-    if not path.startswith(_WIDGET_SANDBOX_ASSET_PREFIX) or not path.endswith(".js"):
+    if not path.endswith(".js"):
         return False
-    return "/" not in path[len(_WIDGET_SANDBOX_ASSET_PREFIX) :]
+    return any(
+        path.startswith(prefix) and "/" not in path[len(prefix) :]
+        for prefix in _WASM_WORKER_ASSET_PREFIXES
+    )
 
 
 # Emit HSTS only when the public origin is HTTPS (pentest SEC-16): the header is
@@ -733,8 +740,8 @@ async def serve_spa(full_path: str) -> FileResponse:
             headers = {"Cache-Control": "public, max-age=31536000, immutable"}
             # The middleware sets the app-wide policy with setdefault, so this
             # per-asset one wins where it applies.
-            if _is_widget_sandbox_asset(full_path):
-                headers["Content-Security-Policy"] = _WIDGET_SANDBOX_CSP
+            if _is_wasm_worker_asset(full_path):
+                headers["Content-Security-Policy"] = _WASM_WORKER_CSP
             return FileResponse(static_file, headers=headers)
         return FileResponse(
             static_file,

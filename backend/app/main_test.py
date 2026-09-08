@@ -62,46 +62,51 @@ async def test_responses_carry_content_security_policy(client: AsyncClient) -> N
     assert "object-src 'none'" in csp
 
 
-# --- Widget sandbox worker asset (WebAssembly is named on this one response) ---
+# --- WebAssembly worker assets (WebAssembly is named on these responses only) ---
 
 
 @pytest.mark.unit
-def test_widget_sandbox_match_names_one_file() -> None:
-    match = main_module._is_widget_sandbox_asset
+def test_wasm_worker_match_names_only_those_files() -> None:
+    match = main_module._is_wasm_worker_asset
+    # The widget sandbox (QuickJS) and the direct message ratchet (vodozemac).
     assert match("assets/workers/sandbox.worker-DQURGIoN.js")
+    assert match("assets/workers/ratchet.worker-DQURGIoN.js")
 
-    # Every other built file is an ordinary asset: a second worker, anything
-    # nested under a directory that merely starts with the name, the sourcemap,
-    # and the app's own chunks.
+    # Every other built file is an ordinary asset: a third worker, a worker
+    # whose name merely starts the same way, anything nested under a directory
+    # that starts with the name, the sourcemap, and the app's own chunks.
     assert not match("assets/workers/other.worker-DQURGIoN.js")
+    assert not match("assets/workers/worker-DQURGIoN.js")
     assert not match("assets/workers/sandbox.worker-DQURGIoN/payload.js")
+    assert not match("assets/workers/ratchet.worker-DQURGIoN/payload.js")
     assert not match("assets/workers/sandbox.worker-DQURGIoN.js.map")
     assert not match("assets/index-lSaaosYz.js")
     assert not match("assets/workers/")
 
 
 @pytest.mark.integration
-async def test_only_the_widget_sandbox_asset_carries_its_policy(
-    client: AsyncClient,
+@pytest.mark.parametrize("stem", ["sandbox.worker", "ratchet.worker"])
+async def test_only_the_wasm_worker_assets_carry_their_policy(
+    client: AsyncClient, stem: str
 ) -> None:
     # End-to-end through the SPA file route: the worker bundle answers with the
-    # sandbox policy, and the chunk next to it answers with the app-wide one.
-    worker = main_module.static_path / "assets" / "workers" / "sandbox.worker-t3st.js"
+    # WebAssembly policy, and the chunk next to it answers with the app-wide one.
+    worker = main_module.static_path / "assets" / "workers" / f"{stem}-t3st.js"
     ordinary = main_module.static_path / "assets" / "index-t3st.js"
     worker.parent.mkdir(parents=True, exist_ok=True)
     ordinary.parent.mkdir(parents=True, exist_ok=True)
-    worker.write_text("// widget sandbox worker\n")
+    worker.write_text("// wasm worker\n")
     ordinary.write_text("// app chunk\n")
     try:
-        sandbox_resp = await client.get(f"/assets/workers/{worker.name}")
+        worker_resp = await client.get(f"/assets/workers/{worker.name}")
         other_resp = await client.get(f"/assets/{ordinary.name}")
     finally:
         worker.unlink(missing_ok=True)
         ordinary.unlink(missing_ok=True)
 
-    assert sandbox_resp.status_code == 200
-    sandbox_csp = sandbox_resp.headers.get("content-security-policy", "")
-    assert sandbox_csp == settings.widget_sandbox_content_security_policy
+    assert worker_resp.status_code == 200
+    worker_csp = worker_resp.headers.get("content-security-policy", "")
+    assert worker_csp == settings.wasm_worker_content_security_policy
 
     assert other_resp.status_code == 200
     other_csp = other_resp.headers.get("content-security-policy", "")

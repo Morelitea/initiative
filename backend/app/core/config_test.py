@@ -262,23 +262,24 @@ def test_csp_allows_inline_styles_but_not_scripts():
     assert "'unsafe-inline'" not in _directive(csp, "script-src")
 
 
-def test_webassembly_is_named_only_on_the_widget_sandbox_policy():
-    # Dashboard widgets are evaluated by QuickJS compiled to WebAssembly, which
+def test_webassembly_is_named_only_on_the_wasm_worker_policy():
+    # Dashboard widgets are evaluated by QuickJS compiled to WebAssembly and
+    # direct messages are ratcheted by vodozemac compiled to WebAssembly, which
     # needs a source expression the app-wide policy does not carry. It is named
-    # on the worker bundle's own response and nowhere else.
+    # on those workers' own responses and nowhere else.
     settings = _settings()
     assert "'wasm-unsafe-eval'" not in settings.content_security_policy
     assert "'wasm-unsafe-eval'" not in settings.docs_content_security_policy
 
-    sandbox = settings.widget_sandbox_content_security_policy
+    sandbox = settings.wasm_worker_content_security_policy
     assert _directive(sandbox, "script-src") == "script-src 'self' 'wasm-unsafe-eval'"
 
 
-def test_widget_sandbox_policy_grants_only_what_the_worker_uses():
-    # Its own script, WebAssembly, and the same-origin fetch for the .wasm file.
-    # Everything else — DOM-adjacent fetches, frames, workers — falls to
+def test_wasm_worker_policy_grants_only_what_the_workers_use():
+    # Their own script, WebAssembly, and the same-origin fetch for the .wasm
+    # file. Everything else — DOM-adjacent fetches, frames, workers — falls to
     # default-src 'none'.
-    sandbox = _settings().widget_sandbox_content_security_policy
+    sandbox = _settings().wasm_worker_content_security_policy
     assert {part.strip() for part in sandbox.split(";")} == {
         "default-src 'none'",
         "script-src 'self' 'wasm-unsafe-eval'",

@@ -367,20 +367,23 @@ class Settings(BaseSettings):
         return _format_csp(directives)
 
     @property
-    def widget_sandbox_content_security_policy(self) -> str:
-        """CSP for the widget sandbox worker bundle ONLY (applied per-response).
+    def wasm_worker_content_security_policy(self) -> str:
+        """CSP for the WebAssembly worker bundles ONLY (applied per-response).
 
-        Dashboard widgets are evaluated by QuickJS compiled to WebAssembly
-        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``). A worker takes
-        its policy from the response that served its script rather than from the
-        document that started it, so the WebAssembly source expression is named
-        here — on that one built asset — and the app-wide policy above needs no
-        mention of it.
+        Two workers run WebAssembly: the dashboard widget sandbox, which
+        evaluates widget code with QuickJS
+        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``), and the direct
+        message ratchet, which runs vodozemac
+        (``frontend/src/crypto/ratchet.worker.ts``). A worker takes its policy
+        from the response that served its script rather than from the document
+        that started it, so the WebAssembly source expression is named here — on
+        those built assets — and the app-wide policy above needs no mention of
+        it.
 
-        The worker is given the three things it uses and nothing else: its own
+        Each worker is given the three things it uses and nothing else: its own
         script, WebAssembly compilation, and a same-origin fetch for the
-        ``.wasm`` file. It has no DOM, loads no styles, images, or fonts, and
-        talks to nobody but the page that started it.
+        ``.wasm`` file. Neither has a DOM, loads styles, images, or fonts, or
+        talks to anybody but the page that started it.
         """
         return _format_csp(
             {
