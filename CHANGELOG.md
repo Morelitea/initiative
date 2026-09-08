@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Viewing something now lets you join the conversation about it.** Anyone a project, document, notice, queue, counter group or calendar has been shared with as a viewer can comment on it and react, where both used to take edit access. Answering something is not editing it — you can reply to a notice you have no business rewriting, the way you always could on a thread you were merely reading. Whether a thread is open at all is still the tool's own comment setting, and a viewer still cannot change the thing itself.
 
+## [0.66.1] - 2026-09-07
+
 ### Fixed
 
 - **Upgrading no longer stops when Initiative connects to its database as the database's own owner.** An install from before Initiative had its own least-privilege login names one PostgreSQL role for everything, and 0.66 asks for a fourth connection made as the database owner — which on those installs is that same role. Startup then tried to give it the shape a purpose-made provisioning login gets, PostgreSQL refused (`permission denied to alter role`), and the app never came up. Startup now leaves a role that is already a superuser with exactly the privileges it had, and goes on to everything else. The banner asking you to move that connection to `app_provisioner` is unchanged, and it is still worth doing.
