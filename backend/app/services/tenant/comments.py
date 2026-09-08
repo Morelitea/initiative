@@ -50,6 +50,7 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.platform import accounts as accounts_service
 from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
@@ -461,6 +462,15 @@ async def _resolved_parent(
         session, column=column, entity_id=entity_id, guild_id=guild_id
     )
     if ctx is None:
+        # The policies took the parent out before this ran. In the initiative
+        # it is the reader's to know about, so sharing is what refused it.
+        table = (
+            "tasks" if column == "task_id" else _TARGETS_BY_COLUMN[column].tool.plural
+        )
+        if await reachability.reader_is_in_the_initiative(
+            table, entity_id, cast(int, user.id), guild_id
+        ):
+            raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
         raise CommentNotFoundError(_parent_not_found(column))
     await _ensure_parent_access(session, ctx, user=user, access=access)
     return ctx

@@ -1131,7 +1131,9 @@ async def vote_on_post_poll(
     # statement, against the wall clock at that moment. The row is held until
     # this ballot commits, so one voter's ballots are written one after another
     # and each is measured by the deadline in force as it lands.
-    if not await post_polls_service.lock_open_poll(session, poll):
+    if not await post_polls_service.lock_open_poll(
+        session, poll, guild_id=guild_context.guild_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,
@@ -1173,7 +1175,9 @@ async def retract_post_poll_vote(
         session, Tool.post, post_id, current_user, guild_context
     )
     poll = _poll_of(post)
-    if not await post_polls_service.lock_open_poll(session, poll):
+    if not await post_polls_service.lock_open_poll(
+        session, poll, guild_id=guild_context.guild_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,

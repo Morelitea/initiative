@@ -38,6 +38,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete as sa_delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -127,20 +128,33 @@ async def lock_poll(session: AsyncSession, poll: PostPoll) -> None:
     )
 
 
-async def lock_open_poll(session: AsyncSession, poll: PostPoll) -> bool:
-    """Take the row, and answer whether the poll still takes votes.
+async def lock_open_poll(
+    session: AsyncSession, poll: PostPoll, *, guild_id: int
+) -> bool:
+    """Take the poll's turnstile, and answer whether it still takes votes.
 
-    One statement, so the close time is read as the row is taken — against the
-    wall clock at that moment (see :func:`poll_is_open`), not the instant this
-    request's transaction began, which is before it loaded the post and before
-    it waited its turn for the row. The ballot is then written inside the
-    transaction still holding it.
+    The close time is read once the lock is held — against the wall clock at
+    that moment (see :func:`poll_is_open`), not the instant this request's
+    transaction began, which is before it loaded the post and before it waited
+    its turn. The ballot is then written inside the transaction still holding
+    the lock, so one voter's ballots are written one after another and each is
+    measured by the deadline in force as it lands.
+
+    The turnstile is an advisory lock rather than the poll row itself: answering
+    a question is not editing it, and taking the row would ask for write access
+    on the notice, which a reader answering the poll does not have. The key is
+    scoped by guild, because poll ids repeat across guild schemas.
     """
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"post_poll:{guild_id}:{poll.id}", 0)
+            )
+        )
+    )
     row = (
         await session.exec(
-            select(PostPoll.id)
-            .where(PostPoll.id == poll.id, poll_is_open())
-            .with_for_update()
+            select(PostPoll.id).where(PostPoll.id == poll.id, poll_is_open())
         )
     ).first()
     return row is not None

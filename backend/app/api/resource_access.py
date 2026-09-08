@@ -37,6 +37,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
@@ -201,6 +202,14 @@ async def load_authorized(
         raise RuntimeError(f"RESOURCE_ACCESS[{kind}] has no loader")
     row = await cfg.loader(session, resource_id)
     if row is None:
+        if await reachability.reader_is_in_the_initiative(
+            kind.plural, resource_id, user.id, guild_context.guild_id
+        ):
+            # In the initiative, so the row is theirs to know about — sharing is
+            # what refused it, and "denied" is the answer to that.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=cfg.not_found_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=cfg.not_found_msg
         )
