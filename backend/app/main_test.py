@@ -91,8 +91,11 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
 ) -> None:
     # End-to-end through the SPA file route: the worker bundle answers with the
     # WebAssembly policy, and the chunk next to it answers with the app-wide one.
+    # Both filenames carry the stem: the cases share one static directory and can
+    # run on different xdist workers, so a name common to both would be deleted
+    # out from under whichever case is still reading it.
     worker = main_module.static_path / "assets" / "workers" / f"{stem}-t3st.js"
-    ordinary = main_module.static_path / "assets" / "index-t3st.js"
+    ordinary = main_module.static_path / "assets" / f"index-{stem}-t3st.js"
     worker.parent.mkdir(parents=True, exist_ok=True)
     ordinary.parent.mkdir(parents=True, exist_ok=True)
     worker.write_text("// wasm worker\n")
