@@ -26,14 +26,7 @@ from typing import Any, Callable
 
 from app.services.fields import tasks as tasks_dataset
 from app.schemas.query import FilterOp
-from app.services.fields.spec import (
-    Dataset,
-    FieldContext,
-    FieldSpec,
-    SortContext,
-    offered_ops,
-    offers_multiple,
-)
+from app.services.fields.spec import Dataset, FieldContext, FieldSpec, SortContext
 
 #: Every dataset, by the name a consumer refers to it by. One entry per
 #: declaration module; the module owns its fields, this owns the set.
@@ -58,15 +51,6 @@ def _built() -> dict[str, Dataset]:
 def dataset(name: str) -> Dataset:
     """The named dataset, or ``KeyError`` — callers name a constant, not input."""
     return _built()[name]
-
-
-def dataset_names() -> tuple[str, ...]:
-    return tuple(_built())
-
-
-def field(dataset_name: str, field_name: str) -> FieldSpec | None:
-    """One field's declaration, or ``None`` if this dataset has no such field."""
-    return dataset(dataset_name).by_name.get(field_name)
 
 
 def allowed_fields(dataset_name: str, ctx: FieldContext) -> dict[str, Any]:
@@ -156,16 +140,15 @@ def describe(dataset_name: str) -> list[dict[str, Any]]:
     engine accepts — never the engine's full set, which includes shapes that are
     correct to compile and pointless to draw.
     """
-    data = dataset(dataset_name)
-    sortable = {spec.name for spec in data.fields if spec.sortable}
     return [
         {
             "name": spec.name,
             "type": spec.type.value,
             "kind": spec.kind.value,
-            "ops": sorted(op.value for op in offered_ops(spec)),
-            "multiple": offers_multiple(spec),
-            "sortable": spec.name in sortable,
+            "ops": sorted(op.value for op in spec.offered_ops),
+            "multiple": spec.multiple,
+            "sortable": spec.sortable,
+            "options": list(spec.options),
         }
-        for spec in data.offered
+        for spec in dataset(dataset_name).offered
     ]

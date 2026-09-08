@@ -1934,23 +1934,25 @@ export interface ContactSectionsResponse {
  * A presentation fact, kept here rather than on the client because it belongs
  * to the field: that an assignee is chosen from a member picker is true of the
  * field, not of any one screen that offers it.
+ *
+ * **Declared in the order a client lists them** — related controls together,
+ * free text last. That ordering is read straight off this enum, so adding a
+ * control in the right place is all there is to placing it.
  */
 export type ControlKind = (typeof ControlKind)[keyof typeof ControlKind];
 
 export const ControlKind = {
-  text: "text",
-  number: "number",
-  date: "date",
-  boolean: "boolean",
   select: "select",
+  task_status: "task_status",
   member: "member",
   tag: "tag",
   project: "project",
   initiative: "initiative",
-  task_status: "task_status",
-  status_category: "status_category",
-  priority: "priority",
   property_value: "property_value",
+  date: "date",
+  boolean: "boolean",
+  number: "number",
+  text: "text",
 } as const;
 
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
@@ -2957,6 +2959,7 @@ export interface FieldDescription {
   ops: FilterOp[];
   multiple: boolean;
   sortable: boolean;
+  options?: string[];
 }
 
 /**

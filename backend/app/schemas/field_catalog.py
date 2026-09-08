@@ -34,6 +34,11 @@ class FieldDescription(SanitizedBaseModel):
     multiple: bool
     #: Whether a list may be ordered by this field.
     sortable: bool
+    #: The values this field accepts, when it accepts a closed set of them —
+    #: read off the column that stores them. A client offers these rather than
+    #: keeping its own copy, so a value added by a migration shows up on its
+    #: own. Empty for a field whose values a lookup has to enumerate.
+    options: List[str] = []
 
 
 class FieldCatalogResponse(SanitizedBaseModel):

@@ -1,21 +1,9 @@
 """What a field *is* — one declaration, read by every surface that names one.
 
-The filter vocabulary is currently written twice: ``_build_task_filter_fields``
-on the backend and ``conditions.ts`` on the client, with nothing keeping them in
-step. Neither is a description — one compiles a clause, the other draws a
-control — so a field's *type*, the operators it answers, and which control fills
-it are knowledge no single place holds.
-
-This module is that place. A :class:`FieldSpec` says everything about a field
-once:
-
-* how it resolves to SQL — a column, or a callable for the ones needing a
-  subquery;
-* what kind of value it holds, so a consumer knows how to compare and render it;
-* which operators apply, so an unsupported one is refused rather than silently
-  producing nothing;
-* which control picks a value, which is what lets a filter UI be generic instead
-  of carrying a branch per field.
+A :class:`FieldSpec` says everything about a field once: how it resolves to SQL,
+what kind of value it holds, which operators apply, and which control fills it.
+That last one is what lets a filter UI be generic instead of carrying a branch
+per field.
 
 It is a *description*, not a second validator. ``apply_filters`` still owns how a
 clause is assembled and ``parse_conditions`` still owns the payload limits;
@@ -59,22 +47,26 @@ class ControlKind(str, Enum):
     A presentation fact, kept here rather than on the client because it belongs
     to the field: that an assignee is chosen from a member picker is true of the
     field, not of any one screen that offers it.
+
+    **Declared in the order a client lists them** — related controls together,
+    free text last. That ordering is read straight off this enum, so adding a
+    control in the right place is all there is to placing it.
     """
 
-    text = "text"
-    number = "number"
-    date = "date"
-    boolean = "boolean"
+    #: A closed vocabulary, whose values ride along with the field. One control
+    #: for every enum the database already defines, rather than one per list.
     select = "select"
+    task_status = "task_status"
     member = "member"
     tag = "tag"
     project = "project"
     initiative = "initiative"
-    task_status = "task_status"
-    status_category = "status_category"
-    priority = "priority"
     #: Values only a lookup can enumerate (a custom property's options).
     property_value = "property_value"
+    date = "date"
+    boolean = "boolean"
+    number = "number"
+    text = "text"
 
 
 #: Operator sets, named for what they mean rather than listed at each use.
@@ -85,20 +77,46 @@ ORDERED: frozenset[FilterOp] = EQUALITY | frozenset(
 TEXTUAL: frozenset[FilterOp] = EQUALITY | frozenset({FilterOp.ilike})
 MEMBERSHIP: frozenset[FilterOp] = EQUALITY | frozenset({FilterOp.in_})
 
+_IN = frozenset({FilterOp.in_})
+_EQ = frozenset({FilterOp.eq})
+_RANGE = frozenset({FilterOp.lt, FilterOp.lte, FilterOp.gt, FilterOp.gte})
 
-#: What a control offers, by the control it is.
+
+#: What a control offers, and what it holds, by the control it is.
 #:
-#: Derived rather than listed per field: "a member picker is a multi-select of
-#: ids" is true of every member picker, and restating it on each field is the
-#: parallel list this module exists to remove. A field's own ``ops`` stays the
-#: engine's answer; this is intersected with it, so a control can never offer an
-#: operator the engine would refuse.
+#: Both derived from the kind rather than declared per field: "a member picker
+#: is a multi-select of ids referring to people" is true of every member picker,
+#: and restating it on each field is the parallel list this module exists to
+#: remove. A field's own ``ops`` stays the engine's answer; this is intersected
+#: with it, so a control can never offer an operator the engine would refuse.
 #:
 #: ``project`` is deliberately single-valued: a plain top-level equality on
 #: ``project_id`` is the only shape that narrows a request to one project, and
 #: the access path reads exactly that shape.
-UI_OPS: dict["ControlKind", frozenset[FilterOp]] = {}
-UI_MULTIPLE: set["ControlKind"] = set()
+CONTROLS: dict[ControlKind, tuple[FieldType, frozenset[FilterOp]]] = {
+    ControlKind.select: (FieldType.enum, _IN),
+    ControlKind.task_status: (FieldType.reference, _IN),
+    ControlKind.member: (FieldType.reference, _IN),
+    ControlKind.tag: (FieldType.reference, _IN),
+    ControlKind.project: (FieldType.reference, _EQ),
+    ControlKind.initiative: (FieldType.reference, _IN),
+    ControlKind.property_value: (FieldType.text, _EQ),
+    ControlKind.date: (FieldType.date, _RANGE),
+    ControlKind.boolean: (FieldType.boolean, _EQ),
+    ControlKind.number: (FieldType.number, _EQ | _RANGE),
+    ControlKind.text: (FieldType.text, frozenset({FilterOp.ilike})),
+}
+
+#: What a field of each type can be compared with, when nothing narrower is
+#: declared. The engine's answer, not the control's.
+_TYPE_OPS: dict[FieldType, frozenset[FilterOp]] = {
+    FieldType.text: TEXTUAL,
+    FieldType.number: ORDERED,
+    FieldType.date: ORDERED,
+    FieldType.boolean: EQUALITY,
+    FieldType.enum: MEMBERSHIP,
+    FieldType.reference: MEMBERSHIP,
+}
 
 
 @dataclass(frozen=True)
@@ -119,8 +137,7 @@ class FieldContext:
     """What a resolver needs that the field itself cannot know.
 
     Passed per request rather than baked into the declaration, because every one
-    of these is a property of *who is asking* — which is why the old builders
-    took them as arguments and rebuilt their whole dict on every call.
+    of these is a property of *who is asking*.
     """
 
     guild_id: int
@@ -149,23 +166,11 @@ class SortExpression(Protocol):
     def __call__(self, ctx: SortContext) -> Any: ...
 
 
-#: What a control offers, by the control it is. Derived rather than listed per
-#: field: "a member picker is a multi-select of ids" is true of every member
-#: picker, and restating it on each field is the parallel list this module
-#: exists to remove.
-#:
-#: ``project`` is deliberately single-valued. A plain top-level equality on
-#: ``project_id`` is the only shape that narrows a request to one project, and
-#: the access path reads exactly that shape; an ``in_`` there would quietly take
-#: a different branch.
-
-
 @dataclass(frozen=True)
 class FieldSpec:
     """One field, described once."""
 
     name: str
-    type: FieldType
     kind: ControlKind
     ops: frozenset[FilterOp]
     #: The column this field is, when it is one. Mutually exclusive with
@@ -186,8 +191,38 @@ class FieldSpec:
     #: offers "is empty" at all — asking it of a NOT NULL column is a filter
     #: that can only ever match everything.
     nullable: bool = True
-    #: Free-text note for the catalog a client renders.
-    description: Optional[str] = None
+    #: Whether a client offers this field as a control. Off for a field that is
+    #: real but is the code's business rather than a reader's. It stays
+    #: filterable by a stored definition either way — declared on the field
+    #: rather than in a list of names elsewhere, which could name a field that
+    #: no longer exists.
+    offer: bool = True
+    #: The values this field accepts, when it accepts a closed set of them.
+    #: Read off the column that stores them, so a client needs no copy.
+    options: tuple[str, ...] = ()
+
+    @property
+    def type(self) -> FieldType:
+        """What this field holds. A fact about the control that fills it."""
+        return CONTROLS[self.kind][0]
+
+    @property
+    def offered_ops(self) -> frozenset[FilterOp]:
+        """The operators a control offers for this field.
+
+        The control's own set, narrowed to what the engine accepts, plus "is
+        empty" only where the column can actually be empty.
+        """
+        ops = CONTROLS[self.kind][1] & self.ops
+        if self.nullable and FilterOp.is_null in self.ops:
+            ops = ops | frozenset({FilterOp.is_null})
+        return ops
+
+    @property
+    def multiple(self) -> bool:
+        """Whether the control picks several values at once — which is exactly
+        whether it offers ``in_``, rather than a second list saying so."""
+        return FilterOp.in_ in self.offered_ops
 
     def __post_init__(self) -> None:
         if self.column is None and self.resolve is None and self.sort is None:
@@ -198,6 +233,26 @@ class FieldSpec:
             raise ValueError(f"field {self.name!r} is filterable but cannot filter")
         if self.sortable and self.column is None and self.sort is None:
             raise ValueError(f"field {self.name!r} is sortable but cannot sort")
+
+
+#: Columns no dataset offers as a filter, by convention rather than per model.
+#:
+#: Soft-delete and purge bookkeeping, the surrogate key, the tenant key (a
+#: request is already scoped to one guild, so filtering by it narrows nothing),
+#: and the drag-ordering float. None of these means anything to somebody
+#: building a filter, and every table has them.
+HIDDEN_EVERYWHERE: frozenset[str] = frozenset(
+    {
+        "id",
+        "guild_id",
+        "position",
+        "deleted_at",
+        "deleted_by",
+        "purge_at",
+    }
+)
+
+_KIND_ORDER: dict[ControlKind, int] = {kind: i for i, kind in enumerate(ControlKind)}
 
 
 @dataclass(frozen=True)
@@ -220,14 +275,6 @@ class Dataset:
     tool: Optional[Tool] = None
     #: Overrides the name derived from ``tool``. Required when there is no tool.
     name_override: Optional[str] = None
-    #: Fields kept out of what a client offers, beyond the shared conventions.
-    #:
-    #: An exclusion list rather than an inclusion one: a new column should show
-    #: up in the filter UI by default and be *taken out* on purpose, so the way
-    #: to forget a field is to forget to hide it rather than to forget to add
-    #: it. Every field stays filterable by a stored definition either way — this
-    #: only governs what a control offers.
-    hidden: frozenset[str] = frozenset()
 
     @property
     def name(self) -> str:
@@ -254,49 +301,36 @@ class Dataset:
             spec
             for spec in self.fields
             if spec.filterable
+            and spec.offer
             and spec.name not in HIDDEN_EVERYWHERE
-            and spec.name not in self.hidden
-            and offered_ops(spec)
+            and spec.offered_ops
         ]
-        return tuple(sorted(candidates, key=presentation_order))
-
-    def __post_init__(self) -> None:
-        known = self.by_name
-        for name in self.hidden:
-            if name not in known:
-                raise ValueError(f"{self.name}: hidden field {name!r} is not declared")
+        return tuple(sorted(candidates, key=lambda s: (_KIND_ORDER[s.kind], s.name)))
 
 
 def column(
     name: str,
     col: Any,
     *,
-    type: FieldType,
     kind: ControlKind,
     ops: Optional[frozenset[FilterOp]] = None,
     filterable: bool = True,
     sortable: bool = False,
     nullable: bool = True,
+    offer: bool = True,
+    options: tuple[str, ...] = (),
 ) -> FieldSpec:
     """A field that is a column. ``ops`` defaults to what its type supports."""
-    if ops is None:
-        ops = {
-            FieldType.text: TEXTUAL,
-            FieldType.number: ORDERED,
-            FieldType.date: ORDERED,
-            FieldType.boolean: EQUALITY,
-            FieldType.enum: MEMBERSHIP,
-            FieldType.reference: MEMBERSHIP,
-        }[type]
     return FieldSpec(
         name=name,
-        type=type,
         kind=kind,
-        ops=ops,
+        ops=_TYPE_OPS[CONTROLS[kind][0]] if ops is None else ops,
         column=col,
         filterable=filterable,
         sortable=sortable,
         nullable=nullable,
+        offer=offer,
+        options=options,
     )
 
 
@@ -304,11 +338,12 @@ def computed(
     name: str,
     resolver: Callable[..., Any],
     *,
-    type: FieldType,
     kind: ControlKind,
     ops: frozenset[FilterOp],
     filterable: bool = True,
     nullable: bool = False,
+    offer: bool = True,
+    options: tuple[str, ...] = (),
 ) -> FieldSpec:
     """A field that needs a subquery, a lookup, or a literal expanded.
 
@@ -319,132 +354,11 @@ def computed(
     """
     return FieldSpec(
         name=name,
-        type=type,
         kind=kind,
         ops=ops,
         resolve=resolver,
         filterable=filterable,
         nullable=nullable,
+        offer=offer,
+        options=options,
     )
-
-
-def sort_only(
-    name: str,
-    expression: SortExpression,
-    *,
-    type: FieldType,
-    kind: ControlKind,
-) -> FieldSpec:
-    """An ordering that is not a field anybody filters by.
-
-    A derived grouping is the case: it exists to put rows in an order, and
-    there is nothing to compare it against.
-    """
-    return FieldSpec(
-        name=name,
-        type=type,
-        kind=kind,
-        ops=frozenset(),
-        sort=expression,
-        filterable=False,
-        sortable=True,
-    )
-
-
-# --- what a control offers ---------------------------------------------------
-#
-# Populated here rather than at the declaration above because the values need
-# ControlKind and the operator sets, and the declaration needs to be readable
-# next to the type it belongs to.
-
-_IN = frozenset({FilterOp.in_})
-_EQ = frozenset({FilterOp.eq})
-_RANGE = frozenset({FilterOp.lt, FilterOp.lte, FilterOp.gt, FilterOp.gte})
-
-UI_OPS.update(
-    {
-        ControlKind.status_category: _IN,
-        ControlKind.task_status: _IN,
-        ControlKind.priority: _IN,
-        ControlKind.member: _IN,
-        ControlKind.tag: _IN,
-        ControlKind.initiative: _IN,
-        ControlKind.select: _IN,
-        ControlKind.project: _EQ,
-        ControlKind.date: _RANGE,
-        ControlKind.number: _EQ | _RANGE,
-        ControlKind.boolean: _EQ,
-        ControlKind.text: frozenset({FilterOp.ilike}),
-        ControlKind.property_value: _EQ,
-    }
-)
-
-UI_MULTIPLE.update(
-    {
-        ControlKind.status_category,
-        ControlKind.task_status,
-        ControlKind.priority,
-        ControlKind.member,
-        ControlKind.tag,
-        ControlKind.initiative,
-        ControlKind.select,
-    }
-)
-
-
-def offered_ops(spec: FieldSpec) -> frozenset[FilterOp]:
-    """The operators a control offers for this field.
-
-    The control's own set, narrowed to what the engine accepts, plus "is empty"
-    only where the column can actually be empty — offering it on a NOT NULL
-    column is a filter that can only ever match everything.
-    """
-    ops = UI_OPS.get(spec.kind, frozenset()) & spec.ops
-    if spec.nullable and FilterOp.is_null in spec.ops:
-        ops = ops | frozenset({FilterOp.is_null})
-    return ops
-
-
-def offers_multiple(spec: FieldSpec) -> bool:
-    return spec.kind in UI_MULTIPLE
-
-
-#: Columns no dataset offers as a filter, by convention rather than per model.
-#:
-#: Soft-delete and purge bookkeeping, the surrogate key, the tenant key (a
-#: request is already scoped to one guild, so filtering by it narrows nothing),
-#: and the drag-ordering float. None of these means anything to somebody
-#: building a filter, and every table has them.
-HIDDEN_EVERYWHERE: frozenset[str] = frozenset(
-    {
-        "id",
-        "guild_id",
-        "position",
-        "deleted_at",
-        "deleted_by",
-        "purge_at",
-    }
-)
-
-
-#: Ordering for the fields a client lists, by control group then name. Derived
-#: so nobody maintains a running order as fields are added.
-_KIND_ORDER: dict["ControlKind", int] = {
-    ControlKind.status_category: 0,
-    ControlKind.task_status: 1,
-    ControlKind.priority: 2,
-    ControlKind.member: 3,
-    ControlKind.tag: 4,
-    ControlKind.project: 5,
-    ControlKind.initiative: 6,
-    ControlKind.select: 7,
-    ControlKind.property_value: 8,
-    ControlKind.date: 9,
-    ControlKind.boolean: 10,
-    ControlKind.number: 11,
-    ControlKind.text: 12,
-}
-
-
-def presentation_order(spec: FieldSpec) -> tuple[int, str]:
-    return (_KIND_ORDER.get(spec.kind, 99), spec.name)

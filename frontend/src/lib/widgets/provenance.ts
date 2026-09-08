@@ -37,6 +37,7 @@ import {
   fieldSpec,
   isGroup,
   isRelativeDate,
+  optionLabelKey,
 } from "@/lib/widgets/conditions";
 import { type EntityKind, entityParams } from "@/lib/widgets/sources";
 
@@ -143,11 +144,8 @@ const describeValues = (
 
   for (const value of values) {
     switch (spec?.kind) {
-      case "status_category":
-        named.push(t(`tasks:statusCategory.${value}`, { defaultValue: String(value) }));
-        break;
-      case "priority":
-        named.push(t(`tasks:priority.${value}`, { defaultValue: String(value) }));
+      case "select":
+        named.push(t(optionLabelKey(leaf.field, value), { defaultValue: String(value) }));
         break;
       case "member": {
         // "me" is the DSL's own token for the requesting user, and it is the
