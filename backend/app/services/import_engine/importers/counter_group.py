@@ -74,6 +74,11 @@ class CounterGroupImporter:
             )
         )
 
+        # The sharing has to be in the database before the content it governs:
+        # a flush orders its statements by table, not by the order things were
+        # added.
+        await session.flush()
+
         for c in env.counters:
             try:
                 view_mode = CounterViewMode(c.view_mode)
