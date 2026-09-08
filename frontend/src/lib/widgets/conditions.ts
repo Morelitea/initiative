@@ -1,3 +1,10 @@
+import type {
+  ControlKind,
+  FieldDescription,
+  FilterOp as GeneratedFilterOp,
+} from "@/api/generated/initiativeAPI.schemas";
+import { FilterOp as FilterOpValues } from "@/api/generated/initiativeAPI.schemas";
+
 /**
  * The filter half of a data view.
  *
@@ -26,10 +33,15 @@
  * twice. This drops what it cannot read and passes the rest through.
  */
 
-/** Operators the endpoint's DSL understands (`app.schemas.query.FilterOp`).
- *  Negation is a flag on the condition, not a separate operator. */
-export const FILTER_OPS = ["eq", "lt", "lte", "gt", "gte", "in_", "ilike", "is_null"] as const;
-export type FilterOp = (typeof FILTER_OPS)[number];
+/** Operators the endpoint's DSL understands, and the controls that pick a
+ *  value. Both come from the server's own enums through the generated client,
+ *  so neither is restated here. Negation is a flag on the condition, not a
+ *  separate operator. */
+export type FilterOp = GeneratedFilterOp;
+/** Every operator, for reading a stored condition back. Derived from the
+ *  generated enum rather than restated, so the server's vocabulary is the only
+ *  one there is. */
+export const FILTER_OPS = Object.values(FilterOpValues) as readonly FilterOp[];
 
 /** A date expressed as an offset from "now", in days. Resolved at fetch time so
  *  a saved dashboard keeps asking the same *question* as the days pass. */
@@ -61,19 +73,11 @@ export const isRelativeDate = (value: unknown): value is RelativeDate =>
   value !== null &&
   typeof (value as RelativeDate).relative === "number";
 
-// --- the field catalog ------------------------------------------------------
+// --- the field declarations -------------------------------------------------
 
-/** How a value is chosen, and therefore how it is rendered back. */
-export type FieldKind =
-  | "status_category"
-  | "task_status"
-  | "priority"
-  | "member"
-  | "tag"
-  | "project"
-  | "date"
-  | "boolean"
-  | "text";
+/** How a value is chosen, and therefore how it is rendered back. The server's
+ *  own control vocabulary, through the generated client. */
+export type FieldKind = ControlKind;
 
 export interface FilterFieldSpec {
   field: string;
@@ -83,34 +87,36 @@ export interface FilterFieldSpec {
   multiple?: boolean;
 }
 
-/**
- * What a dashboard may filter tasks by.
+/** The server's description, in the shape the controls read.
  *
- * `assignee_ids`, `tag_ids`, and `status_category` are the endpoint's virtual
- * fields; the rest are `Task` columns. `initiative_ids` is deliberately absent —
- * a dashboard reads its own initiative and a binding cannot say otherwise.
+ *  The two differ in one key: `name` there, `field` here, because that is what
+ *  a stored condition has always called it. Everything else passes through —
+ *  the kinds and operators are already the server's enums, so there is nothing
+ *  to translate and nothing that could disagree. */
+export const toFilterFieldSpec = (described: FieldDescription): FilterFieldSpec => ({
+  field: described.name,
+  kind: described.kind,
+  ops: described.ops,
+  multiple: described.multiple,
+});
+
+/**
+ * A field's declaration, as the server describes it.
+ *
+ * The list itself is no longer here. It was a hand-kept copy of what the
+ * backend already knew, with its own idea of which operators each field takes —
+ * two lists that could disagree, and did. {@link useFieldCatalog} reads the one
+ * declaration instead; what stays here is the shape it arrives in and the
+ * lookup over it.
  */
-export const TASK_FILTER_FIELDS = [
-  { field: "status_category", kind: "status_category", ops: ["in_"], multiple: true },
-  { field: "task_status_id", kind: "task_status", ops: ["in_"], multiple: true },
-  { field: "priority", kind: "priority", ops: ["in_"], multiple: true },
-  { field: "assignee_ids", kind: "member", ops: ["in_"], multiple: true },
-  { field: "tag_ids", kind: "tag", ops: ["in_"], multiple: true },
-  { field: "project_id", kind: "project", ops: ["eq"] },
-  { field: "due_date", kind: "date", ops: ["lt", "lte", "gt", "gte", "is_null"] },
-  { field: "start_date", kind: "date", ops: ["lt", "lte", "gt", "gte", "is_null"] },
-  { field: "completed_at", kind: "date", ops: ["lt", "lte", "gt", "gte", "is_null"] },
-  { field: "created_at", kind: "date", ops: ["lt", "lte", "gt", "gte"] },
-  { field: "is_archived", kind: "boolean", ops: ["eq"] },
-  { field: "title", kind: "text", ops: ["ilike"] },
-] as const satisfies readonly FilterFieldSpec[];
+export type TaskFilterField = string;
 
-/** The field names, as literals — so the labels that name them stay checked
- *  against the locale file rather than falling back to a default. */
-export type TaskFilterField = (typeof TASK_FILTER_FIELDS)[number]["field"];
-
-export const fieldSpec = (field: string): FilterFieldSpec | undefined =>
-  TASK_FILTER_FIELDS.find((candidate) => candidate.field === field);
+/** One field, found by name. Takes the list because these are pure functions
+ *  and the list is fetched — the same reason a formatter takes `t`. */
+export const fieldSpec = (
+  fields: readonly FilterFieldSpec[],
+  field: string
+): FilterFieldSpec | undefined => fields.find((candidate) => candidate.field === field);
 
 // --- reading ----------------------------------------------------------------
 

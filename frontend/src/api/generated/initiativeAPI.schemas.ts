@@ -1928,6 +1928,31 @@ export interface ContactSectionsResponse {
   page_size: number;
 }
 
+/**
+ * Which control fills this field.
+ *
+ * A presentation fact, kept here rather than on the client because it belongs
+ * to the field: that an assignee is chosen from a member picker is true of the
+ * field, not of any one screen that offers it.
+ */
+export type ControlKind = (typeof ControlKind)[keyof typeof ControlKind];
+
+export const ControlKind = {
+  text: "text",
+  number: "number",
+  date: "date",
+  boolean: "boolean",
+  select: "select",
+  member: "member",
+  tag: "tag",
+  project: "project",
+  initiative: "initiative",
+  task_status: "task_status",
+  status_category: "status_category",
+  priority: "priority",
+  property_value: "property_value",
+} as const;
+
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
 
 export const CounterViewMode = {
@@ -2210,6 +2235,15 @@ export interface DashboardUpdate {
   definition?: DashboardUpdateDefinition;
   config?: DashboardUpdateConfig;
 }
+
+/**
+ * A dataset the field registry describes.
+ */
+export type DatasetName = (typeof DatasetName)[keyof typeof DatasetName];
+
+export const DatasetName = {
+  tasks: "tasks",
+} as const;
 
 /**
  * One decoration an account may wear, and where it came from.
@@ -2877,6 +2911,24 @@ export interface FavoriteContactsResponse {
 }
 
 /**
+ * What a value *is*, for comparison and formatting.
+ *
+ * Coarser than a SQL type on purpose: a consumer needs to know that a due date
+ * orders and a title does not, never that one is ``timestamptz`` and the other
+ * ``varchar(200)``.
+ */
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
+
+export const FieldType = {
+  text: "text",
+  number: "number",
+  date: "date",
+  boolean: "boolean",
+  enum: "enum",
+  reference: "reference",
+} as const;
+
+/**
  * Comparison operators for filter conditions.
  *
  * Negation is handled by the ``negate`` flag on FilterCondition,
@@ -2894,6 +2946,26 @@ export const FilterOp = {
   ilike: "ilike",
   is_null: "is_null",
 } as const;
+
+/**
+ * One field a client may offer for filtering.
+ */
+export interface FieldDescription {
+  name: string;
+  type: FieldType;
+  kind: ControlKind;
+  ops: FilterOp[];
+  multiple: boolean;
+  sortable: boolean;
+}
+
+/**
+ * Every field a dataset offers, in the order a client lists them.
+ */
+export interface FieldCatalogResponse {
+  dataset: string;
+  fields: FieldDescription[];
+}
 
 export interface PresetPropertyFilter {
   property_id: number;

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from sqlalchemy import and_, case, func, literal, or_, text
+from sqlalchemy import and_, case, func, or_
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -19,6 +19,7 @@ from app.db.query import (
     iter_leaf_conditions,
     paginate_sequence,
     paginated_query,
+    check_ops,
     parse_conditions,
     parse_sort_fields,
 )
@@ -46,7 +47,7 @@ from app.models.tenant.task import (
     TaskStatusCategory,
     Subtask,
 )
-from app.models.tenant.tag import Tag, TaskTag
+from app.models.tenant.tag import TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -86,6 +87,8 @@ from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services import ai_generation as ai_generation_service
+from app.services import fields as fields_registry
+from app.services.fields.spec import FieldContext, SortContext
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.core.tools import Tool
@@ -107,70 +110,23 @@ def _validate_tz(tz: str | None) -> str | None:
 
 
 def _date_group_expression(tz: str | None = None):
-    """SQL CASE mirroring frontend getTaskDateStatus() logic.
+    """The date-group ordering expression, from the field registry.
 
-    Returns a numeric group:
-      0 = overdue (due_date in the past)
-      1 = today (start_date before today OR start/due is today)
-      2 = this week (start or due within 7 days)
-      3 = this month (start or due within 30 days)
-      4 = later (everything else)
-
-    When *tz* is a valid IANA timezone the expression converts both
-    ``now()`` and the task columns to that timezone so that "today"
-    matches the **user's** local day, not the database server's UTC day.
+    Kept as a helper because two queries select it as a labelled column rather
+    than only ordering by it — the cross-guild merge sorts in Python and needs
+    the value carried out of SQL.
     """
-    if tz:
-        tz_sql = literal(tz)
-        now = func.now().op("AT TIME ZONE")(tz_sql)
-        start = Task.start_date.op("AT TIME ZONE")(tz_sql)
-        due = Task.due_date.op("AT TIME ZONE")(tz_sql)
-    else:
-        now = func.now()
-        start = Task.start_date
-        due = Task.due_date
-
-    today = func.date_trunc("day", now)
-    week_later = now + text("interval '7 days'")
-    month_later = now + text("interval '30 days'")
-
-    return case(
-        # 0: overdue — due_date is in the past
-        (due < now, 0),
-        # 1: today — start_date before today, or start/due is today
-        (start < today, 1),
-        (func.date_trunc("day", start) == today, 1),
-        (func.date_trunc("day", due) == today, 1),
-        # 2: this week — start or due within 7 days
-        (start <= week_later, 2),
-        (due <= week_later, 2),
-        # 3: this month — start or due within 30 days
-        (start <= month_later, 3),
-        (due <= month_later, 3),
-        # 4: later — everything else
-        else_=4,
-    )
+    return fields_registry.sort_expression("tasks", "date_group", _sort_ctx(tz))
 
 
-# Static sort fields (everything except date_group which is timezone-dependent)
-_TASK_SORT_FIELDS_STATIC: dict[str, object] = {
-    "position": Task.position,
-    "title": Task.title,
-    "due_date": Task.due_date,
-    "start_date": Task.start_date,
-    "priority": Task.priority,
-    "created_at": Task.created_at,
-    "updated_at": Task.updated_at,
-}
+def _sort_ctx(tz: str | None) -> SortContext:
+    """Sorting needs only the timezone; identity is filter context."""
+    return SortContext(tz=tz)
 
 
 def _task_sort_fields(tz: str | None = None) -> dict[str, object]:
-    """Allowed sort fields for the list endpoint.
-
-    ``date_group`` is rebuilt on every call so it can incorporate the
-    caller's timezone.
-    """
-    return {**_TASK_SORT_FIELDS_STATIC, "date_group": _date_group_expression(tz)}
+    """Allowed sort fields for the list endpoint, from the field registry."""
+    return fields_registry.sort_fields("tasks", _sort_ctx(tz))
 
 
 TASK_DEFAULT_SORT = [(Task.position, "asc"), (Task.id, "asc")]
@@ -254,109 +210,21 @@ def _build_task_filter_fields(
     current_user_id: int,
     property_definitions: Optional[dict[int, PropertyDefinition]] = None,
 ) -> dict:
-    """Build allowed_fields dict from Task model columns plus callable overrides.
+    """The ``allowed_fields`` mapping for a task filter, from the field registry.
 
-    Every column on the Task table is automatically available as a filter
-    field (e.g. ``project_id``, ``priority``, ``due_date``, ``title``).
-    Virtual fields that require subqueries (``status_category``,
-    ``assignee_ids``, ``tag_ids``, ``initiative_ids``) are added as
-    callable handlers that receive ``(op, value)`` and return a SA clause.
-    ``assignee_ids`` also answers ``is_null`` — true for tasks with no
-    assignee at all, which no id list can express.
+    Every column and every virtual field is declared once in
+    ``app.services.fields.tasks`` — the same declaration the filter UI and the
+    query surface read — so this is the binding of that declaration to one
+    request rather than a catalog of its own.
     """
-    # Auto-populate from model columns
-    fields: dict = {col.name: getattr(Task, col.name) for col in Task.__table__.columns}
-
-    # Callable overrides for virtual / cross-table fields
-    def _status_category_handler(op: FilterOp, value):
-        if not value:
-            return None
-        subq = select(TaskStatus.id).where(TaskStatus.category.in_(tuple(value)))
-        return Task.task_status_id.in_(subq)
-
-    def _assignee_ids_handler(op: FilterOp, value):
-        # "Unassigned": no row in task_assignees at all. Answered before the
-        # emptiness guard below, which is there to skip an empty id list.
-        # ``negate`` inverts it, so "has any assignee" comes free.
-        if op == FilterOp.is_null:
-            has_assignee = Task.id.in_(select(TaskAssignee.task_id))
-            return ~has_assignee if value else has_assignee
-        if not value:
-            return None
-        user_ids = []
-        for aid in value:
-            if aid == "me":
-                user_ids.append(current_user_id)
-            else:
-                try:
-                    user_ids.append(int(aid))
-                except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=TaskMessages.INVALID_ASSIGNEE_ID,
-                    )
-        if not user_ids:
-            return None
-        subq = select(TaskAssignee.task_id).where(
-            TaskAssignee.user_id.in_(tuple(user_ids))
-        )
-        return Task.id.in_(subq)
-
-    def _tag_ids_handler(op: FilterOp, value):
-        if not value:
-            return None
-        subq = (
-            select(TaskTag.task_id)
-            .join(Tag, Tag.id == TaskTag.tag_id)
-            .where(
-                TaskTag.tag_id.in_(tuple(value)),
-                Tag.guild_id == guild_id,
-            )
-            .distinct()
-        )
-        return Task.id.in_(subq)
-
-    def _initiative_ids_handler(op: FilterOp, value):
-        if not value:
-            return None
-        subq = select(Project.id).where(Project.initiative_id.in_(tuple(value)))
-        return Task.project_id.in_(subq)
-
-    defs_map: dict[int, PropertyDefinition] = property_definitions or {}
-
-    def _property_values_handler(op: FilterOp, value):
-        """Filter tasks by a custom property value.
-
-        ``value`` is expected to be a dict of the form
-        ``{"property_id": int, "value": <any>}``. Delegates compilation
-        to :func:`properties_service.build_single_property_clause` so
-        the typed-column + is_empty semantics stay in sync with docs /
-        events and the shared parse path used for ``property_filters``.
-        """
-        if not isinstance(value, dict):
-            return None
-        pid_raw = value.get("property_id")
-        raw_value = value.get("value")
-        try:
-            pid = int(pid_raw)
-        except (TypeError, ValueError):
-            return None
-        defn = defs_map.get(pid)
-        if defn is None:
-            # Unknown or cross-guild property — silently skip (defense in
-            # depth, consistent with the rest of apply_filters).
-            return None
-        return properties_service.build_single_property_clause(
-            "task", pid, op, raw_value, defn
-        )
-
-    fields["status_category"] = _status_category_handler
-    fields["assignee_ids"] = _assignee_ids_handler
-    fields["tag_ids"] = _tag_ids_handler
-    fields["initiative_ids"] = _initiative_ids_handler
-    fields["property_values"] = _property_values_handler
-
-    return fields
+    return fields_registry.allowed_fields(
+        "tasks",
+        FieldContext(
+            guild_id=guild_id,
+            user_id=current_user_id,
+            property_definitions=property_definitions or {},
+        ),
+    )
 
 
 subtasks_router = APIRouter()
@@ -1166,6 +1034,7 @@ async def _list_global_tasks(
             stmt,
             Task,
             user_conditions,
+            allowed_ops=fields_registry.allowed_ops("tasks"),
             allowed_fields=_build_task_filter_fields(
                 guild_id=guild_id,
                 current_user_id=current_user.id,
@@ -1224,6 +1093,7 @@ async def _list_global_created_tasks(
             stmt,
             Task,
             user_conditions,
+            allowed_ops=fields_registry.allowed_ops("tasks"),
             allowed_fields=_build_task_filter_fields(
                 guild_id=guild_id,
                 current_user_id=current_user.id,
@@ -1279,6 +1149,9 @@ async def _parse_task_list_query(
     :func:`_load_property_definitions_across_guilds`."""
     try:
         user_conditions = parse_conditions(conditions)
+        # Operators are checked here rather than at query-build time so an
+        # unsupported one is the same 400 as any other malformed filter.
+        check_ops(user_conditions, fields_registry.allowed_ops("tasks"))
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1410,7 +1283,11 @@ async def _guild_task_query_builder(
         stmt = stmt.join(Task.project).join(Project.initiative)
         stmt = stmt.where(*access_conditions)
         return apply_filters(
-            stmt, Task, q.user_conditions, allowed_fields=filter_fields
+            stmt,
+            Task,
+            q.user_conditions,
+            allowed_fields=filter_fields,
+            allowed_ops=fields_registry.allowed_ops("tasks"),
         )
 
     return build

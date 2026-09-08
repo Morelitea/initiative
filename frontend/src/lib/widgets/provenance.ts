@@ -31,6 +31,7 @@ import type { TFunction } from "i18next";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
 import {
   type ConditionValue,
+  type FilterFieldSpec,
   type FilterLeaf,
   type FilterNode,
   fieldSpec,
@@ -127,8 +128,13 @@ const listValues = (raw: ConditionValue | undefined): (string | number)[] => {
  * counted rather than named, so a line reads "Ada, and 2 you can't see" instead
  * of leaking two names or silently dropping them.
  */
-const describeValues = (leaf: FilterLeaf, labels: EntityLabels, t: ProvenanceT): string => {
-  const spec = fieldSpec(leaf.field);
+const describeValues = (
+  leaf: FilterLeaf,
+  fields: readonly FilterFieldSpec[],
+  labels: EntityLabels,
+  t: ProvenanceT
+): string => {
+  const spec = fieldSpec(fields, leaf.field);
   const values = listValues(leaf.value);
   if (!values.length) return "";
 
@@ -207,6 +213,7 @@ const describeDate = (
  *  values go through the viewer's own lookups. */
 export const describeLeaf = (
   leaf: FilterLeaf,
+  fields: readonly FilterFieldSpec[],
   labels: EntityLabels,
   t: ProvenanceT,
   formatDate: (epoch: number) => string
@@ -219,11 +226,11 @@ export const describeLeaf = (
   if (leaf.op === "is_null") {
     return t(`dashboards:filterPhrase.${prefix}is_null`, { field, defaultValue: field });
   }
-  const spec = fieldSpec(leaf.field);
+  const spec = fieldSpec(fields, leaf.field);
   const value =
     spec?.kind === "date"
       ? describeDate(leaf.value, t, formatDate)
-      : describeValues(leaf, labels, t);
+      : describeValues(leaf, fields, labels, t);
 
   return t(`dashboards:filterPhrase.${prefix}${leaf.op}`, {
     field,
@@ -237,18 +244,19 @@ export const describeLeaf = (
  *  dissolving into unrelated ANDs. */
 export const describeConditions = (
   nodes: FilterNode[],
+  fields: readonly FilterFieldSpec[],
   labels: EntityLabels,
   t: ProvenanceT,
   formatDate: (epoch: number) => string
 ): string[] =>
   nodes.map((node) => {
-    if (!isGroup(node)) return describeLeaf(node, labels, t, formatDate);
+    if (!isGroup(node)) return describeLeaf(node, fields, labels, t, formatDate);
     const joiner = t(`dashboards:provenance.${node.logic}`);
     return node.conditions
       .map((child) =>
         isGroup(child)
-          ? describeConditions([child], labels, t, formatDate).join("")
-          : describeLeaf(child, labels, t, formatDate)
+          ? describeConditions([child], fields, labels, t, formatDate).join("")
+          : describeLeaf(child, fields, labels, t, formatDate)
       )
       .join(` ${joiner} `);
   });

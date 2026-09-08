@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { cn } from "@/lib/utils";
 import { countLeaves, readConditions } from "@/lib/widgets/conditions";
@@ -57,9 +58,14 @@ export function WidgetProvenance({
   }, [i18n.language]);
 
   const conditions = useMemo(() => readConditions(binding.conditions), [binding.conditions]);
+
+  // The field declarations a condition is read against — the same ones the
+  // builder offers, so a tile describes exactly what the builder wrote.
+  const { fields } = useFieldCatalog("tasks");
+
   const filters = useMemo(
-    () => describeConditions(conditions, labels, t, formatDate),
-    [conditions, labels, t, formatDate]
+    () => describeConditions(conditions, fields, labels, t, formatDate),
+    [conditions, fields, labels, t, formatDate]
   );
   const scope = useMemo(() => bindingScope(binding, labels), [binding, labels]);
 

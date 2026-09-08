@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { WidgetBinding } from "@/hooks/useWidgetData";
-import { readConditions } from "@/lib/widgets/conditions";
+import { type FilterFieldSpec, readConditions } from "@/lib/widgets/conditions";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import {
   bindingScope,
@@ -11,6 +11,24 @@ import {
   type EntityLabels,
   type ProvenanceT,
 } from "@/lib/widgets/provenance";
+
+/** The field declarations these lines are read against.
+ *
+ *  The server owns the real list; a test states the few it exercises, so a
+ *  field being added or its control changing does not rewrite these
+ *  assertions. */
+const fields: FilterFieldSpec[] = [
+  { field: "status_category", kind: "status_category", ops: ["in_"], multiple: true },
+  { field: "task_status_id", kind: "task_status", ops: ["in_"], multiple: true },
+  { field: "priority", kind: "priority", ops: ["in_"], multiple: true },
+  { field: "assignee_ids", kind: "member", ops: ["in_", "is_null"], multiple: true },
+  { field: "tag_ids", kind: "tag", ops: ["in_"], multiple: true },
+  { field: "project_id", kind: "project", ops: ["eq"] },
+  { field: "due_date", kind: "date", ops: ["lt", "lte", "gt", "gte", "is_null"] },
+  { field: "start_date", kind: "date", ops: ["lt", "lte", "gt", "gte", "is_null"] },
+  { field: "title", kind: "text", ops: ["ilike"] },
+  { field: "is_archived", kind: "boolean", ops: ["eq"] },
+];
 
 /** A `t` that echoes its key and interpolations, so these assert on which
  *  string was chosen rather than on the English wording of it. */
@@ -83,6 +101,7 @@ describe("describeLeaf", () => {
     const [leaf] = readConditions([{ field: "assignee_ids", op: "in_", value: [4] }]);
     const line = describeLeaf(
       leaf as never,
+      fields,
       labels({ member: new Map([[4, "Ada"]]) }),
       t,
       formatDate
@@ -94,6 +113,7 @@ describe("describeLeaf", () => {
     const [leaf] = readConditions([{ field: "assignee_ids", op: "in_", value: [4, 9] }]);
     const line = describeLeaf(
       leaf as never,
+      fields,
       labels({ member: new Map([[4, "Ada"]]) }),
       t,
       formatDate
@@ -105,28 +125,32 @@ describe("describeLeaf", () => {
 
   it("resolves the DSL's own token for the requesting user without a lookup", () => {
     const [leaf] = readConditions([{ field: "assignee_ids", op: "in_", value: ["me"] }]);
-    expect(describeLeaf(leaf as never, labels(), t, formatDate)).toContain("provenance.me");
+    expect(describeLeaf(leaf as never, fields, labels(), t, formatDate)).toContain("provenance.me");
   });
 
   it("uses the negated phrasing when the comparison is inverted", () => {
     const [leaf] = readConditions([{ field: "priority", op: "in_", value: ["low"], negate: true }]);
-    expect(describeLeaf(leaf as never, labels(), t, formatDate)).toContain("filterPhrase.not_in_");
+    expect(describeLeaf(leaf as never, fields, labels(), t, formatDate)).toContain(
+      "filterPhrase.not_in_"
+    );
   });
 
   it("reads an emptiness check without a value", () => {
     const [leaf] = readConditions([{ field: "due_date", op: "is_null" }]);
-    expect(describeLeaf(leaf as never, labels(), t, formatDate)).toContain("filterPhrase.is_null");
+    expect(describeLeaf(leaf as never, fields, labels(), t, formatDate)).toContain(
+      "filterPhrase.is_null"
+    );
   });
 
   it("says a relative date in days rather than as an instant", () => {
     const [leaf] = readConditions([{ field: "due_date", op: "lt", value: { relative: 30 } }]);
-    const line = describeLeaf(leaf as never, labels(), t, formatDate);
+    const line = describeLeaf(leaf as never, fields, labels(), t, formatDate);
     expect(line).toContain("provenance.inDays(count=30)");
   });
 
   it("formats an absolute date with the caller's formatter", () => {
     const [leaf] = readConditions([{ field: "due_date", op: "lt", value: "2026-09-30T00:00:00Z" }]);
-    expect(describeLeaf(leaf as never, labels(), t, formatDate)).toContain("2026-09-30");
+    expect(describeLeaf(leaf as never, fields, labels(), t, formatDate)).toContain("2026-09-30");
   });
 });
 
@@ -136,7 +160,7 @@ describe("describeConditions", () => {
       { field: "priority", op: "in_", value: ["high"] },
       { field: "due_date", op: "is_null" },
     ]);
-    expect(describeConditions(nodes, labels(), t, formatDate)).toHaveLength(2);
+    expect(describeConditions(nodes, fields, labels(), t, formatDate)).toHaveLength(2);
   });
 
   it("keeps a group on one line, joined by its own logic word", () => {
@@ -149,11 +173,11 @@ describe("describeConditions", () => {
         ],
       },
     ]);
-    const [line] = describeConditions(nodes, labels(), t, formatDate);
+    const [line] = describeConditions(nodes, fields, labels(), t, formatDate);
     expect(line).toContain("provenance.or");
   });
 
   it("is empty when there are no conditions", () => {
-    expect(describeConditions([], labels(), t, formatDate)).toEqual([]);
+    expect(describeConditions([], fields, labels(), t, formatDate)).toEqual([]);
   });
 });

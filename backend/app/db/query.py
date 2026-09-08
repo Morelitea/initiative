@@ -194,6 +194,7 @@ def apply_filters(
     model: Any,
     conditions: list[FilterCondition | FilterGroup],
     allowed_fields: dict[str, Any] | None = None,
+    allowed_ops: dict[str, frozenset[FilterOp]] | None = None,
 ) -> Select:
     """Apply filter conditions to a Select statement.
 
@@ -210,13 +211,42 @@ def apply_filters(
 
     If *None*, uses ``getattr(model, field)`` directly.
     Unknown fields are silently skipped (defense in depth).
+
+    ``allowed_ops`` maps a field name to the operators it accepts. A condition
+    using any other operator raises :class:`ValueError`, so every condition a
+    caller sends is either applied or reported back. Omitting the map keeps the
+    historical behaviour of accepting whatever operator arrives.
     """
+    check_ops(conditions, allowed_ops)
     for cond in conditions:
         clause = _resolve_condition(cond, model, allowed_fields)
         if clause is not None:
             statement = statement.where(clause)
 
     return statement
+
+
+def check_ops(
+    conditions: list[FilterCondition | FilterGroup],
+    allowed_ops: dict[str, frozenset[FilterOp]] | None,
+) -> None:
+    """Refuse an operator a field does not accept, groups included.
+
+    Public so a caller can run it at parse time, alongside the payload checks,
+    and answer with the same 400 every other malformed filter gets — reaching
+    :func:`apply_filters` with a bad operator would surface as a server error
+    from deep inside query construction instead.
+    """
+    if allowed_ops is None:
+        return
+    for cond in iter_leaf_conditions(conditions):
+        permitted = allowed_ops.get(cond.field)
+        # An unknown field is still silently skipped downstream; only a known
+        # field with an operator it does not accept is an error.
+        if permitted is not None and cond.op not in permitted:
+            raise ValueError(
+                f"field '{cond.field}' does not support operator '{cond.op.value}'"
+            )
 
 
 def _resolve_condition(

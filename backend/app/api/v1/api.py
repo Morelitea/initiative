@@ -54,6 +54,7 @@ from app.api.v1.tenant_endpoints import (
     trash,
 )
 from app.api.v1.platform_endpoints import (
+    field_catalog,
     access_grants,
     admin,
     announcements,
@@ -85,6 +86,7 @@ api_router = APIRouter()
 # Top-level routes: unauthenticated, user-scoped, admin, and cross-guild.
 # These do NOT take a guild path segment.
 # ---------------------------------------------------------------------------
+api_router.include_router(field_catalog.router, tags=["fields"])
 api_router.include_router(version.router, tags=["version"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
