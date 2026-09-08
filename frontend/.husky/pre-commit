@@ -1,5 +1,7 @@
 set -e
 
+. ./scripts/git-identity-guard.sh
+
 # Frontend: biome check/format on staged web files (via lint-staged)
 cd frontend && pnpm lint-staged
 cd ..

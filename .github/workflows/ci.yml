@@ -353,3 +353,12 @@ jobs:
             exit 1
           fi
           echo "Generated types are up to date."
+
+  git-hooks:
+    name: Git Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test the git identity guard
+        run: ./scripts/git-identity-guard_test.sh
