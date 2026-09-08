@@ -33,6 +33,8 @@ Nothing arriving? Check spam first — it's usually spam. Reset links also go st
 
 ## The mobile app
 
+Haven't got it yet? [Installing the app](install-the-app.md) covers both the Android app and the home-screen version for everything else.
+
 The app needs one extra step the first time, because it has to be told *which* Initiative it's talking to. There are a lot of them out there and it has no way of guessing which one is yours.
 
 1. Open the app. You'll get a **Connect to Server** screen.
