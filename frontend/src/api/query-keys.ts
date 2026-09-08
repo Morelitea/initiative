@@ -34,6 +34,7 @@
  */
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
+import { toolIdParam } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -169,7 +170,14 @@ export const invalidateDocumentVersions = (documentId: number) =>
 
 export const invalidateAllComments = () => invalidateGuildPrefix("/api/v1/comments");
 
-export const invalidateTaskComments = (taskId: number) =>
+/**
+ * One comment thread: the list query keyed by the parent it hangs off.
+ *
+ * A thread is addressed by exactly one `{parent}_id` param, so the matcher is
+ * that param rather than a helper per parent — the backend declares the same
+ * set once in `_COMMENT_PARENTS`.
+ */
+const invalidateCommentsByParent = (param: string, id: number) =>
   queryClient.invalidateQueries({
     predicate: (query) => {
       const [url, params] = query.queryKey;
@@ -177,23 +185,20 @@ export const invalidateTaskComments = (taskId: number) =>
         guildKey(url) === "/api/v1/comments/" &&
         typeof params === "object" &&
         params !== null &&
-        (params as Record<string, unknown>).task_id === taskId
+        (params as Record<string, unknown>)[param] === id
       );
     },
   });
 
+export const invalidateTaskComments = (taskId: number) =>
+  invalidateCommentsByParent("task_id", taskId);
+
 export const invalidateDocumentComments = (documentId: number) =>
-  queryClient.invalidateQueries({
-    predicate: (query) => {
-      const [url, params] = query.queryKey;
-      return (
-        guildKey(url) === "/api/v1/comments/" &&
-        typeof params === "object" &&
-        params !== null &&
-        (params as Record<string, unknown>).document_id === documentId
-      );
-    },
-  });
+  invalidateCommentsByParent("document_id", documentId);
+
+/** The comment thread on one tool entity — a post, a queue, a dashboard. */
+export const invalidateToolComments = (tool: Tool, id: number) =>
+  invalidateCommentsByParent(toolIdParam(tool), id);
 
 export const invalidateRecentComments = () => invalidateGuildPrefix("/api/v1/comments/recent");
 

@@ -676,6 +676,15 @@ _DIGEST_QUEUES: tuple[tuple[str, str, type], ...] = (
 )
 
 
+#: Every notification channel toggle the account carries, read off the request
+#: schema so a newly added category is writable the day it lands. Hand-listing
+#: them here left reactions and direct messages read-only: the switch moved,
+#: the PATCH ignored it, and the refetch put it back.
+_NOTIFICATION_CHANNEL_FIELDS: tuple[str, ...] = tuple(
+    name for name in UserSelfUpdate.model_fields if name.startswith(("email_", "push_"))
+)
+
+
 def _emptied_digest_queues(user: User, update_data: dict) -> list[type]:
     """The queue tables this update leaves nobody wanting.
 
@@ -977,24 +986,7 @@ async def update_users_me(
         current_user.event_reminder_minutes_before = normalize_reminder_minutes(
             update_data["event_reminder_minutes_before"]
         )
-    for field in [
-        "email_initiative_addition",
-        "email_task_assignment",
-        "email_project_added",
-        "email_overdue_tasks",
-        "email_mentions",
-        "email_posts",
-        "email_events",
-        "email_event_reminders",
-        "push_initiative_addition",
-        "push_task_assignment",
-        "push_project_added",
-        "push_overdue_tasks",
-        "push_mentions",
-        "push_posts",
-        "push_events",
-        "push_event_reminders",
-    ]:
+    for field in _NOTIFICATION_CHANNEL_FIELDS:
         if field in update_data:
             # email_task_assignment=False also cleared the guild-scoped digest
             # queue — done up-front (before any mutation) via the cross-guild

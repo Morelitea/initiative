@@ -49,6 +49,7 @@ from app.models.tenant.post import Post
 from app.schemas.tenant.post import post_excerpt
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
+from app.services.realtime import broadcast_event
 from app.services.tenant import posts as posts_service
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,12 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
         .all()
     )
     for post in posts:
+        # Anybody with the board open hears it go up, whether or not the notice
+        # was addressed to them personally — the same content-free signal the
+        # endpoint sends when a notice is posted outright.
+        await broadcast_event(
+            post.guild_id, post.initiative_id, "post", "published", {"post_id": post.id}
+        )
         author = await accounts_service.load_one(post.created_by)
         if author is None:
             # The account is gone; the notice still goes up, silently.
