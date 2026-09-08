@@ -357,8 +357,10 @@ async def update_comment(
     # Note: Content validation (empty string) is handled by Pydantic schema (422).
     # CommentValidationError from service indicates data integrity issues (500).
 
+    # No refresh here: the service already flushed the edit and loaded the
+    # author, and a bare refresh() expires every attribute including that
+    # relationship — serializing would then lazy-load it mid-request.
     await session.commit()
-    await session.refresh(comment)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     await _broadcast_comment(session, guild_context.guild_id, comment, "updated")
     return response
