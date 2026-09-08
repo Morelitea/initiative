@@ -161,6 +161,22 @@ def test_every_tool_is_commentable():
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
 
 
+def test_every_tool_row_is_written_without_returning():
+    # A tool row is written before anything has been shared with anybody, so it
+    # cannot be read back in the statement that writes it — the sharing policy
+    # is what a RETURNING clause would be answered by, and at that instant the
+    # answer is no. Turning implicit RETURNING off makes the id come from the
+    # sequence first, so the INSERT stands alone. A new tool that forgets this
+    # cannot be created at all; it fails here first.
+    from sqlmodel import SQLModel
+
+    import app.db.base  # noqa: F401  (populates the metadata)
+
+    for tool in Tool:
+        table = SQLModel.metadata.tables[tool.plural]
+        assert table.implicit_returning is False, tool
+
+
 def test_every_tool_carries_the_comment_switch():
     # Every tool can turn its own thread off: the column on the content table
     # and the flag on the read schema are spelled the same on all six, and the

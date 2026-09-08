@@ -669,6 +669,10 @@ DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
     "post_reads": frozenset(),
     "post_poll_votes": frozenset(),
     "calendar_event_attendees": frozenset(),
+    # A record that this reader was reminded, written where the reminder is
+    # sent. Being told about an event is a reader's business, not a change to
+    # the calendar.
+    "event_reminder_dispatches": _RESPONDING,
     "comments": _RESPONDING,
     "reactions": _RESPONDING,
     # The queued line describing a reaction is written in the SAME request as
