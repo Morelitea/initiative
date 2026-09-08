@@ -161,6 +161,27 @@ def test_every_tool_is_commentable():
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
 
 
+def test_every_tool_has_its_sharing_refusal_in_every_locale():
+    # Sharing reaches somebody only where their role already lets them use the
+    # tool, and the refusal names the tool. The codes are derived from the enum
+    # so a new tool has one for free; the WORDING cannot be derived, so this is
+    # what says a locale is still owed it.
+    import json
+    from pathlib import Path
+
+    from app.core.messages import SharingMessages
+
+    locales = Path(__file__).resolve().parents[2].parent / "frontend/public/locales"
+    for locale in ("de", "en", "es", "fr"):
+        catalogue = json.loads((locales / locale / "errors.json").read_text())
+        missing = [
+            SharingMessages.grantee_lacks_tool(tool)
+            for tool in Tool
+            if SharingMessages.grantee_lacks_tool(tool) not in catalogue
+        ]
+        assert not missing, f"{locale}/errors.json is missing {missing}"
+
+
 def test_every_tool_row_is_written_without_returning():
     # A tool row is written before anything has been shared with anybody, so it
     # cannot be read back in the statement that writes it — the sharing policy

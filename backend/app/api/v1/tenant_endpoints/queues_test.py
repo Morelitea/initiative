@@ -9,6 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
+from app.core.messages import SharingMessages
+from app.core.tools import Tool
 from app.testing import (
     Actor,
     create_initiative,
@@ -760,9 +762,9 @@ async def test_sharing_does_not_reach_past_the_role_gate(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The picker lists only people whose role lets them use the tool, and the
-    endpoint behind it answers the same way — so a caller that does not go
-    through the picker gets the same result rather than a grant that does
-    nothing."""
+    endpoint behind it says so rather than accepting a grant that would do
+    nothing — which is what a caller not going through the picker needs to
+    hear."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     b = await acting_user(
         guild_role=GuildRole.member,
@@ -779,10 +781,10 @@ async def test_sharing_does_not_reach_past_the_role_gate(
         json=[{"user_id": b.user.id, "level": "read"}],
     )
 
-    assert response.status_code == 200, response.text
-    assert [g for g in response.json()["grants"] if g["user_id"] == b.user.id] == []
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == SharingMessages.grantee_lacks_tool(Tool.queue)
 
-    # And the queue is still not theirs to open.
+    # Nothing was written, and the queue is still not theirs to open.
     seen = await client.get(b.g(f"/queues/{queue_data['id']}"), headers=b.headers)
     assert seen.status_code in (403, 404)
 

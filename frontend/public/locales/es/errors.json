@@ -549,5 +549,12 @@
   "POST_POLL_RESULTS_HIDDEN": "Los resultados están ocultos hasta que respondas.",
   "POST_POLL_NOT_PUBLISHED": "Esta publicación aún no está publicada, su encuesta no puede responderse.",
   "UNKNOWN_TIMEZONE": "No reconocemos esa zona horaria.",
-  "REACTION_DISABLED": "Este aviso no admite reacciones."
+  "REACTION_DISABLED": "Este aviso no admite reacciones.",
+  "GRANTEE_LACKS_PROJECT_ACCESS": "Solo puedes compartir Proyectos con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_DOCUMENT_ACCESS": "Solo puedes compartir Documentos con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_QUEUE_ACCESS": "Solo puedes compartir Colas con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Solo puedes compartir Contadores con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_CALENDAR_ACCESS": "Solo puedes compartir Calendario con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_DASHBOARD_ACCESS": "Solo puedes compartir Paneles con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_POST_ACCESS": "Solo puedes compartir Publicaciones con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir."
 }
