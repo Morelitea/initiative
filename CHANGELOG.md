@@ -17,8 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Every release now has an Android app to download.** Initiative only rebuilds the app when a release changes its native shell, so every other release published nothing to install — anyone landing on the release page, or any updater watching those releases, found no APK at all. Each release now carries the current app forward as an attachment, still named for the version it was built from. Phones that already have it are unaffected either way: they pick up each new release over the air.
-
 - **Direct messages could not set up a device on a deployed server.** Opening *My Messages* failed with *this device could not be set up*, on every install, while working perfectly in development. The encryption the messages run on is WebAssembly, and a browser only compiles WebAssembly a page's security policy makes room for — the worker that ratchets messages was served without that room, so the browser refused to compile it before it had done anything. It is now served the same narrow policy the dashboard widget sandbox already had: its own script, WebAssembly, and nothing else. The app-wide policy is unchanged, and still forbids WebAssembly everywhere else.
 
 ## [0.66.1] - 2026-09-07
