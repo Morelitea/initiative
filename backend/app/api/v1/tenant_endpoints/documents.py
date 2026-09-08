@@ -2042,7 +2042,16 @@ async def download_document_file_version(
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
-    if document is None or document.document_type != DocumentType.file:
+    if document is None:
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            int(current_user.id),
+            int(guild_id),
+            not_found=DocumentMessages.NOT_FOUND,
+            denied=DocumentMessages.NO_ACCESS,
+        )
+    if document.document_type != DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
         )
