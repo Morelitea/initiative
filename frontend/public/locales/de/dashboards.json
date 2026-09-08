@@ -228,7 +228,10 @@
     "completed_at": "Abgeschlossen",
     "created_at": "Erstellt",
     "is_archived": "Archiviert",
-    "title": "Titel"
+    "title": "Titel",
+    "description": "Beschreibung",
+    "updated_at": "Aktualisiert",
+    "created_by": "Erstellt von"
   },
   "filterPhrase": {
     "eq": "{{field}} ist {{value}}",
@@ -275,7 +278,8 @@
     "relative": "Relativ",
     "absolute": "An einem Datum",
     "relativeDays": "Tage ab heute",
-    "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie."
+    "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie.",
+    "loading": "Filter werden geladen…"
   },
   "tableView": {
     "caption": "Dieselben Daten als Tabelle",

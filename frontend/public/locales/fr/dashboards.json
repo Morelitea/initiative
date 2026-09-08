@@ -228,7 +228,10 @@
     "completed_at": "Terminée",
     "created_at": "Créée",
     "is_archived": "Archivée",
-    "title": "Titre"
+    "title": "Titre",
+    "description": "Description",
+    "updated_at": "Mis à jour",
+    "created_by": "Créé par"
   },
   "filterPhrase": {
     "eq": "{{field}} est {{value}}",
@@ -275,7 +278,8 @@
     "relative": "Relative",
     "absolute": "À une date",
     "relativeDays": "Jours à partir d'aujourd'hui",
-    "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais."
+    "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais.",
+    "loading": "Chargement des filtres…"
   },
   "tableView": {
     "caption": "Les mêmes données en tableau",

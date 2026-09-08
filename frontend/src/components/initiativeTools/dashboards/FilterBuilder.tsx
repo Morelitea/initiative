@@ -22,6 +22,7 @@
  * tag primitives the task filters use, over lists the viewer can already see.
  */
 
+import type { TFunction } from "i18next";
 import { Plus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,19 +39,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import {
   type ConditionValue,
+  type FilterFieldSpec,
   type FilterLeaf,
   type FilterNode,
   type FilterOp,
   fieldSpec,
   isGroup,
   isRelativeDate,
-  TASK_FILTER_FIELDS,
 } from "@/lib/widgets/conditions";
 
 const STATUS_CATEGORIES = ["backlog", "todo", "in_progress", "done"] as const;
@@ -65,6 +67,15 @@ export interface FilterBuilderProps {
 
 const emptyLeaf = (): FilterLeaf => ({ field: "status_category", op: "in_", value: [] });
 
+/** A field's label, falling back to its name.
+ *
+ *  The names come from the server now, so they cannot be checked against the
+ *  locale file at compile time the way a literal union was. A missing label
+ *  therefore degrades to the field's own name — readable, and visible enough in
+ *  review to be fixed — rather than rendering a raw i18n key. */
+const fieldLabel = (name: string, t: TFunction<readonly ["dashboards", "common"]>): string =>
+  t(`dashboards:filterField.${name}` as never, { defaultValue: name });
+
 export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderProps) {
   const { t } = useTranslation(["dashboards", "tasks", "common"]);
 
@@ -74,6 +85,10 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
   const projects = useProjects();
   const tags = useTags();
   const initiative = useInitiative(initiativeId);
+
+  // What may be filtered on, from the server's field registry — one
+  // declaration, so a control cannot offer an operator the engine refuses.
+  const { fields, isLoading: fieldsLoading } = useFieldCatalog("tasks");
 
   const options = useMemo(
     () => ({
@@ -111,6 +126,14 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
   // offered only while none exists.
   const hasGroup = value.some(isGroup);
 
+  // Until the declarations arrive, a condition has no field to be read
+  // against: its operator list and its value control would both fall back to
+  // the plainest thing they can draw, and editing one then rewrites a saved
+  // filter into whatever that plain control emitted. So the rows wait.
+  if (fieldsLoading) {
+    return <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.loading")}</p>;
+  }
+
   return (
     <div className="space-y-2">
       {value.length === 0 && (
@@ -144,6 +167,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
               </p>
               {node.conditions.map((child, childIndex) => (
                 <LeafRow
+                  fields={fields}
                   // biome-ignore lint/suspicious/noArrayIndexKey: positional by design
                   key={childIndex}
                   leaf={child as FilterLeaf}
@@ -168,7 +192,12 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
               </Button>
             </div>
           ) : (
-            <LeafRow leaf={node} options={options} onChange={(next) => replaceAt(index, next)} />
+            <LeafRow
+              leaf={node}
+              fields={fields}
+              options={options}
+              onChange={(next) => replaceAt(index, next)}
+            />
           )}
         </div>
       ))}
@@ -202,18 +231,20 @@ type Options = {
 
 function LeafRow({
   leaf,
+  fields,
   options,
   onChange,
 }: {
   leaf: FilterLeaf;
+  fields: readonly FilterFieldSpec[];
   options: Options;
   onChange: (next: FilterLeaf | null) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const spec = fieldSpec(leaf.field);
+  const spec = fieldSpec(fields, leaf.field);
 
   const setField = (field: string) => {
-    const next = fieldSpec(field);
+    const next = fieldSpec(fields, field);
     // Changing the field drops the old value rather than carrying a set of tag
     // ids onto a date comparison.
     onChange({
@@ -231,9 +262,9 @@ function LeafRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TASK_FILTER_FIELDS.map((field) => (
+            {fields.map((field) => (
               <SelectItem key={field.field} value={field.field}>
-                {t(`dashboards:filterField.${field.field}` as const)}
+                {fieldLabel(field.field, t)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -266,6 +297,7 @@ function LeafRow({
       </div>
 
       <ValueControl
+        fields={fields}
         leaf={leaf}
         options={options}
         onChange={(value) => onChange({ ...leaf, value })}
@@ -276,15 +308,17 @@ function LeafRow({
 
 function ValueControl({
   leaf,
+  fields,
   options,
   onChange,
 }: {
   leaf: FilterLeaf;
+  fields: readonly FilterFieldSpec[];
   options: Options;
   onChange: (value: ConditionValue) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const spec = fieldSpec(leaf.field);
+  const spec = fieldSpec(fields, leaf.field);
 
   // "Is empty" compares against nothing, so there is nothing to choose.
   if (leaf.op === "is_null") return null;
