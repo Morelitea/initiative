@@ -319,6 +319,38 @@ jobs:
           name: android-apk
           path: artifacts
 
+      # A web-only release builds no APK (see the `decide` job), but somebody landing on the
+      # release page still needs one to install. Carry the newest APK published on an earlier
+      # release forward onto this one — it is precisely the native build this web bundle
+      # expects, and its filename keeps its own version so it reads as a carried-over build
+      # rather than a fresh one.
+      - name: Carry forward the previous release's APK
+        id: carry_apk
+        if: ${{ needs.build-android.result != 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p artifacts
+          # Releases come back newest-first; take the first published one carrying an APK,
+          # skipping this release's own tag so a re-run doesn't just re-attach its own asset.
+          tag=$(gh api "repos/${GH_REPO}/releases?per_page=50" --jq "
+            map(select(.draft | not)
+                | select(.tag_name != \"${CURRENT_TAG}\")
+                | select(any(.assets[]; .name | endswith(\".apk\"))))
+            | .[0].tag_name // empty")
+          if [ -z "$tag" ]; then
+            echo "No earlier release carries an APK — this release ships Docker-only."
+            echo "carried=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh release download "$tag" --repo "$GH_REPO" --pattern '*.apk' --dir artifacts
+          echo "Carried the APK forward from $tag:"
+          ls -1 artifacts
+          echo "carried=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Extract version from tag
         id: version
         run: |
@@ -338,6 +370,8 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           APK_BUILT: ${{ needs.build-android.result == 'success' }}
+          APK_CARRIED: ${{ steps.carry_apk.outputs.carried }}
+          APK_CARRIED_FROM: ${{ steps.carry_apk.outputs.tag }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           echo "Extracting changelog for version $VERSION"
@@ -362,14 +396,17 @@ jobs:
           fi
 
           # The native app is only rebuilt when the native shell changed (see the `decide`
-          # job). Web-only releases ship no new APK — existing installs update over the air.
+          # job). Web-only releases carry the previous APK forward, so every release has one
+          # to install; installed apps pick the new web bundle up over the air regardless.
           if [ "$APK_BUILT" = "true" ]; then
-            ANDROID_SECTION="### Android App
-          Download the APK from the assets below and install on your Android device."
+            ANDROID_NOTE="Download the APK from the assets below and install it on your Android device."
+          elif [ "$APK_CARRIED" = "true" ]; then
+            ANDROID_NOTE="No new app build this release — the APK below is the current native app, carried forward from ${APK_CARRIED_FROM}. Installed apps pick this release up automatically over the air on next launch."
           else
-            ANDROID_SECTION="### Android App
-          No new app build this release — installed apps update automatically over the air on next launch."
+            ANDROID_NOTE="No app build is available for this release. Installed apps update automatically over the air on next launch."
           fi
+          ANDROID_SECTION="### Android App
+          $ANDROID_NOTE"
 
           # Build full release body with changelog + download info
           cat > release_body.md << ENDOFBODY
