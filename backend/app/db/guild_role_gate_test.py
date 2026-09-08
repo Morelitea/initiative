@@ -55,6 +55,9 @@ async def test_a_role_that_cannot_engage_the_tool_is_refused(session, acting_use
     )
     queue = await create_queue(session, a.initiative, a.user, name="Vendor intake")
     await _shared(session, queue, b.user)
+    # The factory's member may use the initiative's tools, as somebody the
+    # sharing picker would have offered. This one may not.
+    await grant_role_permission(session, a.initiative, "queues_enabled", enabled=False)
 
     assert await _names(session, a.guild.id, b) == []
 

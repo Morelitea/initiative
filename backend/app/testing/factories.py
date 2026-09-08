@@ -396,16 +396,28 @@ async def create_initiative(
     guild: Guild,
     creator: User,
     commit: bool = True,
+    member_tool_access: bool = True,
     **overrides: Any,
 ) -> Initiative:
     """
     Create a test initiative with sensible defaults.
+
+    The built-in ``member`` role is given every tool's view permission, because
+    the ordinary member this factory stands for is somebody the sharing picker
+    would offer — it lists only people whose role already lets them use the
+    tool. Product defaults are narrower (an opt-in tool is managers-only until
+    a role is given it), so a test about sharing would otherwise be quietly a
+    test about roles too, and would fail for the wrong reason.
+
+    Pass ``member_tool_access=False`` for a test that is about the role gate
+    itself; ``grant_role_permission`` sets one key either way.
 
     Args:
         session: Database session
         guild: Guild the initiative belongs to
         creator: User who creates the initiative (will become project manager)
         commit: Whether to commit the transaction (default True)
+        member_tool_access: Whether the built-in member role may view each tool
         **overrides: Override any default field values
 
     Returns:
@@ -432,9 +444,26 @@ async def create_initiative(
         await session.flush()
 
         # Create built-in roles (PM + Member)
-        pm_role, _member_role = await create_builtin_roles(
+        pm_role, member_role = await create_builtin_roles(
             session, initiative_id=initiative.id
         )
+
+        if member_tool_access:
+            from sqlalchemy import update as sa_update
+
+            from app.core.tools import Tool as _Tool
+            from app.models.tenant.initiative import InitiativeRolePermission
+
+            await session.exec(
+                sa_update(InitiativeRolePermission)
+                .where(
+                    InitiativeRolePermission.initiative_role_id == member_role.id,
+                    InitiativeRolePermission.permission_key.in_(
+                        [tool.view_permission for tool in _Tool]
+                    ),
+                )
+                .values(enabled=True)
+            )
 
         # Add creator as project manager with proper role_id
         membership = InitiativeMember(

@@ -664,6 +664,30 @@ async def replace_resource_grants(
             ).all()
         )
 
+    # Sharing reaches somebody only where their role already lets them use the
+    # tool — the same list the picker offers. Narrowed here as well as in the
+    # picker so a caller that does not go through it (the API, an agent) is
+    # answered the same way. A guild-level resource belongs to no initiative,
+    # so no initiative role speaks for it.
+    if not guild_scoped:
+        # Local: rls imports this module.
+        from app.models.tenant.initiative import PermissionKey
+        from app.services import rls as rls_service
+
+        view_key = PermissionKey(Tool(resource_type).view_permission)
+        valid_users &= await rls_service.members_permitted(
+            session,
+            initiative_id=initiative_id,
+            user_ids=valid_users,
+            permission_key=view_key,
+        )
+        valid_roles &= await rls_service.roles_permitting(
+            session,
+            initiative_id=initiative_id,
+            role_ids=valid_roles,
+            permission_key=view_key,
+        )
+
     existing = (
         await session.exec(
             select(ResourceGrant).where(

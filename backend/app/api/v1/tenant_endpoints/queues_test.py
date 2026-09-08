@@ -756,6 +756,38 @@ async def test_set_queue_grants(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
+async def test_sharing_does_not_reach_past_the_role_gate(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The picker lists only people whose role lets them use the tool, and the
+    endpoint behind it answers the same way — so a caller that does not go
+    through the picker gets the same result rather than a grant that does
+    nothing."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await grant_role_permission(session, a.initiative, "queues_enabled", enabled=False)
+    queue_data = await _create_queue_via_api(client, a)
+
+    response = await client.put(
+        a.g(f"/queues/{queue_data['id']}/grants"),
+        headers=a.headers,
+        json=[{"user_id": b.user.id, "level": "read"}],
+    )
+
+    assert response.status_code == 200, response.text
+    assert [g for g in response.json()["grants"] if g["user_id"] == b.user.id] == []
+
+    # And the queue is still not theirs to open.
+    seen = await client.get(b.g(f"/queues/{queue_data['id']}"), headers=b.headers)
+    assert seen.status_code in (403, 404)
+
+
+@pytest.mark.integration
 async def test_set_queue_role_grants(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -800,9 +832,6 @@ async def test_member_with_read_can_view_queue(
         initiative=admin.initiative,
         initiative_role="member",
     )
-    # The member's role has to be able to engage the tool at all — sharing one
-    # queue does not admit somebody to Queues.
-    await grant_role_permission(session, admin.initiative, "queues_enabled")
     queue_data = await _create_queue_via_api(client, admin)
 
     # Grant read to member
@@ -972,7 +1001,6 @@ async def test_queue_counts_by_initiative(
         initiative=admin.initiative,
         initiative_role="member",
     )
-    await grant_role_permission(session, admin.initiative, "queues_enabled")
     other_initiative = await create_initiative(session, admin.guild, admin.user)
     disabled_initiative = await create_initiative(
         session, admin.guild, admin.user, queues_enabled=False
