@@ -324,9 +324,14 @@ jobs:
       # release forward onto this one — it is precisely the native build this web bundle
       # expects, and its filename keeps its own version so it reads as a carried-over build
       # rather than a fresh one.
+      #
+      # Strictly `skipped`, never merely "not success": skipped is the `decide` job stating
+      # the native shell did not change, which is what makes the older APK the correct one.
+      # A *cancelled* build means MIN_NATIVE_VERSION did move, so the older APK is below this
+      # bundle's floor and would refuse it — better to attach nothing than the wrong app.
       - name: Carry forward the previous release's APK
         id: carry_apk
-        if: ${{ needs.build-android.result != 'success' }}
+        if: ${{ needs.build-android.result == 'skipped' }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
