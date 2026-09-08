@@ -6,7 +6,12 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing import Actor, create_counter_group, create_initiative
+from app.testing import (
+    Actor,
+    create_counter_group,
+    create_initiative,
+    grant_role_permission,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -734,9 +739,11 @@ async def test_duplicate_counter_group_custom_name(client: AsyncClient, acting_u
 
 @pytest.mark.integration
 async def test_duplicate_counter_group_read_user_becomes_owner(
-    client: AsyncClient, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A read-only user can duplicate and owns the copy (read suffices to copy)."""
+    """A read-only user owns the copy they make: read on the source is what
+    lets them copy FROM it, and the right to create one is what lets them make
+    it — the same gate the New button answers to."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -744,6 +751,7 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
         initiative=admin.initiative,
         initiative_role="member",
     )
+    await grant_role_permission(session, admin.initiative, "create_counter_groups")
     source = await _create_group(client, admin, name="Shared")
     sid = source["id"]
     await _add_counter(client, admin, sid, name="A", position="0")
