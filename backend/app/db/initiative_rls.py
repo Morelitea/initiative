@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.core.reactions import ReactionTarget
-from app.core.tools import RECENTABLE_TOOLS, Tool
+from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -45,7 +45,7 @@ RowLocator = Callable[[str], str]
 # A DAC builder has the same shape as a PathBuilder but may answer None, for a
 # table no tool's sharing governs — the guild's own vocabulary, an initiative's
 # configuration. None renders no leg at all rather than a `true` one.
-DacBuilder = Callable[[str, bool], "str | None"]
+DacBuilder = Callable[[str, str, bool], "str | None"]
 
 #: Every tool's own table, keyed by table name. The sharing gate is DERIVED from
 #: this rather than declared per table: a row is governed by the tool it belongs
@@ -56,13 +56,16 @@ _TOOL_BY_TABLE: dict[str, Tool] = {tool.plural: tool for tool in Tool}
 
 @dataclass(frozen=True)
 class DacPath:
-    """How a row names the resource whose sharing governs it — gate 4, as SQL.
+    """How a row names the tool that governs it — gates 3 and 4, as SQL.
 
-    ``predicate`` renders the ``public.resource_access(...)`` leg that the
-    table's policies AND onto the initiative one, or None where nothing governs
-    the table. ``self_governed`` marks a table that IS the shared resource; its
-    INSERT carries no leg, because a resource has no sharing until it exists
-    (see ``app.db.guild_ddl``).
+    ``predicate`` renders the tool gate that the table's policies AND onto the
+    membership one, or None where no tool governs the table. Both gates come
+    from the same declaration and the same join, so a child table asks its
+    parent about its role and its sharing once rather than twice.
+
+    ``self_governed`` marks a table that IS the governed resource. Its INSERT
+    asks gate 3 for the tool's *create* right and asks gate 4 nothing at all,
+    because a resource has no sharing until it exists (see ``app.db.guild_ddl``).
     """
 
     predicate: DacBuilder
@@ -70,11 +73,66 @@ class DacPath:
 
 
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
-    """One ``public.resource_access`` call, in policy form."""
+    """Gate 4 alone, for a row that names its governing tool in a COLUMN.
+
+    The search index is the one: which tool governs an entry differs per row,
+    so the tool cannot be rendered into the policy and gate 3 — whose switch is
+    a different column per tool — has nothing static to ask. The index is
+    derived from content that carries both gates already, and the query that
+    reads it applies the tool switches.
+    """
     return (
         f"public.resource_access({tool}, {resource_id}, {_UID}, "
         f"{initiative}, {'true' if write else 'false'})"
     )
+
+
+def _tool_gate(
+    tool: Tool,
+    resource_id: str,
+    initiative: str,
+    command: str,
+    write: bool,
+    *,
+    creating: bool,
+) -> str:
+    """Gates 3 and 4 for one tool, against one row's initiative.
+
+    Gate 3 is two conditions the schema already holds: the initiative's master
+    switch for the tool, and what the reader's role in that initiative permits.
+    The switch is a different column per tool, so it renders here where the tool
+    is known rather than inside the function.
+
+    ``creating`` is the INSERT of the governed resource itself — that asks for
+    the tool's create right, where every other command asks to view it, and it
+    asks gate 4 nothing.
+    """
+    legs: list[str] = []
+
+    if tool not in CORE_TOOLS:
+        # Opt-in tools carry a switch on the initiative; the core two are always
+        # on and have no column. A guild admin or a PAM grantee reaches the
+        # content of a tool that is switched off — the endpoints still refuse
+        # them, and a maintenance sweep has to be able to see it.
+        legs.append(
+            f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+            f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+            f" WHERE i.id = {initiative}), false))"
+        )
+
+    key = tool.create_permission if creating else tool.view_permission
+    default = "false" if creating else str(tool in CORE_TOOLS).lower()
+    legs.append(
+        f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
+    )
+
+    if not creating:
+        legs.append(
+            f"public.resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"{initiative}, {'true' if write else 'false'})"
+        )
+
+    return "(" + " AND ".join(legs) + ")"
 
 
 def _dac_self(tool: Tool | None = None) -> DacPath:
@@ -83,12 +141,17 @@ def _dac_self(tool: Tool | None = None) -> DacPath:
     reaching the table under an alias (reactions, below) names the tool itself.
     """
 
-    def build(t: str, w: bool) -> str | None:
+    def build(t: str, command: str, w: bool) -> str | None:
         governing = tool if tool is not None else _TOOL_BY_TABLE.get(t)
         if governing is None:
             return None
-        return _resource_call(
-            f"'{governing.value}'", f"{t}.id", f"{t}.initiative_id", w
+        return _tool_gate(
+            governing,
+            f"{t}.id",
+            f"{t}.initiative_id",
+            command,
+            w,
+            creating=command == "INSERT",
         )
 
     return DacPath(predicate=build, self_governed=True)
@@ -100,14 +163,19 @@ def _dac_via(
     """The row is shared as part of its parent — a task by its project."""
     tool = _TOOL_BY_TABLE.get(parent)
     if tool is None:
-        return DacPath(predicate=lambda t, w: None)
+        return DacPath(predicate=lambda t, c, w: None)
 
     return DacPath(
-        predicate=lambda t, w: (
+        predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
-            + _resource_call(
-                f"'{tool.value}'", f"{alias}.id", f"{alias}.initiative_id", w
+            + _tool_gate(
+                tool,
+                f"{alias}.id",
+                f"{alias}.initiative_id",
+                c,
+                w,
+                creating=False,
             )
             + ")"
         )
@@ -119,10 +187,10 @@ def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     subtask by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
     return DacPath(
-        predicate=lambda t, w: (
+        predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
-            + _resource_call("'" + tool.value + "'", "dpar.id", "dpar.initiative_id", w)
+            + _tool_gate(tool, "dpar.id", "dpar.initiative_id", c, w, creating=False)
             + ")"
         )
     )
@@ -149,6 +217,13 @@ class InitiativePath:
 
 #: The routed guild-admin leg, for rows that span every initiative in a guild.
 _GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+
+#: A live PAM window, either level. Used where a leg is about what a guild has
+#: switched on rather than about what one person may reach.
+_PAM_ANY = (
+    "current_setting('app.pam_read'::text, true) = 'true'::text"
+    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
+)
 
 
 def _access(initiative_expr: str, write: bool) -> str:
@@ -314,14 +389,14 @@ def _comments_dac() -> DacPath:
     project.
     """
 
-    def build(t: str, w: bool) -> str:
+    def build(t: str, command: str, w: bool) -> str:
         legs = []
         for col, *_ in _COMMENT_PARENTS:
             if col == "task_id":
                 leg = _dac_two_hop("tasks", "project_id", "projects", col)
             else:
                 leg = _dac_via(Tool(col.removesuffix("_id")).plural, col)
-            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, w)})")
+            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
         return "(" + " OR ".join(legs) + ")"
 
     return DacPath(predicate=build)
@@ -371,13 +446,13 @@ def reactions_path() -> InitiativePath:
         ReactionTarget.post: _dac_self(Tool.post),
     }
 
-    def build_dac(t: str, w: bool) -> str:
+    def build_dac(t: str, command: str, w: bool) -> str:
         return (
             "("
             + " OR ".join(
                 f"({t}.target_type = '{target.value}' AND EXISTS ("
                 f"SELECT 1 FROM {target.table} rdac WHERE rdac.id = {t}.target_id "
-                f"AND {path.predicate('rdac', w)}))"
+                f"AND {path.predicate('rdac', command, w)}))"
                 for target, path in dac_legs.items()
             )
             + ")"
@@ -440,6 +515,44 @@ def webhook_subscription_path() -> InitiativePath:
     )
 
 
+def _search_tool_gate(t: str, write: bool) -> str:
+    """Gates 3 and 4 for a search entry, keyed on the tool it names.
+
+    Every other table has one governing tool rendered into its policy. An entry
+    names its own in ``dac_tool``, so the switch and the role key are a CASE
+    over that column — one arm per tool, and rows naming none (the guild's
+    vocabulary) fall through the ELSE.
+
+    An entry outlives the content it describes by as long as the sweep takes,
+    so it answers the same three questions the source does rather than trusting
+    that it was right when it was written.
+    """
+    switch_arms = " ".join(
+        f"WHEN '{tool.value}' THEN "
+        + (
+            "true"
+            if tool in CORE_TOOLS
+            else (
+                f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
+                f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+                f" WHERE i.id = {t}.initiative_id), false))"
+            )
+        )
+        for tool in Tool
+    )
+    role_arms = " ".join(
+        f"WHEN '{tool.value}' THEN public.initiative_role_permits("
+        f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
+        f"{str(tool in CORE_TOOLS).lower()})"
+        for tool in Tool
+    )
+    return (
+        f"((CASE {t}.dac_tool {switch_arms} ELSE true END)"
+        f" AND (CASE {t}.dac_tool {role_arms} ELSE true END)"
+        f" AND {_resource_call(f'{t}.dac_tool', f'{t}.dac_id', f'{t}.initiative_id', write)})"
+    )
+
+
 def search_entries_path() -> InitiativePath:
     """The search index is reached exactly like the content it describes.
 
@@ -460,13 +573,10 @@ def search_entries_path() -> InitiativePath:
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",
-        # The index stores the governing pair, so the leg needs no join. Every
-        # other table derives the same call from its parent.
-        dac=DacPath(
-            predicate=lambda t, w: _resource_call(
-                f"{t}.dac_tool", f"{t}.dac_id", f"{t}.initiative_id", w
-            )
-        ),
+        # The index stores the governing pair, so the legs need no join. Which
+        # tool governs an entry differs per row, so the two that name a tool are
+        # a CASE over it rather than a rendered constant.
+        dac=DacPath(predicate=lambda t, c, w: _search_tool_gate(t, w)),
     )
 
 
@@ -487,10 +597,10 @@ def recent_views_path() -> InitiativePath:
         )
         return f"(CASE {r}.entity_type {arms} END)"
 
-    def build_dac(t: str, w: bool) -> str:
+    def build_dac(t: str, command: str, w: bool) -> str:
         legs = [
             f"({t}.entity_type = '{etype}' AND "
-            f"{_dac_via(tbl, 'entity_id').predicate(t, w)})"
+            f"{_dac_via(tbl, 'entity_id').predicate(t, command, w)})"
             for etype, tbl in RECENT_ENTITY_TABLES.items()
         ]
         return "(" + " OR ".join(legs) + ")"
@@ -512,17 +622,19 @@ def document_links_path() -> InitiativePath:
             f"AND {_access('documents.initiative_id', w)})"
         )
 
-    def _dac_leg(fk: str, t: str, w: bool) -> str:
-        return str(_dac_via("documents", fk, alias=f"dac_{fk}").predicate(t, w))
+    def _dac_leg(fk: str, t: str, command: str, w: bool) -> str:
+        return str(
+            _dac_via("documents", fk, alias=f"dac_{fk}").predicate(t, command, w)
+        )
 
     return InitiativePath(
         predicate=lambda t, w: (
             f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
         ),
         dac=DacPath(
-            predicate=lambda t, w: (
-                f"({_dac_leg('source_document_id', t, w)} AND "
-                f"{_dac_leg('target_document_id', t, w)})"
+            predicate=lambda t, c, w: (
+                f"({_dac_leg('source_document_id', t, c, w)} AND "
+                f"{_dac_leg('target_document_id', t, c, w)})"
             )
         ),
         # Both endpoints clear the same gate to exist, so the source names the

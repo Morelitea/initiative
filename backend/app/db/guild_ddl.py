@@ -179,13 +179,14 @@ def _table_block(table: str, path: InitiativePath) -> str:
             # What the command asks of sharing is per table: changing content
             # takes write on the resource, where responding to it (a comment,
             # a reaction) and keeping a reader's own record of it do not.
-            sharing = path.dac.predicate(table, dac_asks_at_write(table, command))
+            sharing = path.dac.predicate(
+                table, command, dac_asks_at_write(table, command)
+            )
             # A resource has no sharing before it exists, so the table that IS
             # the resource carries no leg on INSERT — creating one answers to
             # the initiative-role gate instead. A child table keeps it: adding a
             # task means reaching the project it goes in.
-            exempt = command == "INSERT" and path.dac.self_governed
-            if sharing is not None and not exempt:
+            if sharing is not None:
                 pred = f"{pred} AND {sharing}"
         if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
             pred = _TRIGGER_WRITTEN_INSERT[table]

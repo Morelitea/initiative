@@ -726,6 +726,59 @@ async def create_initiative_member(
     return membership
 
 
+async def grant_role_permission(
+    session: AsyncSession,
+    initiative: Initiative,
+    permission_key: str,
+    *,
+    role_name: str = "member",
+    enabled: bool = True,
+) -> None:
+    """Set one initiative-role permission — gate 3, for a test that needs it.
+
+    A built-in ``member`` role holds the documented defaults: it may view the
+    two core tools and nothing else. Since the initiative-role gate is enforced
+    by the tables' policies, a test that shares an opt-in tool with a plain
+    member has to say that their role may engage that tool, exactly as an
+    initiative's settings screen would.
+    """
+    from app.models.tenant.initiative import (
+        InitiativeRoleModel,
+        InitiativeRolePermission,
+    )
+    from sqlmodel import select
+
+    await route_session_to_guild(session, initiative.guild_id)
+    role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.name == role_name,
+            )
+        )
+    ).one()
+    existing = (
+        await session.exec(
+            select(InitiativeRolePermission).where(
+                InitiativeRolePermission.initiative_role_id == role.id,
+                InitiativeRolePermission.permission_key == permission_key,
+            )
+        )
+    ).one_or_none()
+    if existing is None:
+        session.add(
+            InitiativeRolePermission(
+                initiative_role_id=role.id,
+                permission_key=permission_key,
+                enabled=enabled,
+            )
+        )
+    else:
+        existing.enabled = enabled
+        session.add(existing)
+    await session.commit()
+
+
 async def create_property_definition(
     session: AsyncSession,
     initiative: Initiative,

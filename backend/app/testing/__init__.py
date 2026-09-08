@@ -18,6 +18,7 @@ from app.testing.app_channel import (
     register_app_service,
 )
 from app.testing.factories import (
+    grant_role_permission,
     TOOL_FACTORIES,
     enable_all_tools,
     create_tool_entity,
@@ -103,6 +104,7 @@ __all__ = [
     "create_guild_membership",
     "create_initiative",
     "create_initiative_member",
+    "grant_role_permission",
     "create_project",
     "create_property_definition",
     "create_queue",

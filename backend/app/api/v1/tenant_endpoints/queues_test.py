@@ -9,7 +9,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.testing import Actor, create_initiative, create_queue
+from app.testing import (
+    Actor,
+    create_initiative,
+    create_queue,
+    grant_role_permission,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +789,9 @@ async def test_set_queue_role_grants(
 
 
 @pytest.mark.integration
-async def test_member_with_read_can_view_queue(client: AsyncClient, acting_user):
+async def test_member_with_read_can_view_queue(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Member with read permission can view but not modify."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
@@ -793,6 +800,9 @@ async def test_member_with_read_can_view_queue(client: AsyncClient, acting_user)
         initiative=admin.initiative,
         initiative_role="member",
     )
+    # The member's role has to be able to engage the tool at all — sharing one
+    # queue does not admit somebody to Queues.
+    await grant_role_permission(session, admin.initiative, "queues_enabled")
     queue_data = await _create_queue_via_api(client, admin)
 
     # Grant read to member
@@ -962,6 +972,7 @@ async def test_queue_counts_by_initiative(
         initiative=admin.initiative,
         initiative_role="member",
     )
+    await grant_role_permission(session, admin.initiative, "queues_enabled")
     other_initiative = await create_initiative(session, admin.guild, admin.user)
     disabled_initiative = await create_initiative(
         session, admin.guild, admin.user, queues_enabled=False
