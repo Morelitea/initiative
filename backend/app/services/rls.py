@@ -220,6 +220,72 @@ def _role_grants(
     return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
 
 
+async def members_permitted(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_ids: set[int],
+    permission_key: PermissionKey,
+) -> set[int]:
+    """Which of ``user_ids`` hold ``permission_key`` in ``initiative_id``.
+
+    :func:`check_initiative_permission` asked about many people at once, through
+    the same :func:`_role_grants` rule, so sharing can narrow a list of
+    grantees without restating what a role grants.
+    """
+    from sqlalchemy.orm import selectinload
+    from sqlmodel import select
+
+    if not user_ids:
+        return set()
+    memberships = (
+        await session.exec(
+            select(InitiativeMember)
+            .options(
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                )
+            )
+            .where(
+                InitiativeMember.initiative_id == initiative_id,
+                InitiativeMember.user_id.in_(list(user_ids)),
+            )
+        )
+    ).all()
+    return {
+        m.user_id
+        for m in memberships
+        if _role_grants(m.role_ref, permission_key) and m.user_id is not None
+    }
+
+
+async def roles_permitting(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    role_ids: set[int],
+    permission_key: PermissionKey,
+) -> set[int]:
+    """Which of ``role_ids`` grant ``permission_key`` — the role-shaped form of
+    :func:`members_permitted`, for sharing addressed to a role."""
+    from sqlalchemy.orm import selectinload
+    from sqlmodel import select
+
+    if not role_ids:
+        return set()
+    roles = (
+        await session.exec(
+            select(InitiativeRoleModel)
+            .options(selectinload(InitiativeRoleModel.permissions))
+            .where(
+                InitiativeRoleModel.initiative_id == initiative_id,
+                InitiativeRoleModel.id.in_(list(role_ids)),
+            )
+        )
+    ).all()
+    return {r.id for r in roles if _role_grants(r, permission_key) and r.id is not None}
+
+
 async def override_sharing_initiative_ids(
     session: AsyncSession,
     *,

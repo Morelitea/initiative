@@ -549,5 +549,12 @@
   "POST_POLL_RESULTS_HIDDEN": "Die Ergebnisse bleiben verborgen, bis du abgestimmt hast.",
   "POST_POLL_NOT_PUBLISHED": "Dieser Beitrag ist noch nicht veröffentlicht, seine Umfrage kann nicht beantwortet werden.",
   "UNKNOWN_TIMEZONE": "Diese Zeitzone kennen wir nicht.",
-  "REACTION_DISABLED": "Diese Mitteilung nimmt keine Reaktionen an."
+  "REACTION_DISABLED": "Diese Mitteilung nimmt keine Reaktionen an.",
+  "GRANTEE_LACKS_PROJECT_ACCESS": "Du kannst Projekte nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_DOCUMENT_ACCESS": "Du kannst Dokumente nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_QUEUE_ACCESS": "Du kannst Abläufe (Queues) nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Du kannst Zähler nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_CALENDAR_ACCESS": "Du kannst Kalender nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_DASHBOARD_ACCESS": "Du kannst Dashboards nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_POST_ACCESS": "Du kannst Beiträge nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut."
 }

@@ -396,16 +396,28 @@ async def create_initiative(
     guild: Guild,
     creator: User,
     commit: bool = True,
+    member_tool_access: bool = True,
     **overrides: Any,
 ) -> Initiative:
     """
     Create a test initiative with sensible defaults.
+
+    The built-in ``member`` role is given every tool's view permission, because
+    the ordinary member this factory stands for is somebody the sharing picker
+    would offer — it lists only people whose role already lets them use the
+    tool. Product defaults are narrower (an opt-in tool is managers-only until
+    a role is given it), so a test about sharing would otherwise be quietly a
+    test about roles too, and would fail for the wrong reason.
+
+    Pass ``member_tool_access=False`` for a test that is about the role gate
+    itself; ``grant_role_permission`` sets one key either way.
 
     Args:
         session: Database session
         guild: Guild the initiative belongs to
         creator: User who creates the initiative (will become project manager)
         commit: Whether to commit the transaction (default True)
+        member_tool_access: Whether the built-in member role may view each tool
         **overrides: Override any default field values
 
     Returns:
@@ -432,9 +444,26 @@ async def create_initiative(
         await session.flush()
 
         # Create built-in roles (PM + Member)
-        pm_role, _member_role = await create_builtin_roles(
+        pm_role, member_role = await create_builtin_roles(
             session, initiative_id=initiative.id
         )
+
+        if member_tool_access:
+            from sqlalchemy import update as sa_update
+
+            from app.core.tools import Tool as _Tool
+            from app.models.tenant.initiative import InitiativeRolePermission
+
+            await session.exec(
+                sa_update(InitiativeRolePermission)
+                .where(
+                    InitiativeRolePermission.initiative_role_id == member_role.id,
+                    InitiativeRolePermission.permission_key.in_(
+                        [tool.view_permission for tool in _Tool]
+                    ),
+                )
+                .values(enabled=True)
+            )
 
         # Add creator as project manager with proper role_id
         membership = InitiativeMember(
@@ -724,6 +753,59 @@ async def create_initiative_member(
         await session.commit()
 
     return membership
+
+
+async def grant_role_permission(
+    session: AsyncSession,
+    initiative: Initiative,
+    permission_key: str,
+    *,
+    role_name: str = "member",
+    enabled: bool = True,
+) -> None:
+    """Set one initiative-role permission — gate 3, for a test that needs it.
+
+    A built-in ``member`` role holds the documented defaults: it may view the
+    two core tools and nothing else. Since the initiative-role gate is enforced
+    by the tables' policies, a test that shares an opt-in tool with a plain
+    member has to say that their role may engage that tool, exactly as an
+    initiative's settings screen would.
+    """
+    from app.models.tenant.initiative import (
+        InitiativeRoleModel,
+        InitiativeRolePermission,
+    )
+    from sqlmodel import select
+
+    await route_session_to_guild(session, initiative.guild_id)
+    role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.name == role_name,
+            )
+        )
+    ).one()
+    existing = (
+        await session.exec(
+            select(InitiativeRolePermission).where(
+                InitiativeRolePermission.initiative_role_id == role.id,
+                InitiativeRolePermission.permission_key == permission_key,
+            )
+        )
+    ).one_or_none()
+    if existing is None:
+        session.add(
+            InitiativeRolePermission(
+                initiative_role_id=role.id,
+                permission_key=permission_key,
+                enabled=enabled,
+            )
+        )
+    else:
+        existing.enabled = enabled
+        session.add(existing)
+    await session.commit()
 
 
 async def create_property_definition(

@@ -549,5 +549,12 @@
   "POST_POLL_RESULTS_HIDDEN": "The results are hidden until you answer.",
   "POST_POLL_NOT_PUBLISHED": "This notice isn't up yet, so its poll can't be answered.",
   "UNKNOWN_TIMEZONE": "That is not a time zone we recognize.",
-  "REACTION_DISABLED": "This notice is not taking reactions."
+  "REACTION_DISABLED": "This notice is not taking reactions.",
+  "GRANTEE_LACKS_PROJECT_ACCESS": "You can only share Projects with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_DOCUMENT_ACCESS": "You can only share Documents with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_QUEUE_ACCESS": "You can only share Queues with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "You can only share Counters with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_CALENDAR_ACCESS": "You can only share Calendar with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_DASHBOARD_ACCESS": "You can only share Dashboards with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_POST_ACCESS": "You can only share Posts with people whose role includes it. Update the role under the initiative's settings, then share again."
 }

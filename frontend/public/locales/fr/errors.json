@@ -549,5 +549,12 @@
   "POST_POLL_RESULTS_HIDDEN": "Les résultats sont masqués jusqu'à ce que vous répondiez.",
   "POST_POLL_NOT_PUBLISHED": "Cette publication n'est pas encore en ligne, son sondage ne peut pas recevoir de réponse.",
   "UNKNOWN_TIMEZONE": "Ce fuseau horaire n'est pas reconnu.",
-  "REACTION_DISABLED": "Cette annonce n'accepte pas de réactions."
+  "REACTION_DISABLED": "Cette annonce n'accepte pas de réactions.",
+  "GRANTEE_LACKS_PROJECT_ACCESS": "Vous ne pouvez partager Projets qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_DOCUMENT_ACCESS": "Vous ne pouvez partager Documents qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_QUEUE_ACCESS": "Vous ne pouvez partager Files qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Vous ne pouvez partager Compteurs qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_CALENDAR_ACCESS": "Vous ne pouvez partager Calendrier qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_DASHBOARD_ACCESS": "Vous ne pouvez partager Tableaux de bord qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_POST_ACCESS": "Vous ne pouvez partager Publications qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau."
 }

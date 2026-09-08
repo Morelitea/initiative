@@ -46,6 +46,7 @@ from app.models.tenant.document import (
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
+    SharingMessages,
     ProjectMessages,
     DocumentMessages,
     QueueMessages,
@@ -663,6 +664,37 @@ async def replace_resource_grants(
                 )
             ).all()
         )
+
+    # Sharing reaches somebody only where their role already lets them use the
+    # tool. The picker offers that list; saying so here too means a caller that
+    # does not go through it — the API, an agent — is told the same thing
+    # rather than writing a grant that does nothing. A guild-level resource
+    # belongs to no initiative, so no initiative role speaks for it.
+    if not guild_scoped:
+        # Local: rls imports this module.
+        from app.models.tenant.initiative import PermissionKey
+        from app.services import rls as rls_service
+
+        tool = Tool(resource_type)
+        view_key = PermissionKey(tool.view_permission)
+        permitted_users = await rls_service.members_permitted(
+            session,
+            initiative_id=initiative_id,
+            user_ids=valid_users,
+            permission_key=view_key,
+        )
+        permitted_roles = await rls_service.roles_permitting(
+            session,
+            initiative_id=initiative_id,
+            role_ids=valid_roles,
+            permission_key=view_key,
+        )
+        if valid_users - permitted_users or valid_roles - permitted_roles:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=SharingMessages.grantee_lacks_tool(tool),
+            )
+        valid_users, valid_roles = permitted_users, permitted_roles
 
     existing = (
         await session.exec(

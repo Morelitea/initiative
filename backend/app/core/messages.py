@@ -4,6 +4,8 @@ These constants are used as HTTPException detail strings. The frontend
 maps these codes to localized user-facing messages via errors.json.
 """
 
+from app.core.tools import Tool
+
 
 class CommonMessages:
     """Codes that belong to no one tool.
@@ -335,6 +337,20 @@ class CommentMessages:
     AUTHOR_ONLY_DELETE = "COMMENT_AUTHOR_ONLY_DELETE"
     NOT_LINKED = "COMMENT_NOT_LINKED"
     COMMENTS_DISABLED = "COMMENTS_DISABLED"
+
+
+class SharingMessages:
+    """Refusals from the sharing flow.
+
+    One code per tool, derived from the enum rather than written out, so a new
+    tool has one the day it exists. ``tools_test`` fails if a locale has not
+    been given the wording for it.
+    """
+
+    @staticmethod
+    def grantee_lacks_tool(tool: "Tool") -> str:
+        """Sharing was addressed to somebody whose role does not reach ``tool``."""
+        return f"GRANTEE_LACKS_{tool.value.upper()}_ACCESS"
 
 
 class ReactionMessages:
