@@ -508,6 +508,12 @@ async def get_comment_with_parent(
     )
     comment = (await session.exec(stmt)).one_or_none()
     if not comment:
+        # The policies took it out before this ran. In the initiative it is
+        # theirs to know about, so a later gate is what refused it.
+        if await reachability.reader_is_in_the_initiative(
+            "comments", comment_id, cast(int, user.id), guild_id
+        ):
+            raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
 
     column, entity_id = _comment_target(comment)
