@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from sqlalchemy import ColumnElement, Select
 from sqlmodel import SQLModel, select
 
 from app.db import session as db_session
@@ -28,7 +29,7 @@ def _model_for(table: str) -> Optional[type[SQLModel]]:
     return None
 
 
-def _comment_initiative():
+def _comment_initiative() -> ColumnElement[Optional[int]]:
     """A comment's initiative, through whichever parent it names.
 
     A comment hangs off exactly one of them, so the parents are tried in the
@@ -65,7 +66,7 @@ def _comment_initiative():
     return sa_func.coalesce(*lookups)
 
 
-def _initiative_query(model: Any, row_id: int):
+def _initiative_query(model: Any, row_id: int) -> Select[tuple[Optional[int]]]:
     """A select yielding ``row_id``'s initiative, or nothing if it is not there.
 
     Most tables carry ``initiative_id``. A task does not — it belongs to a
