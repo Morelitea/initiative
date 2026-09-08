@@ -20,7 +20,7 @@ from app.core.tools import Tool
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.schemas.query import FilterOp
-from app.services.fields.derive import derive_columns, options_for, tag_field
+from app.services.fields.derive import derive_fields, options_for
 from app.services.fields.spec import (
     EQUALITY,
     MEMBERSHIP,
@@ -189,7 +189,6 @@ def _computed() -> tuple[FieldSpec, ...]:
             ops=frozenset({FilterOp.in_, FilterOp.is_null}),
             nullable=True,
         ),
-        tag_field("task"),
         computed(
             "initiative_ids",
             _initiative_ids,
@@ -224,5 +223,5 @@ def build() -> Dataset:
         model=Task,
         tool=Tool.project,
         name_override="tasks",
-        fields=derive_columns(Task, internal=_INTERNAL) + _computed(),
+        fields=derive_fields(Task, internal=_INTERNAL) + _computed(),
     )

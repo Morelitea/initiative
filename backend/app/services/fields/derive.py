@@ -118,12 +118,12 @@ def options_for(col: Any) -> tuple[str, ...]:
     return ()
 
 
-def derive_columns(
+def derive_fields(
     model: type[DeclarativeBase],
     *,
     internal: frozenset[str] = frozenset(),
 ) -> tuple[FieldSpec, ...]:
-    """Every column of *model*, as fields.
+    """Everything *model* itself implies: its columns, and its tags.
 
     *internal* names the columns that are a feature's own state rather than
     anything a reader would filter by — a recurrence rule's strategy and
@@ -148,20 +148,28 @@ def derive_columns(
                 options=options_for(col),
             )
         )
-    return tuple(specs)
+    tags = _tag_field(model)
+    return tuple(specs) + ((tags,) if tags is not None else ())
 
 
-def tag_field(target: str) -> FieldSpec:
-    """The ``tag_ids`` filter for a taggable entity.
+def _tag_field(model: type[DeclarativeBase]) -> Optional[FieldSpec]:
+    """The ``tag_ids`` filter, for a model that has tags.
 
-    Every tool is taggable and each one binds to tags the same way, so the
-    junction table named in ``TAG_LINKS`` is the only thing that differs between
-    one of these and the next. Written once here rather than once per dataset.
+    Nearly everything is taggable and everything taggable binds the same way,
+    so no dataset says it has tags: the junction named in ``TAG_LINKS`` for
+    this model is the whole of the difference between one of these and the
+    next. A model with no entry gets no tag field, which is the same answer it
+    would have given by hand.
     """
     from app.models.tenant.tag import Tag
     from app.services.tenant.tags import TAG_LINKS
 
-    link = TAG_LINKS[target]
+    link = next(
+        (spec for spec in TAG_LINKS.values() if spec.entity is model),
+        None,
+    )
+    if link is None:
+        return None
 
     def resolve_tag_ids(op: Any, value: Any, ctx: Any) -> Any:
         if not value:

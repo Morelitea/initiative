@@ -14,8 +14,9 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.models.tenant.task import Task
+from app.models.tenant.task import Task, TaskAssignee
 from app.schemas.query import FilterOp
+from app.services.fields.derive import derive_fields
 from app.services.fields import (
     FieldContext,
     allowed_fields,
@@ -87,6 +88,15 @@ class TestCoverage:
     def test_the_columns_left_out_are_left_out_for_a_reason(self):
         resolved = allowed_fields("tasks", _ctx())
         assert set(NOT_FILTERABLE).isdisjoint(resolved)
+
+    def test_a_taggable_model_gets_its_tag_filter_without_asking(self):
+        """Nearly everything is taggable and everything taggable binds the same
+        way, so no dataset declares that it has tags. The model's entry in the
+        tag registry is the whole of the difference between one and the next."""
+        assert "tag_ids" in {spec.name for spec in derive_fields(Task)}
+
+    def test_a_model_with_no_tags_gets_no_tag_filter(self):
+        assert "tag_ids" not in {spec.name for spec in derive_fields(TaskAssignee)}
 
     def test_a_decorated_string_column_is_still_a_column(self):
         """SQLModel wraps a plain ``str`` field in its own type rather than
@@ -340,8 +350,8 @@ class TestDescription:
 
 class TestOperatorEnforcement:
     def test_a_field_declares_only_operators_its_resolver_handles(self):
-        """``_status_category`` and ``_tag_ids`` build an ``IN`` over their
-        value, so ``in_`` is the one operator each of them answers."""
+        """The status-category and tag resolvers each build an ``IN`` over
+        their value, so ``in_`` is the one operator each of them answers."""
         ops = allowed_ops("tasks")
         assert ops["status_category"] == {FilterOp.in_}
         assert ops["tag_ids"] == {FilterOp.in_}
