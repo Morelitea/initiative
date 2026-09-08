@@ -54,14 +54,14 @@ async def test_the_lock_is_really_taken(session: AsyncSession, engine):
     guild_id, poll = await _poll(session)
     await session.commit()
 
-    await post_polls_service.lock_poll(session, poll)
+    await post_polls_service.lock_poll(session, poll, guild_id=guild_id)
 
     maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with maker() as other:
         await route_session_to_guild(other, guild_id)
         await other.exec(text(f"SET LOCAL lock_timeout = '{_LOCK_TIMEOUT}'"))
         with pytest.raises(Exception) as blocked:
-            await post_polls_service.lock_poll(other, poll)
+            await post_polls_service.lock_poll(other, poll, guild_id=guild_id)
         assert "lock" in str(blocked.value).lower()
         await other.rollback()
 
@@ -79,7 +79,9 @@ async def test_a_free_row_is_not_a_wait(session: AsyncSession, engine):
     async with maker() as other:
         await route_session_to_guild(other, guild_id)
         await other.exec(text(f"SET LOCAL lock_timeout = '{_LOCK_TIMEOUT}'"))
-        await asyncio.wait_for(post_polls_service.lock_poll(other, poll), timeout=5)
+        await asyncio.wait_for(
+            post_polls_service.lock_poll(other, poll, guild_id=guild_id), timeout=5
+        )
         await other.rollback()
 
 

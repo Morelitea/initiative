@@ -116,16 +116,34 @@ async def annotate_poll_state(
         object.__setattr__(poll, "_has_votes", bool(voters))
 
 
-async def lock_poll(session: AsyncSession, poll: PostPoll) -> None:
-    """Take this poll's row for the rest of the transaction.
+async def _turnstile(session: AsyncSession, poll: PostPoll, guild_id: int) -> None:
+    """Take this poll's turnstile for the rest of the transaction.
 
-    Held by every path that reads what has been answered and then acts on it,
-    so the reading and the acting are one indivisible step. One row, always the
-    same one, so there is no order for two of these to deadlock over.
+    An advisory lock rather than the poll's row: answering a question is not
+    editing it, so a voter must not have to hold a lock that asks for write
+    access on the notice. Editing and answering take the SAME turnstile, or
+    they would not exclude each other at all.
+
+    Keyed by guild as well as poll, because poll ids repeat across guild
+    schemas. One key, always the same one, so there is no order for two of
+    these to deadlock over.
     """
     await session.exec(
-        select(PostPoll.id).where(PostPoll.id == poll.id).with_for_update()
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"post_poll:{guild_id}:{poll.id}", 0)
+            )
+        )
     )
+
+
+async def lock_poll(session: AsyncSession, poll: PostPoll, *, guild_id: int) -> None:
+    """Hold this poll for the rest of the transaction.
+
+    Held by every path that reads what has been answered and then acts on it,
+    so the reading and the acting are one indivisible step.
+    """
+    await _turnstile(session, poll, guild_id)
 
 
 async def lock_open_poll(
@@ -140,18 +158,10 @@ async def lock_open_poll(
     the lock, so one voter's ballots are written one after another and each is
     measured by the deadline in force as it lands.
 
-    The turnstile is an advisory lock rather than the poll row itself: answering
-    a question is not editing it, and taking the row would ask for write access
-    on the notice, which a reader answering the poll does not have. The key is
-    scoped by guild, because poll ids repeat across guild schemas.
+    The turnstile is shared with the edit path, so a ballot and a rewrite of
+    the deadline cannot both be in flight (see :func:`_turnstile`).
     """
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(f"post_poll:{guild_id}:{poll.id}", 0)
-            )
-        )
-    )
+    await _turnstile(session, poll, guild_id)
     row = (
         await session.exec(
             select(PostPoll.id).where(PostPoll.id == poll.id, poll_is_open())

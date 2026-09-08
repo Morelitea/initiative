@@ -1295,26 +1295,8 @@ async def create_project(
     session.add(project)
     await session.flush()
 
-    status_mapping: dict[int, int] = {}
-    if template_project:
-        status_mapping = await task_statuses_service.clone_statuses(
-            session,
-            source_project_id=template_project.id,
-            target_project_id=project.id,
-        )
-
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
-    fallback_status_ids = {status.category: status.id for status in statuses}
-
-    if template_project:
-        await filter_presets_service.clone_presets(
-            session,
-            source_project_id=template_project.id,
-            target_project_id=project.id,
-            status_mapping=status_mapping,
-        )
-    await filter_presets_service.ensure_default_presets(session, project.id)
-
+    # Sharing before anything that hangs off it: a status, a preset or a task
+    # is reached through the project, so the project has to be reachable first.
     owner_permission = ResourceGrant(
         resource_type="project",
         resource_id=project.id,
@@ -1337,6 +1319,28 @@ async def create_project(
         owner_id=owner_id,
         grants=project_in.grants,
     )
+
+    await session.flush()
+
+    status_mapping: dict[int, int] = {}
+    if template_project:
+        status_mapping = await task_statuses_service.clone_statuses(
+            session,
+            source_project_id=template_project.id,
+            target_project_id=project.id,
+        )
+
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    fallback_status_ids = {status.category: status.id for status in statuses}
+
+    if template_project:
+        await filter_presets_service.clone_presets(
+            session,
+            source_project_id=template_project.id,
+            target_project_id=project.id,
+            status_mapping=status_mapping,
+        )
+    await filter_presets_service.ensure_default_presets(session, project.id)
 
     if template_project:
         await _duplicate_template_tasks(

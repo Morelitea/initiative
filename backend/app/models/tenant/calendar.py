@@ -32,6 +32,10 @@ class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
     """
 
     __tablename__ = "calendars"
+    # A tool row is written before anything has been shared, so it is read
+    # back by no RETURNING clause: the id comes from the sequence first and
+    # the INSERT stands alone. See app/db/initiative_rls.py.
+    __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)

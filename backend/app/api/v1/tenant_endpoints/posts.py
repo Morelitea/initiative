@@ -1045,7 +1045,9 @@ async def set_post_poll(
     data = _validated_poll(poll_in)
     existing = post.poll
     if existing is not None:
-        await post_polls_service.lock_poll(session, existing)
+        await post_polls_service.lock_poll(
+            session, existing, guild_id=guild_context.guild_id
+        )
         if await post_polls_service.has_votes(session, existing):
             if not post_polls_service.options_match(existing, data):
                 raise HTTPException(

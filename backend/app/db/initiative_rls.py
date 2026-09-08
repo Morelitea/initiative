@@ -69,32 +69,12 @@ class DacPath:
     self_governed: bool = False
 
 
-def _resource_call(
-    tool: str,
-    resource_id: str,
-    initiative: str,
-    write: bool,
-    created_by: str | None = None,
-) -> str:
-    """One ``public.resource_access`` call, in policy form.
-
-    ``created_by`` adds the leg for a resource that has no sharing YET: the row
-    being written and the rows written beside it in the same breath, before the
-    owner grant exists. It answers only to the person making it, and only while
-    the resource has no grants at all — which, once the grant lands one
-    statement later, it never does again.
-    """
-    call = (
+def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
+    """One ``public.resource_access`` call, in policy form."""
+    return (
         f"public.resource_access({tool}, {resource_id}, {_UID}, "
         f"{initiative}, {'true' if write else 'false'})"
     )
-    if created_by is None:
-        return call
-    unshared = (
-        f"SELECT 1 FROM resource_grants rg WHERE rg.resource_type = {tool} "
-        f"AND rg.resource_id = {resource_id}"
-    )
-    return f"({call} OR ({created_by} = {_UID} AND NOT EXISTS ({unshared})))"
 
 
 def _dac_self(tool: Tool | None = None) -> DacPath:
@@ -108,11 +88,7 @@ def _dac_self(tool: Tool | None = None) -> DacPath:
         if governing is None:
             return None
         return _resource_call(
-            f"'{governing.value}'",
-            f"{t}.id",
-            f"{t}.initiative_id",
-            w,
-            f"{t}.created_by",
+            f"'{governing.value}'", f"{t}.id", f"{t}.initiative_id", w
         )
 
     return DacPath(predicate=build, self_governed=True)
@@ -131,11 +107,7 @@ def _dac_via(
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
             + _resource_call(
-                f"'{tool.value}'",
-                f"{alias}.id",
-                f"{alias}.initiative_id",
-                w,
-                f"{alias}.created_by",
+                f"'{tool.value}'", f"{alias}.id", f"{alias}.initiative_id", w
             )
             + ")"
         )
@@ -150,13 +122,7 @@ def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
         predicate=lambda t, w: (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
-            + _resource_call(
-                "'" + tool.value + "'",
-                "dpar.id",
-                "dpar.initiative_id",
-                w,
-                "dpar.created_by",
-            )
+            + _resource_call("'" + tool.value + "'", "dpar.id", "dpar.initiative_id", w)
             + ")"
         )
     )
