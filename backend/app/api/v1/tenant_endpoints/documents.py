@@ -92,6 +92,7 @@ from app.services.tenant import my_tools as my_tools_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
@@ -171,6 +172,7 @@ async def _get_document_or_404(
     document_id: int,
     guild_id: int,
     populate_existing: bool = False,
+    user_id: int | None = None,
 ) -> Document:
     document = await documents_service.get_document(
         session,
@@ -179,6 +181,17 @@ async def _get_document_or_404(
         populate_existing=populate_existing,
     )
     if not document:
+        # With a reader named, a document in their own initiative is refused
+        # rather than reported missing.
+        if user_id is not None:
+            raise await reachability.missing_or_denied(
+                "documents",
+                document_id,
+                user_id,
+                guild_id,
+                not_found=DocumentMessages.NOT_FOUND,
+                denied=DocumentMessages.NO_ACCESS,
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
         )
@@ -1928,11 +1941,19 @@ async def download_document_file(
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
-    if (
-        document is None
-        or document.document_type != DocumentType.file
-        or document.file_url is None
-    ):
+    if document is None:
+        # Existence is never confirmed across a guild or an initiative — but
+        # inside the reader's own initiative the document IS theirs to know
+        # about, so sharing refusing it is "denied" rather than "missing".
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            int(current_user.id),
+            int(guild_id),
+            not_found=DocumentMessages.NOT_FOUND,
+            denied=DocumentMessages.NO_ACCESS,
+        )
+    if document.document_type != DocumentType.file or document.file_url is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
         )
