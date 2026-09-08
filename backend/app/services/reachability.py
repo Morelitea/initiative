@@ -104,10 +104,9 @@ async def missing_or_denied(
 ) -> Exception:
     """The exception for a row the request could not see.
 
-    "Denied" where the reader is in its initiative and a later gate refused it,
-    "not found" otherwise — so the initiative boundary still says nothing about
-    what is behind it. Returns the exception rather than raising, so a caller
-    reads as ``raise await missing_or_denied(...)``.
+    ``denied`` where the reader is in the row's initiative, ``not_found``
+    otherwise. Returns the exception rather than raising it, so a caller reads
+    as ``raise await missing_or_denied(...)``.
     """
     from fastapi import HTTPException, status
 
