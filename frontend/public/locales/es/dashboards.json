@@ -228,7 +228,10 @@
     "completed_at": "Completada",
     "created_at": "Creada",
     "is_archived": "Archivada",
-    "title": "Título"
+    "title": "Título",
+    "description": "Descripción",
+    "updated_at": "Actualizado",
+    "created_by": "Creado por"
   },
   "filterPhrase": {
     "eq": "{{field}} es {{value}}",
@@ -275,7 +278,8 @@
     "relative": "Relativa",
     "absolute": "En una fecha",
     "relativeDays": "Días desde hoy",
-    "relativeHint": "Cuenta desde el momento en que se abre el panel, así que nunca se queda obsoleta."
+    "relativeHint": "Cuenta desde el momento en que se abre el panel, así que nunca se queda obsoleta.",
+    "loading": "Cargando filtros…"
   },
   "tableView": {
     "caption": "Los mismos datos en una tabla",

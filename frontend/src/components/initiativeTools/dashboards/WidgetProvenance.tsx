@@ -61,11 +61,14 @@ export function WidgetProvenance({
 
   // The field declarations a condition is read against — the same ones the
   // builder offers, so a tile describes exactly what the builder wrote.
-  const { fields } = useFieldCatalog("tasks");
+  const { fields, isLoading: fieldsLoading } = useFieldCatalog("tasks");
 
+  // Without the declarations a value has no kind, so an id would be printed as
+  // itself rather than resolved to a name or counted as one this viewer cannot
+  // see. Describing waits for them.
   const filters = useMemo(
-    () => describeConditions(conditions, fields, labels, t, formatDate),
-    [conditions, fields, labels, t, formatDate]
+    () => (fieldsLoading ? [] : describeConditions(conditions, fields, labels, t, formatDate)),
+    [fieldsLoading, conditions, fields, labels, t, formatDate]
   );
   const scope = useMemo(() => bindingScope(binding, labels), [binding, labels]);
 

@@ -76,6 +76,13 @@ _SORTABLE = frozenset(
 #: filters a board by.
 _HIDDEN = frozenset(
     {
+        # A property filter names one property and a value for it, so a control
+        # for it has to choose the property first and then offer that
+        # property's own values. Until there is such a control, offering the
+        # field would hand somebody a text box whose contents this resolver
+        # cannot read — it takes an object, not a string. Still filterable by a
+        # stored definition, which is how the tasks page uses it.
+        "property_values",
         "initiative_ids",
         "recurrence",
         "recurrence_strategy",

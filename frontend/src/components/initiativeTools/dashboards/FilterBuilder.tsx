@@ -88,7 +88,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
 
   // What may be filtered on, from the server's field registry — one
   // declaration, so a control cannot offer an operator the engine refuses.
-  const { fields } = useFieldCatalog("tasks");
+  const { fields, isLoading: fieldsLoading } = useFieldCatalog("tasks");
 
   const options = useMemo(
     () => ({
@@ -125,6 +125,14 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
   // One group level is all that survives the round trip, so the affordance is
   // offered only while none exists.
   const hasGroup = value.some(isGroup);
+
+  // Until the declarations arrive, a condition has no field to be read
+  // against: its operator list and its value control would both fall back to
+  // the plainest thing they can draw, and editing one then rewrites a saved
+  // filter into whatever that plain control emitted. So the rows wait.
+  if (fieldsLoading) {
+    return <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.loading")}</p>;
+  }
 
   return (
     <div className="space-y-2">

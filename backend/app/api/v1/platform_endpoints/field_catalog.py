@@ -8,6 +8,12 @@ anybody's rows, and is identical for every guild on a deployment. Authentication
 is still required — the field vocabulary is not something an anonymous caller
 needs — but no guild context is taken, because taking one would imply the answer
 depended on it.
+
+It takes **no session** either, for the same reason: it reads nothing from the
+database. The rule that an authenticated platform read runs under
+``UserSessionDep`` exists so that rows come back scoped to the caller's tier,
+and there are no rows here — the answer is assembled from the registry in
+memory. Anything added here that *does* read the database needs that session.
 """
 
 from fastapi import APIRouter, Depends

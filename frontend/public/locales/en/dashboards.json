@@ -228,7 +228,10 @@
     "completed_at": "Completed",
     "created_at": "Created",
     "is_archived": "Archived",
-    "title": "Title"
+    "title": "Title",
+    "description": "Description",
+    "updated_at": "Updated",
+    "created_by": "Created by"
   },
   "filterPhrase": {
     "eq": "{{field}} is {{value}}",
@@ -265,7 +268,8 @@
     "relative": "Relative",
     "absolute": "On a date",
     "relativeDays": "Days from today",
-    "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale."
+    "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale.",
+    "loading": "Loading filters…"
   },
   "tableView": {
     "caption": "The same data as a table",

@@ -224,7 +224,7 @@ PREVIOUSLY_OFFERED = {
 
 #: Added when the two lists became one — fields the engine always accepted and
 #: no control ever offered.
-NEWLY_OFFERED = {"description", "updated_at", "created_by", "property_values"}
+NEWLY_OFFERED = {"description", "updated_at", "created_by"}
 
 
 class TestDescription:
@@ -252,7 +252,15 @@ class TestDescription:
         """Hiding governs what a control offers, never what the engine accepts."""
         resolved = allowed_fields("tasks", _ctx())
         assert "initiative_ids" in resolved
-        assert "updated_at" in resolved
+        assert "property_values" in resolved
+
+    def test_a_field_is_offered_only_where_a_control_can_supply_its_value(self):
+        """``property_values`` takes an object naming a property and a value for
+        it. A control that picks one does not exist yet, and a text box supplies
+        a string this resolver reads as nothing — so the field stays available
+        to a stored definition and out of the list a client draws."""
+        offered = {entry["name"] for entry in describe("tasks")}
+        assert "property_values" not in offered
 
     def test_an_entry_carries_what_a_control_needs(self):
         by_name = {entry["name"]: entry for entry in describe("tasks")}
