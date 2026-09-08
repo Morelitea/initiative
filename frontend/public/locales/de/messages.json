@@ -36,7 +36,8 @@
     "hint": "Ein vollständiges Handle mit Nummer erreicht auch Personen, mit denen du keine Community teilst.",
     "connect": "Mit {{handle}} verbinden",
     "noMatches": "Niemand passt dazu.",
-    "empty": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
+    "empty": "Noch niemand in deinen Communities hat Nachrichten aktiviert.",
+    "noCommunities": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
     "unreachable": "Nicht erreichbar",
     "showMore": "Mehr anzeigen",
     "favorites": "Favoriten"

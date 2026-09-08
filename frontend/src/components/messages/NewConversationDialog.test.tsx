@@ -261,4 +261,27 @@ describe("NewConversationDialog", () => {
 
     expect(mocks.sections).toHaveBeenLastCalledWith("gra");
   });
+
+  it("says nobody takes messages when the communities are there but the people are not", async () => {
+    // A section arrives for a community that has other members in it, whether
+    // or not any of them are listable, so an empty one is people declining
+    // rather than an absence of people.
+    mocks.sections.mockReturnValue({
+      data: { sections: [section([])], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    await open();
+
+    expect(await screen.findByText(/has messaging turned on/)).toBeVisible();
+  });
+
+  it("says you share no communities when there are no sections at all", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    await open();
+
+    expect(await screen.findByText(/You share no communities/)).toBeVisible();
+  });
 });
