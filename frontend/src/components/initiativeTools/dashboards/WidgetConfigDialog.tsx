@@ -147,14 +147,22 @@ export function WidgetConfigDialog({
    * namespaced type means — so the list does not need looking up at all.
    */
   const isApp = isAppWidgetType(widget?.type ?? "");
-  const appCatalog = useAppWidgetCatalog(open && isApp);
+  //: An app's *data*, whoever draws it — its own widget, or one of ours
+  //: pointed at it with a statement.
+  const readsApp = isApp || binding.source === "app";
+  const appCatalog = useAppWidgetCatalog(open && readsApp);
   const app = useMemo(
     () => appWidgetEntry(appCatalog.data, widget?.type ?? ""),
     [appCatalog.data, widget?.type]
   );
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range"];
+  // A built-in widget reads an app too, as far as the rows are described: a
+  // statement names what it returns, over columns the endpoint declared it
+  // hands back. Without one they are the app's own shape, which only the app's
+  // own module knows how to draw — so the source is offered and the statement
+  // is what makes it usable.
+  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range", "app"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 

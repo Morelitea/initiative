@@ -574,23 +574,45 @@ def test_an_app_widget_binds_only_the_app_source():
             )
 
 
+def _builtin_over_an_app(**binding):
+    return _definition(
+        {
+            "id": "w1",
+            "type": "stat",
+            "binding": {
+                "source": "app",
+                "app_uid": APP_UID,
+                "endpoint_id": "app.acme.shop.orders",
+                **binding,
+            },
+        }
+    )
+
+
 @pytest.mark.unit
-def test_a_builtin_widget_cannot_bind_the_app_source():
-    """An app's rows are opaque here, so no built-in could draw them."""
+def test_a_builtin_widget_cannot_bind_an_app_it_cannot_read():
+    """An app's rows are its own shape — keyed by names it chose, described
+    nowhere a built-in can see — so a chart handed them has nothing to draw."""
     with pytest.raises(DashboardDefinitionError):
-        normalize_dashboard_definition(
-            _definition(
-                {
-                    "id": "w1",
-                    "type": "stat",
-                    "binding": {
-                        "source": "app",
-                        "app_uid": APP_UID,
-                        "endpoint_id": "app.acme.shop.orders",
-                    },
-                }
-            )
-        )
+        normalize_dashboard_definition(_builtin_over_an_app())
+
+
+@pytest.mark.unit
+def test_a_statement_is_what_lets_a_builtin_read_an_app():
+    """A statement names the columns it returns, over columns the endpoint
+    declared it hands back. That is the whole of what was missing."""
+    definition = normalize_dashboard_definition(
+        _builtin_over_an_app(sql="SELECT shop FROM rows")
+    )
+    binding = definition["widgets"][0]["binding"]
+    assert binding["source"] == "app"
+    assert binding["sql"] == "SELECT shop FROM rows"
+
+
+@pytest.mark.unit
+def test_a_statement_a_builtin_cannot_run_is_still_refused():
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(_builtin_over_an_app(sql="DELETE FROM rows"))
 
 
 @pytest.mark.unit

@@ -655,6 +655,24 @@ def _normalize_binding(
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
         return _normalize_app_binding(binding, app_listing_uid, endpoint_columns)
 
+    if source == APP_BINDING_SOURCE:
+        # A widget of this build's own — a chart, a table, a total — reading an
+        # app, which is possible exactly as far as the rows are described. A
+        # statement makes them so: it names the columns it returns, and the
+        # endpoint declared the ones it reads. Without one they are the app's
+        # own shape, which only the app's own module knows how to draw.
+        if not str(binding.get("sql") or "").strip():
+            _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
+        # It has no module of its own to be one app's, so it names the app it
+        # reads rather than inheriting one. What it may see is decided exactly
+        # where an app widget's is: the dashboard's gates, the binding the
+        # definition stores, and the endpoint's own visibility.
+        return _normalize_app_binding(
+            binding,
+            _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),
+            endpoint_columns,
+        )
+
     if not isinstance(source, str) or source not in TABULAR_SOURCES:
         _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
     params = {

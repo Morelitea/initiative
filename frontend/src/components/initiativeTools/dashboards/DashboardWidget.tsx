@@ -96,7 +96,8 @@ export function DashboardWidget({
   const live = useWidgetData(
     binding,
     sampleData ? undefined : initiativeId,
-    sampleData ? undefined : dashboardId
+    sampleData ? undefined : dashboardId,
+    widget.id
   );
 
   // Names for the ids this binding mentions, resolved against the viewer's own

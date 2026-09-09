@@ -616,13 +616,57 @@ export type AppDataResponseRowsItem = { [key: string]: unknown };
 export type AppDataResponseValues = { [key: string]: unknown };
 
 /**
+ * What a value *is*, for comparison and formatting.
+ *
+ * Coarser than a SQL type on purpose: a consumer needs to know that a due date
+ * orders and a title does not, never that one is ``timestamptz`` and the other
+ * ``varchar(200)``.
+ */
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
+
+export const FieldType = {
+  text: "text",
+  number: "number",
+  date: "date",
+  boolean: "boolean",
+  enum: "enum",
+  reference: "reference",
+} as const;
+
+/**
+ * One output column, as the database describes it before running.
+ */
+export interface QueryColumnDescription {
+  name: string;
+  type: FieldType;
+}
+
+/**
  * One data source's answer, in the two shapes its endpoint declared.
  */
 export interface AppDataResponse {
   rows?: AppDataResponseRowsItem[];
+  columns?: QueryColumnDescription[];
   values?: AppDataResponseValues;
   fetched_at: string;
   cached?: boolean;
+}
+
+export type AppDataReturnLabel = { [key: string]: string };
+
+/**
+ * One thing an endpoint hands back, from its ``returns``.
+ *
+ * Declared rather than discovered, because a consumer binds one of these
+ * before the endpoint has ever run. The ones marked ``list`` are what become
+ * the rows — so they are also the columns a statement over those rows may
+ * name.
+ */
+export interface AppDataReturn {
+  key: string;
+  type: string;
+  label?: AppDataReturnLabel;
+  list?: boolean;
 }
 
 /**
@@ -636,6 +680,7 @@ export interface AppEndpointRead {
   visibility?: string;
   cache_ttl_seconds?: number;
   params?: AppDataParam[];
+  returns?: AppDataReturn[];
 }
 
 /**
@@ -2904,24 +2949,6 @@ export interface FavoriteContactsResponse {
 }
 
 /**
- * What a value *is*, for comparison and formatting.
- *
- * Coarser than a SQL type on purpose: a consumer needs to know that a due date
- * orders and a title does not, never that one is ``timestamptz`` and the other
- * ``varchar(200)``.
- */
-export type FieldType = (typeof FieldType)[keyof typeof FieldType];
-
-export const FieldType = {
-  text: "text",
-  number: "number",
-  date: "date",
-  boolean: "boolean",
-  enum: "enum",
-  reference: "reference",
-} as const;
-
-/**
  * Comparison operators for filter conditions.
  *
  * Negation is handled by the ``negate`` flag on FilterCondition,
@@ -4988,14 +5015,6 @@ export interface QueryBuildRequest {
   order_by?: QuerySortSpec | null;
   limit?: number | null;
   initiative_id?: number | null;
-}
-
-/**
- * One output column, as the database describes it before running.
- */
-export interface QueryColumnDescription {
-  name: string;
-  type: FieldType;
 }
 
 /**
@@ -7490,6 +7509,10 @@ export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
    * The binding's parameters, as a JSON object.
    */
   params?: string | null;
+  /**
+   * Which widget on that dashboard is asking. Only needed where its binding carries a statement: what runs is the one stored on the widget, never one the request supplies.
+   */
+  widget_id?: string | null;
 };
 
 export type ReadAppParamOptionsApiV1GGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams = {

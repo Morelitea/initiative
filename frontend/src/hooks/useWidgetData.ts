@@ -96,6 +96,10 @@ export interface WidgetDataResult {
  * tables the statement reads answer for that initiative alone. So a widget
  * cannot show another initiative's rows even to a reader who is in both.
  *
+ * `widgetId` says which widget on that dashboard is asking. Only a binding
+ * carrying a statement needs it, and only to have the *stored* one run: nothing
+ * here says what to run.
+ *
  * `dashboardId` is the row the widget sits on, and only the `app` source needs
  * it: an app's data is guild-level, so the proxy is told which
  * initiative-scoped surface is asking and decides the read against *that* row's
@@ -104,7 +108,8 @@ export interface WidgetDataResult {
 export function useWidgetData(
   binding: WidgetBinding,
   initiativeId: number | undefined,
-  dashboardId?: number
+  dashboardId?: number,
+  widgetId?: string
 ): WidgetDataResult {
   const source = binding.source;
   const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
@@ -133,6 +138,7 @@ export function useWidgetData(
     endpointId: binding.endpoint_id ?? undefined,
     dashboardId,
     params: binding.params ?? undefined,
+    widgetId,
     cacheTtlSeconds: appBinding?.source.cache_ttl_seconds,
     enabled: scoped && isApp,
   });
@@ -286,16 +292,38 @@ export function useWidgetData(
         }
         const rows = appQuery.data?.rows ?? [];
         const values = appQuery.data?.values ?? {};
+        const meta: DataMeta = { total: rows.length };
+        // A binding with a statement asks a question of the app's rows, and the
+        // server answers it with columns — which is the envelope every built-in
+        // widget draws. So a chart can be pointed at an app, while an app's own
+        // module keeps being handed the app's own shape.
+        const described = appQuery.data?.columns ?? [];
+        if (described.length) {
+          // The server answers a statement with rows keyed by the names it
+          // produced; a widget reads them positionally against the columns.
+          const names = described.map((column) => column.name);
+          const positional = rows.map((row) =>
+            names.map((name) => (row as Record<string, unknown>)[name])
+          );
+          return {
+            data: { source: "rows", ...normalizeQueryRows(described, positional), meta },
+            isLoading: appQuery.isLoading,
+            isUnbound: false,
+            isRestricted: false,
+            refetch,
+            meta,
+          };
+        }
         return {
           // Already read through the endpoint's declared returns on the way
           // here. Nothing on this side looks inside either half; the sandbox is
           // handed them as values.
-          data: { source, rows, values, meta: { total: rows.length } },
+          data: { source, rows, values, meta },
           isLoading: appQuery.isLoading,
           isUnbound: false,
           isRestricted: false,
           refetch,
-          meta: { total: rows.length },
+          meta,
         };
       }
 

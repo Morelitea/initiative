@@ -48,8 +48,10 @@ const render = (sampleData: boolean) => {
 
 describe("DashboardWidget", () => {
   it("resolves the binding against the dashboard's initiative", () => {
+    // And says which widget is asking: a binding carrying a statement has the
+    // stored one run, so the server needs to know whose.
     render(false);
-    expect(useWidgetData).toHaveBeenCalledWith(binding, 7, 11);
+    expect(useWidgetData).toHaveBeenCalledWith(binding, 7, 11, "w1");
   });
 
   it("reads no initiative and no dashboard at all in sample mode", () => {
@@ -59,7 +61,7 @@ describe("DashboardWidget", () => {
     // cannot reach one either. This is what keeps an uninstalled listing's
     // preview from touching the guild's data.
     render(true);
-    expect(useWidgetData).toHaveBeenCalledWith(binding, undefined, undefined);
+    expect(useWidgetData).toHaveBeenCalledWith(binding, undefined, undefined, "w1");
   });
 
   it("draws the sample library rather than the resolved binding", async () => {
