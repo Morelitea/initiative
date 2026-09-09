@@ -17,9 +17,8 @@ Postgres, with the sync initiative-scope check beside its SQL counterpart in
 """
 
 from dataclasses import dataclass
-from enum import Enum
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
@@ -35,14 +34,8 @@ from app.services.membership import NO_SCOPE_COLUMN, initiative_scope_ok
 from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
-from app.models.tenant.project import (
-    Project,
-    ProjectPermissionLevel,
-)
-from app.models.tenant.document import (
-    Document,
-    DocumentPermissionLevel,
-)
+from app.models.tenant.project import Project
+from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
@@ -57,54 +50,6 @@ from app.core.messages import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
-
-# ---------------------------------------------------------------------------
-# Generic helpers (work with both project and document permission enums)
-# ---------------------------------------------------------------------------
-
-# Permission-level enum the generic helpers operate on. Bound to Enum so each
-# caller's concrete level type (ProjectPermissionLevel, DocumentPermissionLevel,
-# QueuePermissionLevel) flows through to the return type.
-PermLevel = TypeVar("PermLevel", bound=Enum)
-
-
-def effective_permission_level(
-    user_level: PermLevel | None,
-    role_level: PermLevel | None,
-    level_order: dict[PermLevel, int],
-) -> PermLevel | None:
-    """Return the higher of two permission levels (MAX behaviour).
-
-    Args:
-        user_level: The user-specific permission level (may be None).
-        role_level: The role-based permission level (may be None).
-        level_order: Mapping from permission level enum to numeric rank.
-
-    Returns:
-        The higher of the two levels, or None if both are None.
-    """
-    if user_level is None:
-        return role_level
-    if role_level is None:
-        return user_level
-    if level_order.get(role_level, 0) > level_order.get(user_level, 0):
-        return role_level
-    return user_level
-
-
-# ── Convenience constants ────────────────────────────────────────
-
-PROJECT_LEVEL_ORDER: dict[ProjectPermissionLevel, int] = {
-    ProjectPermissionLevel.read: 0,
-    ProjectPermissionLevel.write: 1,
-    ProjectPermissionLevel.owner: 2,
-}
-
-DOCUMENT_LEVEL_ORDER: dict[DocumentPermissionLevel, int] = {
-    DocumentPermissionLevel.read: 0,
-    DocumentPermissionLevel.write: 1,
-    DocumentPermissionLevel.owner: 2,
-}
 
 # Where a level string sits on the shared read < write < owner ladder.
 _LEVEL_RANK = {"read": 0, "write": 1, "owner": 2}

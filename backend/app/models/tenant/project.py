@@ -1,5 +1,4 @@
 from datetime import date, datetime, timezone
-from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, Date, DateTime, String, Text
@@ -117,9 +116,3 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-
-
-class ProjectPermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"
