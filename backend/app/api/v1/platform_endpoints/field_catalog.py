@@ -1,4 +1,4 @@
-"""The field registry, as a client reads it.
+"""The field registry and the query vocabulary, as a client reads them.
 
 One declaration serves the filter engine and the controls that build a filter,
 so the operators a control offers cannot drift from the ones the server accepts.
@@ -20,8 +20,10 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_active_user
 from app.schemas.field_catalog import FieldCatalogResponse, FieldDescription
+from app.schemas.sql_query import QueryVocabulary
 from app.services import fields as fields_registry
-from app.services.fields.registry import DatasetName
+from app.services.fields.registry import DatasetName, dataset_names
+from app.services.query.resolve import ALLOWED_FUNCTIONS
 
 router = APIRouter()
 
@@ -44,4 +46,22 @@ def read_field_catalog(dataset: DatasetName) -> FieldCatalogResponse:
             FieldDescription(**entry)
             for entry in fields_registry.describe(dataset.value)
         ],
+    )
+
+
+@router.get(
+    "/query/vocabulary",
+    response_model=QueryVocabulary,
+    dependencies=[Depends(get_current_active_user)],
+)
+def read_query_vocabulary() -> QueryVocabulary:
+    """What a statement may name and call.
+
+    Both read from the validator's own allow-lists, so a word offered here is
+    one it accepts. Beside a dataset's fields (above), this is everything a
+    client needs to complete a statement somebody is writing.
+    """
+    return QueryVocabulary(
+        datasets=sorted(dataset_names()),
+        functions=sorted(ALLOWED_FUNCTIONS),
     )

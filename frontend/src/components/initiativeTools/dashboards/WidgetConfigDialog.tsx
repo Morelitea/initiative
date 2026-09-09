@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import { type AppDataParam, type AppEndpointRead, appWidgetEntry } from "@/api/appData";
 import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
+import { SqlEditor } from "@/components/initiativeTools/dashboards/SqlEditor";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,13 +47,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useQueryBuilder } from "@/hooks/useQueryBuilder";
+import { useQueryShape } from "@/hooks/useQueryShape";
+import { useFieldCatalogs, useQueryVocabulary } from "@/hooks/useQueryVocabulary";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
@@ -272,8 +278,23 @@ export function WidgetConfigDialog({
    */
   const incomplete = isApp && !binding.endpoint_id;
 
+  /**
+   * The same, for a statement the server would refuse.
+   *
+   * A statement is checked where a definition is normalized, so saving a
+   * refused one takes the whole dashboard with it: the update comes back a 422
+   * and nothing on the canvas saves until the widget is opened again and
+   * fixed. The reason is already beside the box that produced it, so again —
+   * do not offer the save rather than explain the failure afterwards.
+   *
+   * `checking` is not a refusal, but it is not an answer either, and what it
+   * covers is the few hundred milliseconds after the last keystroke.
+   */
+  const [queryStatus, setQueryStatus] = useState<QueryStatus>("ok");
+  const unsaveable = incomplete || queryStatus !== "ok";
+
   const save = () => {
-    if (incomplete) return;
+    if (unsaveable) return;
     onSave({
       title: title.trim() || undefined,
       binding,
@@ -353,6 +374,7 @@ export function WidgetConfigDialog({
                 entityOptions={entityOptions}
                 initiativeId={initiativeId}
                 onChange={setBindingValue}
+                onQueryStatus={setQueryStatus}
               />
             ))}
 
@@ -447,7 +469,7 @@ export function WidgetConfigDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={save} disabled={incomplete}>
+          <Button onClick={save} disabled={unsaveable}>
             {t("common:save")}
           </Button>
         </DialogFooter>
@@ -463,12 +485,14 @@ function ParamControl({
   entityOptions,
   initiativeId,
   onChange,
+  onQueryStatus,
 }: {
   param: SourceParam;
   binding: WidgetBinding;
   entityOptions: Record<EntityKind, { value: string; label: string }[]>;
   initiativeId: number;
   onChange: (patch: Partial<WidgetBinding>) => void;
+  onQueryStatus: (status: QueryStatus) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
   const key = param.key as string;
@@ -514,6 +538,7 @@ function ParamControl({
           binding={binding}
           initiativeId={initiativeId}
           onChange={onChange}
+          onStatus={onQueryStatus}
           paramKey={param.key as keyof WidgetBinding}
         />
       );
@@ -826,24 +851,29 @@ function BindingPreview({
 }
 
 /**
- * How a widget is pointed at data: by clicking, with the statement shown.
+ * How a widget is pointed at data: by clicking, or by writing it.
  *
- * The builder is the surface, not the fallback. Somebody who does not write SQL
- * has to be able to build a dashboard, so what they choose is a description and
- * the server writes the statement from it — which is also what guarantees the
- * statement is one the surface will run.
+ * Two tabs over one statement, and which of them is *authoritative* is the
+ * whole design. **Build** is the surface: somebody who does not write SQL has
+ * to be able to build a dashboard, so what they choose is a description and the
+ * server writes the statement from it — which is also what guarantees the
+ * statement is one the surface will run. **SQL** is the escape: what the
+ * builder cannot describe, somebody can still write.
  *
- * Not every statement has a description behind it. The ones a listing ships and
- * the ones the cutover wrote were never clicked, so there is nothing for the
- * builder to reopen on — and rebuilding one from a guess would replace somebody
- * else's query with our own. Those are shown as they are, and stay that way
- * until an author asks to build a new one. Opening a widget's configuration
- * never rewrites it.
+ * The moment a statement is edited by hand the description behind it stops
+ * being true of it, so it is dropped and the text is what is stored. That is
+ * one-way by nature — a statement carries no record of the clicking it did not
+ * come from — so it happens on the first edit rather than on opening the tab,
+ * and going back to the builder says what it will cost.
  *
- * The SQL is read-only either way. A statement typed by hand is the next thing
- * to build (it needs the builder to go read-only behind it, with the text
- * authoritative); until then, showing what the clicking produced is what makes
- * the builder legible rather than magic.
+ * Not every statement has a description behind it to begin with. The ones a
+ * listing ships and the ones the cutover wrote were never clicked, so they open
+ * on SQL: reading a widget's configuration must never rewrite it.
+ *
+ * Nothing here decides whether a statement is allowed. The server reads it the
+ * way it will read it for real (`/query/describe`) and answers with the columns
+ * or with the word that has to change; what is shown below the box is that
+ * answer.
  */
 
 /** Where a widget starts when nothing has been chosen yet: how many rows there
@@ -856,26 +886,34 @@ const NEW_QUERY: QueryBuildRequest = {
   group_by: [],
 };
 
+/** Whether a widget's statement is one the server would accept. A binding with
+ *  no statement at all is `ok`: that is the state a widget is in before anybody
+ *  points it anywhere, and it stores fine. */
+type QueryStatus = "ok" | "checking" | "refused";
+
 function QueryParam({
   binding,
   initiativeId,
   paramKey,
   onChange,
+  onStatus,
 }: {
   binding: WidgetBinding;
   initiativeId: number;
   paramKey: keyof WidgetBinding;
   onChange: (patch: Partial<WidgetBinding>) => void;
+  onStatus: (status: QueryStatus) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const stored = binding[paramKey] as string | undefined;
-  // A statement with no description behind it stays as it is: `undefined` here
-  // means the builder is not driving this binding, and nothing below writes.
+  const stored = (binding[paramKey] as string | undefined) ?? "";
+  // `undefined` means the builder is not driving this binding: either somebody
+  // has written the statement themselves, or it arrived without a description.
   const [spec, setSpec] = useState<QueryBuildRequest | undefined>(() => {
     const described = binding.spec as QueryBuildRequest | undefined;
     if (described) return { ...described, initiative_id: initiativeId };
     return stored ? undefined : { ...NEW_QUERY, initiative_id: initiativeId };
   });
+  const [tab, setTab] = useState<"build" | "sql">(spec ? "build" : "sql");
   const built = useQueryBuilder(spec ?? null);
 
   // The statement and the description are stored together: the description is
@@ -888,39 +926,139 @@ function QueryParam({
     }
   }, [built.data?.sql, binding, paramKey, onChange, spec]);
 
-  return (
-    <section className="space-y-3">
-      {spec ? (
-        <QueryBuilder spec={spec} onChange={setSpec} />
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3">
-          <p className="text-muted-foreground text-xs">{t("dashboards:builder.notBuilt")}</p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSpec({ ...NEW_QUERY, initiative_id: initiativeId })}
-          >
-            {t("dashboards:builder.buildNew")}
-          </Button>
-        </div>
-      )}
+  // What the SQL tab shows: the builder's statement while it is driving, and
+  // the stored one once it is not.
+  const statement = (spec ? built.data?.sql : undefined) ?? stored;
 
-      <div className="space-y-1.5">
-        <Label htmlFor="built-sql">{t("dashboards:builder.statement")}</Label>
-        <Textarea
-          id="built-sql"
-          readOnly
-          rows={4}
-          spellCheck={false}
-          className="bg-muted font-mono text-xs"
-          value={(spec ? built.data?.sql : undefined) ?? stored ?? ""}
-        />
-        {built.isError ? (
-          <p className="text-destructive text-xs">{t("dashboards:builder.refused")}</p>
+  // A statement the server wrote is one it will run, so only a hand-written
+  // one is checked — and on a pause, because a half-typed name is not a
+  // question worth asking. The answer describes what is in the box only once
+  // the pause has caught up and the query has stopped holding the previous
+  // statement's columns.
+  const settled = useDebouncedValue(statement, 400);
+  const shape = useQueryShape(spec ? null : statement, initiativeId);
+  const checking =
+    !spec &&
+    Boolean(statement.trim()) &&
+    (settled !== statement || shape.isFetching || shape.isPlaceholderData);
+
+  const status: QueryStatus = spec
+    ? built.isError
+      ? "refused"
+      : built.isFetching
+        ? "checking"
+        : "ok"
+    : !statement.trim()
+      ? "ok"
+      : checking
+        ? "checking"
+        : shape.isError
+          ? "refused"
+          : "ok";
+
+  useEffect(() => {
+    onStatus(status);
+  }, [status, onStatus]);
+
+  /** An edit by hand. The description stops being true of the statement the
+   *  moment it is one somebody typed, so it goes. */
+  const write = (next: string) => {
+    setSpec(undefined);
+    onChange({ [paramKey]: next, spec: undefined } as Partial<WidgetBinding>);
+  };
+
+  return (
+    <Tabs value={tab} onValueChange={(next) => setTab(next as "build" | "sql")}>
+      <TabsList>
+        <TabsTrigger value="build">{t("dashboards:builder.tabBuild")}</TabsTrigger>
+        <TabsTrigger value="sql">{t("dashboards:builder.tabSql")}</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="build" className="space-y-3">
+        {spec ? (
+          <QueryBuilder spec={spec} onChange={setSpec} />
         ) : (
-          <p className="text-muted-foreground text-xs">{t("dashboards:config.sqlHelp")}</p>
+          <div className="space-y-2 rounded-lg border border-dashed p-3">
+            <p className="text-muted-foreground text-xs">{t("dashboards:builder.notBuilt")}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSpec({ ...NEW_QUERY, initiative_id: initiativeId })}
+            >
+              {t("dashboards:builder.buildNew")}
+            </Button>
+          </div>
         )}
-      </div>
-    </section>
+        {built.isError && (
+          <p className="text-destructive text-xs">{t("dashboards:builder.refused")}</p>
+        )}
+      </TabsContent>
+
+      <TabsContent value="sql" className="space-y-1.5">
+        <StatementEditor
+          statement={statement}
+          onWrite={write}
+          checking={checking}
+          columns={checking || shape.isError ? undefined : shape.data?.columns}
+          error={checking ? undefined : shape.error}
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/**
+ * The statement, and what the server says it would return.
+ *
+ * What it shows about the answer is decided above, because the same answer
+ * decides whether the dialog may be saved — so this is handed a settled result
+ * rather than one that may still be describing the statement before this one.
+ */
+function StatementEditor({
+  statement,
+  onWrite,
+  checking,
+  columns,
+  error,
+}: {
+  statement: string;
+  onWrite: (next: string) => void;
+  checking: boolean;
+  columns?: { name: string }[];
+  error?: unknown;
+}) {
+  const { t } = useTranslation(["dashboards", "common"]);
+  const { datasets, functions } = useQueryVocabulary();
+  const fields = useFieldCatalogs(datasets);
+
+  return (
+    <>
+      <SqlEditor
+        id="widget-sql"
+        value={statement}
+        onChange={onWrite}
+        datasets={datasets}
+        functions={functions}
+        fields={fields}
+        aria-describedby="widget-sql-answer"
+      />
+      <p id="widget-sql-answer" className="text-xs">
+        {checking ? (
+          <span className="text-muted-foreground">{t("dashboards:builder.checking")}</span>
+        ) : error ? (
+          <span className="text-destructive">
+            {getErrorMessage(error, "dashboards:builder.refused")}
+          </span>
+        ) : columns ? (
+          <span className="text-muted-foreground">
+            {t("dashboards:builder.returns", {
+              columns: columns.map((column) => column.name).join(", "),
+            })}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{t("dashboards:config.sqlHelp")}</span>
+        )}
+      </p>
+    </>
   );
 }

@@ -134,7 +134,10 @@ _ALLOWED_NODES: frozenset[type] = frozenset(
 #: are the names as the server sees them — ``extract`` arrives qualified with
 #: ``pg_catalog`` because the grammar rewrites it, and ``coalesce`` never
 #: arrives at all because it is a node rather than a call.
-_ALLOWED_FUNCTIONS: frozenset[str] = frozenset(
+#:
+#: Public, because a client helping somebody write a statement has to offer the
+#: same set this refuses everything outside of.
+ALLOWED_FUNCTIONS: frozenset[str] = frozenset(
     {
         "count",
         "sum",
@@ -326,7 +329,7 @@ def _check_nodes(select: ast.SelectStmt) -> None:
                 raise QueryError(QueryMessages.UNSUPPORTED_FUNCTION)
             if len(names) > 2 or (len(names) == 2 and names[0] != _FUNCTION_SCHEMA):
                 raise QueryError(QueryMessages.UNSUPPORTED_FUNCTION, ".".join(names))
-            if names[-1] not in _ALLOWED_FUNCTIONS:
+            if names[-1] not in ALLOWED_FUNCTIONS:
                 raise QueryError(QueryMessages.UNSUPPORTED_FUNCTION, names[-1])
 
         def visit_A_Star(self, ancestors: Any, node: ast.A_Star) -> None:

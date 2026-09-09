@@ -336,7 +336,12 @@
     "everythingTogether": "Todo junto",
     "groupByHelp": "Agrupa las filas que comparten un valor y cuenta o suma el resto.",
     "statement": "La sentencia que esto construye",
-    "notBuilt": "La consulta de este widget no se creó haciendo clic, así que se muestra tal cual.",
+    "tabBuild": "Crear",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Devuelve: {{columns}}",
+    "checking": "Comprobando esta sentencia…",
+    "notBuilt": "La consulta de este widget no se creó aquí. Crear una nueva la reemplaza.",
     "buildNew": "Crear una consulta nueva",
     "refused": "Esa combinación no se puede leer. Prueba con otra columna."
   },

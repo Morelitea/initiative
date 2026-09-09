@@ -336,7 +336,12 @@
     "everythingTogether": "Everything together",
     "groupByHelp": "Group rows that share a value, and count or total the rest.",
     "statement": "The statement this builds",
-    "notBuilt": "This widget's query was not built by clicking, so it is shown as it is.",
+    "tabBuild": "Build",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Returns: {{columns}}",
+    "checking": "Checking this statement…",
+    "notBuilt": "This widget's query was not built here. Building a new one replaces it.",
     "buildNew": "Build a new query",
     "refused": "That combination cannot be read. Try a different column."
   },

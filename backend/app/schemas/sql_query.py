@@ -105,6 +105,21 @@ class QueryBuildRequest(SanitizedBaseModel):
     initiative_id: Optional[int] = Field(default=None, gt=0)
 
 
+class QueryVocabulary(SanitizedBaseModel):
+    """The words a statement may contain, beside the fields of a dataset.
+
+    A statement is checked against an allow-list, so what may be written is a
+    closed set and a client that has to help somebody write one needs to know
+    it. Served rather than restated on the client, so the surface cannot offer
+    a name the validator would refuse — nor stop offering one it accepts.
+    """
+
+    #: The relations a statement may name. The registry's own datasets.
+    datasets: List[str]
+    #: The functions it may call, spelled as they are written.
+    functions: List[str]
+
+
 class QueryBuildResponse(SanitizedBaseModel):
     """The statement, and what it would return."""
 

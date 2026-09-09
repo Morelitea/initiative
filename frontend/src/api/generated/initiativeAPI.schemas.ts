@@ -5034,6 +5034,19 @@ export interface QueryShapeResponse {
   relations: string[];
 }
 
+/**
+ * The words a statement may contain, beside the fields of a dataset.
+ *
+ * A statement is checked against an allow-list, so what may be written is a
+ * closed set and a client that has to help somebody write one needs to know
+ * it. Served rather than restated on the client, so the surface cannot offer
+ * a name the validator would refuse — nor stop offering one it accepts.
+ */
+export interface QueryVocabulary {
+  datasets: string[];
+  functions: string[];
+}
+
 export interface QueueCreate {
   /**
    * @minLength 1
