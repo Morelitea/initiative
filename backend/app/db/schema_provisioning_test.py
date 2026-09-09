@@ -40,6 +40,7 @@ _GID_BACKFILL = 990_108
 _GID_REPROVISION = 990_109
 _GID_DROP_ABSENT = 990_110
 _GID_SUPPORT = 990_120
+_GID_READ_FLOOR = 990_121
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -223,6 +224,47 @@ async def test_drop_guild_schema_removes_role(engine):
         assert not any(after), "every role should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_read_roles_cannot_write_shared_tables(engine):
+    """The two per-guild roles that only read take the read-only shared floor.
+
+    ``guild_<id>_ro`` serves PAM read grants and read-only members and
+    ``guild_<id>_q`` serves the query surface; neither writes anything, in the
+    guild schema or in ``public``. The writable floor the other roles carry
+    would arrive by inheritance, which cannot be revoked back off.
+    """
+    gid = _GID_READ_FLOOR
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            for role in (guild_readonly_role_name(gid), guild_query_role_name(gid)):
+                for table in (
+                    "public.user_view_preferences",
+                    "public.user_tokens",
+                    "public.guilds",
+                ):
+                    for verb in ("INSERT", "UPDATE", "DELETE"):
+                        assert (
+                            await conn.scalar(
+                                text("SELECT has_table_privilege(:r, :t, :p)"),
+                                {"r": role, "t": table, "p": verb},
+                            )
+                            is False
+                        ), f"{role} {verb} {table}"
+                # Reading them still works: the guild policies call
+                # public.guild_auth_satisfied(), which reads guild_auth_policies.
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, 'SELECT')"),
+                        {"r": role, "t": "public.guild_auth_policies"},
+                    )
+                    is True
+                ), role
+    finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
 

@@ -392,6 +392,10 @@ BEGIN
             'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
             'GRANT SELECT ON TABLES TO app_guild_base_ro',
             provisioner);
+        EXECUTE format(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+            'GRANT SELECT ON SEQUENCES TO app_guild_base_ro',
+            provisioner);
     END IF;
     EXECUTE format(
         'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '

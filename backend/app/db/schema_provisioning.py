@@ -64,8 +64,9 @@ def guild_role_name(guild_id: int) -> str:
 def guild_readonly_role_name(guild_id: int) -> str:
     """Read-only role for a guild, e.g. ``guild_42_ro``.
 
-    Assumed by PAM *read* grants: SELECT-only on the schema, so a write is denied
-    at the role level — unlike the full guild role used for membership/writes.
+    Assumed by PAM *read* grants and by read-only members: SELECT on the schema
+    and on the shared tables, and no DML anywhere — unlike the full guild role
+    used for membership/writes, which carries the writable shared floor.
     """
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
 
@@ -385,14 +386,14 @@ def _grant_statements(
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT app_guild_base TO "{role}"',
         f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
-        # Read-only role: SELECT only on the schema (PAM read grants). Shared/public
-        # access still comes from app_guild_base; public writes stay RLS-gated.
+        # Read-only role: SELECT only on the schema (PAM read grants, read-only
+        # members), and the read-only shared floor.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{ro_role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" GRANT SELECT ON TABLES TO "{ro_role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" GRANT SELECT ON SEQUENCES TO "{ro_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{ro_role}"',
-        f'GRANT app_guild_base TO "{ro_role}"',
+        f'GRANT app_guild_base_ro TO "{ro_role}"',
         f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Support role: read_write on content, but SELECT-only on the structural /
         # permission tables. Grant broadly (incl. default privileges for future
