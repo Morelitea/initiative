@@ -20,56 +20,16 @@ const meta = {
     fr: "Les tâches réparties en colonnes : par statut, par personne en charge ou selon l'un de vos champs.",
   },
   options: {
-    group: {
-      label: {
-        en: "Columns are",
-        de: "Spalten sind",
-        es: "Las columnas son",
-        fr: "Les colonnes sont",
-      },
-      values: {
-        status: { en: "Statuses", de: "Status", es: "Estados", fr: "Statuts" },
-        status_category: {
-          en: "Status categories",
-          de: "Statuskategorien",
-          es: "Categorías de estado",
-          fr: "Catégories de statut",
-        },
-        assignee: { en: "People", de: "Personen", es: "Personas", fr: "Personnes" },
-        priority: { en: "Priorities", de: "Prioritäten", es: "Prioridades", fr: "Priorités" },
-        project: { en: "Projects", de: "Projekte", es: "Proyectos", fr: "Projets" },
-        tag: { en: "Tags", de: "Tags", es: "Etiquetas", fr: "Étiquettes" },
-        property: {
-          en: "The property below",
-          de: "Die Eigenschaft unten",
-          es: "La propiedad de abajo",
-          fr: "La propriété ci-dessous",
-        },
-      },
-    },
     sort: {
       label: {
-        en: "Cards in order of",
-        de: "Karten sortiert nach",
-        es: "Tarjetas ordenadas por",
-        fr: "Cartes classées par",
+        en: "Card order",
+        de: "Kartenreihenfolge",
+        es: "Orden de tarjetas",
+        fr: "Ordre des cartes",
       },
       values: {
-        due: { en: "Due date", de: "Fälligkeit", es: "Fecha límite", fr: "Échéance" },
-        priority: { en: "Priority", de: "Priorität", es: "Prioridad", fr: "Priorité" },
-        created: {
-          en: "Newest first",
-          de: "Neueste zuerst",
-          es: "Más recientes primero",
-          fr: "Les plus récentes d'abord",
-        },
-        updated: {
-          en: "Recently touched",
-          de: "Zuletzt bearbeitet",
-          es: "Modificadas hace poco",
-          fr: "Modifiées récemment",
-        },
-        title: { en: "Name", de: "Name", es: "Nombre", fr: "Nom" },
+        label: { en: "By name", de: "Nach Name", es: "Por nombre", fr: "Par nom" },
+        date: { en: "By date", de: "Nach Datum", es: "Por fecha", fr: "Par date" },
       },
     },
     cards: {
@@ -143,57 +103,21 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
-  needProperty: {
-    en: "Choose which property the columns come from",
-    de: "Wähle die Eigenschaft, aus der die Spalten kommen",
-    es: "Elige de qué propiedad salen las columnas",
-    fr: "Choisissez la propriété d'où viennent les colonnes",
+  needColumns: {
+    en: "Needs a card column and a column to group by",
+    de: "Benötigt eine Karten- und eine Gruppierungsspalte",
+    es: "Necesita una columna de tarjeta y otra por la que agrupar",
+    fr: "Nécessite une colonne de carte et une colonne de regroupement",
   },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
-  },
-  late: { en: "late", de: "überfällig", es: "vencidas", fr: "en retard" },
-  noneAssignee: {
-    en: "Unassigned",
-    de: "Nicht zugewiesen",
-    es: "Sin asignar",
-    fr: "Non attribué",
-  },
-  noneProject: { en: "No project", de: "Kein Projekt", es: "Sin proyecto", fr: "Sans projet" },
-  noneTag: { en: "Untagged", de: "Ohne Tag", es: "Sin etiqueta", fr: "Sans étiquette" },
-  nonePriority: {
-    en: "No priority",
-    de: "Keine Priorität",
-    es: "Sin prioridad",
-    fr: "Sans priorité",
-  },
-  noneStatus: { en: "No status", de: "Kein Status", es: "Sin estado", fr: "Sans statut" },
-  noneValue: { en: "Not set", de: "Nicht gesetzt", es: "Sin valor", fr: "Non renseigné" },
-  categories: {
-    backlog: { en: "Backlog", de: "Backlog", es: "Pendientes", fr: "Réserve" },
-    todo: { en: "To do", de: "Zu erledigen", es: "Por hacer", fr: "À faire" },
-    in_progress: { en: "In progress", de: "In Arbeit", es: "En curso", fr: "En cours" },
-    done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
-  },
-  priorities: {
-    urgent: { en: "Urgent", de: "Dringend", es: "Urgente", fr: "Urgent" },
-    high: { en: "High", de: "Hoch", es: "Alta", fr: "Haute" },
-    medium: { en: "Medium", de: "Mittel", es: "Media", fr: "Moyenne" },
-    low: { en: "Low", de: "Niedrig", es: "Baja", fr: "Basse" },
-  },
-  booleans: {
-    true: { en: "Yes", de: "Ja", es: "Sí", fr: "Oui" },
-    false: { en: "No", de: "Nein", es: "No", fr: "Non" },
-  },
+  noValue: { en: "No", de: "Ohne", es: "Sin", fr: "Sans" },
+  untitled: { en: "Untitled", de: "Ohne Titel", es: "Sin título", fr: "Sans titre" },
+  late: { en: "late", de: "überfällig", es: "atrasadas", fr: "en retard" },
 };
 
 /**
@@ -225,229 +149,135 @@ function render(data, config, context) {
     return table[lang] || table[lang.split("-")[0]] || table.en;
   };
   const say = (key) => resolve(strings[key]) || key;
-  const pick = (table, key) => resolve(table[key]) || key;
 
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
 
-  if (data.source !== "tasks") return empty(say("cannotDraw") + data.source);
+  // Which columns fill this widget's slots, resolved by the host. What a board
+  // groups by is therefore the author's mapping rather than a display option:
+  // the column column *is* the grouping.
+  const slots = context?.slots || {};
+  const cardAt = (slots.card || [])[0];
+  const columnAt = (slots.column || [])[0];
+  const dateAt = (slots.date || [])[0];
 
   const rows = data.rows || [];
-  const group = config.group || "status";
-  const sort = config.sort || "due";
+  const columnsMeta = data.columns || [];
   const detail = config.cards || "standard";
+  const sort = config.sort || "label";
   const markOverdue = config.highlight !== "off";
   const columnOrder = config.columns || "natural";
-  const property = data.property;
 
-  // Grouping by a property nobody has pointed at is a binding that is not
-  // finished, not an empty board — so say which half is missing.
-  if (group === "property" && !property) return empty(say("needProperty"));
-  if (!rows.length) return empty(say("noTasks"));
+  if (!rows.length) return empty(say("noRows"));
+  if (cardAt === undefined || columnAt === undefined) return empty(say("needColumns"));
 
   // The clock the host handed us. A widget must never invent one.
   const today = Date.now();
-  const CATEGORIES = ["backlog", "todo", "in_progress", "done"];
-  const PRIORITIES = ["urgent", "high", "medium", "low"];
 
-  /** The bucket for a task with nothing in the grouped field. Named for the
-   *  field, because "Unassigned" and "Untagged" are not the same absence. */
-  const noneLabel =
-    group === "assignee"
-      ? say("noneAssignee")
-      : group === "project"
-        ? say("noneProject")
-        : group === "tag"
-          ? say("noneTag")
-          : group === "priority"
-            ? say("nonePriority")
-            : group === "status" || group === "status_category"
-              ? say("noneStatus")
-              : say("noneValue");
+  const text = (row, index) =>
+    index !== undefined && row[index] !== null && row[index] !== undefined
+      ? String(row[index])
+      : null;
 
-  /** How a raw field value reads. Statuses, project names and tags are already
-   *  words somebody chose; the closed vocabularies are this module's to name. */
-  const labelFor = (value) => {
-    if (value === null) return noneLabel;
-    if (group === "status_category") return pick(strings.categories, value);
-    if (group === "priority") return pick(strings.priorities, value);
-    if (group === "property" && (value === "true" || value === "false")) {
-      return pick(strings.booleans, value);
-    }
-    return value;
-  };
-
-  /** The columns a task belongs in — several where the field holds several, so
-   *  work shared by two people appears under both of them. */
-  const keysFor = (task) => {
-    switch (group) {
-      case "assignee":
-        return task.assignees.length ? task.assignees : [null];
-      case "priority":
-        return [task.priority || null];
-      case "project":
-        return [task.projectName || null];
-      case "tag":
-        return task.tags.length ? task.tags : [null];
-      case "status_category":
-        return [task.statusCategory || null];
-      case "property": {
-        const values = task.properties?.[property.name] || [];
-        return values.length ? values : [null];
-      }
-      default:
-        return [task.status || null];
-    }
-  };
-
-  const isOverdue = (task) =>
-    task.statusCategory !== "done" && task.dueDate !== null && task.dueDate < today;
+  const isOverdue = (row) =>
+    dateAt !== undefined && typeof row[dateAt] === "number" && row[dateAt] < today;
 
   // --- the columns --------------------------------------------------------
   //
-  // Keyed on the raw value, so two options that happen to read alike stay two
-  // columns. Seeded from the declared values first: an option nobody has used
-  // is still part of the workflow, and a column missing from a board is the one
-  // thing a board must not hide.
-
+  // Keyed on the raw value, so two values that happen to read alike stay two
+  // columns. The empty bucket is named for the column it is missing from.
   const columns = new Map();
   const columnFor = (key) => {
     const id = key === null ? " none" : key;
     let column = columns.get(id);
     if (!column) {
-      column = { key: key, tasks: [], rank: columns.size };
+      column = { key: key, rows: [], rank: columns.size };
       columns.set(id, column);
     }
     return column;
   };
+  for (const row of rows) columnFor(text(row, columnAt));
 
-  if (group === "property") {
-    for (const value of property.values || []) columnFor(value);
-  }
-  // A category and a priority are fixed ladders, so every rung is drawn whether
-  // or not any work is sitting on it.
-  if (group === "status_category") for (const value of CATEGORIES) columnFor(value);
-  if (group === "priority") for (const value of PRIORITIES) columnFor(value);
+  const emptyLabel = columnsMeta[columnAt]
+    ? say("noValue") + " " + columnsMeta[columnAt].name
+    : say("noValue");
 
-  for (const task of rows) {
-    for (const key of keysFor(task)) columnFor(key).tasks.push(task);
-  }
+  // --- cards --------------------------------------------------------------
+  //
+  // Chips are every other column the statement returned, which is what makes a
+  // card show more without the widget knowing what a task is. The card's own
+  // column and the one it is grouped by are never repeated on it.
+  const chipColumns = columnsMeta
+    .map((_column, index) => index)
+    .filter((index) => index !== cardAt && index !== columnAt && index !== dateAt);
 
-  // --- cards within a column ----------------------------------------------
-
-  const priorityRank = (task) => {
-    const index = PRIORITIES.indexOf(task.priority);
-    return index === -1 ? PRIORITIES.length : index;
-  };
-
-  const compare = (a, b) => {
-    switch (sort) {
-      case "priority": {
-        const byPriority = priorityRank(a) - priorityRank(b);
-        if (byPriority !== 0) return byPriority;
-        break;
-      }
-      case "created":
-        if (a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
-        break;
-      case "updated":
-        if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
-        break;
-      case "title": {
-        const byTitle = a.title < b.title ? -1 : a.title > b.title ? 1 : 0;
-        if (byTitle !== 0) return byTitle;
-        break;
-      }
-      default: {
-        // Undated work has no place on a due-date ladder, so it sits at the
-        // foot rather than being given a date it does not have.
-        const left = a.dueDate === null ? Infinity : a.dueDate;
-        const right = b.dueDate === null ? Infinity : b.dueDate;
-        if (left !== right) return left - right;
-        break;
-      }
-    }
-    // A stable tiebreak, so the same rows always draw in the same order.
-    return a.id - b.id;
-  };
-
-  const cardFor = (task) => {
-    const card = { title: task.title };
-    if (markOverdue && isOverdue(task)) card.tone = "negative";
+  const cardFor = (row) => {
+    const card = { title: text(row, cardAt) || say("untitled") };
+    if (markOverdue && isOverdue(row)) card.tone = "negative";
     if (detail === "compact") return card;
 
+    const limit = detail === "detailed" ? chipColumns.length : 2;
     const chips = [];
-    // Never repeat the column's own field on the cards inside it: a column of
-    // "Ada" whose every card says "Ada" is a column of wasted room.
-    if (group !== "assignee") for (const name of task.assignees) chips.push(name);
-    if (group !== "priority" && task.priority) chips.push(pick(strings.priorities, task.priority));
-    if (detail === "detailed") {
-      if (group !== "project" && task.projectName) chips.push(task.projectName);
-      if (group !== "tag") for (const tag of task.tags) chips.push(tag);
+    for (const index of chipColumns.slice(0, limit)) {
+      const value = text(row, index);
+      if (value !== null) chips.push(value);
     }
     if (chips.length) card.chips = chips;
-
-    if (task.dueDate !== null) card.date = task.dueDate;
-    if (task.subtaskTotal > 0) {
-      card.caption = task.subtaskDone + "/" + task.subtaskTotal;
-      card.progress = task.subtaskDone / task.subtaskTotal;
-    }
+    if (dateAt !== undefined && typeof row[dateAt] === "number") card.date = row[dateAt];
     return card;
   };
 
-  // --- column order -------------------------------------------------------
+  // --- order --------------------------------------------------------------
 
-  const naturalRank = (column) => {
-    // The empty bucket is nobody's first column, whatever the field.
-    if (column.key === null) return Number.MAX_SAFE_INTEGER;
-    if (group === "status_category") return CATEGORIES.indexOf(column.key);
-    if (group === "priority") return PRIORITIES.indexOf(column.key);
-    if (group === "property") return column.rank;
-    if (group === "status") {
-      // Statuses carry no order the rows can tell us, so they fall back to the
-      // category ladder their work sits on — which is the order somebody
-      // reading a board expects, even when the names are the initiative's own.
-      const first = column.tasks[0];
-      const category = first ? CATEGORIES.indexOf(first.statusCategory) : CATEGORIES.length;
-      return (category === -1 ? CATEGORIES.length : category) * 1000 + column.rank;
+  const compare = (a, b) => {
+    if (sort === "date" && dateAt !== undefined) {
+      // Undated work has no place on a date ladder, so it sits at the foot
+      // rather than being given a date it does not have.
+      const left = typeof a[dateAt] === "number" ? a[dateAt] : Infinity;
+      const right = typeof b[dateAt] === "number" ? b[dateAt] : Infinity;
+      if (left !== right) return left - right;
     }
-    return column.rank;
+    const leftTitle = text(a, cardAt) || "";
+    const rightTitle = text(b, cardAt) || "";
+    return leftTitle < rightTitle ? -1 : leftTitle > rightTitle ? 1 : 0;
   };
 
   const labelled = [...columns.values()].map((column) => ({
     column: column,
-    label: labelFor(column.key),
+    label: column.key === null ? emptyLabel : column.key,
   }));
 
   const byLabel = (a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
 
+  for (const row of rows) {
+    const key = text(row, columnAt);
+    columnFor(key).rows.push(row);
+  }
+
   if (columnOrder === "largest") {
-    labelled.sort((a, b) => b.column.tasks.length - a.column.tasks.length);
+    labelled.sort((a, b) => b.column.rows.length - a.column.rows.length);
   } else if (columnOrder === "label") {
     labelled.sort(byLabel);
-  } else if (group === "assignee" || group === "project" || group === "tag") {
-    // Free-form values have no ladder of their own, so alphabetical is the
-    // order somebody can predict — with the empty bucket still last.
+  } else {
+    // The order the statement produced them in, with the empty bucket last —
+    // an ORDER BY is the author saying what the order should be.
     labelled.sort((a, b) => {
       if ((a.column.key === null) !== (b.column.key === null)) {
         return a.column.key === null ? 1 : -1;
       }
-      return byLabel(a, b);
+      return a.column.rank - b.column.rank;
     });
-  } else {
-    labelled.sort((a, b) => naturalRank(a.column) - naturalRank(b.column));
   }
 
   const scene = { kind: "board", columns: [] };
   for (const entry of labelled) {
-    const tasks = entry.column.tasks.slice().sort(compare);
-    const column = { label: entry.label, cards: tasks.map(cardFor) };
+    const ordered = entry.column.rows.slice().sort(compare);
+    const column = { label: entry.label, cards: ordered.map(cardFor) };
     if (markOverdue) {
       let late = 0;
-      for (const task of tasks) if (isOverdue(task)) late++;
+      for (const row of ordered) if (isOverdue(row)) late++;
       if (late) column.caption = late + " " + say("late");
     }
     scene.columns.push(column);
   }
-
   return { v: 1, scene: scene };
 }

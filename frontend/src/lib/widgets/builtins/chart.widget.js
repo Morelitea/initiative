@@ -210,47 +210,19 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
-  },
-  noProjects: {
-    en: "No projects match",
-    de: "Keine Projekte passen",
-    es: "Ningún proyecto coincide",
-    fr: "Aucun projet ne correspond",
-  },
-  noCountersInGroup: {
-    en: "No counters in this group",
-    de: "Keine Zähler in dieser Gruppe",
-    es: "No hay contadores en este grupo",
-    fr: "Aucun compteur dans ce groupe",
-  },
-  rangeEmpty: {
-    en: "Range is empty",
-    de: "Bereich ist leer",
-    es: "El rango está vacío",
-    fr: "La plage est vide",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
   noNumeric: {
-    en: "No numeric values in range",
-    de: "Keine Zahlenwerte im Bereich",
-    es: "No hay valores numéricos en el rango",
-    fr: "Aucune valeur numérique dans la plage",
+    en: "No numeric column to plot",
+    de: "Keine Zahlenspalte zum Zeichnen",
+    es: "Ninguna columna numérica que representar",
+    fr: "Aucune colonne numérique à tracer",
   },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
-  },
-  done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
-  remaining: { en: "Remaining", de: "Verbleibend", es: "Pendiente", fr: "Restant" },
   other: { en: "Other", de: "Sonstige", es: "Otros", fr: "Autres" },
-  tasks: { en: "Tasks", de: "Aufgaben", es: "Tareas", fr: "Tâches" },
-  counters: { en: "Counters", de: "Zähler", es: "Contadores", fr: "Compteurs" },
   series: { en: "Series", de: "Reihe", es: "Serie", fr: "Série" },
 };
 
@@ -413,81 +385,32 @@ function render(data, config, context) {
     });
   };
 
-  switch (data.source) {
-    case "task_counts": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noTasks"));
-      return chart(
-        arrangeAll([
-          { name: say("tasks"), points: rows.map((row) => ({ x: row.bucket, y: row.count })) },
-        ])
-      );
-    }
+  // Which columns fill this widget's slots, resolved by the host. `value` is
+  // repeatable, so a statement returning several numbers draws several series
+  // without the author saying so twice.
+  const slots = context?.slots || {};
+  const labelAt = (slots.label || [])[0];
+  const valueColumns = slots.value || [];
 
-    case "counter_group": {
-      const counters = data.counters || [];
-      if (!counters.length) return empty(say("noCountersInGroup"));
-      return chart(
-        arrangeAll([
-          {
-            name: data.name || say("counters"),
-            points: counters.map((counter) => ({ x: counter.name, y: counter.value })),
-          },
-        ]),
-        undefined,
-        counters[0].unit || undefined
-      );
-    }
+  const rows = data.rows || [];
+  if (!rows.length) return empty(say("noRows"));
+  if (!valueColumns.length) return empty(say("noNumeric"));
 
-    case "projects": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noProjects"));
-      // Done against outstanding reads as a stack; separately it reads as two
-      // comparable series. Arranged together, so a folded project contributes
-      // to both halves of the "Other" bar rather than only to the first.
-      return chart(
-        arrangeAll([
-          {
-            name: say("done"),
-            points: rows.map((row) => ({ x: row.name, y: row.doneCount })),
-            tone: "positive",
-          },
-          {
-            name: say("remaining"),
-            points: rows.map((row) => ({
-              x: row.name,
-              y: Math.max(0, row.taskCount - row.doneCount),
-            })),
-            tone: "muted",
-          },
-        ])
-      );
-    }
+  const columns = data.columns || [];
+  const nameOf = (index) => (columns[index] ? columns[index].name : say("series"));
+  const labelOf = (row, rowIndex) =>
+    labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : rowIndex + 1;
 
-    case "sheet_range": {
-      const range = data.range;
-      if (!range?.rows.length) return empty(say("rangeEmpty"));
-      const firstRow = range.rows[0];
-      // First non-numeric column labels the axis; every numeric column becomes
-      // a series. A range with no labels falls back to row ordinals.
-      const labelIndex = firstRow.findIndex((cell) => typeof cell !== "number");
-      const valueIndexes = [];
-      firstRow.forEach((cell, index) => {
-        if (typeof cell === "number") valueIndexes.push(index);
-      });
-      if (!valueIndexes.length) return empty(say("noNumeric"));
+  const series = valueColumns.slice(0, 12).map((index) => ({
+    name: nameOf(index),
+    points: rows.map((row, rowIndex) => ({
+      x: labelOf(row, rowIndex),
+      y: typeof row[index] === "number" ? row[index] : 0,
+    })),
+  }));
 
-      const series = valueIndexes.slice(0, 12).map((index) => ({
-        name: range.columns[index] || say("series") + " " + (index + 1),
-        points: range.rows.map((row, rowIndex) => ({
-          x: labelIndex >= 0 && row[labelIndex] !== null ? String(row[labelIndex]) : rowIndex + 1,
-          y: typeof row[index] === "number" ? row[index] : 0,
-        })),
-      }));
-      return chart(arrangeAll(series), labelIndex >= 0 ? range.columns[labelIndex] : undefined);
-    }
-
-    default:
-      return empty(say("cannotDraw") + data.source);
-  }
+  return chart(
+    arrangeAll(series),
+    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined
+  );
 }

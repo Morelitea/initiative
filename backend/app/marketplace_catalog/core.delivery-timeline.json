@@ -27,7 +27,8 @@
           "h": 6
         },
         "binding": {
-          "source": "tasks"
+          "source": "query",
+          "sql": "SELECT title, start_date, due_date FROM tasks WHERE start_date IS NOT NULL ORDER BY start_date"
         },
         "title": "Schedule",
         "options": {
@@ -44,7 +45,8 @@
           "h": 2
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT count(*) AS tasks FROM tasks WHERE due_date IS NOT NULL"
         },
         "title": "Still open"
       },
@@ -58,7 +60,8 @@
           "h": 5
         },
         "binding": {
-          "source": "tasks"
+          "source": "query",
+          "sql": "SELECT title, start_date, due_date, priority FROM tasks ORDER BY due_date"
         },
         "title": "Open work"
       }

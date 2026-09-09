@@ -27,6 +27,7 @@ from typing import Any, Callable
 from app.services.fields import calendar_events as calendar_events_dataset
 from app.services.fields import counters as counters_dataset
 from app.services.fields import projects as projects_dataset
+from app.services.fields import task_statuses as task_statuses_dataset
 from app.services.fields import tasks as tasks_dataset
 from app.schemas.query import FilterOp
 from app.services.fields.spec import Dataset, FieldContext, FieldSpec, SortContext
@@ -39,6 +40,7 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "calendar_events": calendar_events_dataset.build,
     "counter_groups": counters_dataset.build_groups,
     "counters": counters_dataset.build_counters,
+    "task_statuses": task_statuses_dataset.build,
 }
 
 

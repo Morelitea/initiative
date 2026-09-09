@@ -27,8 +27,8 @@
           "h": 3
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "day"
+          "source": "query",
+          "sql": "SELECT date_trunc('day', created_at) AS day, count(*) AS opened FROM tasks GROUP BY date_trunc('day', created_at) ORDER BY date_trunc('day', created_at)"
         },
         "title": "Finished"
       },
@@ -42,8 +42,8 @@
           "h": 3
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "day"
+          "source": "query",
+          "sql": "SELECT date_trunc('day', created_at) AS day, count(*) AS opened FROM tasks GROUP BY date_trunc('day', created_at) ORDER BY date_trunc('day', created_at)"
         },
         "title": "Completions by day"
       },
@@ -57,8 +57,8 @@
           "h": 4
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "assignee"
+          "source": "query",
+          "sql": "SELECT p.name AS project, count(*) AS tasks FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) DESC"
         },
         "title": "Work by person",
         "options": {
@@ -75,8 +75,8 @@
           "h": 4
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "priority"
+          "source": "query",
+          "sql": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority"
         },
         "title": "By priority",
         "options": {

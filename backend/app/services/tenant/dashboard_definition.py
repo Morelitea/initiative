@@ -162,10 +162,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         ),
         options={
             "scale": _option("day", "week", "month", "quarter", default="week"),
-            # How rows are grouped into foldable summaries. What each key means
-            # is the widget's business — a calendar entry has no priority, so it
-            # reads anything but "none" as "the calendar it sits on".
-            "group": _option("project", "status", "priority", "assignee", "none"),
+            # Whether rows fold into summaries at all. What they fold *by*
+            # is the column the author mapped to the group slot, not an option
+            # this build could name in advance.
+            "group": _option("on", "none"),
             # The total row above everything shown.
             "rollup": _option("on", "off"),
             # Whether groups arrive open or folded. A starting state only; which
@@ -283,22 +283,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
             Slot("date", DATE_TYPES, required=False),
         ),
         options={
-            # What a column stands for. "property" columns by the custom
-            # property the binding names, which is how a board groups by
-            # something this build has never heard of — a team's own field.
-            "group": _option(
-                "status",
-                "status_category",
-                "assignee",
-                "priority",
-                "project",
-                "tag",
-                "property",
-            ),
             # The order cards sit in within a column. Not the author's manual
             # order: that is a position inside one project's board, and a
-            # binding spanning several has no single one to honour.
-            "sort": _option("due", "priority", "created", "updated", "title"),
+            # statement spanning several has no single one to honour.
+            "sort": _option("label", "date"),
             # How much of a task a card carries.
             "cards": _option("standard", "compact", "detailed"),
             # Mark cards that need attention, in the negative tone.
@@ -320,8 +308,6 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
             # assignees, checklist progress and comment counts; "standard" is
             # the four columns that fit a half-width tile.
             "columns": _option("standard", "detailed"),
-            # Mark rows that need attention, in the negative tone.
-            "highlight": _option("off", "overdue"),
             "totals": _option("off", "on"),
         },
     ),
