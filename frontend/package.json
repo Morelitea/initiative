@@ -138,7 +138,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.7",
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.5.0",
+    "@capacitor/cli": "^8.5.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/router-plugin": "^1.168.29",
