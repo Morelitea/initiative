@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet } from "@/api/generated/dashboards/dashboards";
 import type { QueryResponse } from "@/api/generated/initiativeAPI.schemas";
@@ -80,6 +80,13 @@ export const useWidgetQuery = (
     // Not retried, for the same reason: a statement either resolves against the
     // registry or it does not.
     retry: false,
+    // Keyed by where the widget sits, and a canvas re-renders with its
+    // dashboard momentarily unknown — while its own read is in flight, or on
+    // the way back from one. Without this the key changes under the tile and
+    // it blanks to a fresh entry with nothing in it, so a dashboard that was
+    // showing figures shows none for a beat and then shows them again. The
+    // last answer stays on screen until the next one is ready.
+    placeholderData: keepPreviousData,
     ...options,
     enabled: addressed && (options?.enabled ?? true),
   });
