@@ -131,7 +131,9 @@ export const readSheetOrder = (doc: Y.Doc | null): SheetMeta[] => {
     });
   });
   out.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return out.map(({ id, name, hidden }) => ({ id, name, hidden }));
+  // ``hidden`` is absent rather than false when a sheet is shown, so a
+  // sheet's identity stays the two fields it has always been.
+  return out.map(({ id, name, hidden }) => (hidden ? { id, name, hidden } : { id, name }));
 };
 
 /** The top-level map names a pre-multi-sheet document used. */
