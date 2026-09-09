@@ -212,6 +212,31 @@ def last_window_close(
 # --- Loading -----------------------------------------------------------------
 
 
+async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
+    """One recipient's settings, read on the system engine.
+
+    Delivery decides what to send *somebody else*, from a session routed into
+    the guild the content is in. That session is not the recipient, and their
+    settings are not a guild's to read — the same reason recipients themselves
+    are loaded this way (see ``accounts.load``). Reading them under the
+    account's own rule would find nothing and quietly deliver every default.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return await load_prefs(admin_session, user_id)
+
+
+async def load_prefs_for_delivery_many(
+    user_ids: list[int],
+) -> dict[int, dict[str, Any]]:
+    """The same, for a whole audience in one query."""
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return await load_prefs_for(admin_session, user_ids)
+
+
 async def load_prefs(session: AsyncSession, user_id: int) -> dict[str, Any]:
     """One account's settings document, or ``{}`` where it has none."""
     row = (

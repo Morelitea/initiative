@@ -13,10 +13,10 @@ established. A key exists only where a default has been overridden, so an
 account that never opens the page stores ``{}`` and a community joined tomorrow
 needs no write.
 
-``public.notifications`` gains the same rule. It had none: the request roles
-hold DML on it and every query scoped itself in the application. The policies
-here say the same thing one layer down, where it is the database's answer
-rather than the query's.
+``public.notifications`` keeps the shape it had. An own-row rule there refuses
+the fan-out rather than describing it — see the comment in ``upgrade()`` — and
+closing it properly means moving notification writes onto the system engine,
+which is its own decision.
 
 It also gains the place a notification happened — guild, initiative and tool,
 each independently optional — promoted out of the JSON payload that already
@@ -286,24 +286,23 @@ def upgrade() -> None:
         postgresql_where=sa.text("read_at IS NULL"),
     )
 
-    # --- the inbox answers to its owner --------------------------------------
-    op.execute("ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY")
-    op.execute("ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY")
-    for base in _base_roles():
-        for command in ("SELECT", "INSERT", "UPDATE", "DELETE"):
-            name = f"notifications_self_{command.lower()}_{base}"
-            if command == "INSERT":
-                clause = f"WITH CHECK (user_id = {_USER_ID})"
-            elif command == "UPDATE":
-                clause = (
-                    f"USING (user_id = {_USER_ID}) WITH CHECK (user_id = {_USER_ID})"
-                )
-            else:
-                clause = f"USING (user_id = {_USER_ID})"
-            op.execute(
-                f"CREATE POLICY {name} ON public.notifications "
-                f'AS PERMISSIVE FOR {command} TO "{base}" {clause}'
-            )
+    # ``public.notifications`` deliberately gets no row policy of its own, and
+    # the reason is worth writing down so it is not "added" again.
+    #
+    # A notification is written for somebody other than the person who caused
+    # it, and SQLAlchemy writes it as INSERT ... RETURNING id. PostgreSQL
+    # checks RETURNING against the SELECT policy, so an own-row read rule
+    # refuses every fan-out: the row belongs to the recipient and the session
+    # belongs to the actor. Reading, writing and rolling up are all somebody
+    # acting for somebody else here.
+    #
+    # Making that a database rule therefore means writing notifications on the
+    # system engine, the way recipients and their settings are already loaded —
+    # a real change, and one that gives up committing the notification in the
+    # same transaction as the content that caused it. Until that is decided,
+    # the endpoints remain the gate: each resolves a notification by ``id`` AND
+    # ``user_id``. ``user_notification_prefs`` above is the part that could be
+    # closed here, and is.
 
     # --- the columns the document replaces -----------------------------------
     for column in _DROPPED_COLUMNS:
@@ -357,12 +356,11 @@ def downgrade() -> None:
         )
     )
 
-    for base in _base_roles():
-        for command in ("select", "insert", "update", "delete"):
-            op.execute(
-                f"DROP POLICY IF EXISTS notifications_self_{command}_{base} "
-                "ON public.notifications"
-            )
+    for command in ("select", "insert", "update", "delete"):
+        op.execute(
+            f"DROP POLICY IF EXISTS notifications_self_{command} "
+            "ON public.notifications"
+        )
     op.execute("ALTER TABLE public.notifications NO FORCE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY")
 

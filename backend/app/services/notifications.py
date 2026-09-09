@@ -240,7 +240,7 @@ async def _channels(
     from one batch load rather than a query per recipient.
     """
     if prefs is None:
-        prefs = await notification_prefs.load_prefs(session, recipient.id)
+        prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     allowed = {
         channel: notification_prefs.wants(
             prefs,
@@ -392,7 +392,8 @@ async def enqueue_task_assignment_event(
     # preferences when it sends. Only the in-app notification above is
     # immediate — the bell is a list, not an interruption.
     if wants_assignment_digest(
-        await notification_prefs.load_prefs(session, assignee.id), guild_id=guild_id
+        await notification_prefs.load_prefs_for_delivery(assignee.id),
+        guild_id=guild_id,
     ):
         event = TaskAssignmentDigestItem(
             user_id=assignee.id,
@@ -1563,6 +1564,34 @@ async def _deliver_notification(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
+#: Calendar -> its initiative, for the life of one session. Keyed by guild as
+#: well: per-guild schemas mean two calendars can hold the same id.
+_CALENDAR_INITIATIVES = "_calendar_initiatives"
+
+
+async def _calendar_initiative(
+    session: AsyncSession, *, calendar_id: int, guild_id: int
+) -> int | None:
+    """Which initiative a calendar belongs to.
+
+    Memoised, because an event notification is written once per recipient:
+    cancelling an event with fifty attendees asked this fifty times for the one
+    calendar. A calendar does not change initiative, so a session-lifetime
+    answer is the same answer.
+    """
+    memo: dict[tuple[int, int], int | None] = session.info.setdefault(
+        _CALENDAR_INITIATIVES, {}
+    )
+    key = (guild_id, calendar_id)
+    if key not in memo:
+        memo[key] = (
+            await session.exec(
+                select(Calendar.initiative_id).where(Calendar.id == calendar_id)
+            )
+        ).scalar_one_or_none()
+    return memo[key]
+
+
 async def _event_data(
     session: AsyncSession, event: CalendarEvent, guild_id: int, **extra
 ) -> dict:
@@ -1575,11 +1604,9 @@ async def _event_data(
     inside it.
     """
     target_path = _event_target_path(event.id)
-    initiative_id = (
-        await session.exec(
-            select(Calendar.initiative_id).where(Calendar.id == event.calendar_id)
-        )
-    ).scalar_one_or_none()
+    initiative_id = await _calendar_initiative(
+        session, calendar_id=event.calendar_id, guild_id=guild_id
+    )
     data = {
         "event_id": event.id,
         "event_title": event.title,
@@ -2369,7 +2396,7 @@ async def enqueue_reaction_event(
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
     if wants_digest(
-        await notification_prefs.load_prefs(session, author.id),
+        await notification_prefs.load_prefs_for_delivery(author.id),
         NotificationCategory.reactions,
         guild_id=guild_id,
     ):
