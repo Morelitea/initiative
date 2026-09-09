@@ -100,11 +100,16 @@ async def test_create_calendar(client: AsyncClient, acting_user, session):
 
 @pytest.mark.integration
 async def test_create_calendar_requires_feature_enabled(
-    client: AsyncClient, acting_user
+    client: AsyncClient, acting_user, session
 ):
     """calendars_enabled is the initiative's tool gate — off means 403 even
     for a guild admin."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    # The factory switches every tool on, so a test about one being OFF
+    # turns it off.
+    a.initiative.calendars_enabled = False
+    session.add(a.initiative)
+    await session.commit()
 
     response = await client.post(
         a.g("/calendars/"),
