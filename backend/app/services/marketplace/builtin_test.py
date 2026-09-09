@@ -17,6 +17,8 @@ Withdrawing has to be careful in the other direction too: a file this build
 ships but cannot read or validate must never take its own listing down.
 """
 
+import pathlib
+
 from sqlmodel import select
 
 from app.models.platform.marketplace import MarketplaceListing
@@ -25,6 +27,8 @@ from app.services.marketplace.builtin import (
     load_builtin_manifests,
     seed_builtin_listings,
 )
+from app.services.query import resolve
+from app.services.tenant.dashboard_definition import WIDGET_SPECS
 from app.services.marketplace.definitions import (
     RESERVED_PUBLIC_ID_PREFIX,
     normalize_publisher,
@@ -61,6 +65,70 @@ class TestShippedManifests:
             assert public_id.startswith(RESERVED_PUBLIC_ID_PREFIX), (
                 f"{public_id} is a built-in and should publish under "
                 f"{RESERVED_PUBLIC_ID_PREFIX}*"
+            )
+
+    async def test_every_shipped_dashboard_asks_something_the_surface_runs(self):
+        """The statements, and the options beside them.
+
+        ``normalize_listing_definition`` reads a definition's shape and stops
+        there: it does not check that an option is one the widget offers, and a
+        widget drawing nothing because its option was invented is a tile that
+        looks broken to whoever installed it. The statements it does check —
+        but only in passing, and it is worth saying plainly what a shipped
+        dashboard promises, because a refused one is an error on every tile in
+        every guild that took it.
+        """
+        for manifest in load_builtin_manifests():
+            if manifest.get("kind") != "dashboard":
+                continue
+            public_id = manifest.get("public_id", "?")
+            for widget in manifest["definition"]["widgets"]:
+                spec = WIDGET_SPECS[widget["type"]]
+                for key, value in (widget.get("options") or {}).items():
+                    offered = spec.options.get(key)
+                    assert offered is not None, (
+                        f"{public_id}/{widget['id']}: {widget['type']} has no "
+                        f"option {key!r}"
+                    )
+                    assert value in offered.values, (
+                        f"{public_id}/{widget['id']}: {widget['type']}.{key} "
+                        f"={value!r}, not one of {list(offered.values)}"
+                    )
+                binding = widget["binding"]
+                assert binding.get("source") == "query", (
+                    f"{public_id}/{widget['id']} binds to {binding.get('source')!r}, "
+                    "which no shipped dashboard should"
+                )
+                resolve(binding["sql"])
+
+    async def test_every_shipped_dashboard_fills_the_slots_it_draws(self):
+        """A tile that returns fewer columns than its widget requires draws
+        nothing at all — the table fallback, on a dashboard somebody installed
+        expecting a chart."""
+        for manifest in load_builtin_manifests():
+            if manifest.get("kind") != "dashboard":
+                continue
+            for widget in manifest["definition"]["widgets"]:
+                spec = WIDGET_SPECS[widget["type"]]
+                required = [slot for slot in spec.shape if slot.required]
+                columns = resolve(widget["binding"]["sql"]).column_types
+                assert len(columns) >= len(required), (
+                    f"{manifest['public_id']}/{widget['id']}: {widget['type']} "
+                    f"needs {len(required)} columns, the statement returns "
+                    f"{len(columns)}"
+                )
+
+    async def test_every_shipped_dashboard_has_the_picture_it_names(self):
+        """The avatar is a file in the web build, and a listing naming one that
+        is not there shows a broken image on the marketplace shelf."""
+        assets = pathlib.Path(__file__).resolve().parents[4] / "frontend" / "public"
+        for manifest in load_builtin_manifests():
+            avatar = manifest.get("avatar_url") or ""
+            if not avatar.startswith("/"):
+                continue
+            assert (assets / avatar.lstrip("/")).is_file(), (
+                f"{manifest['public_id']} names {avatar}, which this build does "
+                "not ship"
             )
 
     async def test_every_shipped_manifest_seeds(self, session):
