@@ -37,10 +37,6 @@ export const useAppConfig = () => {
     queryFn: () => getAppConfigApiV1ConfigGet(),
     staleTime: CONFIG_STALE_MS,
     gcTime: Infinity,
-    // Opted in against the client-wide default: this is the query whose answer
-    // can change without the viewer doing anything, and coming back to the tab
-    // is the moment to find that out.
-    refetchOnWindowFocus: true,
     retry: 1,
   });
 
