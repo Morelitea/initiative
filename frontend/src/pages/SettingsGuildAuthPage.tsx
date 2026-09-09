@@ -63,10 +63,14 @@ export const SettingsGuildAuthPage = () => {
 
   // Chosen here, saved by the button below — a refetch in between must not
   // undo the choice.
-  const form = useServerForm(policyQuery.data, (loaded) => ({
-    policy: loaded?.policy ?? ("open" as "open" | "required"),
-    providerId: loaded?.provider_id ?? null,
-  }));
+  const form = useServerForm(
+    policyQuery.data,
+    (loaded) => ({
+      policy: loaded?.policy ?? ("open" as "open" | "required"),
+      providerId: loaded?.provider_id ?? null,
+    }),
+    guildId
+  );
   const { policy, providerId } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
   const setProviderId = (next: number | null) => form.set({ providerId: next });

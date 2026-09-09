@@ -42,13 +42,17 @@ export const SettingsAuthPage = () => {
 
   // A provider is described across five fields and saved once at the end, so a
   // refetch part-way through must not take the description back.
-  const form = useServerForm(oidcQuery.data, (settings) => ({
-    enabled: settings?.enabled ?? false,
-    issuer: settings?.issuer ?? "",
-    client_id: settings?.client_id ?? "",
-    provider_name: settings?.provider_name ?? "",
-    scopes: settings?.scopes.join(" ") ?? "openid profile email offline_access",
-  }));
+  const form = useServerForm(
+    oidcQuery.data,
+    (settings) => ({
+      enabled: settings?.enabled ?? false,
+      issuer: settings?.issuer ?? "",
+      client_id: settings?.client_id ?? "",
+      provider_name: settings?.provider_name ?? "",
+      scopes: settings?.scopes.join(" ") ?? "openid profile email offline_access",
+    }),
+    "oidc"
+  );
 
   const updateOidcSettings = useUpdateOidcSettings({
     onSuccess: () => {

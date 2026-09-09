@@ -31,10 +31,14 @@ export const ToolSettingsDetailsPage = () => {
 
   // Name and description wait for Save, so a refetch arriving mid-sentence
   // must not take the sentence away.
-  const details = useServerForm(entity, (loaded) => ({
-    name: loaded?.name ?? "",
-    description: loaded?.description ?? "",
-  }));
+  const details = useServerForm(
+    entity,
+    (loaded) => ({
+      name: loaded?.name ?? "",
+      description: loaded?.description ?? "",
+    }),
+    entity.id
+  );
 
   // The rest are written the moment they are changed, so the local copy is
   // only the preview and the server stays the truth.

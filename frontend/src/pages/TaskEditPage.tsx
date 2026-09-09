@@ -19,15 +19,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
-import type {
-  CommentRead,
-  PropertySummary,
-  TagSummary,
-  TaskListReadRecurrenceStrategy,
-  TaskPriority,
-  TaskRead,
-  TaskRecurrenceOutput,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
@@ -38,7 +30,12 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
-import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
+import {
+  emptyTaskFormValue,
+  serializeTaskFormValue,
+  TaskForm,
+  type TaskFormValue,
+} from "@/components/tasks/TaskForm";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -63,6 +60,7 @@ import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useServerForm } from "@/hooks/useServerForm";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -161,41 +159,10 @@ export const TaskEditPage = () => {
   const dateLocale = useDateLocale();
   const { isEnabled: aiEnabled } = useAIEnabled();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [statusId, setStatusId] = useState<number | null>(null);
-  // null/undefined are "uninitialized" sentinels here — the useEffect that
-  // copies task.* into local state runs after the first render, so the
-  // form would otherwise flash the initial defaults ("medium" / no
-  // recurrence / "fixed") before snapping to the real values. Reading
-  // through effective* below falls back to the task data on the first
-  // render and uses local state once the user has interacted.
-  const [priority, setPriority] = useState<TaskPriority | null>(null);
-  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [startDate, setStartDate] = useState<string>("");
-  const [dueDate, setDueDate] = useState<string>("");
-  // Recurrence uses ``undefined`` as the uninitialized sentinel because
-  // ``null`` is a legitimate user choice meaning "no recurrence".
-  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null | undefined>(undefined);
-  const [recurrenceStrategy, setRecurrenceStrategy] =
-    useState<TaskListReadRecurrenceStrategy | null>(null);
-  const [tags, setTags] = useState<TagSummary[]>([]);
-  // Attached property rows (real server rows + locally-added stubs) and their
-  // controlled values. Both seed from the task and are batched into the main
-  // Save (PATCH) rather than saved immediately.
-  const [attachedProperties, setAttachedProperties] = useState<PropertySummary[]>([]);
-  const [propertyValues, setPropertyValues] = useState<Record<number, unknown>>({});
-  // Serialized snapshot of the last-saved form value; dirty state is a diff
-  // against it. Set whenever the form is seeded (task load / save success).
-  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   // Lets the delete/move/duplicate flows navigate without tripping the
   // unsaved-changes guard.
   const bypassGuardRef = useRef(false);
-  // Track which task the form was last seeded from, and whether it currently
-  // holds unsaved edits, so a background refetch doesn't overwrite them.
-  const seededTaskIdRef = useRef<number | null>(null);
-  const isDirtyRef = useRef(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
@@ -234,62 +201,39 @@ export const TaskEditPage = () => {
   // late-render computations now read this single source of truth.
   const task = taskQuery.data;
 
-  // Mirror the status fix for priority / recurrence / recurrenceStrategy:
-  // local state is the source of truth once the useEffect has copied it,
-  // otherwise read straight from task so the form doesn't flash a default
-  // before snapping to the real value.
-  const effectivePriority: TaskPriority = priority ?? task?.priority ?? "medium";
-  const effectiveRecurrence: TaskRecurrenceOutput | null =
-    recurrence !== undefined ? recurrence : (task?.recurrence ?? null);
-  const effectiveRecurrenceStrategy: TaskListReadRecurrenceStrategy =
-    recurrenceStrategy ?? task?.recurrence_strategy ?? "fixed";
-
-  useEffect(() => {
-    if (taskQuery.data) {
-      const task = taskQuery.data;
-      // Don't clobber unsaved edits: a background refetch of the same task
-      // must not overwrite pending field/tag/property changes. Only reseed
-      // when this is a different task, or the form has no unsaved edits.
-      const isNewTask = seededTaskIdRef.current !== task.id;
-      if (!isNewTask && isDirtyRef.current) {
-        return;
-      }
-      seededTaskIdRef.current = task.id;
-      setTitle(task.title);
-      setDescription(task.description ?? "");
-      setStatusId(task.task_status_id);
-      setPriority(task.priority);
-      setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
-      setStartDate(toLocalInputValue(task.start_date));
-      setDueDate(toLocalInputValue(task.due_date));
-      setRecurrence(task.recurrence ?? null);
-      setRecurrenceStrategy(task.recurrence_strategy ?? "fixed");
-      setTags(task.tags ?? []);
-      setAttachedProperties(task.properties ?? []);
-      setPropertyValues(seedPropertyValues(task.properties ?? []));
-      setSavedSnapshot(serializeTaskFormValue(formValueFromTask(task)));
-    }
-  }, [taskQuery.data]);
+  // Every field this page saves, filled in from the task and kept there until
+  // it is saved. The values are deeper than fields — a recurrence, tag rows, a
+  // map of property values — and the form's own idea of equality already
+  // exists, so it answers "has this moved" too.
+  const form = useServerForm(
+    task,
+    (loaded) => (loaded ? formValueFromTask(loaded) : emptyTaskFormValue()),
+    task?.id,
+    (a, b) => serializeTaskFormValue(a) === serializeTaskFormValue(b)
+  );
+  const {
+    title,
+    description,
+    assigneeIds,
+    startDate,
+    dueDate,
+    tags,
+    propertyValues,
+    statusId: effectiveStatusId,
+    priority: effectivePriority,
+    recurrence: effectiveRecurrence,
+    recurrenceStrategy: effectiveRecurrenceStrategy,
+  } = form.values;
+  const attachedProperties = form.values.properties;
+  const setDescription = (next: string) => form.set({ description: next });
 
   const isProjectContextLoading =
     Number.isFinite(projectId) && projectQuery.isLoading && !projectQuery.data;
 
   const updateTask = useUpdateTask({
     onSuccess: (updatedTask) => {
-      setTitle(updatedTask.title);
-      setDescription(updatedTask.description ?? "");
       setIsEditingDescription(false);
-      setStatusId(updatedTask.task_status_id);
-      setPriority(updatedTask.priority);
-      setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
-      setStartDate(toLocalInputValue(updatedTask.start_date));
-      setDueDate(toLocalInputValue(updatedTask.due_date));
-      setRecurrence(updatedTask.recurrence ?? null);
-      setRecurrenceStrategy(updatedTask.recurrence_strategy ?? "fixed");
-      setTags(updatedTask.tags ?? []);
-      setAttachedProperties(updatedTask.properties ?? []);
-      setPropertyValues(seedPropertyValues(updatedTask.properties ?? []));
-      setSavedSnapshot(serializeTaskFormValue(formValueFromTask(updatedTask)));
+      form.settle(formValueFromTask(updatedTask));
       toast.success(t("edit.taskUpdated"));
     },
   });
@@ -372,7 +316,7 @@ export const TaskEditPage = () => {
     if (isReadOnly) {
       return;
     }
-    if (!Number.isFinite(statusId)) {
+    if (!Number.isFinite(effectiveStatusId)) {
       toast.error(t("edit.taskStatusRequired"));
       return;
     }
@@ -382,7 +326,7 @@ export const TaskEditPage = () => {
     const payload: Record<string, unknown> = {
       title,
       description: description || null,
-      task_status_id: statusId,
+      task_status_id: effectiveStatusId,
       priority: effectivePriority,
       assignee_ids: assigneeIds,
       start_date: startDate ? new Date(startDate).toISOString() : null,
@@ -509,28 +453,13 @@ export const TaskEditPage = () => {
     }
   }, [isReadOnly]);
 
-  // Dirty tracking for the unsaved-changes guard: compare the current field
-  // values against the last-saved snapshot. Computed from the individual
-  // states + effective* fallbacks (kept before the early returns so the
-  // guard hooks below run unconditionally).
-  const currentSnapshot = serializeTaskFormValue({
-    title,
-    description,
-    statusId: statusId ?? task?.task_status_id ?? null,
-    priority: effectivePriority,
-    assigneeIds,
-    startDate,
-    dueDate,
-    recurrence: effectiveRecurrence,
-    recurrenceStrategy: effectiveRecurrenceStrategy,
-    tags,
-    properties: attachedProperties,
-    propertyValues,
-  });
-  const isDirty = !isReadOnly && savedSnapshot !== null && currentSnapshot !== savedSnapshot;
-  // Mirror into a ref so the task-load effect can read the latest dirtiness
-  // without adding it to the effect's dependency list.
-  isDirtyRef.current = isDirty;
+  // What the unsaved-changes guard asks: do the fields still say what the task
+  // says? (Kept before the early returns so the guard hooks below run
+  // unconditionally.)
+  const isDirty =
+    !isReadOnly &&
+    task !== undefined &&
+    serializeTaskFormValue(form.values) !== serializeTaskFormValue(formValueFromTask(task));
 
   // Block in-app navigation while there are unsaved edits (unless a delete /
   // move / duplicate flow explicitly opted out via bypassGuardRef).
@@ -610,10 +539,6 @@ export const TaskEditPage = () => {
   }
 
   const taskStatuses = taskStatusesQuery.data ?? [];
-  // Use the local statusId once the useEffect has copied it out of the task,
-  // otherwise read straight from task.task_status_id so the first render has
-  // a value (the useEffect lag previously left the badge blank).
-  const effectiveStatusId = statusId ?? task?.task_status_id ?? null;
 
   // A task keeps the status it was given even after the project drops that
   // column, and the select can only name a status the list contains. Carry the
@@ -638,35 +563,8 @@ export const TaskEditPage = () => {
   // Assemble the shared TaskForm value from the page's individual states. The
   // effective* fallbacks keep the form from flashing defaults during the
   // one-render gap between "task loaded" and "load effect ran".
-  const formValue: TaskFormValue = {
-    title,
-    description,
-    statusId: effectiveStatusId,
-    priority: effectivePriority,
-    assigneeIds,
-    startDate,
-    dueDate,
-    recurrence: effectiveRecurrence,
-    recurrenceStrategy: effectiveRecurrenceStrategy,
-    tags,
-    properties: attachedProperties,
-    propertyValues,
-  };
-
-  const handleFormChange = (next: TaskFormValue) => {
-    setTitle(next.title);
-    setDescription(next.description);
-    setStatusId(next.statusId);
-    setPriority(next.priority);
-    setAssigneeIds(next.assigneeIds);
-    setStartDate(next.startDate);
-    setDueDate(next.dueDate);
-    setRecurrence(next.recurrence);
-    setRecurrenceStrategy(next.recurrenceStrategy);
-    setTags(next.tags);
-    setAttachedProperties(next.properties);
-    setPropertyValues(next.propertyValues);
-  };
+  const formValue = form.values;
+  const handleFormChange = (next: TaskFormValue) => form.set(next);
 
   // The editor's richer description block (markdown preview + AI generate +
   // edit/preview toggle), passed to TaskForm as its description slot.

@@ -7,6 +7,7 @@ import type {
   AIConnectionUpdate,
   AIProvider,
 } from "@/api/generated/initiativeAPI.schemas";
+import { useServerForm } from "@/hooks/useServerForm";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -65,23 +66,23 @@ export const useAIConnectionForm = ({
 }: UseAIConnectionFormArgs) => {
   const { t } = useTranslation("settings");
   const isEdit = connection !== null;
-  const [form, setForm] = useState<AIConnectionFormState>(
-    connection ? toFormState(connection) : emptyForm
+  const serverForm = useServerForm(
+    connection ?? undefined,
+    (loaded) => (loaded ? toFormState(loaded) : emptyForm),
+    [open, connection?.id]
   );
+  const form = serverForm.values;
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
-  // Reset each time the dialog is (re)opened for a given connection.
+  // The models a connection offers belong to the connection, not to the form.
   useEffect(() => {
-    if (open) {
-      setForm(connection ? toFormState(connection) : emptyForm);
-      setAvailableModels([]);
-    }
-  }, [open, connection]);
+    if (open) setAvailableModels([]);
+  }, [open]);
 
   const setField = <K extends keyof AIConnectionFormState>(
     key: K,
     value: AIConnectionFormState[K]
-  ) => setForm((prev) => ({ ...prev, [key]: value }));
+  ) => serverForm.set({ [key]: value } as Partial<AIConnectionFormState>);
 
   const providerConfig = form.provider ? PROVIDER_CONFIGS[form.provider] : null;
   // A connection's key is EITHER shared (admin-set) OR member-supplied. When
@@ -93,11 +94,10 @@ export const useAIConnectionForm = ({
   const changeProvider = (value: string) => {
     if (!value) return;
     const config = PROVIDER_CONFIGS[value as AIProvider];
-    setForm((prev) => ({
-      ...prev,
+    serverForm.set({
       provider: value as AIProvider,
       baseUrl: config?.defaultBaseUrl ?? "",
-    }));
+    });
     setAvailableModels([]);
   };
 

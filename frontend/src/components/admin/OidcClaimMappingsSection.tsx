@@ -50,9 +50,13 @@ export const OidcClaimMappingsSection = () => {
   const optionsQuery = useOidcMappingOptions();
 
   // Typed, then saved by the button beside it.
-  const claimPathForm = useServerForm(mappingsQuery.data, (loaded) => ({
-    claimPath: loaded?.claim_path ?? "",
-  }));
+  const claimPathForm = useServerForm(
+    mappingsQuery.data,
+    (loaded) => ({
+      claimPath: loaded?.claim_path ?? "",
+    }),
+    "oidc-claim-path"
+  );
 
   const updateClaimPath = useUpdateOidcClaimPath({
     onSuccess: () => {

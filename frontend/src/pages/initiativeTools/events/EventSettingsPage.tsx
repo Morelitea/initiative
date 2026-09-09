@@ -72,35 +72,44 @@ export function EventSettingsPage() {
   // authority once it arrives, and null is a guild-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
-  // Everything here waits for one of the two Save buttons, so a refetch part
-  // way through editing must leave what is on screen alone.
-  const form = useServerForm(event, (loaded) => {
-    const start = loaded ? new Date(loaded.start_at) : null;
-    const end = loaded ? new Date(loaded.end_at) : null;
-    return {
-      title: loaded?.title ?? "",
-      description: loaded?.description ?? "",
-      location: loaded?.location ?? "",
-      startDate: start ? toDateKey(start) : "",
-      startTime: start ? toTimeSlotRounded(start) : "09:00",
-      endDate: end ? toDateKey(end) : "",
-      endTime: end ? toTimeSlotRounded(end) : "10:00",
-      allDay: loaded?.all_day ?? false,
-      attendeeIds: loaded?.attendees.map((attendee) => attendee.user_id) ?? [],
-    };
-  });
+  // Two cards, each with its own Save button — so two forms. One shared form
+  // would let saving either card mark the other's unsaved edits as saved, and
+  // the next refetch would take them away.
+  const details = useServerForm(
+    event,
+    (loaded) => {
+      const start = loaded ? new Date(loaded.start_at) : null;
+      const end = loaded ? new Date(loaded.end_at) : null;
+      return {
+        title: loaded?.title ?? "",
+        description: loaded?.description ?? "",
+        location: loaded?.location ?? "",
+        startDate: start ? toDateKey(start) : "",
+        startTime: start ? toTimeSlotRounded(start) : "09:00",
+        endDate: end ? toDateKey(end) : "",
+        endTime: end ? toTimeSlotRounded(end) : "10:00",
+        allDay: loaded?.all_day ?? false,
+      };
+    },
+    event?.id
+  );
+  const attendees = useServerForm(
+    event,
+    (loaded) => ({ ids: loaded?.attendees.map((attendee) => attendee.user_id) ?? [] }),
+    event?.id
+  );
   const { title, description, location, startDate, startTime, endDate, endTime, allDay } =
-    form.values;
-  const attendeeIds = form.values.attendeeIds;
-  const setTitle = (next: string) => form.set({ title: next });
-  const setDescription = (next: string) => form.set({ description: next });
-  const setLocation = (next: string) => form.set({ location: next });
-  const setStartDate = (next: string) => form.set({ startDate: next });
-  const setStartTime = (next: string) => form.set({ startTime: next });
-  const setEndDate = (next: string) => form.set({ endDate: next });
-  const setEndTime = (next: string) => form.set({ endTime: next });
-  const setAllDay = (next: boolean) => form.set({ allDay: next });
-  const setAttendeeIds = (next: number[]) => form.set({ attendeeIds: next });
+    details.values;
+  const attendeeIds = attendees.values.ids;
+  const setTitle = (next: string) => details.set({ title: next });
+  const setDescription = (next: string) => details.set({ description: next });
+  const setLocation = (next: string) => details.set({ location: next });
+  const setStartDate = (next: string) => details.set({ startDate: next });
+  const setStartTime = (next: string) => details.set({ startTime: next });
+  const setEndDate = (next: string) => details.set({ endDate: next });
+  const setEndTime = (next: string) => details.set({ endTime: next });
+  const setAllDay = (next: boolean) => details.set({ allDay: next });
+  const setAttendeeIds = (next: number[]) => attendees.set({ ids: next });
   // Written the moment a tag is picked, so this one keeps following the server.
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -202,14 +211,14 @@ export function EventSettingsPage() {
 
   const updateEvent = useUpdateCalendarEvent(eventId, {
     onSuccess: () => {
-      form.settle();
+      details.settle();
       toast.success(t("detailsUpdated"));
     },
   });
 
   const setAttendees = useSetEventAttendees(eventId, {
     onSuccess: () => {
-      form.settle();
+      attendees.settle();
       toast.success(t("detailsUpdated"));
     },
   });

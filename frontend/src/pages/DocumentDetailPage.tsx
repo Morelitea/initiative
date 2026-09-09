@@ -248,7 +248,11 @@ export const DocumentDetailPage = () => {
   // refetch — a comment on this document, a window coming back to the front —
   // must not take a half-typed name away, and a rename by somebody else must
   // still arrive while nobody here is typing one.
-  const titleField = useServerForm(document, (loaded) => ({ title: loaded?.name ?? "" }));
+  const titleField = useServerForm(
+    document,
+    (loaded) => ({ title: loaded?.name ?? "" }),
+    document?.id
+  );
   const title = titleField.values.title;
   const setTitle = (next: string) => titleField.set({ title: next });
   // The path supplies the initiative while this loads, but the entity is the
@@ -461,10 +465,10 @@ export const DocumentDetailPage = () => {
     // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
     // same behavior: the Capacitor Network plugin is authoritative on native.
     suppressErrorToast: () => !isOnline,
-    onSuccess: () => {
-      // The name that was just written is the server's now, so the field goes
-      // back to following later answers.
-      titleField.settle();
+    onSuccess: (_updated, sent) => {
+      // Only if the field still holds the name this save carried: an autosave
+      // that started before the last keystroke must not mark it saved.
+      titleField.settle({ title: sent.name ?? "" });
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }

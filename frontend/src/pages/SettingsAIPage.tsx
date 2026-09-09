@@ -36,9 +36,13 @@ export const SettingsAIPage = () => {
 
   const modeQuery = usePlatformAIMode({ enabled: isPlatformOwner });
   // Chosen, then saved: a refetch in between must not put the old mode back.
-  const form = useServerForm(modeQuery.data, (settings) => ({
-    mode: settings?.mode ?? ("disabled" as AIConfigMode),
-  }));
+  const form = useServerForm(
+    modeQuery.data,
+    (settings) => ({
+      mode: settings?.mode ?? ("disabled" as AIConfigMode),
+    }),
+    "platform-ai"
+  );
   const mode = form.values.mode;
   const setMode = (next: AIConfigMode) => form.set({ mode: next });
 

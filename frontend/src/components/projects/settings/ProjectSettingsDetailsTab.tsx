@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateProject } from "@/hooks/useProjects";
+import { useServerForm } from "@/hooks/useServerForm";
 import { dateRangeBounds } from "@/lib/dateRange";
 
 interface ProjectSettingsDetailsTabProps {
@@ -27,17 +28,13 @@ interface ProjectDetailsValue {
   endDate: string;
 }
 
-const detailsFromProject = (project: ProjectRead): ProjectDetailsValue => ({
-  name: project.name,
-  icon: project.icon ?? "",
-  description: project.description ?? "",
-  startDate: project.start_date ?? "",
-  endDate: project.end_date ?? "",
+const detailsFromProject = (project: ProjectRead | undefined): ProjectDetailsValue => ({
+  name: project?.name ?? "",
+  icon: project?.icon ?? "",
+  description: project?.description ?? "",
+  startDate: project?.start_date ?? "",
+  endDate: project?.end_date ?? "",
 });
-
-/** Order-stable projection of a form value, for dirty comparison. */
-const serializeDetails = (value: ProjectDetailsValue): string =>
-  JSON.stringify([value.name, value.icon, value.description, value.startDate, value.endDate]);
 
 export const ProjectSettingsDetailsTab = ({
   project,
@@ -46,68 +43,28 @@ export const ProjectSettingsDetailsTab = ({
 }: ProjectSettingsDetailsTabProps) => {
   const { t } = useTranslation("projects");
 
-  const [nameText, setNameText] = useState<string>("");
-  const [iconText, setIconText] = useState<string>("");
-  const [descriptionText, setDescriptionText] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  // The server values the form was last filled from. Anything that still
-  // matches them is safe to replace on a refetch; anything else is the user's
-  // unsaved typing.
-  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
-  const seededProjectIdRef = useRef<number | null>(null);
-  const isDirtyRef = useRef(false);
-
-  const currentSnapshot = serializeDetails({
+  // One save writes every field here, so the form keeps following the project
+  // — picking up whatever somebody else changed — until there is unsaved
+  // typing of our own, which wins until it is saved or the tab moves on.
+  const form = useServerForm(project, detailsFromProject, project?.id);
+  const {
     name: nameText,
     icon: iconText,
     description: descriptionText,
     startDate,
     endDate,
-  });
-  const isDirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
-  // Mirrored into a ref so the seeding effect reads the latest dirtiness
-  // without taking it as a dependency.
-  isDirtyRef.current = isDirty;
-
-  useEffect(() => {
-    if (!project) {
-      return;
-    }
-    // One save writes every field here, so a stale form would revert whatever
-    // someone else changed meanwhile — reseed from each refetch to pick their
-    // edits up. The exception is unsaved typing of our own, which wins until
-    // it is saved or the tab moves to another project.
-    const isNewProject = seededProjectIdRef.current !== project.id;
-    if (!isNewProject && isDirtyRef.current) {
-      return;
-    }
-    seededProjectIdRef.current = project.id;
-    const next = detailsFromProject(project);
-    setNameText(next.name);
-    setIconText(next.icon);
-    setDescriptionText(next.description);
-    setStartDate(next.startDate);
-    setEndDate(next.endDate);
-    setSavedSnapshot(serializeDetails(next));
-    if (isNewProject) {
-      setSavedMessage(null);
-    }
-  }, [project]);
+  } = form.values;
+  const setNameText = (next: string) => form.set({ name: next });
+  const setIconText = (next: string) => form.set({ icon: next });
+  const setDescriptionText = (next: string) => form.set({ description: next });
+  const setStartDate = (next: string) => form.set({ startDate: next });
+  const setEndDate = (next: string) => form.set({ endDate: next });
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const updateProject = useUpdateProject(projectId, {
     onSuccess: (data) => {
-      // Re-baseline to what the server stored, so the form counts as clean
-      // again and the next refetch is free to reseed it.
-      const saved = detailsFromProject(data);
       setSavedMessage(t("settings.details.detailsUpdated"));
-      setNameText(saved.name);
-      setIconText(saved.icon);
-      setDescriptionText(saved.description);
-      setStartDate(saved.startDate);
-      setEndDate(saved.endDate);
-      setSavedSnapshot(serializeDetails(saved));
+      form.settle(detailsFromProject(data));
     },
   });
 

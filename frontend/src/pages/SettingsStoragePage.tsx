@@ -48,16 +48,20 @@ export const SettingsStoragePage = () => {
   const storageQuery = useStorageSettings({ enabled: isPlatformAdmin });
   // A bucket, a region, an endpoint and a key are typed in one at a time and
   // saved together, so a refetch part-way through must leave them alone.
-  const form = useServerForm(storageQuery.data, (data) => ({
-    backend: data?.backend === "s3" ? "s3" : DEFAULT_STATE.backend,
-    s3_bucket: data?.s3_bucket ?? DEFAULT_STATE.s3_bucket,
-    s3_region: data?.s3_region ?? DEFAULT_STATE.s3_region,
-    s3_endpoint_url: data?.s3_endpoint_url ?? DEFAULT_STATE.s3_endpoint_url,
-    s3_access_key_id: data?.s3_access_key_id ?? DEFAULT_STATE.s3_access_key_id,
-    s3_use_path_style: data?.s3_use_path_style ?? DEFAULT_STATE.s3_use_path_style,
-    s3_kms_key_id: data?.s3_kms_key_id ?? DEFAULT_STATE.s3_kms_key_id,
-    s3_local_fallback: data?.s3_local_fallback ?? DEFAULT_STATE.s3_local_fallback,
-  }));
+  const form = useServerForm(
+    storageQuery.data,
+    (data) => ({
+      backend: data?.backend === "s3" ? "s3" : DEFAULT_STATE.backend,
+      s3_bucket: data?.s3_bucket ?? DEFAULT_STATE.s3_bucket,
+      s3_region: data?.s3_region ?? DEFAULT_STATE.s3_region,
+      s3_endpoint_url: data?.s3_endpoint_url ?? DEFAULT_STATE.s3_endpoint_url,
+      s3_access_key_id: data?.s3_access_key_id ?? DEFAULT_STATE.s3_access_key_id,
+      s3_use_path_style: data?.s3_use_path_style ?? DEFAULT_STATE.s3_use_path_style,
+      s3_kms_key_id: data?.s3_kms_key_id ?? DEFAULT_STATE.s3_kms_key_id,
+      s3_local_fallback: data?.s3_local_fallback ?? DEFAULT_STATE.s3_local_fallback,
+    }),
+    "storage"
+  );
   // Never seeded — the server does not hand the secret back.
   const [secret, setSecret] = useState("");
   const hasSecret = storageQuery.data?.has_secret_access_key ?? false;

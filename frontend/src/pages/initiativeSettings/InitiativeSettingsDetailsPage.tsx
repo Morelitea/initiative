@@ -54,11 +54,15 @@ export const InitiativeSettingsDetailsPage = () => {
 
   // All three wait for Save, so a refetch mid-sentence must not take the
   // sentence away.
-  const details = useServerForm(initiative, (loaded) => ({
-    name: loaded?.name ?? "",
-    description: loaded?.description ?? "",
-    color: loaded?.color ?? DEFAULT_INITIATIVE_COLOR,
-  }));
+  const details = useServerForm(
+    initiative,
+    (loaded) => ({
+      name: loaded?.name ?? "",
+      description: loaded?.description ?? "",
+      color: loaded?.color ?? DEFAULT_INITIATIVE_COLOR,
+    }),
+    initiative?.id
+  );
   const { name, description, color } = details.values;
   const setName = (next: string) => details.set({ name: next });
   const setDescription = (next: string) => details.set({ description: next });

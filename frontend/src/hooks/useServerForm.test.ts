@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { useServerForm } from "./useServerForm";
 
 interface Entity {
+  id: number;
   name: string;
   description: string | null;
 }
@@ -13,78 +14,65 @@ const derive = (entity: Entity | undefined) => ({
   description: entity?.description ?? "",
 });
 
+const entity = (overrides: Partial<Entity> = {}): Entity => ({
+  id: 1,
+  name: "Roadmap",
+  description: null,
+  ...overrides,
+});
+
+/** The hook as a page uses it: one entity, identified by its id. */
+const renderForm = (initial: Entity | undefined) =>
+  renderHook(({ loaded }) => useServerForm(loaded, derive, loaded?.id), {
+    initialProps: { loaded: initial },
+  });
+
 describe("useServerForm", () => {
   it("fills in from the entity once it lands", () => {
-    const { result, rerender } = renderHook(({ entity }) => useServerForm(entity, derive), {
-      initialProps: { entity: undefined as Entity | undefined },
-    });
+    const { result, rerender } = renderForm(undefined);
     expect(result.current.values).toEqual({ name: "", description: "" });
 
-    rerender({ entity: { name: "Roadmap", description: null } });
+    rerender({ loaded: entity() });
 
     expect(result.current.values).toEqual({ name: "Roadmap", description: "" });
     expect(result.current.edited).toBe(false);
   });
 
   it("follows a later answer while nothing is unsaved", () => {
-    const { result, rerender } = renderHook(({ entity }) => useServerForm(entity, derive), {
-      initialProps: { entity: { name: "Roadmap", description: null } as Entity | undefined },
-    });
+    const { result, rerender } = renderForm(entity());
 
-    rerender({ entity: { name: "Renamed by somebody else", description: null } });
+    rerender({ loaded: entity({ name: "Renamed by somebody else" }) });
 
     expect(result.current.values.name).toBe("Renamed by somebody else");
   });
 
   it("keeps unsaved work when a later answer would overwrite it", () => {
-    const { result, rerender } = renderHook(({ entity }) => useServerForm(entity, derive), {
-      initialProps: { entity: { name: "Roadmap", description: null } as Entity | undefined },
-    });
+    const { result, rerender } = renderForm(entity());
 
     act(() => result.current.set({ name: "Half-written" }));
-    rerender({ entity: { name: "Renamed by somebody else", description: null } });
+    rerender({ loaded: entity({ name: "Renamed by somebody else" }) });
 
     expect(result.current.values.name).toBe("Half-written");
     expect(result.current.edited).toBe(true);
   });
 
-  it("goes back to following the server once the work is saved", () => {
-    const { result, rerender } = renderHook(({ entity }) => useServerForm(entity, derive), {
-      initialProps: { entity: { name: "Roadmap", description: null } as Entity | undefined },
-    });
-
-    act(() => result.current.set({ name: "Half-written" }));
-    act(() => result.current.settle());
-    expect(result.current.edited).toBe(false);
-    // Still showing what was typed — settling does not undo it.
-    expect(result.current.values.name).toBe("Half-written");
-
-    rerender({ entity: { name: "Half-written", description: "and described" } });
-
-    expect(result.current.values.description).toBe("and described");
-  });
-
   it("leaves the fields alone when the same answer arrives again", () => {
-    const entity: Entity = { name: "Roadmap", description: null };
-    const { result, rerender } = renderHook(({ entity }) => useServerForm(entity, derive), {
-      initialProps: { entity: entity as Entity | undefined },
-    });
+    const loaded = entity();
+    const { result, rerender } = renderForm(loaded);
 
     act(() => result.current.set({ name: "Half-written" }));
-    // The identity React Query preserves when nothing about the answer moved.
-    rerender({ entity });
+    rerender({ loaded });
 
     expect(result.current.values.name).toBe("Half-written");
   });
 
   it("does not mistake a rebuilt list of ids for a change", () => {
     const { result, rerender } = renderHook(
-      ({ ids }) => useServerForm({ ids }, (source) => ({ ids: source?.ids ?? [] })),
+      ({ ids }) => useServerForm({ ids }, (source) => ({ ids: source?.ids ?? [] }), 1),
       { initialProps: { ids: [1, 2, 3] } }
     );
 
     act(() => result.current.set({ ids: [1, 2] }));
-    // Same ids, new array — every render of a real page rebuilds one of these.
     rerender({ ids: [1, 2, 3] });
 
     expect(result.current.values.ids).toEqual([1, 2]);
@@ -92,7 +80,7 @@ describe("useServerForm", () => {
 
   it("follows a list that actually changed", () => {
     const { result, rerender } = renderHook(
-      ({ ids }) => useServerForm({ ids }, (source) => ({ ids: source?.ids ?? [] })),
+      ({ ids }) => useServerForm({ ids }, (source) => ({ ids: source?.ids ?? [] }), 1),
       { initialProps: { ids: [1, 2, 3] } }
     );
 
@@ -102,12 +90,75 @@ describe("useServerForm", () => {
   });
 
   it("edits one field without disturbing the others", () => {
-    const { result } = renderHook(() =>
-      useServerForm({ name: "Roadmap", description: "A description" } as Entity | undefined, derive)
-    );
+    const { result } = renderForm(entity({ description: "A description" }));
 
     act(() => result.current.set({ name: "Renamed" }));
 
     expect(result.current.values).toEqual({ name: "Renamed", description: "A description" });
+  });
+
+  describe("moving to something else", () => {
+    it("starts afresh, unsaved work and all", () => {
+      // A routed page that stays mounted while its id changes: what was typed
+      // for one thing must never be shown — or saved — under another.
+      const { result, rerender } = renderForm(entity({ id: 1 }));
+
+      act(() => result.current.set({ name: "Half-written" }));
+      rerender({ loaded: entity({ id: 2, name: "A different thing" }) });
+
+      expect(result.current.values.name).toBe("A different thing");
+      expect(result.current.edited).toBe(false);
+    });
+
+    it("starts afresh when a dialog reopens on the same row", () => {
+      const { result, rerender } = renderHook(
+        ({ open }) => useServerForm(entity(), derive, [open, 1]),
+        { initialProps: { open: true } }
+      );
+
+      act(() => result.current.set({ name: "Abandoned half-way" }));
+      rerender({ open: false });
+      rerender({ open: true });
+
+      expect(result.current.values.name).toBe("Roadmap");
+    });
+  });
+
+  describe("settling", () => {
+    it("goes back to following the server once the work is saved", () => {
+      const { result, rerender } = renderForm(entity());
+
+      act(() => result.current.set({ name: "Half-written" }));
+      act(() => result.current.settle());
+      expect(result.current.edited).toBe(false);
+      // Still showing what was typed — settling does not undo it.
+      expect(result.current.values.name).toBe("Half-written");
+
+      rerender({ loaded: entity({ name: "Half-written", description: "and described" }) });
+
+      expect(result.current.values.description).toBe("and described");
+    });
+
+    it("does not mark a keystroke saved that the save did not carry", () => {
+      // An autosave sends what it has, the reader types on, and the reply for
+      // the older text arrives. The newer text is still unsaved.
+      const { result } = renderForm(entity());
+
+      act(() => result.current.set({ name: "First" }));
+      act(() => result.current.set({ name: "First and more" }));
+      act(() => result.current.settle({ name: "First" }));
+
+      expect(result.current.edited).toBe(true);
+      expect(result.current.values.name).toBe("First and more");
+    });
+
+    it("settles when the fields still hold what was sent", () => {
+      const { result } = renderForm(entity());
+
+      act(() => result.current.set({ name: "First" }));
+      act(() => result.current.settle({ name: "First" }));
+
+      expect(result.current.edited).toBe(false);
+    });
   });
 });

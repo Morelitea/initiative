@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAddCounter, useUpdateCounter } from "@/hooks/useCounters";
+import { useServerForm } from "@/hooks/useServerForm";
 import { pickRandomCounterColor } from "@/lib/counter-color";
 import type { DialogProps } from "@/types/dialog";
 
@@ -49,39 +50,39 @@ export const CounterFormDialog = ({
   const { t } = useTranslation(["counterGroups", "common"]);
   const isEdit = !!counter;
 
-  const [name, setName] = useState("");
-  const [color, setColor] = useState<string>(() => pickRandomCounterColor());
-  const [count, setCount] = useState("0");
-  const [minValue, setMinValue] = useState("");
-  const [maxValue, setMaxValue] = useState("");
-  const [step, setStep] = useState("1");
-  const [initialCount, setInitialCount] = useState("0");
-  const [viewMode, setViewMode] = useState<CounterViewMode>("number");
   const [error, setError] = useState<string | null>(null);
 
+  // One colour per sitting rather than one per render — a fresh random value
+  // inside the form's fields would read as the server changing its mind.
+  const fallbackColor = useMemo(() => pickRandomCounterColor(), [open, counter?.id]);
+
+  const form = useServerForm(
+    counter,
+    (loaded) => ({
+      name: loaded?.name ?? "",
+      color: loaded?.color ?? fallbackColor,
+      count: loaded?.count ?? "0",
+      minValue: loaded?.min ?? "",
+      maxValue: loaded?.max ?? "",
+      step: loaded?.step ?? "1",
+      initialCount: loaded?.initial_count ?? "0",
+      viewMode: loaded?.view_mode ?? ("number" as CounterViewMode),
+    }),
+    [open, counter?.id]
+  );
+  const { name, color, count, minValue, maxValue, step, initialCount, viewMode } = form.values;
+  const setName = (next: string) => form.set({ name: next });
+  const setColor = (next: string) => form.set({ color: next });
+  const setCount = (next: string) => form.set({ count: next });
+  const setMinValue = (next: string) => form.set({ minValue: next });
+  const setMaxValue = (next: string) => form.set({ maxValue: next });
+  const setStep = (next: string) => form.set({ step: next });
+  const setInitialCount = (next: string) => form.set({ initialCount: next });
+  const setViewMode = (next: CounterViewMode) => form.set({ viewMode: next });
+
   useEffect(() => {
-    if (!open) return;
-    if (counter) {
-      setName(counter.name);
-      setColor(counter.color ?? pickRandomCounterColor());
-      setCount(counter.count);
-      setMinValue(counter.min ?? "");
-      setMaxValue(counter.max ?? "");
-      setStep(counter.step);
-      setInitialCount(counter.initial_count);
-      setViewMode(counter.view_mode);
-    } else {
-      setName("");
-      setColor(pickRandomCounterColor());
-      setCount("0");
-      setMinValue("");
-      setMaxValue("");
-      setStep("1");
-      setInitialCount("0");
-      setViewMode("number");
-    }
-    setError(null);
-  }, [open, counter]);
+    if (open) setError(null);
+  }, [open]);
 
   const addCounter = useAddCounter(groupId, {
     onSuccess: () => onOpenChange(false),

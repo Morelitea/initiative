@@ -39,15 +39,19 @@ export const SettingsEmailPage = () => {
   const emailQuery = useEmailSettings({ enabled: isPlatformAdmin });
   // A server's address and credentials are typed in a few fields at a time and
   // saved at the end, so a refetch mid-way must leave them where they are.
-  const form = useServerForm(emailQuery.data, (settings) => ({
-    host: settings?.host ?? DEFAULT_STATE.host,
-    port: settings?.port ? String(settings.port) : DEFAULT_STATE.port,
-    secure: settings?.secure ?? DEFAULT_STATE.secure,
-    reject_unauthorized: settings?.reject_unauthorized ?? DEFAULT_STATE.reject_unauthorized,
-    username: settings?.username ?? DEFAULT_STATE.username,
-    from_address: settings?.from_address ?? DEFAULT_STATE.from_address,
-    test_recipient: settings?.test_recipient ?? "",
-  }));
+  const form = useServerForm(
+    emailQuery.data,
+    (settings) => ({
+      host: settings?.host ?? DEFAULT_STATE.host,
+      port: settings?.port ? String(settings.port) : DEFAULT_STATE.port,
+      secure: settings?.secure ?? DEFAULT_STATE.secure,
+      reject_unauthorized: settings?.reject_unauthorized ?? DEFAULT_STATE.reject_unauthorized,
+      username: settings?.username ?? DEFAULT_STATE.username,
+      from_address: settings?.from_address ?? DEFAULT_STATE.from_address,
+      test_recipient: settings?.test_recipient ?? "",
+    }),
+    "email"
+  );
   // Never seeded — the server does not hand a password back, so this field is
   // write-only and empty means "leave it as it is".
   const [password, setPassword] = useState("");

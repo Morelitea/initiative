@@ -27,10 +27,14 @@ export const SettingsBrandingPage = () => {
 
   // Both colours are picked and then saved together, so a refetch between the
   // picking and the saving must not put the old pair back.
-  const form = useServerForm(interfaceQuery.data, (settings) => ({
-    light: settings?.light_accent_color ?? "#2563eb",
-    dark: settings?.dark_accent_color ?? "#60a5fa",
-  }));
+  const form = useServerForm(
+    interfaceQuery.data,
+    (settings) => ({
+      light: settings?.light_accent_color ?? "#2563eb",
+      dark: settings?.dark_accent_color ?? "#60a5fa",
+    }),
+    "interface"
+  );
 
   const updateInterface = useUpdateInterfaceSettings({
     onSuccess: () => {
