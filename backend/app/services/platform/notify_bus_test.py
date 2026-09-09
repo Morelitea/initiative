@@ -301,3 +301,33 @@ async def test_a_frame_for_everybody_reaches_every_socket_here(monkeypatch) -> N
 
     assert len(first.sent) == 1
     assert len(second.sent) == 1
+
+
+@pytest.mark.unit
+async def test_the_mark_stands_until_the_broad_frame_goes(monkeypatch) -> None:
+    """A bus that fails again while this is recovering must not consume it.
+
+    The refused frames survive that by re-queueing; the mark that says frames
+    were dropped has nowhere to be re-queued, so it is cleared on success only.
+    """
+    user_stream._pending_remote.clear()
+    monkeypatch.setattr(user_stream, "_dropped_remote", True)
+
+    async def _unavailable(_channel: str, _payload: str) -> None:
+        raise RuntimeError("bus not connected")
+
+    monkeypatch.setattr(notify_bus, "notify", _unavailable)
+    await user_stream.on_bus_connected()
+
+    assert user_stream._dropped_remote is True
+
+    sent: list[dict] = []
+
+    async def _capture(_channel: str, payload: str) -> None:
+        sent.append(json.loads(payload))
+
+    monkeypatch.setattr(notify_bus, "notify", _capture)
+    await user_stream.on_bus_connected()
+
+    assert [message["user_id"] for message in sent] == [None]
+    assert user_stream._dropped_remote is False

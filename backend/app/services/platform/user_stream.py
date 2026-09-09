@@ -240,11 +240,12 @@ async def deliver_remote(payload: str) -> None:
     await stream.send(int(raw_user_id), frame)
 
 
-async def _publish_to_everyone(frame: Dict[str, Any]) -> None:
-    """One frame for every socket on every other worker.
+async def _publish_to_everyone(frame: Dict[str, Any]) -> bool:
+    """One frame for every socket on every other worker, and whether it went.
 
     For the case where a frame is owed and whose it was cannot be said. Costs
-    each connected reader one refetch, which is why nothing routine uses it.
+    each connected reader one refetch, which is why nothing routine uses it —
+    and why the caller has to know whether it landed.
     """
     from app.services.platform import notify_bus
 
@@ -252,8 +253,10 @@ async def _publish_to_everyone(frame: Dict[str, Any]) -> None:
         await notify_bus.notify(
             CHANNEL, json.dumps({"origin": ORIGIN, "user_id": None, "frame": frame})
         )
+        return True
     except Exception:
         logger.debug("user_stream: cross-process publish unavailable", exc_info=True)
+        return False
 
 
 async def on_bus_connected() -> None:
@@ -272,15 +275,17 @@ async def on_bus_connected() -> None:
 
     pending = list(_pending_remote.items())
     _pending_remote.clear()
-    dropped, _dropped_remote = _dropped_remote, False
     for (user_id, _resource), frame in pending:
         # Through the ordinary path, so one that is refused again is simply
         # pending again rather than lost on the way to being recovered.
         await _publish_remote(user_id, frame)
 
     resync = build_frame(RESOURCE_RESYNC, "changed")
-    if dropped:
-        await _publish_to_everyone(resync)
+    # Cleared only once it has gone. A bus that fails again while this is
+    # recovering leaves the mark standing for the next time it comes up —
+    # the same rule the refused frames above follow by re-queueing.
+    if _dropped_remote and await _publish_to_everyone(resync):
+        _dropped_remote = False
     for user_id in stream.connected_users():
         await stream.send(user_id, resync)
 
