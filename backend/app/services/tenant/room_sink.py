@@ -32,8 +32,16 @@ commit, so a transaction that began earlier can become visible after a later
 one has already gone out; a mark that only moved forward by id would step over
 it, and where that transaction's hint was one a reconnect missed, nothing would
 ever go back for it. Reading by time and skipping what has already been sent
-has no such hole. What it does not cover is a transaction taking longer than
-the window to commit, which the hint still delivers.
+has no such hole. What reading a window cannot reach is a transaction that
+takes longer than the window to commit — its rows are stamped when it began —
+and that one is delivered by its hint.
+
+So the hint is load-bearing for exactly one case, and the case where hints go
+missing is knowable: they reach only whoever is listening, and the bus counts
+the times it has come up. A sweep that finds that number has moved knows it was
+deaf for a while and cannot know for how long, so it says the one honest thing
+— that more happened than it can name — and the room reads the guild again.
+Rare, coarse, and the only part of this that is.
 
 Both are scoped to the guilds this process actually holds a socket for, so a
 deployment with nobody connected reads nothing.
@@ -52,6 +60,7 @@ from app.db import session as db_session
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
+from app.services.platform import notify_bus
 from app.services.realtime import manager
 
 logger = logging.getLogger(__name__)
@@ -68,6 +77,10 @@ ROOM_SWEEP_SECONDS = 15
 #: in the window, per guild this process holds a socket for.
 SWEEP_WINDOW_SECONDS = 60
 
+#: What a frame says when it cannot name what changed: a bulk write past the
+#: cap below, or a gap in the hints. The room reads the guild again.
+EVERYTHING = {"changes": [], "more": True}
+
 #: Changes one frame will carry. A bulk write — an import, a purge — can put
 #: thousands of rows in one transaction, and naming every one of them would
 #: send a large frame to every socket in the room to say what its last few
@@ -76,6 +89,10 @@ SWEEP_WINDOW_SECONDS = 60
 MAX_CHANGES = 500
 
 _SCHEMA_PREFIX = "guild_"
+
+#: The bus generation the last sweep ran under. A change means hints went
+#: missing in between.
+_bus_generation: int | None = None
 
 #: guild_id -> the outbox ids this process has already sent for it, pruned to
 #: the sweep window. In memory and per process: it says what THIS process's
@@ -113,7 +130,7 @@ def _frame(rows: list[EventOutbox]) -> dict[str, Any]:
         seen.setdefault((row.resource_type, row.resource_id, row.action), row)
     changes = list(seen.values())
     if len(changes) > MAX_CHANGES:
-        return {"changes": [], "more": True}
+        return dict(EVERYTHING)
     return {"changes": [_change(row) for row in changes]}
 
 
@@ -200,6 +217,12 @@ async def process_room_sweep() -> None:
     the answer to a transaction becoming visible after a later one has already
     gone out.
     """
+    global _bus_generation
+    generation = notify_bus.bus.generation
+    # A first observation says nothing: it is where counting starts, not a gap.
+    deaf = _bus_generation is not None and generation != _bus_generation
+    _bus_generation = generation
+
     watched = manager.guild_ids()
     for guild_id in set(_delivered) - set(watched):
         # Nobody here is watching it any more. Dropping the mark means the next
@@ -220,7 +243,14 @@ async def process_room_sweep() -> None:
                     # nothing: whoever just connected fetched as they mounted.
                     _delivered[guild_id] = _ids(rows)
                     continue
-                await _fan_out(guild_id, [r for r in rows if r.id not in sent])
+                if deaf:
+                    # Whatever the hints carried while the bus was rebuilding
+                    # reached nobody, and a transaction that began before this
+                    # window cannot be found by reading it. What was missed is
+                    # not knowable, so the room is told that much.
+                    await manager.broadcast_guild(guild_id, dict(EVERYTHING))
+                else:
+                    await _fan_out(guild_id, [r for r in rows if r.id not in sent])
                 # Everything in the window has now been sent, and anything that
                 # has fallen out of it will not be read again — so this is both
                 # the record and the pruning of it.

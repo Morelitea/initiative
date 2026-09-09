@@ -88,6 +88,7 @@ class NotifyBus:
         self._connection: Optional[asyncpg.Connection] = None
         self._task: Optional[asyncio.Task] = None
         self._handlers: dict[str, Handler] = {}
+        self._generation = 0
         self._lock = asyncio.Lock()
         # One statement at a time on the held connection. A connection carries
         # a single operation, so two overlapping sends raise rather than queue
@@ -99,6 +100,17 @@ class NotifyBus:
     @property
     def running(self) -> bool:
         return self._connection is not None and not self._connection.is_closed()
+
+    @property
+    def generation(self) -> int:
+        """How many times this bus has come up.
+
+        A subscriber that has to know it was deaf for a while watches this: the
+        number moves once per connection, so a gap of any length — including
+        one that opened and closed between two of its own passes — is one
+        change rather than something to catch in the act.
+        """
+        return self._generation
 
     def register(self, channel: str, handler: Handler) -> None:
         """Take delivery of one channel.
@@ -164,6 +176,7 @@ class NotifyBus:
                     await connection.add_listener(channel, self._on_notify)
                 async with self._lock:
                     self._connection = connection
+                    self._generation += 1
                 logger.info(
                     "notify bus listening on %s", ", ".join(sorted(self._handlers))
                 )
