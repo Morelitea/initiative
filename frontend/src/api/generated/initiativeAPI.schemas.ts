@@ -4938,6 +4938,14 @@ export interface PushTokenUnregisterRequest {
 }
 
 /**
+ * One output column, as the database describes it before running.
+ */
+export interface QueryColumnDescription {
+  name: string;
+  type: FieldType;
+}
+
+/**
  * One statement to read.
  */
 export interface QueryRequest {
@@ -4955,6 +4963,13 @@ export interface QueryResponse {
   columns: string[];
   rows: unknown[][];
   truncated: boolean;
+}
+
+/**
+ * What a statement would return, without returning it.
+ */
+export interface QueryShapeResponse {
+  columns: QueryColumnDescription[];
 }
 
 export interface QueueCreate {

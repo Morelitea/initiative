@@ -10,6 +10,7 @@ from typing import Any, List
 from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel
+from app.services.fields.spec import FieldType
 
 
 class QueryRequest(SanitizedBaseModel):
@@ -19,6 +20,21 @@ class QueryRequest(SanitizedBaseModel):
     #: surface accepts fits comfortably, and a payload past it is not a query
     #: anybody wrote by hand.
     sql: str = Field(min_length=1, max_length=20_000)
+
+
+class QueryColumnDescription(SanitizedBaseModel):
+    """One output column, as the database describes it before running."""
+
+    name: str
+    #: The same vocabulary the field registry uses, so a client reading a
+    #: query's shape and a client reading a dataset's fields read one thing.
+    type: FieldType
+
+
+class QueryShapeResponse(SanitizedBaseModel):
+    """What a statement would return, without returning it."""
+
+    columns: List[QueryColumnDescription]
 
 
 class QueryResponse(SanitizedBaseModel):

@@ -18,7 +18,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
 from app.core.messages import QueryMessages
 from app.db.session import rls_context_params
-from app.schemas.sql_query import QueryRequest, QueryResponse
+from app.schemas.sql_query import (
+    QueryColumnDescription,
+    QueryRequest,
+    QueryResponse,
+    QueryShapeResponse,
+)
 from app.services import query as query_service
 
 router = APIRouter()
@@ -29,6 +34,33 @@ _STATUS = {
     QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
     QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
 }
+
+
+@router.post("/query/describe", response_model=QueryShapeResponse)
+async def describe_query(
+    payload: QueryRequest,
+    session: RLSSessionDep,
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> QueryShapeResponse:
+    """Say what one statement would return, without running it.
+
+    Costs a plan and no rows, so a builder may ask as often as it likes.
+    """
+    try:
+        columns = await query_service.describe(
+            payload.sql, context=rls_context_params(session)
+        )
+    except query_service.QueryError as refused:
+        raise HTTPException(
+            status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            detail=refused.code,
+        ) from refused
+    return QueryShapeResponse(
+        columns=[
+            QueryColumnDescription(name=column.name, type=column.type)
+            for column in columns
+        ]
+    )
 
 
 @router.post("/query", response_model=QueryResponse)

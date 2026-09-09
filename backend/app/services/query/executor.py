@@ -23,20 +23,23 @@ perfectly legal, and it does so without executing it.
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, AsyncIterator, Mapping
 
 from asyncpg.exceptions import (
     DataError,
     QueryCanceledError,
     UndefinedFunctionError,
 )
+from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import QueryMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
+from app.services.fields.spec import FieldType
 from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 
 
@@ -54,6 +57,62 @@ class QueryResult:
     cost: float
     #: Whether there were more rows than one query returns.
     truncated: bool
+
+
+@dataclass(frozen=True)
+class QueryColumn:
+    """One output column, named and typed before anything runs."""
+
+    name: str
+    type: FieldType
+
+
+#: What a Postgres type is, in the vocabulary the field registry already uses.
+#: Only the distinctions a reader's tile turns on: whether a value counts,
+#: whether it falls on a timeline, whether it is a yes or no.
+_NUMBER_TYPES = frozenset(
+    {"int2", "int4", "int8", "numeric", "float4", "float8", "money"}
+)
+_DATE_TYPES = frozenset(
+    {"date", "time", "timetz", "timestamp", "timestamptz", "interval"}
+)
+
+
+async def _enum_types(connection: Any, oids: set[int]) -> set[int]:
+    """Which of these types are a closed vocabulary the database defines.
+
+    Asked of the catalog rather than read off the description: a prepared
+    statement reports every type as scalar, so an enum column is
+    indistinguishable there from the text it is stored beside.
+    """
+    if not oids:
+        return set()
+    rows = await connection.fetch(
+        "SELECT oid FROM pg_type WHERE oid = ANY($1::oid[]) AND typtype = 'e'",
+        list(oids),
+    )
+    return {row["oid"] for row in rows}
+
+
+def _column_type(attribute: Any, enum_oids: set[int]) -> FieldType:
+    """What the database says an output column holds.
+
+    The answer for an output the registry cannot name — a count, a case, a date
+    truncated to its month — since a field selected on its own is described by
+    the registry that declares it (:attr:`ResolvedQuery.column_types`). Only the
+    distinctions a tile turns on, in the same words the registry uses.
+    """
+    postgres_type = attribute.type
+    if postgres_type.oid in enum_oids:
+        return FieldType.enum
+    name = postgres_type.name
+    if name in _NUMBER_TYPES:
+        return FieldType.number
+    if name in _DATE_TYPES:
+        return FieldType.date
+    if name == "bool":
+        return FieldType.boolean
+    return FieldType.text
 
 
 #: Names the query surface's locks apart from anything else that takes one.
@@ -80,30 +139,59 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
     return False
 
 
+#: The statement limits, as one bound statement. ``set_config`` is the function
+#: form of ``SET LOCAL`` and takes its value as a parameter, where ``SET`` takes
+#: only a literal — so the settings arrive bound rather than written into SQL.
+#: The last is a constant: one query is one backend's worth of the server's
+#: attention.
+_TRANSACTION_LIMITS = text(
+    "SELECT set_config('statement_timeout', :statement_timeout, true),"
+    " set_config('work_mem', :work_mem, true),"
+    " set_config('max_parallel_workers_per_gather', '0', true)"
+)
+
+
 async def _bound_transaction(connection: Any) -> None:
     """Put the limits on the transaction, before anything of the reader's runs.
 
     Issued through SQLAlchemy rather than the driver underneath it, so they
     land inside the transaction it is managing — all four are local to one, and
-    ``SET TRANSACTION READ ONLY`` has to be the first thing in it.
+    ``SET TRANSACTION READ ONLY`` has to be the first thing in it, ahead of the
+    statement that sets the rest.
     """
     await connection.exec_driver_sql("SET TRANSACTION READ ONLY")
-    await connection.exec_driver_sql(
-        f"SET LOCAL statement_timeout = {int(settings.QUERY_STATEMENT_TIMEOUT_MS)}"
+    await connection.execute(
+        _TRANSACTION_LIMITS,
+        {
+            "statement_timeout": str(int(settings.QUERY_STATEMENT_TIMEOUT_MS)),
+            "work_mem": settings.QUERY_WORK_MEM,
+        },
     )
-    await connection.exec_driver_sql(
-        f"SET LOCAL work_mem = '{settings.QUERY_WORK_MEM}'"
-    )
-    # One query is one backend's worth of the server's attention.
-    await connection.exec_driver_sql("SET LOCAL max_parallel_workers_per_gather = 0")
 
 
 async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
-    plan = await connection.fetchval(
-        f"EXPLAIN (FORMAT JSON) {statement.sql}", *statement.parameters
-    )
+    plan = await connection.fetchval(statement.explain(), *statement.parameters)
     document = json.loads(plan) if isinstance(plan, str) else plan
     return float(document[0]["Plan"]["Total Cost"])
+
+
+@asynccontextmanager
+async def _translated_failures() -> AsyncIterator[None]:
+    """Turn what the database says into what this surface answers.
+
+    The two things a statement this surface accepted can still do: run out of
+    the time it is allowed, or fail on a value — a division by zero, a value
+    that will not convert, a function called with types it does not take. Both
+    are the reader's statement rather than the app's, so both are told back
+    with a code and what the database said, and both reach the reader whether
+    the statement was run or only described.
+    """
+    try:
+        yield
+    except QueryCanceledError as cancelled:
+        raise QueryError(QueryMessages.TIMED_OUT) from cancelled
+    except (DataError, UndefinedFunctionError) as failed:
+        raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
 def _routed_guild(context: Mapping[str, Any]) -> int:
@@ -131,7 +219,7 @@ async def execute(
     guild_id = _routed_guild(context)
     routed = dict(context)
     routed["query"] = True
-    try:
+    async with _translated_failures():
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
             # below and the context after it are transaction-local, so they
@@ -169,16 +257,54 @@ async def execute(
                 cost=cost,
                 truncated=truncated,
             )
-    except QueryCanceledError as cancelled:
-        raise QueryError(QueryMessages.TIMED_OUT) from cancelled
-    except (DataError, UndefinedFunctionError) as failed:
-        # The database's answer to a statement it accepted and could not
-        # finish: a division by zero, a value that will not convert, a
-        # function called with types it does not take. The reader wrote the
-        # statement, so they are told what the database said about it.
-        raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
 async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
     """Read *sql* and run what it resolves to."""
     return await execute(resolve(sql), context=context)
+
+
+async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn, ...]:
+    """What *sql* would return, without returning it.
+
+    The statement is prepared and its description read back. Preparing plans;
+    it does not execute, so this costs a plan and no rows however much data the
+    statement would have touched — which is what makes it usable at save time,
+    on every keystroke of a builder if need be.
+
+    It runs in the same transaction and role as the real thing, because a
+    statement is only preparable against the schema its reader is routed to.
+    """
+    statement = resolve(sql)
+    routed = dict(context)
+    routed["query"] = True
+    _routed_guild(context)
+
+    async with _translated_failures():
+        async with AsyncSession(db_session.query_engine) as session:
+            await session.begin()
+            sqlalchemy_connection = await session.connection()
+            raw = await sqlalchemy_connection.get_raw_connection()
+            connection = raw.driver_connection
+
+            await _bound_transaction(sqlalchemy_connection)
+            await set_rls_context(session, **routed)
+            prepared = await connection.prepare(statement.sql)
+            attributes = prepared.get_attributes()
+            enum_oids = await _enum_types(
+                connection, {attribute.type.oid for attribute in attributes}
+            )
+            declared = statement.column_types
+            columns = tuple(
+                QueryColumn(
+                    name=attribute.name,
+                    type=(
+                        declared[position]
+                        if position < len(declared) and declared[position] is not None
+                        else _column_type(attribute, enum_oids)
+                    ),
+                )
+                for position, attribute in enumerate(attributes)
+            )
+            await session.rollback()
+            return columns
