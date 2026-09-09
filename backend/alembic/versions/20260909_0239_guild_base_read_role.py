@@ -38,13 +38,15 @@ def upgrade() -> None:
     )
     op.execute(f"GRANT USAGE ON SCHEMA public TO {ROLE}")
     # The read half of app_guild_base, table by table, rather than everything
-    # in the schema. Several shared tables are deliberately withheld from the
-    # request-path roles — see SHARED_TABLE_APP_USER_GRANTS — and a blanket
-    # grant here would hand them to a role meant to hold less, not more.
+    # in the schema: several shared tables are deliberately withheld from the
+    # request-path roles (see SHARED_TABLE_APP_USER_GRANTS), and this role is
+    # held to the same set.
     #
     # Derived from what app_guild_base can already read, so this role's reach
-    # is that role's reach with the writes removed. guild_base_ro_parity_test
-    # holds the two together as tables come and go.
+    # is that role's reach with the writes removed. No sequences: a read names
+    # none. No default privileges either — a shared table added later is
+    # granted here by the migration that adds it, and
+    # guild_base_ro_parity_test is what asks for that decision.
     op.execute(
         f"""
         DO $$
@@ -65,9 +67,6 @@ def upgrade() -> None:
         $$;
         """
     )
-    # SELECT, not USAGE: reading a sequence's value is a read; advancing it is
-    # what an insert does.
-    op.execute(f"GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO {ROLE}")
     # New shared tables reach it through the default privileges the app sets at
     # startup (app.db.bootstrap), the same way the writable floor is kept current.
 
@@ -92,9 +91,6 @@ def downgrade() -> None:
             EXECUTE format(
                 'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
                 'REVOKE SELECT ON TABLES FROM {ROLE}', current_user);
-            EXECUTE format(
-                'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
-                'REVOKE SELECT ON SEQUENCES FROM {ROLE}', current_user);
             FOR holder IN
                 SELECT m.member::regrole AS who
                 FROM pg_auth_members m
@@ -104,6 +100,9 @@ def downgrade() -> None:
                 EXECUTE format('REVOKE {ROLE} FROM %s', holder.who);
             END LOOP;
             REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {ROLE};
+            -- Sequences are not granted on the way up. Revoked anyway, so a
+            -- database that ran an earlier draft of this revision is cleaned
+            -- by a down/up cycle.
             REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM {ROLE};
             REVOKE ALL ON SCHEMA public FROM {ROLE};
         END

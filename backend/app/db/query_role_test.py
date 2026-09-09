@@ -159,9 +159,7 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
 )
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])
 async def test_it_cannot_write_shared_tables(engine, provisioned, table, verb):
-    """The shared floor it inherits is the read-only one. The writable floor
-    every other guild role carries would arrive by inheritance, and an
-    inherited privilege cannot be revoked back off."""
+    """The shared floor it inherits is the read-only one."""
     role = guild_query_role_name(_GID)
     async with engine.connect() as conn:
         granted = await conn.scalar(

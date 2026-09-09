@@ -1,14 +1,9 @@
-"""``app_guild_base_ro`` is the read half of ``app_guild_base``.
+"""``app_guild_base_ro`` holds the read half of ``app_guild_base``.
 
-The read-only floor exists so a role that only reads can hold only reads. What
-it must *not* become is a wider grant than the writable floor it mirrors: the
-shared tables withheld from the request path (see
-``SHARED_TABLE_APP_USER_GRANTS``) are withheld by explicit revokes, and a role
-added later does not inherit those decisions unless something holds it to them.
-
-That something is this test. Both roles receive schema-wide default privileges,
-so a table added tomorrow reaches both; a table revoked from one and not the
-other shows up here as a difference.
+The two are kept as one set: every table the writable floor can read, and no
+other. ``app_guild_base_ro`` takes no schema-wide default privileges, so a
+shared table added later reaches the writable floor and not this one, and shows
+up here as a difference until the migration that adds it says which it is.
 """
 
 import pytest
@@ -39,8 +34,7 @@ async def _rows(engine):
 
 
 async def test_the_read_floor_reads_nothing_extra(engine):
-    """The interesting direction: a table the writable floor cannot read must
-    not be readable here either."""
+    """Nothing the writable floor cannot read is readable here."""
     wider = [
         r.name
         for r in await _rows(engine)
@@ -50,14 +44,50 @@ async def test_the_read_floor_reads_nothing_extra(engine):
 
 
 async def test_the_read_floor_reads_everything_the_writable_one_does(engine):
-    """The other direction, which is a working problem rather than a security
-    one: a guild read that the full role can serve has to work here too."""
+    """A guild read the full role can serve works here too.
+
+    A new shared table lands here first: grant it to ``app_guild_base_ro`` in
+    the migration that adds it, or leave it out on purpose.
+    """
     narrower = [
         r.name
         for r in await _rows(engine)
         if r.writable_reads and not r.read_only_reads
     ]
     assert narrower == [], f"{READ_FLOOR} cannot read: {narrower}"
+
+
+async def test_the_read_floor_holds_no_sequences(engine):
+    """A read names no sequence."""
+    async with engine.connect() as conn:
+        held = await conn.scalar(
+            text(
+                "WITH s AS MATERIALIZED ("
+                "  SELECT c.oid FROM pg_class c"
+                "  JOIN pg_namespace n ON n.oid = c.relnamespace"
+                "  WHERE n.nspname = 'public' AND c.relkind = 'S') "
+                "SELECT count(*) FROM s "
+                "WHERE has_sequence_privilege(:r, s.oid, 'SELECT') "
+                "   OR has_sequence_privilege(:r, s.oid, 'USAGE')"
+            ),
+            {"r": READ_FLOOR},
+        )
+        assert held == 0
+
+
+async def test_the_read_floor_takes_no_default_privileges(engine):
+    """Nothing grants it a table it was not granted on purpose."""
+    async with engine.connect() as conn:
+        entries = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_default_acl a "
+                "JOIN pg_namespace n ON n.oid = a.defaclnamespace "
+                "WHERE n.nspname = 'public' "
+                "AND strpos(array_to_string(a.defaclacl, ','), :r) > 0"
+            ),
+            {"r": READ_FLOOR},
+        )
+        assert entries == 0
 
 
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])

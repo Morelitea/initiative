@@ -378,6 +378,10 @@ $$;
 # shared table grants them nothing until a migration decides, from the audited
 # registry in app.db.system_grants. Skipped until the floors exist — the
 # baseline migration creates them, and the next start asserts this.
+#
+# app_guild_base_ro takes no default privileges. A shared table added later is
+# granted to it by the migration that adds it, once somebody has decided the
+# read floor should have it; guild_base_ro_parity_test is what asks.
 _DEFAULT_PRIVILEGES = """
 DO $$
 DECLARE
@@ -386,16 +390,6 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base')
        OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'platform_base') THEN
         RETURN;
-    END IF;
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base_ro') THEN
-        EXECUTE format(
-            'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
-            'GRANT SELECT ON TABLES TO app_guild_base_ro',
-            provisioner);
-        EXECUTE format(
-            'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
-            'GRANT SELECT ON SEQUENCES TO app_guild_base_ro',
-            provisioner);
     END IF;
     EXECUTE format(
         'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
