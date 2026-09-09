@@ -15,6 +15,7 @@ export {
   buildFilterPreset,
   resetCounter as resetFilterPresetCounter,
 } from "./filterPreset.factory";
+export { buildGallery, buildGalleryImage } from "./gallery.factory";
 export {
   buildBanner,
   buildGuild,
@@ -94,6 +95,7 @@ import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
 import { resetCounter as resetDocumentCounter } from "./document.factory";
 import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
+import { resetCounter as resetGalleryCounter } from "./gallery.factory";
 import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
 import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
@@ -130,4 +132,5 @@ export function resetFactories(): void {
   resetSearchCounter();
   resetDmCounter();
   resetPostCounter();
+  resetGalleryCounter();
 }

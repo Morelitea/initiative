@@ -40,6 +40,8 @@
     "counter_group": "Grupo de contadores",
     "counter": "Contador",
     "dashboard": "Panel",
-    "post": "Publicación"
+    "post": "Publicación",
+    "gallery": "Galería",
+    "gallery_image": "Imagen"
   }
 }

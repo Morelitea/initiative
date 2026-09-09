@@ -70,6 +70,12 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
     [:octicons-arrow-right-24: Posts](posts.md)
 
+-   :material-image-multiple-outline: __Galleries__
+
+    A wall of pictures. Mockups, screenshots, the four logos that lost.
+
+    [:octicons-arrow-right-24: Galleries](galleries.md)
+
 -   :material-storefront-outline: __Apps & the marketplace__
 
     Ready-made dashboards and apps built by other groups.

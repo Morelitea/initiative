@@ -30,6 +30,7 @@ from app.core.messages import (
     CommentMessages,
     CounterMessages,
     DashboardMessages,
+    GalleryMessages,
     PostMessages,
     QueueMessages,
 )
@@ -39,6 +40,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
+from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
@@ -132,6 +134,12 @@ TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
         Post,
         CommentMessages.TARGET_NOT_FOUND,
         PostMessages.FEATURE_DISABLED,
+    ),
+    Tool.gallery: CommentTarget(
+        Tool.gallery,
+        Gallery,
+        CommentMessages.TARGET_NOT_FOUND,
+        GalleryMessages.FEATURE_DISABLED,
     ),
 }
 
@@ -614,6 +622,7 @@ async def create_comment(
     calendar_id: Optional[int] = None,
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
+    gallery_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
     parent_comment = None
@@ -632,6 +641,7 @@ async def create_comment(
             "calendar_id": calendar_id,
             "dashboard_id": dashboard_id,
             "post_id": post_id,
+            "gallery_id": gallery_id,
         }
     )
     ctx = await _resolved_parent(
@@ -886,6 +896,7 @@ async def list_comments(
     calendar_id: Optional[int] = None,
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
+    gallery_id: Optional[int] = None,
 ) -> Sequence[Comment]:
     column, entity_id = _single_target(
         {
@@ -897,6 +908,7 @@ async def list_comments(
             "calendar_id": calendar_id,
             "dashboard_id": dashboard_id,
             "post_id": post_id,
+            "gallery_id": gallery_id,
         }
     )
     ctx = await _resolved_parent(

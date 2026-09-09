@@ -108,7 +108,8 @@
     "calendars": "Kalender",
     "dashboards": "Dashboards",
     "counterGroups": "Zähler",
-    "posts": "Beiträge"
+    "posts": "Beiträge",
+    "galleries": "Galerien"
   },
   "settings": {
     "title": "Initiative-Einstellungen",
@@ -237,7 +238,8 @@
       "calendars": "Termine",
       "dashboards": "Dashboards",
       "counterGroups": "Zähler",
-      "posts": "Beiträge"
+      "posts": "Beiträge",
+      "galleries": "Galerien"
     },
     "permissions": {
       "viewDocuments": "Dokumente anzeigen",
@@ -253,7 +255,9 @@
       "viewCounterGroups": "Zähler anzeigen",
       "createCounterGroups": "Zähler erstellen",
       "viewPosts": "Beiträge anzeigen",
-      "createPosts": "Beiträge erstellen"
+      "createPosts": "Beiträge erstellen",
+      "viewGalleries": "Galerien anzeigen",
+      "createGalleries": "Galerien erstellen"
     },
     "handleColumn": "Handle",
     "toolAudience": {
@@ -286,5 +290,7 @@
   "counterGroupsFeature": "Zähler",
   "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
   "postsFeature": "Beiträge",
-  "postsFeatureDescription": "Ein schwarzes Brett für die Initiative – Mitteilungen, die alle lesen, kommentieren und mit Reaktionen versehen können, wobei die wichtigsten oben angeheftet werden."
+  "postsFeatureDescription": "Ein schwarzes Brett für die Initiative – Mitteilungen, die alle lesen, kommentieren und mit Reaktionen versehen können, wobei die wichtigsten oben angeheftet werden.",
+  "galleriesFeature": "Galerien",
+  "galleriesFeatureDescription": "Bildersammlungen – Mockups, Screenshots, exportierte Entwürfe – als Wand durchstöbert statt einzeln gelesen, mit Tags und Versionsverlauf für jedes Bild."
 }

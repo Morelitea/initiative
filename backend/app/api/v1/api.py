@@ -38,6 +38,7 @@ from app.api.v1.tenant_endpoints import (
     marketplace as guild_marketplace,
     me_ai,
     me_tools,
+    galleries,
     me_trash,
     posts,
     projects,
@@ -205,6 +206,7 @@ guild_router.include_router(
     dashboards.router, prefix="/dashboards", tags=["dashboards"]
 )
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
+guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #

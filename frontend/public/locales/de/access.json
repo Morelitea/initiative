@@ -108,6 +108,8 @@
     "resource_dashboard_one": "Dashboard",
     "resource_dashboard_other": "Dashboards",
     "resource_post_one": "Beitrag",
-    "resource_post_other": "Beiträge"
+    "resource_post_other": "Beiträge",
+    "resource_gallery_one": "Galerie",
+    "resource_gallery_other": "Galerien"
   }
 }

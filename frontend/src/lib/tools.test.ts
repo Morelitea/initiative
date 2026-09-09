@@ -24,6 +24,7 @@ import {
   initiativeRoute,
   NON_EXPORTABLE_TOOLS,
   SIDEBAR_TOOLS,
+  singularOf,
   TOGGLEABLE_TOOLS,
   TOOL_ICONS,
   TOOL_SETTINGS_SECTIONS,
@@ -38,7 +39,8 @@ import {
   toolListRoute,
   toolNavLabelKey,
   toolParamName,
-  toolPascalSingular,
+  toolPascalPlural,
+  toolPlural,
   toolRefRoute,
   toolRouteSegment,
   toolSettingsRoute,
@@ -154,7 +156,7 @@ describe("tool i18n", () => {
     const permissions = initiatives.settings.permissions as Record<string, string>;
     for (const tool of TOOLS) {
       const camel = toolCamelPlural(tool);
-      const pascalPlural = `${toolPascalSingular(tool)}s`;
+      const pascalPlural = toolPascalPlural(tool);
       expect(detail[camel], `missing initiatives.json detail.${camel}`).toBeTruthy();
       expect(
         groups[camel],
@@ -235,6 +237,16 @@ describe("tool routes", () => {
         `${tool} would shadow /i/$initiativeId/${toolRouteSegment(tool)}`
       ).toBe(false);
     }
+  });
+
+  it("pluralizes and singularizes by one rule, not by adding or chopping an s", () => {
+    expect(toolPlural(Tool.gallery)).toBe("galleries");
+    expect(toolRouteSegment(Tool.gallery)).toBe("galleries");
+    expect(toolCamelPlural(Tool.gallery)).toBe("galleries");
+    expect(toolPascalPlural(Tool.gallery)).toBe("Galleries");
+    expect(singularOf("galleries")).toBe("gallery");
+    expect(singularOf("counter_groups")).toBe("counter_group");
+    expect(singularOf("tasks")).toBe("task");
   });
 
   it("derives the route param name from the enum", () => {

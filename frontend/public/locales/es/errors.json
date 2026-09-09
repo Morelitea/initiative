@@ -583,5 +583,21 @@
   "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Solo puedes compartir Contadores con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
   "GRANTEE_LACKS_CALENDAR_ACCESS": "Solo puedes compartir Calendario con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
   "GRANTEE_LACKS_DASHBOARD_ACCESS": "Solo puedes compartir Paneles con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
-  "GRANTEE_LACKS_POST_ACCESS": "Solo puedes compartir Publicaciones con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir."
+  "GRANTEE_LACKS_POST_ACCESS": "Solo puedes compartir Publicaciones con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GRANTEE_LACKS_GALLERY_ACCESS": "Solo puedes compartir Galerías con personas cuyo rol lo incluya. Actualiza el rol en la configuración de la iniciativa y vuelve a compartir.",
+  "GALLERY_NOT_FOUND": "Galería no encontrada",
+  "GALLERY_CREATE_PERMISSION_REQUIRED": "No tienes permiso para crear galerías aquí",
+  "GALLERIES_NOT_ENABLED": "Las galerías no están activadas en esta iniciativa",
+  "GALLERY_PERMISSION_REQUIRED": "No tienes acceso a esta galería",
+  "GALLERY_OWNER_REQUIRED": "Solo la persona propietaria de la galería puede hacer eso",
+  "GALLERY_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a esta galería",
+  "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso compartido no puede gestionar quién más ve esta galería",
+  "GALLERY_IMAGE_NOT_FOUND": "Esa imagen no está en esta galería",
+  "GALLERY_INVALID_IMAGE": "Ese archivo no es una imagen que esta galería pueda mostrar: usa PNG, JPEG, WebP o GIF",
+  "GALLERY_IMAGE_TOO_LARGE": "Esa imagen es demasiado grande: el límite es 25 MB",
+  "GALLERY_IMAGE_EMPTY": "Ese archivo está vacío",
+  "GALLERY_VERSION_NOT_FOUND": "Esa versión ya no existe",
+  "GALLERY_CANNOT_DELETE_LAST_VERSION": "Una imagen conserva al menos una versión; elimina la imagen en su lugar",
+  "GALLERY_VERSION_CONFLICT": "Otra persona subió una versión en el mismo momento; inténtalo de nuevo",
+  "GALLERY_COVER_NOT_IN_GALLERY": "La portada tiene que ser una de las imágenes de esta galería"
 }

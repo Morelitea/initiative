@@ -39,6 +39,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.post import Post
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
 
@@ -55,12 +56,14 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
         (Calendar, "initiative_id"),
         (Dashboard, "initiative_id"),
         (Post, "initiative_id"),
+        (Gallery, "initiative_id"),
         (CounterGroup, "initiative_id"),
     ],
     Project: [(Task, "project_id")],
     Calendar: [(CalendarEvent, "calendar_id")],
     Document: [(Comment, "document_id")],
     Post: [(Comment, "post_id")],
+    Gallery: [(GalleryImage, "gallery_id"), (Comment, "gallery_id")],
     Task: [(Comment, "task_id")],
     Queue: [(QueueItem, "queue_id")],
     CounterGroup: [(Counter, "counter_group_id")],
@@ -286,7 +289,10 @@ async def hard_purge_entity(
     removed.
     """
     from app.services.tenant.documents import unresolve_wikilinks_to_document
-    from app.services.tenant.attachments import purge_document_uploads
+    from app.services.tenant.attachments import (
+        purge_document_uploads,
+        purge_gallery_image_uploads,
+    )
     from app.services.tenant.reactions import purge_comment_reactions
 
     descendants = await _gather_descendants(session, entity)
@@ -297,6 +303,12 @@ async def hard_purge_entity(
     doomed_comments = [c for c in all_doomed if isinstance(c, Comment)]
     if doomed_comments:
         await purge_comment_reactions(session, doomed_comments)
+
+    # A picture's blobs — every version and its thumbnail — go with it, the
+    # way a file document's do.
+    doomed_images = [i for i in all_doomed if isinstance(i, GalleryImage)]
+    if doomed_images:
+        await purge_gallery_image_uploads(session, doomed_images)
 
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:

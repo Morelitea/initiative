@@ -108,7 +108,8 @@
     "calendars": "Calendar",
     "dashboards": "Dashboards",
     "counterGroups": "Counters",
-    "posts": "Posts"
+    "posts": "Posts",
+    "galleries": "Galleries"
   },
   "settings": {
     "title": "Initiative settings",
@@ -237,7 +238,8 @@
       "calendars": "Events",
       "dashboards": "Dashboards",
       "counterGroups": "Counters",
-      "posts": "Posts"
+      "posts": "Posts",
+      "galleries": "Galleries"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -253,7 +255,9 @@
       "viewCounterGroups": "View Counters",
       "createCounterGroups": "Create Counters",
       "viewPosts": "View Posts",
-      "createPosts": "Create Posts"
+      "createPosts": "Create Posts",
+      "viewGalleries": "View Galleries",
+      "createGalleries": "Create Galleries"
     },
     "handleColumn": "Handle",
     "toolAudience": {
@@ -286,5 +290,7 @@
   "counterGroupsFeature": "Counters",
   "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
   "postsFeature": "Posts",
-  "postsFeatureDescription": "A bulletin board for the initiative — notices everyone can read, comment on and react to, with the important ones pinned to the top."
+  "postsFeatureDescription": "A bulletin board for the initiative — notices everyone can read, comment on and react to, with the important ones pinned to the top.",
+  "galleriesFeature": "Galleries",
+  "galleriesFeatureDescription": "Collections of pictures — mockups, screenshots, exported designs — browsed as a wall rather than read one at a time, with tags and version history on every picture."
 }

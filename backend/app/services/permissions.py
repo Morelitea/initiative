@@ -46,6 +46,7 @@ from app.core.messages import (
     CounterMessages,
     CalendarMessages,
     DashboardMessages,
+    GalleryMessages,
     PostMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -360,6 +361,13 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         PostMessages.PERMISSION_REQUIRED,
         PostMessages.OWNER_REQUIRED,
         PostMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    Tool.gallery: DacResource(
+        Tool.gallery,
+        True,
+        GalleryMessages.PERMISSION_REQUIRED,
+        GalleryMessages.OWNER_REQUIRED,
+        GalleryMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 
@@ -882,6 +890,14 @@ def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
     engine). Governs authoring the canvas only — the data each widget displays
     is authorized separately, per viewer, by that data's own tool."""
     return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
+
+
+def compute_gallery_permission(gallery: Any, user_id: int) -> str | None:
+    """Effective gallery permission string for the client (delegates to the
+    engine). Write access on a gallery is what adding, replacing and removing
+    its pictures asks for — the pictures are the gallery's content, the way
+    tasks are a project's."""
+    return compute_permission(DAC_RESOURCES[Tool.gallery], gallery, user_id)
 
 
 def compute_post_permission(post: Any, user_id: int) -> str | None:

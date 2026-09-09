@@ -1067,6 +1067,16 @@ export interface BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersio
   file: Blob;
 }
 
+export interface BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost {
+  file: Blob;
+  title?: string | null;
+  caption?: string | null;
+}
+
+export interface BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost {
+  file: Blob;
+}
+
 export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
   file: Blob;
 }
@@ -1735,6 +1745,7 @@ export interface CommentCreate {
   calendar_id?: number | null;
   dashboard_id?: number | null;
   post_id?: number | null;
+  gallery_id?: number | null;
   parent_comment_id?: number | null;
 }
 
@@ -1770,6 +1781,7 @@ export interface CommentRead {
   calendar_id: number | null;
   dashboard_id: number | null;
   post_id: number | null;
+  gallery_id: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
@@ -2343,6 +2355,8 @@ export const DatasetName = {
   calendars: "calendars",
   dashboards: "dashboards",
   posts: "posts",
+  galleries: "galleries",
+  gallery_images: "gallery_images",
 } as const;
 
 /**
@@ -2735,6 +2749,7 @@ export interface InitiativeMemberRead {
   can_view_calendars: boolean;
   can_view_dashboards: boolean;
   can_view_posts: boolean;
+  can_view_galleries: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
@@ -2742,6 +2757,7 @@ export interface InitiativeMemberRead {
   can_create_calendars: boolean;
   can_create_dashboards: boolean;
   can_create_posts: boolean;
+  can_create_galleries: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -2757,6 +2773,7 @@ export interface InitiativeRead {
   calendars_enabled: boolean;
   dashboards_enabled: boolean;
   posts_enabled: boolean;
+  galleries_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
@@ -2937,6 +2954,7 @@ export const EntityType = {
   calendar: "calendar",
   dashboard: "dashboard",
   post: "post",
+  gallery: "gallery",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -2944,6 +2962,7 @@ export const EntityType = {
   comment: "comment",
   initiative: "initiative",
   tag: "tag",
+  gallery_image: "gallery_image",
 } as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
@@ -3142,6 +3161,163 @@ export interface FilterPresetUpdate {
   filters?: TaskFilterSpec | null;
   is_default?: boolean | null;
   position?: number | null;
+}
+
+/**
+ * What a list draws for a gallery: one picture, at whichever size it has.
+ */
+export interface GalleryCover {
+  image_id: number;
+  file_url: string;
+  thumbnail_url: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+export interface GalleryCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  tag_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
+/**
+ * The pictures to send to the trash together — a selection on the wall.
+ */
+export interface GalleryImageBulkDelete {
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  image_ids: number[];
+}
+
+export interface GalleryImageBulkDeleteResponse {
+  deleted_count: number;
+}
+
+export interface GalleryImageRead {
+  id: number;
+  gallery_id: number;
+  guild_id: number;
+  title: string | null;
+  caption: string | null;
+  file_url: string;
+  thumbnail_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  width: number | null;
+  height: number | null;
+  created_by: number;
+  uploader: CommentAuthor | null;
+  created_at: string;
+  updated_at: string;
+  version_count: number;
+  tags: TagSummary[];
+}
+
+export interface GalleryImageListResponse {
+  items: GalleryImageRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface GalleryImageUpdate {
+  title?: string | null;
+  caption?: string | null;
+  tag_ids?: number[] | null;
+}
+
+/**
+ * One stored rendition of a picture.
+ */
+export interface GalleryImageVersionRead {
+  id: number;
+  version_number: number;
+  file_url: string;
+  thumbnail_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  width: number | null;
+  height: number | null;
+  created_by: number;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface GallerySummary {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  image_count: number;
+  cover_image_id: number | null;
+  cover: GalleryCover | null;
+  preview: GalleryCover[];
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface GalleryListResponse {
+  items: GallerySummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+/**
+ * A gallery on its own page. The same shape as its summary: the pictures
+ * are paged separately, because a gallery is browsed rather than read.
+ */
+export interface GalleryRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  image_count: number;
+  cover_image_id: number | null;
+  cover: GalleryCover | null;
+  preview: GalleryCover[];
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface GalleryUpdate {
+  name?: string | null;
+  description?: string | null;
+  cover_image_id?: number | null;
 }
 
 /**
@@ -3791,6 +3967,7 @@ export interface InitiativeCreate {
   calendars_enabled?: boolean;
   dashboards_enabled?: boolean;
   posts_enabled?: boolean;
+  galleries_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
@@ -3945,6 +4122,8 @@ export const PermissionKey = {
   create_dashboards: "create_dashboards",
   posts_enabled: "posts_enabled",
   create_posts: "create_posts",
+  galleries_enabled: "galleries_enabled",
+  create_galleries: "create_galleries",
 } as const;
 
 /**
@@ -4014,6 +4193,7 @@ export interface InitiativeUpdate {
   calendars_enabled?: boolean | null;
   dashboards_enabled?: boolean | null;
   posts_enabled?: boolean | null;
+  galleries_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
@@ -4519,6 +4699,7 @@ export const Tool = {
   calendar: "calendar",
   dashboard: "dashboard",
   post: "post",
+  gallery: "gallery",
 } as const;
 
 /**
@@ -5503,6 +5684,7 @@ export const RecentEntityType = {
   calendar: "calendar",
   dashboard: "dashboard",
   post: "post",
+  gallery: "gallery",
 } as const;
 
 /**
@@ -5646,6 +5828,8 @@ export const SearchEntityType = {
   counter_group: "counter_group",
   dashboard: "dashboard",
   document: "document",
+  gallery: "gallery",
+  gallery_image: "gallery_image",
   post: "post",
   project: "project",
   queue: "queue",
@@ -5892,9 +6076,11 @@ export const TagTarget = {
   calendar: "calendar",
   dashboard: "dashboard",
   post: "post",
+  gallery: "gallery",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
+  gallery_image: "gallery_image",
 } as const;
 
 /**
@@ -7154,6 +7340,7 @@ export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   calendar_id?: number | null;
   dashboard_id?: number | null;
   post_id?: number | null;
+  gallery_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
@@ -7710,6 +7897,75 @@ export type ReadPostApiV1GGuildIdPostsPostIdGetParams = {
   include_deleted?: boolean;
 };
 
+export type ListGalleriesApiV1GGuildIdGalleriesGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the gallery's name and description, through the same index the search page reads.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 500
+   */
+  page_size?: number;
+};
+
+export type ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
+export type ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams = {
+  /**
+   * Only pictures carrying ANY of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * Match on title, caption or filename.
+   */
+  search?: string | null;
+  /**
+   * Read the gallery in the order it was filled rather than newest first.
+   */
+  oldest_first?: boolean;
+  /**
+   * Start at this instant and go back — inclusive, and measured by upload time, which is what the list is ordered by. This is how a timeline jumps to a month without paging through everything since.
+   */
+  until?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams = {
+  tag_ids?: number[] | null;
+  search?: string | null;
+  /**
+   * IANA zone the month boundaries are cut in, e.g. Pacific/Auckland. Defaults to UTC.
+   */
+  tz?: string | null;
+};
+
 export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
@@ -7804,7 +8060,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -7832,7 +8088,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
 
 export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -7856,7 +8112,7 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -8091,6 +8347,29 @@ export type ListMyPostsApiV1MePostsGetParams = {
   /**
    * @minimum 0
    * @maximum 50
+   */
+  page_size?: number;
+};
+
+export type ListMyGalleriesApiV1MeGalleriesGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
    */
   page_size?: number;
 };

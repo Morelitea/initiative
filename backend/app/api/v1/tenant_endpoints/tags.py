@@ -15,12 +15,18 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import QueueMessages, TagMessages, TaskMessages
+from app.core.messages import (
+    GalleryMessages,
+    QueueMessages,
+    TagMessages,
+    TaskMessages,
+)
 from app.core.tools import Tool
 from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.tenant.task import Task
 from app.models.tenant.project import Project
 from app.models.tenant.document import Document
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.queue import QueueItem
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
@@ -183,6 +189,30 @@ async def bulk_edit_tags(
                 session,
                 Tool.queue,
                 queue_id,
+                current_user,
+                guild_context,
+                access="write",
+            )
+    elif target == "gallery_image":
+        # A picture is the gallery's content: write on the gallery, the way a
+        # task asks its project.
+        rows = (
+            await session.exec(
+                select(GalleryImage.id, GalleryImage.gallery_id).where(
+                    GalleryImage.id.in_(target_ids)
+                )
+            )
+        ).all()
+        if len(rows) != len(target_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=GalleryMessages.IMAGE_NOT_FOUND,
+            )
+        for gallery_id in {gallery_id for _, gallery_id in rows}:
+            await resource_access.load_authorized(
+                session,
+                Tool.gallery,
+                gallery_id,
                 current_user,
                 guild_context,
                 access="write",

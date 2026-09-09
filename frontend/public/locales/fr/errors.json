@@ -583,5 +583,21 @@
   "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Vous ne pouvez partager Compteurs qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
   "GRANTEE_LACKS_CALENDAR_ACCESS": "Vous ne pouvez partager Calendrier qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
   "GRANTEE_LACKS_DASHBOARD_ACCESS": "Vous ne pouvez partager Tableaux de bord qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
-  "GRANTEE_LACKS_POST_ACCESS": "Vous ne pouvez partager Publications qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau."
+  "GRANTEE_LACKS_POST_ACCESS": "Vous ne pouvez partager Publications qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GRANTEE_LACKS_GALLERY_ACCESS": "Vous ne pouvez partager Galeries qu'avec des personnes dont le rôle l'inclut. Modifiez le rôle dans les paramètres de l'initiative, puis partagez à nouveau.",
+  "GALLERY_NOT_FOUND": "Galerie introuvable",
+  "GALLERY_CREATE_PERMISSION_REQUIRED": "Vous n’avez pas la permission de créer des galeries ici",
+  "GALLERIES_NOT_ENABLED": "Les galeries ne sont pas activées pour cette initiative",
+  "GALLERY_PERMISSION_REQUIRED": "Vous n’avez pas accès à cette galerie",
+  "GALLERY_OWNER_REQUIRED": "Seule la personne propriétaire de la galerie peut faire cela",
+  "GALLERY_WRITE_ACCESS_REQUIRED": "Vous avez besoin d’un accès en écriture à cette galerie",
+  "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS": "Un accès partagé ne permet pas de gérer qui d’autre voit cette galerie",
+  "GALLERY_IMAGE_NOT_FOUND": "Cette image n’est pas dans cette galerie",
+  "GALLERY_INVALID_IMAGE": "Ce fichier n’est pas une image que cette galerie peut afficher — utilisez PNG, JPEG, WebP ou GIF",
+  "GALLERY_IMAGE_TOO_LARGE": "Cette image est trop volumineuse — la limite est de 25 Mo",
+  "GALLERY_IMAGE_EMPTY": "Ce fichier est vide",
+  "GALLERY_VERSION_NOT_FOUND": "Cette version n’existe plus",
+  "GALLERY_CANNOT_DELETE_LAST_VERSION": "Une image conserve au moins une version — retirez plutôt l’image",
+  "GALLERY_VERSION_CONFLICT": "Quelqu’un d’autre a envoyé une version au même moment — réessayez",
+  "GALLERY_COVER_NOT_IN_GALLERY": "La couverture doit être l’une des images de cette galerie"
 }

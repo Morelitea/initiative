@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEventTag
     from app.models.tenant.dashboard import DashboardTag
     from app.models.tenant.post import PostTag
+    from app.models.tenant.gallery import GalleryImageTag, GalleryTag
     from app.models.tenant.counter import CounterGroupTag
 
 
@@ -79,6 +80,14 @@ class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     post_links: List["PostTag"] = Relationship(
+        back_populates="tag",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    gallery_links: List["GalleryTag"] = Relationship(
+        back_populates="tag",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    gallery_image_links: List["GalleryImageTag"] = Relationship(
         back_populates="tag",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

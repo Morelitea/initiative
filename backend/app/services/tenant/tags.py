@@ -2,7 +2,7 @@
 
 ``TOOL_TAG_LINKS`` is the registry: **every** ``Tool`` is taggable — a new tool
 that forgets to wire tags fails ``tools_test.py`` — and the content-level
-extras (tasks, queue items, calendar events) are deliberately hard-coded in
+extras (tasks, queue items, calendar events, gallery images) are deliberately hard-coded in
 ``EXTRA_TAG_LINKS`` (they are sub-resources of a tool, not tools themselves). Everything an
 assignment surface needs — validation, replace-all, copy, bulk add/remove,
 serialization — lives here, so per-entity endpoints are wiring only.
@@ -29,6 +29,7 @@ from app.models.tenant.calendar_event import CalendarEvent, CalendarEventTag
 from app.models.tenant.counter import CounterGroup, CounterGroupTag
 from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.post import Post, PostTag
+from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageTag, GalleryTag
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem, QueueItemTag, QueueTag
@@ -87,6 +88,7 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
     Tool.calendar: TagLinkSpec(Calendar, CalendarTag, "calendar_id"),
     Tool.dashboard: TagLinkSpec(Dashboard, DashboardTag, "dashboard_id"),
     Tool.post: TagLinkSpec(Post, PostTag, "post_id"),
+    Tool.gallery: TagLinkSpec(Gallery, GalleryTag, "gallery_id"),
 }
 
 # Content-level extras: sub-resources of a tool that also carry tags. These are
@@ -95,6 +97,7 @@ EXTRA_TAG_LINKS: dict[str, TagLinkSpec] = {
     "task": TagLinkSpec(Task, TaskTag, "task_id"),
     "queue_item": TagLinkSpec(QueueItem, QueueItemTag, "queue_item_id"),
     "calendar_event": TagLinkSpec(CalendarEvent, CalendarEventTag, "calendar_event_id"),
+    "gallery_image": TagLinkSpec(GalleryImage, GalleryImageTag, "gallery_image_id"),
 }
 
 # Keyed by the wire name (`Tool.value` or the extra's key) — the bulk endpoint's

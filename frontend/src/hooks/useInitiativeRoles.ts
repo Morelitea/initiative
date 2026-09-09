@@ -28,7 +28,7 @@ import {
   TOOLS,
   toolCamelPlural,
   toolCreatePermission,
-  toolPascalSingular,
+  toolPascalPlural,
   toolViewPermission,
 } from "@/lib/tools";
 
@@ -224,8 +224,8 @@ export const canCreateTool = (
 // tool, derived: settings.permissions.view{PascalPlural} / create{PascalPlural}.
 export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromEntries(
   TOOLS.flatMap((tool) => [
-    [toolViewPermission(tool), `settings.permissions.view${toolPascalSingular(tool)}s`],
-    [toolCreatePermission(tool), `settings.permissions.create${toolPascalSingular(tool)}s`],
+    [toolViewPermission(tool), `settings.permissions.view${toolPascalPlural(tool)}`],
+    [toolCreatePermission(tool), `settings.permissions.create${toolPascalPlural(tool)}`],
   ])
 ) as Record<PermissionKey, string>;
 

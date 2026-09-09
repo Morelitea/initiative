@@ -34,7 +34,9 @@
     "dashboard": "Tableau de bord",
     "tag": "Étiquette",
     "comment": "Commentaire",
-    "post": "Publication"
+    "post": "Publication",
+    "gallery": "Galerie",
+    "gallery_image": "Image"
   },
   "switchHint": "Tab pour changer",
   "closeMatches": "Rien ne correspond exactement à « {{query}} ». Voici ce qui s’en rapproche le plus.",

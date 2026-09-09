@@ -145,6 +145,11 @@
     "perPage": "Par page :",
     "rangeOf": "{{start}}–{{end}} sur {{total}}"
   },
+  "lightbox": {
+    "title": "Image",
+    "description": "Utilisez les flèches ou faites glisser pour passer d’une image à l’autre.",
+    "position": "{{current}} / {{total}}"
+  },
   "timeline": {
     "label": "Aller à un mois",
     "jumpedTo": "À partir de {{period}}",

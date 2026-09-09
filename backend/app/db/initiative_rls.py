@@ -384,6 +384,45 @@ def via_post_poll(fk: str = "poll_id") -> InitiativePath:
     )
 
 
+def via_gallery_image(fk: str = "gallery_image_id") -> InitiativePath:
+    """Two hops: ``table.<fk> -> gallery_images -> galleries.initiative_id``."""
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM gallery_images gi "
+            f"JOIN galleries ga ON ga.id = gi.gallery_id "
+            f"WHERE gi.id = {t}.{fk} "
+            f"AND {_access('ga.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT ga.initiative_id FROM gallery_images gi "  # noqa: S608
+            f"JOIN galleries ga ON ga.id = gi.gallery_id WHERE gi.id = {r}.{fk})"
+        ),
+        # A picture has no route of its own — the gallery is the addressable
+        # thing, and re-reading it brings the picture back — so the chain
+        # skips straight to it.
+        parents=lambda r: _parent_chain(
+            "gallery_images gi", "gi.id", f"{r}.{fk}", ("galleries", "gi.gallery_id")
+        ),
+        dac=_dac_two_hop("gallery_images", "gallery_id", "galleries", fk),
+    )
+
+
+def gallery_images_path() -> InitiativePath:
+    """One hop to ``galleries``, reporting the gallery as the only parent.
+
+    :func:`via` does the same join; what differs is the chain. A picture is
+    read through its gallery rather than at an address of its own, so the
+    gallery is the whole of what an event about one names.
+    """
+    hop = via("galleries", "gallery_id")
+    return InitiativePath(
+        predicate=hop.predicate,
+        initiative_expr=hop.initiative_expr,
+        parents=lambda r: _one_parent("galleries", f"{r}.gallery_id"),
+        dac=hop.dac,
+    )
+
+
 def via_event_calendar(fk: str = "calendar_event_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> calendar_events -> calendars.initiative_id``."""
     return InitiativePath(
@@ -516,6 +555,13 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     ),
     CommentParent(
         "post_id", "posts po", "po.id", "po.initiative_id", (("posts", "po.id"),)
+    ),
+    CommentParent(
+        "gallery_id",
+        "galleries ga",
+        "ga.id",
+        "ga.initiative_id",
+        (("galleries", "ga.id"),),
     ),
 )
 
@@ -830,6 +876,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "calendars": direct(),
     "dashboards": direct(),
     "posts": direct(),
+    "galleries": direct(),
     "property_definitions": direct(),
     # Sharing itself. It carries no sharing leg of its own: resource_access
     # reads this table, so a policy here that called it would not resolve.
@@ -868,6 +915,12 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # One hop -> posts
     "post_tags": via("posts", "post_id"),
     "post_reads": via("posts", "post_id"),
+    # One hop -> galleries
+    "gallery_tags": via("galleries", "gallery_id"),
+    "gallery_images": gallery_images_path(),
+    # Two hops -> gallery_images -> galleries
+    "gallery_image_tags": via_gallery_image("gallery_image_id"),
+    "gallery_image_versions": via_gallery_image("gallery_image_id"),
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
@@ -1103,6 +1156,23 @@ def poll_options_report_on_their_post() -> ReportsAs:
     )
 
 
+def gallery_facets_report_on_their_gallery() -> ReportsAs:
+    """A picture's tags and versions are facets of the gallery it is in.
+
+    The picture itself has no route — the gallery is what a subscriber
+    re-reads, and it carries the pictures back — so these rows report one hop
+    further out, the way a poll option reports as its notice.
+    """
+    return ReportsAs(
+        resource_types=frozenset({"galleries"}),
+        id_expr=lambda r: (
+            f"(SELECT gallery_images.gallery_id FROM gallery_images "  # noqa: S608
+            f"WHERE gallery_images.id = {r}.gallery_image_id)"
+        ),
+        facet="images",
+    )
+
+
 def _role_initiative(r: str) -> str:
     """The initiative a row's ``initiative_role_id`` belongs to."""
     return (
@@ -1226,6 +1296,12 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "document_file_versions": Emit(
         reports_as=reports_as("documents", "document_id", "versions")
     ),
+    # A picture is read through its gallery rather than at an address of its
+    # own, so every change to one reports as the gallery it is in — its tags
+    # and its history one hop further out.
+    "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
+    "gallery_image_tags": Emit(reports_as=gallery_facets_report_on_their_gallery()),
+    "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),
     "post_poll_options": Emit(reports_as=poll_options_report_on_their_post()),

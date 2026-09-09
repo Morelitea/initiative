@@ -575,7 +575,13 @@ async def serve_upload_file(
     if blob is None:
         raise HTTPException(status_code=404)
 
-    headers: dict[str, str] = {}
+    # A stored file never changes under its name — every write, including a
+    # new version of a picture, gets a fresh UUID — so a browser may keep it
+    # for as long as it likes. Private: the URL is authorized per request, and
+    # a shared cache must not serve it to the next reader.
+    headers: dict[str, str] = {
+        "Cache-Control": "private, max-age=31536000, immutable",
+    }
     if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"

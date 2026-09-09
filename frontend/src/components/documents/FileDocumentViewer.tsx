@@ -17,10 +17,10 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 import type { DocumentFileVersionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { Lightbox } from "@/components/shared/Lightbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import {
@@ -512,20 +512,15 @@ export const FileDocumentViewer = ({
                 referrerPolicy="no-referrer"
               />
             </button>
-            <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-              <DialogContent
-                className="max-h-[95vh] max-w-[95vw] place-items-center gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]"
-                showCloseButton={false}
-                onClick={() => setLightboxOpen(false)}
-              >
-                <img
-                  src={inlineUrl}
-                  alt={originalFilename || ""}
-                  className="max-h-[90vh] max-w-[90vw] object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </DialogContent>
-            </Dialog>
+            <Lightbox
+              open={lightboxOpen}
+              onOpenChange={setLightboxOpen}
+              items={
+                inlineUrl ? [{ id: documentId, src: inlineUrl, alt: originalFilename || "" }] : []
+              }
+              index={0}
+              onIndexChange={() => {}}
+            />
           </>
         ) : isMarkdown ? (
           <div className="flex flex-col">

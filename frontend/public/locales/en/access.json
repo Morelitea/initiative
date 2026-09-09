@@ -108,6 +108,8 @@
     "resource_dashboard_one": "dashboard",
     "resource_dashboard_other": "dashboards",
     "resource_post_one": "post",
-    "resource_post_other": "posts"
+    "resource_post_other": "posts",
+    "resource_gallery_one": "gallery",
+    "resource_gallery_other": "galleries"
   }
 }

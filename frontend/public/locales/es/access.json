@@ -108,6 +108,8 @@
     "resource_dashboard_one": "panel",
     "resource_dashboard_other": "paneles",
     "resource_post_one": "publicación",
-    "resource_post_other": "publicaciones"
+    "resource_post_other": "publicaciones",
+    "resource_gallery_one": "galería",
+    "resource_gallery_other": "galerías"
   }
 }

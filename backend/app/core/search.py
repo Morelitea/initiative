@@ -22,6 +22,7 @@ NON_TOOL_ENTITY_TYPES: tuple[str, ...] = (
     "queue_item",
     "counter",
     "calendar_event",
+    "gallery_image",
     "comment",
     "tag",
 )

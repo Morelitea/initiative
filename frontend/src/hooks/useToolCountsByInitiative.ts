@@ -16,6 +16,7 @@ import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
 import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
 import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
+import { useGalleryCountsByInitiative } from "@/hooks/useGalleries";
 import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useProjectCountsByInitiative } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
@@ -57,6 +58,7 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
   const calendars = useCalendarCountsByInitiative(queryOptions);
   const dashboards = useDashboardCountsByInitiative(queryOptions);
   const posts = usePostCountsByInitiative(queryOptions);
+  const galleries = useGalleryCountsByInitiative(queryOptions);
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the query that counts it.
@@ -68,6 +70,7 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
     [Tool.calendar]: calendars,
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
+    [Tool.gallery]: galleries,
   };
 
   // One small map per tool, read during render only — cheap enough to rebuild

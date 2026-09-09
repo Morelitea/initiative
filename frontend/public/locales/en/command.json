@@ -13,7 +13,8 @@
     "calendars": "Calendars",
     "dashboards": "Dashboards",
     "results": "Results",
-    "posts": "Posts"
+    "posts": "Posts",
+    "galleries": "Galleries"
   },
   "actions": {
     "addTask": "Add Task",

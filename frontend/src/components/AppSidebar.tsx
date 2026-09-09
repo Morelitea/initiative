@@ -51,6 +51,7 @@ import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
 import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
 import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
+import { useGalleryCountsByInitiative } from "@/hooks/useGalleries";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -219,6 +220,18 @@ export const AppSidebar = () => {
     });
     return map;
   }, [postCountsQuery.data]);
+
+  const galleryCountsQuery = useGalleryCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
+  const galleryCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    Object.entries(galleryCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
+    });
+    return map;
+  }, [galleryCountsQuery.data]);
 
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
@@ -518,6 +531,8 @@ export const AppSidebar = () => {
                                         [Tool.dashboard]:
                                           dashboardCountsByInitiative.get(initiative.id) ?? 0,
                                         [Tool.post]: postCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.gallery]:
+                                          galleryCountsByInitiative.get(initiative.id) ?? 0,
                                       }}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}
