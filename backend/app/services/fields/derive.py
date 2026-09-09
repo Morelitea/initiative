@@ -54,6 +54,11 @@ FK_CONTROLS: dict[str, ControlKind] = {
     "counter_groups": ControlKind.counter_group,
 }
 
+#: Tables a query never names. The guild is settled by the routing, so a column
+#: pointing at one says nothing a reader could use and everything they read is
+#: already inside it.
+_NEVER_NAMED: frozenset[str] = frozenset({"guilds"})
+
 #: Types that carry no filterable value. Structured blobs and binary: there is
 #: nothing a comparison operator would mean against them.
 _OPAQUE = (JSON, LargeBinary)
@@ -90,7 +95,13 @@ def control_for(col: Any) -> Optional[ControlKind]:
     """
     referenced = _referenced_table(col)
     if referenced is not None:
-        return FK_CONTROLS.get(referenced)
+        if referenced in _NEVER_NAMED:
+            return None
+        # A reference the UI cannot browse is still a reference: it reads, it
+        # compares, and a query may name it. Only the *control* is missing, and
+        # `offer` is what says so — a column that vanished for want of a picker
+        # would be a UI fact quietly deciding a data one.
+        return FK_CONTROLS.get(referenced, ControlKind.reference)
 
     sql_type = _base_type(col.type)
     if isinstance(sql_type, _OPAQUE):
@@ -147,7 +158,10 @@ def derive_fields(
                 sortable=not isinstance(_base_type(col.type), _UNSORTABLE)
                 and _referenced_table(col) is None,
                 nullable=bool(col.nullable),
-                offer=col.name not in internal,
+                # A reference with no picker has no control to offer, and a
+                # column the feature keeps to itself is not a reader's to pick
+                # either. Both stay nameable by a statement.
+                offer=col.name not in internal and control is not ControlKind.reference,
                 options=options_for(col),
             )
         )

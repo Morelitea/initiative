@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pglast import ast, parse_sql
-from pglast.enums import SetOperation
+from pglast.enums import A_Expr_Kind, SetOperation
 from pglast.parser import ParseError
 from pglast.stream import RawStream
 from pglast.visitors import Visitor
@@ -216,6 +216,109 @@ def _check_select_shape(select: ast.SelectStmt) -> None:
             raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, name)
 
 
+def _column_refs(node: Any) -> list[ast.ColumnRef]:
+    """Every column reference under *node*, in the order they are met."""
+    found: list[ast.ColumnRef] = []
+
+    class Collect(Visitor):
+        def visit_ColumnRef(self, ancestors: Any, inner: ast.ColumnRef) -> None:
+            found.append(inner)
+
+    if node is not None:
+        Collect()(node)
+    return found
+
+
+def joined(base: str, relation: Any, node: ast.Node, handle: str) -> ast.Node:
+    """*node*, joined to everything *relation* passes through.
+
+    Each hop is an ordinary inner join whose condition relates the two sides,
+    which is what a join is asked to be here — so a statement that reaches
+    through a relation is checked exactly like one that spelled the join out.
+    The last hop is aliased to the relation's own name, so the columns read
+    ``assignee.display_name``.
+
+    Shared with the builder, which writes the same joins from the same
+    declarations: one way of getting there, whether somebody clicked it or
+    typed it.
+    """
+    left = base
+    for index, hop in enumerate(relation.hops):
+        last = index == len(relation.hops) - 1
+        alias = handle if last else f"{handle}__{hop.dataset}"
+        node = ast.JoinExpr(
+            jointype=0,
+            larg=node,
+            rarg=ast.RangeVar(
+                relname=hop.dataset, inh=True, alias=ast.Alias(aliasname=alias)
+            ),
+            quals=ast.A_Expr(
+                kind=A_Expr_Kind.AEXPR_OP,
+                name=(ast.String(sval="="),),
+                lexpr=ast.ColumnRef(
+                    fields=(ast.String(sval=left), ast.String(sval=hop.left))
+                ),
+                rexpr=ast.ColumnRef(
+                    fields=(ast.String(sval=alias), ast.String(sval=hop.right))
+                ),
+            ),
+        )
+        left = alias
+    return node
+
+
+def _declared_handles(node: Any, found: dict[str, str]) -> None:
+    """The relations a ``FROM`` names, by the handle a column would use, read
+    before anything is rewritten."""
+    if isinstance(node, ast.JoinExpr):
+        _declared_handles(node.larg, found)
+        _declared_handles(node.rarg, found)
+        return
+    if isinstance(node, ast.RangeVar):
+        found[node.alias.aliasname if node.alias else node.relname] = node.relname
+
+
+def _expand_relations(select: ast.SelectStmt) -> None:
+    """Join in the datasets a statement reached through without saying so.
+
+    A dataset declares what it can be read alongside, so ``assignee.display_name``
+    over ``tasks`` is a person's name without anybody writing two joins to reach
+    one. The expansion happens here, before names are resolved, so everything
+    downstream sees a statement that spelled its joins out — including the
+    checks on how many relations one statement may name and on each join being
+    bound.
+    """
+    if not select.fromClause:
+        return
+    handles: dict[str, str] = {}
+    _declared_handles(select.fromClause[0], handles)
+
+    wanted: list[str] = []
+    for node in _column_refs(select):
+        parts = _name_parts(node.fields)
+        if len(parts) == 2 and parts[0] not in handles and parts[0] not in wanted:
+            wanted.append(parts[0])
+    if not wanted:
+        return
+
+    node = select.fromClause[0]
+    for name in wanted:
+        sources = [
+            (handle, dataset(known).by_relation[name])
+            for handle, known in handles.items()
+            if known in dataset_names() and name in dataset(known).by_relation
+        ]
+        if not sources:
+            # Not a relation anybody declared. Left as it is, so the name is
+            # refused where every other unknown relation is.
+            continue
+        if len(sources) > 1:
+            raise QueryError(QueryMessages.AMBIGUOUS_FIELD, name)
+        base, relation = sources[0]
+        node = joined(base, relation, node, name)
+    select.fromClause = (node,)
+
+
 def _relations(select: ast.SelectStmt) -> dict[str, str]:
     """The relations in scope, by the name a column may qualify with.
 
@@ -369,6 +472,21 @@ def _alias_positions(select: ast.SelectStmt) -> set[int]:
     return marked
 
 
+def _holder(scope: dict[str, str], field_name: str) -> str | None:
+    """The dataset in scope that has this field, where exactly one does.
+
+    An unqualified name is resolved the way the server resolves one: against
+    whichever relation actually has it. ``None`` where none does or more than
+    one does — the caller says which of those it is.
+    """
+    holders = {
+        name
+        for name in dict.fromkeys(scope.values())
+        if field_name in dataset(name).by_name
+    }
+    return holders.pop() if len(holders) == 1 else None
+
+
 def _output_types(
     select: ast.SelectStmt, scope: dict[str, str]
 ) -> tuple[FieldType | None, ...]:
@@ -383,22 +501,17 @@ def _output_types(
     Anything built from a field rather than being one has no field to ask, and
     is left ``None`` for the database to describe.
     """
-    only = next(iter(scope.values())) if len(scope) == 1 else None
-    return tuple(
-        _target_type(target, scope, only) for target in select.targetList or ()
-    )
+    return tuple(_target_type(target, scope) for target in select.targetList or ())
 
 
-def _target_type(
-    target: ast.ResTarget, scope: dict[str, str], only: str | None
-) -> FieldType | None:
+def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | None:
     if not isinstance(target.val, ast.ColumnRef):
         return None
     names = _name_parts(target.val.fields)
     if len(names) == 2:
         dataset_name, field_name = scope.get(names[0]), names[1]
     elif len(names) == 1:
-        dataset_name, field_name = only, names[0]
+        dataset_name, field_name = _holder(scope, names[0]), names[0]
     else:
         return None
     if dataset_name is None:
@@ -410,7 +523,6 @@ def _target_type(
 def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
     aliases = _output_aliases(select)
     alias_positions = _alias_positions(select)
-    only = next(iter(scope.values())) if len(scope) == 1 else None
 
     class Resolve(Visitor):
         def visit_ColumnRef(self, ancestors: Any, node: ast.ColumnRef) -> None:
@@ -430,9 +542,21 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
                 # An output alias: ``ORDER BY n`` names the count, and no table
                 # has a column for it.
                 return
-            if only is None:
-                raise QueryError(QueryMessages.AMBIGUOUS_FIELD, names[0])
-            node.fields = (ast.String(sval=_physical_column(only, names[0])),)
+            holder = _holder(scope, names[0])
+            if holder is None:
+                # Nothing in scope has it, or more than one does. Which of
+                # those it is decides what the reader has to change.
+                known = any(
+                    names[0] in dataset(name).by_name
+                    for name in dict.fromkeys(scope.values())
+                )
+                raise QueryError(
+                    QueryMessages.AMBIGUOUS_FIELD
+                    if known
+                    else QueryMessages.UNKNOWN_FIELD,
+                    names[0],
+                )
+            node.fields = (ast.String(sval=_physical_column(holder, names[0])),)
 
     Resolve()(select)
 
@@ -542,6 +666,7 @@ def resolve(sql: str) -> ResolvedQuery:
     """
     select = _parse(sql)
     _check_nodes(select)
+    _expand_relations(select)
     scope = _relations(select)
     column_types = _output_types(select, scope)
     _resolve_columns(select, scope)

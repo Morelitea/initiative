@@ -29,6 +29,7 @@ from app.services.fields import counters as counters_dataset
 from app.services.fields import members as members_dataset
 from app.services.fields import projects as projects_dataset
 from app.services.fields import task_assignees as task_assignees_dataset
+from app.services.fields import tools as tool_datasets
 from app.services.fields import task_statuses as task_statuses_dataset
 from app.services.fields import tasks as tasks_dataset
 from app.schemas.query import FilterOp
@@ -45,6 +46,14 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "task_statuses": task_statuses_dataset.build,
     "task_assignees": task_assignees_dataset.build,
     "members": members_dataset.build,
+    # The datasets that are simply a tool. Declared together because there is
+    # nothing to say about any of them individually (app.services.fields.tools).
+    "documents": tool_datasets.build_documents,
+    "queues": tool_datasets.build_queues,
+    "queue_items": tool_datasets.build_queue_items,
+    "calendars": tool_datasets.build_calendars,
+    "dashboards": tool_datasets.build_dashboards,
+    "posts": tool_datasets.build_posts,
 }
 
 
