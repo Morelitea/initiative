@@ -73,17 +73,7 @@ import {
   getChangelogApiV1ChangelogGet,
   getGetChangelogApiV1ChangelogGetQueryKey,
 } from "@/api/generated/version/version";
-import {
-  invalidateAppConfig,
-  invalidateAuthProviders,
-  invalidateAuthSettings,
-  invalidateCommunitySettings,
-  invalidateEmailSettings,
-  invalidateInterfaceSettings,
-  invalidateOidcMappings,
-  invalidatePlatformGuilds,
-  invalidateStorageSettings,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -195,7 +185,7 @@ export const useUpdateOidcSettings = (
         updateOidcSettingsApiV1SettingsAuthPut(
           data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
         ),
-      invalidate: () => invalidateAuthSettings(),
+      invalidate: () => invalidate(q.authSettings()),
     },
     options
   );
@@ -206,7 +196,7 @@ export const useCreateAuthProvider = (
   useApiMutation<AuthProviderAdminRead, AuthProviderCreate>(
     {
       mutationFn: (data) => createAuthProviderApiV1SettingsAuthProvidersPost(data),
-      invalidate: () => invalidateAuthProviders(),
+      invalidate: () => invalidate(q.authProviders()),
     },
     options
   );
@@ -218,7 +208,7 @@ export const useUpdateAuthProvider = (
     {
       mutationFn: ({ providerId, data }) =>
         updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(providerId, data),
-      invalidate: () => invalidateAuthProviders(),
+      invalidate: () => invalidate(q.authProviders()),
     },
     options
   );
@@ -228,7 +218,7 @@ export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (providerId) =>
         deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId),
-      invalidate: () => invalidateAuthProviders(),
+      invalidate: () => invalidate(q.authProviders()),
     },
     options
   );
@@ -242,7 +232,7 @@ export const useUpdateInterfaceSettings = (
         updateInterfaceSettingsApiV1SettingsInterfacePut(
           data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
         ),
-      invalidate: () => invalidateInterfaceSettings(),
+      invalidate: () => invalidate(q.interfaceSettings()),
     },
     options
   );
@@ -272,7 +262,7 @@ export const useUpdateCommunitySettings = (
         updateCommunitySettingsApiV1SettingsCommunityPut(
           data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
         ),
-      invalidate: () => Promise.all([invalidateAppConfig(), invalidateCommunitySettings()]),
+      invalidate: () => invalidate(q.appConfig(), q.communitySettings()),
     },
     options
   );
@@ -286,7 +276,7 @@ export const useUpdateEmailSettings = (
         updateEmailSettingsApiV1SettingsEmailPut(
           data as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
         ),
-      invalidate: () => invalidateEmailSettings(),
+      invalidate: () => invalidate(q.emailSettings()),
     },
     options
   );
@@ -312,7 +302,7 @@ export const useUpdateStorageSettings = (
         updateStorageSettingsApiV1SettingsStoragePut(
           data as Parameters<typeof updateStorageSettingsApiV1SettingsStoragePut>[0]
         ),
-      invalidate: () => invalidateStorageSettings(),
+      invalidate: () => invalidate(q.storageSettings()),
     },
     options
   );
@@ -353,7 +343,7 @@ export const useUpdateGuildStorage = (
           guildId,
           data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
         ),
-      invalidate: () => invalidatePlatformGuilds(),
+      invalidate: () => invalidate(q.platformGuilds()),
     },
     options
   );
@@ -366,7 +356,7 @@ export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPat
       mutationFn: async (data) => {
         await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
       },
-      invalidate: () => invalidateOidcMappings(),
+      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );
@@ -380,7 +370,7 @@ export const useCreateOidcMapping = (
         createOidcMappingApiV1SettingsOidcMappingsPost(
           data as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
         ),
-      invalidate: () => invalidateOidcMappings(),
+      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );
@@ -395,7 +385,7 @@ export const useUpdateOidcMapping = (
           mappingId,
           data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
         ),
-      invalidate: () => invalidateOidcMappings(),
+      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );
@@ -405,7 +395,7 @@ export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (mappingId) =>
         deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(mappingId),
-      invalidate: () => invalidateOidcMappings(),
+      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );

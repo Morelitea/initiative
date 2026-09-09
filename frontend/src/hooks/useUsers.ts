@@ -29,7 +29,7 @@ import {
   useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
-import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useApiMutation, useGuildMutation } from "@/hooks/useApiMutation";
 import { downloadBlob } from "@/lib/csv";
@@ -150,7 +150,7 @@ const useDecorationPackMutation = (
         });
         // Giving a pack back can take pieces off the profile server-side, so
         // the account the form reads from has changed too.
-        void invalidateCurrentUser();
+        void invalidate(q.currentUser());
       },
     },
     options
@@ -340,7 +340,7 @@ export const useUpdateCurrentUser = (options?: MutationOpts<UserRead, UpdateCurr
   useApiMutation<UserRead, UpdateCurrentUserVars>(
     {
       mutationFn: (data) => updateUsersMeApiV1UsersMePatch(data),
-      invalidate: () => invalidateCurrentUser(),
+      invalidate: () => invalidate(q.currentUser()),
     },
     options
   );
@@ -360,7 +360,7 @@ export const useApproveUser = (options?: MutationOpts<UserRead, number>) =>
     {
       mutationFn: (guildId, userId) =>
         approveUserApiV1GGuildIdUsersUserIdApprovePost(guildId, userId),
-      invalidate: () => invalidateGuildMembers(),
+      invalidate: () => invalidate(q.guildMembers()),
     },
     options
   );
@@ -374,7 +374,7 @@ export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuil
         updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(data.guildId, data.userId, {
           role: data.role,
         } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]),
-      invalidate: () => invalidateGuildMembers(),
+      invalidate: () => invalidate(q.guildMembers()),
     },
     options
   );
@@ -410,7 +410,7 @@ export const useUpdateNotificationPreferences = (
           data as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
         );
       },
-      invalidate: () => invalidateCurrentUser(),
+      invalidate: () => invalidate(q.currentUser()),
     },
     options
   );

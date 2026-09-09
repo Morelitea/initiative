@@ -13,20 +13,7 @@ import {
   purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete,
   restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost,
 } from "@/api/generated/trash/trash";
-import {
-  invalidateAllCalendarEvents,
-  invalidateAllCalendars,
-  invalidateAllComments,
-  invalidateAllCounterGroups,
-  invalidateAllDashboards,
-  invalidateAllDocuments,
-  invalidateAllInitiatives,
-  invalidateAllPosts,
-  invalidateAllProjects,
-  invalidateAllQueues,
-  invalidateAllTags,
-  invalidateAllTasks,
-} from "@/api/query-keys";
+import { invalidate, q, type Spec } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -61,26 +48,24 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-// Maps entity_type -> the shared cache invalidator to run when a row is
-// restored, so the row reappears in active lists across the app without an
-// explicit reload. Uses the query-keys helpers (predicate-matched against the
-// real Orval URL keys — bare string prefixes matched nothing). Child entities
-// (task, comment, queue_item, counter) invalidate their parent tool's caches.
-const ENTITY_INVALIDATORS: Record<EntityType, () => unknown> = {
-  project: invalidateAllProjects,
-  task: invalidateAllTasks,
-  document: invalidateAllDocuments,
-  comment: invalidateAllComments,
-  initiative: invalidateAllInitiatives,
-  tag: invalidateAllTags,
-  queue: invalidateAllQueues,
-  queue_item: invalidateAllQueues,
-  calendar: invalidateAllCalendars,
-  calendar_event: invalidateAllCalendarEvents,
-  counter_group: invalidateAllCounterGroups,
-  counter: invalidateAllCounterGroups,
-  post: invalidateAllPosts,
-  dashboard: invalidateAllDashboards,
+// Maps entity_type -> what a restore makes stale, so the row reappears in
+// active lists across the app without an explicit reload. Child entities (task,
+// comment, queue_item, counter) name their parent tool's lists.
+const RESTORED: Record<EntityType, () => Spec> = {
+  project: q.allProjects,
+  task: q.allTasks,
+  document: q.allDocuments,
+  comment: q.allComments,
+  initiative: q.allInitiatives,
+  tag: q.allTags,
+  queue: q.allQueues,
+  queue_item: q.allQueues,
+  calendar: q.allCalendars,
+  calendar_event: q.allCalendarEvents,
+  counter_group: q.allCounterGroups,
+  counter: q.allCounterGroups,
+  post: q.allPosts,
+  dashboard: q.allDashboards,
 };
 
 export type RestoreTrashVars = {
@@ -117,7 +102,8 @@ export const useRestoreTrashEntity = (
       void queryClient.invalidateQueries({
         queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
       });
-      void ENTITY_INVALIDATORS[variables.entityType]?.();
+      const restored = RESTORED[variables.entityType];
+      if (restored) void invalidate(restored());
       onSuccess?.(...args);
     },
     onError: (...args) => {

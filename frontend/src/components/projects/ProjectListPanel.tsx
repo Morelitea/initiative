@@ -19,7 +19,7 @@ import { type HTMLAttributes, type MouseEvent, type ReactNode, useState } from "
 import { useTranslation } from "react-i18next";
 
 import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllProjects } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
@@ -311,7 +311,7 @@ export const ProjectListPanel = ({
         onOpenChange={setBulkAccessOpen}
         items={selection.selectedItems}
         resourceType={Tool.project}
-        invalidate={invalidateAllProjects}
+        invalidate={() => invalidate(q.allProjects())}
         onSuccess={selection.exit}
       />
     </div>

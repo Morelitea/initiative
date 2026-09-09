@@ -1,11 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import {
-  invalidateAllCounterGroups,
-  invalidateAllQueues,
-  invalidateCounterGroup,
-  invalidateQueue,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
@@ -55,8 +50,7 @@ const useResourceRealtime = (
 // Module-level invalidators so the effect's dependency stays stable.
 
 const invalidateQueueRealtime = (queueId: number) => {
-  void invalidateQueue(queueId);
-  void invalidateAllQueues();
+  void invalidate(q.queue(queueId), q.allQueues());
 };
 
 /** Subscribe to real-time queue updates; refetches detail + list on any event. */
@@ -65,8 +59,7 @@ export function useQueueRealtime(queueId: number | null): void {
 }
 
 const invalidateCounterGroupRealtime = (groupId: number) => {
-  void invalidateCounterGroup(groupId);
-  void invalidateAllCounterGroups();
+  void invalidate(q.counterGroup(groupId), q.allCounterGroups());
 };
 
 /** Subscribe to real-time counter group updates; refetches detail + list on any event. */

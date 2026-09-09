@@ -39,7 +39,7 @@ import {
   checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet,
   getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
 } from "@/api/generated/users/users";
-import { invalidateAdminUsers, invalidateAllGuilds } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
@@ -116,7 +116,7 @@ export const useAdminDeleteUser = (
   useApiMutation<AccountDeletionResponse, AdminUserDeleteRequest>(
     {
       mutationFn: (request) => deleteUserApiV1AdminUsersUserIdDelete(userId, request),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -131,7 +131,7 @@ export const useAdminPromoteGuildMember = (
         adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(guildId, userId, {
           role: "admin",
         }),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -147,7 +147,7 @@ export const useAdminDeleteGuild = (
         adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
           blocked_user_id: blockedUserId,
         }),
-      invalidate: () => Promise.all([invalidateAdminUsers(), invalidateAllGuilds()]),
+      invalidate: () => invalidate(q.adminUsers(), q.allGuilds()),
     },
     options
   );
@@ -167,7 +167,7 @@ export const useAdminDeleteInitiative = (
         adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
           guild_id: guildId,
         }),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -185,7 +185,7 @@ export const useAdminPromoteInitiativeMember = (
           { role: "project_manager" },
           { guild_id: guildId }
         ),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -206,7 +206,7 @@ export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>)
   useApiMutation<UserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -220,7 +220,7 @@ export const useAdminSetUsername = (options?: MutationOpts<UserRead, SetUsername
     {
       mutationFn: ({ userId, username }) =>
         setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, { username }),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -237,7 +237,7 @@ export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspen
           suspended,
           reason: reason || null,
         }),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -250,7 +250,7 @@ export const useAdminClearAgeBlock = (options?: MutationOpts<UserRead, number>) 
   useApiMutation<UserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );
@@ -286,7 +286,7 @@ export const useAdminUpdatePlatformRole = (
         updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, {
           role,
         } as Parameters<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>[1]),
-      invalidate: () => invalidateAdminUsers(),
+      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );

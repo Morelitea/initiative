@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiMutator } from "@/api/mutator";
-import { invalidateAllCalendarEvents } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { isWritableCalendar } from "@/components/initiativeTools/events/CreateEventDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,7 +130,7 @@ export const ICalImportDialog = ({
       });
       setImportResult(result);
       setStep("result");
-      void invalidateAllCalendarEvents();
+      void invalidate(q.allCalendarEvents());
     } catch {
       toast.error(t("calendars:import.importError"));
     } finally {

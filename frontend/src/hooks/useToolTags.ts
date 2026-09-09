@@ -1,6 +1,6 @@
 import type { TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut } from "@/api/generated/tools/tools";
-import { invalidateTool } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -23,7 +23,7 @@ export const useSetToolTags = (
         setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut(guildId, tool, id, {
           tag_ids: tagIds,
         }),
-      invalidate: (_data, vars) => invalidateTool(tool, vars.id),
+      invalidate: (_data, vars) => invalidate(q.tool(tool, vars.id)),
       errorKey: "tags:toolTagsError",
     },
     options

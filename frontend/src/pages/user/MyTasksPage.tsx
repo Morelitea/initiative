@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllTasks } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -60,7 +60,7 @@ export const MyTasksPage = () => {
   const focus = useFocusSummary();
 
   const handleRefresh = useCallback(async () => {
-    await invalidateAllTasks();
+    await invalidate(q.allTasks());
   }, []);
 
   const { data: allPropertyDefinitions = [] } = useProperties();

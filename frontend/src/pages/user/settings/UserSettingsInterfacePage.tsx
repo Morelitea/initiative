@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateRecents } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -243,7 +243,7 @@ export const UserSettingsInterfacePage = ({
         setRecentTabsLimit(Number(variables.recent_tabs_limit));
         // The header tabs bar caches recents for 30s; refetch so a higher
         // limit surfaces more items immediately.
-        void invalidateRecents();
+        void invalidate(q.recents());
       }
       if (variables.color_theme !== undefined) {
         setColorTheme(String(variables.color_theme));
