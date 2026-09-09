@@ -336,7 +336,11 @@
     "everythingTogether": "Alles zusammen",
     "groupByHelp": "Zeilen mit gleichem Wert zusammenfassen und den Rest zählen oder summieren.",
     "statement": "Die erzeugte Anweisung",
-    "notBuilt": "Die Abfrage dieses Widgets wurde nicht durch Klicken erstellt und wird daher unverändert angezeigt.",
+    "tabBuild": "Erstellen",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Ergebnis: {{columns}}",
+    "notBuilt": "Die Abfrage dieses Widgets wurde nicht hier erstellt. Eine neue zu erstellen ersetzt sie.",
     "buildNew": "Neue Abfrage erstellen",
     "refused": "Diese Kombination kann nicht gelesen werden. Versuche eine andere Spalte."
   },
