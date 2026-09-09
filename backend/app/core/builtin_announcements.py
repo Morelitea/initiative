@@ -258,6 +258,59 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
             ),
         ),
     ),
+    BuiltinAnnouncement(
+        slug="0-67-notification-settings-moved",
+        title="Your notification settings have changed",
+        category=AnnouncementCategory.breaking,
+        published_at=datetime(2026, 9, 9, tzinfo=timezone.utc),
+        # Only for accounts that had the old settings. A new one starts on the
+        # new shape and has nothing to reconcile.
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+        only_upgrading_from_below="0.67.0",
+        sections=(
+            AnnouncementSection(
+                heading="One switch may have come back on",
+                body=(
+                    "**Initiative invites** and **New project in initiative** "
+                    "were two settings and are now one, **Joining things**. It "
+                    "is off only if you had switched off *both*.\n\n"
+                    "So if you had turned off **New project in initiative** and "
+                    "left invites on, that one is reaching you again. Nothing "
+                    "else was changed on your behalf — this is the only setting "
+                    "that could have moved in the direction you did not choose."
+                ),
+            ),
+            AnnouncementSection(
+                starts_page=True,
+                heading="The bell is a setting now",
+                body=(
+                    "It used to be the one thing you could not turn down: every "
+                    "switch governed email and mobile, and the bell filled at "
+                    "the same rate whatever you set. It is a third column in "
+                    "the grid now, per category.\n\n"
+                    "Two categories keep it whatever else you choose — "
+                    "**Waiting on you** and **Your account**. Somebody waiting "
+                    "on your decision, or a change made to your account by "
+                    "somebody else, is not a thing to find out about later. "
+                    "Their email and mobile switches work normally."
+                ),
+            ),
+            AnnouncementSection(
+                starts_page=True,
+                heading="Each community has a dial",
+                body=(
+                    "Set one to **Everything**, **Only what names me**, or "
+                    "**Nothing**, without touching any other. Nothing means "
+                    "nothing — a community set that way will not reach you, and "
+                    "a direct mention there is not an exception.\n\n"
+                    "**Mentions** also split from **Comments on your work**. One "
+                    "switch used to govern both being named and somebody "
+                    "commenting on a task you happen to be on; if you had it "
+                    "off, both came across off."
+                ),
+            ),
+        ),
+    ),
 )
 
 

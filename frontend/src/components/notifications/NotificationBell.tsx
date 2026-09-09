@@ -9,6 +9,7 @@ import {
   notificationLink,
   notificationText,
 } from "@/components/notifications/notificationLine";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -82,7 +83,8 @@ export const NotificationBell = () => {
   const hasNotifications = notifications.length > 0;
   // A dot, not a number. The popover shows every unread item, so there is
   // nothing for a count to summarise.
-  const hasUnread = notificationsQuery.unreadCount > 0;
+  const unreadCount = notificationsQuery.unreadCount;
+  const hasUnread = unreadCount > 0;
 
   const handleNotificationClick = async (notification: NotificationRead) => {
     // Not awaited: the read is applied to the cache as it is sent, so the dot
@@ -183,14 +185,25 @@ export const NotificationBell = () => {
           variant="ghost"
           size="icon"
           className="relative"
-          aria-label={hasUnread ? t("notifications.ariaLabelUnread") : t("notifications.ariaLabel")}
+          aria-label={
+            hasUnread
+              ? t("notifications.ariaLabelCount", { count: unreadCount })
+              : t("notifications.ariaLabel")
+          }
         >
           <Bell className="h-5 w-5" />
           {hasUnread ? (
-            <span
+            // The bell counts; the navigation does not. Here the number says
+            // how much is waiting without opening anything, and it is one
+            // number about one list. Repeated down a tree it would be
+            // arithmetic — which is why a community, an initiative and a tool
+            // each get a dot instead.
+            <Badge
               aria-hidden
-              className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
-            />
+              className="-top-1 -right-1 absolute h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </Badge>
           ) : null}
         </Button>
       </PopoverTrigger>

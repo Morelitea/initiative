@@ -301,7 +301,7 @@
         "personal": "Erwähnungen"
       }
     },
-    "ariaLabelUnread": "Benachrichtigungen — Ungelesenes"
+    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen"
   },
   "version": {
     "newVersionAvailable": "Neue Version verfügbar",
