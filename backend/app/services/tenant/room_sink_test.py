@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
@@ -347,3 +348,47 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
             "action": "updated",
         }
     ]
+
+
+async def _age_the_log(session: AsyncSession, guild_id: int) -> None:
+    """Push everything already in the log out of any reasonable gap."""
+    from app.db.session import set_rls_context
+    from sqlalchemy import text
+
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await session.exec(
+        text("UPDATE event_outbox SET occurred_at = occurred_at - interval '1 day'")
+    )
+    await session.commit()
+
+
+async def test_a_socket_that_missed_something_is_told_so(session, acting_user):
+    """The one question a reconnect asks, answered on the socket's own session."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _age_the_log(session, a.guild.id)
+
+    assert await room_sink.missed_while_away(session, 5) is False
+
+    await create_task(session, a.project)
+
+    assert await room_sink.missed_while_away(session, 5) is True
+
+
+async def test_a_change_older_than_the_gap_is_not_news(session, acting_user):
+    """A tab away for a moment is not told about the hour before it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project)
+    await _age_the_log(session, a.guild.id)
+
+    assert await room_sink.missed_while_away(session, 5) is False
+
+
+async def test_a_long_enough_gap_is_answered_without_reading(session, acting_user):
+    """Past the bound the log cannot say, so the answer is the honest one."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _age_the_log(session, a.guild.id)
+
+    assert (
+        await room_sink.missed_while_away(session, room_sink.CATCHUP_MAX_SECONDS + 1)
+        is True
+    )

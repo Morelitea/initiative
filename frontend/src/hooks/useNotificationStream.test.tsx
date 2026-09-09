@@ -2,6 +2,7 @@ import { render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
+import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { q } from "@/api/query-keys";
@@ -25,67 +26,10 @@ const timesNamed = (spec: unknown) =>
 
 const MSG_AUTH = 5;
 
-/** Stands in for the browser's WebSocket, with the transitions driven by hand. */
-class MockWebSocket {
-  static instances: MockWebSocket[] = [];
-  // The hook reads these off the constructor, which is this once stubbed in.
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSING = 2;
-  static readonly CLOSED = 3;
-
-  url: string;
-  binaryType = "blob";
-  sent: Uint8Array[] = [];
-  closed = false;
-  readyState: number = MockWebSocket.CONNECTING;
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  onclose: ((event: { code: number }) => void) | null = null;
-
-  constructor(url: string) {
-    this.url = url;
-    MockWebSocket.instances.push(this);
-  }
-
-  send(data: Uint8Array) {
-    this.sent.push(data);
-  }
-
-  close() {
-    this.closed = true;
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ code: 1000 });
-  }
-
-  // ── Driving helpers ──
-  open() {
-    this.readyState = MockWebSocket.OPEN;
-    this.onopen?.();
-  }
-
-  receive(payload: unknown) {
-    this.onmessage?.({ data: JSON.stringify(payload) });
-  }
-
-  serverClose(code: number) {
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ code });
-  }
-
-  /** The first frame is `[MSG_AUTH, ...utf8 json]`. */
-  authPayload(): unknown {
-    return JSON.parse(new TextDecoder().decode(this.sent[0].slice(1)));
-  }
-}
-
 const Probe = () => {
   useNotificationStream();
   return null;
 };
-
-const latest = () => MockWebSocket.instances.at(-1) as MockWebSocket;
 
 describe("useNotificationStream", () => {
   beforeEach(() => {
@@ -101,14 +45,16 @@ describe("useNotificationStream", () => {
   it("connects to the user-scoped stream, with no guild in the address", () => {
     renderWithProviders(<Probe />);
 
-    expect(latest().url).toContain("/api/v1/notifications/stream");
-    expect(latest().url).not.toContain("/g/");
-    expect(latest().url.startsWith("ws://") || latest().url.startsWith("wss://")).toBe(true);
+    expect(latestSocket().url).toContain("/api/v1/notifications/stream");
+    expect(latestSocket().url).not.toContain("/g/");
+    expect(latestSocket().url.startsWith("ws://") || latestSocket().url.startsWith("wss://")).toBe(
+      true
+    );
   });
 
   it("authenticates in the first frame rather than the URL", () => {
     renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
 
     expect(socket.url).not.toContain("token");
@@ -118,7 +64,7 @@ describe("useNotificationStream", () => {
 
   it("refetches the inbox when the server says it changed", () => {
     renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     invalidations.mockClear();
 
@@ -130,7 +76,7 @@ describe("useNotificationStream", () => {
   it("catches up on connect, since nothing signalled while the socket was down", () => {
     renderWithProviders(<Probe />);
 
-    latest().open();
+    latestSocket().open();
 
     expect(timesNamed(q.notifications())).toBe(1);
   });
@@ -138,7 +84,7 @@ describe("useNotificationStream", () => {
   it("re-reads the account when the server says its standing changed", () => {
     const refreshUser = vi.fn();
     renderWithProviders(<Probe />, { auth: { refreshUser } });
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     // The catch-up on connect pokes every channel; this test is about the frame.
     refreshUser.mockClear();
@@ -155,7 +101,7 @@ describe("useNotificationStream", () => {
   it("re-reads the contact lists when the server says they moved", () => {
     const refreshUser = vi.fn();
     renderWithProviders(<Probe />, { auth: { refreshUser } });
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     refreshUser.mockClear();
     invalidations.mockClear();
@@ -174,7 +120,7 @@ describe("useNotificationStream", () => {
 
   it("ignores a frame naming a channel it does not know", () => {
     renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     invalidations.mockClear();
 
@@ -188,7 +134,7 @@ describe("useNotificationStream", () => {
     const refreshUser = vi.fn();
     renderWithProviders(<Probe />, { auth: { refreshUser } });
 
-    latest().open();
+    latestSocket().open();
 
     // Anything that happened while it was down was never signalled, and that
     // includes being added to a community.
@@ -200,7 +146,7 @@ describe("useNotificationStream", () => {
   it("re-reads everything when the server says its own bus was down", () => {
     const refreshUser = vi.fn();
     renderWithProviders(<Probe />, { auth: { refreshUser } });
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     invalidations.mockClear();
     refreshUser.mockClear();
@@ -217,7 +163,7 @@ describe("useNotificationStream", () => {
 
   it("ignores a heartbeat beyond taking it as proof of life", () => {
     renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     invalidations.mockClear();
 
@@ -233,7 +179,7 @@ describe("useNotificationStream", () => {
     vi.useFakeTimers();
     try {
       renderWithProviders(<Probe />);
-      const socket = latest();
+      const socket = latestSocket();
       socket.open();
       expect(socket.readyState).toBe(MockWebSocket.OPEN);
 
@@ -250,7 +196,7 @@ describe("useNotificationStream", () => {
     vi.useFakeTimers();
     try {
       renderWithProviders(<Probe />);
-      const socket = latest();
+      const socket = latestSocket();
       socket.open();
 
       for (let elapsed = 0; elapsed < 95_000; elapsed += 30_000) {
@@ -269,7 +215,7 @@ describe("useNotificationStream", () => {
     try {
       const refreshUser = vi.fn().mockResolvedValue(undefined);
       renderWithProviders(<Probe />, { auth: { refreshUser } });
-      const socket = latest();
+      const socket = latestSocket();
       socket.open();
       await vi.advanceTimersByTimeAsync(0);
       refreshUser.mockClear();
@@ -294,7 +240,7 @@ describe("useNotificationStream", () => {
     try {
       const refreshUser = vi.fn().mockResolvedValue(undefined);
       renderWithProviders(<Probe />, { auth: { refreshUser } });
-      const socket = latest();
+      const socket = latestSocket();
       socket.open();
       await vi.advanceTimersByTimeAsync(0);
       refreshUser.mockClear();
@@ -322,7 +268,7 @@ describe("useNotificationStream", () => {
     try {
       const refreshUser = vi.fn().mockResolvedValue(undefined);
       const { unmount } = renderWithProviders(<Probe />, { auth: { refreshUser } });
-      const socket = latest();
+      const socket = latestSocket();
       socket.open();
       await vi.advanceTimersByTimeAsync(0);
       refreshUser.mockClear();
@@ -343,7 +289,7 @@ describe("useNotificationStream", () => {
 
   it("ignores frames for other resources and malformed ones", () => {
     renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
     invalidations.mockClear();
 
@@ -372,19 +318,19 @@ describe("useNotificationStream", () => {
     );
 
     const { rerender } = render(tree(account));
-    latest().open();
+    latestSocket().open();
     expect(MockWebSocket.instances).toHaveLength(1);
 
     // A fresh object for the same person, which is what every re-read returns.
     rerender(tree({ ...account }));
 
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(latest().closed).toBe(false);
+    expect(latestSocket().closed).toBe(false);
   });
 
   it("closes the socket when the hook unmounts", () => {
     const { unmount } = renderWithProviders(<Probe />);
-    const socket = latest();
+    const socket = latestSocket();
     socket.open();
 
     unmount();
@@ -403,10 +349,10 @@ describe("useNotificationStream", () => {
 
     it("reconnects after the connection drops", async () => {
       renderWithProviders(<Probe />);
-      latest().open();
+      latestSocket().open();
       expect(MockWebSocket.instances).toHaveLength(1);
 
-      latest().serverClose(1006);
+      latestSocket().serverClose(1006);
       await vi.advanceTimersByTimeAsync(2000);
 
       expect(MockWebSocket.instances).toHaveLength(2);
@@ -416,7 +362,7 @@ describe("useNotificationStream", () => {
       renderWithProviders(<Probe />);
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
-        latest().serverClose(1008);
+        latestSocket().serverClose(1008);
         await vi.advanceTimersByTimeAsync(60_000);
       }
 
@@ -441,10 +387,10 @@ describe("useNotificationStreamConnected", () => {
     expect(observed.result.current).toBe(false);
 
     const stream = renderWithProviders(<Probe />);
-    latest().open();
+    latestSocket().open();
     await waitFor(() => expect(observed.result.current).toBe(true));
 
-    latest().serverClose(1006);
+    latestSocket().serverClose(1006);
     await waitFor(() => expect(observed.result.current).toBe(false));
 
     stream.unmount();

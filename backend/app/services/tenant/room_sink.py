@@ -45,6 +45,11 @@ only part of this that is.
 
 Both are scoped to the guilds this process actually holds a socket for, so a
 deployment with nobody connected reads nothing.
+
+A socket that has just come back asks the log one more question, on its own
+session rather than this process's: whether anything happened in the gap it
+was gone for. Neither path above covers that — a hint reaches whoever is
+listening at the time, and the sweep sends to rooms, not to arrivals.
 """
 
 from __future__ import annotations
@@ -86,6 +91,17 @@ EVERYTHING = {"changes": [], "more": True}
 #: entries already say. Past this the frame says so instead, and the client
 #: refetches the guild rather than a list of ids.
 MAX_CHANGES = 500
+
+#: How far past its gap a returning socket asks about. A row is stamped when
+#: the transaction inserted it and becomes readable when that transaction
+#: commits, so a change can surface inside the gap having been stamped just
+#: before it.
+CATCHUP_SLACK_SECONDS = 10
+
+#: The longest gap answered by reading the log. Past it the answer is yes
+#: without asking: a tab that has been without a socket for an hour is behind
+#: whatever the log still holds.
+CATCHUP_MAX_SECONDS = 3600
 
 _SCHEMA_PREFIX = "guild_"
 
@@ -184,6 +200,25 @@ async def _rows_of_transaction(session: AsyncSession, txn_id: int) -> list[Event
             .order_by(EventOutbox.id.asc())
         )
     )
+
+
+async def missed_while_away(session: AsyncSession, away_seconds: float) -> bool:
+    """Whether anything this session may read changed during a socket's gap.
+
+    Asked by a socket that has just come back, on its own RLS-scoped session,
+    so the log answers for that subscriber and nobody else. The answer is one
+    bit because that is all the question has: a reconnect carries no record of
+    which rows went past, and the frame it turns into says as much.
+    """
+    if away_seconds > CATCHUP_MAX_SECONDS:
+        return True
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        seconds=away_seconds + CATCHUP_SLACK_SECONDS
+    )
+    rows = await session.exec(
+        select(EventOutbox.id).where(EventOutbox.occurred_at > cutoff).limit(1)
+    )
+    return rows.first() is not None
 
 
 async def deliver(payload: str) -> None:
