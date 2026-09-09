@@ -51,7 +51,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db import session as db_session
+from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -141,6 +142,10 @@ def _envelope(
                 "event_type": _event_type(row),
                 "initiative_id": row.initiative_id,
                 "resource": {"type": row.resource_type, "id": row.resource_id},
+                # The addressable resources between that one and the
+                # initiative, innermost first. Identifiers only, read back
+                # through the routes that serve them.
+                "parents": list(row.parents),
                 "action": row.action,
                 "changed": list(row.changed),
             }
@@ -352,7 +357,7 @@ async def _active_guild_ids(session: AsyncSession) -> list[int]:
 async def process_outbox_deliveries() -> None:
     """One drain pass across every active guild. Idempotent."""
     now = datetime.now(timezone.utc)
-    async with AdminSessionLocal() as session:
+    async with db_session.AdminSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()
             await _drain_guild(session, guild_id, now=now)
@@ -369,7 +374,7 @@ async def process_outbox_retention() -> None:
     cutoff = datetime.now(timezone.utc) - timedelta(
         days=settings.WEBHOOK_OUTBOX_RETENTION_DAYS
     )
-    async with AdminSessionLocal() as session:
+    async with db_session.AdminSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()
             await set_rls_context(session, guild_id=guild_id, guild_role="admin")

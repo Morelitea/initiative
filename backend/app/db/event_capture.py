@@ -15,6 +15,17 @@ What lands in ``event_outbox`` is identifiers, an action, and the **names** of
 the columns that changed. Never a value: a consumer reads current state back
 through the REST API, where the six gates apply to the read.
 
+Every event names its parents
+-----------------------------
+A row is rarely interesting on its own: a comment moves a thread AND the count
+on the card its parent shows, a task moves its project's board. So an event
+also carries the ADDRESSABLE resources between it and its initiative,
+innermost first — the chain the registry already walks to stamp
+``initiative_id``, stopping at each thing that has a route of its own.
+
+Identifiers, like the rest of the row. A consumer that wants the parent reads
+it back through the route that already serves it.
+
 Sub-resources report their parent
 ---------------------------------
 Over half these tables are junctions with a composite primary key
@@ -39,13 +50,15 @@ id in the outbox resolvable without owing new API surface per table.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy import Column
 from sqlmodel import SQLModel
 
 from app.db.initiative_rls import (
     EVENTED_TABLES,
+    INITIATIVE_PATHS,
+    NO_PARENTS,
     event_source,
     initiative_locator,
 )
@@ -53,6 +66,19 @@ from app.db.initiative_rls import (
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE, so
 #: every registry expression is rendered against this rather than NEW/OLD.
 ROW = "($1)"
+
+#: Alias for the parent row a reports-as table borrows its chain from. Long on
+#: purpose: the borrowed chain brings the registry's own short aliases with it,
+#: and an inner one shadowing this would silently join the wrong row.
+_PARENT_ALIAS = "outbox_parent"
+
+#: The channel the capture raises once per writing transaction, per guild.
+#: Postgres itself is the sender here — no worker is involved in the write, so
+#: no worker could have told the others about it. The payload is
+#: ``<schema>:<txid>``, which is the whole of what a listener needs to find the
+#: rows: identical payloads inside one transaction collapse to a single
+#: notification, so a bulk write raises one rather than one per row.
+OUTBOX_CHANNEL = "event_outbox"
 
 #: The function name every per-table trigger calls. Created once in ``public``
 #: (not per guild schema): the body names content tables unqualified, so it
@@ -101,6 +127,32 @@ class CaptureSpec:
         (resource_type,) = self.resource_types
         return resource_type
 
+    @property
+    def quiet_expr(self) -> str:
+        """Row expression that is true while this event is not news yet."""
+        return _quiet_expr(
+            table=self.table,
+            facet=self.facet,
+            resource_types=self.resource_types,
+            resource_id_expr=self.resource_id_expr,
+            resource_type_expr=self.resource_type_expr,
+        )
+
+    @property
+    def parents_expr(self) -> str:
+        """Row expression yielding this event's parent chain, or "" for none.
+
+        Empty for the tool tables and everything reporting against one, so
+        those pay nothing for the column.
+        """
+        return _parents_expr(
+            table=self.table,
+            facet=self.facet,
+            resource_types=self.resource_types,
+            resource_id_expr=self.resource_id_expr,
+            resource_type_expr=self.resource_type_expr,
+        )
+
 
 def _singular(table: str) -> str:
     """Junction owners are all regular plurals in this schema."""
@@ -112,6 +164,106 @@ def _owner_of(column: Column[Any]) -> str | None:
     for fk in column.foreign_keys:
         return fk.column.table.name
     return None
+
+
+def _borrowed(
+    *,
+    resource_types: frozenset[str],
+    resource_id_expr: str,
+    resource_type_expr: str | None,
+    of_parent: Callable[[str, str], str],
+) -> str:
+    """One declaration, read off the resource the event NAMES.
+
+    A table that reports against a parent is describing that parent, so the
+    parent's declarations are the ones that apply — a tag landing on a task
+    wants the task's project, and a grant on a draft is as quiet as the draft.
+    That costs one indexed lookup by primary key, and not even that where the
+    parent has nothing to say. The polymorphic case asks per kind, since the
+    arms are different tables.
+
+    ``of_parent`` answers "" for a parent with nothing to say; so does this.
+    """
+    answers = {
+        parent: of_parent(parent, _PARENT_ALIAS) for parent in sorted(resource_types)
+    }
+    if not any(answers.values()):
+        return ""
+
+    def lookup(parent: str) -> str:
+        if not answers[parent]:
+            return "NULL"
+        return (
+            f"(SELECT {answers[parent]} FROM {parent} {_PARENT_ALIAS} "  # noqa: S608
+            f"WHERE {_PARENT_ALIAS}.id = {resource_id_expr})"
+        )
+
+    if resource_type_expr is None:
+        (parent,) = resource_types
+        return lookup(parent)
+
+    arms = " ".join(f"WHEN '{parent}' THEN {lookup(parent)}" for parent in answers)
+    return f"(CASE {resource_type_expr} {arms} END)"
+
+
+def _parents_expr(
+    *,
+    table: str,
+    facet: str | None,
+    resource_types: frozenset[str],
+    resource_id_expr: str,
+    resource_type_expr: str | None,
+) -> str:
+    """The chain an event from ``table`` carries, or "" for none."""
+    if facet is None:
+        path = INITIATIVE_PATHS.get(table)
+        own = path.parents(ROW) if path is not None else NO_PARENTS
+        return "" if own == NO_PARENTS else own
+
+    def chain_of(parent: str, alias: str) -> str:
+        if parent not in INITIATIVE_PATHS:
+            return ""
+        rendered = INITIATIVE_PATHS[parent].parents(alias)
+        return "" if rendered == NO_PARENTS else rendered
+
+    borrowed = _borrowed(
+        resource_types=resource_types,
+        resource_id_expr=resource_id_expr,
+        resource_type_expr=resource_type_expr,
+        of_parent=chain_of,
+    )
+    return f"COALESCE({borrowed}, {NO_PARENTS})" if borrowed else ""
+
+
+def _quiet_expr(
+    *,
+    table: str,
+    facet: str | None,
+    resource_types: frozenset[str],
+    resource_id_expr: str,
+    resource_type_expr: str | None,
+) -> str:
+    """While this holds, the event is not news yet — or "" where none applies.
+
+    A facet answers to the rule of the thing it is a facet OF: sharing a draft,
+    or tagging one, is as quiet as the draft itself. Otherwise the row that
+    stays quiet would be announced by every child it acquires.
+    """
+    if facet is None:
+        quiet = event_source(table).quiet_when
+        return quiet(ROW) if quiet is not None else ""
+
+    def quiet_of(parent: str, alias: str) -> str:
+        quiet = event_source(parent).quiet_when
+        return quiet(alias) if quiet is not None else ""
+
+    borrowed = _borrowed(
+        resource_types=resource_types,
+        resource_id_expr=resource_id_expr,
+        resource_type_expr=resource_type_expr,
+        of_parent=quiet_of,
+    )
+    return f"COALESCE({borrowed}, false)" if borrowed else ""
 
 
 def build_specs() -> list[CaptureSpec]:
@@ -196,6 +348,9 @@ def build_specs() -> list[CaptureSpec]:
 #:   4 — array literal of column names excluded from ``changed``
 #:   5 — 'guild' when this table has no initiative and a NULL is expected
 #:   6 — expression resolving the resource TYPE, or '' when arg 1 is the answer
+#:   7 — expression resolving the resource's parent chain, or '' when it has none
+#:   8 — expression that is true while the row is not news yet, or '' for none
+#:   9 — 'anonymous' when this table's events name no actor
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -210,11 +365,32 @@ DECLARE
     v_new        jsonb;
     v_old        jsonb;
     v_facet      text := TG_ARGV[3];
+    v_parents    jsonb := '[]'::jsonb;
+    v_was_quiet  boolean := false;
+    v_is_quiet   boolean := false;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
     ELSE
         v_row := NEW;
+    END IF;
+
+    -- Some content exists before it is anybody else's business. While a row is
+    -- quiet it says nothing at all, and crossing out of that is what gets
+    -- reported — as a create, so a consumer never has to know the convention.
+    -- Asked first, so a row nobody is to hear about pays for no lookup either.
+    IF TG_ARGV[8] <> '' THEN
+        IF TG_OP <> 'INSERT' THEN
+            EXECUTE 'SELECT ' || TG_ARGV[8] INTO v_was_quiet USING OLD;
+        END IF;
+        IF TG_OP <> 'DELETE' THEN
+            EXECUTE 'SELECT ' || TG_ARGV[8] INTO v_is_quiet USING NEW;
+        END IF;
+        IF (TG_OP = 'INSERT' AND v_is_quiet)
+           OR (TG_OP = 'DELETE' AND v_was_quiet)
+           OR (TG_OP = 'UPDATE' AND v_was_quiet AND v_is_quiet) THEN
+            RETURN NULL;
+        END IF;
     END IF;
 
     -- Which initiative this row belongs to, per its registry entry. A NULL is
@@ -267,9 +443,14 @@ BEGIN
         v_new := to_jsonb(NEW);
         v_old := to_jsonb(OLD);
 
+        -- Coming out of quiet is the row arriving, whatever else moved with it.
+        IF v_was_quiet AND NOT v_is_quiet THEN
+            v_action := 'created';
+        ELSIF NOT v_was_quiet AND v_is_quiet THEN
+            v_action := 'deleted';
         -- Soft delete and restore are reported as what they are, so a consumer
         -- never has to know the deleted_at convention to see a row come or go.
-        IF v_new ? 'deleted_at'
+        ELSIF v_new ? 'deleted_at'
            AND v_old ->> 'deleted_at' IS NULL
            AND v_new ->> 'deleted_at' IS NOT NULL THEN
             v_action := 'deleted';
@@ -301,7 +482,17 @@ BEGIN
         END IF;
     END IF;
 
-    v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
+    -- The addressable resources between this row and its initiative. Resolved
+    -- last, so a row that turned out not to be worth reporting never paid for
+    -- the lookup, and skipped entirely where the resource has no parents.
+    IF TG_ARGV[7] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[7] INTO v_parents USING v_row;
+        v_parents := COALESCE(v_parents, '[]'::jsonb);
+    END IF;
+
+    IF TG_ARGV[9] <> 'anonymous' THEN
+        v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
+    END IF;
 
     -- Write to the outbox of the schema the CHANGED ROW lives in, named from
     -- TG_TABLE_SCHEMA rather than resolved through the caller's search_path.
@@ -310,10 +501,16 @@ BEGIN
     EXECUTE format(
         'INSERT INTO %I.event_outbox ('
         '  txn_id, occurred_at, actor_user_id, initiative_id,'
-        '  resource_type, resource_id, action, changed'
-        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6)',
+        '  resource_type, resource_id, action, changed, parents'
+        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6, $7)',
         TG_TABLE_SCHEMA
-    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed;
+    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed, v_parents;
+
+    -- Wake whoever is holding sockets for this guild. A hint, not the message:
+    -- the row above is the truth, and one that reaches nobody costs a listener
+    -- the sweep's latency rather than the update itself. Delivered at COMMIT,
+    -- so the rows it points at are visible by the time anyone looks.
+    PERFORM pg_notify('{OUTBOX_CHANNEL}', TG_TABLE_SCHEMA || ':' || txid_current());
 
     RETURN NULL;
 END
@@ -357,7 +554,10 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"    '{spec.facet or ''}',",
             f"    {_housekeeping_literal(spec.table)},",
             f"    '{'guild' if source.guild_wide else ''}',",
-            f"    {_quoted(type_expr or '')}",
+            f"    {_quoted(type_expr or '')},",
+            f"    {_quoted(spec.parents_expr)},",
+            f"    {_quoted(spec.quiet_expr)},",
+            f"    '{'anonymous' if source.anonymous else ''}'",
             "  );",
         ]
     )
@@ -374,8 +574,9 @@ _HEADER = """\
 -- (which resource an event names), and EVENT_SOURCES (the deviations from
 -- those), so a new content table is captured without a second declaration.
 --
--- The outbox carries identifiers and changed column NAMES only. Values are read
--- back through the REST API, where the six gates apply to the read.
+-- The outbox carries identifiers, a parent chain and changed column NAMES only.
+-- Values are read back through the REST API, where the six gates apply to the
+-- read.
 -- ============================================================================"""
 
 

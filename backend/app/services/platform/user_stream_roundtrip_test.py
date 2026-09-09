@@ -20,7 +20,7 @@ import pytest
 
 from conftest import TEST_DATABASE_URL
 from app.core.config import settings
-from app.services.platform import user_stream, user_stream_bus
+from app.services.platform import notify_bus, user_stream
 from app.services.platform.user_stream import UserStream
 
 
@@ -51,7 +51,8 @@ async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
     tab = FakeWebSocket()
     await stream.connect(7, tab)
 
-    bus = user_stream_bus.UserStreamBus()
+    bus = notify_bus.NotifyBus()
+    bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
     await bus.start()
     try:
         if not await _wait_for(lambda: bus.running, timeout=10.0):
@@ -62,7 +63,7 @@ async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
 
         # A second connection standing in for another worker: a different
         # origin, so our listener must not filter it out.
-        other = await asyncpg.connect(dsn=user_stream_bus._dsn())
+        other = await asyncpg.connect(dsn=notify_bus._dsn())
         try:
             await other.execute(
                 "SELECT pg_notify($1, $2)",
@@ -101,8 +102,9 @@ async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
     tab = FakeWebSocket()
     await stream.connect(7, tab)
 
-    bus = user_stream_bus.UserStreamBus()
-    monkeypatch.setattr(user_stream_bus, "bus", bus)
+    bus = notify_bus.NotifyBus()
+    monkeypatch.setattr(notify_bus, "bus", bus)
+    bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
     await bus.start()
     try:
         if not await _wait_for(lambda: bus.running, timeout=10.0):
@@ -129,7 +131,8 @@ async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
     """
     monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
 
-    bus = user_stream_bus.UserStreamBus()
+    bus = notify_bus.NotifyBus()
+    bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
     await bus.start()
     try:
         if not await _wait_for(lambda: bus.running, timeout=10.0):
@@ -137,7 +140,10 @@ async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
 
         results = await asyncio.gather(
             *[
-                bus.notify(json.dumps({"origin": "another", "user_id": n, "frame": {}}))
+                bus.notify(
+                    user_stream.CHANNEL,
+                    json.dumps({"origin": "another", "user_id": n, "frame": {}}),
+                )
                 for n in range(25)
             ],
             return_exceptions=True,
@@ -164,8 +170,9 @@ async def test_a_community_listing_reaches_every_member_on_another_worker(
         await stream.connect(user_id, tab)
         tabs[user_id] = tab
 
-    bus = user_stream_bus.UserStreamBus()
-    monkeypatch.setattr(user_stream_bus, "bus", bus)
+    bus = notify_bus.NotifyBus()
+    monkeypatch.setattr(notify_bus, "bus", bus)
+    bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
     await bus.start()
     try:
         if not await _wait_for(lambda: bus.running, timeout=10.0):

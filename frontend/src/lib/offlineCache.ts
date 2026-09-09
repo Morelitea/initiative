@@ -321,6 +321,55 @@ export const hydrateGuildShard = async (guildId: number): Promise<void> => {
 };
 
 /**
+ * Keep only these communities and drop the rest, in memory and on disk.
+ *
+ * Called with lists the server has just confirmed. A community somebody has
+ * left, been removed from, or now reaches only by a time-bound grant stops
+ * appearing, and its content goes rather than waiting out the 24 hours — when
+ * we learn while online that a membership is over, there is no reason to leave
+ * the content sitting there.
+ *
+ * The order matters. Deleting the shard alone would not hold: the departed
+ * community's queries are still in the query client, and the next save would
+ * write the shard straight back from memory. So the queries go first, and then
+ * the shard — a save landing in between writes a client that no longer has
+ * them.
+ *
+ * @param reachable every community the user can reach right now, memberships
+ *   and live grants alike. Their queries stay in the client.
+ * @param cacheable the subset whose content may live on disk: memberships
+ *   only, since a grant can end while the device is away.
+ *
+ * Only ever call this with authoritative lists. The remembered list a launch
+ * with no signal falls back to is not one, and neither is a membership list
+ * whose grants could not be read — pruning against either would throw away
+ * content that is still perfectly reachable.
+ */
+export const retainOnlyGuilds = async (
+  reachable: Iterable<number>,
+  cacheable: Iterable<number>
+): Promise<void> => {
+  if (!isOfflineCacheEnabled()) return;
+
+  const stillReachable = new Set(reachable);
+  queryClient.removeQueries({
+    predicate: (query) => {
+      const [first] = query.queryKey;
+      if (typeof first !== "string") return false;
+      const guildId = guildIdOfPath(first);
+      return guildId !== null && !stillReachable.has(guildId);
+    },
+  });
+
+  const keep = new Set([...cacheable].map(guildShard));
+  try {
+    await getPersister().retainShards((shard) => shard === PLATFORM_SHARD || keep.has(shard));
+  } catch {
+    // Best effort; anything missed still ages out on its own clock.
+  }
+};
+
+/**
  * Forget one community's cached content, leaving every other community's in
  * place. Used when a community stops being an ordinary membership — it is left,
  * or it becomes reachable only by a time-bound grant — where erasing the whole

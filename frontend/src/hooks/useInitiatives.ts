@@ -33,10 +33,10 @@ import {
 } from "@/api/generated/initiatives/initiatives";
 import {
   invalidateAllInitiatives,
+  invalidateGuildContent,
   invalidateInitiative,
   invalidateInitiativeJoinRequests,
   invalidateInitiativeMembers,
-  invalidateInitiativeMembership,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -250,7 +250,7 @@ export const useJoinInitiative = (
     {
       mutationFn: (guildId, { initiativeId }) =>
         joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
-      invalidate: () => invalidateInitiativeMembership(),
+      invalidate: () => invalidateGuildContent(),
       errorKey: "initiatives:directory.joinError",
     },
     options
@@ -319,7 +319,7 @@ export const useResolveJoinRequest = (
             ),
       invalidate: (_data, { initiativeId }) =>
         Promise.all([
-          invalidateInitiativeMembership(),
+          invalidateGuildContent(),
           invalidateInitiativeMembers(initiativeId),
           invalidateInitiativeJoinRequests(initiativeId),
         ]),

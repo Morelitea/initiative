@@ -51,6 +51,9 @@ interface RenderPageOptions extends ProviderOptions {
   initialRoute?: string;
   /** Values for the `$param` segments in {@link initialRoute}. */
   routeParams?: Record<string, string>;
+  /** Fragment the page starts at, without the leading "#". For a page that
+   *  reads or rewrites the URL and has to carry the fragment along. */
+  routerHash?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +200,7 @@ export function renderPage(
     routerSearch,
     initialRoute = "/",
     routeParams,
+    routerHash,
     ...renderOptions
   } = options;
 
@@ -225,12 +229,15 @@ export function renderPage(
 
   // The route pattern carries `$param` placeholders; the history entry needs
   // them filled in, or nothing matches.
-  const initialEntry = routeParams
+  const withParams = routeParams
     ? Object.entries(routeParams).reduce(
         (path, [name, value]) => path.replaceAll(`$${name}`, value),
         initialRoute
       )
     : initialRoute;
+  // The fragment rides on the history entry only — the route pattern above must
+  // not carry it, or nothing matches.
+  const initialEntry = routerHash ? `${withParams}#${routerHash}` : withParams;
 
   const history = createMemoryHistory({
     initialEntries: [initialEntry],

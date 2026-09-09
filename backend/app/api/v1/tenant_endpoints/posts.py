@@ -80,7 +80,6 @@ from app.schemas.tenant.timeline import TimelineResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
-from app.services.realtime import broadcast_event
 from app.services.tenant import comments as comments_service
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
@@ -247,28 +246,6 @@ async def _announce(
         return
     await post_publication.announce_post(
         session, hydrated, author=author, guild_id=guild_context.guild_id
-    )
-
-
-async def _broadcast_post(post: Post, action: str) -> None:
-    """Emit a content-free post signal to the notice's initiative room.
-
-    Every write that changes what a board shows sends one of these, so a second
-    window catches up without being reloaded. The envelope carries the id and
-    nothing else — the client refetches through the RLS + DAC gated REST path,
-    which is where the authorization decision stays.
-
-    A draft is silent: it is reachable only by the people who could edit it, and
-    the board it will appear on has not changed yet. Publication is what
-    announces it, from the two places that publish.
-
-    Always called AFTER the commit, so a client that refetches the instant it
-    hears sees the write it was told about.
-    """
-    if not post.is_published:
-        return
-    await broadcast_event(
-        post.guild_id, post.initiative_id, "post", action, {"post_id": post.id}
     )
 
 
@@ -670,7 +647,6 @@ async def create_post(
         await _announce(session, post, current_user, guild_context)
 
     await session.commit()
-    await _broadcast_post(post, "created")
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
 
@@ -740,7 +716,6 @@ async def update_post(
         if publish_now:
             await _announce(session, post, current_user, guild_context)
         await session.commit()
-        await _broadcast_post(post, "published" if publish_now else "updated")
 
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -806,7 +781,6 @@ async def set_post_pin(
     session.add(post)
     await session.commit()
     # Pinning reorders the whole board, not just this row.
-    await _broadcast_post(post, "pinned" if pin_in.pinned else "unpinned")
 
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -841,7 +815,6 @@ async def delete_post(
         retention_days=retention_days,
     )
     await session.commit()
-    await _broadcast_post(post, "deleted")
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +850,6 @@ async def set_post_reaction_settings(
     session.add(post)
     await session.commit()
     # The bar appears or goes on every board showing this notice.
-    await _broadcast_post(post, "updated")
     return PostReactionSettings(reactions_enabled=post.reactions_enabled)
 
 
@@ -898,7 +870,6 @@ async def set_post_grants(
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     # Sharing decides who has a notice at all, so the room is told and each
     # window's own refetch settles what it may now see.
-    await _broadcast_post(hydrated, "updated")
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -1101,7 +1072,6 @@ async def set_post_poll(
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
     await session.commit()
-    await _broadcast_post(post, "updated")
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -1129,7 +1099,6 @@ async def delete_post_poll(
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
     await session.commit()
-    await _broadcast_post(post, "updated")
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -1191,7 +1160,6 @@ async def vote_on_post_poll(
     )
     await session.commit()
     # Everybody watching the poll is watching the tallies.
-    await _broadcast_post(post, "voted")
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -1223,7 +1191,6 @@ async def retract_post_poll_vote(
         )
     await post_polls_service.retract_vote(session, poll, user_id=current_user.id)
     await session.commit()
-    await _broadcast_post(post, "voted")
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)

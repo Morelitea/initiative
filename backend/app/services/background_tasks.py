@@ -55,6 +55,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_outbox_deliveries,
         process_outbox_retention,
     )
+    from app.services.tenant.room_sink import ROOM_SWEEP_SECONDS, process_room_sweep
     from app.services.platform.user_tokens import (
         process_expired_token_purge,
         TOKEN_PURGE_POLL_SECONDS,
@@ -152,6 +153,13 @@ def start_background_tasks() -> list[asyncio.Task]:
                 OUTBOX_RETENTION_POLL_SECONDS,
                 "outbox-retention",
             )
+        ),
+        # The room sink's backstop. The prompt path is the capture's own
+        # pg_notify; this covers the hints raised while a worker's bus
+        # connection was rebuilding, and reads nothing for a guild this
+        # process holds no socket for.
+        asyncio.create_task(
+            _loop_worker(process_room_sweep, ROOM_SWEEP_SECONDS, "room-sweep")
         ),
         asyncio.create_task(
             _loop_worker(

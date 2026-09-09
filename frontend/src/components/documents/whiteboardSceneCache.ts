@@ -10,9 +10,11 @@
  */
 
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { getItem, listKeys, removeItem, setItem } from "@/lib/storage";
 
-const cacheKey = (documentId: number) => `wb-scene-${documentId}`;
+const CACHE_PREFIX = "wb-scene-";
+
+const cacheKey = (documentId: number) => `${CACHE_PREFIX}${documentId}`;
 
 export interface WhiteboardSceneLoad {
   scene: WhiteboardScene;
@@ -34,6 +36,24 @@ export const stampWhiteboardSceneCache = (documentId: number, scene: WhiteboardS
 /** Drop the write-ahead cache (the server copy is now authoritative). */
 export const clearWhiteboardSceneCache = (documentId: number): void => {
   removeItem(cacheKey(documentId));
+};
+
+/**
+ * Drop every whiteboard's write-ahead cache. For signing out: these entries are
+ * document content, and they outlived the session that was allowed to read
+ * them — keyed by document id alone, with nothing to say whose they were.
+ *
+ * The cost is that unsaved edits do not survive a sign-out. That is the right
+ * trade: signing out is deliberate, the keepalive PATCH has already run on the
+ * way out of the document, and the alternative is leaving somebody's scene on
+ * a device they have just signed off.
+ */
+export const clearAllWhiteboardSceneCaches = (): void => {
+  for (const key of listKeys()) {
+    if (key.startsWith(CACHE_PREFIX)) {
+      removeItem(key);
+    }
+  }
 };
 
 /**

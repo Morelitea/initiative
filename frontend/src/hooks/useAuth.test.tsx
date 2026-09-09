@@ -34,6 +34,7 @@ vi.mock("@/lib/storage", () => ({
   getItem: () => null,
   setItem: vi.fn(),
   removeItem: vi.fn(),
+  listKeys: () => [],
 }));
 
 const forgetMessages = vi.fn();

@@ -200,6 +200,17 @@ export const invalidateDocumentComments = (documentId: number) =>
 export const invalidateToolComments = (tool: Tool, id: number) =>
   invalidateCommentsByParent(toolIdParam(tool), id);
 
+/**
+ * The comment thread on one parent, named by the parent's own resource type.
+ *
+ * The bus names a parent by its table (`tasks`, `counter_groups`), and a
+ * thread is keyed by that parent's singular `{parent}_id` — the same
+ * derivation the backend makes to report a junction against its owner. So this
+ * covers the task and every tool without a branch per parent.
+ */
+export const invalidateCommentsOnResource = (resourceType: string, id: number) =>
+  invalidateCommentsByParent(`${resourceType.replace(/s$/, "")}_id`, id);
+
 export const invalidateRecentComments = () => invalidateGuildPrefix("/api/v1/comments/recent");
 
 // ── Notifications (personal) ─────────────────────────────────────────────────────
@@ -529,13 +540,15 @@ export const invalidateAllTaskStatuses = () => invalidateGuildPrefix("/api/v1/pr
 
 export const invalidateAllProperties = () => invalidateGuildPrefix("/api/v1/property-definitions");
 
-// ── Initiative membership (guild, cross-tool) ────────────────────────────────────
-// Gaining (or losing) a membership row changes what the guild returns for every
-// tool, not just the initiative list: the sidebar tree, the discovery directory,
-// and each tool's guild-wide list all read differently afterwards. Declared last
-// so it can compose the per-resource helpers above.
+// ── Everything this guild shows (cross-tool) ─────────────────────────────────────
+// Two callers, one list. Gaining (or losing) a membership row changes what the
+// guild returns for every tool, not just the initiative list: the sidebar tree,
+// the discovery directory, and each tool's guild-wide list all read differently
+// afterwards. And a realtime frame for a write too large to name its rows one
+// by one says so instead, and this is the answer. Declared last so it can
+// compose the per-resource helpers above.
 
-export const invalidateInitiativeMembership = () =>
+export const invalidateGuildContent = () =>
   Promise.all([
     invalidateAllInitiatives(),
     invalidateAllProjects(),
@@ -544,6 +557,9 @@ export const invalidateInitiativeMembership = () =>
     invalidateAllCounterGroups(),
     invalidateAllCalendars(),
     invalidateAllDashboards(),
+    invalidateAllPosts(),
+    invalidateAllTasks(),
+    invalidateAllComments(),
   ]);
 
 // ── One tool entity (guild, cross-tool) ─────────────────────────────────────────

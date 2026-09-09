@@ -7,16 +7,14 @@ tests pin the tenancy boundary:
 * the ``ConnectionManager`` delivers a room's messages only to that room's
   sockets — and the ``guild_id`` in the key keeps per-guild-schema initiative ids
   (``id SERIAL`` per schema, so id 5 exists in many guilds) from colliding,
-* ``broadcast_event`` ships **no tooling content** — an id envelope, never a
-  serialized model,
+* a guild-wide signal reaches every socket on that guild once, whatever rooms
+  it is in,
 * the socket joins exactly the initiative rooms its user can reach
   (``_accessible_initiative_ids`` → the one ``initiative_access`` function), and
   never any initiative outside the addressed guild.
 """
 
 from datetime import datetime, timedelta, timezone
-
-import inspect
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,8 +24,7 @@ from app.api.v1.tenant_endpoints.events import _accessible_initiative_ids
 from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import Presence
-from app.services import realtime
-from app.services.realtime import ConnectionManager, broadcast_event, manager
+from app.services.realtime import ConnectionManager
 from app.testing import (
     create_guild,
     create_guild_membership,
@@ -168,30 +165,39 @@ async def test_broadcast_isolated_by_guild_and_initiative() -> None:
 
 
 @pytest.mark.unit
-async def test_broadcast_event_envelope_carries_no_content() -> None:
-    """``broadcast_event`` ships an id envelope, never a serialized model — driven
-    through the real module ``manager``/``broadcast_event`` every endpoint uses."""
-    guild_id, initiative_id = 101, 9
-    socket = FakeWebSocket()
-    await manager.connect(guild_id, [initiative_id], socket, user_id=1)
-    try:
-        await broadcast_event(
-            guild_id,
-            initiative_id,
-            "task",
-            "updated",
-            {"task_id": 7, "project_id": 3},
-        )
+async def test_a_guild_signal_reaches_every_socket_once() -> None:
+    """A change belonging to no initiative — a tag — goes to sockets, not rooms.
 
-        assert len(socket.sent) == 1
-        message = socket.sent[0]
-        assert message["resource"] == "task"
-        assert message["action"] == "updated"
-        assert message["ids"] == {"task_id": 7, "project_id": 3}
-        # No serialized model body may ride the bus.
-        assert "data" not in message
-    finally:
-        await manager.disconnect(socket)
+    So a member in three of the guild's initiatives hears it once, and a member
+    of none hears it at all.
+    """
+    cm = ConnectionManager()
+    in_three = FakeWebSocket()
+    in_none = FakeWebSocket()
+    elsewhere = FakeWebSocket()
+    await cm.connect(1, [5, 6, 7], in_three, user_id=1)
+    await cm.connect(1, [], in_none, user_id=2)
+    await cm.connect(2, [5], elsewhere, user_id=3)
+
+    await cm.broadcast_guild(1, {"hello": "guild-1"})
+
+    assert in_three.sent == [{"hello": "guild-1"}]
+    assert in_none.sent == [{"hello": "guild-1"}]
+    assert elsewhere.sent == []
+
+
+@pytest.mark.unit
+async def test_guild_ids_names_only_guilds_with_a_socket() -> None:
+    """What the room sink reads the change log for."""
+    cm = ConnectionManager()
+    socket = FakeWebSocket()
+    assert cm.guild_ids() == []
+
+    await cm.connect(4, [1], socket, user_id=1)
+    assert cm.guild_ids() == [4]
+
+    await cm.disconnect(socket)
+    assert cm.guild_ids() == []
 
 
 @pytest.mark.unit
@@ -221,12 +227,6 @@ async def test_failed_send_prunes_socket() -> None:
 
     await cm.broadcast(9, 1, {"x": 1})  # must not raise
     assert cm.room_size(9, 1) == 0  # the dead socket was pruned
-
-
-def test_broadcast_event_signature_is_guild_and_initiative_scoped() -> None:
-    """Guard against a regression to a guild-only or untenanted signature."""
-    params = list(inspect.signature(realtime.broadcast_event).parameters)
-    assert params[:5] == ["guild_id", "initiative_id", "resource", "action", "ids"]
 
 
 # ---------------------------------------------------------------------------

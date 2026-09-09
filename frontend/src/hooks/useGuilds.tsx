@@ -14,15 +14,16 @@ import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { persistGuildId, readStoredGuildId } from "@/lib/activeGuildStorage";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   addGrantOnlyGuildIds,
-  forgetGuildOffline,
   hydrateGuildShard,
   isOfflineCacheEnabled,
+  retainOnlyGuilds,
   setGrantOnlyGuildIds,
 } from "@/lib/offlineCache";
 import {
@@ -127,6 +128,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, refreshUser } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [guilds, setGuilds] = useState<GuildEntry[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
@@ -135,6 +137,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
   const hasFetchedRef = useRef(false);
+  /** True while the switcher is showing the list this device remembered rather
+   *  than one the server gave us. */
+  const showingRememberedGuildsRef = useRef(false);
   const activeGuildIdRef = useRef(activeGuildId);
   activeGuildIdRef.current = activeGuildId;
   // Mirror the active guild to the invalidation layer synchronously on every
@@ -149,6 +154,13 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   // always returns a fresh object, so an object-identity dep would refetch the
   // guild list and access grants on every profile refresh.
   const userId = user?.id ?? null;
+  // Mirrored synchronously so a reply that was asked for on behalf of somebody
+  // else can be recognised as such when it lands. Reads outlive the person they
+  // were made for: signing out, or switching account, does not cancel a request
+  // already in the air, and acting on one now means pruning this device's cache
+  // against the previous user's memberships.
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
@@ -170,13 +182,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       .map((guild) => guild.id);
     if (grantsKnown) {
       setGrantOnlyGuildIds(grantIds);
-      // A community that is now reached only by a grant may have been an
-      // ordinary membership when it was last cached, so anything already on
-      // disk for it goes. Per-community storage means this costs the one
-      // community rather than the whole cache.
-      for (const id of grantIds) {
-        void forgetGuildOffline(id);
-      }
     } else {
       addGrantOnlyGuildIds(grantIds);
     }
@@ -212,8 +217,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     if (!hasFetchedRef.current) setLoading(true);
 
     setError(null);
+    const forUser = userId;
     try {
       const response = await apiClient.get<GuildRead[]>("/guilds/");
+      if (userIdRef.current !== forUser) return;
       hasFetchedRef.current = true;
 
       // Also surface guilds the user can only reach via a live PAM grant, so
@@ -242,15 +249,31 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         console.error("Failed to load access grants for guild switcher", grantErr);
       }
 
-      // Only real memberships are remembered for offline use: a guild reached
-      // by a grant has no cached content to open, and the grant may be over by
-      // the time the device is looked at again.
+      // The grants call is a second wait, and the account can change across it.
+      if (userIdRef.current !== forUser) return;
+
       if (isOfflineCacheEnabled()) {
+        // Only real memberships are remembered for offline use: a guild reached
+        // by a grant has no cached content to open, and the grant may be over
+        // by the time the device is looked at again.
         saveOfflineGuilds(response.data, currentServerKey());
+        showingRememberedGuildsRef.current = false;
+        // Both lists have to be the server's answer before anything is thrown
+        // away. Without the grants half we cannot tell a community somebody has
+        // left from one they are in the middle of using on a grant, so an
+        // incomplete read prunes nothing and the next good one does it.
+        if (grantsKnown) {
+          const memberships = [...memberIds];
+          await retainOnlyGuilds(
+            [...memberships, ...grantGuilds.map((guild) => guild.id)],
+            memberships
+          );
+        }
       }
 
       applyGuildState([...response.data, ...grantGuilds], grantsKnown);
     } catch (err) {
+      if (userIdRef.current !== forUser) return;
       // Nothing answered: fall back to the communities this device last saw, so
       // the switcher is populated and the pages it still holds can be opened.
       // The grant list is unknown here, so the exclusion set is only widened.
@@ -258,6 +281,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         const remembered = readOfflineGuilds<GuildEntry>(currentServerKey());
         if (remembered && remembered.length > 0) {
           hasFetchedRef.current = true;
+          showingRememberedGuildsRef.current = true;
           applyGuildState(remembered, false);
           setLoading(false);
           return;
@@ -269,7 +293,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // so on a startup fetch failure that namespace may not be loaded yet.
       setError(getErrorMessage(err, "errors:unableToLoadGuilds"));
     } finally {
-      setLoading(false);
+      // Not for a reply that belongs to somebody else: the request for whoever
+      // is here now is still running, and its loading state is not ours to end.
+      if (userIdRef.current === forUser) setLoading(false);
     }
   }, [userId, applyGuildState]);
 
@@ -327,10 +353,19 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
       setLoading(false);
       hasFetchedRef.current = false;
+      showingRememberedGuildsRef.current = false;
       return;
     }
     void refreshGuilds();
   }, [userId, refreshGuilds]);
+
+  // A remembered list is only ever a stand-in. Signal returning is the moment
+  // to replace it — nothing else would, since the list is fetched off the
+  // user's id and that has not changed.
+  useEffect(() => {
+    if (!isOnline || !showingRememberedGuildsRef.current) return;
+    void refreshGuilds();
+  }, [isOnline, refreshGuilds]);
 
   const switchGuild = useCallback(
     async (guildId: number) => {

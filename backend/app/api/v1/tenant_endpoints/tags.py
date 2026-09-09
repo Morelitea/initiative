@@ -25,7 +25,6 @@ from app.models.tenant.queue import QueueItem
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
 from app.services.platform import guilds as guilds_service
-from app.services.realtime import broadcast_event
 from app.services.tenant import tags as tags_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.schemas.tenant.tag import (
@@ -213,15 +212,6 @@ async def bulk_edit_tags(
             .values(updated_at=datetime.now(timezone.utc))
         )
     await session.commit()
-
-    for project_id, initiative_id in project_initiatives.items():
-        await broadcast_event(
-            guild_context.guild_id,
-            initiative_id,
-            "task",
-            "updated",
-            {"project_id": project_id},
-        )
 
     return TagBulkEditResponse(updated_count=len(target_ids))
 
