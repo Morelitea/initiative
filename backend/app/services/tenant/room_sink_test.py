@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
@@ -349,7 +350,7 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
     ]
 
 
-async def _age_the_log(session, guild_id: int) -> None:
+async def _age_the_log(session: AsyncSession, guild_id: int) -> None:
     """Push everything already in the log out of any reasonable gap."""
     from app.db.session import set_rls_context
     from sqlalchemy import text
