@@ -27,6 +27,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.reaction_digest import ReactionDigestItem
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -239,7 +240,7 @@ async def _channels(
     from one batch load rather than a query per recipient.
     """
     if prefs is None:
-        prefs = await notification_prefs.load_prefs(session, recipient.id)
+        prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     allowed = {
         channel: notification_prefs.wants(
             prefs,
@@ -391,7 +392,8 @@ async def enqueue_task_assignment_event(
     # preferences when it sends. Only the in-app notification above is
     # immediate — the bell is a list, not an interruption.
     if wants_assignment_digest(
-        await notification_prefs.load_prefs(session, assignee.id), guild_id=guild_id
+        await notification_prefs.load_prefs_for_delivery(assignee.id),
+        guild_id=guild_id,
     ):
         event = TaskAssignmentDigestItem(
             user_id=assignee.id,
@@ -1562,13 +1564,56 @@ async def _deliver_notification(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
-def _event_data(event: CalendarEvent, guild_id: int, **extra) -> dict:
+#: Calendar -> its initiative, for the life of one session. Keyed by guild as
+#: well: per-guild schemas mean two calendars can hold the same id.
+_CALENDAR_INITIATIVES = "_calendar_initiatives"
+
+
+async def _calendar_initiative(
+    session: AsyncSession, *, calendar_id: int, guild_id: int
+) -> int | None:
+    """Which initiative a calendar belongs to.
+
+    Memoised, because an event notification is written once per recipient:
+    cancelling an event with fifty attendees asked this fifty times for the one
+    calendar. A calendar does not change initiative, so a session-lifetime
+    answer is the same answer.
+    """
+    memo: dict[tuple[int, int], int | None] = session.info.setdefault(
+        _CALENDAR_INITIATIVES, {}
+    )
+    key = (guild_id, calendar_id)
+    if key not in memo:
+        memo[key] = (
+            await session.exec(
+                select(Calendar.initiative_id).where(Calendar.id == calendar_id)
+            )
+        ).scalar_one_or_none()
+    return memo[key]
+
+
+async def _event_data(
+    session: AsyncSession, event: CalendarEvent, guild_id: int, **extra
+) -> dict:
+    """One event notification's payload, including where it happened.
+
+    The initiative is read from the event's calendar here rather than passed in
+    by each caller: every event notification is built through this one function,
+    so this is the place none of them can forget it. A guild-level calendar has
+    no initiative, and the notification then lights its community and nothing
+    inside it.
+    """
     target_path = _event_target_path(event.id)
+    initiative_id = await _calendar_initiative(
+        session, calendar_id=event.calendar_id, guild_id=guild_id
+    )
     data = {
         "event_id": event.id,
         "event_title": event.title,
         "start_at": event.start_at.isoformat(),
         "guild_id": guild_id,
+        "initiative_id": initiative_id,
+        "tool": Tool.calendar.value,
         "target_path": target_path,
         "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
     }
@@ -1594,7 +1639,7 @@ async def notify_event_invitation(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_invitation,
-        data=_event_data(event, guild_id, organizer_name=organizer_name),
+        data=await _event_data(session, event, guild_id, organizer_name=organizer_name),
         email_subject=email_t(
             "event.invitation.subject", locale, event=event.title, escape=False
         ),
@@ -1631,8 +1676,8 @@ async def notify_event_updated(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_updated,
-        data=_event_data(
-            event, guild_id, editor_name=editor_name, time_changed=time_changed
+        data=await _event_data(
+            session, event, guild_id, editor_name=editor_name, time_changed=time_changed
         ),
         email_subject=email_t(
             f"{key}.subject", locale, event=event.title, escape=False
@@ -1664,7 +1709,7 @@ async def notify_event_cancelled(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_cancelled,
-        data=_event_data(event, guild_id, canceller_name=canceller_name),
+        data=await _event_data(session, event, guild_id, canceller_name=canceller_name),
         email_subject=email_t(
             "event.cancelled.subject", locale, event=event.title, escape=False
         ),
@@ -1702,7 +1747,8 @@ async def notify_event_rsvp(
         session,
         recipient=organizer,
         notification_type=NotificationType.event_rsvp,
-        data=_event_data(
+        data=await _event_data(
+            session,
             event,
             guild_id,
             responder_name=responder_name,
@@ -1744,7 +1790,7 @@ async def notify_event_reminder(
         session,
         recipient=recipient,
         notification_type=NotificationType.event_reminder,
-        data=_event_data(event, guild_id),
+        data=await _event_data(session, event, guild_id),
         email_subject=email_t(
             "event.reminder.subject", locale, event=event.title, escape=False
         ),
@@ -1765,6 +1811,7 @@ async def notify_post_published(
     author_name: str,
     author_id: int,
     guild_id: int,
+    initiative_id: int | None = None,
 ) -> None:
     """Tell one person a notice has gone up on a board they can see.
 
@@ -1787,6 +1834,8 @@ async def notify_post_published(
             "author_name": author_name,
             "author_id": author_id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": Tool.post.value,
             "target_path": target_path,
             "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
         },
@@ -2246,6 +2295,8 @@ def _reaction_line(
     target_type: str,
     target_id: int,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
 ) -> dict[str, Any]:
     """One bell payload for every reaction rolled up so far.
 
@@ -2262,6 +2313,8 @@ def _reaction_line(
         "target_id": target_id,
         "context_title": context_title,
         "guild_id": guild_id,
+        "initiative_id": initiative_id,
+        "tool": tool,
         "target_path": target_path,
         "smart_link": smart_link,
         "emoji": latest.get("emoji"),
@@ -2283,6 +2336,8 @@ async def enqueue_reaction_event(
     context_title: str,
     target_path: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
 ) -> None:
     """Record that someone reacted to something ``author`` wrote.
 
@@ -2328,6 +2383,8 @@ async def enqueue_reaction_event(
         target_type=reaction.target_type,
         target_id=reaction.target_id,
         guild_id=guild_id,
+        initiative_id=initiative_id,
+        tool=tool,
     )
     if existing is None:
         await user_notifications.create_notification(
@@ -2339,7 +2396,7 @@ async def enqueue_reaction_event(
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
     if wants_digest(
-        await notification_prefs.load_prefs(session, author.id),
+        await notification_prefs.load_prefs_for_delivery(author.id),
         NotificationCategory.reactions,
         guild_id=guild_id,
     ):
@@ -2452,6 +2509,8 @@ async def withdraw_reaction_event(
             target_type=target_type,
             target_id=target_id,
             guild_id=guild_id,
+            initiative_id=previous.get("initiative_id"),
+            tool=previous.get("tool"),
         ),
         bump=False,
     )

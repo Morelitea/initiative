@@ -69,7 +69,6 @@ _RLS_SHARED_TABLES = {
     "marketplace_listings",
     "marketplace_media",
     "marketplace_registry_state",
-    "notifications",
     "oidc_claim_mappings",
     "platform_ai_connections",
     "profile_favorites",

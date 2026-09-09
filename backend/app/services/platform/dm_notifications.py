@@ -145,7 +145,7 @@ async def _roll_up(
     # fire again.
     if existing is not None:
         return
-    prefs = await notification_prefs.load_prefs(session, recipient.id)
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
 
     def _wanted(channel: Channel) -> bool:

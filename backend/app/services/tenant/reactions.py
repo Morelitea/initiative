@@ -84,6 +84,9 @@ class TargetContext:
     title: str
     target_path: str
     author_id: Optional[int]
+    #: Where a notification about this belongs in the navigation.
+    initiative_id: Optional[int] = None
+    tool: Optional[str] = None
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -121,6 +124,16 @@ async def _resolve_comment(
         title=ctx.title,
         target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
+        initiative_id=ctx.initiative_id,
+        # A tool comment names its own tool; a task comment belongs to the
+        # Projects list the task lives in.
+        tool=(
+            ctx.tool.value
+            if ctx.tool is not None
+            else Tool.project.value
+            if ctx.task is not None
+            else None
+        ),
     )
 
 
@@ -172,6 +185,8 @@ async def _resolve_post(
         title=post.name,
         target_path=notifications.tool_target_path(Tool.post.value, post.id),
         author_id=post.created_by,
+        initiative_id=post.initiative_id,
+        tool=Tool.post.value,
     )
 
 
@@ -430,6 +445,8 @@ async def _queue_reaction_notification(
         context_title=ctx.title,
         target_path=ctx.target_path,
         guild_id=guild_id,
+        initiative_id=ctx.initiative_id,
+        tool=ctx.tool,
     )
 
 

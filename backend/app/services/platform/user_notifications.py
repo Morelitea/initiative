@@ -58,7 +58,7 @@ async def create_notification(
     """
     place = _place(data)
     if prefs is None:
-        prefs = await notification_prefs.load_prefs(session, user_id)
+        prefs = await notification_prefs.load_prefs_for_delivery(user_id)
     if not notification_prefs.wants(
         prefs,
         notification_type=notification_type,

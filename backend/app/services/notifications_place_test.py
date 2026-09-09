@@ -194,3 +194,77 @@ async def test_every_comment_notifier_records_its_tool(
     line = await _only(session, recipient.id)
     assert line.initiative_id == 3
     assert line.tool == tool
+
+
+@pytest.mark.integration
+async def test_an_event_notification_names_its_calendar_initiative(
+    session: AsyncSession,
+):
+    """The one that was actually missing: an inbox full of event reminders lit
+    its community and nothing under it."""
+    from app.testing import create_calendar, create_calendar_event, create_initiative
+
+    organizer = await create_user(session, email="place-event@example.com")
+    guild = await create_guild(session, creator=organizer)
+    initiative = await create_initiative(session, guild, organizer)
+    calendar = await create_calendar(session, initiative, organizer)
+    event = await create_calendar_event(session, calendar, organizer)
+    attendee = await create_user(session, email="place-attendee@example.com")
+
+    await notifications_service.notify_event_reminder(
+        session, recipient=attendee, event=event, guild_id=guild.id
+    )
+    await session.commit()
+
+    line = await _only(session, attendee.id)
+    assert line.guild_id == guild.id
+    assert line.initiative_id == initiative.id
+    assert line.tool == Tool.calendar.value
+
+
+@pytest.mark.integration
+async def test_a_fan_out_asks_for_the_calendar_once(session: AsyncSession):
+    """Every recipient gets their own notification, and they all share one
+    lookup — an event with fifty attendees must not ask fifty times."""
+    from app.services.notifications import _CALENDAR_INITIATIVES
+    from app.testing import create_calendar, create_calendar_event, create_initiative
+
+    organizer = await create_user(session, email="fanout-organizer@example.com")
+    guild = await create_guild(session, creator=organizer)
+    initiative = await create_initiative(session, guild, organizer)
+    calendar = await create_calendar(session, initiative, organizer)
+    event = await create_calendar_event(session, calendar, organizer)
+
+    attendees = [
+        await create_user(session, email=f"fanout-{i}@example.com") for i in range(3)
+    ]
+
+    session.info.pop(_CALENDAR_INITIATIVES, None)
+    for attendee in attendees:
+        await notifications_service.notify_event_reminder(
+            session, recipient=attendee, event=event, guild_id=guild.id
+        )
+    await session.commit()
+
+    # One entry, three recipients: the answer was reached for once and reused.
+    assert list(session.info[_CALENDAR_INITIATIVES]) == [(guild.id, calendar.id)]
+    for attendee in attendees:
+        line = await _only(session, attendee.id)
+        assert line.initiative_id == initiative.id
+
+
+@pytest.mark.integration
+async def test_two_communities_do_not_share_one_calendar_answer(
+    session: AsyncSession,
+):
+    """Per-guild schemas mean two calendars can hold the same id, so the memo
+    is keyed by guild as well — answering one community from another's entry
+    would put a notification under the wrong initiative."""
+    from app.services.notifications import _CALENDAR_INITIATIVES, _calendar_initiative
+
+    memo = session.info.setdefault(_CALENDAR_INITIATIVES, {})
+    memo[(1, 7)] = 100
+    memo[(2, 7)] = 200
+
+    assert await _calendar_initiative(session, calendar_id=7, guild_id=1) == 100
+    assert await _calendar_initiative(session, calendar_id=7, guild_id=2) == 200
