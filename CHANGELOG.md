@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The mobile app reads what it last loaded, with no signal.** Opening Initiative on a phone with nothing to connect to used to hand you the sign-in screen — the app asks the server who you are before anything else, and no answer was treated the same as *no*. It now tells those two apart: a rejection still signs you out, but silence keeps you where you were and shows the tasks, documents, notices and calendars this device had already loaded, for up to a day. A bar across the top says you are offline and when the last update was, so nothing on screen is mistaken for current, and everything refreshes by itself the moment there is signal again. Reading only — nothing you write is held to send later.
+
 - **A notice can take reactions, or not.** Posts now have a reactions switch beside the comments one, under the notice's settings. It is on to begin with, so nothing changes until you turn it off — and turning it off keeps the reactions already there, the way turning a thread off keeps its comments; the board simply stops showing the bar until you turn it back on. Reactions belong to comments and to notices and to nothing else, so this is the one place the switch appears.
 
 ### Changed

@@ -370,13 +370,27 @@ const GLOBAL_KEY_PREFIXES = [
   "/api/v1/recents",
 ];
 
-/** Remove all guild-scoped query data so stale cross-guild results are never shown. */
-export const resetGuildScopedQueries = () =>
+/**
+ * Remove guild-scoped query data so stale cross-guild results are never shown.
+ *
+ * `arrivingGuildId` names the guild being entered, and that guild's own keys
+ * are left alone: they hold its data, not the departing guild's, so there is
+ * nothing stale about them. Online this changes nothing observable — those
+ * queries are stale on mount and refetch anyway — but it is the difference
+ * between showing a cached page and showing an empty one when the device has
+ * no connection to refetch from.
+ */
+export const resetGuildScopedQueries = (arrivingGuildId?: number | null) =>
   queryClient.resetQueries({
     predicate: (query) => {
       const first = query.queryKey[0];
       if (typeof first !== "string") return true;
-      return !GLOBAL_KEY_PREFIXES.some((prefix) => first.startsWith(prefix));
+      if (GLOBAL_KEY_PREFIXES.some((prefix) => first.startsWith(prefix))) return false;
+      if (arrivingGuildId != null) {
+        const match = first.match(/^\/api\/v1\/g\/(\d+)(\/.*)?$/);
+        if (match && Number(match[1]) === arrivingGuildId) return false;
+      }
+      return true;
     },
   });
 

@@ -14,10 +14,23 @@ import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { persistGuildId, readStoredGuildId } from "@/lib/activeGuildStorage";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import {
+  addGrantOnlyGuildIds,
+  forgetGuildOffline,
+  hydrateGuildShard,
+  isOfflineCacheEnabled,
+  setGrantOnlyGuildIds,
+} from "@/lib/offlineCache";
+import {
+  currentServerKey,
+  isNoAnswerError,
+  readOfflineGuilds,
+  saveOfflineGuilds,
+} from "@/lib/offlineSession";
 
 /**
  * A guild entry in the switcher. Member guilds come from `/guilds/`; entries
@@ -53,25 +66,6 @@ interface GuildContextValue {
 }
 
 export const GuildContext = createContext<GuildContextValue | undefined>(undefined);
-
-const GUILD_STORAGE_KEY = "initiative-active-guild";
-
-const readStoredGuildId = (): number | null => {
-  const stored = getItem(GUILD_STORAGE_KEY);
-  if (!stored) {
-    return null;
-  }
-  const parsed = Number(stored);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const persistGuildId = (guildId: number | null) => {
-  if (guildId === null) {
-    removeItem(GUILD_STORAGE_KEY);
-  } else {
-    setItem(GUILD_STORAGE_KEY, String(guildId));
-  }
-};
 
 const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
   return [...guildList].sort((a, b) => {
@@ -163,9 +157,29 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
-  const applyGuildState = useCallback((guildList: GuildEntry[]) => {
+  const applyGuildState = useCallback((guildList: GuildEntry[], grantsKnown = true) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
+
+    // Content from a guild reached only by a time-bound grant is not written to
+    // the offline cache, and this is the only place that knows which guilds
+    // those are. When the grant list could not be read, the set is widened
+    // rather than replaced — an incomplete reading must not shrink it.
+    const grantIds = sortedGuilds
+      .filter((guild) => guild.accessType === "grant")
+      .map((guild) => guild.id);
+    if (grantsKnown) {
+      setGrantOnlyGuildIds(grantIds);
+      // A community that is now reached only by a grant may have been an
+      // ordinary membership when it was last cached, so anything already on
+      // disk for it goes. Per-community storage means this costs the one
+      // community rather than the whole cache.
+      for (const id of grantIds) {
+        void forgetGuildOffline(id);
+      }
+    } else {
+      addGrantOnlyGuildIds(grantIds);
+    }
 
     // Use functional update to avoid overriding in-flight guild switches.
     // Only change activeGuildId when the current value is no longer valid.
@@ -207,6 +221,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // entered. Best-effort: a failure here must not break the guild list.
       const memberIds = new Set(response.data.map((g) => g.id));
       let grantGuilds: GuildEntry[] = [];
+      let grantsKnown = true;
       try {
         const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/", {
           params: { mine: true },
@@ -223,11 +238,31 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         }
         grantGuilds = Array.from(liveByGuild.values()).map(grantEntry);
       } catch (grantErr) {
+        grantsKnown = false;
         console.error("Failed to load access grants for guild switcher", grantErr);
       }
 
-      applyGuildState([...response.data, ...grantGuilds]);
+      // Only real memberships are remembered for offline use: a guild reached
+      // by a grant has no cached content to open, and the grant may be over by
+      // the time the device is looked at again.
+      if (isOfflineCacheEnabled()) {
+        saveOfflineGuilds(response.data, currentServerKey());
+      }
+
+      applyGuildState([...response.data, ...grantGuilds], grantsKnown);
     } catch (err) {
+      // Nothing answered: fall back to the communities this device last saw, so
+      // the switcher is populated and the pages it still holds can be opened.
+      // The grant list is unknown here, so the exclusion set is only widened.
+      if (isOfflineCacheEnabled() && isNoAnswerError(err)) {
+        const remembered = readOfflineGuilds<GuildEntry>(currentServerKey());
+        if (remembered && remembered.length > 0) {
+          hasFetchedRef.current = true;
+          applyGuildState(remembered, false);
+          setLoading(false);
+          return;
+        }
+      }
       console.error("Failed to load guilds", err);
       // Fallback lives in the ``errors`` namespace (preloaded at init) rather
       // than ``guilds``: this hook never mounts a ``useTranslation("guilds")``,
@@ -307,7 +342,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       setActiveGuildId(guildId);
-      await resetGuildScopedQueries();
+      await resetGuildScopedQueries(guildId);
+      await hydrateGuildShard(guildId);
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
     [userId, refreshGuilds, refreshUser]
@@ -324,7 +360,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     }
     setActiveGuildId(guildId);
     persistGuildId(guildId);
-    await resetGuildScopedQueries();
+    await resetGuildScopedQueries(guildId);
+    // Only the default community is hydrated at startup, so one opened later
+    // brings its own cached content with it.
+    await hydrateGuildShard(guildId);
   }, []);
 
   // Each browser tab holds its OWN guild, taken from its `/c/{guildId}` URL —

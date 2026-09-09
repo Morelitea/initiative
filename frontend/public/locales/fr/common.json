@@ -149,5 +149,9 @@
     "label": "Aller à un mois",
     "jumpedTo": "À partir de {{period}}",
     "backToLatest": "Revenir aux plus récentes"
+  },
+  "offline": {
+    "banner": "Vous êtes hors ligne — affichage du dernier contenu chargé sur cet appareil.",
+    "lastUpdated": "Dernière mise à jour {{when}}"
   }
 }

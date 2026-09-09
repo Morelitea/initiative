@@ -149,5 +149,9 @@
     "label": "Zu einem Monat springen",
     "jumpedTo": "Ab {{period}}",
     "backToLatest": "Zurück zu den neuesten"
+  },
+  "offline": {
+    "banner": "Du bist offline — angezeigt wird, was dieses Gerät zuletzt geladen hat.",
+    "lastUpdated": "Zuletzt aktualisiert {{when}}"
   }
 }

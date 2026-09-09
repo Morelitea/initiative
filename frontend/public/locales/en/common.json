@@ -149,5 +149,9 @@
     "label": "Jump to a month",
     "jumpedTo": "Showing from {{period}}",
     "backToLatest": "Back to latest"
+  },
+  "offline": {
+    "banner": "You're offline — showing what this device last loaded.",
+    "lastUpdated": "Last updated {{when}}"
   }
 }

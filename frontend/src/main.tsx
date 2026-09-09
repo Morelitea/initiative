@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { RouterProvider } from "@tanstack/react-router";
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
@@ -18,6 +19,7 @@ import { PrideProvider } from "@/hooks/usePride";
 import { useRouteGuardSync } from "@/hooks/useRouteGuardSync";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { prepareOfflineCache } from "@/lib/offlineBoot";
 import { queryClient } from "@/lib/queryClient";
 import { getStoredServerUrl } from "@/lib/serverStorage";
 import { initStorage } from "@/lib/storage";
@@ -57,6 +59,12 @@ const InnerApp = () => {
 async function bootstrap() {
   await initStorage();
 
+  // What this device last loaded, if it is still ours and still fresh. Decided
+  // before render so a launch with no signal has its content in hand rather
+  // than waiting on a request that will not answer — see
+  // `history/offline-reading-design.md`.
+  const offlinePersist = await prepareOfflineCache();
+
   // On native, set the API base URL immediately from storage so requests
   // reach the real backend before React effects run (avoids race condition
   // where child provider effects fire before ServerProvider's useEffect).
@@ -86,6 +94,15 @@ async function bootstrap() {
     }
   }
 
+  const withQueryClient = (children: React.ReactNode) =>
+    offlinePersist ? (
+      <PersistQueryClientProvider client={queryClient} persistOptions={offlinePersist}>
+        {children}
+      </PersistQueryClientProvider>
+    ) : (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <Suspense fallback={null}>
@@ -93,13 +110,13 @@ async function bootstrap() {
           <PrideProvider>
             <KeepScreenAwakeProvider>
               <ServerProvider>
-                <QueryClientProvider client={queryClient}>
+                {withQueryClient(
                   <AuthProvider>
                     <GuildProvider>
                       <InnerApp />
                     </GuildProvider>
                   </AuthProvider>
-                </QueryClientProvider>
+                )}
               </ServerProvider>
             </KeepScreenAwakeProvider>
           </PrideProvider>
