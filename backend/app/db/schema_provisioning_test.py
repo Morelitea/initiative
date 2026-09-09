@@ -20,6 +20,7 @@ from app.db.schema_provisioning import (
     guild_readonly_role_name,
     guild_role_name,
     guild_schema_name,
+    guild_query_role_name,
     guild_support_role_name,
     provision_guild_schema,
 )
@@ -197,6 +198,7 @@ async def test_drop_guild_schema_removes_role(engine):
         guild_role_name(gid),
         guild_readonly_role_name(gid),
         guild_support_role_name(gid),
+        guild_query_role_name(gid),
     )
     try:
         async with engine.begin() as conn:
@@ -217,8 +219,8 @@ async def test_drop_guild_schema_removes_role(engine):
                 )
                 for r in roles
             ]
-        assert before == [1, 1, 1], "all three roles should exist after provisioning"
-        assert after == [None, None, None], "all three roles should be gone after drop"
+        assert all(before), "every role should exist after provisioning"
+        assert not any(after), "every role should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
         async with engine.begin() as conn:
@@ -725,15 +727,15 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
     _original = sp._grant_statements
 
     def _different_grants(
-        schema: str, role: str, ro_role: str, support_role: str
+        schema: str, role: str, ro_role: str, support_role: str, query_role: str
     ) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
 
     def _cosmetic_rewrite(
-        schema: str, role: str, ro_role: str, support_role: str
+        schema: str, role: str, ro_role: str, support_role: str, query_role: str
     ) -> list[str]:
         # Different source text, byte-identical output.
-        return list(_original(schema, role, ro_role, support_role))
+        return list(_original(schema, role, ro_role, support_role, query_role))
 
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
