@@ -48,6 +48,21 @@ describe("useCanonicalInitiativeId", () => {
     expect(router.state.location.search).toMatchObject({ tab: "board" });
   });
 
+  it("keeps the fragment when it corrects the address", async () => {
+    const { router } = renderPage(pageFor(7), {
+      initialRoute: ROUTE,
+      routeParams: PARAMS,
+      routerHash: "tasks",
+    });
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/c/3/i/7/projects/1");
+    });
+    // Carried across as its own value — `hash` arrives without the "#", so a
+    // correction that pasted it onto the path would lose it or bury it there.
+    expect(router.state.location.hash).toBe("tasks");
+  });
+
   it("leaves an address the entity agrees with alone", async () => {
     const { router, getByTestId } = renderPage(pageFor(5), {
       initialRoute: ROUTE,
