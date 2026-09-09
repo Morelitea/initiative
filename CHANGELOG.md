@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Approving a member answers about their membership, not about their account.** Letting somebody into a community replied with their whole account record — the address they sign in with, their standing across the platform, every notification and display setting on it. The reply is now the community's own read of that person: the handle, the picture, the standing that just changed, and where they sit in the community's initiatives. A community shows real names where it has asked to, on the rosters and pickers that draw people; this answer draws nobody, so it carries no name.
 
+- **A community that shows handles asks for people without their names.** A community can render its members by handle rather than by real name, and a listed one always does. That choice now reaches the database: what a community's pages read of a person carries a name only where the community asked for one. Nothing changes on screen — the same communities show the same thing — it is settled a layer further down.
+
 ### Fixed
 
 - **A screen left open no longer quietly goes stale.** The live connection behind a community's pages could stop carrying without ever reporting itself closed — a laptop that slept, a proxy that drops connections it thinks are idle — and the tab went on showing what it had. The server now says something every thirty seconds even when nothing has happened, so a tab can tell a quiet community from a dead connection and rebuild the one it lost. A connection that comes back asks whether anything moved while it was away and re-reads the community only if something did, so a board left up on a second monitor catches up on its own.

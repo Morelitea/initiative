@@ -10,6 +10,9 @@ catalog rather than by whoever writes the next query:
 * ``public.guild_member_profiles`` — those plus ``full_name``, read by every
   guild-routed session. A guild is where colleagues are named; the profile
   page is not in one, which is why the name is in this view and not that one.
+  It arrives only from a guild that renders names: the view reads
+  ``app.guild_shows_member_names``, set from that guild's ``show_member_names``
+  with the rest of the request context, and answers ``NULL`` otherwise.
 
 Which columns those are lives in ``app.db.user_columns``.
 
