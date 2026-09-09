@@ -17,10 +17,16 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import type { Query } from "@tanstack/react-query";
+import { hydrate, type Query } from "@tanstack/react-query";
 
+import { readStoredGuildId } from "@/lib/activeGuildStorage";
 import { createIdbStore } from "@/lib/idbStore";
+import {
+  createShardedPersister,
+  type PersistedClientLike,
+  type ShardedPersister,
+} from "@/lib/offlineShards";
+import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
@@ -49,7 +55,11 @@ const SYNCED_AT_KEY = "initiative-offline-synced-at";
 
 const IDB_NAME = "initiative-offline";
 const IDB_STORE = "query-cache";
-const IDB_KEY = "react-query";
+
+/** The shard holding everything that is not one community's content. */
+const PLATFORM_SHARD = "platform";
+
+const guildShard = (guildId: number) => `g${guildId}`;
 
 /**
  * Read-only content surfaces worth having on a train. Matched as prefixes
@@ -245,26 +255,84 @@ export const setOfflineWritesAllowed = (allowed: boolean): void => {
   writesAllowed = allowed;
 };
 
-export const createOfflineCachePersister = () => {
-  const persister = createAsyncStoragePersister({
-    storage: store,
-    key: IDB_KEY,
-    // The blob is small — the allowlist keeps it to what somebody actually
-    // opened — but a phone should not re-serialize it on every keystroke.
-    throttleTime: 2000,
-    // A cache we can't write is a cache we don't keep: dropping it is always
-    // safe, since nothing is ever read from it while the device has signal.
-    retry: () => undefined,
-  });
+/**
+ * Which shard a query key belongs to: the community it addresses, or the
+ * platform shard for everything that is not one community's content.
+ */
+export const shardOfQueryKey = (queryKey: readonly unknown[]): string => {
+  const [first] = queryKey;
+  if (typeof first !== "string") return PLATFORM_SHARD;
+  const guildId = guildIdOfPath(first);
+  return guildId === null ? PLATFORM_SHARD : guildShard(guildId);
+};
 
+/**
+ * Hydrated at startup: the platform shard, plus the community this tab would
+ * open by default. The rest wait until somebody opens them, which is what keeps
+ * a launch from parsing every community's content before the first frame.
+ */
+const bootShards = (): string[] => {
+  const stored = readStoredGuildId();
+  return stored === null ? [PLATFORM_SHARD] : [PLATFORM_SHARD, guildShard(stored)];
+};
+
+let persister: ShardedPersister | null = null;
+
+const getPersister = (): ShardedPersister => {
+  if (!persister) {
+    persister = createShardedPersister({
+      store,
+      maxAgeMs: OFFLINE_CACHE_MAX_AGE_MS,
+      shardOf: shardOfQueryKey,
+      bootShards,
+    });
+  }
+  return persister;
+};
+
+export const createOfflineCachePersister = () => {
+  const sharded = getPersister();
   return {
-    ...persister,
-    persistClient: (client: Parameters<typeof persister.persistClient>[0]) => {
+    persistClient: (client: PersistedClientLike) => {
       if (!writesAllowed) return undefined;
       setItem(SYNCED_AT_KEY, String(client.timestamp));
-      return persister.persistClient(client);
+      return sharded.persistClient(client);
     },
+    restoreClient: () => sharded.restoreClient(),
+    removeClient: () => sharded.removeClient(),
   };
+};
+
+/**
+ * Bring a community's cached content into the query client when it is opened
+ * after startup. Does nothing when the shard is absent or past the window; the
+ * queries then simply have no cached data, which is the same position they were
+ * in before any of this existed.
+ */
+export const hydrateGuildShard = async (guildId: number): Promise<void> => {
+  if (!isOfflineCacheEnabled()) return;
+  try {
+    const queries = await getPersister().readShard(guildShard(guildId));
+    if (!queries || queries.length === 0) return;
+    hydrate(queryClient, { mutations: [], queries });
+  } catch {
+    // A shard that will not load is a shard the app does without.
+  }
+};
+
+/**
+ * Forget one community's cached content, leaving every other community's in
+ * place. Used when a community stops being an ordinary membership — it is left,
+ * or it becomes reachable only by a time-bound grant — where erasing the whole
+ * cache would be far more than the situation calls for.
+ */
+export const forgetGuildOffline = async (guildId: number): Promise<void> => {
+  if (!isOfflineCacheEnabled()) return;
+  try {
+    await getPersister().forgetShard(guildShard(guildId));
+  } catch {
+    // Best effort; the shard also ages out on its own clock.
+  }
 };
 
 /** Epoch ms of the last write, or null if this device has never cached. */
@@ -296,7 +364,7 @@ export const offlinePersistOptions = (buster: string) => ({
 export const purgeOfflineCache = async (): Promise<void> => {
   removeItem(SYNCED_AT_KEY);
   try {
-    await store.removeItem(IDB_KEY);
+    await getPersister().removeClient();
   } catch {
     // Best effort: a cache we cannot delete is one we also could not read, and
     // the buster means the next session will not accept it either way.

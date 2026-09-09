@@ -10,6 +10,7 @@ import {
   resetGrantOnlyGuildIds,
   restoredIdentityMismatch,
   setGrantOnlyGuildIds,
+  shardOfQueryKey,
   shouldPersistQuery,
 } from "./offlineCache";
 
@@ -121,6 +122,19 @@ describe("shouldPersistQuery", () => {
     expect(shouldPersistQuery(query(["dm", "unread"], "success"))).toBe(false);
     expect(shouldPersistQuery(query(["contacts", "community", 3, ""], "success"))).toBe(false);
     expect(shouldPersistQuery(query([{ scope: "guild-app" }], "success"))).toBe(false);
+  });
+});
+
+describe("shardOfQueryKey", () => {
+  it("files a community's content under that community", () => {
+    expect(shardOfQueryKey(["/api/v1/g/3/tasks/2866"])).toBe("g3");
+    expect(shardOfQueryKey(["/api/v1/g/12/documents"])).toBe("g12");
+  });
+
+  it("files everything else under the platform shard", () => {
+    expect(shardOfQueryKey(["/api/v1/users/me"])).toBe("platform");
+    expect(shardOfQueryKey(["/api/v1/me/tasks", { page: 1 }])).toBe("platform");
+    expect(shardOfQueryKey([{ scope: "guild-app" }])).toBe("platform");
   });
 });
 

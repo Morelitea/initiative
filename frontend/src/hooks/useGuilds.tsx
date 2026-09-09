@@ -14,11 +14,14 @@ import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { persistGuildId, readStoredGuildId } from "@/lib/activeGuildStorage";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   addGrantOnlyGuildIds,
+  forgetGuildOffline,
+  hydrateGuildShard,
   isOfflineCacheEnabled,
   setGrantOnlyGuildIds,
 } from "@/lib/offlineCache";
@@ -28,7 +31,6 @@ import {
   readOfflineGuilds,
   saveOfflineGuilds,
 } from "@/lib/offlineSession";
-import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
  * A guild entry in the switcher. Member guilds come from `/guilds/`; entries
@@ -64,25 +66,6 @@ interface GuildContextValue {
 }
 
 export const GuildContext = createContext<GuildContextValue | undefined>(undefined);
-
-const GUILD_STORAGE_KEY = "initiative-active-guild";
-
-const readStoredGuildId = (): number | null => {
-  const stored = getItem(GUILD_STORAGE_KEY);
-  if (!stored) {
-    return null;
-  }
-  const parsed = Number(stored);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const persistGuildId = (guildId: number | null) => {
-  if (guildId === null) {
-    removeItem(GUILD_STORAGE_KEY);
-  } else {
-    setItem(GUILD_STORAGE_KEY, String(guildId));
-  }
-};
 
 const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
   return [...guildList].sort((a, b) => {
@@ -187,6 +170,13 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       .map((guild) => guild.id);
     if (grantsKnown) {
       setGrantOnlyGuildIds(grantIds);
+      // A community that is now reached only by a grant may have been an
+      // ordinary membership when it was last cached, so anything already on
+      // disk for it goes. Per-community storage means this costs the one
+      // community rather than the whole cache.
+      for (const id of grantIds) {
+        void forgetGuildOffline(id);
+      }
     } else {
       addGrantOnlyGuildIds(grantIds);
     }
@@ -353,6 +343,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       }
       setActiveGuildId(guildId);
       await resetGuildScopedQueries(guildId);
+      await hydrateGuildShard(guildId);
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
     [userId, refreshGuilds, refreshUser]
@@ -370,6 +361,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     setActiveGuildId(guildId);
     persistGuildId(guildId);
     await resetGuildScopedQueries(guildId);
+    // Only the default community is hydrated at startup, so one opened later
+    // brings its own cached content with it.
+    await hydrateGuildShard(guildId);
   }, []);
 
   // Each browser tab holds its OWN guild, taken from its `/c/{guildId}` URL —
