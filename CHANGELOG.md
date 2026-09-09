@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-09-09
+
 ### Added
 
 - **The phone app takes the picture, and reads with no signal** — every image upload (profile picture, community icon and banner, document images, notice screenshots) now offers the camera beside the photo library. And silence from the server is no longer read as a rejection: instead of the sign-in screen you get the tasks, documents, notices and calendars this device had already loaded, for up to a day, behind a bar saying when it last updated. Reading only.
