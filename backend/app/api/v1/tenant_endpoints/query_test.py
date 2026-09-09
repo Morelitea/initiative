@@ -482,3 +482,77 @@ class TestGroupingByPerson:
         assert response.status_code == 200
         names = [row[0] for row in response.json()["rows"]]
         assert names and all(name for name in names)
+
+
+class TestAskingAboutTheReader:
+    """One saved statement, two people, two answers.
+
+    A dashboard is placed once and read by everybody in the initiative, so a
+    tile that is about *you* cannot hold anybody's id. ``me`` is what makes the
+    same stored SQL answer from whoever opened it.
+    """
+
+    async def test_the_same_statement_answers_from_whoever_asks(
+        self, client, session, acting_user
+    ):
+        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        # Both reach every row here, so the only thing that can separate the
+        # two answers is who is asking.
+        reader = await acting_user(
+            guild_role=GuildRole.admin,
+            guild=author.guild,
+            initiative=author.initiative,
+            initiative_role="member",
+        )
+        project = await create_project(session, author.initiative, author.user)
+        await create_task(session, project, assignees=[author.user])
+        await create_task(session, project, assignees=[author.user])
+        await create_task(session, project, assignees=[reader.user])
+
+        sql = (
+            "SELECT count(*) AS mine FROM tasks "
+            "JOIN task_assignees a ON a.task_id = tasks.id "
+            "WHERE a.user_id = me"
+        )
+        answers = {}
+        for actor in (author, reader):
+            response = await client.post(
+                actor.g("/query"),
+                json={"sql": sql, "initiative_id": author.initiative.id},
+                headers=actor.headers,
+            )
+            assert response.status_code == 200, response.json()
+            answers[actor.user.id] = response.json()["rows"][0][0]
+
+        assert answers == {author.user.id: 2, reader.user.id: 1}
+
+    async def test_it_reaches_the_person_through_a_relation(
+        self, client, session, acting_user
+    ):
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        project = await create_project(session, actor.initiative, actor.user)
+        await create_task(session, project, assignees=[actor.user])
+        await create_task(session, project)
+
+        response = await client.post(
+            actor.g("/query"),
+            json={
+                "sql": ("SELECT count(*) AS mine FROM tasks WHERE assignee.id = me"),
+                "initiative_id": actor.initiative.id,
+            },
+            headers=actor.headers,
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["rows"] == [[1]]
+
+    async def test_a_name_the_surface_keeps_is_refused_where_it_is_written(
+        self, client, acting_user
+    ):
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        response = await client.post(
+            actor.g("/query"),
+            json={"sql": "SELECT count(*) AS me FROM projects"},
+            headers=actor.headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == QueryMessages.RESERVED_NAME

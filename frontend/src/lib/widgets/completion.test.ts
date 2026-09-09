@@ -69,6 +69,16 @@ describe("what is offered", () => {
     expect(kinds).toEqual(new Set(["dataset", "field", "function"]));
   });
 
+  it("offers the reader beside them", () => {
+    const found = completionsFor("m", { ...vocabulary, tokens: ["me"] });
+    expect(found).toContainEqual({ name: "me", kind: "token" });
+  });
+
+  it("offers no token where the server names none", () => {
+    const kinds = completionsFor("m", vocabulary).map((entry) => entry.kind);
+    expect(kinds).not.toContain("token");
+  });
+
   it("says where a field comes from", () => {
     const found = completionsFor("priority", vocabulary)[0];
     expect(found).toBeUndefined();

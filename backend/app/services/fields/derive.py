@@ -14,7 +14,8 @@ rest. That is what keeps the second dataset from costing what the first one did.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from types import MappingProxyType
+from typing import Any, Mapping, Optional
 
 from sqlalchemy import (
     JSON,
@@ -86,14 +87,18 @@ def _referenced_table(col: Any) -> Optional[str]:
     return None
 
 
-def control_for(col: Any) -> Optional[ControlKind]:
+def control_for(col: Any, *, references: Optional[str] = None) -> Optional[ControlKind]:
     """Which control fills this column, or ``None`` if none can.
 
     Asked in the order the answers are trustworthy: what a column *references*
     beats what it is stored as, because both a person and a project are stored
     as an integer.
+
+    *references* names the table this column points at where the schema itself
+    cannot say — a view records no foreign keys, so a projection of ``users``
+    has an ``id`` that is a person and a type that says integer.
     """
-    referenced = _referenced_table(col)
+    referenced = references or _referenced_table(col)
     if referenced is not None:
         if referenced in _NEVER_NAMED:
             return None
@@ -136,6 +141,7 @@ def derive_fields(
     model: type[DeclarativeBase],
     *,
     internal: frozenset[str] = frozenset(),
+    references: Mapping[str, str] = MappingProxyType({}),
 ) -> tuple[FieldSpec, ...]:
     """Everything *model* itself implies: its columns, and its tags.
 
@@ -144,10 +150,16 @@ def derive_fields(
     counter, say. They stay filterable by a stored definition and are not
     offered as controls, which is the same treatment a column gets when its
     meaning is real but its audience is the code.
+
+    *references* supplies what a foreign key would have said, for a model over
+    something that holds none. It is still a derivation and not a control list:
+    it says which table a column points at, and the same rules as everywhere
+    else decide what that makes it.
     """
     specs = []
     for col in model.__table__.columns:
-        control = control_for(col)
+        referenced = references.get(col.name)
+        control = control_for(col, references=referenced)
         if control is None:
             continue
         specs.append(
@@ -156,6 +168,7 @@ def derive_fields(
                 getattr(model, col.name),
                 kind=control,
                 sortable=not isinstance(_base_type(col.type), _UNSORTABLE)
+                and referenced is None
                 and _referenced_table(col) is None,
                 nullable=bool(col.nullable),
                 # A reference with no picker has no control to offer, and a

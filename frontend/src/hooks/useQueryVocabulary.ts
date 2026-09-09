@@ -28,6 +28,7 @@ const FOREVER = {
 
 const NO_DATASETS: string[] = [];
 const NO_FUNCTIONS: string[] = [];
+const NO_TOKENS: string[] = [];
 const NO_FIELDS: DatasetFields[] = [];
 
 /** What a statement may name and call. */
@@ -41,6 +42,7 @@ export const useQueryVocabulary = (enabled = true) => {
   return {
     datasets: query.data?.datasets ?? NO_DATASETS,
     functions: query.data?.functions ?? NO_FUNCTIONS,
+    tokens: query.data?.tokens ?? NO_TOKENS,
     isLoading: query.isLoading,
   };
 };

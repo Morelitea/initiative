@@ -243,3 +243,63 @@ class TestReachingThroughARelation:
         )
         assert "JOIN task_statuses AS status" in sql
         assert "status.category" in sql
+
+
+class TestPickingYourself:
+    """A member picker offers the reader themselves, and what that builds is
+    the token rather than a value — so the tile answers per person."""
+
+    def test_a_person_field_takes_the_reader(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(Condition(field="created_by", op=FilterOp.eq, value="me"),),
+            )
+        )
+        assert sql.endswith("WHERE created_by = me")
+
+    def test_it_reaches_through_a_relation(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(Condition(field="assignee.id", op=FilterOp.eq, value="me"),),
+            )
+        )
+        assert sql.endswith("WHERE assignee.id = me")
+
+    def test_a_list_takes_it_beside_real_people(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(
+                    Condition(field="created_by", op=FilterOp.in_, value=["me", 7]),
+                ),
+            )
+        )
+        assert sql.endswith("WHERE created_by IN (me, 7)")
+
+    def test_anywhere_else_it_is_just_a_word(self):
+        """A title may be the word "me", and comparing against it is a text
+        comparison like any other."""
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="title"),),
+                where=(Condition(field="title", op=FilterOp.eq, value="me"),),
+            )
+        )
+        assert sql.endswith("WHERE title = 'me'")
+
+    def test_what_it_builds_is_a_statement_the_validator_takes(self):
+        _, resolved = build_and_resolve(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(Condition(field="created_by", op=FilterOp.eq, value="me"),),
+            )
+        )
+        assert "app.current_user_id" in resolved.sql
+        assert resolved.parameters == ()

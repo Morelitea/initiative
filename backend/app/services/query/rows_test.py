@@ -44,6 +44,13 @@ class TestWhatThePlannerRefuses:
         assert refused.value.code == QueryMessages.UNKNOWN_FIELD
         assert "margin" in refused.value.subject
 
+    def test_the_reader(self):
+        """``me`` is a row of ours. These rows are an app's, and it has never
+        heard of the person reading them."""
+        with pytest.raises(QueryError) as refused:
+            plan("SELECT shop FROM rows WHERE shop = me", READS)
+        assert refused.value.code == QueryMessages.RESERVED_NAME
+
     def test_a_relation_that_is_not_the_rows_it_fetched(self):
         with pytest.raises(QueryError) as refused:
             plan("SELECT shop FROM tasks", READS)

@@ -27,7 +27,7 @@ from app.schemas.field_catalog import (
 from app.schemas.sql_query import QueryVocabulary
 from app.services import fields as fields_registry
 from app.services.fields.registry import DatasetName, dataset_names
-from app.services.query.resolve import ALLOWED_FUNCTIONS
+from app.services.query.resolve import ALLOWED_FUNCTIONS, VIEWER
 
 router = APIRouter()
 
@@ -72,4 +72,5 @@ def read_query_vocabulary() -> QueryVocabulary:
     return QueryVocabulary(
         datasets=sorted(dataset_names()),
         functions=sorted(ALLOWED_FUNCTIONS),
+        tokens=[VIEWER],
     )

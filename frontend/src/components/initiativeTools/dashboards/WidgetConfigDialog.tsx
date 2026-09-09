@@ -1069,7 +1069,7 @@ function StatementEditor({
   error?: unknown;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { datasets, functions } = useQueryVocabulary();
+  const { datasets, functions, tokens } = useQueryVocabulary();
   const fields = useFieldCatalogs(datasets);
 
   return (
@@ -1081,6 +1081,7 @@ function StatementEditor({
         datasets={datasets}
         functions={functions}
         fields={fields}
+        tokens={tokens}
         aria-describedby="widget-sql-answer"
       />
       <p id="widget-sql-answer" className="text-xs">

@@ -5239,6 +5239,7 @@ export interface QueryShapeResponse {
 export interface QueryVocabulary {
   datasets: string[];
   functions: string[];
+  tokens?: string[];
 }
 
 export interface QueueCreate {

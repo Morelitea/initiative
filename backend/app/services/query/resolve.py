@@ -160,6 +160,42 @@ ALLOWED_FUNCTIONS: frozenset[str] = frozenset(
 #: puts there when it rewrites a spelling into a call.
 _FUNCTION_SCHEMA = "pg_catalog"
 
+#: The one name a statement may use that is not a column: the reader.
+#:
+#: A saved statement holds no reader in it, so ``where created_by = me`` is one
+#: widget answering differently for each person who opens the dashboard —
+#: which is the only way a dashboard can be about you. The filter path has
+#: taken the same word for as long as it has had an assignee filter; this is
+#: that idea in the language rather than in one field's handler.
+#:
+#: It is a value and nothing more: the reader's own id, on the right of a
+#: comparison. Which rows a statement reads is settled elsewhere — the guild by
+#: the routing, the initiative by the dashboard the tile sits on — and naming
+#: the reader narrows within that, one comparison like any other. It is not the
+#: ``/me/`` routes' cross-guild sense of the word.
+#:
+#: Public, because a client offering what a statement may contain has to offer
+#: this beside the datasets and the functions.
+VIEWER = "me"
+
+#: What ``me`` is written as, once. The request already says who is asking, so
+#: this reads it there rather than being handed it — which keeps resolution
+#: pure, keeps the reader's id out of anything stored, and leaves the answer to
+#: the moment the statement runs rather than the moment it was written.
+#:
+#: Unset it reads as null, and a comparison against null selects nothing.
+_VIEWER_EXPRESSION = "NULLIF(current_setting('app.current_user_id', true), '')::int"
+
+
+def _viewer_node() -> ast.Node:
+    """``me`` as a tree, parsed rather than assembled.
+
+    Built fresh per use: each occurrence is its own node, and a tree is not
+    something to share between two places in another tree.
+    """
+    target = parse_sql(f"SELECT {_VIEWER_EXPRESSION}")[0].stmt.targetList[0]
+    return target.val
+
 
 def _name_parts(parts: Any) -> list[str]:
     """The words of a dotted name, as the parser reports them.
@@ -214,6 +250,11 @@ def _check_select_shape(select: ast.SelectStmt) -> None:
     ):
         if getattr(select, attribute, None):
             raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, name)
+    for target in select.targetList or ():
+        if isinstance(target, ast.ResTarget) and target.name == VIEWER:
+            # An output column called ``me`` would make ``order by me`` mean
+            # two things, and the word already means one.
+            raise QueryError(QueryMessages.RESERVED_NAME, VIEWER)
 
 
 def _column_refs(node: Any) -> list[ast.ColumnRef]:
@@ -357,6 +398,8 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
         if node.relname not in known:
             raise QueryError(QueryMessages.UNKNOWN_RELATION, node.relname)
         handle = node.alias.aliasname if node.alias else node.relname
+        if handle == VIEWER:
+            raise QueryError(QueryMessages.RESERVED_NAME, VIEWER)
         if handle in scope:
             raise QueryError(QueryMessages.DUPLICATE_ALIAS, handle)
         scope[handle] = node.relname
@@ -507,6 +550,8 @@ def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | No
     if not isinstance(target.val, ast.ColumnRef):
         return None
     names = _name_parts(target.val.fields)
+    if names == [VIEWER]:
+        return FieldType.reference
     if len(names) == 2:
         dataset_name, field_name = scope.get(names[0]), names[1]
     elif len(names) == 1:
@@ -537,6 +582,10 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
                 column = _physical_column(dataset_name, names[1])
                 node.fields = (ast.String(sval=names[0]), ast.String(sval=column))
                 return
+            if names[0] == VIEWER:
+                # Expanded once the literals are bound, so what it expands to
+                # is not read as something the reader wrote.
+                return
             if names[0] in aliases and id(node) in alias_positions:
                 # An output alias: ``ORDER BY n`` names the count, and no table
                 # has a column for it.
@@ -557,6 +606,18 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
             node.fields = (ast.String(sval=_physical_column(holder, names[0])),)
 
     Resolve()(select)
+
+
+def _resolve_viewer(select: ast.SelectStmt) -> None:
+    """Write the reader in wherever the statement said ``me``."""
+
+    class Expand(Visitor):
+        def visit_ColumnRef(self, ancestors: Any, node: ast.ColumnRef) -> Any:
+            if _name_parts(node.fields) == [VIEWER]:
+                return _viewer_node()
+            return None
+
+    Expand()(select)
 
 
 def _constants_in(node: Any) -> set[int]:
@@ -669,6 +730,7 @@ def resolve(sql: str) -> ResolvedQuery:
     column_types = _output_types(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
+    _resolve_viewer(select)
     return ResolvedQuery(
         sql=RawStream()(select),
         parameters=parameters,

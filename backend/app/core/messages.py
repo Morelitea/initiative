@@ -585,6 +585,9 @@ class QueryMessages:
     TOO_MANY_RELATIONS = "QUERY_TOO_MANY_RELATIONS"
     #: ``*`` outside ``count(*)``. A query names the columns it wants.
     STAR_NOT_ALLOWED = "QUERY_STAR_NOT_ALLOWED"
+    #: A name the surface keeps for itself. ``me`` is the reader, so nothing
+    #: else may be called it and nowhere it means nothing may say it.
+    RESERVED_NAME = "QUERY_RESERVED_NAME"
 
     # Execution.
 

@@ -20,6 +20,7 @@ const SHIPPED_SQL = "SELECT priority, count(*) AS tasks FROM tasks GROUP BY prio
 const VOCABULARY = {
   datasets: ["tasks", "projects"],
   functions: ["count", "date_trunc", "lower"],
+  tokens: ["me"],
 };
 
 const FIELD = (name: string, type: string) => ({
@@ -183,6 +184,15 @@ describe("completion", () => {
     await user.click(sqlBox());
     await user.type(sqlBox(), "co");
     expect(await screen.findByRole("button", { name: /count/i })).toBeInTheDocument();
+  });
+
+  it("offers the reader, which is a name no dataset holds", async () => {
+    const user = userEvent.setup();
+    mount(halfWritten());
+
+    await user.click(sqlBox());
+    await user.type(sqlBox(), "m");
+    expect(await screen.findByRole("button", { name: /^me$/i })).toBeInTheDocument();
   });
 
   it("puts the chosen name in place of the word being typed", async () => {

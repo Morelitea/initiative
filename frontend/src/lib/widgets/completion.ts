@@ -21,7 +21,7 @@
 const WORD = /[A-Za-z0-9_]+$/;
 
 /** What kind of thing a suggestion is, for the icon and the grouping. */
-export type CompletionKind = "dataset" | "field" | "function";
+export type CompletionKind = "dataset" | "field" | "function" | "token";
 
 export interface Completion {
   /** The text inserted, and what is matched against. */
@@ -68,7 +68,14 @@ export const completionsFor = (
     datasets,
     functions,
     fields,
-  }: { datasets: string[]; functions: string[]; fields: DatasetFields[] }
+    tokens = [],
+  }: {
+    datasets: string[];
+    functions: string[];
+    fields: DatasetFields[];
+    /** Names resolved from who is asking rather than from the statement. */
+    tokens?: string[];
+  }
 ): Completion[] => {
   const needle = word.toLowerCase();
   if (!needle) return [];
@@ -85,6 +92,7 @@ export const completionsFor = (
       )
     ),
     ...functions.map((name): Completion => ({ name, kind: "function" })),
+    ...tokens.map((name): Completion => ({ name, kind: "token" })),
   ];
 
   const starts: Completion[] = [];
