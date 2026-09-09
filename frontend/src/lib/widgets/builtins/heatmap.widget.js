@@ -207,6 +207,10 @@ function render(data, config, context) {
   // Only a real date has a calendar shape; anything else has no day to place,
   // and a made-up placement would be a lie.
   if (atColumn === undefined || valueAt === undefined) return empty(say("needDayColumn"));
+  // Nothing to draw and nothing wrong: a statement that answered with no rows
+  // is a question nobody has done anything about yet, which is a different
+  // thing from one this widget cannot read.
+  if (!rows.length) return empty(say("nothingRecorded"));
   const dated = rows.filter((row) => typeof row[atColumn] === "number");
   if (!dated.length) return empty(say("needDayColumn"));
 
