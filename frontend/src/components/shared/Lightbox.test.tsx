@@ -68,6 +68,23 @@ describe("Lightbox", () => {
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
 
+  it("closes on a click beside the picture, not on the picture itself", () => {
+    const onOpenChange = vi.fn();
+    renderWithProviders(
+      <Lightbox open onOpenChange={onOpenChange} items={items} index={1} onIndexChange={vi.fn()} />
+    );
+    // The content fills the overlay, so the dark around the picture is the
+    // only backdrop there is — clicking it dismisses, the way clicking
+    // outside any other dialog does.
+    const picture = screen.getByRole("img", { name: "Second" });
+    fireEvent.click(picture);
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    const stage = picture.parentElement as HTMLElement;
+    fireEvent.click(stage);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("asks for more as the reader nears the end", () => {
     const onNearEnd = vi.fn();
     renderWithProviders(

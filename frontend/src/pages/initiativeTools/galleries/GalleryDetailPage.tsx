@@ -123,6 +123,13 @@ export function GalleryDetailPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
   const [order, setOrder] = useState<ImageOrder>("newest");
+  const changeOrder = useCallback((next: ImageOrder) => {
+    setOrder(next);
+    // An anchor names one end of a month, and which end is right depends on
+    // the direction. Turning the list around releases the jump rather than
+    // reading the anchor backwards.
+    setAnchor(null);
+  }, []);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useDebouncedValue(searchQuery, 300);
 
@@ -247,10 +254,20 @@ export function GalleryDetailPage() {
       toast.success(t("bulk.deleted", { count: result.deleted_count }));
     },
   });
-  const onJump = useCallback((bucket: TimelineBucket) => {
-    setAnchor({ period: bucket.period, at: bucket.anchor });
-    document.querySelector<HTMLElement>("[data-app-scroll]")?.scrollTo({ top: 0 });
-  }, []);
+  const onJump = useCallback(
+    (bucket: TimelineBucket) => {
+      // Which end of the month to land on is the direction the list is read
+      // in: newest first the page walks back from the month's last picture,
+      // oldest first it walks forward from its first. Taking the wrong end
+      // would jump to a month and show everything except it.
+      setAnchor({
+        period: bucket.period,
+        at: order === "oldest" ? bucket.anchor_oldest : bucket.anchor,
+      });
+      document.querySelector<HTMLElement>("[data-app-scroll]")?.scrollTo({ top: 0 });
+    },
+    [order]
+  );
 
   const activeFilterCount =
     (search.trim() ? 1 : 0) + (tagFilters.length > 0 ? 1 : 0) + (order === "oldest" ? 1 : 0);
@@ -394,7 +411,7 @@ export function GalleryDetailPage() {
         tags={tagFilters}
         onTagsChange={setTagFilters}
         order={order}
-        onOrderChange={setOrder}
+        onOrderChange={changeOrder}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
         onClear={clearFilters}

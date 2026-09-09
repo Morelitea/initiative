@@ -81,6 +81,48 @@ async def test_upload_accessible_with_auth_header(
 
 
 @pytest.mark.integration
+async def test_a_served_upload_is_cacheable_but_not_indefinitely(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A stored blob never changes under its name, so a browser may keep it —
+    but the decision above it is read per request, and a long-lived entry
+    would let a reader who lost access go on drawing what they fetched. So
+    the window is bounded, private to that browser, and not reusable once
+    stale."""
+    from app.models.tenant.upload import Upload
+
+    from app.main import UPLOAD_CACHE_SECONDS
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_cache_header.txt")
+    session.add(
+        Upload(
+            filename="test_cache_header.txt",
+            guild_id=guild.id,
+            created_by=user.id,
+            size_bytes=5,
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        f"/uploads/{guild.id}/test_cache_header.txt", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    cache = response.headers["cache-control"]
+    assert "private" in cache
+    assert "must-revalidate" in cache
+    assert f"max-age={UPLOAD_CACHE_SECONDS}" in cache
+    # Not for a year, and never past its window: the authorization above this
+    # file is a fact about now.
+    assert "immutable" not in cache
+    assert UPLOAD_CACHE_SECONDS <= 3600
+
+
+@pytest.mark.integration
 async def test_upload_session_jwt_rejected_in_query_param(
     client: AsyncClient, session: AsyncSession
 ) -> None:

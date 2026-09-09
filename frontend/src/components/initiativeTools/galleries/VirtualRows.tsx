@@ -38,8 +38,14 @@ export const VirtualRows = ({ rows, overscan = 3, onFirstVisible }: VirtualRowsP
     return scrollerRef.current;
   }, []);
 
+  // How far down the scrolled content the list starts — everything above it:
+  // the header, the toolbar, the filter panel, the selection bar, the upload
+  // strip. Every one of those opens and closes without this component
+  // remounting, and an offset measured once at mount would then be wrong by
+  // their height: the virtualizer mounts the wrong rows and leaves a blank
+  // band. So it is re-read whenever the page moves, a frame at a time.
   const [listOffset, setListOffset] = useState(0);
-  useLayoutEffect(() => {
+  const measure = useCallback(() => {
     const list = listRef.current;
     const scroller = getScrollElement();
     if (!list || !scroller) return;
@@ -47,6 +53,36 @@ export const VirtualRows = ({ rows, overscan = 3, onFirstVisible }: VirtualRowsP
       list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
     );
   }, [getScrollElement]);
+
+  useLayoutEffect(measure, [measure]);
+
+  // The rows themselves changing height is the other way the list moves.
+  useLayoutEffect(measure, [measure, rows]);
+
+  useEffect(() => {
+    const scroller = getScrollElement();
+    if (!scroller) return;
+    let frame: number | null = null;
+    const remeasure = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    scroller.addEventListener("scroll", remeasure, { passive: true });
+    globalThis.addEventListener("resize", remeasure);
+    // What is above the list changes height without the list re-rendering,
+    // so the scroller's own content box is what to watch.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(remeasure);
+    observer?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", remeasure);
+      globalThis.removeEventListener("resize", remeasure);
+      observer?.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [getScrollElement, measure]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,

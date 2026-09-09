@@ -154,9 +154,20 @@ export const Lightbox = ({
 
         {/* The stage. `touch-action: pan-y` leaves vertical scrolling to the
             browser and takes horizontal for the swipe. */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: the dialog owns
+            the keyboard route out (Escape) and the close button; this is the
+            pointer shortcut beside them. */}
         <div
           ref={stageRef}
           className="relative flex min-h-0 flex-1 touch-pan-y select-none items-center justify-center overflow-hidden"
+          // Clicking the dark around the picture closes it, the way clicking
+          // outside any other dialog does — the content fills the overlay
+          // here, so there is no backdrop of its own left to click. Only the
+          // stage itself: a click that landed on the picture or a chevron was
+          // aimed at that.
+          onClick={(event) => {
+            if (event.target === event.currentTarget) onOpenChange(false);
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

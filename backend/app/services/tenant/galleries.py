@@ -4,20 +4,24 @@ upload rules.
 A gallery is a shareable DAC resource (``resource_type='gallery'``) holding
 pictures as child rows. What is genuinely this tool's own is in two places:
 
-* **What a picture is allowed to be.** :func:`validate_image` reads the file's
-  header and nothing else — the format, the pixel size — so a hostile body
-  costs a few bounds-checked slices rather than a decoder. Raster only, and
-  no SVG: a picture in a gallery is drawn in an ``<img>``, where an SVG is a
-  document that can run.
+* **What a picture is allowed to be.** Two gates, cheapest first.
+  :func:`validate_image` reads the file's header — the format, the pixel size
+  — so an obviously wrong body costs a few bounds-checked slices rather than a
+  decoder. Raster only, and no SVG: a picture in a gallery is drawn in an
+  ``<img>``, where an SVG is a document that can run. Then
+  :func:`render_thumbnail` decodes it, and a body the decoder will not read is
+  refused: a header says what a file *claims*, and a truncated or hostile one
+  claims the same things a real picture does. Storing it would put something
+  no browser can draw on the wall, and hand every viewer the full-size
+  original because there was no thumbnail to show instead.
 * **The order.** Newest first, always. A gallery is a record of what arrived,
   and a design round is read in the order it happened; the timeline view
   groups the same order by day.
 
 Thumbnails are made here, at upload, with Pillow — the one place in the
-request path that decodes pixels. It runs after the header check has already
-said what the bytes are, under a pixel ceiling, and a picture whose thumbnail
-cannot be made is stored without one: the grid then shows the picture itself,
-which is slower and otherwise the same.
+request path that decodes pixels, under a pixel ceiling. A picture small
+enough not to need one is stored without it and the grid shows the picture
+itself; a picture that cannot be decoded at all is not stored.
 """
 
 import io
@@ -102,17 +106,24 @@ class Thumbnail:
     source_height: int
 
 
-def make_thumbnail(contents: bytes) -> Thumbnail | None:
-    """Render a thumbnail, or ``None`` where one cannot or need not be made.
+def render_thumbnail(contents: bytes) -> Thumbnail | None:
+    """Render a thumbnail, or ``None`` where one is not needed.
 
     WebP, because it is the smallest thing every browser draws. A picture no
-    larger than the thumbnail edge gets none: the grid would only be shown a
+    larger than the thumbnail edge needs none: the grid would only be shown a
     copy of what it already has. Animation is dropped — a thumbnail is a
     still.
 
-    Decoding is the one thing here that touches pixels, so it is boxed: a
-    decompression bomb is refused rather than warned about, and any failure
-    to decode means "no thumbnail", never a failed upload.
+    Raises :class:`InvalidImageError` for a body the decoder will not read —
+    truncated, corrupt, or more pixels than :data:`MAX_IMAGE_PIXELS`. That is
+    the second half of the gate rather than a warning to log: the caller
+    refuses the upload, because a picture nothing can decode is a picture
+    nothing can draw, and it would be served at full size to every viewer for
+    want of a thumbnail to show instead.
+
+    Decoding is the one thing in the request path that touches pixels, so it
+    is boxed: the bomb warning is raised as an error rather than printed, and
+    every failure mode leaves by the same door.
     """
     from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -141,8 +152,8 @@ def make_thumbnail(contents: bytes) -> Thumbnail | None:
         OSError,
         ValueError,
     ) as exc:
-        logger.info("No thumbnail for an uploaded picture: %s", exc)
-        return None
+        logger.info("Refused an upload the decoder would not read: %s", exc)
+        raise InvalidImageError() from exc
     return Thumbnail(
         data=out.getvalue(),
         content_type="image/webp",
@@ -186,10 +197,18 @@ def image_order(*, oldest_first: bool = False) -> list:
     return [GalleryImage.created_at.desc(), GalleryImage.id.desc()]
 
 
-def anchored_clause(until):
-    """The WHERE leg for "start here and go back" — inclusive, measured by
-    the same instant the feed is ordered by, so the picture a rail's anchor
-    names is the first one the page returns."""
+def anchored_clause(until, *, oldest_first: bool = False):
+    """The WHERE leg for "start the list here", inclusive.
+
+    Measured by the same instant the list is ordered by, so the picture the
+    rail's anchor names is the first one the page returns — and pointed the
+    same way the list is read. Newest first, an anchor is a ceiling and the
+    page walks back from it; oldest first, it is a floor and the page walks
+    forward. One clause with a direction rather than two, because there is
+    one question: where does this page start.
+    """
+    if oldest_first:
+        return GalleryImage.created_at >= until
     return GalleryImage.created_at <= until
 
 

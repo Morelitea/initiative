@@ -403,6 +403,86 @@ async def test_upload_refuses_what_is_not_a_raster_image(
 
 
 @pytest.mark.integration
+async def test_upload_refuses_what_the_decoder_will_not_read(
+    client: AsyncClient, acting_user, session
+):
+    """A header says what a file claims; the decode says whether it is one.
+    A truncated PNG passes the first gate and must not pass the second — it
+    would sit on the wall as a picture nothing can draw, served at full size
+    to every viewer for want of a thumbnail."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _galleries_enabled(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user)
+
+    whole = png_bytes(64, 64)
+    truncated = whole[: len(whole) // 2]
+    # The header still reads: this is exactly the case a header check passes.
+    assert galleries_service.validate_image(truncated)[0].width == 64
+
+    response = await client.post(
+        a.g(f"/galleries/{gallery.id}/images"),
+        headers=a.headers,
+        **_upload("truncated.png", truncated),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GALLERY_INVALID_IMAGE"
+    listing = await client.get(
+        a.g(f"/galleries/{gallery.id}/images"), headers=a.headers
+    )
+    assert listing.json()["total_count"] == 0
+
+
+@pytest.mark.integration
+async def test_a_jump_lands_on_the_month_whichever_way_the_list_reads(
+    client: AsyncClient, acting_user, session
+):
+    """The rail hands back both ends of a month. Newest first the page walks
+    back from the last picture in it; oldest first, forward from the first."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _galleries_enabled(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user)
+    for month, days in ((1, (5, 20)), (3, (2, 9, 27)), (5, (11,))):
+        for day in days:
+            await create_gallery_image(
+                session,
+                gallery,
+                a.user,
+                title=f"{month:02d}-{day:02d}",
+                created_at=datetime(2026, month, day, tzinfo=timezone.utc),
+                write_blob=False,
+            )
+
+    rail = await client.get(
+        a.g(f"/galleries/{gallery.id}/images/timeline"), headers=a.headers
+    )
+    march = next(b for b in rail.json()["buckets"] if b["period"] == "2026-03")
+    assert march["count"] == 3
+
+    backwards = await client.get(
+        a.g(f"/galleries/{gallery.id}/images"),
+        headers=a.headers,
+        params={"until": march["anchor"]},
+    )
+    assert [i["title"] for i in backwards.json()["items"]][:3] == [
+        "03-27",
+        "03-09",
+        "03-02",
+    ]
+
+    forwards = await client.get(
+        a.g(f"/galleries/{gallery.id}/images"),
+        headers=a.headers,
+        params={"until": march["anchor_oldest"], "oldest_first": "true"},
+    )
+    assert [i["title"] for i in forwards.json()["items"]][:3] == [
+        "03-02",
+        "03-09",
+        "03-27",
+    ]
+
+
+@pytest.mark.integration
 async def test_upload_needs_write_access_on_the_gallery(
     client: AsyncClient, acting_user, session
 ):

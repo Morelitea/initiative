@@ -39,6 +39,15 @@ from app.services import background_tasks as background_tasks_service
 
 logger = logging.getLogger(__name__)
 
+#: How long a browser may reuse a served upload without asking again.
+#:
+#: A stored blob is immutable, so this is not about staleness — it is the
+#: window in which a reader who has lost access can still draw what they
+#: already fetched. Five minutes: long enough that scrolling a gallery up and
+#: down is not a request per picture per pass, short enough that revocation
+#: takes effect while somebody is still looking.
+UPLOAD_CACHE_SECONDS = 300
+
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
 static_path = Path(settings.STATIC_DIR)
@@ -576,11 +585,19 @@ async def serve_upload_file(
         raise HTTPException(status_code=404)
 
     # A stored file never changes under its name — every write, including a
-    # new version of a picture, gets a fresh UUID — so a browser may keep it
-    # for as long as it likes. Private: the URL is authorized per request, and
-    # a shared cache must not serve it to the next reader.
+    # new version of a picture, gets a fresh UUID — so the bytes behind a URL
+    # are safe to keep. What is NOT safe to keep is the decision above it:
+    # membership and access grants are read per request, and a long-lived
+    # entry would let a browser go on drawing a picture after the reader
+    # stopped being allowed to see it.
+    #
+    # So the window is short rather than a year. It is long enough for the
+    # repeat requests one session of scrolling a gallery makes, and it bounds
+    # how long a revoked reader's own cache can outlive the revocation.
+    # ``private`` keeps a shared cache out of it entirely, and
+    # ``must-revalidate`` stops anything serving the entry once it is stale.
     headers: dict[str, str] = {
-        "Cache-Control": "private, max-age=31536000, immutable",
+        "Cache-Control": f"private, max-age={UPLOAD_CACHE_SECONDS}, must-revalidate",
     }
     if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"

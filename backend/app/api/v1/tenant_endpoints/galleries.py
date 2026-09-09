@@ -259,7 +259,16 @@ async def _read_picture(
             detail=GalleryMessages.INVALID_IMAGE,
         )
 
-    thumbnail = galleries_service.make_thumbnail(contents)
+    # The second half of the gate: a header says what a file claims, and the
+    # decode says whether it is one. A refusal here is the same 400 a bad
+    # header gets — the caller sent something that is not a picture.
+    try:
+        thumbnail = galleries_service.render_thumbnail(contents)
+    except galleries_service.InvalidImageError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GalleryMessages.INVALID_IMAGE,
+        )
     width, height = (
         (thumbnail.source_width, thumbnail.source_height)
         if thumbnail is not None
@@ -733,9 +742,13 @@ async def list_gallery_images(
     until: Optional[datetime] = Query(
         default=None,
         description=(
-            "Start at this instant and go back — inclusive, and measured by "
-            "upload time, which is what the list is ordered by. This is how a "
-            "timeline jumps to a month without paging through everything since."
+            "Start the list at this instant, inclusive, measured by upload "
+            "time — which is what the list is ordered by. This is how a "
+            "timeline jumps to a month without paging through everything "
+            "since. It follows the list's own direction: newest first it is a "
+            "ceiling and the page walks back from it, oldest first a floor "
+            "and the page walks forward, so pair it with the matching end of "
+            "the timeline bucket."
         ),
     ),
     page: int = Query(default=1, ge=1),
@@ -751,7 +764,9 @@ async def list_gallery_images(
     )
     conditions = _image_scope(gallery, tag_ids=tag_ids, search=search)
     if until is not None:
-        conditions.append(galleries_service.anchored_clause(until))
+        conditions.append(
+            galleries_service.anchored_clause(until, oldest_first=oldest_first)
+        )
 
     count_subq = select(GalleryImage.id).where(*conditions).subquery()
     total_count = (
@@ -885,7 +900,18 @@ async def upload_gallery_image(
     # that.
     gallery.updated_at = now
     session.add(gallery)
-    await session.commit()
+    # The blobs are already in storage, and the rows that account for them are
+    # not committed yet. Anything that stops the commit — a deadlock, a lost
+    # connection — would leave bytes nothing references and no purge can
+    # find, so they go back out before the error does.
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        attachments_service.delete_uploads_by_urls(
+            [url for url in (file_url, thumbnail_url) if url]
+        )
+        raise
 
     hydrated = await _refetch_image(session, gallery.id, image.id)
     return serialize_gallery_image(hydrated)
@@ -1083,18 +1109,22 @@ async def upload_gallery_image_version(
     session.add(image)
     try:
         await session.commit()
-    except IntegrityError:
-        # A concurrent upload claimed the same version number between the
-        # MAX() read and this commit. Roll back, drop the orphaned blobs, and
-        # ask the caller to retry rather than surfacing a 500.
+    except Exception as failed:
+        # The blobs are in storage and their rows are not committed, so they
+        # go back out whatever stopped the commit.
         await session.rollback()
         attachments_service.delete_uploads_by_urls(
-            [u for u in (file_url, thumbnail_url) if u]
+            [url for url in (file_url, thumbnail_url) if url]
         )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GalleryMessages.VERSION_CONFLICT,
-        )
+        if isinstance(failed, IntegrityError):
+            # A concurrent upload claimed the same version number between the
+            # MAX() read and this commit. Ask the caller to retry rather than
+            # surfacing a 500.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=GalleryMessages.VERSION_CONFLICT,
+            ) from failed
+        raise
     await session.refresh(version)
     return serialize_gallery_image_version(version, is_current=True)
 

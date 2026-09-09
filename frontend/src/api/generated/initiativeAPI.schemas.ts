@@ -6459,6 +6459,7 @@ export interface TimelineBucket {
   period: string;
   count: number;
   anchor: string;
+  anchor_oldest: string;
 }
 
 export interface TimelineResponse {
@@ -7943,7 +7944,7 @@ export type ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams = {
    */
   oldest_first?: boolean;
   /**
-   * Start at this instant and go back — inclusive, and measured by upload time, which is what the list is ordered by. This is how a timeline jumps to a month without paging through everything since.
+   * Start the list at this instant, inclusive, measured by upload time — which is what the list is ordered by. This is how a timeline jumps to a month without paging through everything since. It follows the list's own direction: newest first it is a ceiling and the page walks back from it, oldest first a floor and the page walks forward, so pair it with the matching end of the timeline bucket.
    */
   until?: string | null;
   /**
