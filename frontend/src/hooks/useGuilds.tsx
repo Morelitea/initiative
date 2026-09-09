@@ -17,7 +17,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { setGrantOnlyGuildIds } from "@/lib/offlineCache";
+import {
+  addGrantOnlyGuildIds,
+  isOfflineCacheEnabled,
+  setGrantOnlyGuildIds,
+} from "@/lib/offlineCache";
+import {
+  currentServerKey,
+  isNoAnswerError,
+  readOfflineGuilds,
+  saveOfflineGuilds,
+} from "@/lib/offlineSession";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
@@ -164,17 +174,22 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
-  const applyGuildState = useCallback((guildList: GuildEntry[]) => {
+  const applyGuildState = useCallback((guildList: GuildEntry[], grantsKnown = true) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
 
-    // A guild reached only by a time-bound PAM/break-glass grant must leave
-    // nothing behind on the device when the grant expires, so its content is
-    // never written to the offline cache. This is the only place that knows
-    // which guilds those are.
-    setGrantOnlyGuildIds(
-      sortedGuilds.filter((guild) => guild.accessType === "grant").map((guild) => guild.id)
-    );
+    // Content from a guild reached only by a time-bound grant is not written to
+    // the offline cache, and this is the only place that knows which guilds
+    // those are. When the grant list could not be read, the set is widened
+    // rather than replaced — an incomplete reading must not shrink it.
+    const grantIds = sortedGuilds
+      .filter((guild) => guild.accessType === "grant")
+      .map((guild) => guild.id);
+    if (grantsKnown) {
+      setGrantOnlyGuildIds(grantIds);
+    } else {
+      addGrantOnlyGuildIds(grantIds);
+    }
 
     // Use functional update to avoid overriding in-flight guild switches.
     // Only change activeGuildId when the current value is no longer valid.
@@ -216,6 +231,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // entered. Best-effort: a failure here must not break the guild list.
       const memberIds = new Set(response.data.map((g) => g.id));
       let grantGuilds: GuildEntry[] = [];
+      let grantsKnown = true;
       try {
         const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/", {
           params: { mine: true },
@@ -232,11 +248,31 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         }
         grantGuilds = Array.from(liveByGuild.values()).map(grantEntry);
       } catch (grantErr) {
+        grantsKnown = false;
         console.error("Failed to load access grants for guild switcher", grantErr);
       }
 
-      applyGuildState([...response.data, ...grantGuilds]);
+      // Only real memberships are remembered for offline use: a guild reached
+      // by a grant has no cached content to open, and the grant may be over by
+      // the time the device is looked at again.
+      if (isOfflineCacheEnabled()) {
+        saveOfflineGuilds(response.data, currentServerKey());
+      }
+
+      applyGuildState([...response.data, ...grantGuilds], grantsKnown);
     } catch (err) {
+      // Nothing answered: fall back to the communities this device last saw, so
+      // the switcher is populated and the pages it still holds can be opened.
+      // The grant list is unknown here, so the exclusion set is only widened.
+      if (isOfflineCacheEnabled() && isNoAnswerError(err)) {
+        const remembered = readOfflineGuilds<GuildEntry>(currentServerKey());
+        if (remembered && remembered.length > 0) {
+          hasFetchedRef.current = true;
+          applyGuildState(remembered, false);
+          setLoading(false);
+          return;
+        }
+      }
       console.error("Failed to load guilds", err);
       // Fallback lives in the ``errors`` namespace (preloaded at init) rather
       // than ``guilds``: this hook never mounts a ``useTranslation("guilds")``,

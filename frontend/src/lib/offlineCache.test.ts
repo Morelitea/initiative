@@ -2,6 +2,7 @@ import type { Query } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  addGrantOnlyGuildIds,
   guildIdOfPath,
   isPersistablePath,
   noteRestoredIdentity,
@@ -87,6 +88,19 @@ describe("isPersistablePath", () => {
 
   it("does not let a prefix match spill into a longer sibling name", () => {
     expect(isPersistablePath("/api/v1/g/3/tasks-export")).toBe(false);
+  });
+
+  it("widens the grant exclusion without narrowing it, for an unread grant list", () => {
+    setGrantOnlyGuildIds([9]);
+    // A refresh that could not read the grant list must not drop 9.
+    addGrantOnlyGuildIds([]);
+    expect(isPersistablePath("/api/v1/g/9/tasks")).toBe(false);
+    addGrantOnlyGuildIds([11]);
+    expect(isPersistablePath("/api/v1/g/9/tasks")).toBe(false);
+    expect(isPersistablePath("/api/v1/g/11/tasks")).toBe(false);
+    // A reading that did come back is allowed to replace it.
+    setGrantOnlyGuildIds([]);
+    expect(isPersistablePath("/api/v1/g/9/tasks")).toBe(true);
   });
 });
 

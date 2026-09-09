@@ -8,13 +8,10 @@ import { isOfflineCacheEnabled, offlineCacheSyncedAt } from "@/lib/offlineCache"
 
 /**
  * Says, plainly, that what is on screen came off this device rather than from
- * the server.
+ * the server, so a list is never mistaken for a current one.
  *
- * Nobody should have to guess whether a task list is current, and an offline
- * cache that does not announce itself is how somebody ends up acting on a
- * week-old page. The timestamp is the last moment this device wrote its cache —
- * that is, the last time it was online with a confirmed session — which is the
- * honest answer to "how old is this?".
+ * The timestamp is the last moment this device wrote its cache — that is, the
+ * last time it was online — which is the honest answer to "how old is this?".
  */
 export const OfflineBanner = () => {
   const { t } = useTranslation("common");

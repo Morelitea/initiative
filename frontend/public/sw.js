@@ -28,10 +28,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// API responses are never cached here. Cache Storage is keyed by URL alone —
-// no user, no expiry, nothing cleared on sign-out — so anything kept in it
-// outlives the session that was allowed to read it. Offline reading is handled
-// where those questions can be answered: src/lib/offlineCache.ts.
+// API responses are not cached here. Cache Storage is keyed by URL alone, with
+// no notion of who asked, how long an entry should live, or when to drop it.
+// Offline reading is handled in src/lib/offlineCache.ts, which has answers for
+// all three.
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;

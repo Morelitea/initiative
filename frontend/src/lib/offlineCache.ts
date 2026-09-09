@@ -1,22 +1,19 @@
 /**
- * What a phone with no signal is allowed to still show.
+ * What a phone with no signal still shows: the read-only content it last
+ * loaded, kept for a day.
  *
- * The whole argument for this file is in `history/offline-reading-design.md`;
- * the short version is that a cache on a disconnected device is an
- * authorization decision that can never be re-derived, so it is treated not as
- * permission to read but as a redisplay of bytes this device already lawfully
- * received — shown only when asking is impossible, expiring on the clock, and
- * destroyed with the identity that received them.
+ * How the cache behaves, in four rules. The reasoning behind each is in
+ * `history/offline-reading-design.md`.
  *
- * Four rules, and they are the security argument:
- *
- *   1. Online, the cache decides nothing — every query still asks, and the
- *      server's answer (including a refusal) wins. `staleTime` stays 0, so
- *      restored data refetches the moment there is signal.
- *   2. It expires on a fixed clock, because offline there are no events.
- *   3. It is bound to one user on one server and dies with that pairing.
- *   4. It holds only what a redisplay needs: default deny, an allowlist of
- *      read-only content paths, and a denylist over the top of that.
+ *   1. It is only ever read when the device cannot reach the server. Online,
+ *      every query still goes out and the server's answer is the one used;
+ *      `staleTime` stays 0, so restored data refetches as soon as there is
+ *      signal.
+ *   2. It expires on a fixed clock.
+ *   3. It belongs to one user on one server, and is erased when either changes
+ *      or the user signs out.
+ *   4. It holds only read-only content: default deny, an allowlist of paths,
+ *      and a denylist over the top of that.
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -95,10 +92,9 @@ const PERSIST_ALLOWLIST = [
 ] as const;
 
 /**
- * Paths that must never reach disk even if an allowlist entry above someday
- * grows to cover them. Configuration is not content, some of it is
- * secret-adjacent, and search and trash are surfaces about things the user may
- * since have lost — none of them is "what I was reading".
+ * Paths that are never written, whatever the allowlist above says. Settings and
+ * administration are configuration rather than content; search and trash are
+ * derived surfaces; none of them is "what I was reading".
  */
 const PERSIST_DENYLIST = [
   "/api/v1/auth/",
@@ -114,8 +110,8 @@ const PERSIST_DENYLIST = [
   "/api/v1/native",
   "/api/v1/search",
   "/api/v1/trash",
-  // Message plaintext is decrypted under a key store with its own
-  // erase-on-sign-out contract; a durable copy beside it defeats that.
+  // Messages keep their own store, with its own rules about what stays on a
+  // device (see `src/crypto/`). They are not duplicated here.
   "/api/v1/me/dm-settings",
   "/api/v1/me/connections",
   "/api/v1/me/message-requests",
@@ -126,17 +122,28 @@ const PERSIST_DENYLIST = [
 const GUILD_SEGMENT = /^\/api\/v1\/g\/(\d+)(?=\/|$)/;
 
 /**
- * Guilds the user reaches only through a live PAM or break-glass grant.
- *
- * These grants are time-bound and audited precisely so the access does not
- * outlive its window, so their content must not be written to disk at all.
- * `useGuilds` knows which guilds these are (it marks them `accessType: "grant"`)
- * and keeps this set current; the dehydrate filter reads it.
+ * Guilds the user reaches only through a live, time-bound grant rather than
+ * membership. Their content is not written to disk, since the grant can end
+ * while the device is away. `useGuilds` marks these `accessType: "grant"` and
+ * keeps this set current; the dehydrate filter reads it.
  */
 let grantOnlyGuildIds: ReadonlySet<number> = new Set();
 
+/**
+ * Replace the set. Only for a reading that actually came back — a narrower set
+ * than the truth would let a grant guild's content through.
+ */
 export const setGrantOnlyGuildIds = (ids: Iterable<number>): void => {
   grantOnlyGuildIds = new Set(ids);
+};
+
+/**
+ * Widen the set without narrowing it, for when the grant list could not be
+ * read. The cost of keeping a guild in here that has since become an ordinary
+ * membership is only that its content is not cached until the next good read.
+ */
+export const addGrantOnlyGuildIds = (ids: Iterable<number>): void => {
+  grantOnlyGuildIds = new Set([...grantOnlyGuildIds, ...ids]);
 };
 
 /** Test seam. */
@@ -188,24 +195,19 @@ export const shouldPersistQuery = (query: Query): boolean => {
 };
 
 /**
- * Native only, for now.
- *
- * An app sandbox is an OS-level boundary; browser storage is readable by anyone
- * with the unlocked profile, and today closing a tab leaves no readable content
- * behind. Extending this to installed PWAs deserves its own argument rather
- * than arriving as a side effect of a task titled "[Mobile]".
+ * Native only, for now. Extending this to installed PWAs is a separate decision
+ * — see `history/offline-reading-design.md`.
  */
 export const isOfflineCacheEnabled = (): boolean => Capacitor.isNativePlatform();
 
 const store = createIdbStore(IDB_NAME, IDB_STORE);
 
 /**
- * The cache is bound to one server: `persistQueryClient` throws away any blob
- * whose buster differs, so pointing the app at another deployment discards the
- * previous one's content rather than trying to read it.
+ * Ties the cache to one server: `persistQueryClient` discards any blob whose
+ * buster differs, so pointing the app at another deployment starts empty.
  *
- * Binding it to a *user* cannot be done here — at boot nobody has been
- * confirmed yet — so that half is `restoredIdentityMismatch` below.
+ * The user half cannot be done here, since nobody is confirmed at boot — that
+ * is `restoredIdentityMismatch` below.
  */
 export const offlineCacheBuster = (serverUrl: string): string =>
   `v${OFFLINE_CACHE_SCHEMA_VERSION}|${serverUrl}`;
@@ -218,10 +220,9 @@ export const noteRestoredIdentity = (userId: number | null): void => {
 };
 
 /**
- * True when the server has now confirmed somebody other than the user whose
- * cache we restored — the case where sign-out never ran (app killed, token
- * revoked server-side) and the next person would otherwise be handed the last
- * one's content. The caller clears the query client and purges the blob.
+ * True when the server confirms a different user than the one whose cache was
+ * restored, which can happen when a sign-out did not complete. The caller
+ * clears the query client and purges the blob.
  */
 export const restoredIdentityMismatch = (confirmedUserId: number): boolean => {
   const mismatch = restoredForUserId !== null && restoredForUserId !== confirmedUserId;
@@ -230,14 +231,13 @@ export const restoredIdentityMismatch = (confirmedUserId: number): boolean => {
 };
 
 /**
- * Whether anything may be written to disk right now.
+ * Whether anything may be written to disk right now: false until the server has
+ * confirmed who is here, so only content it has just served is recorded.
  *
- * False until the server has confirmed who is here, which does two jobs. It
- * keeps a session running on an unconfirmed snapshot from writing anything at
- * all — we only ever record content the server just agreed to hand over. And it
- * stops the max age from being a lie: every save restamps the blob's timestamp,
- * so a device opened offline each morning would otherwise renew its own cache
- * forever and never age out.
+ * This is also what keeps the max age meaningful. Every save restamps the
+ * blob's timestamp, and a launch with no signal re-dehydrates the cache it just
+ * restored — so without this, a device opened offline each morning would renew
+ * its own expiry indefinitely.
  */
 let writesAllowed = false;
 

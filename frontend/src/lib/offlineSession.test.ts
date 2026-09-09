@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
+import { setItem } from "@/lib/storage";
 
 import { OFFLINE_CACHE_MAX_AGE_MS } from "./offlineCache";
 import {
   clearOfflineSession,
   isNoAnswerError,
+  readOfflineGuilds,
   readOfflineSession,
+  saveOfflineGuilds,
   saveOfflineSession,
 } from "./offlineSession";
 
@@ -49,9 +52,9 @@ describe("the session snapshot", () => {
   });
 
   it("discards a snapshot it cannot make sense of", () => {
-    localStorage.setItem("initiative-offline-session", "{not json");
+    setItem("initiative-offline-session", "{not json");
     expect(readOfflineSession(SERVER)).toBeNull();
-    localStorage.setItem("initiative-offline-session", JSON.stringify({ savedAt: Date.now() }));
+    setItem("initiative-offline-session", JSON.stringify({ savedAt: Date.now() }));
     expect(readOfflineSession(SERVER)).toBeNull();
   });
 
@@ -59,6 +62,36 @@ describe("the session snapshot", () => {
     saveOfflineSession(buildUser(), SERVER);
     clearOfflineSession();
     expect(readOfflineSession(SERVER)).toBeNull();
+  });
+});
+
+describe("the remembered community list", () => {
+  it("hands back what was saved", () => {
+    saveOfflineGuilds([{ id: 3, name: "Beyonders" }], SERVER);
+    expect(readOfflineGuilds<{ id: number }>(SERVER)).toEqual([{ id: 3, name: "Beyonders" }]);
+  });
+
+  it("is refused for a different server", () => {
+    saveOfflineGuilds([{ id: 3 }], SERVER);
+    expect(readOfflineGuilds("https://other.example")).toBeNull();
+  });
+
+  it("expires on the same clock as everything else", () => {
+    vi.useFakeTimers();
+    saveOfflineGuilds([{ id: 3 }], SERVER);
+    vi.advanceTimersByTime(OFFLINE_CACHE_MAX_AGE_MS + 1000);
+    expect(readOfflineGuilds(SERVER)).toBeNull();
+  });
+
+  it("goes when the session it belongs to goes", () => {
+    saveOfflineGuilds([{ id: 3 }], SERVER);
+    clearOfflineSession();
+    expect(readOfflineGuilds(SERVER)).toBeNull();
+  });
+
+  it("discards a list it cannot make sense of", () => {
+    setItem("initiative-offline-guilds", "{not json");
+    expect(readOfflineGuilds(SERVER)).toBeNull();
   });
 });
 

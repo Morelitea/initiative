@@ -69,10 +69,10 @@ interface AuthContextValue {
   loading: boolean;
   isDeviceToken: boolean;
   /**
-   * True when the signed-in user came from a stored snapshot that the server
-   * has not confirmed — the app opened with no signal. Reading is allowed (see
-   * `history/offline-reading-design.md`); it is cleared as soon as any request
-   * succeeds, and the session is signed out if one is ever rejected.
+   * True when the signed-in user came from a stored snapshot the server has not
+   * confirmed — the app opened with no signal. Cleared as soon as any request
+   * succeeds; a rejected one ends the session. See
+   * `history/offline-reading-design.md`.
    */
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
@@ -134,9 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     // The cache restored at boot belonged to whoever was last signed in here.
-    // If that is not this person, sign-out never ran — the app was killed, or
-    // the token was revoked server-side — and the content must not survive the
-    // handover.
+    // If the server names somebody else, it does not carry over.
     if (restoredIdentityMismatch(nextUser.id)) {
       queryClient.clear();
       void purgeOfflineCache();
@@ -225,12 +223,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const response = await apiClient.get<UserRead>("/users/me");
         setUser(response.data);
       } catch (error) {
-        // Two very different failures used to land here together. If the server
-        // answered at all — a 401, anything — the session is over and the
-        // cleanup below is right. If nothing answered, we simply could not ask,
-        // and signing the user out for having no signal is what made offline
-        // reading impossible. Fall back to the stored snapshot instead, marked
-        // unverified until a request succeeds.
+        // Two different failures used to land here together. An answer of any
+        // kind is the server's, and the cleanup below is right for it. Nothing
+        // answering only means the account could not be read, which is what
+        // used to make offline reading impossible — fall back to the stored
+        // snapshot, marked unverified until a request succeeds.
         const snapshot =
           isOfflineCacheEnabled() && isNoAnswerError(error)
             ? readOfflineSession(currentServerKey())
@@ -260,9 +257,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void bootstrap();
   }, [setUser, replaceIdentity]);
 
-  // An unverified session is a claim, not a fact. Re-check it the moment the
-  // device has signal again rather than waiting for a screen to ask: a success
-  // confirms it, and a rejection reaches the 401 interceptor, which signs out.
+  // Re-read the account as soon as the device has signal again, rather than
+  // waiting for a screen to ask for it.
   useEffect(() => {
     if (!sessionUnverified || !isOnline) return;
     void refreshUser().catch(() => {
@@ -391,9 +387,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();
-    // replaceIdentity already dropped the session snapshot; the cache it went
-    // with has to go too, or the next person to open the app on this device
-    // would be handed the last one's content.
+    // replaceIdentity already dropped the session snapshot; the cache that went
+    // with it goes at the same time.
     clearOfflineSession();
     void purgeOfflineCache();
   }, [setUser, replaceIdentity]);
