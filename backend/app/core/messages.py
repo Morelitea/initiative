@@ -583,6 +583,16 @@ class QueryMessages:
     #: ``*`` outside ``count(*)``. A query names the columns it wants.
     STAR_NOT_ALLOWED = "QUERY_STAR_NOT_ALLOWED"
 
+    # Execution.
+
+    #: The planner's estimate for this statement is above what the surface
+    #: runs. Nothing was executed.
+    TOO_EXPENSIVE = "QUERY_TOO_EXPENSIVE"
+    #: The statement ran longer than one query may.
+    TIMED_OUT = "QUERY_TIMED_OUT"
+    #: This guild already has as many queries running as it may.
+    BUSY = "QUERY_BUSY"
+
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"

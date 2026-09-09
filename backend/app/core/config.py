@@ -187,6 +187,23 @@ class Settings(BaseSettings):
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # --- The SQL query surface ----------------------------------------------
+    #: Connections kept for reader-written SQL. Small on purpose: it is the
+    #: bound on how much of the database's attention those statements can hold.
+    QUERY_POOL_SIZE: int = 4
+    #: How long a query waits for one of them before giving up.
+    QUERY_POOL_TIMEOUT_SECONDS: int = 5
+    #: How many queries one guild may have running at once.
+    QUERY_MAX_CONCURRENT_PER_GUILD: int = 2
+    #: How long one statement may run.
+    QUERY_STATEMENT_TIMEOUT_MS: int = 5_000
+    #: Sort/hash memory per statement.
+    QUERY_WORK_MEM: str = "16MB"
+    #: The planner's estimate above which a statement is refused unrun.
+    QUERY_MAX_COST: float = 1_000_000.0
+    #: Rows one query may return.
+    QUERY_MAX_ROWS: int = 5_000
     # The JWT algorithm and cookie names are constants in app.core.security
     # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
     # JWT algorithm is an alg-confusion hazard, and the cookie names are part
