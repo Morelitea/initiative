@@ -38,4 +38,7 @@ export const dmHandlers = [
     HttpResponse.json({ sections: [], page: 1, page_size: 20 })
   ),
   http.get("/api/v1/me/contacts/favorites", () => HttpResponse.json({ items: [], total: 0 })),
+  // Read by the sidebar's unread badge, so every suite that draws the sidebar
+  // asks it — including ones that are not about messages at all.
+  http.get("/api/v1/me/dm/conversations", () => HttpResponse.json({ conversations: [] })),
 ];

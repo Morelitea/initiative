@@ -731,19 +731,46 @@ def _grouped_expressions(select: ast.SelectStmt) -> tuple[set[int], set[str]]:
     return marked, written
 
 
+def _function_arguments(node: Any) -> set[int]:
+    """Constants handed straight to a function.
+
+    An argument takes its type from the parameter it fills, and several of the
+    functions this surface admits have none to give: ``concat`` and ``count``
+    take ``"any"``, ``sum`` and ``avg`` are spelled once per numeric type, and
+    ``EXTRACT`` names its field in the grammar rather than passing it. A
+    parameter in any of those places is one Postgres will not plan, so a
+    constant filling one stays the constant the reader wrote.
+    """
+    found: set[int] = set()
+
+    class Collect(Visitor):
+        def visit_FuncCall(self, ancestors: Any, call: ast.FuncCall) -> None:
+            found.update(
+                id(argument)
+                for argument in call.args or ()
+                if isinstance(argument, ast.A_Const)
+            )
+
+    if node is not None:
+        Collect()(node)
+    return found
+
+
 def _literal_positions(select: ast.SelectStmt) -> set[int]:
     """Constants that stay constants.
 
-    Three kinds. ``GROUP BY 1`` and ``ORDER BY 1`` select an output column, and
+    Four kinds. ``GROUP BY 1`` and ``ORDER BY 1`` select an output column, and
     a parameter there would be the number one. A constant standing alone in the
     select list has nothing to take a type from — Postgres reads an unadorned
     parameter there as text — where the same constant compared against a column
     takes that column's type, which is what makes ``priority = $1`` work
     against an enum. And a constant inside a grouped or ordered expression is
     part of how that expression is written, which is what the output column is
-    found by.
+    found by. Last, a constant filling a function's argument stays one,
+    because not every function can say what type it takes.
     """
     marked, grouped = _grouped_expressions(select)
+    marked |= _function_arguments(select)
     for entry in select.groupClause or ():
         if isinstance(entry, ast.A_Const):
             marked.add(id(entry))

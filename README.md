@@ -208,25 +208,38 @@ The server is then served at **`/api/v1/mcp/`** (note the trailing slash) on you
 
 ### What it can access
 
-The surface is curated and **default-deny** — only the following are exposed. Everything else (documents, queues, counters, calendar, tags, members, admin, auth, settings, deletes, bulk operations, and AI generation) is **not**.
+The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, members and admin, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
 
-**Reads** (any API key):
+**Reads** (any API key) — initiatives and every tool they hold:
 
 | Tool | Endpoint |
 |---|---|
-| List / read projects (+ activity, favorites, export) | `GET /g/{guild}/projects…` |
-| List / read tasks and subtasks | `GET /g/{guild}/tasks…` |
 | List / read initiatives (+ members, roles, your permissions) | `GET /g/{guild}/initiatives…` |
-| Your projects / tasks across all guilds | `GET /me/projects`, `GET /me/tasks` |
+| List / read projects (+ activity, favorites, task statuses) | `GET /g/{guild}/projects…` |
+| List / read tasks and subtasks | `GET /g/{guild}/tasks…` |
+| List / read documents (+ versions, backlinks) | `GET /g/{guild}/documents…` |
+| List / read queues and their items | `GET /g/{guild}/queues…` |
+| List / read counter groups and counters | `GET /g/{guild}/counter-groups…` |
+| List / read calendars and their events | `GET /g/{guild}/calendars…`, `GET /g/{guild}/calendar-events…` |
+| List / read notices | `GET /g/{guild}/posts…` |
+| List / read dashboards, and what a tile currently shows | `GET /g/{guild}/dashboards…` |
+| Read a comment thread, or one comment | `GET /g/{guild}/comments…` |
+| Your projects / tasks / documents / calendars across all guilds | `GET /me/projects`, `GET /me/tasks`, … |
 
-**Writes** (full-access key only — a read-only key is rejected with `403`; each is confirmed in the client):
+**Writes** (full-access key only — a read-only key is rejected with `403`; each is confirmed in the client) — create and edit each of the same things:
 
 | Tool | Endpoint |
 |---|---|
-| Create a task | `POST /g/{guild}/tasks/` |
-| Edit a task | `PATCH /g/{guild}/tasks/{id}` |
-| Move a task | `POST /g/{guild}/tasks/{id}/move` |
-| Add a comment | `POST /g/{guild}/comments/` |
+| Create / edit a project | `POST /g/{guild}/projects/`, `PATCH …/projects/{id}` |
+| Create / edit / move a task | `POST /g/{guild}/tasks/`, `PATCH …/tasks/{id}`, `POST …/tasks/{id}/move` |
+| Create / edit a document | `POST /g/{guild}/documents/`, `PATCH …/documents/{id}` |
+| Create / edit a queue, and its items | `POST /g/{guild}/queues/`, `PATCH …/queues/{id}`, `POST …/queues/{id}/items`, `PATCH …/items/{id}` |
+| Create / edit a counter group, and its counters | `POST /g/{guild}/counter-groups/`, `PATCH …/{id}`, `POST …/counters`, `PATCH …/counters/{id}` |
+| Move a counter's count | `POST …/counters/{id}/set`, `/increment`, `/decrement` |
+| Create / edit a calendar, and its events | `POST /g/{guild}/calendars/`, `PATCH …/{id}`, `POST /g/{guild}/calendar-events/`, `PATCH …/{id}` |
+| Create / edit a notice | `POST /g/{guild}/posts/`, `PATCH …/posts/{id}` |
+| Create / edit a dashboard | `POST /g/{guild}/dashboards/`, `PATCH …/dashboards/{id}` |
+| Add / edit a comment | `POST /g/{guild}/comments/`, `PATCH …/comments/{id}` |
 
 ### Security notes
 

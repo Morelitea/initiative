@@ -326,6 +326,18 @@ class TestNothingOfTheOriginalTravels:
         assert "GROUP BY 1" in resolved.sql
         assert not resolved.parameters
 
+    def test_a_function_argument_stays_a_constant(self):
+        """``concat`` takes ``"any"``, so it gives its arguments no type to
+        take and Postgres will not plan a parameter in one. The separator is
+        written where the function can read it, and the value compared against
+        a column beside it still binds."""
+        resolved = resolve(
+            "SELECT concat(title, ' · ', priority) AS card FROM tasks "
+            "WHERE priority = 'high'"
+        )
+        assert "concat(title, ' · ', priority)" in resolved.sql
+        assert resolved.parameters == ("high",)
+
 
 class TestTheFunctionSurface:
     @pytest.mark.parametrize(
@@ -409,12 +421,14 @@ class TestAGroupedExpressionKeepsItsShape:
 
     def test_an_ordinal_still_selects_an_output_column(self):
         """``GROUP BY 1`` matches by position, so the expression it names has
-        nothing to agree with and its constant binds as usual."""
+        nothing to agree with — and the bucket it names is a function's
+        argument, which stays written where the function can read it."""
         resolved = resolve(
             "SELECT date_trunc('month', due_date) AS m, count(*) AS n "
             "FROM tasks GROUP BY 1 ORDER BY 1"
         )
-        assert resolved.parameters == ("month",)
+        assert resolved.parameters == ()
+        assert "date_trunc('month', due_date)" in resolved.sql
         assert "GROUP BY 1" in resolved.sql
 
 
