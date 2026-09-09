@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { SearchSuggestion, UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { useInitiativeMemberSearch } from "@/hooks/useUsers";
 import { getInitials } from "@/lib/initials";
 import type { ActiveMention } from "@/lib/mentions";
@@ -119,7 +119,9 @@ export const MentionPopover = ({
   const types = active.canCreate
     ? linkableToolTypes(initiative)
     : (active.types ?? MENTIONABLE_TYPES);
-  const suggestions = useGuildSearchSuggest(active.query, {
+  // A bare trigger names nothing yet, so the list opens on what was most
+  // recently worked on instead of on nothing at all.
+  const suggestions = useGuildPickerSuggestions(active.query, {
     types,
     initiative_id: initiativeId,
     // A mention points at work, not at the blueprint work is started from.
@@ -135,7 +137,7 @@ export const MentionPopover = ({
   const wanted = active.canCreate ? types : active.types;
   const rows: Row[] = useMemo(() => {
     if (active.user) return (members.data?.items ?? []).map(memberRow);
-    const found = (suggestions.data ?? [])
+    const found = suggestions.items
       .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
       .map(suggestionRow);
     if (!active.canCreate || !active.query.trim()) return found;
@@ -144,7 +146,7 @@ export const MentionPopover = ({
     const named = active.query.trim().toLowerCase();
     if (found.some((row) => row.label.toLowerCase() === named)) return found;
     return [...found, createRow(active.query.trim(), t)];
-  }, [active.user, active.canCreate, active.query, wanted, members.data, suggestions.data, t]);
+  }, [active.user, active.canCreate, active.query, wanted, members.data, suggestions.items, t]);
 
   const isLoading = inInitiative && (active.user ? members.isLoading : suggestions.isLoading);
 

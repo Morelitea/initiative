@@ -32,7 +32,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 import { MAX_DOCUMENT_IDS } from "@/lib/documentUtils";
 import { getItem, setItem } from "@/lib/storage";
@@ -87,9 +87,11 @@ export const ProjectDocumentsSection = ({
     { enabled: attachedDocumentIds.length > 0 }
   );
 
-  // Attach picker — the shared lookup, only while the dialog is open. A
-  // template is not a document to attach to a project.
-  const docSearchQuery = useGuildSearchSuggest(docSearch, {
+  // Attach picker — the shared lookup, only while the dialog is open. It opens
+  // on this initiative's most recent documents, so there is something to attach
+  // before anything is typed. A template is not a document to attach to a
+  // project.
+  const docPicker = useGuildPickerSuggestions(docSearch, {
     types: [SearchEntityType.document],
     initiative_id: initiativeId,
     template: false,
@@ -123,10 +125,10 @@ export const ProjectDocumentsSection = ({
   // no notion of which of them this project already holds.
   const comboboxItems = useMemo(() => {
     const attached = new Set(attachedDocumentIds);
-    return (docSearchQuery.data ?? [])
+    return docPicker.items
       .filter((doc) => !attached.has(doc.entity_id))
       .map((doc) => ({ value: String(doc.entity_id), label: doc.title }));
-  }, [docSearchQuery.data, attachedDocumentIds]);
+  }, [docPicker.items, attachedDocumentIds]);
 
   return (
     <Collapsible
@@ -200,7 +202,7 @@ export const ProjectDocumentsSection = ({
                           );
                         }}
                         onSearchChange={setDocSearch}
-                        loading={docSearchQuery.isFetching}
+                        loading={docPicker.isFetching}
                         placeholder={t("documents.chooseDocument")}
                         emptyMessage={t("documents.noMatchesFound")}
                         buttonClassName="justify-between"

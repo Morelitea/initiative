@@ -45,7 +45,7 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
@@ -113,8 +113,9 @@ export const CreateDocumentDialog = ({
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
   // Template picker — the shared lookup, asked for blueprints, only while the
-  // dialog is open.
-  const templateDocumentsQuery = useGuildSearchSuggest(templateSearch, {
+  // dialog is open. It opens on the templates most recently worked on, which is
+  // the only way it can say that this community has any.
+  const templates = useGuildPickerSuggestions(templateSearch, {
     types: [SearchEntityType.document],
     template: true,
     enabled: open && !isTemplateDocument,
@@ -122,11 +123,11 @@ export const CreateDocumentDialog = ({
 
   const templateItems = useMemo(
     () =>
-      (templateDocumentsQuery.data ?? []).map((doc) => ({
+      templates.items.map((doc) => ({
         value: String(doc.entity_id),
         label: doc.title,
       })),
-    [templateDocumentsQuery.data]
+    [templates.items]
   );
 
   const clearTemplate = useCallback(() => {
@@ -328,7 +329,7 @@ export const CreateDocumentDialog = ({
                   );
                 }}
                 onSearchChange={setTemplateSearch}
-                loading={templateDocumentsQuery.isFetching}
+                loading={templates.isFetching}
                 disabled={isTemplateDocument}
                 placeholder={t("create.selectTemplate")}
                 searchPlaceholder={t("create.searchTemplates")}

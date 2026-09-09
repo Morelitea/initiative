@@ -15,7 +15,7 @@ import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui
 import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
 import { activeMention, ENTITY_TRIGGER, MENTIONABLE_TYPES } from "@/lib/mentions";
@@ -80,8 +80,9 @@ export function EntityMentionsPlugin({
   const debouncedQuery = useDebouncedValue(active?.query ?? "", 200);
 
   // The one lookup every picker in the app goes through, narrowed to this
-  // initiative's live work.
-  const { data, isFetching, isPlaceholderData } = useGuildSearchSuggest(debouncedQuery, {
+  // initiative's live work. A bare `#` names nothing yet, so it opens on what
+  // was most recently worked on rather than on a menu with nothing in it.
+  const { items, isFetching, stale } = useGuildPickerSuggestions(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     template: false,
@@ -96,16 +97,13 @@ export function EntityMentionsPlugin({
   const wanted = active?.types;
   const shown = useMemo(
     () =>
-      (data ?? [])
+      items
         .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
         .map((suggestion) => new EntityOption(suggestion)),
-    [data, wanted]
+    [items, wanted]
   );
-  // What is on screen is the previous query's answer while the next is in
-  // flight. It stays visible so the menu does not blink shut, but it is not an
-  // answer to what has been typed now — so nothing here is offered to the
-  // keyboard, and Enter cannot land on a thing the reader has stopped naming.
-  const stale = isPlaceholderData;
+  // Nothing held over from a query the reader has moved on from is offered to
+  // the keyboard, so Enter cannot land on a thing they have stopped naming.
   const options = useMemo(() => (stale ? [] : shown), [stale, shown]);
 
   const onSelectOption = useCallback(

@@ -6,7 +6,7 @@ import {
   ENTITY_PICKER_PAGE_SIZE,
   type LinkedEntity,
 } from "@/components/initiativeTools/queues/LinkedEntityPicker";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 
 const DEFAULT_COLOR = "#6366F1";
 
@@ -91,8 +91,9 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
 
   // Both pickers ask the one lookup the whole app searches through, narrowed
   // to this initiative and to live work — a queue item links to something
-  // being done, not to a blueprint or something already put away.
-  const docsQuery = useGuildSearchSuggest(docSearch, {
+  // being done, not to a blueprint or something already put away. Each opens on
+  // what was most recently worked on, so neither starts as an empty box.
+  const docsPicker = useGuildPickerSuggestions(docSearch, {
     types: [SearchEntityType.document],
     initiative_id: initiativeId,
     template: false,
@@ -100,19 +101,19 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     enabled: open && docPickerOpen,
   });
   const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.entity_id, title: doc.title })),
-    [docsQuery.data]
+    () => docsPicker.items.map((doc) => ({ id: doc.entity_id, title: doc.title })),
+    [docsPicker.items]
   );
 
-  const tasksQuery = useGuildSearchSuggest(taskSearch, {
+  const tasksPicker = useGuildPickerSuggestions(taskSearch, {
     types: [SearchEntityType.task],
     initiative_id: initiativeId,
     limit: ENTITY_PICKER_PAGE_SIZE,
     enabled: open && taskPickerOpen,
   });
   const taskResults = useMemo(
-    () => (tasksQuery.data ?? []).map((task) => ({ id: task.entity_id, title: task.title })),
-    [tasksQuery.data]
+    () => tasksPicker.items.map((task) => ({ id: task.entity_id, title: task.title })),
+    [tasksPicker.items]
   );
 
   return {
@@ -143,8 +144,8 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     // Picker option lists
     selectedUser,
     docResults,
-    docsLoading: docsQuery.isFetching,
+    docsLoading: docsPicker.isFetching,
     taskResults,
-    tasksLoading: tasksQuery.isFetching,
+    tasksLoading: tasksPicker.isFetching,
   };
 };

@@ -18,7 +18,7 @@ import {
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildRecentSuggestions, useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { hitIcon } from "@/lib/searchResults";
 import { CHIP_ENTITY_TYPES, chipEntityType, chipKindsFor } from "@/lib/smartChips";
 import { cn } from "@/lib/utils";
@@ -72,32 +72,18 @@ export function SmartChipInsertDialog({
   // that belongs to none has nothing to offer and should say so.
   const hasInitiative = (initiativeId ?? 0) > 0;
 
-  const searched = debounced.trim().length > 0;
-  const narrowing = {
+  const {
+    items: shown,
+    searched,
+    stale,
+    isFetching,
+  } = useGuildPickerSuggestions(debounced, {
     types,
     initiative_id: initiativeId ?? undefined,
     template: false,
     limit: LIMIT,
-  };
-
-  // Two questions, and a picker asks whichever one it is being used for. Before
-  // anything is typed it is "what could I point at", which the lookup cannot
-  // answer — it matches words, and there are none yet.
-  const suggestions = useGuildRecentSuggestions({
-    ...narrowing,
-    enabled: hasInitiative && !searched,
+    enabled: hasInitiative,
   });
-  const matches = useGuildSearchSuggest(debounced, {
-    ...narrowing,
-    enabled: hasInitiative && searched,
-  });
-
-  const active = searched ? matches : suggestions;
-  // What came back is the previous query's answer, held so the list does not
-  // empty between keystrokes. It is not an answer to what is typed NOW, so it
-  // is shown but cannot be chosen.
-  const stale = searched && matches.isPlaceholderData;
-  const shown = active.data ?? [];
 
   const insert = (kind: SmartChipKind, suggestion: SearchSuggestion) => {
     activeEditor.update(() => {
@@ -154,14 +140,14 @@ export function SmartChipInsertDialog({
 
   const emptyMessage = !hasInitiative
     ? t("smartChips.noInitiative")
-    : active.isFetching
+    : isFetching
       ? t("smartChips.searching")
       : searched
         ? t("smartChips.noMatches", { query: debounced })
         : t("smartChips.nothingYet");
   // The initiative is only worth explaining where there is one; a document
   // outside every initiative has already been told the whole story.
-  const showScopeHint = hasInitiative && searched && !active.isFetching;
+  const showScopeHint = hasInitiative && searched && !isFetching;
 
   return (
     <div className="space-y-2">
