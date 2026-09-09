@@ -8,6 +8,7 @@ import {
   invalidateAllProperties,
   invalidateAllTags,
   invalidateAllTasks,
+  invalidateApps,
   invalidateCalendarEvent,
   invalidateCommentsOnResource,
   invalidateGuildContent,
@@ -129,6 +130,13 @@ const RESOURCE_INVALIDATORS: Record<string, (id: number) => void> = {
   tags: (id) => {
     void invalidateTag(id);
     void invalidateAllTags();
+  },
+  // An install belongs to no initiative, so it arrives guild-wide with no
+  // parent to carry it — this is the only thing that refreshes the sidebar's
+  // app list and the settings dialog for another admin's install, rename or
+  // configuration. Takes no id: the reads are keyed by guild, not by install.
+  apps: () => {
+    void invalidateApps();
   },
   property_definitions: () => {
     void invalidateAllProperties();
