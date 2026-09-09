@@ -1,8 +1,14 @@
-"""Carrying a per-user frame between workers, over Postgres.
+"""Carrying a nudge between workers, over Postgres.
 
-The API may run as more than one process. A frame raised by the worker that
-handled a request has to reach the worker holding that person's socket, and
-those are routinely not the same one.
+The API may run as more than one process. A signal raised by the worker that
+handled a request has to reach the worker holding the socket it is for, and
+those are routinely not the same one. Postgres itself raises some of them: the
+change-capture trigger says a guild's log has moved without any worker being
+involved at all.
+
+One held connection carries every channel — a subscriber registers a handler,
+and the listener is (re)established for all of them together. So a second kind
+of nudge costs a channel name and a function, never a second connection.
 
 This uses ``LISTEN``/``NOTIFY``, which is already deployed everywhere the app
 is: no broker to run, no port to open, no credential to rotate, and no second
@@ -20,7 +26,9 @@ Two properties of the mechanism shape the code below:
 * **Delivery is at-most-once and only to whoever is listening now.** There is
   no queue and no replay: a worker that was reconnecting missed what went past.
   That is acceptable precisely because a frame is only ever a nudge to refetch,
-  and it is why nothing here is allowed to be load-bearing.
+  and it is why nothing here is allowed to be load-bearing. A subscriber that
+  needs to survive a gap keeps its own backstop — the room sink sweeps the log
+  it is nudged about, so a missed hint costs latency rather than the update.
 
 Every failure is therefore soft. Where the bus cannot start, callers still
 deliver to their own process's sockets and the deployment behaves exactly as it
@@ -30,7 +38,7 @@ did before this existed.
 import asyncio
 import logging
 from contextlib import suppress
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg
@@ -48,6 +56,9 @@ _RECONNECT_MAX_SECONDS = 60.0
 #: Delivery tasks in flight, held so the event loop's weak reference cannot
 #: collect one mid-frame.
 _inflight: set[asyncio.Task] = set()
+
+#: What a subscriber hands over: the payload as it was sent, nothing else.
+Handler = Callable[[str], Awaitable[None]]
 
 
 def _dsn() -> str:
@@ -70,12 +81,13 @@ def _dsn() -> str:
     return urlunsplit((scheme, parts.netloc, parts.path, parts.query, parts.fragment))
 
 
-class UserStreamBus:
+class NotifyBus:
     """One held connection: listening for other workers, and telling them."""
 
     def __init__(self) -> None:
         self._connection: Optional[asyncpg.Connection] = None
         self._task: Optional[asyncio.Task] = None
+        self._handlers: dict[str, Handler] = {}
         self._lock = asyncio.Lock()
         # One statement at a time on the held connection. A connection carries
         # a single operation, so two overlapping sends raise rather than queue
@@ -87,6 +99,15 @@ class UserStreamBus:
     @property
     def running(self) -> bool:
         return self._connection is not None and not self._connection.is_closed()
+
+    def register(self, channel: str, handler: Handler) -> None:
+        """Take delivery of one channel.
+
+        Registering before ``start`` is the ordinary case; registering after it
+        is honoured on the next connect rather than immediately, because
+        ``LISTEN`` belongs to the connection and this one is already held.
+        """
+        self._handlers[channel] = handler
 
     async def start(self) -> None:
         """Open the connection and subscribe. Never raises.
@@ -113,7 +134,7 @@ class UserStreamBus:
                 await task
         self._connection = None
 
-    async def notify(self, payload: str) -> None:
+    async def notify(self, channel: str, payload: str) -> None:
         """Put one frame on the bus for the other workers.
 
         Serialized: senders wait for each other rather than sharing the
@@ -126,27 +147,26 @@ class UserStreamBus:
         cross-process delivery this time", never as a failed request — see
         ``user_stream._publish_remote``.
         """
-        from app.services.platform.user_stream import CHANNEL
-
         async with self._send_lock:
             connection = self._connection
             if connection is None or connection.is_closed():
-                raise RuntimeError("user stream bus is not connected")
-            await connection.execute("SELECT pg_notify($1, $2)", CHANNEL, payload)
+                raise RuntimeError("notify bus is not connected")
+            await connection.execute("SELECT pg_notify($1, $2)", channel, payload)
 
     async def _maintain(self) -> None:
         """Keep a listening connection up, reconnecting with backoff."""
-        from app.services.platform.user_stream import CHANNEL
-
         delay = _RECONNECT_DELAY_SECONDS
         while not self._stopping:
             connection: Optional[asyncpg.Connection] = None
             try:
                 connection = await asyncpg.connect(dsn=_dsn())
-                await connection.add_listener(CHANNEL, self._on_notify)
+                for channel in self._handlers:
+                    await connection.add_listener(channel, self._on_notify)
                 async with self._lock:
                     self._connection = connection
-                logger.info("user stream bus listening on %s", CHANNEL)
+                logger.info(
+                    "notify bus listening on %s", ", ".join(sorted(self._handlers))
+                )
                 delay = _RECONNECT_DELAY_SECONDS
                 # Hold the connection open. asyncpg dispatches notifications on
                 # its own reader task, so there is nothing to poll here — this
@@ -159,7 +179,7 @@ class UserStreamBus:
                 # First failure is worth a line; the retries are not, or a
                 # database that stays down fills the log with one message.
                 logger.info(
-                    "user stream bus unavailable; cross-process frames are not "
+                    "notify bus unavailable; cross-process frames are not "
                     "being delivered by this worker",
                     exc_info=True,
                 )
@@ -178,22 +198,27 @@ class UserStreamBus:
             await asyncio.sleep(delay)
             delay = min(delay * 2, _RECONNECT_MAX_SECONDS)
 
-    def _on_notify(self, _connection, _pid, _channel, payload: str) -> None:
-        from app.services.platform.user_stream import deliver_remote
-
+    def _on_notify(self, _connection, _pid, channel: str, payload: str) -> None:
+        handler = self._handlers.get(channel)
+        if handler is None:
+            return
         # asyncpg calls this from its reader task, so delivery is scheduled
         # rather than awaited. The task is held until it finishes: the loop
         # keeps only a weak reference, and a collected task drops the frame.
-        task = asyncio.create_task(deliver_remote(payload))
+        task = asyncio.create_task(handler(payload))
         _inflight.add(task)
         task.add_done_callback(_inflight.discard)
 
 
-bus = UserStreamBus()
+bus = NotifyBus()
 
 
-async def notify(payload: str) -> None:
-    await bus.notify(payload)
+def register(channel: str, handler: Handler) -> None:
+    bus.register(channel, handler)
+
+
+async def notify(channel: str, payload: str) -> None:
+    await bus.notify(channel, payload)
 
 
 async def start() -> None:

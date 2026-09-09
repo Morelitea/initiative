@@ -72,7 +72,6 @@ from app.db.query import (
     page_has_next,
     paginate_sequence,
 )
-from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.project import (
     ProjectCreate,
@@ -169,23 +168,6 @@ async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -
     for project in projects:
         summary = summary_map.get(project.id or 0, ProjectTaskSummary())
         setattr(project, "_task_summary", summary)
-
-
-async def _broadcast_project(project: Project, action: str) -> None:
-    """Emit a content-free project signal to the project's initiative room.
-
-    The realtime bus carries ids only — the client refetches through the
-    RLS-gated REST path, which is the authorization gate. ``guild_id`` +
-    ``initiative_id`` come straight off the row so the signal lands in the right
-    per-guild-schema initiative room (ids are per-schema, so both are required).
-    """
-    await broadcast_event(
-        project.guild_id,
-        project.initiative_id,
-        "project",
-        action,
-        {"project_id": project.id},
-    )
 
 
 async def _get_project_or_404(
@@ -1405,7 +1387,6 @@ async def create_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    await _broadcast_project(project, "created")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1438,7 +1419,6 @@ async def archive_project(
         project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated])
-    await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1580,7 +1560,6 @@ async def duplicate_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [new_project])
-    await _broadcast_project(new_project, "created")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1613,7 +1592,6 @@ async def unarchive_project(
         project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated])
-    await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -2002,7 +1980,6 @@ async def update_project(
         project.id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [project])
-    await _broadcast_project(project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -2053,7 +2030,6 @@ async def attach_project_document(
         project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated_project])
-    await _broadcast_project(updated_project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -2103,7 +2079,6 @@ async def detach_project_document(
         project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated_project])
-    await _broadcast_project(updated_project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -2213,7 +2188,6 @@ async def delete_project(
         retention_days=retention_days,
     )
     await session.commit()
-    await _broadcast_project(project, "deleted")
 
 
 @router.put("/{project_id}/grants", response_model=ProjectRead)

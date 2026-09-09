@@ -9,7 +9,7 @@ import json
 import pytest
 
 from app.core.config import settings
-from app.services.platform import user_stream, user_stream_bus
+from app.services.platform import notify_bus, user_stream
 from app.services.platform.user_stream import UserStream
 
 
@@ -84,10 +84,10 @@ async def test_local_delivery_survives_a_bus_that_is_down(
     bus existed: every socket this process holds is still served.
     """
 
-    async def _unavailable(_payload: str) -> None:
+    async def _unavailable(_channel: str, _payload: str) -> None:
         raise RuntimeError("bus not connected")
 
-    monkeypatch.setattr(user_stream_bus, "notify", _unavailable)
+    monkeypatch.setattr(notify_bus, "notify", _unavailable)
     tab = FakeWebSocket()
     await captured_stream.connect(7, tab)
 
@@ -102,10 +102,10 @@ async def test_a_published_frame_is_offered_to_the_other_workers(
 ) -> None:
     sent: list[str] = []
 
-    async def _capture(payload: str) -> None:
+    async def _capture(_channel: str, payload: str) -> None:
         sent.append(payload)
 
-    monkeypatch.setattr(user_stream_bus, "notify", _capture)
+    monkeypatch.setattr(notify_bus, "notify", _capture)
 
     await user_stream.publish(7, user_stream.build_frame("account", "membership"))
 
@@ -125,7 +125,7 @@ def test_the_listen_address_is_a_libpq_dsn(monkeypatch) -> None:
         "DATABASE_URL_LISTEN",
         "postgresql+asyncpg://someone:secret@db:5432/initiative",
     )
-    assert user_stream_bus._dsn() == "postgresql://someone:secret@db:5432/initiative"
+    assert notify_bus._dsn() == "postgresql://someone:secret@db:5432/initiative"
 
 
 @pytest.mark.unit
@@ -135,13 +135,13 @@ def test_the_listen_address_defaults_to_the_database(monkeypatch) -> None:
     monkeypatch.setattr(
         settings, "DATABASE_URL", "postgresql+asyncpg://a:b@localhost:5432/x"
     )
-    assert user_stream_bus._dsn() == "postgresql://a:b@localhost:5432/x"
+    assert notify_bus._dsn() == "postgresql://a:b@localhost:5432/x"
 
 
 @pytest.mark.unit
 async def test_notify_refuses_when_there_is_no_connection() -> None:
     """The caller treats this as 'no cross-process delivery', never a failure."""
-    bus = user_stream_bus.UserStreamBus()
+    bus = notify_bus.NotifyBus()
     assert not bus.running
     with pytest.raises(RuntimeError):
-        await bus.notify("{}")
+        await bus.notify(user_stream.CHANNEL, "{}")
