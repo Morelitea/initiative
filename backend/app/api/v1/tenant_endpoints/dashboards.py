@@ -575,24 +575,14 @@ async def update_dashboard(
         normalized, normalized_config = _normalize_body(
             definition, config, await _endpoint_columns(session)
         )
-        if await published_views.published_by(session, dashboard_id):
-            # What this dashboard publishes is read through the questions on
-            # it, so changing one is the act of writing it — and it may only be
-            # written by somebody who reaches those resources themselves.
-            if not await published_views.editor_reaches_what_is_published(
-                session, dashboard_id, current_user, guild_context
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=DashboardMessages.EDIT_NEEDS_THE_PUBLISHED_ACCESS,
-                )
-            # And it stays one set of numbers: `me` is what makes a statement
-            # answer differently for each reader.
-            if published_views.names_the_reader(normalized, normalized_config):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
-                )
+        await _check_publishing_allows(
+            session,
+            dashboard_id,
+            normalized,
+            normalized_config,
+            current_user,
+            guild_context,
+        )
         dashboard.definition, dashboard.config = normalized, normalized_config
         updated = True
 
@@ -648,6 +638,13 @@ async def upgrade_dashboard(
     definition, config = _normalize_body(
         dict(version.definition), dashboard.config, await _endpoint_columns(session)
     )
+    # A new version replaces what this dashboard asks, over resources it may be
+    # publishing. That is the same act as editing it, and answers to the same
+    # two rules — a listing whose new version asks about the reader cannot be
+    # taken by a dashboard that publishes, until it stops publishing.
+    await _check_publishing_allows(
+        session, dashboard_id, definition, config, current_user, guild_context
+    )
     dashboard.definition = definition
     dashboard.config = config
     dashboard.listing_version = version.version
@@ -656,7 +653,9 @@ async def upgrade_dashboard(
     await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_dashboard(hydrated, user_id=current_user.id)
+    return await _serialized_with_published(
+        session, hydrated, current_user, guild_context.guild_id
+    )
 
 
 @router.delete("/{dashboard_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -688,6 +687,39 @@ async def delete_dashboard(
         retention_days=retention_days,
     )
     await session.commit()
+
+
+async def _check_publishing_allows(
+    session: Any,
+    dashboard_id: int,
+    definition: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    user: User,
+    guild_context: Any,
+) -> None:
+    """What a publishing dashboard may be rewritten to, and by whom.
+
+    Asked wherever a canvas is replaced. Two rules, and both are about the
+    statements rather than the widgets around them: the person doing it has to
+    reach what is published, because the statement decides which of those rows
+    a reader sees; and what they write has to stay one set of numbers.
+
+    Silent for a dashboard that publishes nothing, which is almost all of them.
+    """
+    if not await published_views.published_by(session, dashboard_id):
+        return
+    if not await published_views.editor_reaches_what_is_published(
+        session, dashboard_id, user, guild_context
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DashboardMessages.EDIT_NEEDS_THE_PUBLISHED_ACCESS,
+        )
+    if published_views.names_the_reader(definition, config):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+        )
 
 
 def _stored_binding(
@@ -972,8 +1004,16 @@ async def _serialized_with_published(
         )
         for grant in grants
     ]
-    read.published_active = bool(grants) and await published_views.author_still_reaches(
-        grants, guild_id
+    # Three things have to hold for a reader to be told these figures are
+    # shared, and they are the three the fetch itself asks: something is
+    # published, the person who published it still reaches it, and nothing here
+    # asks about the reader — a statement that does is served from the reader's
+    # own access however it got onto the canvas, so saying otherwise would be
+    # the notice contradicting the tile under it.
+    read.published_active = (
+        bool(grants)
+        and not published_views.names_the_reader(dashboard.definition, dashboard.config)
+        and await published_views.author_still_reaches(grants, guild_id)
     )
     return read
 

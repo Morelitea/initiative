@@ -397,6 +397,49 @@ class TestTheReaderCannotBeSmuggledIn:
                 DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER
             )
 
+    async def test_the_notice_does_not_outlive_what_it_describes(
+        self, client, session, acting_user
+    ):
+        """If a statement names the reader, the tile under the notice is
+        answering from that reader's own access — so the notice has to stop
+        saying the figures are shared, whatever route the statement took."""
+        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await dashboards_on(session, author.initiative)
+        project = await create_project(session, author.initiative, author.user)
+        dashboard_id = await make_dashboard(client, author)
+        await client.put(
+            author.g(f"/dashboards/{dashboard_id}/published"),
+            json={
+                "resources": [{"resource_type": "project", "resource_id": project.id}]
+            },
+            headers=author.headers,
+        )
+        first = await client.get(
+            author.g(f"/dashboards/{dashboard_id}"), headers=author.headers
+        )
+        assert first.json()["published_active"] is True
+
+        # Written straight onto the row, standing in for any path that rewrites
+        # a canvas without going through the checks above.
+        from app.db.session import set_rls_context
+        from app.models.tenant.dashboard import Dashboard
+
+        await set_rls_context(session, guild_id=author.guild.id, guild_role="admin")
+        row = await session.get(Dashboard, dashboard_id)
+        assert row is not None
+        row.definition = dashboard_body(
+            "SELECT count(*) AS n FROM tasks WHERE created_by = me"
+        )
+        session.add(row)
+        await session.commit()
+
+        after = await client.get(
+            author.g(f"/dashboards/{dashboard_id}"), headers=author.headers
+        )
+        assert after.json()["published_active"] is False
+        # Still listed: its author manages it whether or not it is serving.
+        assert after.json()["published_over"] != []
+
 
 class TestItFailsClosedOnTheAuthor:
     """A published view serves on somebody's standing say-so, and is re-asked
