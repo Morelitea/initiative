@@ -33,6 +33,11 @@ vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: vi.fn(),
 }));
 
+const clearWhiteboards = vi.fn();
+vi.mock("@/components/documents/whiteboardSceneCache", () => ({
+  clearAllWhiteboardSceneCaches: () => clearWhiteboards(),
+}));
+
 const purgeOfflineCache = vi.fn();
 const setOfflineWritesAllowed = vi.fn();
 
@@ -130,6 +135,21 @@ describe("bootstrapping when the server does answer", () => {
     expect(auth.sessionUnverified).toBe(false);
     expect(clearOfflineSession).toHaveBeenCalled();
     expect(setOfflineWritesAllowed).toHaveBeenCalledWith(false);
+    // Session content goes however the session ended — a rejected bootstrap is
+    // an ending too, not only a deliberate sign-out.
+    expect(clearWhiteboards).toHaveBeenCalled();
+  });
+
+  it("keeps whiteboards on the device when nothing answered", async () => {
+    snapshot = buildUser();
+    get.mockRejectedValue({ request: {} });
+
+    renderAuth();
+
+    await waitFor(() => expect(auth.sessionUnverified).toBe(true));
+    // No signal is not the end of a session, and the unsaved work is the whole
+    // reason those scenes are held.
+    expect(clearWhiteboards).not.toHaveBeenCalled();
   });
 
   it("records the confirmed identity and opens the cache for writing", async () => {

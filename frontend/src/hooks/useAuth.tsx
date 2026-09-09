@@ -175,6 +175,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const replaceIdentity = useCallback(
     (nextUser: UserRead | null) => {
       identityEpochRef.current += 1;
+      if (!nextUser) {
+        // Every way a session ends comes through here — signing out, and a
+        // bootstrap the server rejected because the token or cookie is already
+        // gone. Whiteboard scenes are document content held on the device, so
+        // they end with the session whichever way it ended, not only the tidy
+        // way. Outside the offline cache's reach on purpose: this matters most
+        // on the web, where that cache is not enabled.
+        clearAllWhiteboardSceneCaches();
+      }
       setUser(nextUser);
     },
     [setUser]
@@ -392,7 +401,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // with it goes at the same time.
     clearOfflineSession();
     void purgeOfflineCache();
-    clearAllWhiteboardSceneCaches();
   }, [setUser, replaceIdentity]);
 
   useEffect(() => {

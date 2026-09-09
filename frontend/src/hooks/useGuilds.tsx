@@ -245,10 +245,18 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // the time the device is looked at again.
       if (isOfflineCacheEnabled()) {
         saveOfflineGuilds(response.data, currentServerKey());
-        // This list is the server's answer, so it is the one moment we can say
-        // which communities the device should still be holding content for.
         showingRememberedGuildsRef.current = false;
-        void retainOnlyGuilds(response.data.map((guild) => guild.id));
+        // Both lists have to be the server's answer before anything is thrown
+        // away. Without the grants half we cannot tell a community somebody has
+        // left from one they are in the middle of using on a grant, so an
+        // incomplete read prunes nothing and the next good one does it.
+        if (grantsKnown) {
+          const memberIds = response.data.map((guild) => guild.id);
+          await retainOnlyGuilds(
+            [...memberIds, ...grantGuilds.map((guild) => guild.id)],
+            memberIds
+          );
+        }
       }
 
       applyGuildState([...response.data, ...grantGuilds], grantsKnown);
