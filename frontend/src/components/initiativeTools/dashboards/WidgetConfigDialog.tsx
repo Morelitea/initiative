@@ -278,8 +278,23 @@ export function WidgetConfigDialog({
    */
   const incomplete = isApp && !binding.endpoint_id;
 
+  /**
+   * The same, for a statement the server would refuse.
+   *
+   * A statement is checked where a definition is normalized, so saving a
+   * refused one takes the whole dashboard with it: the update comes back a 422
+   * and nothing on the canvas saves until the widget is opened again and
+   * fixed. The reason is already beside the box that produced it, so again —
+   * do not offer the save rather than explain the failure afterwards.
+   *
+   * `checking` is not a refusal, but it is not an answer either, and what it
+   * covers is the few hundred milliseconds after the last keystroke.
+   */
+  const [queryStatus, setQueryStatus] = useState<QueryStatus>("ok");
+  const unsaveable = incomplete || queryStatus !== "ok";
+
   const save = () => {
-    if (incomplete) return;
+    if (unsaveable) return;
     onSave({
       title: title.trim() || undefined,
       binding,
@@ -359,6 +374,7 @@ export function WidgetConfigDialog({
                 entityOptions={entityOptions}
                 initiativeId={initiativeId}
                 onChange={setBindingValue}
+                onQueryStatus={setQueryStatus}
               />
             ))}
 
@@ -453,7 +469,7 @@ export function WidgetConfigDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={save} disabled={incomplete}>
+          <Button onClick={save} disabled={unsaveable}>
             {t("common:save")}
           </Button>
         </DialogFooter>
@@ -469,12 +485,14 @@ function ParamControl({
   entityOptions,
   initiativeId,
   onChange,
+  onQueryStatus,
 }: {
   param: SourceParam;
   binding: WidgetBinding;
   entityOptions: Record<EntityKind, { value: string; label: string }[]>;
   initiativeId: number;
   onChange: (patch: Partial<WidgetBinding>) => void;
+  onQueryStatus: (status: QueryStatus) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
   const key = param.key as string;
@@ -520,6 +538,7 @@ function ParamControl({
           binding={binding}
           initiativeId={initiativeId}
           onChange={onChange}
+          onStatus={onQueryStatus}
           paramKey={param.key as keyof WidgetBinding}
         />
       );
@@ -867,16 +886,23 @@ const NEW_QUERY: QueryBuildRequest = {
   group_by: [],
 };
 
+/** Whether a widget's statement is one the server would accept. A binding with
+ *  no statement at all is `ok`: that is the state a widget is in before anybody
+ *  points it anywhere, and it stores fine. */
+type QueryStatus = "ok" | "checking" | "refused";
+
 function QueryParam({
   binding,
   initiativeId,
   paramKey,
   onChange,
+  onStatus,
 }: {
   binding: WidgetBinding;
   initiativeId: number;
   paramKey: keyof WidgetBinding;
   onChange: (patch: Partial<WidgetBinding>) => void;
+  onStatus: (status: QueryStatus) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
   const stored = (binding[paramKey] as string | undefined) ?? "";
@@ -903,6 +929,36 @@ function QueryParam({
   // What the SQL tab shows: the builder's statement while it is driving, and
   // the stored one once it is not.
   const statement = (spec ? built.data?.sql : undefined) ?? stored;
+
+  // A statement the server wrote is one it will run, so only a hand-written
+  // one is checked — and on a pause, because a half-typed name is not a
+  // question worth asking. The answer describes what is in the box only once
+  // the pause has caught up and the query has stopped holding the previous
+  // statement's columns.
+  const settled = useDebouncedValue(statement, 400);
+  const shape = useQueryShape(spec ? null : statement, initiativeId);
+  const checking =
+    !spec &&
+    Boolean(statement.trim()) &&
+    (settled !== statement || shape.isFetching || shape.isPlaceholderData);
+
+  const status: QueryStatus = spec
+    ? built.isError
+      ? "refused"
+      : built.isFetching
+        ? "checking"
+        : "ok"
+    : !statement.trim()
+      ? "ok"
+      : checking
+        ? "checking"
+        : shape.isError
+          ? "refused"
+          : "ok";
+
+  useEffect(() => {
+    onStatus(status);
+  }, [status, onStatus]);
 
   /** An edit by hand. The description stops being true of the statement the
    *  moment it is one somebody typed, so it goes. */
@@ -939,7 +995,13 @@ function QueryParam({
       </TabsContent>
 
       <TabsContent value="sql" className="space-y-1.5">
-        <StatementEditor statement={statement} initiativeId={initiativeId} onWrite={write} />
+        <StatementEditor
+          statement={statement}
+          onWrite={write}
+          checking={checking}
+          columns={checking || shape.isError ? undefined : shape.data?.columns}
+          error={checking ? undefined : shape.error}
+        />
       </TabsContent>
     </Tabs>
   );
@@ -948,27 +1010,26 @@ function QueryParam({
 /**
  * The statement, and what the server says it would return.
  *
- * Held here rather than in the tab above so that the keystrokes and the
- * checking of them live together: what is typed is answered for on a pause, and
- * what comes back is either the columns a widget can be mapped against or the
- * word that has to change.
+ * What it shows about the answer is decided above, because the same answer
+ * decides whether the dialog may be saved — so this is handed a settled result
+ * rather than one that may still be describing the statement before this one.
  */
 function StatementEditor({
   statement,
-  initiativeId,
   onWrite,
+  checking,
+  columns,
+  error,
 }: {
   statement: string;
-  initiativeId: number;
   onWrite: (next: string) => void;
+  checking: boolean;
+  columns?: { name: string }[];
+  error?: unknown;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
   const { datasets, functions } = useQueryVocabulary();
   const fields = useFieldCatalogs(datasets);
-  // Checked on a pause rather than a keystroke: a half-typed name is not a
-  // question worth asking the server.
-  const settled = useDebouncedValue(statement, 400);
-  const shape = useQueryShape(settled, initiativeId);
 
   return (
     <>
@@ -982,14 +1043,16 @@ function StatementEditor({
         aria-describedby="widget-sql-answer"
       />
       <p id="widget-sql-answer" className="text-xs">
-        {shape.isError ? (
+        {checking ? (
+          <span className="text-muted-foreground">{t("dashboards:builder.checking")}</span>
+        ) : error ? (
           <span className="text-destructive">
-            {getErrorMessage(shape.error, "dashboards:builder.refused")}
+            {getErrorMessage(error, "dashboards:builder.refused")}
           </span>
-        ) : shape.data ? (
+        ) : columns ? (
           <span className="text-muted-foreground">
             {t("dashboards:builder.returns", {
-              columns: shape.data.columns.map((column) => column.name).join(", "),
+              columns: columns.map((column) => column.name).join(", "),
             })}
           </span>
         ) : (

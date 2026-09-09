@@ -340,6 +340,7 @@
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Renvoie : {{columns}}",
+    "checking": "Vérification de l'instruction…",
     "notBuilt": "La requête de ce widget n'a pas été créée ici. En créer une nouvelle la remplace.",
     "buildNew": "Créer une nouvelle requête",
     "refused": "Cette combinaison ne peut pas être lue. Essayez une autre colonne."

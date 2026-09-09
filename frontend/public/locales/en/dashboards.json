@@ -340,6 +340,7 @@
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Returns: {{columns}}",
+    "checking": "Checking this statement…",
     "notBuilt": "This widget's query was not built here. Building a new one replaces it.",
     "buildNew": "Build a new query",
     "refused": "That combination cannot be read. Try a different column."

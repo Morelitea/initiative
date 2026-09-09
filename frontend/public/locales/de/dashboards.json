@@ -340,6 +340,7 @@
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Ergebnis: {{columns}}",
+    "checking": "Diese Anweisung wird geprüft…",
     "notBuilt": "Die Abfrage dieses Widgets wurde nicht hier erstellt. Eine neue zu erstellen ersetzt sie.",
     "buildNew": "Neue Abfrage erstellen",
     "refused": "Diese Kombination kann nicht gelesen werden. Versuche eine andere Spalte."

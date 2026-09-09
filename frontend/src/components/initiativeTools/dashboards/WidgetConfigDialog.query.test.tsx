@@ -53,8 +53,14 @@ const serve = () => {
       asked.build += 1;
       return HttpResponse.json({ sql: BUILT_SQL, columns: [], relations: ["tasks"] });
     }),
-    guildHttp.post("/query/describe", () => {
+    guildHttp.post("/query/describe", async ({ request }) => {
       asked.describe += 1;
+      const body = (await request.json()) as { sql: string };
+      // The validator refuses a name the registry does not have; everything
+      // else in these tests is a statement it accepts.
+      if (body.sql.includes("nope")) {
+        return HttpResponse.json({ detail: "QUERY_UNKNOWN_FIELD" }, { status: 400 });
+      }
       return HttpResponse.json({
         columns: [{ name: "tasks", type: "number" }],
         relations: ["tasks"],
@@ -198,5 +204,66 @@ describe("completion", () => {
     await user.type(sqlBox(), "title");
     await waitFor(() => expect(sqlBox()).toHaveValue("SELECT title"));
     expect(screen.queryByRole("button", { name: /^title$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("a statement the server refuses", () => {
+  const saveButton = () => screen.getByRole("button", { name: /^save$/i });
+
+  it("cannot be saved", async () => {
+    // A statement is checked where a definition is normalized, so saving a
+    // refused one takes the whole dashboard with it — and the dialog that
+    // could fix it has closed by then.
+    const user = userEvent.setup();
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
+    await user.click(sqlBox());
+    await user.type(sqlBox(), " nope");
+
+    await waitFor(() => expect(saveButton()).toBeDisabled());
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("says so, rather than showing the last good answer", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await screen.findByText("Returns: tasks");
+    await user.click(sqlBox());
+    await user.type(sqlBox(), " nope");
+
+    await waitFor(() => expect(screen.queryByText("Returns: tasks")).not.toBeInTheDocument());
+  });
+
+  it("can be saved once it is corrected", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
+    await user.click(sqlBox());
+    await user.type(sqlBox(), " nope");
+    await waitFor(() => expect(saveButton()).toBeDisabled());
+
+    await user.type(sqlBox(), "{backspace}{backspace}{backspace}{backspace}{backspace}");
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+
+    await user.click(saveButton());
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({ source: "query", sql: SHIPPED_SQL }),
+      })
+    );
+  });
+
+  it("does not block a widget with no statement at all", async () => {
+    // The state a widget is in before anybody points it anywhere. It stores
+    // fine, and the canvas draws it as one asking to be configured.
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
+    await user.clear(sqlBox());
+    await waitFor(() => expect(saveButton()).toBeEnabled());
   });
 });
