@@ -4937,6 +4937,26 @@ export interface PushTokenUnregisterRequest {
   push_token: string;
 }
 
+/**
+ * One statement to read.
+ */
+export interface QueryRequest {
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  sql: string;
+}
+
+/**
+ * What the statement returned.
+ */
+export interface QueryResponse {
+  columns: string[];
+  rows: unknown[][];
+  truncated: boolean;
+}
+
 export interface QueueCreate {
   /**
    * @minLength 1

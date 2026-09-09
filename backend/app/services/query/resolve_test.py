@@ -296,6 +296,17 @@ class TestNothingOfTheOriginalTravels:
         assert "DROP" not in resolved.sql
         assert resolved.parameters == ("it's; DROP--",)
 
+    def test_a_constant_alone_in_the_select_list_stays_a_constant(self):
+        """It has nothing to take a type from, and Postgres reads a bare
+        parameter there as text. Compared against a column it keeps that
+        column's type, which is what makes an enum comparison work."""
+        resolved = resolve("SELECT 1 AS a FROM tasks")
+        assert "1 AS a" in resolved.sql
+        assert not resolved.parameters
+
+        compared = resolve("SELECT title FROM tasks WHERE priority = 'urgent'")
+        assert compared.parameters == ("urgent",)
+
     def test_an_ordinal_stays_an_ordinal(self):
         """``GROUP BY 1`` selects the first output column; a parameter there
         would be the number one."""

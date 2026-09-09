@@ -444,6 +444,20 @@ async def set_rls_context(
         await _apply_stored_context(session)
 
 
+def rls_context_params(session: AsyncSession) -> dict[str, Any]:
+    """The context this session established, as ``set_rls_context`` keywords.
+
+    For a caller that needs a second session to see what this one sees — the
+    query surface runs on a pool of its own. Handing over the stored parameters
+    keeps one decision about who the request is, rather than a second reading
+    of the same guild context somewhere else.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if not params:
+        raise RuntimeError("no RLS context has been established on this session")
+    return dict(params)
+
+
 async def set_override_initiatives(
     session: AsyncSession, initiative_ids: Sequence[int]
 ) -> None:

@@ -19,6 +19,11 @@ pytestmark = pytest.mark.database
 _GID = 990_200
 
 
+def _context(guild_id: int, **extra) -> dict:
+    """What the request's own session would have established."""
+    return {"user_id": 1, "guild_id": guild_id, "guild_role": "admin", **extra}
+
+
 @pytest.fixture
 async def guild(engine):
     async with engine.begin() as conn:
@@ -31,9 +36,7 @@ async def guild(engine):
 
 
 async def test_it_returns_columns_and_rows(guild):
-    result = await run(
-        "SELECT title FROM tasks", guild_id=guild, user_id=1, guild_role="admin"
-    )
+    result = await run("SELECT title FROM tasks", context=_context(guild))
     assert result.columns == ("title",)
     assert result.rows == ()
 
@@ -42,27 +45,21 @@ async def test_an_aggregate_answers_without_shipping_the_rows(guild):
     """The shape a stat tile asks for: one number, computed by the database."""
     result = await run(
         "SELECT count(*) AS n FROM tasks",
-        guild_id=guild,
-        user_id=1,
-        guild_role="admin",
+        context=_context(guild),
     )
     assert result.columns == ("n",)
     assert result.rows == ((0,),)
 
 
 async def test_it_reports_what_the_planner_expected(guild):
-    result = await run(
-        "SELECT title FROM tasks", guild_id=guild, user_id=1, guild_role="admin"
-    )
+    result = await run("SELECT title FROM tasks", context=_context(guild))
     assert result.cost > 0
 
 
 async def test_a_statement_the_planner_prices_too_high_never_runs(guild, monkeypatch):
     monkeypatch.setattr(settings, "QUERY_MAX_COST", 0.0)
     with pytest.raises(QueryError) as refused:
-        await run(
-            "SELECT title FROM tasks", guild_id=guild, user_id=1, guild_role="admin"
-        )
+        await run("SELECT title FROM tasks", context=_context(guild))
     assert refused.value.code == QueryMessages.TOO_EXPENSIVE
 
 
@@ -74,7 +71,7 @@ async def test_a_slow_statement_is_stopped(guild, monkeypatch):
         sql="SELECT pg_sleep(3) AS slept", parameters=(), relations=("tasks",)
     )
     with pytest.raises(QueryError) as stopped:
-        await execute(slow, guild_id=guild, user_id=1, guild_role="admin")
+        await execute(slow, context=_context(guild))
     assert stopped.value.code == QueryMessages.TIMED_OUT
 
 
@@ -89,7 +86,7 @@ async def test_the_transaction_refuses_a_write(guild):
         relations=("tasks",),
     )
     with pytest.raises(Exception) as refused:
-        await execute(write, guild_id=guild, user_id=1, guild_role="admin")
+        await execute(write, context=_context(guild))
     assert (
         "read-only" in str(refused.value).lower()
         or "permission" in str(refused.value).lower()
@@ -104,9 +101,30 @@ async def test_more_rows_than_one_query_returns_are_cut_off(guild, monkeypatch):
         parameters=(),
         relations=("tasks",),
     )
-    result = await execute(many, guild_id=guild, user_id=1, guild_role="admin")
+    result = await execute(many, context=_context(guild))
     assert len(result.rows) == 2
     assert result.truncated is True
+
+
+async def test_a_grantee_routes_by_the_grant(guild):
+    """A context with no membership but a live grant reads that guild: the
+    executor takes whichever the request's own session recorded."""
+    result = await run(
+        "SELECT title FROM tasks",
+        context={
+            "user_id": 1,
+            "guild_id": None,
+            "pam_guild_id": guild,
+            "pam_read": True,
+        },
+    )
+    assert result.columns == ("title",)
+
+
+async def test_a_context_that_routes_nowhere_is_refused(guild):
+    with pytest.raises(QueryError) as refused:
+        await run("SELECT title FROM tasks", context={"user_id": 1})
+    assert refused.value.code == QueryMessages.MISSING_RELATION
 
 
 async def test_a_query_keeping_both_names_keeps_both_values(guild):
@@ -118,7 +136,7 @@ async def test_a_query_keeping_both_names_keeps_both_values(guild):
         parameters=(),
         relations=("tasks",),
     )
-    result = await execute(doubled, guild_id=guild, user_id=1, guild_role="admin")
+    result = await execute(doubled, context=_context(guild))
     assert result.columns == ("id", "id")
     assert result.rows == ((1, 2),)
 
@@ -133,18 +151,11 @@ async def test_a_guild_runs_only_so_many_at_once(guild, monkeypatch):
     slow = type(statement)(
         sql="SELECT pg_sleep(2) AS slept", parameters=(), relations=("tasks",)
     )
-    held = asyncio.create_task(
-        execute(slow, guild_id=guild, user_id=1, guild_role="admin")
-    )
+    held = asyncio.create_task(execute(slow, context=_context(guild)))
     await asyncio.sleep(0.3)
     try:
         with pytest.raises(QueryError) as busy:
-            await run(
-                "SELECT title FROM tasks",
-                guild_id=guild,
-                user_id=1,
-                guild_role="admin",
-            )
+            await run("SELECT title FROM tasks", context=_context(guild))
         assert busy.value.code == QueryMessages.BUSY
     finally:
         held.cancel()

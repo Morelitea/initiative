@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Mapping
 
 from asyncpg.exceptions import QueryCanceledError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -102,21 +102,31 @@ async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
     return float(document[0]["Plan"]["Total Cost"])
 
 
+def _routed_guild(context: Mapping[str, Any]) -> int:
+    """Which guild this context reads. A grantee routes by the grant."""
+    guild_id = context.get("guild_id") or context.get("pam_guild_id")
+    if guild_id is None:
+        raise QueryError(QueryMessages.MISSING_RELATION)
+    return int(guild_id)
+
+
 async def execute(
     statement: ResolvedQuery,
     *,
-    guild_id: int,
-    user_id: int,
-    guild_role: Optional[str] = None,
-    override_initiatives: Optional[tuple[int, ...]] = None,
+    context: Mapping[str, Any],
 ) -> QueryResult:
-    """Run an already-resolved statement as the asking user.
+    """Run an already-resolved statement under *context*.
 
-    The rows that come back are the rows that reader could reach through any
-    other part of the app: the query role assumes the guild's schema and the
-    initiative policies read the request's own identity, exactly as they do on
-    every other path.
+    *context* is what the request's own session established
+    (:func:`app.db.session.rls_context_params`), replayed here with the query
+    role selected. The rows that come back are therefore the rows that reader
+    reaches through any other part of the app — a member's, a read-only
+    member's, a grantee's — decided once, by the dependency that admitted the
+    request, rather than again here.
     """
+    guild_id = _routed_guild(context)
+    routed = dict(context)
+    routed["query"] = True
     try:
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
@@ -130,14 +140,7 @@ async def execute(
             await _bound_transaction(sqlalchemy_connection)
             if not await _claim_a_slot(connection, guild_id):
                 raise QueryError(QueryMessages.BUSY, str(guild_id))
-            await set_rls_context(
-                session,
-                user_id=user_id,
-                guild_id=guild_id,
-                guild_role=guild_role,
-                query=True,
-                override_initiatives=override_initiatives,
-            )
+            await set_rls_context(session, **routed)
 
             cost = await _estimated_cost(connection, statement)
             if cost > settings.QUERY_MAX_COST:
@@ -166,19 +169,6 @@ async def execute(
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
 
 
-async def run(
-    sql: str,
-    *,
-    guild_id: int,
-    user_id: int,
-    guild_role: Optional[str] = None,
-    override_initiatives: Optional[tuple[int, ...]] = None,
-) -> QueryResult:
+async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
     """Read *sql* and run what it resolves to."""
-    return await execute(
-        resolve(sql),
-        guild_id=guild_id,
-        user_id=user_id,
-        guild_role=guild_role,
-        override_initiatives=override_initiatives,
-    )
+    return await execute(resolve(sql), context=context)
