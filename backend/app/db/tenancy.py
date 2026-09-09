@@ -64,6 +64,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "push_tokens",
         "auto_delegation_jti_blocklist",
         "user_view_preferences",  # personal UI state (filters/sort/view-mode)
+        # What one account wants to be told about. Off ``users`` on purpose:
+        # that table is read whole by the platform tiers.
+        "user_notification_prefs",
         # The picture on a user's profile. Public-plane identity like the row
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.
@@ -146,7 +149,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
-        "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
+        "notifications",  # per-user inbox spanning guilds; carries its own place
         # Billing write boundary (external billing service, initiative_billing role)
         "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
         "billing_jti_blocklist",  # one-shot billing service-JWT redemption

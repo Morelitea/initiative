@@ -139,20 +139,6 @@ async def create_user(
         "week_starts_on": 0,
         "timezone": "UTC",
         "overdue_notification_time": "21:00",
-        "email_initiative_addition": True,
-        "email_task_assignment": True,
-        "email_project_added": True,
-        "email_overdue_tasks": True,
-        "email_mentions": True,
-        "push_initiative_addition": True,
-        "push_task_assignment": True,
-        "push_project_added": True,
-        "push_overdue_tasks": True,
-        "push_mentions": True,
-        "email_events": True,
-        "push_events": True,
-        "email_event_reminders": True,
-        "push_event_reminders": True,
         "event_reminder_minutes_before": 15,
     }
 
@@ -174,6 +160,28 @@ async def create_user(
         await session.refresh(user)
 
     return user
+
+
+async def set_notification_prefs(
+    session: AsyncSession,
+    user: User,
+    prefs: dict[str, Any],
+    commit: bool = True,
+) -> None:
+    """Give an account a notification settings document.
+
+    No row is the normal state — it reads as every default — so a test only
+    calls this when it is about somebody having changed something. The shape is
+    the one ``app.services.platform.notification_prefs`` resolves::
+
+        {"categories": {"comments": {"in_app": False}},
+         "guilds": {"7": {"level": "personal"}}}
+    """
+    from app.services.platform import notification_prefs
+
+    await notification_prefs.save_prefs(session, user.id, prefs)
+    if commit:
+        await session.commit()
 
 
 async def create_guild(

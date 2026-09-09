@@ -19,6 +19,7 @@ from app.api.v1.platform_endpoints.dm_transport_test import (
 )
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
+from app.testing import set_notification_prefs
 
 pytestmark = pytest.mark.asyncio
 
@@ -175,12 +176,11 @@ class TestChannels:
         a = await acting_user()
         b = await acting_user()
         conversation_id, b_device = await _channel(client, session, a, b)
-        await session.exec(
-            text(
-                "UPDATE public.users SET email_direct_messages = false WHERE id = :u"
-            ).bindparams(u=b.user.id)
+        await set_notification_prefs(
+            session,
+            b.user,
+            {"categories": {"direct_messages": {"email": False}}},
         )
-        await session.commit()
 
         with patch(
             "app.services.email.send_direct_message_email", new_callable=AsyncMock

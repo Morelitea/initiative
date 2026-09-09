@@ -71,6 +71,7 @@ from app.api.v1.platform_endpoints import (
     guilds,
     marketplace,
     native,
+    notification_prefs,
     notifications,
     push,
     settings,
@@ -279,6 +280,7 @@ me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
+me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
 me_router.include_router(dm.me_router, tags=["direct-messages"])
 me_router.include_router(dm_transport.me_router, tags=["direct-messages"])

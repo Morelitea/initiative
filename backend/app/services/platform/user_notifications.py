@@ -1,12 +1,35 @@
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Any, Mapping, Optional
 
 from sqlalchemy import func, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.notification_categories import Channel
 from app.models.platform.notification import Notification, NotificationType
-from app.services.platform import notification_stream
+from app.services.platform import notification_prefs, notification_stream
+
+
+def _int_or_none(value: object) -> Optional[int]:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _place(data: Mapping[str, object]) -> dict[str, object]:
+    """Where this happened, read off the payload that already carries it.
+
+    Three independently-optional levels: a direct message has none of them, a
+    membership notice has only a guild, a comment on a task has all three. Kept
+    as columns so "where is there unread activity" is an index lookup.
+    """
+    tool = data.get("entity_type")
+    return {
+        "guild_id": _int_or_none(data.get("guild_id")),
+        "initiative_id": _int_or_none(data.get("initiative_id")),
+        "tool": tool if isinstance(tool, str) and tool else None,
+    }
 
 
 async def create_notification(
@@ -15,16 +38,45 @@ async def create_notification(
     user_id: int,
     notification_type: NotificationType,
     data: Mapping[str, object],
-) -> Notification:
+    prefs: Optional[Mapping[str, Any]] = None,
+) -> Optional[Notification]:
+    """Write one notification, unless its recipient has switched the bell off
+    for that category.
+
+    Every notification in the app is written through here, which is what makes
+    this the one place the in-app channel can be honoured. Returns ``None``
+    when the recipient does not want it, so a caller can tell the difference
+    between "wrote a line" and "there is nothing to point at".
+
+    ``prefs`` is the recipient's settings document. Callers fanning out to an
+    audience pass it from a batch load; a single-recipient caller leaves it
+    None and this reads it.
+    """
+    place = _place(data)
+    if prefs is None:
+        prefs = await notification_prefs.load_prefs(session, user_id)
+    if not notification_prefs.wants(
+        prefs,
+        notification_type=notification_type,
+        channel=Channel.in_app,
+        guild_id=place["guild_id"],
+    ):
+        return None
+
     notification = Notification(
-        user_id=user_id, type=notification_type, data=dict(data)
+        user_id=user_id,
+        type=notification_type,
+        data=dict(data),
+        guild_id=place["guild_id"],
+        initiative_id=place["initiative_id"],
+        tool=place["tool"],
     )
     session.add(notification)
     await session.flush()
-    # Every notification in the app is written through here, so this one call
-    # is what puts the recipient's open tabs on the realtime channel instead of
-    # a 30s poll. The frame itself waits for this session's COMMIT (see
-    # ``notification_stream``), so a caller that rolls back pokes nobody.
+    # This one call is also what puts the recipient's open tabs on the realtime
+    # channel instead of a 30s poll. The frame itself waits for this session's
+    # COMMIT (see ``notification_stream``), so a caller that rolls back pokes
+    # nobody.
     notification_stream.queue_signal(session, user_id, "created")
     return notification
 

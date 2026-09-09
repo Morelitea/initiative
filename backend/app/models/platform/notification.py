@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, JSON, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, text
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -55,6 +55,18 @@ class Notification(SQLModel, table=True):
         # composite carries it; a bare ``user_id`` index would be a prefix of
         # this one.
         Index("ix_notifications_user_read", "user_id", "read_at"),
+        # Where there is unread activity, for the dots that run down the
+        # navigation. Partial on unread because that is the only thing this
+        # question is ever asked about, which keeps the index small enough to
+        # answer it with an index-only scan.
+        Index(
+            "ix_notifications_unread_place",
+            "user_id",
+            "guild_id",
+            "initiative_id",
+            "tool",
+            postgresql_where=text("read_at IS NULL"),
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -66,6 +78,33 @@ class Notification(SQLModel, table=True):
     data: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False, server_default="{}"),
+    )
+    #: Where this happened, as three independently-optional levels. A direct
+    #: message has none of them, a membership notice has only a guild, and a
+    #: comment on a task has all three — so a parent lights whenever anything
+    #: beneath it is unread, with nothing to sum and no special case for the
+    #: rows that stop short.
+    #:
+    #: All three are already carried in ``data``; as columns they are indexable,
+    #: which is the whole difference.
+    guild_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("guilds.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
+    )
+    #: Weak reference: initiatives live in ``guild_<id>``, and provisioning omits
+    #: cross-schema foreign keys.
+    initiative_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+    #: A ``Tool`` value, or NULL where the notification is not about one.
+    tool: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(32), nullable=True),
     )
     read_at: Optional[datetime] = Field(
         default=None,
