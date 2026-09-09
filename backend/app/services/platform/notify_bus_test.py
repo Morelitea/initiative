@@ -246,3 +246,58 @@ async def test_this_process_own_sockets_are_told_to_re_read(monkeypatch) -> None
 
     assert [frame["resource"] for frame in tab.sent] == [user_stream.RESOURCE_RESYNC]
     assert tab.sent[0]["ids"] == {}
+
+
+@pytest.mark.unit
+async def test_more_refused_than_can_be_held_tells_everybody(monkeypatch) -> None:
+    """Past the bound the frames were never kept, so whose they were cannot be
+    said — and a reader on another worker has no timer behind it any more."""
+    user_stream._pending_remote.clear()
+    monkeypatch.setattr(user_stream, "_dropped_remote", False)
+    monkeypatch.setattr(user_stream, "MAX_PENDING_REMOTE", 2)
+
+    async def _unavailable(_channel: str, _payload: str) -> None:
+        raise RuntimeError("bus not connected")
+
+    monkeypatch.setattr(notify_bus, "notify", _unavailable)
+    for reader in range(5):
+        await user_stream.publish(
+            reader, user_stream.build_frame("notification", "created")
+        )
+
+    sent: list[dict] = []
+
+    async def _capture(_channel: str, payload: str) -> None:
+        sent.append(json.loads(payload))
+
+    monkeypatch.setattr(notify_bus, "notify", _capture)
+    await user_stream.on_bus_connected()
+
+    addressed_to_everyone = [message for message in sent if message["user_id"] is None]
+    assert len(addressed_to_everyone) == 1
+    assert addressed_to_everyone[0]["frame"]["resource"] == user_stream.RESOURCE_RESYNC
+    user_stream._pending_remote.clear()
+
+
+@pytest.mark.unit
+async def test_a_frame_for_everybody_reaches_every_socket_here(monkeypatch) -> None:
+    stream = user_stream.UserStream()
+    monkeypatch.setattr(user_stream, "stream", stream)
+    first, second = FakeWebSocket(), FakeWebSocket()
+    await stream.connect(7, first)
+    await stream.connect(8, second)
+
+    await user_stream.deliver_remote(
+        json.dumps(
+            {
+                "origin": "another-worker",
+                "user_id": None,
+                "frame": user_stream.build_frame(
+                    user_stream.RESOURCE_RESYNC, "changed"
+                ),
+            }
+        )
+    )
+
+    assert len(first.sent) == 1
+    assert len(second.sent) == 1

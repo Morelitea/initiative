@@ -28,6 +28,16 @@ const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as con
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
+// The server says something every 30s even with no news (its HEARTBEAT_SECONDS),
+// so silence past a couple of those is the socket having stopped carrying
+// rather than nothing having happened. A dropped connection does not always
+// close: a suspended laptop, a network that goes away mid-flight and a NAT
+// timeout all leave one reporting itself open and delivering nothing, and this
+// channel has no other way to notice — it speaks only when its person does.
+const SERVER_SILENCE_LIMIT_MS = 90_000;
+// How often that is checked. Cheap: a comparison against a timestamp.
+const SILENCE_CHECK_INTERVAL_MS = 15_000;
+
 // A frame is the only prompt to re-read the account, so a re-read that fails
 // has to keep trying: there is no poll behind it any more, and the next frame
 // may never come for this account. What is bounded is the *rate*, not the
@@ -190,6 +200,7 @@ export const useNotificationStream = () => {
     }
 
     let isActive = true;
+    let lastFrameAt = Date.now();
 
     const scheduleReconnect = (delayMs = RECONNECT_DELAY_MS) => {
       if (!isActive || reconnectTimerRef.current !== null) {
@@ -220,6 +231,7 @@ export const useNotificationStream = () => {
         // lands in a proxy or server access log.
         sendAuthMessage(websocket, token);
         authFailureCountRef.current = 0;
+        lastFrameAt = Date.now();
         setConnected(true);
         // The socket was down for some interval — anything that happened in it
         // was never signalled, so catch up once on the way back up.
@@ -227,11 +239,18 @@ export const useNotificationStream = () => {
       };
 
       websocket.onmessage = (event) => {
+        // Any frame is proof the socket carries, whatever it says.
+        lastFrameAt = Date.now();
         try {
           const payload = JSON.parse(event.data) as { resource?: string };
           // Two channels over one socket. A frame carries nothing but which
           // one it is; what it means is a refetch, and the refetch is where
           // anything is actually decided.
+          if (payload.resource === "heartbeat") {
+            // Nothing to do beyond what has already been done: the frame's
+            // whole content is that it arrived.
+            return;
+          }
           if (payload.resource === "resync") {
             // The server's own bus was down for a while, so frames went past
             // with nobody listening for them. It cannot say which, so this
@@ -281,6 +300,20 @@ export const useNotificationStream = () => {
 
     connect();
 
+    // A socket that has gone quiet past the server's beat is closed rather than
+    // trusted. Closing is what puts the fallback poll back and starts the
+    // reconnect that catches up — none of which a half-open connection would
+    // ever reach on its own.
+    const silenceCheck = window.setInterval(() => {
+      const socket = websocketRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (Date.now() - lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
+        socket.close();
+      }
+    }, SILENCE_CHECK_INTERVAL_MS);
+
     // Throttled at the source rather than on a timer: no frame goes out for a
     // tab nobody is touching, which is exactly the state being reported.
     let lastReported = 0;
@@ -308,6 +341,7 @@ export const useNotificationStream = () => {
 
     return () => {
       isActive = false;
+      window.clearInterval(silenceCheck);
       for (const name of ACTIVITY_EVENTS) {
         window.removeEventListener(name, reportActivity);
       }
