@@ -88,6 +88,111 @@ class Channels:
     push: bool
 
 
+#: How many commenters one rolled-up line remembers by name. ``comment_count``
+#: above it stays the whole truth; this only bounds how much the payload
+#: carries so a busy thread cannot grow it without limit.
+MAX_ROLLED_UP_COMMENTERS = 10
+
+
+def _comment_rollup_key(entity_type: str, entity_id: int) -> str:
+    """What decides which line a comment joins: the thing being commented on.
+
+    Not the comment — the point is that twenty comments on one task are one
+    line rather than twenty.
+    """
+    return f"{entity_type}:{entity_id}"
+
+
+def _rolled_up_comment(
+    previous: Mapping[str, Any] | None,
+    *,
+    commenter_name: str,
+    commenter_id: int,
+) -> dict[str, Any]:
+    """Fold one more comment into a line's payload.
+
+    The roster of distinct commenters is what the sentence names, and the count
+    is every comment the line stands for.
+    """
+    previous = previous or {}
+    # One roster of pairs rather than parallel id and name lists: those have to
+    # stay aligned, and nothing keeps them that way once a repeat commenter is
+    # moved to the end.
+    roster: list[dict[str, Any]] = [
+        entry
+        for entry in (previous.get("commenters") or [])
+        if isinstance(entry, Mapping) and isinstance(entry.get("id"), int)
+    ]
+    # Same person again: they move to the end rather than being listed twice,
+    # and the comment count still moves.
+    roster = [entry for entry in roster if entry["id"] != commenter_id]
+    roster.append({"id": commenter_id, "name": commenter_name})
+    raw_count = previous.get("comment_count")
+    count = (raw_count if isinstance(raw_count, int) else 0) + 1
+    # ``commenter_count`` is the whole crowd; the roster is only as much of it
+    # as the line carries, so a busy thread does not grow the payload without
+    # limit. Counting the roster would understate it.
+    raw_people = previous.get("commenter_count")
+    people = raw_people if isinstance(raw_people, int) else 0
+    seen_before = any(
+        entry["id"] == commenter_id
+        for entry in (previous.get("commenters") or [])
+        if isinstance(entry, Mapping)
+    )
+    return {
+        "comment_count": count,
+        "commenters": roster[-MAX_ROLLED_UP_COMMENTERS:],
+        "commenter_count": people if seen_before else people + 1,
+    }
+
+
+async def _roll_up_comment(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    notification_type: NotificationType,
+    rollup_key: str,
+    data: dict[str, Any],
+    commenter_name: str,
+    commenter_id: int,
+) -> bool:
+    """Write or extend the one unread line for this thread.
+
+    Returns True when this comment opened a new window — which is when the
+    reaching channels fire. A second comment updates the line instead and sends
+    nothing: the flurry is one interruption, not twenty. Once the line has been
+    read, the next comment starts a fresh one and they fire again.
+
+    The unread line IS the window, so an account that has switched the bell off
+    for this category has no window to roll into and hears about each comment
+    on whichever reaching channel it left on. That is the honest reading of
+    "no bell, but do email me": there is nothing to collect them into.
+    """
+    match = {"rollup_key": rollup_key}
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=recipient.id,
+        notification_type=notification_type,
+        match=match,
+    )
+    rolled = _rolled_up_comment(
+        existing.data if existing else None,
+        commenter_name=commenter_name,
+        commenter_id=commenter_id,
+    )
+    line = {**data, "rollup_key": rollup_key, **rolled}
+    if existing is None:
+        await user_notifications.create_notification(
+            session,
+            user_id=recipient.id,
+            notification_type=notification_type,
+            data=line,
+        )
+        return True
+    await user_notifications.refresh_notification(session, existing, data=line)
+    return False
+
+
 def _sample_type(category: NotificationCategory) -> NotificationType:
     """Any one type from a category.
 
@@ -1052,10 +1157,11 @@ async def notify_comment_on_task(
         notification_type=NotificationType.comment_on_task,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    opened = await _roll_up_comment(
         session,
-        user_id=assignee.id,
+        recipient=assignee,
         notification_type=NotificationType.comment_on_task,
+        rollup_key=_comment_rollup_key("task", task_id),
         data={
             "comment_id": comment_id,
             "task_id": task_id,
@@ -1067,9 +1173,11 @@ async def notify_comment_on_task(
             "target_path": target_path,
             "smart_link": smart_link,
         },
+        commenter_name=commenter_name,
+        commenter_id=commenter.id,
     )
     # Email
-    if channels.email:
+    if channels.email and opened:
         try:
             await email_service.send_mention_email(
                 session,
@@ -1090,7 +1198,7 @@ async def notify_comment_on_task(
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
-    if channels.push:
+    if channels.push and opened:
         try:
             await push_notifications.send_push_to_user(
                 session=session,
@@ -1142,10 +1250,11 @@ async def notify_comment_on_resource(
         notification_type=NotificationType.comment_on_resource,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    opened = await _roll_up_comment(
         session,
-        user_id=owner.id,
+        recipient=owner,
         notification_type=NotificationType.comment_on_resource,
+        rollup_key=_comment_rollup_key(entity_type, entity_id),
         data={
             "comment_id": comment_id,
             "entity_type": entity_type,
@@ -1157,9 +1266,11 @@ async def notify_comment_on_resource(
             "target_path": target_path,
             "smart_link": smart_link,
         },
+        commenter_name=commenter_name,
+        commenter_id=commenter.id,
     )
     # Email
-    if channels.email:
+    if channels.email and opened:
         try:
             await email_service.send_mention_email(
                 session,
@@ -1186,7 +1297,7 @@ async def notify_comment_on_resource(
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
-    if channels.push:
+    if channels.push and opened:
         try:
             await push_notifications.send_push_to_user(
                 session=session,
