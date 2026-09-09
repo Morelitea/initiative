@@ -41,7 +41,7 @@ from pglast.visitors import Visitor
 from app.core.messages import QueryMessages
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
-from app.services.fields.spec import FieldType
+from app.services.fields.spec import ControlKind, FieldType
 
 #: ``EXPLAIN``'s options, as the grammar spells them.
 _EXPLAIN_JSON = (ast.DefElem(defname="format", arg=ast.String(sval="json")),)
@@ -550,8 +550,6 @@ def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | No
     if not isinstance(target.val, ast.ColumnRef):
         return None
     names = _name_parts(target.val.fields)
-    if names == [VIEWER]:
-        return FieldType.reference
     if len(names) == 2:
         dataset_name, field_name = scope.get(names[0]), names[1]
     elif len(names) == 1:
@@ -606,6 +604,67 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
             node.fields = (ast.String(sval=_physical_column(holder, names[0])),)
 
     Resolve()(select)
+
+
+def _is_viewer(node: Any) -> bool:
+    return isinstance(node, ast.ColumnRef) and _name_parts(node.fields) == [VIEWER]
+
+
+def _holds_a_person(node: Any, scope: dict[str, str]) -> bool:
+    """Whether *node* is a field that holds a person.
+
+    Read by the name the reader wrote, so this is asked before the names are
+    rewritten — the registry answers about ``assignee.id``, not about whatever
+    column the members view keeps it in.
+    """
+    if not isinstance(node, ast.ColumnRef):
+        return False
+    names = _name_parts(node.fields)
+    if len(names) == 2:
+        dataset_name, field_name = scope.get(names[0]), names[1]
+    elif len(names) == 1:
+        dataset_name, field_name = _holder(scope, names[0]), names[0]
+    else:
+        return False
+    if dataset_name is None:
+        return False
+    spec = dataset(dataset_name).by_name.get(field_name)
+    return spec is not None and spec.kind is ControlKind.member
+
+
+def _check_viewer(select: ast.SelectStmt, scope: dict[str, str]) -> None:
+    """That ``me`` is somewhere it means something.
+
+    The reader is a person, so the only thing to say about them is which person
+    a field holds. Anywhere else the word would expand into a number beside
+    something that is not one, and the statement would be a statement the
+    database refuses — on a tile, long after it was written. This is the same
+    rule the builder writes by, asked of a statement somebody typed.
+    """
+    placed: set[int] = set()
+
+    class Compare(Visitor):
+        def visit_A_Expr(self, ancestors: Any, node: ast.A_Expr) -> None:
+            if node.kind == A_Expr_Kind.AEXPR_IN:
+                against = node.lexpr
+                sides = tuple(node.rexpr or ())
+            elif node.kind == A_Expr_Kind.AEXPR_OP:
+                against, sides = None, (node.lexpr, node.rexpr)
+            else:
+                return
+            for index, side in enumerate(sides):
+                if not _is_viewer(side):
+                    continue
+                other = against if against is not None else sides[1 - index]
+                if not _holds_a_person(other, scope):
+                    raise QueryError(QueryMessages.VIEWER_NEEDS_A_PERSON, VIEWER)
+                placed.add(id(side))
+
+    Compare()(select)
+
+    for node in _column_refs(select):
+        if _is_viewer(node) and id(node) not in placed:
+            raise QueryError(QueryMessages.VIEWER_NEEDS_A_PERSON, VIEWER)
 
 
 def _resolve_viewer(select: ast.SelectStmt) -> None:
@@ -728,6 +787,7 @@ def resolve(sql: str) -> ResolvedQuery:
     _expand_relations(select)
     scope = _relations(select)
     column_types = _output_types(select, scope)
+    _check_viewer(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
     _resolve_viewer(select)

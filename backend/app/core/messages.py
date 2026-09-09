@@ -588,6 +588,9 @@ class QueryMessages:
     #: A name the surface keeps for itself. ``me`` is the reader, so nothing
     #: else may be called it and nowhere it means nothing may say it.
     RESERVED_NAME = "QUERY_RESERVED_NAME"
+    #: ``me`` somewhere it says nothing: the reader is a person, so the only
+    #: thing to compare them with is a field that holds one.
+    VIEWER_NEEDS_A_PERSON = "QUERY_VIEWER_NEEDS_A_PERSON"
 
     # Execution.
 

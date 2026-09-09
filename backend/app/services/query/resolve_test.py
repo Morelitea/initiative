@@ -568,8 +568,32 @@ class TestTheReaderIsANameAStatementMayUse:
         )
         assert resolved.sql.count("app.current_user_id") == 2
 
-    def test_it_is_a_person_on_the_way_out(self):
-        assert resolve("SELECT me FROM tasks").column_types == (FieldType.reference,)
+    def test_it_stands_where_a_person_is_compared(self):
+        for sql in (
+            "SELECT count(*) AS n FROM tasks WHERE me = created_by",
+            "SELECT count(*) AS n FROM tasks WHERE created_by IN (me, 3)",
+            "SELECT CASE WHEN created_by = me THEN 'mine' ELSE 'theirs' END AS whose, "
+            "count(*) AS n FROM tasks GROUP BY 1",
+        ):
+            assert "app.current_user_id" in resolve(sql).sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            # A title is text, and the reader is a person.
+            "SELECT count(*) AS n FROM tasks WHERE title = me",
+            # Nothing to be a person beside.
+            "SELECT me FROM tasks",
+            "SELECT count(me) AS n FROM tasks",
+            "SELECT count(*) AS n FROM tasks GROUP BY me",
+            "SELECT count(*) AS n FROM tasks WHERE me IS NULL",
+        ],
+    )
+    def test_anywhere_it_says_nothing_is_refused_while_it_is_written(self, sql):
+        """The builder only writes the reader against a field that holds one.
+        A statement somebody typed answers to the same rule, and hears about it
+        at the keyboard rather than on the tile."""
+        assert refusal(sql) == QueryMessages.VIEWER_NEEDS_A_PERSON
 
     def test_an_output_column_may_not_be_called_it(self):
         """``order by me`` has to mean one thing."""

@@ -278,6 +278,7 @@
   "QUERY_TOO_MANY_RELATIONS": "Esta consulta lee de demasiadas tablas a la vez.",
   "QUERY_STAR_NOT_ALLOWED": "Enumera las columnas que quieres en lugar de *.",
   "QUERY_RESERVED_NAME": "«me» significa quien está leyendo, así que nada más puede llamarse así.",
+  "QUERY_VIEWER_NEEDS_A_PERSON": "Compara «me» con un campo que contenga una persona.",
   "QUERY_TOO_EXPENSIVE": "Esta consulta pide más trabajo del que puede hacer una consulta. Redúcela: menos tablas, o un filtro que recorte las filas.",
   "QUERY_TIMED_OUT": "Esta consulta tardó demasiado y se detuvo.",
   "QUERY_BUSY": "Esta comunidad ya tiene tantas consultas en curso como puede. Inténtalo de nuevo en un momento.",
