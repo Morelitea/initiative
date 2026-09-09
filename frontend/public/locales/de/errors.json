@@ -291,6 +291,8 @@
   "QUERY_JOIN_WITHOUT_CONDITION": "Ein Join braucht eine Bedingung, die Zeilen der einen Tabelle Zeilen der anderen zuordnet.",
   "QUERY_TOO_MANY_RELATIONS": "Diese Abfrage liest aus zu vielen Tabellen gleichzeitig.",
   "QUERY_STAR_NOT_ALLOWED": "Nenne die gewünschten Spalten statt *.",
+  "QUERY_RESERVED_NAME": "„me“ steht für die lesende Person und kann deshalb nichts anderes benennen.",
+  "QUERY_VIEWER_NEEDS_A_PERSON": "Vergleiche „me“ mit einem Feld, das eine Person enthält.",
   "QUERY_TOO_EXPENSIVE": "Diese Abfrage verlangt mehr Arbeit, als eine Abfrage leisten darf. Grenze sie ein — weniger Tabellen oder ein Filter, der die Zeilen reduziert.",
   "QUERY_TIMED_OUT": "Diese Abfrage hat zu lange gedauert und wurde abgebrochen.",
   "QUERY_BUSY": "In dieser Community laufen bereits so viele Abfragen wie erlaubt. Versuche es gleich noch einmal.",

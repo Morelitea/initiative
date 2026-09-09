@@ -30,7 +30,8 @@ from app.core.messages import QueryMessages
 from app.schemas.query import FilterOp
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
-from app.services.query.resolve import QueryError, ResolvedQuery, resolve
+from app.services.fields.spec import ControlKind
+from app.services.query.resolve import VIEWER, QueryError, ResolvedQuery, resolve
 
 #: What a column may be reduced to. Aggregates only — a window function is a
 #: different question and the validator does not admit one.
@@ -159,7 +160,43 @@ def _alias(column: Column) -> str:
     return column.field
 
 
-def _predicate(condition: Condition) -> ast.Node:
+def _viewer_value(dataset_name: str, condition: Condition) -> bool:
+    """Whether this condition is somebody picking themselves.
+
+    Only against a field that holds a person: everywhere else ``"me"`` is the
+    two-letter word, and a title is allowed to be it.
+    """
+    if not _names_a_person(dataset_name, condition.field):
+        return False
+    values = (
+        condition.value
+        if isinstance(condition.value, (list, tuple))
+        else [condition.value]
+    )
+    return any(value == VIEWER for value in values)
+
+
+def _names_a_person(dataset_name: str, field_name: str) -> bool:
+    relation_name, plain = _split(field_name)
+    holder = dataset_name
+    if relation_name is not None:
+        relation = dataset(dataset_name).by_relation.get(relation_name)
+        if relation is None:
+            return False
+        holder = relation.dataset
+    spec = dataset(holder).by_name.get(plain)
+    return spec is not None and spec.kind is ControlKind.member
+
+
+def _value_node(is_viewer: bool, value: Any) -> ast.Node:
+    """One value on the right of a comparison: the reader, or a constant."""
+    if is_viewer and value == VIEWER:
+        return ast.ColumnRef(fields=(ast.String(sval=VIEWER),))
+    return _literal(value)
+
+
+def _predicate(dataset_name: str, condition: Condition) -> ast.Node:
+    viewer = _viewer_value(dataset_name, condition)
     left = _column_ref(condition.field)
     if condition.op is FilterOp.is_null:
         # The DSL's is_null carries whether it means null or not-null.
@@ -174,7 +211,7 @@ def _predicate(condition: Condition) -> ast.Node:
             kind=A_Expr_Kind.AEXPR_IN,
             name=(ast.String(sval="="),),
             lexpr=left,
-            rexpr=tuple(_literal(value) for value in values),
+            rexpr=tuple(_value_node(viewer, value) for value in values),
         )
     operator = _OPERATORS.get(condition.op)
     if operator is None:
@@ -183,16 +220,16 @@ def _predicate(condition: Condition) -> ast.Node:
         kind=A_Expr_Kind.AEXPR_OP,
         name=(ast.String(sval=operator),),
         lexpr=left,
-        rexpr=_literal(condition.value),
+        rexpr=_value_node(viewer, condition.value),
     )
 
 
-def _where(conditions: Sequence[Condition]) -> Optional[ast.Node]:
+def _where(dataset_name: str, conditions: Sequence[Condition]) -> Optional[ast.Node]:
     """Every condition, AND-ed. A flat list, because that is what a builder
     produces and a nested one would spend a level nobody asked for."""
     if not conditions:
         return None
-    predicates = tuple(_predicate(condition) for condition in conditions)
+    predicates = tuple(_predicate(dataset_name, condition) for condition in conditions)
     if len(predicates) == 1:
         return predicates[0]
     return ast.BoolExpr(boolop=BoolExprType.AND_EXPR, args=predicates)
@@ -314,7 +351,7 @@ def build(spec: QuerySpec) -> str:
     select = ast.SelectStmt(
         targetList=targets,
         fromClause=(_from(spec, _relations_named(spec)),),
-        whereClause=_where(spec.where),
+        whereClause=_where(spec.dataset, spec.where),
         op=0,
     )
 

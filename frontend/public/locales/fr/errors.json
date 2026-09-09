@@ -277,6 +277,8 @@
   "QUERY_JOIN_WITHOUT_CONDITION": "Une jointure a besoin d'une condition reliant les lignes d'une table à celles de l'autre.",
   "QUERY_TOO_MANY_RELATIONS": "Cette requête lit dans trop de tables à la fois.",
   "QUERY_STAR_NOT_ALLOWED": "Indiquez les colonnes voulues au lieu de *.",
+  "QUERY_RESERVED_NAME": "« me » désigne la personne qui lit ; rien d'autre ne peut porter ce nom.",
+  "QUERY_VIEWER_NEEDS_A_PERSON": "Comparez « me » à un champ qui contient une personne.",
   "QUERY_TOO_EXPENSIVE": "Cette requête demande plus de travail qu'une requête ne peut en faire. Restreignez-la : moins de tables, ou un filtre qui réduit les lignes.",
   "QUERY_TIMED_OUT": "Cette requête a pris trop de temps et a été arrêtée.",
   "QUERY_BUSY": "Cette communauté a déjà autant de requêtes en cours qu'elle le peut. Réessayez dans un instant.",

@@ -47,6 +47,7 @@ from pglast.enums import (
 from app.core.messages import QueryMessages
 from app.services.fields.spec import FieldType
 from app.services.query.resolve import (
+    VIEWER,
     QueryError,
     _check_nodes,
     _name_parts,
@@ -250,6 +251,10 @@ def _resolve_names(select: ast.SelectStmt, declared: Mapping[str, RowColumn]) ->
         elif len(names) > 2:
             raise QueryError(QueryMessages.QUALIFIED_RELATION, ".".join(names))
         name = names[0]
+        if name == VIEWER:
+            # The reader is a row of ours, and these rows are an app's. There
+            # is nothing here for the word to mean.
+            raise QueryError(QueryMessages.RESERVED_NAME, VIEWER)
         if name in declared:
             continue
         if name in aliases and id(node) in ordinal_scopes:

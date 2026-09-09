@@ -398,6 +398,17 @@ class TestDeclaration:
             if spec.sortable:
                 assert spec.column is not None or spec.sort is not None
 
+    def test_a_view_says_what_it_points_at_where_the_schema_cannot(self):
+        """The member dataset reads a view, and a view records no foreign keys.
+        Its ``id`` is nonetheless a person, which is what decides the picker —
+        and a number box in its place is what a reader would have had to type
+        an account id into."""
+        from app.services.fields.spec import ControlKind, FieldType
+
+        spec = dataset("members").by_name["id"]
+        assert spec.kind is ControlKind.member
+        assert spec.type is FieldType.reference
+
     def test_the_dataset_takes_its_name_from_the_tool_where_it_can(self):
         from app.core.tools import Tool
 

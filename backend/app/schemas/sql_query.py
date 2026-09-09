@@ -118,6 +118,10 @@ class QueryVocabulary(SanitizedBaseModel):
     datasets: List[str]
     #: The functions it may call, spelled as they are written.
     functions: List[str]
+    #: The names that are not columns and are resolved from the request rather
+    #: than from the statement. ``me`` is the reader, so a saved statement that
+    #: uses it answers per person without holding anybody's id.
+    tokens: List[str] = []
 
 
 class QueryBuildResponse(SanitizedBaseModel):

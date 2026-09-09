@@ -528,3 +528,78 @@ class TestAskingForThePlan:
 
     def test_the_plan_is_asked_for_as_json(self):
         assert "format json" in resolve("SELECT title FROM tasks").explain().lower()
+
+
+class TestTheReaderIsANameAStatementMayUse:
+    """``me`` is the one name a statement takes that is not a column.
+
+    It stands where a value stands, so a saved statement holds no reader in it
+    and answers from whoever is looking at the tile.
+    """
+
+    def test_it_becomes_the_requesting_user(self):
+        resolved = resolve("SELECT count(*) AS n FROM tasks WHERE created_by = me")
+        assert "app.current_user_id" in resolved.sql
+        assert "me" not in resolved.sql.split("WHERE")[1].split("current_setting")[0]
+
+    def test_it_is_not_a_value_the_reader_wrote(self):
+        """Bound parameters are the reader's literals. The reader is not one of
+        them: nothing of theirs is carried, so there is nothing to bind."""
+        assert resolve("SELECT title FROM tasks WHERE created_by = me").parameters == ()
+
+    def test_the_expansion_carries_no_parameters_of_its_own(self):
+        """What it expands to is the surface's own text, written after the
+        literals are bound rather than before, so its constants stay
+        constants."""
+        resolved = resolve(
+            "SELECT title FROM tasks WHERE created_by = me AND priority = 'high'"
+        )
+        assert resolved.parameters == ("high",)
+        assert "current_setting('app.current_user_id'" in resolved.sql
+
+    def test_it_reads_beside_a_relation_it_was_reached_through(self):
+        resolved = resolve("SELECT count(*) AS n FROM tasks WHERE assignee.id = me")
+        assert "app.current_user_id" in resolved.sql
+        assert "task_assignees" in resolved.sql
+
+    def test_it_can_be_named_more_than_once(self):
+        resolved = resolve(
+            "SELECT count(*) AS n FROM tasks WHERE created_by = me OR assignee.id = me"
+        )
+        assert resolved.sql.count("app.current_user_id") == 2
+
+    def test_it_stands_where_a_person_is_compared(self):
+        for sql in (
+            "SELECT count(*) AS n FROM tasks WHERE me = created_by",
+            "SELECT count(*) AS n FROM tasks WHERE created_by IN (me, 3)",
+            "SELECT CASE WHEN created_by = me THEN 'mine' ELSE 'theirs' END AS whose, "
+            "count(*) AS n FROM tasks GROUP BY 1",
+        ):
+            assert "app.current_user_id" in resolve(sql).sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            # A title is text, and the reader is a person.
+            "SELECT count(*) AS n FROM tasks WHERE title = me",
+            # Nothing to be a person beside.
+            "SELECT me FROM tasks",
+            "SELECT count(me) AS n FROM tasks",
+            "SELECT count(*) AS n FROM tasks GROUP BY me",
+            "SELECT count(*) AS n FROM tasks WHERE me IS NULL",
+        ],
+    )
+    def test_anywhere_it_says_nothing_is_refused_while_it_is_written(self, sql):
+        """The builder only writes the reader against a field that holds one.
+        A statement somebody typed answers to the same rule, and hears about it
+        at the keyboard rather than on the tile."""
+        assert refusal(sql) == QueryMessages.VIEWER_NEEDS_A_PERSON
+
+    def test_an_output_column_may_not_be_called_it(self):
+        """``order by me`` has to mean one thing."""
+        assert refusal("SELECT count(*) AS me FROM tasks") == (
+            QueryMessages.RESERVED_NAME
+        )
+
+    def test_a_relation_may_not_be_called_it_either(self):
+        assert refusal("SELECT me.title FROM tasks me") == QueryMessages.RESERVED_NAME

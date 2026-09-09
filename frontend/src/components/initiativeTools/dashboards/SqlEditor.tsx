@@ -12,7 +12,7 @@
  * reason rather than run.
  */
 
-import { Braces, Columns3, Table2 } from "lucide-react";
+import { Braces, Columns3, Table2, UserRound } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +36,7 @@ const ICONS: Record<CompletionKind, typeof Table2> = {
   dataset: Table2,
   field: Columns3,
   function: Braces,
+  token: UserRound,
 };
 
 export interface SqlEditorProps {
@@ -44,6 +45,8 @@ export interface SqlEditorProps {
   datasets: string[];
   functions: string[];
   fields: DatasetFields[];
+  /** Names that stand for who is asking, offered beside the fields. */
+  tokens?: string[];
   id?: string;
   rows?: number;
   disabled?: boolean;
@@ -56,6 +59,7 @@ export function SqlEditor({
   datasets,
   functions,
   fields,
+  tokens,
   id,
   rows = 6,
   disabled,
@@ -76,8 +80,13 @@ export function SqlEditor({
 
   const offered = useMemo(() => {
     if (!active) return [];
-    return completionsFor(active.word, { datasets, functions, fields: scoped }).slice(0, LIMIT);
-  }, [active, datasets, functions, scoped]);
+    return completionsFor(active.word, {
+      datasets,
+      functions,
+      fields: scoped,
+      tokens,
+    }).slice(0, LIMIT);
+  }, [active, datasets, functions, scoped, tokens]);
 
   const close = useCallback(() => {
     setActive(null);
