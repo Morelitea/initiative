@@ -157,7 +157,7 @@ def test_every_tool_is_commentable():
     model_columns = {c.name for c in sa_inspect(Comment).persist_selectable.columns}
     assert set(COMMENT_PARENT_COLUMNS) <= model_columns
 
-    assert {col for col, *_ in _COMMENT_PARENTS} == set(COMMENT_PARENT_COLUMNS)
+    assert {p.column for p in _COMMENT_PARENTS} == set(COMMENT_PARENT_COLUMNS)
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
 
 
