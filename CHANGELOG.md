@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.1] - 2026-09-09
+
 ### Added
 
 - **Sheets: find and replace, hidden rows, columns and tabs, and getting around a big one** — Ctrl+F searches the sheet and replaces one match or all of them; a right-click on a row or column header hides it, and a sheet's tab menu hides the whole tab, with a count beside the tabs to bring any of them back. A hidden line is still there — its cells hold their values and formulas still read them — it is simply out of the way, which is what a workbook wants when the working-out and the thing you hand someone are the same file. Ctrl+Arrow jumps to the edge of the data and Ctrl+End to its far corner.
