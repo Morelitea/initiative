@@ -1769,6 +1769,7 @@ async def notify_mentions(
             document_id=document.id,
             document_name=document.name,
             guild_id=guild_context.guild_id,
+            initiative_id=document.initiative_id,
         )
     await session.commit()
 

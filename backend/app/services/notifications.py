@@ -362,6 +362,7 @@ async def enqueue_task_assignment_event(
     assigned_by: User,
     project_name: str,
     guild_id: int,
+    initiative_id: int | None = None,
 ) -> None:
     if assignee.id == assigned_by.id:
         return
@@ -379,6 +380,8 @@ async def enqueue_task_assignment_event(
             "project_name": project_name,
             "assigned_by_name": handle_of(assigned_by),
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": Tool.project.value,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -858,6 +861,7 @@ async def notify_document_mention(
     document_id: int,
     document_name: str,
     guild_id: int,
+    initiative_id: int | None = None,
 ) -> None:
     """Notify a user they were mentioned in a document."""
     if mentioned_user.id == mentioned_by.id:
@@ -882,6 +886,8 @@ async def notify_document_mention(
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": Tool.document.value,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -949,6 +955,8 @@ async def notify_comment_mention(
     document_id: int | None,
     context_title: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
     entity_type: str | None = None,
     entity_id: int | None = None,
 ) -> None:
@@ -991,6 +999,8 @@ async def notify_comment_mention(
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": tool,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -1057,6 +1067,8 @@ async def notify_task_mentioned_in_comment(
     context_document_id: int | None,
     context_title: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
     context_entity_type: str | None = None,
     context_entity_id: int | None = None,
 ) -> None:
@@ -1099,6 +1111,8 @@ async def notify_task_mentioned_in_comment(
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": tool,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -1163,6 +1177,8 @@ async def notify_comment_on_task(
     task_title: str,
     project_name: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
 ) -> None:
     """Notify task assignee that someone commented on their task."""
     if assignee.id == commenter.id:
@@ -1192,6 +1208,8 @@ async def notify_comment_on_task(
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": tool,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -1252,6 +1270,8 @@ async def notify_comment_on_resource(
     entity_id: int,
     entity_name: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
 ) -> None:
     """Notify a tool entity's creator that someone commented on it.
 
@@ -1285,6 +1305,8 @@ async def notify_comment_on_resource(
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": tool,
             "target_path": target_path,
             "smart_link": smart_link,
         },
@@ -1355,6 +1377,8 @@ async def notify_comment_reply(
     document_id: int | None,
     context_title: str,
     guild_id: int,
+    initiative_id: int | None = None,
+    tool: str | None = None,
     entity_type: str | None = None,
     entity_id: int | None = None,
 ) -> None:
@@ -1395,6 +1419,8 @@ async def notify_comment_reply(
             "replier_name": replier_name,
             "replier_id": replier.id,
             "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": tool,
             "target_path": target_path,
             "smart_link": smart_link,
         },

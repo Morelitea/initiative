@@ -24,7 +24,11 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
     membership notice has only a guild, a comment on a task has all three. Kept
     as columns so "where is there unread activity" is an index lookup.
     """
-    tool = data.get("entity_type")
+    # ``tool`` where the notifier states it outright, otherwise the entity type
+    # it already carries. They differ for a task comment, whose entity is the
+    # task and whose tool is the project list it lives in — and ``entity_type``
+    # is what the link resolver reads, so it is not the place to say the other.
+    tool = data.get("tool") or data.get("entity_type")
     return {
         "guild_id": _int_or_none(data.get("guild_id")),
         "initiative_id": _int_or_none(data.get("initiative_id")),
