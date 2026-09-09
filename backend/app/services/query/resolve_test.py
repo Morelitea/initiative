@@ -9,6 +9,7 @@ what a client shows the person who has to change the query.
 from __future__ import annotations
 
 import pytest
+from pglast import ast, parse_sql
 
 from app.core.messages import QueryMessages
 from app.services.fields.spec import FieldType
@@ -409,3 +410,31 @@ def test_an_output_built_from_a_field_carries_nothing():
         None,
         None,
     )
+
+
+class TestAskingForThePlan:
+    """``EXPLAIN`` takes a statement where a value would go, so there is no
+    parameter to bind it as. What must hold instead is that wrapping a
+    statement in it yields that statement and nothing more."""
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT '''; DROP TABLE tasks; --' AS c FROM tasks",
+            'SELECT title AS "a"" ; DROP TABLE x; --" FROM tasks',
+            "SELECT count(*) AS n FROM tasks GROUP BY '''; DROP --'",
+            r"SELECT E'trailing backslash \\' AS c FROM tasks",
+        ],
+    )
+    def test_the_readers_own_text_stays_one_statement(self, sql):
+        """A constant standing alone in a select list, and an identifier a
+        reader aliased, are the reader's own words carried through: they are
+        not bound, they are written back out."""
+        statements = parse_sql(resolve(sql).explain())
+        assert len(statements) == 1
+        root = statements[0].stmt
+        assert isinstance(root, ast.ExplainStmt)
+        assert isinstance(root.query, ast.SelectStmt)
+
+    def test_the_plan_is_asked_for_as_json(self):
+        assert "format json" in resolve("SELECT title FROM tasks").explain().lower()

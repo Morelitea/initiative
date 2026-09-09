@@ -43,6 +43,9 @@ from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
 from app.services.fields.spec import FieldType
 
+#: ``EXPLAIN``'s options, as the grammar spells them.
+_EXPLAIN_JSON = (ast.DefElem(defname="format", arg=ast.String(sval="json")),)
+
 #: How many relations one statement may name. A dashboard tile asks about one
 #: thing, sometimes joined to a second; the ceiling is what keeps a statement's
 #: cost proportional to a guild's data rather than a power of it.
@@ -74,6 +77,17 @@ class ResolvedQuery:
     #: name one. ``None`` where the output is an expression rather than a
     #: field, and the database is the one to describe it.
     column_types: tuple[FieldType | None, ...] = ()
+
+    def explain(self) -> str:
+        """This statement, asking for its plan instead of its rows.
+
+        ``EXPLAIN`` takes a statement where a value would go, so there is no
+        parameter to bind it as. It is built in the tree and written out by the
+        deparser that wrote the statement, rather than composed around the text
+        of one — the same deparser, over one tree, saying both things.
+        """
+        root = ast.ExplainStmt(query=parse_sql(self.sql)[0].stmt, options=_EXPLAIN_JSON)
+        return RawStream()(root)
 
 
 # --- what the surface accepts ------------------------------------------------

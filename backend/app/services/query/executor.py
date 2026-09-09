@@ -170,9 +170,7 @@ async def _bound_transaction(connection: Any) -> None:
 
 
 async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
-    plan = await connection.fetchval(
-        f"EXPLAIN (FORMAT JSON) {statement.sql}", *statement.parameters
-    )
+    plan = await connection.fetchval(statement.explain(), *statement.parameters)
     document = json.loads(plan) if isinstance(plan, str) else plan
     return float(document[0]["Plan"]["Total Cost"])
 
