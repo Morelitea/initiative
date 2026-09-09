@@ -23,7 +23,7 @@ async def test_a_member_can_run_a_query(client, acting_user):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["columns"] == ["n"]
+    assert body["columns"] == [{"name": "n", "type": "number"}]
     assert body["truncated"] is False
 
 
@@ -35,7 +35,10 @@ async def test_the_rows_come_back_positionally(client, acting_user):
         headers=actor.headers,
     )
     assert response.status_code == 200
-    assert response.json()["columns"] == ["a", "b"]
+    assert response.json()["columns"] == [
+        {"name": "a", "type": "number"},
+        {"name": "b", "type": "number"},
+    ]
 
 
 async def test_a_statement_the_surface_refuses_says_which_word(client, acting_user):

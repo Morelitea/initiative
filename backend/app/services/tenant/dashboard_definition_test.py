@@ -9,8 +9,8 @@ rejected, and what is deliberately passed through untouched.
 import pytest
 
 from app.services.tenant.dashboard_definition import (
-    ALL_SOURCES,
     MAX_WIDGETS,
+    TABULAR_SOURCES,
     WIDGET_PRESETS,
     WIDGET_SPECS,
     WIDGET_TYPES,
@@ -25,11 +25,24 @@ def _definition(*widgets: dict) -> dict:
 
 
 @pytest.mark.unit
-def test_every_widget_source_is_a_known_source():
-    """The derived source set can't drift from the widgets that declare it."""
+def test_every_slot_a_widget_declares_can_be_filled():
+    """A slot nothing can fill is a widget nothing can drive. The table is the
+    one widget with no shape, which is what makes it the fallback."""
     for widget_type, spec in WIDGET_SPECS.items():
-        assert spec.sources, f"{widget_type} declares no sources"
-        assert spec.sources <= ALL_SOURCES
+        for slot in spec.shape:
+            assert slot.types, f"{widget_type}.{slot.name} accepts no type"
+        names = [slot.name for slot in spec.shape]
+        assert len(names) == len(set(names)), widget_type
+    assert WIDGET_SPECS["table"].shape == ()
+
+
+@pytest.mark.unit
+def test_a_required_slot_comes_before_an_optional_one():
+    """Inference walks the slots in order and takes the first column that fits,
+    so anything a widget cannot draw without has to be asked for first."""
+    for widget_type, spec in WIDGET_SPECS.items():
+        required = [slot.required for slot in spec.shape]
+        assert required == sorted(required, reverse=True), widget_type
 
 
 @pytest.mark.unit
@@ -68,7 +81,7 @@ def test_preset_is_stored_resolved():
             {
                 "id": "bars",
                 "type": "bar_chart",
-                "binding": {"source": "task_counts", "bucket": "priority"},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
             }
         )
     )
@@ -86,7 +99,7 @@ def test_preset_options_win_over_supplied_ones():
             {
                 "type": "bar_chart",
                 "options": {"mark": "pie"},
-                "binding": {"source": "task_counts"},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
             }
         )
     )
@@ -101,7 +114,7 @@ def test_rejects_unknown_option_value():
                 {
                     "type": "chart",
                     "options": {"mark": "hologram"},
-                    "binding": {"source": "task_counts"},
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
                 }
             )
         )
@@ -114,7 +127,7 @@ def test_unknown_option_keys_are_dropped():
             {
                 "type": "chart",
                 "options": {"mark": "line", "onClick": "steal"},
-                "binding": {"source": "task_counts"},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
             }
         )
     )
@@ -130,7 +143,7 @@ def test_normalizes_to_canonical_shape():
                 "type": "gantt",
                 "title": "  Delivery  ",
                 "grid": {"x": 0, "y": 0, "w": 12, "h": 6},
-                "binding": {"source": "tasks", "group_by": "project"},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
             }
         )
     )
@@ -147,8 +160,14 @@ def test_normalizes_to_canonical_shape():
 def test_widget_ids_are_assigned_and_must_be_unique():
     result = normalize_dashboard_definition(
         _definition(
-            {"type": "stat", "binding": {"source": "counter"}},
-            {"type": "stat", "binding": {"source": "counter"}},
+            {
+                "type": "stat",
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+            },
+            {
+                "type": "stat",
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+            },
         )
     )
     assert [w["id"] for w in result["widgets"]] == ["w1", "w2"]
@@ -156,8 +175,16 @@ def test_widget_ids_are_assigned_and_must_be_unique():
     with pytest.raises(DashboardDefinitionError, match="WIDGET_ID_DUPLICATE"):
         normalize_dashboard_definition(
             _definition(
-                {"id": "same", "type": "stat", "binding": {"source": "counter"}},
-                {"id": "same", "type": "stat", "binding": {"source": "counter"}},
+                {
+                    "id": "same",
+                    "type": "stat",
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+                },
+                {
+                    "id": "same",
+                    "type": "stat",
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+                },
             )
         )
 
@@ -167,7 +194,11 @@ def test_size_floor_is_enforced_per_widget_type():
     """A layout can't squeeze a widget below what it can legibly render."""
     result = normalize_dashboard_definition(
         _definition(
-            {"type": "gantt", "grid": {"w": 1, "h": 1}, "binding": {"source": "tasks"}}
+            {
+                "type": "gantt",
+                "grid": {"w": 1, "h": 1},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+            }
         )
     )
     grid = result["widgets"][0]["grid"]
@@ -182,7 +213,7 @@ def test_widget_is_kept_inside_the_grid():
             {
                 "type": "gantt",
                 "grid": {"x": 9, "y": 0, "w": 12, "h": 6},
-                "binding": {"source": "tasks"},
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
             }
         )
     )
@@ -195,7 +226,17 @@ def test_widget_is_kept_inside_the_grid():
     "payload,code",
     [
         (
-            {"widgets": [{"type": "evil", "binding": {"source": "tasks"}}]},
+            {
+                "widgets": [
+                    {
+                        "type": "evil",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT title FROM tasks",
+                        },
+                    }
+                ]
+            },
             "WIDGET_TYPE_UNKNOWN",
         ),
         (
@@ -204,8 +245,18 @@ def test_widget_is_kept_inside_the_grid():
         ),
         # A real source, but not one this widget can draw.
         (
-            {"widgets": [{"type": "stat", "binding": {"source": "tasks"}}]},
-            "BINDING_SOURCE_NOT_ALLOWED",
+            {
+                "widgets": [
+                    {
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT secret FROM pg_shadow",
+                        },
+                    }
+                ]
+            },
+            "UNKNOWN_RELATION",
         ),
         ({"widgets": [{"type": "stat"}]}, "BINDING_INVALID"),
         ({"widgets": "nope"}, "DEFINITION_INVALID"),
@@ -220,7 +271,11 @@ def test_rejects_unknown_vocabulary(payload, code):
 @pytest.mark.unit
 def test_rejects_too_many_widgets():
     widgets = [
-        {"id": f"w{i}", "type": "stat", "binding": {"source": "counter"}}
+        {
+            "id": f"w{i}",
+            "type": "stat",
+            "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+        }
         for i in range(MAX_WIDGETS + 1)
     ]
     with pytest.raises(DashboardDefinitionError, match="TOO_MANY_WIDGETS"):
@@ -251,7 +306,8 @@ def test_binding_parameters_pass_through_untouched():
             {
                 "type": "gantt",
                 "binding": {
-                    "source": "tasks",
+                    "source": "query",
+                    "sql": "SELECT title FROM tasks",
                     "conditions": conditions,
                     "group_by": "project",
                 },
@@ -276,7 +332,8 @@ def test_a_binding_cannot_name_its_own_initiative_or_guild():
             {
                 "type": "gantt",
                 "binding": {
-                    "source": "tasks",
+                    "source": "query",
+                    "sql": "SELECT title FROM tasks",
                     "initiative_id": 999,
                     "guild_id": 42,
                     "project_id": 7,
@@ -298,7 +355,7 @@ def test_unknown_structural_keys_are_dropped():
             "widgets": [
                 {
                     "type": "stat",
-                    "binding": {"source": "counter"},
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
                     "onClick": {"action": "delete_everything"},
                 }
             ],
@@ -312,7 +369,13 @@ def test_unknown_structural_keys_are_dropped():
 @pytest.mark.unit
 def test_config_is_scoped_to_the_definitions_widgets():
     definition = normalize_dashboard_definition(
-        _definition({"id": "w1", "type": "stat", "binding": {"source": "counter"}})
+        _definition(
+            {
+                "id": "w1",
+                "type": "stat",
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+            }
+        )
     )
     config = normalize_dashboard_config(
         {"widgets": {"w1": {"counter_id": 42}, "ghost": {"counter_id": 9}}},
@@ -325,7 +388,13 @@ def test_config_is_scoped_to_the_definitions_widgets():
 def test_config_for_a_removed_widget_is_dropped():
     """Updating to a definition without that widget can't leave config behind."""
     definition = normalize_dashboard_definition(
-        _definition({"id": "w2", "type": "stat", "binding": {"source": "counter"}})
+        _definition(
+            {
+                "id": "w2",
+                "type": "stat",
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+            }
+        )
     )
     assert normalize_dashboard_config(
         {"widgets": {"w1": {"counter_id": 1}}}, definition
@@ -498,7 +567,7 @@ def test_an_app_widget_cannot_bind_another_apps_data():
 
 @pytest.mark.unit
 def test_an_app_widget_binds_only_the_app_source():
-    for source in sorted(ALL_SOURCES):
+    for source in sorted(TABULAR_SOURCES):
         with pytest.raises(DashboardDefinitionError):
             normalize_dashboard_definition(
                 _definition(_app_widget(binding={"source": source}))
@@ -526,10 +595,10 @@ def test_a_builtin_widget_cannot_bind_the_app_source():
 
 @pytest.mark.unit
 def test_the_app_source_is_not_in_the_builtin_vocabulary():
-    """`ALL_SOURCES` and `WIDGET_TYPES` stay the built-ins' own, so the served
-    widget catalog and every drift test keep describing this build's renderers
-    rather than whatever some guild happens to have installed."""
-    assert "app" not in ALL_SOURCES
+    """`TABULAR_SOURCES` and `WIDGET_TYPES` stay the built-ins' own, so the
+    served widget catalog and every drift test keep describing this build's
+    renderers rather than whatever some guild happens to have installed."""
+    assert "app" not in TABULAR_SOURCES
     assert not any(name.startswith("app:") for name in WIDGET_TYPES)
 
 
@@ -601,3 +670,68 @@ def test_an_app_binding_still_has_nowhere_to_put_an_address():
     )
     binding = result["widgets"][0]["binding"]
     assert set(binding) == {"source", "app_uid", "endpoint_id"}
+
+
+@pytest.mark.unit
+def test_a_statement_is_read_before_it_is_stored():
+    """A definition that cannot be fetched should not be storable: the author is
+    looking at the query, so the refusal names the word that has to change."""
+    with pytest.raises(DashboardDefinitionError, match="UNKNOWN_FIELD"):
+        normalize_dashboard_definition(
+            _definition(
+                {
+                    "type": "stat",
+                    "binding": {"source": "query", "sql": "SELECT nope FROM tasks"},
+                }
+            )
+        )
+
+
+@pytest.mark.unit
+def test_a_query_binding_needs_a_statement():
+    with pytest.raises(DashboardDefinitionError, match="BINDING_SQL_MISSING"):
+        normalize_dashboard_definition(
+            _definition({"type": "stat", "binding": {"source": "query"}})
+        )
+
+
+@pytest.mark.unit
+def test_a_mapping_names_the_widgets_own_slots():
+    """Slots are the widget's, and a mapping keying on anything else would be
+    read by nothing."""
+    definition = normalize_dashboard_definition(
+        _definition(
+            {
+                "type": "chart",
+                "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+                "mapping": {"label": 0, "value": [1, 2]},
+            }
+        )
+    )
+    assert definition["widgets"][0]["mapping"] == {"label": [0], "value": [1, 2]}
+
+    with pytest.raises(DashboardDefinitionError, match="WIDGET_MAPPING_INVALID"):
+        normalize_dashboard_definition(
+            _definition(
+                {
+                    "type": "chart",
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+                    "mapping": {"nonsense": 0},
+                }
+            )
+        )
+
+
+@pytest.mark.unit
+def test_only_a_repeatable_slot_takes_several_columns():
+    """A funnel draws one measure. Two would be a chart."""
+    with pytest.raises(DashboardDefinitionError, match="WIDGET_MAPPING_INVALID"):
+        normalize_dashboard_definition(
+            _definition(
+                {
+                    "type": "funnel",
+                    "binding": {"source": "query", "sql": "SELECT title FROM tasks"},
+                    "mapping": {"value": [1, 2]},
+                }
+            )
+        )

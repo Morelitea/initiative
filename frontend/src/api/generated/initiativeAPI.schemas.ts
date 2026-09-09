@@ -970,21 +970,6 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
-/**
- * Data sources a widget binding may name.
- */
-export type BindingSource = (typeof BindingSource)[keyof typeof BindingSource];
-
-export const BindingSource = {
-  calendar_entries: "calendar_entries",
-  counter: "counter",
-  counter_group: "counter_group",
-  projects: "projects",
-  sheet_range: "sheet_range",
-  task_counts: "task_counts",
-  tasks: "tasks",
-} as const;
-
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -1948,6 +1933,8 @@ export const ControlKind = {
   tag: "tag",
   project: "project",
   initiative: "initiative",
+  calendar: "calendar",
+  counter_group: "counter_group",
   property_value: "property_value",
   date: "date",
   boolean: "boolean",
@@ -2246,6 +2233,9 @@ export type DatasetName = (typeof DatasetName)[keyof typeof DatasetName];
 export const DatasetName = {
   tasks: "tasks",
   projects: "projects",
+  calendar_events: "calendar_events",
+  counter_groups: "counter_groups",
+  counters: "counters",
 } as const;
 
 /**
@@ -4960,7 +4950,7 @@ export interface QueryRequest {
  * What the statement returned.
  */
 export interface QueryResponse {
-  columns: string[];
+  columns: QueryColumnDescription[];
   rows: unknown[][];
   truncated: boolean;
 }
@@ -6436,6 +6426,16 @@ export const WidgetType = {
   table: "table",
 } as const;
 
+/**
+ * One column a widget needs, and what may fill it.
+ */
+export interface WidgetSlot {
+  name: string;
+  types: FieldType[];
+  required: boolean;
+  repeatable: boolean;
+}
+
 export interface WidgetOption {
   key: string;
   values: string[];
@@ -6448,7 +6448,7 @@ export interface WidgetCatalogEntry {
   min_h: number;
   default_w: number;
   default_h: number;
-  sources: BindingSource[];
+  shape: WidgetSlot[];
   options: WidgetOption[];
 }
 

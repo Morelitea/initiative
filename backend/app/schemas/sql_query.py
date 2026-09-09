@@ -40,8 +40,10 @@ class QueryShapeResponse(SanitizedBaseModel):
 class QueryResponse(SanitizedBaseModel):
     """What the statement returned."""
 
-    #: Output names, in order. Not necessarily distinct.
-    columns: List[str]
+    #: The output columns, in order, named and typed. Names are not necessarily
+    #: distinct; the statement is prepared to run either way, so saying what it
+    #: returns costs nothing extra here.
+    columns: List[QueryColumnDescription]
     #: One list per row, positional against ``columns``.
     rows: List[List[Any]]
     #: Whether there were more rows than one query returns.

@@ -49,6 +49,8 @@ FK_CONTROLS: dict[str, ControlKind] = {
     "initiatives": ControlKind.initiative,
     "task_statuses": ControlKind.task_status,
     "tags": ControlKind.tag,
+    "calendars": ControlKind.calendar,
+    "counter_groups": ControlKind.counter_group,
 }
 
 #: Types that carry no filterable value. Structured blobs and binary: there is

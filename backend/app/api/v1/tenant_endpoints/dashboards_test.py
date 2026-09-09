@@ -385,7 +385,14 @@ async def test_widget_catalog_projects_the_registry(
             spec.default_w,
             spec.default_h,
         )
-        assert set(entry["sources"]) == set(spec.sources)
+        # Served in declared order, because inference walks the slots in it.
+        assert [slot["name"] for slot in entry["shape"]] == [
+            slot.name for slot in spec.shape
+        ]
+        for served, slot in zip(entry["shape"], spec.shape):
+            assert set(served["types"]) == {kind.value for kind in slot.types}
+            assert served["required"] is slot.required
+            assert served["repeatable"] is slot.repeatable
         assert {option["key"] for option in entry["options"]} == set(spec.options)
         for option in entry["options"]:
             declared = spec.options[option["key"]]

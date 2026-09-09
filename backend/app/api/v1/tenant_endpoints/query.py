@@ -11,7 +11,7 @@ What the statement may say, and what running it may cost, are answered in
 :mod:`app.services.query`.
 """
 
-from typing import Annotated
+from typing import Annotated, Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -55,12 +55,16 @@ async def describe_query(
             status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
-    return QueryShapeResponse(
-        columns=[
-            QueryColumnDescription(name=column.name, type=column.type)
-            for column in columns
-        ]
-    )
+    return QueryShapeResponse(columns=_described(columns))
+
+
+def _described(
+    columns: Iterable[query_service.QueryColumn],
+) -> list[QueryColumnDescription]:
+    """The executor's columns on the wire. Both endpoints answer with them."""
+    return [
+        QueryColumnDescription(name=column.name, type=column.type) for column in columns
+    ]
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -80,7 +84,7 @@ async def run_query(
             detail=refused.code,
         ) from refused
     return QueryResponse(
-        columns=list(result.columns),
+        columns=_described(result.columns),
         rows=[list(row) for row in result.rows],
         truncated=result.truncated,
     )

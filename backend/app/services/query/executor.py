@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any, AsyncIterator, Mapping
 
 from asyncpg.exceptions import (
@@ -47,11 +49,12 @@ from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 class QueryResult:
     """What a query returned, and what it cost to say so."""
 
-    #: Output names, in order. Not necessarily distinct — ``SELECT t.id, p.id``
-    #: is a legal query and names both columns ``id``.
-    columns: tuple[str, ...]
+    #: The output columns, in order, named and typed. Not necessarily distinct
+    #: — ``SELECT t.id, p.id`` is a legal query and names both columns ``id``.
+    columns: tuple[QueryColumn, ...]
     #: One tuple per row, positional against :attr:`columns`. Positional rather
     #: than keyed for the reason above: a mapping keeps one value per name.
+    #: Values arrive in the spellings a client holds (see :func:`_wire`).
     rows: tuple[tuple[Any, ...], ...]
     #: The planner's estimate for the statement that ran.
     cost: float
@@ -73,9 +76,10 @@ class QueryColumn:
 _NUMBER_TYPES = frozenset(
     {"int2", "int4", "int8", "numeric", "float4", "float8", "money"}
 )
-_DATE_TYPES = frozenset(
-    {"date", "time", "timetz", "timestamp", "timestamptz", "interval"}
-)
+#: Only points on a timeline. A ``time`` has no day and an ``interval`` is a
+#: length rather than a moment, so neither is something a tile can place on one;
+#: both read as text, which is what they are to a reader.
+_DATE_TYPES = frozenset({"date", "timestamp", "timestamptz"})
 
 
 async def _enum_types(connection: Any, oids: set[int]) -> set[int]:
@@ -113,6 +117,57 @@ def _column_type(attribute: Any, enum_oids: set[int]) -> FieldType:
     if name == "bool":
         return FieldType.boolean
     return FieldType.text
+
+
+def _wire(value: Any) -> Any:
+    """One value, in a spelling a client can hold.
+
+    Two conversions, both so that a query's rows read like every other part of
+    the app's: a moment becomes epoch milliseconds UTC, which is the one
+    spelling of a timestamp the widgets take; and an exact number becomes a
+    number, where the database's arbitrary-precision type would otherwise arrive
+    as a string and stop counting as one. Anything else with no JSON spelling is
+    written out rather than dropped.
+    """
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    # Before date, because every datetime is one.
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return int(moment.timestamp() * 1000)
+    if isinstance(value, date):
+        midnight = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        return int(midnight.timestamp() * 1000)
+    return str(value)
+
+
+async def _described(
+    connection: Any, prepared: Any, statement: ResolvedQuery
+) -> tuple[QueryColumn, ...]:
+    """The output columns of a prepared statement, named and typed.
+
+    Shared by running a statement and describing one, because they are the same
+    question asked at two moments — a tile that draws a query needs to know what
+    its columns hold, and asking twice would be asking the same statement twice.
+    """
+    attributes = prepared.get_attributes()
+    enum_oids = await _enum_types(
+        connection, {attribute.type.oid for attribute in attributes}
+    )
+    declared = statement.column_types
+    return tuple(
+        QueryColumn(
+            name=attribute.name,
+            type=(
+                declared[position]
+                if position < len(declared) and declared[position] is not None
+                else _column_type(attribute, enum_oids)
+            ),
+        )
+        for position, attribute in enumerate(attributes)
+    )
 
 
 #: Names the query surface's locks apart from anything else that takes one.
@@ -239,7 +294,7 @@ async def execute(
                 raise QueryError(QueryMessages.TOO_EXPENSIVE, f"{cost:.0f}")
 
             prepared = await connection.prepare(statement.sql)
-            columns = tuple(attribute.name for attribute in prepared.get_attributes())
+            columns = await _described(connection, prepared, statement)
 
             limit = settings.QUERY_MAX_ROWS
             rows: list[tuple[Any, ...]] = []
@@ -248,7 +303,7 @@ async def execute(
                 if len(rows) >= limit:
                     truncated = True
                     break
-                rows.append(tuple(record))
+                rows.append(tuple(_wire(value) for value in record))
 
             await session.rollback()
             return QueryResult(
@@ -290,21 +345,6 @@ async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn
             await _bound_transaction(sqlalchemy_connection)
             await set_rls_context(session, **routed)
             prepared = await connection.prepare(statement.sql)
-            attributes = prepared.get_attributes()
-            enum_oids = await _enum_types(
-                connection, {attribute.type.oid for attribute in attributes}
-            )
-            declared = statement.column_types
-            columns = tuple(
-                QueryColumn(
-                    name=attribute.name,
-                    type=(
-                        declared[position]
-                        if position < len(declared) and declared[position] is not None
-                        else _column_type(attribute, enum_oids)
-                    ),
-                )
-                for position, attribute in enumerate(attributes)
-            )
+            columns = await _described(connection, prepared, statement)
             await session.rollback()
             return columns

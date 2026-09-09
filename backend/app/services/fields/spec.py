@@ -61,6 +61,8 @@ class ControlKind(str, Enum):
     tag = "tag"
     project = "project"
     initiative = "initiative"
+    calendar = "calendar"
+    counter_group = "counter_group"
     #: Values only a lookup can enumerate (a custom property's options).
     property_value = "property_value"
     date = "date"
@@ -100,6 +102,8 @@ CONTROLS: dict[ControlKind, tuple[FieldType, frozenset[FilterOp]]] = {
     ControlKind.tag: (FieldType.reference, _IN),
     ControlKind.project: (FieldType.reference, _EQ),
     ControlKind.initiative: (FieldType.reference, _IN),
+    ControlKind.calendar: (FieldType.reference, _IN),
+    ControlKind.counter_group: (FieldType.reference, _IN),
     ControlKind.property_value: (FieldType.text, _EQ),
     ControlKind.date: (FieldType.date, _RANGE),
     ControlKind.boolean: (FieldType.boolean, _EQ),
