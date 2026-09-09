@@ -66,6 +66,10 @@ export interface Clip {
   /** Exactly what was written to the OS clipboard. A paste uses it to tell
    *  whether the clipboard still holds this block. */
   text: string;
+  /** Whether {@link text} actually reached the OS clipboard. A copy sets it
+   *  synchronously from its own event; a cut has to ask, and can be told
+   *  no. See {@link clipMatchesClipboard}. */
+  textOnClipboard?: boolean;
 }
 
 /** How a clip reads the sheet it is being taken from. */
@@ -158,16 +162,23 @@ export const placeClip = (
   const colDelta = at.col - clip.origin.c1;
   const crossesSheets = at.sheetId !== clip.sheetId;
 
+  // Every cell of the rectangle, not only the ones that held something:
+  // a blank in the copied block is part of what was copied, and has to
+  // clear whatever it lands on rather than leave it showing through.
   const cells: Record<string, CellValue> = {};
-  for (const [key, value] of Object.entries(clip.cells)) {
-    const parsed = parseKey(key);
-    if (!parsed) continue;
-    cells[keyOf(at.row + parsed[0], at.col + parsed[1])] = moveValue(
-      value,
-      clip.mode,
-      { rowDelta, colDelta },
-      crossesSheets ? clip.sheetName : null
-    );
+  for (let dr = 0; dr < rows; dr++) {
+    for (let dc = 0; dc < cols; dc++) {
+      const source = clip.cells[keyOf(dr, dc)] ?? null;
+      cells[keyOf(at.row + dr, at.col + dc)] =
+        source === null
+          ? null
+          : moveValue(
+              source,
+              clip.mode,
+              { rowDelta, colDelta },
+              crossesSheets ? clip.sheetName : null
+            );
+    }
   }
 
   const styles: Record<string, CellFmt> = {};
@@ -207,11 +218,18 @@ const moveValue = (
   return qualifyWith === null ? value : qualifyLocalReferences(value, qualifyWith);
 };
 
-/** Whether the OS clipboard still holds what this clip wrote to it. A cut
- *  is answered on the clip alone: its marquee is the promise, and a failed
- *  or unavailable clipboard write must not turn a move into a copy. */
+/**
+ * Whether the OS clipboard still holds what this clip wrote to it.
+ *
+ * Matching text is conclusive for either mode. A cut additionally wins when
+ * its text never reached the OS clipboard at all — writing it is an async
+ * call that a browser may refuse, and a refused write must not turn a move
+ * into a no-op. Once the text *is* out there, though, a cut is answered
+ * like anything else: text copied somewhere else in the meantime is what
+ * the user means to paste, and the stale marquee is the caller's to drop.
+ */
 export const clipMatchesClipboard = (clip: Clip | null, text: string): clip is Clip => {
   if (!clip) return false;
-  if (clip.mode === "cut") return true;
-  return clip.text === text;
+  if (clip.text === text) return true;
+  return clip.mode === "cut" && !clip.textOnClipboard;
 };

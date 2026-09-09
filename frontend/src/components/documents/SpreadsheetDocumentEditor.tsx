@@ -1111,8 +1111,15 @@ export const SpreadsheetDocumentEditor = ({
     if (readOnly || editing) return;
     const taken = takeClip("cut");
     if (!taken) return;
-    if (taken.text) void navigator.clipboard?.writeText(taken.text).catch(() => {});
     setClip(taken);
+    if (!taken.text) return;
+    // Writing to the OS clipboard is asynchronous and refusable. Whether it
+    // landed decides how a later paste breaks the tie with content copied
+    // somewhere else, so the answer is recorded rather than assumed.
+    void navigator.clipboard
+      ?.writeText(taken.text)
+      .then(() => setClip((c) => (c === taken ? { ...c, textOnClipboard: true } : c)))
+      .catch(() => {});
   }, [readOnly, editing, takeClip]);
 
   const handleKeyDown = useCallback(
@@ -1263,7 +1270,10 @@ export const SpreadsheetDocumentEditor = ({
           });
         }
         bulkUpdate((draft) => {
-          for (const [key, value] of Object.entries(kept)) draft.set(key, value);
+          for (const [key, value] of Object.entries(kept)) {
+            if (value === null) draft.delete(key);
+            else draft.set(key, value);
+          }
         });
         if (styles) {
           grid.forEachCell(grid.clampRange(styles.range), (r, c) =>
@@ -1307,6 +1317,9 @@ export const SpreadsheetDocumentEditor = ({
         return;
       }
 
+      // Pasting something copied elsewhere: a marquee still pointing at our
+      // own block is now stale and would only mislead.
+      if (clip) setClip(null);
       if (!text) return;
       e.preventDefault();
       if (!text.includes("\n") && !text.includes("\r") && !text.includes("\t")) {
@@ -1326,7 +1339,7 @@ export const SpreadsheetDocumentEditor = ({
       if (!taken || taken.text === "") return;
       e.preventDefault();
       e.clipboardData.setData("text/plain", taken.text);
-      setClip(taken); // supersedes any pending cut
+      setClip({ ...taken, textOnClipboard: true }); // supersedes any pending cut
     },
     [editing, takeClip]
   );

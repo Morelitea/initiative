@@ -155,6 +155,21 @@ describe("placeClip — cut", () => {
   });
 });
 
+describe("placeClip — blanks in the copied block", () => {
+  it("clears a destination cell the source had empty", () => {
+    // A 2x1 block whose second cell is blank.
+    const clip = take("copy", { "0:0": "a" }, range(0, 0, 1, 0));
+    const placed = placeClip(clip, { sheetId: "s1", row: 5, col: 0 });
+    expect(placed.cells).toEqual({ "5:0": "a", "6:0": null });
+  });
+
+  it("covers the whole rectangle even when the source was entirely empty", () => {
+    const clip = take("copy", {}, range(0, 0, 1, 1));
+    const placed = placeClip(clip, { sheetId: "s1", row: 0, col: 0 });
+    expect(placed.cells).toEqual({ "0:0": null, "0:1": null, "1:0": null, "1:1": null });
+  });
+});
+
 describe("clipMatchesClipboard", () => {
   it("is false with no clip", () => {
     expect(clipMatchesClipboard(null, "anything")).toBe(false);
@@ -170,8 +185,18 @@ describe("clipMatchesClipboard", () => {
     expect(clipMatchesClipboard(clip, "from another app")).toBe(false);
   });
 
-  it("accepts a cut whatever the clipboard says", () => {
+  it("accepts a cut whose text never reached the clipboard", () => {
     const clip = take("cut", { "0:0": "a" }, range(0, 0, 0, 0));
     expect(clipMatchesClipboard(clip, "from another app")).toBe(true);
+  });
+
+  it("accepts a cut whose text is still on the clipboard", () => {
+    const clip = { ...take("cut", { "0:0": "a" }, range(0, 0, 0, 0)), textOnClipboard: true };
+    expect(clipMatchesClipboard(clip, "a")).toBe(true);
+  });
+
+  it("stands aside for a cut once something else has been copied", () => {
+    const clip = { ...take("cut", { "0:0": "a" }, range(0, 0, 0, 0)), textOnClipboard: true };
+    expect(clipMatchesClipboard(clip, "from another app")).toBe(false);
   });
 });

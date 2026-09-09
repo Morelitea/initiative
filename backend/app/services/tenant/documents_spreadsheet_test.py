@@ -53,10 +53,17 @@ def test_schema_fixture_survives_normalization() -> None:
         pytest.skip("frontend tree not present")
 
     sheet = json.loads(FIXTURE.read_text())["sheet"]
+    # The fixture sheet is hidden, and a workbook with nothing on show has
+    # its first sheet revealed — so it needs a companion to stay hidden and
+    # prove the flag survives.
     normalized = normalize_spreadsheet_content(
-        {"schema_version": 3, "kind": "spreadsheet", "sheets": [sheet]}
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [{"id": "visible", "name": "Visible"}, sheet],
+        }
     )
-    kept = _leaf_paths(normalized["sheets"][0])
+    kept = _leaf_paths(normalized["sheets"][1])
     assert sorted(path for path in _leaf_paths(sheet) if path not in kept) == []
 
 
@@ -105,3 +112,35 @@ def test_hidden_false_is_not_stored() -> None:
     columns = normalized["sheets"][0]["columns"]
     assert "0" not in columns
     assert columns["1"] == {"width": 90}
+
+
+def test_a_workbook_keeps_one_sheet_on_show() -> None:
+    """Every sheet hidden leaves nothing to render, and xlsx cannot express
+    it at all — openpyxl refuses to write such a file. The first sheet is
+    shown regardless of what the payload asked for."""
+    normalized = normalize_spreadsheet_content(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {"id": "s1", "name": "One", "hidden": True},
+                {"id": "s2", "name": "Two", "hidden": True},
+            ],
+        }
+    )
+    states = [sheet.get("hidden") for sheet in normalized["sheets"]]
+    assert states == [None, True]
+
+
+def test_hidden_sheet_is_kept_when_another_is_shown() -> None:
+    normalized = normalize_spreadsheet_content(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {"id": "s1", "name": "One"},
+                {"id": "s2", "name": "Two", "hidden": True},
+            ],
+        }
+    )
+    assert [sheet.get("hidden") for sheet in normalized["sheets"]] == [None, True]

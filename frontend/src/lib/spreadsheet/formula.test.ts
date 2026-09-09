@@ -364,6 +364,11 @@ describe("functions the library leaves unimplemented", () => {
     expect(evalA1('=CHOOSE(4,"a")').error).toBe("#VALUE!");
   });
 
+  it("SWITCH matches text the way Excel's = does, ignoring case", () => {
+    expect(evalA1('=SWITCH("YES","yes","matched","no","nope")').value).toBe("matched");
+    expect(evalA1('=SWITCH(A2,"Open",1,"Closed",2)', { "1:0": "OPEN" }).value).toBe(1);
+  });
+
   it("SWITCH compares pairs and falls back to a trailing default", () => {
     expect(evalA1('=SWITCH(2,1,"one",2,"two")').value).toBe("two");
     expect(evalA1('=SWITCH(9,1,"one",2,"two","none")').value).toBe("none");

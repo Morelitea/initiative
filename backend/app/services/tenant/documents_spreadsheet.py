@@ -137,6 +137,12 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
     for index, entry in enumerate(entries):
         sheets_out.append(_normalize_sheet(entry, index, used_ids, used_names))
 
+    # A workbook with every sheet hidden has nothing to render and cannot be
+    # written as xlsx, so the first one is shown regardless of what the
+    # payload asked for. The client applies the same rule on read.
+    if sheets_out and all(sheet.get("hidden") for sheet in sheets_out):
+        sheets_out[0].pop("hidden", None)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": "spreadsheet",

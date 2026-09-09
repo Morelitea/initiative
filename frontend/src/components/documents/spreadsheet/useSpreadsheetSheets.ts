@@ -122,7 +122,10 @@ const readCells = (doc: Y.Doc | null, id: SheetId): Map<string, CellValue> =>
   readScalarMap(sheetPart(sheetContainer(doc, id), SHEET_CELLS));
 
 const sameSheets = (a: SheetMeta[], b: SheetMeta[]): boolean =>
-  a.length === b.length && a.every((s, i) => s.id === b[i].id && s.name === b[i].name);
+  a.length === b.length &&
+  a.every(
+    (s, i) => s.id === b[i].id && s.name === b[i].name && Boolean(s.hidden) === Boolean(b[i].hidden)
+  );
 
 /** Rewrite ``order`` so the tabs are 0..n-1 in ``ids`` order. Must run
  *  inside a transaction. */

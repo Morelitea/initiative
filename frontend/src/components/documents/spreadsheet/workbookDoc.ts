@@ -107,6 +107,8 @@ export const seedSheet = (doc: Y.Doc, sheet: SpreadsheetSheetContent, order: num
   meta.set(META_COLS, sheet.dimensions.cols);
   meta.set(META_FROZEN_ROWS, sheet.frozen.rows);
   meta.set(META_FROZEN_COLS, sheet.frozen.cols);
+  // Absent rather than false for a shown sheet, matching how it is read.
+  if (sheet.hidden) meta.set(META_HIDDEN, true);
   for (const [k, v] of Object.entries(sheet.cells)) cells.set(k, v);
   for (const [k, v] of Object.entries(sheet.columns)) columns.set(k, v);
   for (const [k, v] of Object.entries(sheet.rows)) rows.set(k, v);

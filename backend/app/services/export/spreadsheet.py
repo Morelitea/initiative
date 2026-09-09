@@ -124,6 +124,12 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
         )
         _render_sheet(worksheet, sheet_content)
 
+    # xlsx has no way to express a workbook with nothing on show, and
+    # openpyxl refuses to write one. The normalizer keeps a sheet visible on
+    # save; this covers a snapshot stored before it did.
+    if all(ws.sheet_state == "hidden" for ws in workbook.worksheets):
+        workbook.worksheets[0].sheet_state = "visible"
+
     out = io.BytesIO()
     workbook.save(out)
     return out.getvalue()

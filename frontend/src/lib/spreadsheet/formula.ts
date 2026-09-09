@@ -63,6 +63,11 @@ interface FunctionContext {
   utils: { extractRefValue: (param: unknown) => { val: unknown; isArray: boolean } };
 }
 
+/** Excel's equality: text compares without regard to case, everything
+ *  else by value. Shared by the functions that match rather than compute. */
+const sameValue = (a: unknown, b: unknown): boolean =>
+  typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b;
+
 const str = (param: unknown, fallback?: string): string =>
   String(FormulaHelpers.accept(param, Types.STRING, fallback));
 const num = (param: unknown, fallback?: number): number =>
@@ -203,12 +208,8 @@ const CUSTOM_FUNCTIONS = {
     const target = FormulaHelpers.accept(lookup, null);
     const values = valuesOf([array]);
     const mode = Math.trunc(num(matchType, 1));
-    const same = (a: unknown, b: unknown) =>
-      typeof a === "string" && typeof b === "string"
-        ? a.toLowerCase() === b.toLowerCase()
-        : a === b;
     if (mode === 0) {
-      const at = values.findIndex((v) => same(v, target));
+      const at = values.findIndex((v) => sameValue(v, target));
       return at < 0 ? FormulaError.NA : at + 1;
     }
     let best = -1;
@@ -275,7 +276,7 @@ const CUSTOM_FUNCTIONS = {
     const target = FormulaHelpers.accept(value, null);
     const pairs = Math.floor(rest.length / 2);
     for (let i = 0; i < pairs; i++) {
-      if (FormulaHelpers.accept(rest[i * 2], null) === target) {
+      if (sameValue(FormulaHelpers.accept(rest[i * 2], null), target)) {
         return FormulaHelpers.accept(rest[i * 2 + 1], null);
       }
     }
