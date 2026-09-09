@@ -23,10 +23,10 @@ const VOCABULARY = {
   tokens: ["me"],
 };
 
-const FIELD = (name: string, type: string) => ({
+const FIELD = (name: string, type: string, kind = "text") => ({
   name,
   type,
-  kind: "text",
+  kind,
   ops: ["eq"],
   multiple: false,
   sortable: true,
@@ -36,9 +36,13 @@ const FIELD = (name: string, type: string) => ({
 /** Every request the two tabs make, counted so a test can say what was asked. */
 const asked = { build: 0, describe: 0 };
 
+/** The last description the builder sent, so a test can read what was clicked. */
+const described: { build: Record<string, unknown> | null } = { build: null };
+
 const serve = () => {
   asked.build = 0;
   asked.describe = 0;
+  described.build = null;
   server.use(
     http.get("/api/v1/query/vocabulary", () => HttpResponse.json(VOCABULARY)),
     http.get("/api/v1/fields/:dataset", ({ params }) =>
@@ -46,12 +50,17 @@ const serve = () => {
         dataset: params.dataset,
         fields:
           params.dataset === "tasks"
-            ? [FIELD("title", "text"), FIELD("due_date", "date")]
+            ? [
+                FIELD("title", "text"),
+                FIELD("due_date", "date"),
+                FIELD("created_by", "reference", "member"),
+              ]
             : [FIELD("name", "text")],
       })
     ),
-    guildHttp.post("/query/build", () => {
+    guildHttp.post("/query/build", async ({ request }) => {
       asked.build += 1;
+      described.build = (await request.json()) as Record<string, unknown>;
       return HttpResponse.json({ sql: BUILT_SQL, columns: [], relations: ["tasks"] });
     }),
     guildHttp.post("/query/describe", async ({ request }) => {
@@ -137,6 +146,38 @@ describe("a statement somebody builds", () => {
 
     await user.click(await screen.findByRole("tab", { name: /sql/i }));
     await waitFor(() => expect(sqlBox()).toHaveValue(BUILT_SQL));
+  });
+});
+
+describe("narrowing what a tile is about", () => {
+  it("starts with nothing, which is every row", async () => {
+    mount(widget({ source: "query" }));
+    expect(await screen.findByText(/no filters/i)).toBeInTheDocument();
+  });
+
+  it("sends what was clicked as part of the description", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query" }));
+
+    await user.click(await screen.findByRole("button", { name: /add filter/i }));
+
+    await waitFor(() => {
+      const where = described.build?.where as { field: string }[] | undefined;
+      expect(where?.[0]?.field).toBe("title");
+    });
+  });
+
+  it("offers the reader in a picker that holds people", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query" }));
+
+    await user.click(await screen.findByRole("button", { name: /add filter/i }));
+    // The first field is text; the person field is what has a member picker.
+    await user.click(await screen.findByRole("combobox", { name: /field/i }));
+    await user.click(await screen.findByRole("option", { name: /created by/i }));
+
+    await user.click(await screen.findByRole("combobox", { name: /value/i }));
+    expect(await screen.findByRole("option", { name: /^me$/i })).toBeInTheDocument();
   });
 });
 

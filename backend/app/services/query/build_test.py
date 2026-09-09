@@ -16,6 +16,7 @@ from app.services.query import QueryError
 from app.services.query.build import (
     Column,
     Condition,
+    Group,
     QuerySpec,
     Sort,
     build,
@@ -303,3 +304,161 @@ class TestPickingYourself:
         )
         assert "app.current_user_id" in resolved.sql
         assert resolved.parameters == ()
+
+
+class TestBracketingWhatItAsks:
+    """A flat list of ANDs cannot say "high or urgent, and mine", which is an
+    ordinary thing to want of a tile. A description brackets, in the shape the
+    filter builder has always written."""
+
+    def where(self, *nodes):
+        return (
+            build(
+                QuerySpec(
+                    dataset="tasks",
+                    columns=(Column(field="*", aggregate="count", alias="n"),),
+                    where=nodes,
+                )
+            )
+            .split("FROM tasks", 1)[1]
+            .strip()
+        )
+
+    def test_a_group_says_its_own_word(self):
+        assert (
+            self.where(
+                Group(
+                    logic="or",
+                    conditions=(
+                        Condition(field="priority", op=FilterOp.eq, value="high"),
+                        Condition(field="priority", op=FilterOp.eq, value="urgent"),
+                    ),
+                ),
+                Condition(field="created_by", op=FilterOp.eq, value="me"),
+            )
+            == "WHERE (priority = 'high' OR priority = 'urgent') AND created_by = me"
+        )
+
+    def test_lines_beside_each_other_are_still_and(self):
+        assert (
+            self.where(
+                Condition(field="priority", op=FilterOp.eq, value="high"),
+                Condition(field="is_archived", op=FilterOp.eq, value=False),
+            )
+            == "WHERE priority = 'high' AND is_archived = FALSE"
+        )
+
+    def test_a_condition_can_be_answered_the_other_way(self):
+        assert (
+            self.where(
+                Condition(field="priority", op=FilterOp.eq, value="high", negate=True)
+            )
+            == "WHERE NOT priority = 'high'"
+        )
+
+    def test_a_bracket_nobody_filled_asks_nothing(self):
+        """Saving half-written work beats refusing it."""
+        assert self.where(Group(logic="or", conditions=())) == ""
+
+    def test_a_bracket_around_one_thing_is_not_a_bracket(self):
+        assert (
+            self.where(
+                Group(
+                    logic="or",
+                    conditions=(
+                        Condition(field="priority", op=FilterOp.eq, value="high"),
+                    ),
+                )
+            )
+            == "WHERE priority = 'high'"
+        )
+
+    def test_a_field_inside_a_bracket_is_checked_like_any_other(self):
+        with pytest.raises(QueryError) as refused:
+            self.where(
+                Group(conditions=(Condition(field="nope", op=FilterOp.eq, value=1),))
+            )
+        assert refused.value.code == QueryMessages.UNKNOWN_FIELD
+
+    def test_a_relation_reached_from_inside_one_is_still_joined(self):
+        assert "INNER JOIN" in self.where(
+            Group(
+                conditions=(Condition(field="assignee.id", op=FilterOp.eq, value="me"),)
+            )
+        )
+
+    def test_bracketing_has_a_bottom(self):
+        node = Condition(field="priority", op=FilterOp.eq, value="high")
+        for _ in range(6):
+            node = Group(conditions=(node,))
+        with pytest.raises(QueryError) as refused:
+            self.where(node)
+        assert refused.value.code == QueryMessages.UNSUPPORTED_SYNTAX
+
+    def test_what_it_brackets_is_a_statement_the_validator_takes(self):
+        _, resolved = build_and_resolve(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(
+                    Group(
+                        logic="or",
+                        conditions=(
+                            Condition(field="priority", op=FilterOp.eq, value="high"),
+                            Condition(field="created_by", op=FilterOp.eq, value="me"),
+                        ),
+                    ),
+                ),
+            )
+        )
+        assert "app.current_user_id" in resolved.sql
+
+
+class TestADateStaysADistance:
+    """A dashboard is a standing question. "Due in the next 30 days" has to
+    still mean that next month, so the distance is what is written."""
+
+    def where(self, value, op=FilterOp.lte):
+        return (
+            build(
+                QuerySpec(
+                    dataset="tasks",
+                    columns=(Column(field="*", aggregate="count", alias="n"),),
+                    where=(Condition(field="due_date", op=op, value=value),),
+                )
+            )
+            .split("WHERE", 1)[1]
+            .strip()
+        )
+
+    def test_ahead_of_now(self):
+        assert self.where({"relative": 30}) == (
+            "due_date <= (now() + CAST('30 days' AS interval))"
+        )
+
+    def test_behind_it(self):
+        assert self.where({"relative": -30}, FilterOp.gte) == (
+            "due_date >= (now() - CAST('30 days' AS interval))"
+        )
+
+    def test_today(self):
+        assert "0 days" in self.where({"relative": 0})
+
+    def test_a_distance_that_is_not_a_number(self):
+        with pytest.raises(QueryError) as refused:
+            self.where({"relative": "soon"})
+        assert refused.value.code == QueryMessages.UNSUPPORTED_SYNTAX
+
+    def test_the_statement_it_writes_is_one_the_validator_takes(self):
+        _, resolved = build_and_resolve(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(
+                    Condition(
+                        field="due_date", op=FilterOp.lte, value={"relative": 30}
+                    ),
+                ),
+            )
+        )
+        assert "interval" in resolved.sql.lower()

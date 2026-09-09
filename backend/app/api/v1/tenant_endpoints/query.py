@@ -25,6 +25,8 @@ from app.core.messages import QueryMessages
 from app.db.session import rls_context_params
 from app.schemas.sql_query import (
     QueryBuildRequest,
+    QueryFilterGroupSpec,
+    QueryFilterNode,
     QueryBuildResponse,
     QueryColumnDescription,
     QueryRequest,
@@ -132,6 +134,18 @@ async def build_query(
     )
 
 
+def _node(node: QueryFilterNode) -> query_builder.Node:
+    """One line of a filter, as the builder says it."""
+    if isinstance(node, QueryFilterGroupSpec):
+        return query_builder.Group(
+            logic=node.logic,
+            conditions=tuple(_node(entry) for entry in node.conditions),
+        )
+    return query_builder.Condition(
+        field=node.field, op=node.op, value=node.value, negate=node.negate
+    )
+
+
 def _spec(payload: QueryBuildRequest) -> query_builder.QuerySpec:
     """The request as the builder's own vocabulary."""
     return query_builder.QuerySpec(
@@ -145,12 +159,7 @@ def _spec(payload: QueryBuildRequest) -> query_builder.QuerySpec:
             )
             for column in payload.columns
         ),
-        where=tuple(
-            query_builder.Condition(
-                field=condition.field, op=condition.op, value=condition.value
-            )
-            for condition in payload.where
-        ),
+        where=tuple(_node(node) for node in payload.where),
         group_by=tuple(payload.group_by),
         order_by=query_builder.Sort(
             field=payload.order_by.field, descending=payload.order_by.descending
