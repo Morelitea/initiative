@@ -152,12 +152,45 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
         assert inherited is False
 
 
-async def test_the_system_catalog_is_not_what_stops_a_catalog_read(engine, provisioned):
-    """PostgreSQL grants the system catalogs to PUBLIC, so no role of ours
-    hides them and this one does not either. What keeps a query away from them
-    is the validator, which resolves every relation through the field registry
-    and refuses a schema-qualified name outright. Written down because the
-    opposite is easy to assume."""
+async def test_the_catalogs_are_readable_like_any_role(engine, provisioned):
+    """PostgreSQL grants the system catalogs to PUBLIC, so this role reads
+    names from them as every role does. Recorded rather than assumed: the
+    catalogs are not where a query is kept away from other schemas — the
+    validator is, resolving every relation through the field registry and
+    refusing a schema-qualified name outright."""
     async with engine.connect() as conn:
         result = await _as_query_role(conn, "SELECT count(*) FROM pg_catalog.pg_class")
         assert result.scalar() > 0
+
+
+@pytest.mark.parametrize(
+    ("what", "statement"),
+    [
+        ("password hashes", "SELECT count(*) FROM pg_catalog.pg_authid"),
+        ("raw column statistics", "SELECT count(*) FROM pg_catalog.pg_statistic"),
+        ("the filesystem", "SELECT pg_read_file('/etc/hostname')"),
+    ],
+)
+async def test_the_privileged_catalogs_stay_privileged(
+    engine, provisioned, what, statement
+):
+    """Where the line actually falls. Reading catalog *names* is one thing;
+    these are the parts PostgreSQL keeps for a superuser, and this role is not
+    one."""
+    async with engine.connect() as conn:
+        with pytest.raises((ProgrammingError, DBAPIError)):
+            await _as_query_role(conn, statement)
+
+
+async def test_another_guilds_statistics_are_not_readable(engine, provisioned):
+    """``pg_stats`` reports only columns the reader may select, so the value
+    distributions of a schema this role cannot read are absent from it."""
+    _, other = provisioned
+    async with engine.connect() as conn:
+        result = await _as_query_role(
+            conn,
+            "SELECT count(*) FROM pg_stats WHERE schemaname = :s".replace(
+                ":s", f"'{other}'"
+            ),
+        )
+        assert result.scalar() == 0
