@@ -24,6 +24,7 @@ from enum import Enum
 from functools import lru_cache
 from typing import Any, Callable
 
+from app.services.fields import projects as projects_dataset
 from app.services.fields import tasks as tasks_dataset
 from app.schemas.query import FilterOp
 from app.services.fields.spec import Dataset, FieldContext, FieldSpec, SortContext
@@ -32,6 +33,7 @@ from app.services.fields.spec import Dataset, FieldContext, FieldSpec, SortConte
 #: declaration module; the module owns its fields, this owns the set.
 _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "tasks": tasks_dataset.build,
+    "projects": projects_dataset.build,
 }
 
 
@@ -51,6 +53,11 @@ def _built() -> dict[str, Dataset]:
 def dataset(name: str) -> Dataset:
     """The named dataset, or ``KeyError`` — callers name a constant, not input."""
     return _built()[name]
+
+
+def dataset_names() -> tuple[str, ...]:
+    """Every dataset a query may name."""
+    return tuple(_built())
 
 
 def allowed_fields(dataset_name: str, ctx: FieldContext) -> dict[str, Any]:

@@ -2245,6 +2245,7 @@ export type DatasetName = (typeof DatasetName)[keyof typeof DatasetName];
 
 export const DatasetName = {
   tasks: "tasks",
+  projects: "projects",
 } as const;
 
 /**
