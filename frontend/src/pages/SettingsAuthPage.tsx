@@ -57,7 +57,6 @@ export const SettingsAuthPage = () => {
   const updateOidcSettings = useUpdateOidcSettings({
     onSuccess: () => {
       setClientSecret("");
-      form.settle();
     },
   });
 
@@ -82,14 +81,20 @@ export const SettingsAuthPage = () => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    updateOidcSettings.mutate({
-      enabled: form.values.enabled,
-      issuer: form.values.issuer || null,
-      client_id: form.values.client_id || null,
-      provider_name: form.values.provider_name || null,
-      scopes: form.values.scopes.split(/[\s,]+/).filter(Boolean),
-      client_secret: clientSecret || undefined,
-    } as OidcSettings & { client_secret?: string });
+    // What is being sent, so anything typed while this is in flight is not
+    // counted as saved by it.
+    const sent = form.values;
+    updateOidcSettings.mutate(
+      {
+        enabled: sent.enabled,
+        issuer: sent.issuer || null,
+        client_id: sent.client_id || null,
+        provider_name: sent.provider_name || null,
+        scopes: sent.scopes.split(/[\s,]+/).filter(Boolean),
+        client_secret: clientSecret || undefined,
+      } as OidcSettings & { client_secret?: string },
+      { onSuccess: () => form.settle(sent) }
+    );
   };
 
   const authScope = oidcQuery.data.auth_scope;

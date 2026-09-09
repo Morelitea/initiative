@@ -59,10 +59,7 @@ export const OidcClaimMappingsSection = () => {
   );
 
   const updateClaimPath = useUpdateOidcClaimPath({
-    onSuccess: () => {
-      claimPathForm.settle();
-      toast.success(t("auth.claimPathSuccess"));
-    },
+    onSuccess: () => toast.success(t("auth.claimPathSuccess")),
     onError: () => toast.error(t("auth.claimPathError")),
   });
 
@@ -129,7 +126,11 @@ export const OidcClaimMappingsSection = () => {
 
   const handleClaimPathSubmit = (e: FormEvent) => {
     e.preventDefault();
-    updateClaimPath.mutate({ claim_path: claimPathForm.values.claimPath.trim() || null });
+    const sent = claimPathForm.values;
+    updateClaimPath.mutate(
+      { claim_path: sent.claimPath.trim() || null },
+      { onSuccess: () => claimPathForm.settle(sent) }
+    );
   };
 
   const handleMappingSubmit = (e: FormEvent) => {
