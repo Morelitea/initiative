@@ -395,6 +395,19 @@ class TestBracketingWhatItAsks:
             self.where(node)
         assert refused.value.code == QueryMessages.UNSUPPORTED_SYNTAX
 
+    def test_the_bottom_is_reached_before_anything_reads_it(self):
+        """Depth is checked on its own, ahead of the walks that look at fields
+        and relations, so how deep a description may go does not depend on
+        which of them happens to reach it."""
+        node = Condition(field="nope", op=FilterOp.eq, value=1)
+        for _ in range(200):
+            node = Group(conditions=(node,))
+        with pytest.raises(QueryError) as refused:
+            self.where(node)
+        # The depth, not the unknown field two hundred levels down.
+        assert refused.value.code == QueryMessages.UNSUPPORTED_SYNTAX
+        assert refused.value.subject == "group depth"
+
     def test_what_it_brackets_is_a_statement_the_validator_takes(self):
         _, resolved = build_and_resolve(
             QuerySpec(
@@ -444,9 +457,13 @@ class TestADateStaysADistance:
     def test_today(self):
         assert "0 days" in self.where({"relative": 0})
 
-    def test_a_distance_that_is_not_a_number(self):
+    @pytest.mark.parametrize("value", ["soon", None, 1.9, True, [1]])
+    def test_a_distance_that_is_not_a_whole_number_of_days(self, value):
+        """``int()`` would read 1.9 as one day and ``True`` as one day. A
+        boundary quietly one place from the one somebody asked for is worse
+        than being told the value cannot be read."""
         with pytest.raises(QueryError) as refused:
-            self.where({"relative": "soon"})
+            self.where({"relative": value})
         assert refused.value.code == QueryMessages.UNSUPPORTED_SYNTAX
 
     def test_the_statement_it_writes_is_one_the_validator_takes(self):

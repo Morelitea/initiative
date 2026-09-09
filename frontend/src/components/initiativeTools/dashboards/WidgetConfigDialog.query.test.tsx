@@ -167,6 +167,21 @@ describe("narrowing what a tile is about", () => {
     });
   });
 
+  it("offers nothing to filter on where the dataset named no fields", async () => {
+    // A catalog that could not be read looks the same as a dataset with
+    // nothing comparable in it, and adding a condition in either case would
+    // store one naming no field at all.
+    server.use(
+      http.get("/api/v1/fields/:dataset", ({ params }) =>
+        HttpResponse.json({ dataset: params.dataset, fields: [] })
+      )
+    );
+    mount(widget({ source: "query" }));
+
+    expect(await screen.findByText(/nothing to filter on/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add filter/i })).not.toBeInTheDocument();
+  });
+
   it("offers the reader in a picker that holds people", async () => {
     const user = userEvent.setup();
     mount(widget({ source: "query" }));

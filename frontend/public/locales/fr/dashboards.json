@@ -277,7 +277,8 @@
     "absolute": "À une date",
     "relativeDays": "Jours à partir d'aujourd'hui",
     "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais.",
-    "loading": "Chargement des filtres…"
+    "loading": "Chargement des filtres…",
+    "noFields": "Rien à filtrer ici pour l'instant."
   },
   "tableView": {
     "caption": "Les mêmes données en tableau",

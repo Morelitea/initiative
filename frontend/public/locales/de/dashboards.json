@@ -277,7 +277,8 @@
     "absolute": "An einem Datum",
     "relativeDays": "Tage ab heute",
     "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie.",
-    "loading": "Filter werden geladen…"
+    "loading": "Filter werden geladen…",
+    "noFields": "Hier gibt es noch nichts zum Filtern."
   },
   "tableView": {
     "caption": "Dieselben Daten als Tabelle",

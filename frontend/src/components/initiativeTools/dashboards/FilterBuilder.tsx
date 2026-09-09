@@ -142,6 +142,16 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
     return <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.loading")}</p>;
   }
 
+  // A dataset that named no fields — because the catalog could not be read, or
+  // because it holds nothing to compare — has nothing to build a condition
+  // from. Offering to add one would store a condition naming no field, which
+  // the server refuses on the next keystroke.
+  if (!fields.length) {
+    return (
+      <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.noFields")}</p>
+    );
+  }
+
   return (
     <div className="space-y-2">
       {value.length === 0 && (

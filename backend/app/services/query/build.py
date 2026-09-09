@@ -162,10 +162,12 @@ def _relative(days: Any) -> ast.Node:
     mean that next month, so what is written is the distance, and the day it is
     counted from is read when the tile runs.
     """
-    try:
-        offset = int(days)
-    except (TypeError, ValueError) as unreadable:
-        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "relative") from unreadable
+    # A whole number of days and nothing else: ``int()`` would read 1.9 as one
+    # day and ``True`` as one day, and a date boundary quietly one place from
+    # where it was asked for is worse than a refusal.
+    if not isinstance(days, int) or isinstance(days, bool):
+        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "relative")
+    offset = days
     return ast.A_Expr(
         kind=A_Expr_Kind.AEXPR_OP,
         name=(ast.String(sval="+" if offset >= 0 else "-"),),
@@ -340,6 +342,22 @@ def _check_field(name: str, field_name: str) -> None:
         raise QueryError(QueryMessages.UNKNOWN_FIELD, f"{relation_name}.{plain}")
 
 
+def _check_depth(nodes: Sequence[Node]) -> None:
+    """That a description does not bracket deeper than it may.
+
+    Walked with a stack of its own rather than by recursion, and before
+    anything else reads the description — so the bound below is what stops a
+    deep one, rather than whichever traversal happens to reach it first.
+    """
+    pending = [(node, 0) for node in nodes]
+    while pending:
+        node, depth = pending.pop()
+        if depth > MAX_GROUP_DEPTH:
+            raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "group depth")
+        if isinstance(node, Group):
+            pending.extend((entry, depth + 1) for entry in node.conditions)
+
+
 def _leaves(nodes: Sequence[Node]) -> list[Condition]:
     """Every comparison a description holds, however it is bracketed."""
     found: list[Condition] = []
@@ -426,6 +444,7 @@ def build(spec: QuerySpec) -> str:
     for column in spec.columns:
         if column.field != "*":
             _check_field(spec.dataset, column.field)
+    _check_depth(spec.where)
     for condition in _leaves(spec.where):
         _check_field(spec.dataset, condition.field)
 

@@ -277,7 +277,8 @@
     "absolute": "En una fecha",
     "relativeDays": "Días desde hoy",
     "relativeHint": "Cuenta desde el momento en que se abre el panel, así que nunca se queda obsoleta.",
-    "loading": "Cargando filtros…"
+    "loading": "Cargando filtros…",
+    "noFields": "Aquí todavía no hay nada por lo que filtrar."
   },
   "tableView": {
     "caption": "Los mismos datos en una tabla",
