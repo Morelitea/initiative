@@ -37,6 +37,7 @@ Revises: 20260909_0240
 Create Date: 2026-09-09
 """
 
+import hashlib
 import json
 import logging
 
@@ -285,6 +286,17 @@ def _statement(binding: dict, widget_type: str) -> str | None:
     return None
 
 
+def _fingerprint(statement: str | None) -> str:
+    """A short stand-in for the statement this revision wrote.
+
+    What it is for is telling "nobody has touched this" from "somebody has".
+    An author who rebuilds a migrated widget has answered the question the old
+    binding was asking, in their own terms — so the record of that binding
+    stops applying, and the downgrade leaves their work alone.
+    """
+    return hashlib.sha256((statement or "").encode()).hexdigest()[:16]
+
+
 def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]]:
     """The definition with every rewritable binding turned into a statement.
 
@@ -292,10 +304,11 @@ def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]
     id it supplied is spent once the statement carries it, and leaving it
     behind would be leaving a value nothing reads.
 
-    What each binding *was* rides along under ``legacy``. A statement carries no
-    record of what it was written from, and this is the one moment that record
-    exists — keeping it is what makes ``downgrade`` able to put the definitions
-    back rather than leave a version stamp disagreeing with the rows.
+    What each widget *was* rides along under ``legacy`` — both halves of it,
+    kept apart the way they were stored, because which half an id came from is
+    the difference between a listing's own definition and one guild's answer to
+    it. A statement carries no record of what it was written from, and this is
+    the one moment that record exists.
     """
     changed = 0
     unbound: list[str] = []
@@ -314,7 +327,15 @@ def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]
         if effective.get("source") in (None, "query", "sheet_range", "app"):
             continue
         statement = _statement(effective, widget.get("type") or "")
-        rewritten = {"source": "query", "legacy": effective}
+
+        # Both halves, unmerged: the definition's own binding, and the entry
+        # the install supplied for it. Restoring the merge instead would put a
+        # guild's answer into the listing's definition, where the next version
+        # of the listing would overwrite it.
+        legacy: dict = {"binding": binding}
+        if isinstance(overrides, dict) and overrides:
+            legacy["config"] = overrides
+        rewritten: dict = {"source": "query", "legacy": legacy}
         if statement is None:
             # Nothing this can say in SQL says what the widget was asking, so
             # it is left with no statement — the state a widget is in before
@@ -323,6 +344,7 @@ def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]
             unbound.append(str(widget_id))
         else:
             rewritten["sql"] = statement
+            legacy["sql"] = _fingerprint(statement)
             changed += 1
         widget["binding"] = rewritten
         widget.pop("mapping", None)
@@ -406,27 +428,41 @@ def upgrade() -> None:
     )
 
 
-def _restore(definition: dict) -> tuple[dict, int]:
-    """Every binding this revision rewrote, put back as it was."""
+def _restore(definition: dict, config: dict) -> tuple[dict, dict, int]:
+    """Every widget this revision rewrote and nobody has touched since, put
+    back as it was — its binding, and the config entry that went with it."""
     restored = 0
+    widgets = config.get("widgets")
+    per_widget = dict(widgets) if isinstance(widgets, dict) else {}
+
     for widget in definition.get("widgets") or []:
         binding = widget.get("binding")
         if not isinstance(binding, dict):
             continue
         legacy = binding.get("legacy")
-        if isinstance(legacy, dict):
-            widget["binding"] = legacy
-            restored += 1
-    return definition, restored
+        if not isinstance(legacy, dict) or not isinstance(legacy.get("binding"), dict):
+            continue
+        # The statement is still the one this revision wrote. If it is not,
+        # somebody has rebuilt the widget since and what they built is theirs.
+        if legacy.get("sql", _fingerprint(None)) != _fingerprint(binding.get("sql")):
+            continue
+        widget["binding"] = legacy["binding"]
+        overrides = legacy.get("config")
+        if isinstance(overrides, dict):
+            per_widget[str(widget.get("id"))] = overrides
+        restored += 1
+    return definition, {**config, "widgets": per_widget}, restored
 
 
 def downgrade() -> None:
     """Put back what each rewritten binding was.
 
     A statement carries no record of what it was written from, so the upgrade
-    kept one on the binding it replaced. A widget whose binding has none was
-    written after this revision ran and is left alone — there is no older shape
-    for it to go back to.
+    kept one on the binding it replaced — both halves of it, the definition's
+    own and the install's. Two widgets are left alone: one written after this
+    revision ran, which has no older shape to go back to, and one whose
+    statement somebody has rebuilt since, which is theirs rather than this
+    revision's to replace.
     """
     connection = op.get_bind()
     schemas = [
@@ -446,20 +482,27 @@ def downgrade() -> None:
         )
         try:
             stored = connection.execute(
-                sa.text(f'SELECT id, definition FROM "{schema}".dashboards')  # noqa: S608
+                sa.text(f'SELECT id, definition, config FROM "{schema}".dashboards')  # noqa: S608
             ).fetchall()
-            for dashboard_id, definition in stored:
+            for dashboard_id, definition, config in stored:
                 if not isinstance(definition, dict):
                     continue
-                restored, count = _restore(definition)
+                restored, put_back, count = _restore(
+                    definition, config if isinstance(config, dict) else {}
+                )
                 if not count:
                     continue
                 connection.execute(
                     sa.text(
                         f'UPDATE "{schema}".dashboards '  # noqa: S608
-                        "SET definition = CAST(:body AS jsonb) WHERE id = :id"
+                        "SET definition = CAST(:body AS jsonb), "
+                        "config = CAST(:config AS jsonb) WHERE id = :id"
                     ),
-                    {"body": json.dumps(restored), "id": dashboard_id},
+                    {
+                        "body": json.dumps(restored),
+                        "config": json.dumps(put_back),
+                        "id": dashboard_id,
+                    },
                 )
                 widgets += count
         finally:

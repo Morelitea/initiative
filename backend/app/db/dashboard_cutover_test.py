@@ -175,7 +175,7 @@ class TestAFilterThatDoesNotTranslateLeavesItsWidgetUnbound:
         assert rewritten["widgets"][0]["binding"]["source"] == "query"
         assert rewritten["widgets"][1]["binding"] == {
             "source": "query",
-            "legacy": legacy,
+            "legacy": {"binding": legacy},
         }
 
     def test_what_it_could_not_say_still_normalizes(self):
@@ -228,27 +228,42 @@ class TestTheDowngradePutsThemBack:
     """A statement carries no record of what it was written from, so the
     upgrade keeps one. That is the whole of what makes this reversible."""
 
-    def test_a_rewritten_binding_goes_back_as_it_was(self):
-        legacy = {"source": "task_counts", "bucket": "priority", "project_id": 4}
-        definition = {
-            "widgets": [{"id": "w1", "type": "chart", "binding": dict(legacy)}]
-        }
-        rewritten, _config, _changed, _unbound = cutover._rewrite(definition, {})
-        assert rewritten["widgets"][0]["binding"]["legacy"] == legacy
+    @staticmethod
+    def _round_trip(definition, config=None):
+        rewritten, pruned, _changed, _unbound = cutover._rewrite(
+            definition, config or {}
+        )
+        return cutover._restore(rewritten, pruned)
 
-        restored, count = cutover._restore(rewritten)
+    def test_a_rewritten_binding_goes_back_as_it_was(self):
+        was = {"source": "task_counts", "bucket": "priority", "project_id": 4}
+        definition = {"widgets": [{"id": "w1", "type": "chart", "binding": dict(was)}]}
+        restored, _config, count = self._round_trip(definition)
         assert count == 1
-        assert restored["widgets"][0]["binding"] == legacy
+        assert restored["widgets"][0]["binding"] == was
 
     def test_one_that_could_not_be_rewritten_goes_back_too(self):
-        legacy = {"source": "tasks", "conditions": UNTRANSLATABLE[0]}
-        definition = {
-            "widgets": [{"id": "w1", "type": "chart", "binding": dict(legacy)}]
-        }
-        rewritten, _config, _changed, _unbound = cutover._rewrite(definition, {})
-        restored, count = cutover._restore(rewritten)
+        was = {"source": "tasks", "conditions": UNTRANSLATABLE[0]}
+        definition = {"widgets": [{"id": "w1", "type": "chart", "binding": dict(was)}]}
+        restored, _config, count = self._round_trip(definition)
         assert count == 1
-        assert restored["widgets"][0]["binding"] == legacy
+        assert restored["widgets"][0]["binding"] == was
+
+    def test_an_id_the_install_supplied_goes_back_to_the_config(self):
+        """Which half an id came from is the difference between a listing's own
+        definition and one guild's answer to it. Restoring the merge would put
+        the guild's answer where the next version of the listing overwrites
+        it."""
+        definition = {
+            "widgets": [
+                {"id": "w1", "type": "chart", "binding": {"source": "counter_group"}}
+            ]
+        }
+        config = {"widgets": {"w1": {"counter_group_id": 12}}}
+        restored, put_back, count = self._round_trip(definition, config)
+        assert count == 1
+        assert restored["widgets"][0]["binding"] == {"source": "counter_group"}
+        assert put_back["widgets"] == {"w1": {"counter_group_id": 12}}
 
     def test_a_widget_written_afterwards_is_left_alone(self):
         """It has no older shape to go back to."""
@@ -256,9 +271,44 @@ class TestTheDowngradePutsThemBack:
         definition = {
             "widgets": [{"id": "w1", "type": "stat", "binding": dict(binding)}]
         }
-        restored, count = cutover._restore(definition)
+        restored, _config, count = cutover._restore(definition, {})
         assert count == 0
         assert restored["widgets"][0]["binding"] == binding
+
+    def test_a_statement_somebody_has_rebuilt_is_theirs(self):
+        """The marker rides along on the binding, so an author who rebuilds a
+        migrated widget still carries it. What says their work is theirs is
+        that the statement is no longer the one this revision wrote."""
+        definition = {
+            "widgets": [
+                {"id": "w1", "type": "chart", "binding": {"source": "task_counts"}}
+            ]
+        }
+        rewritten, pruned, _changed, _unbound = cutover._rewrite(definition, {})
+        mine = "SELECT priority, count(*) AS n FROM tasks GROUP BY priority"
+        rewritten["widgets"][0]["binding"]["sql"] = mine
+
+        restored, _config, count = cutover._restore(rewritten, pruned)
+        assert count == 0
+        assert restored["widgets"][0]["binding"]["sql"] == mine
+
+    def test_a_statement_built_where_there_was_none_is_theirs_too(self):
+        """The same, for a widget the upgrade left unconfigured."""
+        definition = {
+            "widgets": [
+                {
+                    "id": "w1",
+                    "type": "chart",
+                    "binding": {"source": "tasks", "conditions": UNTRANSLATABLE[0]},
+                }
+            ]
+        }
+        rewritten, pruned, _changed, unbound = cutover._rewrite(definition, {})
+        assert unbound == ["w1"]
+        rewritten["widgets"][0]["binding"]["sql"] = "SELECT count(*) AS n FROM tasks"
+
+        _restored, _config, count = cutover._restore(rewritten, pruned)
+        assert count == 0
 
 
 @pytest.mark.parametrize("source", ["query", "sheet_range", "app"])
