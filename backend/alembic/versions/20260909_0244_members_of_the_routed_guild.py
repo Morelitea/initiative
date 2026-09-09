@@ -29,6 +29,8 @@ Create Date: 2026-09-09
 
 from alembic import op
 
+from app.core.config import settings
+
 revision = "20260909_0244"
 down_revision = "20260909_0243"
 branch_labels = None
@@ -70,10 +72,17 @@ DISPLAY_NAME = "COALESCE(p.full_name, p.username) AS display_name"
 #: can read and nothing else.
 FLOORS = ("app_guild_base", "app_guild_base_ro")
 
-#: The public/platform floor, which this is not for. A request with no guild
-#: gets no rows from it anyway; taking the privilege away says the same thing
-#: where the catalog can be asked.
-PLATFORM_FLOOR = "platform_base"
+
+def _platform_floor() -> str:
+    """The public/platform floor, which this is not for.
+
+    A request with no guild gets no rows from it anyway; taking the privilege
+    away says the same thing where the catalog can be asked. Named through the
+    prefix because the platform ladder carries one — the guild floors above are
+    fixed names and do not.
+    """
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+
 
 #: The role that owns both projections of an account. Created in 0214.
 READER = "app_profile_reader"
@@ -123,7 +132,7 @@ def upgrade() -> None:
         # view — but the privilege is what the catalog is asked about.
         op.execute(f'GRANT SELECT ON {VIEW} TO "{floor}"')
         op.execute(f'REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON {VIEW} FROM "{floor}"')
-    op.execute(f'REVOKE ALL ON {VIEW} FROM "{PLATFORM_FLOOR}"')
+    op.execute(f'REVOKE ALL ON {VIEW} FROM "{_platform_floor()}"')
 
 
 def downgrade() -> None:
