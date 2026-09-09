@@ -2520,9 +2520,10 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     import json
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    # The factory pre-enables queues/counter groups; turn queues off so the
-    # inventory shows a deliberately disabled tool.
+    # The factory switches every tool on; turn two off so the inventory has
+    # deliberately disabled ones to report.
     a.initiative.queues_enabled = False
+    a.initiative.calendars_enabled = False
     session.add(a.initiative)
     await session.commit()
     resp = await client.get(

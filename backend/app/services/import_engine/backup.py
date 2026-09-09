@@ -421,6 +421,10 @@ async def _apply_file_entry(
                     initiative_id=initiative.id,
                 )
             )
+            # Sharing before the content it governs — a flush orders its
+            # statements by table, not by the order things were added.
+            await session.flush()
+
             for tag_name in entry.tags:
                 resolved = await ensure_tag(
                     session,

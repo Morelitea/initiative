@@ -12,7 +12,9 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.db.session import set_rls_context
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
 from app.testing import (
@@ -41,8 +43,20 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     init_a = await create_initiative(session, guild, owner, name="Alpha")
     init_b = await create_initiative(session, guild, owner, name="Bravo")
     await create_initiative_member(session, init_a, member)  # member of Alpha only
-    await create_project(session, init_a, owner, name="A-Proj")
+    proj_a = await create_project(session, init_a, owner, name="A-Proj")
     await create_project(session, init_b, owner, name="B-Proj")
+    # Shared with Alpha, so the sharing gate admits it and what this measures is
+    # the initiative one: Bravo's project stays hidden either way.
+    session.add(
+        ResourceGrant(
+            resource_type=Tool.project.value,
+            resource_id=proj_a.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=guild.id,
+            initiative_id=init_a.id,
+        )
+    )
     await session.commit()
 
     # Act as the guild role with this member's (non-admin) context — RLS applies.

@@ -298,6 +298,12 @@ async def duplicate_counter_group(
                 )
             )
 
+    # The sharing has to be IN the database before the counters are, because a
+    # counter is reached through its group: adding it to the session is not
+    # enough, since a flush orders its statements by table rather than by the
+    # order things were added.
+    await session.flush()
+
     for counter in getattr(source, "counters", None) or []:
         if counter.deleted_at is not None:
             continue

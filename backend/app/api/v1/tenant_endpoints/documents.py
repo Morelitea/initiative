@@ -92,6 +92,7 @@ from app.services.tenant import my_tools as my_tools_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
@@ -171,6 +172,7 @@ async def _get_document_or_404(
     document_id: int,
     guild_id: int,
     populate_existing: bool = False,
+    user_id: int,
 ) -> Document:
     document = await documents_service.get_document(
         session,
@@ -179,8 +181,13 @@ async def _get_document_or_404(
         populate_existing=populate_existing,
     )
     if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            user_id,
+            guild_id,
+            not_found=DocumentMessages.NOT_FOUND,
+            denied=DocumentMessages.NO_ACCESS,
         )
     return document
 
@@ -922,7 +929,10 @@ async def create_document(
     await session.commit()
 
     hydrated = await _get_document_or_404(
-        session, document_id=document.id, guild_id=guild_context.guild_id
+        session,
+        document_id=document.id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     return serialize_document(
         hydrated,
@@ -1079,7 +1089,10 @@ async def upload_document_file(
     await session.commit()
 
     hydrated = await _get_document_or_404(
-        session, document_id=document.id, guild_id=guild_context.guild_id
+        session,
+        document_id=document.id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     return serialize_document(
         hydrated,
@@ -1112,7 +1125,10 @@ async def upload_document_version(
 ) -> DocumentFileVersionRead:
     """Upload a new version of a file document. Requires write access."""
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -1239,7 +1255,10 @@ async def list_document_versions(
 ) -> List[DocumentFileVersionRead]:
     """List all stored versions of a file document, newest first. Read access."""
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -1271,7 +1290,10 @@ async def delete_document_version(
     """Delete a version of a file document. Owner only. Deleting the current
     version promotes the previous one; deleting the last version is blocked."""
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -1363,7 +1385,10 @@ async def read_document(
     ] = True,
 ) -> DocumentRead:
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="read")
     return serialize_document(
@@ -1388,7 +1413,10 @@ async def get_backlinks(
     Only returns documents the current user has permission to access.
     """
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="read")
 
@@ -1419,7 +1447,10 @@ async def update_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_write_access(document, current_user)
     updated = False
@@ -1515,7 +1546,10 @@ async def update_document(
                 guild_context.guild_id, document.id
             )
     hydrated = await _get_document_or_404(
-        session, document_id=document.id, guild_id=guild_context.guild_id
+        session,
+        document_id=document.id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(
@@ -1540,7 +1574,10 @@ async def duplicate_document(
     payload: DocumentDuplicateRequest | None = Body(default=None),
 ) -> DocumentRead:
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="write")
     payload = payload or DocumentDuplicateRequest()
@@ -1566,7 +1603,10 @@ async def duplicate_document(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
     hydrated = await _get_document_or_404(
-        session, document_id=duplicated.id, guild_id=guild_context.guild_id
+        session,
+        document_id=duplicated.id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     return serialize_document(
         hydrated,
@@ -1590,7 +1630,10 @@ async def copy_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     # Templates are starter content meant to be copied — read on the source is enough.
     # Non-templates still require write to prevent silent fork-and-edit of someone else's work.
@@ -1631,7 +1674,10 @@ async def copy_document(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
     hydrated = await _get_document_or_404(
-        session, document_id=duplicated.id, guild_id=guild_context.guild_id
+        session,
+        document_id=duplicated.id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     return serialize_document(
         hydrated,
@@ -1659,7 +1705,10 @@ async def delete_document(
     from app.services.tenant.soft_delete import soft_delete_entity
 
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, require_owner=True)
     retention_days = await guilds_service.get_guild_retention_days(
@@ -1686,7 +1735,10 @@ async def notify_mentions(
     if not mentioned_user_ids:
         return
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_write_access(document, current_user)
     initiative = document.initiative
@@ -1736,7 +1788,10 @@ async def generate_summary(
     (not file uploads like PDFs).
     """
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="read")
 
@@ -1774,7 +1829,10 @@ async def set_document_properties(
     each property definition's type and options.
     """
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="write")
 
@@ -1806,6 +1864,7 @@ async def set_document_properties(
         document_id=document_id,
         guild_id=guild_context.guild_id,
         populate_existing=True,
+        user_id=current_user.id,
     )
     return serialize_document(
         refreshed,
@@ -1832,7 +1891,10 @@ async def set_document_grants(
         session, Tool.document, document_id, current_user, guild_context, grants
     )
     hydrated = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     return serialize_document(
         hydrated,
@@ -1928,11 +1990,16 @@ async def download_document_file(
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
-    if (
-        document is None
-        or document.document_type != DocumentType.file
-        or document.file_url is None
-    ):
+    if document is None:
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            int(current_user.id),
+            int(guild_id),
+            not_found=DocumentMessages.NOT_FOUND,
+            denied=DocumentMessages.NO_ACCESS,
+        )
+    if document.document_type != DocumentType.file or document.file_url is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
         )
@@ -1975,7 +2042,16 @@ async def download_document_file_version(
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
-    if document is None or document.document_type != DocumentType.file:
+    if document is None:
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            int(current_user.id),
+            int(guild_id),
+            not_found=DocumentMessages.NOT_FOUND,
+            denied=DocumentMessages.NO_ACCESS,
+        )
+    if document.document_type != DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
         )
@@ -2022,7 +2098,10 @@ async def record_document_view(
 ) -> RecentViewWrite:
     """Record a recent-view for the layout tabs bar."""
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="read")
     record = await recent_views_service.record_view(
@@ -2048,7 +2127,10 @@ async def clear_document_view(
     guild_context: GuildContextDep,
 ) -> None:
     document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
     )
     _require_document_access(document, current_user, access="read")
     await recent_views_service.clear_view(

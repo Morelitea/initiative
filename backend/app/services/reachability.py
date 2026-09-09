@@ -93,6 +93,28 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[Optional[int]]]:
     return statement
 
 
+async def missing_or_denied(
+    table: str,
+    row_id: int,
+    user_id: int,
+    guild_id: int,
+    *,
+    not_found: str,
+    denied: str,
+) -> Exception:
+    """The exception for a row the request could not see.
+
+    ``denied`` where the reader is in the row's initiative, ``not_found``
+    otherwise. Returns the exception rather than raising it, so a caller reads
+    as ``raise await missing_or_denied(...)``.
+    """
+    from fastapi import HTTPException, status
+
+    if await reader_is_in_the_initiative(table, row_id, user_id, guild_id):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=denied)
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
+
+
 async def reader_is_in_the_initiative(
     table: str, row_id: int, user_id: int, guild_id: int
 ) -> bool:

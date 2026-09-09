@@ -428,6 +428,40 @@ async def test_download_guild_member_without_permission_returns_403(
 
 
 @pytest.mark.integration
+async def test_version_download_answers_like_the_file_download(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """Both download routes load the document the same way, so an initiative
+    member the sharing does not reach is answered the same way by each."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+
+    doc = await _create_file_document(
+        session,
+        initiative=owner.initiative,
+        owner=owner.user,
+        filename="dl_version_no_perm.pdf",
+    )
+    try:
+        current = await client.get(
+            other.g(f"/documents/{doc.id}/download"), headers=other.headers
+        )
+        stored = await client.get(
+            other.g(f"/documents/{doc.id}/versions/1/download"),
+            headers=other.headers,
+        )
+        assert current.status_code == 403
+        assert stored.status_code == current.status_code
+    finally:
+        (_uploads_dir() / "dl_version_no_perm.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
 async def test_download_non_guild_member_returns_404(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
