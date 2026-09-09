@@ -286,6 +286,7 @@ describe("realtime socket lifecycle", () => {
     renderWithProviders(<Probe />);
     const first = latestSocket();
     first.open();
+    first.receive({ heartbeat: true });
 
     // Quiet for a minute, then gone. The gap starts where the frames stopped,
     // not where the close was noticed.
@@ -297,6 +298,26 @@ describe("realtime socket lifecycle", () => {
     expect(second).not.toBe(first);
     second.open();
     expect(second.authPayload()).toEqual({ token: "test-token", away_seconds: 62 });
+  });
+
+  it("does not shorten the gap for an attempt that never carried", async () => {
+    renderWithProviders(<Probe />);
+    const first = latestSocket();
+    first.open();
+    first.receive({ heartbeat: true });
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    first.serverClose(1006);
+    // The attempt in between opens and dies having heard nothing, so it has
+    // proved nothing about the gap it was meant to close.
+    await vi.advanceTimersByTimeAsync(2000);
+    latestSocket().open();
+    latestSocket().serverClose(1006);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const third = latestSocket();
+    third.open();
+    expect(third.authPayload()).toEqual({ token: "test-token", away_seconds: 34 });
   });
 
   it("reads the guild again when the server says it fell behind", () => {

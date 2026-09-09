@@ -222,8 +222,11 @@ export const useRealtimeUpdates = () => {
     // The last moment this tab had a socket that was carrying. Any frame is
     // proof of that, so a beat counts; nothing else does.
     let lastFrameAt = Date.now();
-    // Set when a socket closes, so the next one can say how long the tab went
-    // without one. Null until then — a first connect asks for nothing.
+    // The last frame received on ANY socket here, which is the last proof this
+    // tab was being carried. Only a frame moves it: an attempt that opens and
+    // dies before hearing anything has proved nothing, and must not shorten the
+    // gap the next attempt reports. Null until the first frame — a tab that has
+    // never been carried asks for nothing, having fetched as it mounted.
     let carriedUntil: number | null = null;
 
     const enqueue = (changes: RealtimeChange[]) => {
@@ -279,6 +282,7 @@ export const useRealtimeUpdates = () => {
         // Any frame is proof the socket carries, whatever it says. A beat says
         // only that, and needs nothing below.
         lastFrameAt = Date.now();
+        carriedUntil = lastFrameAt;
         try {
           // A content-free invalidation bus: every frame is one transaction's
           // worth of {resource, parents, action}, never a serialized model. We
@@ -312,9 +316,6 @@ export const useRealtimeUpdates = () => {
         if (websocketRef.current === websocket) {
           websocketRef.current = null;
         }
-        // Dated from the last frame rather than from now: a socket that went
-        // quiet stopped carrying when it went quiet, not when we noticed.
-        carriedUntil = lastFrameAt;
         // WS_1008_POLICY_VIOLATION (1008) indicates auth failure (403)
         if (event.code === 1008) {
           authFailureCountRef.current += 1;

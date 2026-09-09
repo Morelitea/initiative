@@ -160,26 +160,38 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         initiative_ids = await _accessible_initiative_ids(session, user_id=user.id)
-        # Asked here, under the guild access just established, so the log
-        # answers for this subscriber. What comes back is one bit, which is all
-        # the frame below says.
-        behind = away_seconds is not None and await missed_while_away(
-            session, away_seconds
+
+        # Initiative-scoped subscription: the socket joins exactly the rooms
+        # whose content the user can read, so a signal for an initiative never
+        # reaches a non-member. (A member of no initiative joins nothing —
+        # correct: they have no content to be notified about. The user is still
+        # present in the guild, which the manager tracks separately from the
+        # rooms.) In-memory and under a lock, so it costs the session nothing.
+        #
+        # Joined BEFORE the log is asked, so the two overlap rather than leave a
+        # seam: a change committing in between reaches a socket that is already
+        # in its room, and the question below can then only over-answer.
+        await manager.connect(
+            guild_id,
+            initiative_ids,
+            websocket,
+            user_id=user.id,
+            chosen_presence=user.presence,
+            presence_known_at=presence_known_at,
         )
 
-    # Initiative-scoped subscription: the socket joins exactly the rooms whose
-    # content the user can read, so a signal for an initiative never reaches a
-    # non-member. (A member of no initiative joins nothing — correct: they have
-    # no content to be notified about. The user is still present in the guild,
-    # which the manager tracks separately from the rooms.)
-    await manager.connect(
-        guild_id,
-        initiative_ids,
-        websocket,
-        user_id=user.id,
-        chosen_presence=user.presence,
-        presence_known_at=presence_known_at,
-    )
+        # Asked here, under the guild access just established, so the log
+        # answers for this subscriber. What comes back is one bit, which is all
+        # the frame below says — and a read that fails says the same bit, since
+        # a gap nobody could look into is a gap.
+        try:
+            behind = away_seconds is not None and await missed_while_away(
+                session, away_seconds
+            )
+        except Exception:
+            logger.exception("Events WS: catch-up read failed for guild %s", guild_id)
+            behind = True
+
     logger.info(
         f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
     )
