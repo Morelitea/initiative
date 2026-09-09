@@ -8,6 +8,12 @@ renders is read through it.
 request is routed into, and it exists because the query surface names relations
 and gets their rows. What these check is that narrowing: the reader's own guild,
 nobody else's, and nothing at all for a session routed nowhere.
+
+Every one of them assumes the guild's own query role first. Read as the owner
+of the schema these pass whatever the policies say, which is exactly the
+mistake worth not making twice: a grantee is routed by a grant rather than by
+membership, and only the real role shows whether the membership table answers
+them at all.
 """
 
 import pytest
@@ -19,6 +25,11 @@ pytestmark = pytest.mark.database
 
 _COUNT = "SELECT count(*) FROM public.current_guild_members"
 _IDS = "SELECT id FROM public.current_guild_members ORDER BY id"
+
+
+async def _as_query_role(conn, guild_id: int):
+    """Become the role a query runs as. Everything below reads through it."""
+    await conn.execute(text(f'SET LOCAL ROLE "guild_{int(guild_id)}_q"'))
 
 
 async def _routed(conn, guild_id: int | None, *, pam: bool = False):
@@ -42,9 +53,11 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
+                await _as_query_role(conn, one.id)
                 await _routed(conn, one.id)
                 here = set((await conn.execute(text(_IDS))).scalars().all())
             async with conn.begin():
+                await _as_query_role(conn, two.id)
                 await _routed(conn, two.id)
                 there = set((await conn.execute(text(_IDS))).scalars().all())
 
@@ -61,6 +74,7 @@ class TestItAnswersForTheRoutedGuild:
         async with engine.connect() as conn:
             for guild in (one, two):
                 async with conn.begin():
+                    await _as_query_role(conn, guild.id)
                     await _routed(conn, guild.id)
                     found = (await conn.execute(text(_IDS))).scalars().all()
                     assert person.id in found
@@ -71,18 +85,24 @@ class TestItAnswersForTheRoutedGuild:
         await create_guild_membership(session, user=person, guild=guild)
         async with engine.connect() as conn:
             async with conn.begin():
+                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
                 assert await conn.scalar(text(_COUNT)) == 0
 
     async def test_a_grantee_is_routed_by_the_grant(self, session, engine):
         """A break-glass session leaves the guild unset and carries the grant
-        instead, so the narrowing reads that."""
+        instead, so the narrowing reads that.
+
+        The membership table answers "the guild you are in, or your own row",
+        and a grantee is in neither — which is why the projection reads it as
+        its own role under a policy that permits the routed guild."""
         person = await create_user(session)
         guild = await create_guild(session, creator=person)
         await create_guild_membership(session, user=person, guild=guild)
 
         async with engine.connect() as conn:
             async with conn.begin():
+                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
                 await _routed(conn, guild.id, pam=True)
                 assert person.id in (await conn.execute(text(_IDS))).scalars().all()
@@ -96,6 +116,7 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
+                await _as_query_role(conn, guild.id)
                 await _routed(conn, guild.id)
                 everywhere = await conn.scalar(
                     text("SELECT count(*) FROM public.guild_member_profiles")

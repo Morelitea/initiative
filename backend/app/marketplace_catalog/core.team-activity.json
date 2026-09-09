@@ -58,7 +58,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT m.display_name AS person, count(*) AS tasks FROM tasks t JOIN task_assignees a ON a.task_id = t.id JOIN members m ON m.id = a.user_id GROUP BY m.display_name ORDER BY count(*) DESC"
+          "sql": "SELECT m.display_name AS person, count(*) AS tasks FROM tasks t JOIN task_assignees a ON a.task_id = t.id JOIN members m ON m.id = a.user_id GROUP BY m.id, m.display_name ORDER BY count(*) DESC"
         },
         "title": "Work by person",
         "options": {
