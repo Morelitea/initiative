@@ -9,7 +9,7 @@ import {
   sheetContainer,
   sheetPart,
 } from "@/components/documents/spreadsheet/workbookDoc";
-import { DEFAULT_COLS, DEFAULT_ROWS } from "@/lib/spreadsheet/content";
+import { DEFAULT_COLS, DEFAULT_ROWS } from "@/lib/spreadsheet/bounds";
 import { type CellValue, keyOf } from "@/lib/spreadsheet/coords";
 import type { SheetId } from "@/lib/spreadsheet/sheets";
 

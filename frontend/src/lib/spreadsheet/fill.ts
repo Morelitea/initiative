@@ -14,15 +14,8 @@
  * and applies the returned writes inside its own transaction.
  */
 
-import { type CellKey, type CellValue, keyOf } from "@/lib/spreadsheet/coords";
+import { type CellKey, type CellRange, type CellValue, keyOf } from "@/lib/spreadsheet/coords";
 import { isFormula, translateFormula } from "@/lib/spreadsheet/formula-refs";
-
-export interface Box {
-  r1: number;
-  r2: number;
-  c1: number;
-  c2: number;
-}
 
 /** Reads a cell value, ``null`` for an empty cell. */
 type CellReader = (row: number, col: number) => CellValue;
@@ -111,8 +104,8 @@ const detectSeries = (values: CellValue[]): ((n: number) => CellValue) | null =>
  */
 export const computeFillWrites = (
   read: CellReader,
-  source: Box,
-  target: Box
+  source: CellRange,
+  target: CellRange
 ): Map<CellKey, CellValue> => {
   const writes = new Map<CellKey, CellValue>();
   const H = source.r2 - source.r1 + 1;
@@ -166,9 +159,9 @@ export const computeFillWrites = (
  */
 export const computeAutofillTarget = (
   read: CellReader,
-  source: Box,
+  source: CellRange,
   dims: { rows: number; cols: number }
-): Box => {
+): CellRange => {
   const below = source.r2 + 1;
   const leftHasData = source.c1 - 1 >= 0 && below < dims.rows && read(below, source.c1 - 1) != null;
   const rightHasData =

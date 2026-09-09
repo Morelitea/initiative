@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { CellRange } from "./coords";
 import { type CellValue, keyOf } from "./coords";
-import { type Box, computeAutofillTarget, computeFillWrites } from "./fill";
+import { computeAutofillTarget, computeFillWrites } from "./fill";
 
 // Build a reader over a sparse "r:c" → value record.
 const reader =
@@ -12,7 +13,7 @@ const reader =
 // Collapse the writes Map to a plain record for easy assertions.
 const writesAt = (m: Map<string, CellValue>) => Object.fromEntries(m);
 
-const box = (r1: number, r2: number, c1: number, c2: number): Box => ({ r1, r2, c1, c2 });
+const box = (r1: number, r2: number, c1: number, c2: number): CellRange => ({ r1, r2, c1, c2 });
 
 describe("computeFillWrites — formulas", () => {
   it("translates relative references when filling down", () => {

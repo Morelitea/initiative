@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, EyeOff, Plus } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,7 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MAX_SHEET_NAME_LENGTH, type SheetId, type SheetMeta } from "@/lib/spreadsheet/sheets";
+import {
+  MAX_SHEET_NAME_LENGTH,
+  type SheetId,
+  type SheetMeta,
+  visibleSheets,
+} from "@/lib/spreadsheet/sheets";
 import { cn } from "@/lib/utils";
 
 interface SpreadsheetSheetTabsProps {
@@ -25,6 +30,7 @@ interface SpreadsheetSheetTabsProps {
   onDelete: (id: SheetId) => void;
   onDuplicate: (id: SheetId) => void;
   onMove: (id: SheetId, delta: number) => void;
+  onSetHidden: (id: SheetId, hidden: boolean) => void;
 }
 
 /**
@@ -47,6 +53,7 @@ export const SpreadsheetSheetTabs = ({
   onDelete,
   onDuplicate,
   onMove,
+  onSetHidden,
 }: SpreadsheetSheetTabsProps) => {
   const { t } = useTranslation(["documents", "common"]);
   // The sheet being renamed and its draft are separate pieces of state on
@@ -59,6 +66,9 @@ export const SpreadsheetSheetTabs = ({
   const [renameDraft, setRenameDraft] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
+
+  const shown = visibleSheets(sheets);
+  const hidden = sheets.filter((sheet) => sheet.hidden);
 
   const startRename = (sheet: SheetMeta) => {
     setRenamingId(sheet.id);
@@ -116,7 +126,7 @@ export const SpreadsheetSheetTabs = ({
         </button>
       )}
 
-      {sheets.map((sheet, index) => {
+      {shown.map((sheet, index) => {
         const isActive = sheet.id === activeSheetId;
         const isRenaming = renamingId === sheet.id;
         return (
@@ -179,10 +189,17 @@ export const SpreadsheetSheetTabs = ({
                     {t("documents:spreadsheet.sheets.moveLeft")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    disabled={index === sheets.length - 1}
+                    disabled={index === shown.length - 1}
                     onSelect={() => onMove(sheet.id, 1)}
                   >
                     {t("documents:spreadsheet.sheets.moveRight")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={shown.length <= 1}
+                    onSelect={() => onSetHidden(sheet.id, true)}
+                  >
+                    {t("documents:spreadsheet.sheets.hide")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -198,6 +215,29 @@ export const SpreadsheetSheetTabs = ({
           </div>
         );
       })}
+
+      {!readOnly && hidden.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title={t("documents:spreadsheet.sheets.hiddenCount", { count: hidden.length })}
+              aria-label={t("documents:spreadsheet.sheets.hiddenCount", { count: hidden.length })}
+              className="flex h-7 shrink-0 items-center gap-1 rounded px-2 text-muted-foreground text-xs hover:bg-muted hover:text-foreground"
+            >
+              <EyeOff className="h-3.5 w-3.5" />
+              {hidden.length}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {hidden.map((sheet) => (
+              <DropdownMenuItem key={sheet.id} onSelect={() => onSetHidden(sheet.id, false)}>
+                {t("documents:spreadsheet.sheets.unhideNamed", { name: sheet.name })}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 };

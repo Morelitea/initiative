@@ -124,6 +124,12 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
         )
         _render_sheet(worksheet, sheet_content)
 
+    # xlsx has no way to express a workbook with nothing on show, and
+    # openpyxl refuses to write one. The normalizer keeps a sheet visible on
+    # save; this covers a snapshot stored before it did.
+    if all(ws.sheet_state == "hidden" for ws in workbook.worksheets):
+        workbook.worksheets[0].sheet_state = "visible"
+
     out = io.BytesIO()
     workbook.save(out)
     return out.getvalue()
@@ -150,20 +156,32 @@ def _render_sheet(sheet: Worksheet, content: dict) -> None:
                 _apply_style(cell, style)
 
     for key, entry in columns.items():
-        width = entry.get("width") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        letter = get_column_letter(int(key) + 1)
+        width = entry.get("width")
         if isinstance(width, (int, float)):
-            letter = get_column_letter(int(key) + 1)
             sheet.column_dimensions[letter].width = width / _PX_PER_WIDTH_UNIT
+        if entry.get("hidden") is True:
+            sheet.column_dimensions[letter].hidden = True
     for key, entry in row_fmts.items():
-        height = entry.get("height") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        number = int(key) + 1
+        height = entry.get("height")
         if isinstance(height, (int, float)):
-            sheet.row_dimensions[int(key) + 1].height = height * _PX_TO_POINTS
+            sheet.row_dimensions[number].height = height * _PX_TO_POINTS
+        if entry.get("hidden") is True:
+            sheet.row_dimensions[number].hidden = True
 
     frozen = content.get("frozen") or {}
     frozen_rows = int(frozen.get("rows") or 0)
     frozen_cols = int(frozen.get("cols") or 0)
     if frozen_rows or frozen_cols:
         sheet.freeze_panes = sheet.cell(row=frozen_rows + 1, column=frozen_cols + 1)
+
+    if content.get("hidden") is True:
+        sheet.sheet_state = "hidden"
 
 
 def _sheet_title(title: str) -> str:
