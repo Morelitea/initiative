@@ -275,18 +275,20 @@ export const DocumentDetailPage = () => {
     [document]
   );
 
-  // Track which document ID we've loaded the whiteboard scene for, so we
-  // don't re-run the load logic when `document` updates due to a PATCH
-  // response. Without this guard, a successful autosave would reset
-  // whiteboardScene from the PATCH response's content — which can be
-  // behind the user's current edits if they drew during the round-trip.
-  const loadedWhiteboardForRef = useRef<number | null>(null);
+  // Which document the editable state below was filled in from — content,
+  // scene and featured image alike, whatever the document type.
+  //
+  // The editor reads its content once, at mount, and never again, so the copy
+  // this page holds is the only one a later answer can reach. Replacing it
+  // would leave the two disagreeing: the typing still on screen, the page
+  // believing it matches the server, and so nothing to autosave and nothing to
+  // flush on the way out. Filling it in once per document is what keeps them
+  // the same thing, and it holds for a document type that does not exist yet.
+  const seededDocumentRef = useRef<number | null>(null);
 
-  // Clear content state ref when document ID changes
-  // The ref now tracks which document the content belongs to
   useEffect(() => {
     contentStateRef.current = null;
-    loadedWhiteboardForRef.current = null;
+    seededDocumentRef.current = null;
     setWhiteboardSceneReady(false);
     setWhiteboardSceneFromCache(false);
   }, [parsedId]);
@@ -307,34 +309,29 @@ export const DocumentDetailPage = () => {
     if (!document) {
       return;
     }
-    if (document.document_type === "whiteboard") {
-      // Only load the whiteboard scene once per document ID. Subsequent
-      // document changes (from PATCH responses, cache updates, etc.) must
-      // not overwrite the live scene state.
-      if (loadedWhiteboardForRef.current === document.id) {
-        // Still sync non-scene fields that the user can change in the
-        // metadata card (featured image, tags are handled separately).
-        setFeaturedImageUrl(document.featured_image_url ?? null);
-        setTags(document.tags ?? []);
-        return;
-      }
-      // The cache-vs-server decision below compares against
-      // document.updated_at, so it must not run against a React Query
-      // cache hit from a previous visit — that snapshot's updated_at
-      // predates everything other users did since, making any local cache
-      // look newer than it is. Wait for this mount's fetch to settle (an
-      // errored fetch settles too, so offline still falls back to the
-      // cached document).
-      if (!documentQuery.isFetchedAfterMount) {
-        return;
-      }
-      loadedWhiteboardForRef.current = document.id;
+    // Tags are written the moment they are picked, so they go on following the
+    // server whether or not the rest has been filled in.
+    setTags(document.tags ?? []);
+    if (seededDocumentRef.current === document.id) {
+      return;
+    }
+    // A whiteboard decides between its write-ahead cache and the server by
+    // comparing against document.updated_at, so it must not decide against a
+    // React Query cache hit from a previous visit — that snapshot's updated_at
+    // predates everything other users did since, making any local cache look
+    // newer than it is. Wait for this mount's fetch to settle (an errored fetch
+    // settles too, so offline still falls back to the cached document).
+    if (document.document_type === "whiteboard" && !documentQuery.isFetchedAfterMount) {
+      return;
+    }
+    seededDocumentRef.current = document.id;
 
-      // Check the write-ahead cache first. On every local edit the scene is
-      // written to localStorage synchronously (survives refresh), so if
-      // the user refreshes before the keepalive PATCH lands, we still
-      // have the latest scene. The cache wins only while it is strictly
-      // newer than document.updated_at.
+    if (document.document_type === "whiteboard") {
+      // The write-ahead cache first. On every local edit the scene is written
+      // to localStorage synchronously (survives refresh), so if the user
+      // refreshes before the keepalive PATCH lands, we still have the latest
+      // scene. The cache wins only while it is strictly newer than
+      // document.updated_at.
       const { scene, fromCache } = loadWhiteboardScene(
         document.id,
         document.updated_at,
@@ -351,7 +348,6 @@ export const DocumentDetailPage = () => {
       setContentState(normalizedDocumentContent);
     }
     setFeaturedImageUrl(document.featured_image_url ?? null);
-    setTags(document.tags ?? []);
   }, [document, normalizedDocumentContent, documentQuery.isFetchedAfterMount]);
 
   const documentContentJson = useMemo(() => {

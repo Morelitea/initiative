@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /** Fields, compared as deep as a form's values go: values, or values in a list. */
 const sameField = (a: unknown, b: unknown): boolean =>
@@ -19,9 +19,11 @@ export interface ServerForm<V> {
   /**
    * Go back to following the server, having saved. Pass what was sent and it
    * only takes effect while the fields still hold it — a save that started
-   * before the last keystroke must not mark that keystroke saved.
+   * before the last keystroke must not mark that keystroke saved. Judged by
+   * the same equality the form is compared with, so a form whose values are
+   * deeper than fields settles on the same terms it adopts on.
    */
-  settle: (saved?: Partial<V>) => void;
+  settle: (saved?: V) => void;
 }
 
 interface State<V> {
@@ -59,6 +61,10 @@ export function useServerForm<S, V extends object>(
   same: (a: V, b: V) => boolean = sameFields
 ): ServerForm<V> {
   const fromServer = derive(source);
+  // Read through a ref so settling uses the current comparison without the
+  // callback changing identity when it is passed inline.
+  const sameRef = useRef(same);
+  sameRef.current = same;
   const [state, setState] = useState<State<V>>(() => ({
     seeded: fromServer,
     editing,
@@ -89,16 +95,12 @@ export function useServerForm<S, V extends object>(
     }));
   }, []);
 
-  const settle = useCallback((saved?: Partial<V>) => {
-    setState((previous) => {
-      if (!previous.edited) return previous;
-      const stillHolds =
-        !saved ||
-        (Object.keys(saved) as (keyof V)[]).every((key) =>
-          sameField(previous.values[key], saved[key])
-        );
-      return stillHolds ? { ...previous, edited: false } : previous;
-    });
+  const settle = useCallback((saved?: V) => {
+    setState((previous) =>
+      previous.edited && (!saved || sameRef.current(previous.values, saved))
+        ? { ...previous, edited: false }
+        : previous
+    );
   }, []);
 
   return { values: state.values, set, edited: state.edited, settle };

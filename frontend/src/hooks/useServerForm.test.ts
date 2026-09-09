@@ -146,7 +146,7 @@ describe("useServerForm", () => {
 
       act(() => result.current.set({ name: "First" }));
       act(() => result.current.set({ name: "First and more" }));
-      act(() => result.current.settle({ name: "First" }));
+      act(() => result.current.settle({ name: "First", description: "" }));
 
       expect(result.current.edited).toBe(true);
       expect(result.current.values.name).toBe("First and more");
@@ -156,9 +156,49 @@ describe("useServerForm", () => {
       const { result } = renderForm(entity());
 
       act(() => result.current.set({ name: "First" }));
-      act(() => result.current.settle({ name: "First" }));
+      act(() => result.current.settle({ name: "First", description: "" }));
 
       expect(result.current.edited).toBe(false);
+    });
+
+    it("settles a form whose values are deeper than fields", () => {
+      // The rows come back as new objects every time, so field-by-field
+      // identity would never match and the form would never settle again —
+      // and never adopt another server answer for the rest of its life.
+      const deep = (rows: { id: number }[]) => ({ rows });
+      const { result } = renderHook(() =>
+        useServerForm(
+          { rows: [{ id: 1 }] },
+          (source) => deep(source?.rows ?? []),
+          1,
+          (a, b) => JSON.stringify(a) === JSON.stringify(b)
+        )
+      );
+
+      act(() => result.current.set({ rows: [{ id: 1 }, { id: 2 }] }));
+      expect(result.current.edited).toBe(true);
+
+      act(() => result.current.settle(deep([{ id: 1 }, { id: 2 }])));
+
+      expect(result.current.edited).toBe(false);
+    });
+
+    it("still refuses when a deep form has moved on since the save", () => {
+      const deep = (rows: { id: number }[]) => ({ rows });
+      const { result } = renderHook(() =>
+        useServerForm(
+          { rows: [{ id: 1 }] },
+          (source) => deep(source?.rows ?? []),
+          1,
+          (a, b) => JSON.stringify(a) === JSON.stringify(b)
+        )
+      );
+
+      act(() => result.current.set({ rows: [{ id: 1 }, { id: 2 }] }));
+      act(() => result.current.set({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }] }));
+      act(() => result.current.settle(deep([{ id: 1 }, { id: 2 }])));
+
+      expect(result.current.edited).toBe(true);
     });
   });
 });
