@@ -301,7 +301,7 @@
         "personal": "Mentions"
       }
     },
-    "ariaLabelUnread": "Notifications — unread activity"
+    "ariaLabelCount": "Notifications — {{count}} unread"
   },
   "version": {
     "newVersionAvailable": "New Version Available",
