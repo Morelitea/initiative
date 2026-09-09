@@ -217,7 +217,7 @@ def _normalize_sheet(
     cell_styles = _normalize_cellstyles(payload.get("cellStyles", {}))
     frozen = _normalize_frozen(payload.get("frozen", {}), rows_dim=rows, cols_dim=cols)
 
-    return {
+    out: dict[str, Any] = {
         "id": _unique_sheet_id(payload.get("id"), index, used_ids),
         "name": _unique_sheet_name(payload.get("name"), index, used_names),
         "dimensions": {"rows": rows, "cols": cols},
@@ -227,6 +227,11 @@ def _normalize_sheet(
         "cellStyles": cell_styles,
         "frozen": frozen,
     }
+    # A hidden sheet is kept out of the tab strip; only the flag being set
+    # is meaningful, so a shown sheet stores nothing.
+    if payload.get("hidden") is True:
+        out["hidden"] = True
+    return out
 
 
 def _empty_snapshot() -> dict[str, Any]:

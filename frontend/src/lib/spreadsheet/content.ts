@@ -48,6 +48,9 @@ export const SPREADSHEET_SCHEMA_VERSION = 3;
 export interface SpreadsheetSheetContent {
   id: SheetId;
   name: string;
+  /** Kept out of the tab strip; see {@link SheetMeta.hidden}. Absent
+   *  rather than ``false`` when the sheet is shown. */
+  hidden?: boolean;
   dimensions: { rows: number; cols: number };
   cells: Record<string, CellValue>;
   columns: Record<string, ColumnFmt>;
@@ -116,6 +119,7 @@ const parseSheet = (
   return {
     id: typeof src.id === "string" && src.id ? src.id : fallbackId,
     name: sanitizeSheetName(typeof src.name === "string" ? src.name : "") || fallbackName,
+    ...(src.hidden === true ? { hidden: true as const } : {}),
     dimensions: {
       rows: clampDim(dims.rows, Math.max(DEFAULT_ROWS, bounds.rows), MAX_ROWS),
       cols: clampDim(dims.cols, Math.max(DEFAULT_COLS, bounds.cols), MAX_COLS),
@@ -165,6 +169,12 @@ export const parseSpreadsheetContent = (raw: unknown): SpreadsheetContent => {
     names.push(sheet.name);
     return sheet;
   });
+
+  // A workbook whose every sheet is hidden has nothing to render, so the
+  // first one is shown regardless of what the payload said.
+  if (sheets.length > 0 && sheets.every((sheet) => sheet.hidden)) {
+    delete sheets[0].hidden;
+  }
 
   return { schema_version: SPREADSHEET_SCHEMA_VERSION, kind: "spreadsheet", sheets };
 };

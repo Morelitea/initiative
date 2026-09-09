@@ -567,7 +567,12 @@
       "deleted": "Sheet deleted — undo to bring it back.",
       "deleteLastBlocked": "Can't delete the only sheet.",
       "maxReached": "This spreadsheet is already at its maximum number of sheets.",
-      "editSheetRemoved": "The sheet you were editing was removed, so that edit was discarded."
+      "editSheetRemoved": "The sheet you were editing was removed, so that edit was discarded.",
+      "hide": "Hide sheet",
+      "hideLastBlocked": "A workbook needs at least one sheet on show.",
+      "hiddenCount_one": "{{count}} hidden sheet",
+      "hiddenCount_other": "{{count}} hidden sheets",
+      "unhideNamed": "Show “{{name}}”"
     },
     "pasteClipped_one": "{{count}} cell didn't fit on the sheet and wasn't pasted.",
     "pasteClipped_other": "{{count}} cells didn't fit on the sheet and weren't pasted.",

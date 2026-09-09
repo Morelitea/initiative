@@ -27,7 +27,17 @@ export type SheetId = string;
 export interface SheetMeta {
   id: SheetId;
   name: string;
+  /** Left out of the tab strip. The sheet is otherwise entirely normal —
+   *  its cells still hold values and a formula on another sheet still
+   *  reads them, which is the point: a working sheet can be kept out of
+   *  the way without breaking what depends on it. */
+  hidden?: boolean;
 }
+
+/** Sheets a reader can actually switch to. A workbook always has at least
+ *  one, because hiding the last visible sheet is refused. */
+export const visibleSheets = (sheets: readonly SheetMeta[]): SheetMeta[] =>
+  sheets.filter((sheet) => !sheet.hidden);
 
 /** Excel's per-workbook sheet-name limit; keeping it means an xlsx export
  *  never has to silently truncate or rename. */

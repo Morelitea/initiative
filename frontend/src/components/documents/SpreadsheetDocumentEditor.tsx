@@ -92,6 +92,7 @@ import {
   type SheetId,
   type SheetMeta,
   sheetNameKey,
+  visibleSheets,
 } from "@/lib/spreadsheet/sheets";
 import { type SortDirection, sortSheetByColumn } from "@/lib/spreadsheet/sort";
 import {
@@ -228,8 +229,15 @@ export const SpreadsheetDocumentEditor = ({
   // list so a peer deleting the active sheet lands us on a real one rather
   // than a blank grid.
   const [requestedSheetId, setRequestedSheetId] = useState<SheetId | null>(null);
+  // A hidden sheet is still a real sheet — a formula reads it, and an edit
+  // in progress can belong to it — so it is only the *landing* choice that
+  // skips them. ``parseSpreadsheetContent`` guarantees at least one is
+  // visible, so the fallback always finds a sheet.
+  const requested = sheets.find((s) => s.id === requestedSheetId);
   const activeSheet =
-    sheets.find((s) => s.id === requestedSheetId) ?? (sheets[0] as SheetMeta | undefined);
+    requested && !requested.hidden
+      ? requested
+      : (visibleSheets(sheets)[0] ?? (sheets[0] as SheetMeta | undefined));
   const activeSheetId = activeSheet?.id ?? null;
 
   const cells = (activeSheetId ? cellsBySheet.get(activeSheetId) : undefined) ?? EMPTY_CELLS;
@@ -1999,6 +2007,22 @@ export const SpreadsheetDocumentEditor = ({
     [workbook, t]
   );
 
+  const handleSetSheetHidden = useCallback(
+    (id: SheetId, hidden: boolean) => {
+      // Hiding the sheet being edited would leave the draft with nowhere
+      // visible to land, so the edit is committed first.
+      if (hidden && editing?.sheetId === id) commitEdit();
+      if (!workbook.setSheetHidden(id, hidden)) {
+        toast.info(t("documents:spreadsheet.sheets.hideLastBlocked"));
+        return;
+      }
+      // Reveal lands you on the sheet you just brought back; hide leaves
+      // the active-sheet fallback to pick the next visible one.
+      if (!hidden) setRequestedSheetId(id);
+    },
+    [workbook, editing, commitEdit, t]
+  );
+
   const handleDeleteSheet = useCallback(
     (id: SheetId) => {
       // Drop an edit anchored to this sheet before it goes: its container
@@ -2402,6 +2426,7 @@ export const SpreadsheetDocumentEditor = ({
         onDelete={handleDeleteSheet}
         onDuplicate={handleDuplicateSheet}
         onMove={workbook.moveSheet}
+        onSetHidden={handleSetSheetHidden}
       />
     </div>
   );

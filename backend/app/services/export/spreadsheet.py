@@ -174,6 +174,9 @@ def _render_sheet(sheet: Worksheet, content: dict) -> None:
     if frozen_rows or frozen_cols:
         sheet.freeze_panes = sheet.cell(row=frozen_rows + 1, column=frozen_cols + 1)
 
+    if content.get("hidden") is True:
+        sheet.sheet_state = "hidden"
+
 
 def _sheet_title(title: str) -> str:
     cleaned = title.translate(str.maketrans("", "", "[]:*?/\\")).strip()

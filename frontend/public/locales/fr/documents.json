@@ -567,7 +567,12 @@
       "deleted": "Feuille supprimée — annulez pour la récupérer.",
       "deleteLastBlocked": "Impossible de supprimer la seule feuille.",
       "maxReached": "Cette feuille de calcul a déjà atteint le nombre maximal de feuilles.",
-      "editSheetRemoved": "La feuille que vous modifiiez a été supprimée : la modification a été abandonnée."
+      "editSheetRemoved": "La feuille que vous modifiiez a été supprimée : la modification a été abandonnée.",
+      "hide": "Masquer la feuille",
+      "hideLastBlocked": "Une feuille de calcul doit garder au moins une feuille visible.",
+      "hiddenCount_one": "{{count}} feuille masquée",
+      "hiddenCount_other": "{{count}} feuilles masquées",
+      "unhideNamed": "Afficher « {{name}} »"
     },
     "pasteClipped_one": "{{count}} cellule ne tenait pas sur la feuille et n'a pas été collée.",
     "pasteClipped_other": "{{count}} cellules ne tenaient pas sur la feuille et n'ont pas été collées.",

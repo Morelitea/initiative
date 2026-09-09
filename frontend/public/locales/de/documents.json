@@ -567,7 +567,12 @@
       "deleted": "Blatt gelöscht — mit Rückgängig wiederherstellen.",
       "deleteLastBlocked": "Das einzige Blatt kann nicht gelöscht werden.",
       "maxReached": "Diese Tabelle hat bereits die maximale Anzahl an Blättern.",
-      "editSheetRemoved": "Das Blatt, das Sie bearbeitet haben, wurde entfernt — die Änderung wurde verworfen."
+      "editSheetRemoved": "Das Blatt, das Sie bearbeitet haben, wurde entfernt — die Änderung wurde verworfen.",
+      "hide": "Blatt ausblenden",
+      "hideLastBlocked": "Eine Tabelle braucht mindestens ein sichtbares Blatt.",
+      "hiddenCount_one": "{{count}} ausgeblendetes Blatt",
+      "hiddenCount_other": "{{count}} ausgeblendete Blätter",
+      "unhideNamed": "„{{name}}“ einblenden"
     },
     "pasteClipped_one": "{{count}} Zelle passte nicht auf das Blatt und wurde nicht eingefügt.",
     "pasteClipped_other": "{{count}} Zellen passten nicht auf das Blatt und wurden nicht eingefügt.",

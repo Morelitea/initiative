@@ -47,6 +47,7 @@ export const META_ROWS = "rows";
 export const META_COLS = "cols";
 export const META_FROZEN_ROWS = "frozenRows";
 export const META_FROZEN_COLS = "frozenCols";
+export const META_HIDDEN = "hidden";
 
 /** The structural maps every sheet container carries, in creation order. */
 const SHEET_PARTS = [SHEET_META, SHEET_CELLS, SHEET_COLUMNS, SHEET_ROWS, SHEET_CELLSTYLES] as const;
@@ -125,11 +126,12 @@ export const readSheetOrder = (doc: Y.Doc | null): SheetMeta[] => {
     out.push({
       id,
       name: typeof name === "string" && name ? name : id,
+      hidden: meta?.get(META_HIDDEN) === true,
       order: typeof order === "number" && Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER,
     });
   });
   out.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return out.map(({ id, name }) => ({ id, name }));
+  return out.map(({ id, name, hidden }) => ({ id, name, hidden }));
 };
 
 /** The top-level map names a pre-multi-sheet document used. */

@@ -142,9 +142,12 @@ describe("schema fixture — nothing the model defines is dropped", () => {
     const out = parseSpreadsheetContent({
       schema_version: 3,
       kind: "spreadsheet",
-      sheets: [fixture.sheet],
+      // The fixture sheet is hidden, and a workbook with nothing on show
+      // has its first sheet revealed — so it needs a companion to stay
+      // hidden and prove the flag survives.
+      sheets: [{ id: "visible", name: "Visible" }, fixture.sheet],
     });
-    const kept = leafPaths(out.sheets[0]);
+    const kept = leafPaths(out.sheets[1]);
     expect([...leafPaths(fixture.sheet)].filter((path) => !kept.has(path))).toEqual([]);
   });
 });

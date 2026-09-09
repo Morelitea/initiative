@@ -7,6 +7,7 @@ import {
   META_COLS,
   META_FROZEN_COLS,
   META_FROZEN_ROWS,
+  META_HIDDEN,
   META_NAME,
   META_ORDER,
   META_ROWS,
@@ -77,6 +78,9 @@ export interface SpreadsheetSheetsStore {
   renameSheet: (id: SheetId, name: string) => string | null;
   /** Delete a sheet. Refuses to remove the last one. */
   deleteSheet: (id: SheetId) => boolean;
+  /** Show or hide a sheet's tab. Refuses to hide the last visible one —
+   *  a workbook with nothing to show has nothing to render. */
+  setSheetHidden: (id: SheetId, hidden: boolean) => boolean;
   /** Move a sheet ``delta`` positions in the tab order. */
   moveSheet: (id: SheetId, delta: number) => void;
   /** Copy a sheet (content, formatting, formulas verbatim) in right after
@@ -292,6 +296,25 @@ export const useSpreadsheetSheets = ({
     [yDoc]
   );
 
+  const setSheetHidden = useCallback(
+    (id: SheetId, hidden: boolean): boolean => {
+      if (!yDoc) return false;
+      const current = readSheetOrder(yDoc);
+      if (!current.some((s) => s.id === id)) return false;
+      const visibleAfter = current.filter((s) => (s.id === id ? !hidden : !s.hidden));
+      if (visibleAfter.length === 0) return false;
+      yDoc.transact(() => {
+        const meta = sheetPart(sheetContainer(yDoc, id), SHEET_META);
+        // Absence is the default, so showing a sheet clears the flag
+        // instead of storing a negative in every saved workbook.
+        if (hidden) meta?.set(META_HIDDEN, true);
+        else meta?.delete(META_HIDDEN);
+      }, "spreadsheet-sheet-hidden");
+      return true;
+    },
+    [yDoc]
+  );
+
   const moveSheet = useCallback(
     (id: SheetId, delta: number) => {
       if (!yDoc) return;
@@ -355,6 +378,7 @@ export const useSpreadsheetSheets = ({
       return {
         id: meta.id,
         name: meta.name,
+        ...(meta.hidden ? { hidden: true as const } : {}),
         dimensions: {
           rows: Math.min(readInt(metaMap, META_ROWS, 100), MAX_ROWS),
           cols: Math.min(readInt(metaMap, META_COLS, 26), MAX_COLS),
@@ -383,6 +407,7 @@ export const useSpreadsheetSheets = ({
     addSheet,
     renameSheet,
     deleteSheet,
+    setSheetHidden,
     moveSheet,
     duplicateSheet,
     snapshot,

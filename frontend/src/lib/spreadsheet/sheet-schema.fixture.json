@@ -3,7 +3,11 @@
   "sheet": {
     "id": "s1",
     "name": "Fixture",
-    "dimensions": { "rows": 120, "cols": 30 },
+    "hidden": true,
+    "dimensions": {
+      "rows": 120,
+      "cols": 30
+    },
     "cells": {
       "0:0": "text",
       "0:1": 42,
@@ -32,10 +36,22 @@
           "valign": "middle",
           "fontSize": 18,
           "border": {
-            "top": { "style": "thin", "color": "#000000" },
-            "right": { "style": "thin", "color": "#000000" },
-            "bottom": { "style": "thin", "color": "#000000" },
-            "left": { "style": "thin", "color": "#000000" }
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
           }
         }
       }
@@ -55,17 +71,32 @@
           "valign": "top",
           "fontSize": 12,
           "border": {
-            "top": { "style": "thin", "color": "#000000" },
-            "right": { "style": "thin", "color": "#000000" },
-            "bottom": { "style": "thin", "color": "#000000" },
-            "left": { "style": "thin", "color": "#000000" }
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
           }
         }
       }
     },
     "cellStyles": {
       "0:0": {
-        "format": { "type": "percent", "decimals": 1 },
+        "format": {
+          "type": "percent",
+          "decimals": 1
+        },
         "style": {
           "bold": true,
           "italic": true,
@@ -77,14 +108,29 @@
           "valign": "bottom",
           "fontSize": 9,
           "border": {
-            "top": { "style": "thin", "color": "#000000" },
-            "right": { "style": "thin", "color": "#000000" },
-            "bottom": { "style": "thin", "color": "#000000" },
-            "left": { "style": "thin", "color": "#000000" }
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
           }
         }
       }
     },
-    "frozen": { "rows": 1, "cols": 1 }
+    "frozen": {
+      "rows": 1,
+      "cols": 1
+    }
   }
 }
