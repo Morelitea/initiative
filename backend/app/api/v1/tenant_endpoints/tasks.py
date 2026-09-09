@@ -1747,6 +1747,7 @@ async def create_task(
                 assigned_by=current_user,
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
+                initiative_id=project.initiative_id,
             )
 
     # Attach tags and custom properties in the same transaction. Both services
@@ -1908,6 +1909,7 @@ async def update_task(
                 assigned_by=current_user,
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
+                initiative_id=project.initiative_id,
             )
 
     # Replace tags/properties when the client sent them (PATCH semantics:

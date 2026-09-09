@@ -754,6 +754,7 @@ async def _process_comment_notifications(
                 entity_id=extra_entity_id,
                 context_title=context_title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
             )
             notified_user_ids.add(parent_comment.created_by)
 
@@ -778,6 +779,7 @@ async def _process_comment_notifications(
             entity_id=extra_entity_id,
             context_title=context_title,
             guild_id=guild_id,
+            initiative_id=ctx.initiative_id,
         )
         notified_user_ids.add(user_id)
 
@@ -809,6 +811,7 @@ async def _process_comment_notifications(
                 context_entity_id=extra_entity_id,
                 context_title=context_title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
             )
             notified_user_ids.add(assignee.id)
 
@@ -834,6 +837,7 @@ async def _process_comment_notifications(
                     task_title=task.title,
                     project_name=project_name,
                     guild_id=guild_id,
+                    initiative_id=ctx.initiative_id,
                 )
                 notified_user_ids.add(assignee.id)
 
@@ -850,6 +854,7 @@ async def _process_comment_notifications(
                 entity_id=ctx.entity_id,
                 entity_name=ctx.title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
             )
             notified_user_ids.add(cast(int, owner.id))
 
