@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllTasks } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
@@ -41,7 +41,7 @@ export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTa
       items={tasks}
       targetType="task"
       guildId={guildId}
-      onInvalidate={() => void invalidateAllTasks()}
+      onInvalidate={() => void invalidate(q.allTasks())}
       labels={labels}
     />
   );

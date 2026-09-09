@@ -4,6 +4,7 @@ import { type JSX, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { ImagePayload } from "@/components/ui/editor/nodes/image-node";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
@@ -74,10 +75,7 @@ export function InsertImageUploadedDialogBody({
 
   const isDisabled = src === "" || isUploading;
 
-  const handleFileChange = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
+  const handleFileChange = async (file: File) => {
     setFileName(file.name);
     setAltText(file.name);
     setIsUploading(true);
@@ -98,11 +96,11 @@ export function InsertImageUploadedDialogBody({
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
         <Label htmlFor="image-upload">Image Upload</Label>
-        <Input
+        <ImagePicker
           id="image-upload"
-          type="file"
-          onChange={(e) => void handleFileChange(e.target.files)}
+          onSelect={(file) => handleFileChange(file)}
           accept="image/*"
+          disabled={isUploading}
           data-test-id="image-modal-file-upload"
         />
         {isUploading && <p className="text-muted-foreground text-sm">Uploading {fileName}...</p>}

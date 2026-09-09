@@ -51,14 +51,7 @@ import {
   reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost,
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
-import {
-  invalidateAllDocuments,
-  invalidateAllProjects,
-  invalidateAllTasks,
-  invalidateFavoriteProjects,
-  invalidateProject,
-  invalidateProjectTaskStatuses,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -211,7 +204,7 @@ export const useCreateProject = (
   useGuildMutation<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>(
     {
       mutationFn: (guildId, data) => createProjectApiV1GGuildIdProjectsPost(guildId, data),
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:createDialog.createError",
     },
     options
@@ -227,7 +220,7 @@ export const useUpdateProject = (
     {
       mutationFn: (guildId, data) =>
         updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, data),
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:settings.details.updateError",
     },
     options
@@ -244,7 +237,7 @@ export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, num
         updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, {
           is_template: false,
         }),
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:settings.details.updateError",
     },
     options
@@ -255,7 +248,7 @@ export const useDeleteProject = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, projectId) =>
         deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId),
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:detail.loadError",
     },
     options
@@ -267,7 +260,7 @@ export const useArchiveProject = (options?: MutationOpts<void, number>) =>
       mutationFn: async (guildId, projectId) => {
         await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
       },
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
     },
     options
   );
@@ -278,7 +271,7 @@ export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
       mutationFn: async (guildId, projectId) => {
         await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
       },
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
     },
     options
   );
@@ -302,7 +295,7 @@ export const useDuplicateProject = (
     {
       mutationFn: (guildId, { projectId, data }) =>
         duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost(guildId, projectId, data),
-      invalidate: () => invalidateAllProjects(),
+      invalidate: () => invalidate(q.allProjects()),
     },
     options
   );
@@ -319,7 +312,7 @@ export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
     onSuccess,
     onError,
     onSettled: (...args) => {
-      void invalidateAllProjects();
+      void invalidate(q.allProjects());
       onSettled?.(...args);
     },
   });
@@ -389,7 +382,7 @@ export const useToggleProjectFavorite = (
         ) as unknown as string[],
         (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );
-      void invalidateFavoriteProjects();
+      void invalidate(q.favoriteProjects());
       onSuccess?.(...args);
     },
     onError,
@@ -456,7 +449,7 @@ export const useSetProjectGrants = (
     {
       mutationFn: (guildId, grants) =>
         setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(guildId, projectId, grants),
-      invalidate: () => Promise.all([invalidateProject(projectId), invalidateAllProjects()]),
+      invalidate: () => invalidate(q.project(projectId), q.allProjects()),
       errorKey: "projects:settings.access.updateError",
     },
     options
@@ -465,7 +458,7 @@ export const useSetProjectGrants = (
 // ── Project Document Mutations ──────────────────────────────────────────────
 
 const invalidateProjectAndDocuments = (projectId: number) =>
-  Promise.all([invalidateProject(projectId), invalidateAllDocuments()]);
+  invalidate(q.project(projectId), q.allDocuments());
 
 export const useAttachProjectDocument = (projectId: number, options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
@@ -502,7 +495,7 @@ export const useDetachProjectDocument = (projectId: number, options?: MutationOp
 // ── Task Status Mutations ───────────────────────────────────────────────────
 
 const invalidateStatusesAndTasks = (projectId: number) =>
-  Promise.all([invalidateProjectTaskStatuses(projectId), invalidateAllTasks()]);
+  invalidate(q.projectTaskStatuses(projectId), q.allTasks());
 
 export const useCreateTaskStatus = (
   projectId: number,
@@ -530,7 +523,7 @@ export const useUpdateTaskStatus = (
           statusId,
           data
         ),
-      invalidate: () => invalidateProjectTaskStatuses(projectId),
+      invalidate: () => invalidate(q.projectTaskStatuses(projectId)),
     },
     options
   );
@@ -565,7 +558,7 @@ export const useReorderTaskStatuses = (
           projectId,
           data
         ),
-      invalidate: () => invalidateProjectTaskStatuses(projectId),
+      invalidate: () => invalidate(q.projectTaskStatuses(projectId)),
     },
     options
   );

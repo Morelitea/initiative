@@ -6,7 +6,7 @@ import {
   parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost,
   parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost,
 } from "@/api/generated/imports/imports";
-import { invalidateAllProjects, invalidateAllTasks } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -34,7 +34,7 @@ export const useImportFromTodoist = (
     {
       mutationFn: (guildId, data) =>
         importFromTodoistApiV1GGuildIdImportsTodoistPost(guildId, data),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
     },
     options
   );
@@ -60,7 +60,7 @@ export const useImportFromVikunja = (
     {
       mutationFn: (guildId, data) =>
         importFromVikunjaApiV1GGuildIdImportsVikunjaPost(guildId, data),
-      invalidate: () => Promise.all([invalidateAllTasks(), invalidateAllProjects()]),
+      invalidate: () => invalidate(q.allTasks(), q.allProjects()),
     },
     options
   );
@@ -89,7 +89,7 @@ export const useImportFromTickTick = (
     {
       mutationFn: (guildId, data) =>
         importFromTicktickApiV1GGuildIdImportsTicktickPost(guildId, data),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
     },
     options
   );

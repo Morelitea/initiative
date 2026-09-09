@@ -22,9 +22,9 @@ import type {
   GuildAppRead,
   GuildAppUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
-import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -39,21 +39,11 @@ export const useGuildApps = (options?: QueryOpts<GuildAppListResponse>) => {
   });
 };
 
-const invalidateApps = (guildId: number) =>
-  Promise.all([
-    queryClient.invalidateQueries({ queryKey: appsKey(guildId) }),
-    // The detail read is the same install seen another way, and it is what the
-    // settings dialog renders. Invalidated by prefix so a rename or a placement
-    // change reaches it too, rather than only the list the sidebar draws.
-    queryClient.invalidateQueries({ queryKey: ["guild-app"] }),
-  ]);
-
 export const useInstallGuildApp = (options?: MutationOpts<GuildAppRead, GuildAppInstall>) => {
-  const guildId = useActiveGuildId();
   return useGuildMutation<GuildAppRead, GuildAppInstall>(
     {
       mutationFn: (guildId, data) => installGuildAppApiV1GGuildIdAppsPost(guildId, data),
-      invalidate: () => invalidateApps(guildId),
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options
@@ -64,12 +54,11 @@ export const useUpdateGuildApp = (
   appId: number,
   options?: MutationOpts<GuildAppRead, GuildAppUpdate>
 ) => {
-  const guildId = useActiveGuildId();
   return useGuildMutation<GuildAppRead, GuildAppUpdate>(
     {
       mutationFn: (guildId, data) =>
         updateGuildAppApiV1GGuildIdAppsAppIdPatch(guildId, appId, data),
-      invalidate: () => invalidateApps(guildId),
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options
@@ -77,11 +66,10 @@ export const useUpdateGuildApp = (
 };
 
 export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
   return useGuildMutation<void, number>(
     {
       mutationFn: (guildId, appId) => uninstallGuildAppApiV1GGuildIdAppsAppIdDelete(guildId, appId),
-      invalidate: () => invalidateApps(guildId),
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options

@@ -60,6 +60,11 @@ _inflight: set[asyncio.Task] = set()
 #: What a subscriber hands over: the payload as it was sent, nothing else.
 Handler = Callable[[str], Awaitable[None]]
 
+#: Told when the bus has come up, so a subscriber that has to know it was deaf
+#: for a while can act on it. Delivery is at-most-once, so what went past while
+#: there was no listener went past — this is the only notice of that.
+OnConnect = Callable[[], Awaitable[None]]
+
 
 def _dsn() -> str:
     """The connection to listen on, as libpq spells it.
@@ -88,7 +93,7 @@ class NotifyBus:
         self._connection: Optional[asyncpg.Connection] = None
         self._task: Optional[asyncio.Task] = None
         self._handlers: dict[str, Handler] = {}
-        self._generation = 0
+        self._on_connect: list[OnConnect] = []
         self._lock = asyncio.Lock()
         # One statement at a time on the held connection. A connection carries
         # a single operation, so two overlapping sends raise rather than queue
@@ -101,25 +106,23 @@ class NotifyBus:
     def running(self) -> bool:
         return self._connection is not None and not self._connection.is_closed()
 
-    @property
-    def generation(self) -> int:
-        """How many times this bus has come up.
-
-        A subscriber that has to know it was deaf for a while watches this: the
-        number moves once per connection, so a gap of any length — including
-        one that opened and closed between two of its own passes — is one
-        change rather than something to catch in the act.
-        """
-        return self._generation
-
-    def register(self, channel: str, handler: Handler) -> None:
+    def register(
+        self, channel: str, handler: Handler, *, on_connect: OnConnect | None = None
+    ) -> None:
         """Take delivery of one channel.
 
         Registering before ``start`` is the ordinary case; registering after it
         is honoured on the next connect rather than immediately, because
         ``LISTEN`` belongs to the connection and this one is already held.
+
+        ``on_connect`` runs each time the bus comes up, which is the only
+        notice a subscriber gets that it was deaf for a while — and it cannot
+        be told for how long, since a connection can drop and return between
+        any two of its own passes.
         """
         self._handlers[channel] = handler
+        if on_connect is not None:
+            self._on_connect.append(on_connect)
 
     async def start(self) -> None:
         """Open the connection and subscribe. Never raises.
@@ -176,10 +179,10 @@ class NotifyBus:
                     await connection.add_listener(channel, self._on_notify)
                 async with self._lock:
                     self._connection = connection
-                    self._generation += 1
                 logger.info(
                     "notify bus listening on %s", ", ".join(sorted(self._handlers))
                 )
+                await self._announce_connected()
                 delay = _RECONNECT_DELAY_SECONDS
                 # Hold the connection open. asyncpg dispatches notifications on
                 # its own reader task, so there is nothing to poll here — this
@@ -211,6 +214,16 @@ class NotifyBus:
             await asyncio.sleep(delay)
             delay = min(delay * 2, _RECONNECT_MAX_SECONDS)
 
+    async def _announce_connected(self) -> None:
+        """Tell the subscribers the bus is up. One that raises is logged and
+        the rest still hear: a subscriber's own catch-up is its business, and
+        the bus is up either way."""
+        for hook in self._on_connect:
+            try:
+                await hook()
+            except Exception:
+                logger.exception("notify bus: connect hook failed")
+
     def _on_notify(self, _connection, _pid, channel: str, payload: str) -> None:
         handler = self._handlers.get(channel)
         if handler is None:
@@ -226,8 +239,10 @@ class NotifyBus:
 bus = NotifyBus()
 
 
-def register(channel: str, handler: Handler) -> None:
-    bus.register(channel, handler)
+def register(
+    channel: str, handler: Handler, *, on_connect: OnConnect | None = None
+) -> None:
+    bus.register(channel, handler, on_connect=on_connect)
 
 
 async def notify(channel: str, payload: str) -> None:

@@ -31,13 +31,7 @@ import {
   updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch,
   updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch,
 } from "@/api/generated/initiatives/initiatives";
-import {
-  invalidateAllInitiatives,
-  invalidateGuildContent,
-  invalidateInitiative,
-  invalidateInitiativeJoinRequests,
-  invalidateInitiativeMembers,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -183,7 +177,7 @@ export const useInitiativeName = (initiativeId: number | null | undefined): stri
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 const invalidateInitiativeMembersAndList = (initiativeId: number) =>
-  Promise.all([invalidateInitiativeMembers(initiativeId), invalidateAllInitiatives()]);
+  invalidate(q.initiativeMembers(initiativeId), q.allInitiatives());
 
 export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, InitiativeCreate>) => {
   const { t } = useTranslation("initiatives");
@@ -199,7 +193,7 @@ export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, Initi
     },
     onSuccess: (...args) => {
       toast.success(t("createDialog.created", { name: args[0].name }));
-      void invalidateAllInitiatives();
+      void invalidate(q.allInitiatives());
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -230,7 +224,7 @@ export const useUpdateInitiative = (
       mutationFn: (guildId, { initiativeId, data }) =>
         updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch(guildId, initiativeId, data),
       invalidate: (_data, { initiativeId }) =>
-        Promise.all([invalidateAllInitiatives(), invalidateInitiative(initiativeId)]),
+        invalidate(q.allInitiatives(), q.initiative(initiativeId)),
       errorKey: "initiatives:settings.updateError",
     },
     options
@@ -250,7 +244,7 @@ export const useJoinInitiative = (
     {
       mutationFn: (guildId, { initiativeId }) =>
         joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
-      invalidate: () => invalidateGuildContent(),
+      invalidate: () => invalidate(q.guildContent()),
       errorKey: "initiatives:directory.joinError",
     },
     options
@@ -282,7 +276,7 @@ export const useRequestToJoinInitiative = (
           data
         ),
       invalidate: (_data, { initiativeId }) =>
-        Promise.all([invalidateAllInitiatives(), invalidateInitiativeJoinRequests(initiativeId)]),
+        invalidate(q.allInitiatives(), q.initiativeJoinRequests(initiativeId)),
       errorKey: "initiatives:joinRequests.requestError",
     },
     options
@@ -318,11 +312,11 @@ export const useResolveJoinRequest = (
               requestId
             ),
       invalidate: (_data, { initiativeId }) =>
-        Promise.all([
-          invalidateGuildContent(),
-          invalidateInitiativeMembers(initiativeId),
-          invalidateInitiativeJoinRequests(initiativeId),
-        ]),
+        invalidate(
+          q.guildContent(),
+          q.initiativeMembers(initiativeId),
+          q.initiativeJoinRequests(initiativeId)
+        ),
       errorKey: "initiatives:joinRequests.resolveError",
     },
     options
@@ -333,7 +327,7 @@ export const useDeleteInitiative = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, initiativeId) =>
         deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete(guildId, initiativeId),
-      invalidate: () => invalidateAllInitiatives(),
+      invalidate: () => invalidate(q.allInitiatives()),
       errorKey: "initiatives:settings.deleteError",
     },
     options

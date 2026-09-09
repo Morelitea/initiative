@@ -7,7 +7,7 @@ import {
   useMarkSeenApiV1AnnouncementsKeySeenPost,
 } from "@/api/generated/announcements/announcements";
 import type { AnnouncementRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAnnouncements } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { matchesTriggerRoute } from "@/lib/announcementPages";
 
 /** Re-check for new notices about as often as the version check does. */
@@ -81,7 +81,7 @@ export const useAnnouncements = (enabled: boolean): UseAnnouncementsResult => {
   const dismissMutation = useDismissApiV1AnnouncementsKeyDismissPost({
     mutation: {
       onSuccess: () => {
-        void invalidateAnnouncements();
+        void invalidate(q.announcements());
       },
     },
   });

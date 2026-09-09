@@ -2,27 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  invalidateAllCalendarEvents,
-  invalidateAllInitiatives,
-  invalidateAllProperties,
-  invalidateAllTags,
-  invalidateAllTasks,
-  invalidateCalendarEvent,
-  invalidateCommentsOnResource,
-  invalidateGuildContent,
-  invalidateInitiative,
-  invalidateInitiativeMembers,
-  invalidateInitiativeRoles,
-  invalidateMyPermissions,
-  invalidateProjectActivity,
-  invalidateRecentComments,
-  invalidateSubtask,
-  invalidateTag,
-  invalidateTask,
-  invalidateTaskSubtasks,
-  invalidateTool,
-} from "@/api/query-keys";
+import { invalidate, q, type Spec } from "@/api/query-keys";
 import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
@@ -30,6 +10,16 @@ import { useAuth } from "./useAuth";
 
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
+
+// The server says something every 30s even with no news (its
+// HEARTBEAT_SECONDS), so silence past a couple of those is the socket having
+// stopped carrying rather than the guild being quiet. A dropped connection
+// does not always close: a suspended laptop, a network that goes away
+// mid-flight and a NAT timeout all leave one reporting itself open and
+// delivering nothing.
+const SERVER_SILENCE_LIMIT_MS = 90_000;
+// How often that is checked. Cheap: a comparison against a timestamp.
+const SILENCE_CHECK_INTERVAL_MS = 15_000;
 
 const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
@@ -52,9 +42,19 @@ const buildWebsocketUrl = (guildId: number) => {
  * only streams that guild's events), so the payload carries the token only.
  * The hook reconnects on guild switch, so the subscription always tracks the
  * guild this tab is looking at.
+ *
+ * A reconnect also says how long this tab was without a socket, which is what
+ * the server needs to answer whether anything happened in that time. A first
+ * connect says nothing: the route that just mounted fetched its own data.
  */
-const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
-  const payload = JSON.stringify({ token });
+const sendAuthMessage = (
+  websocket: WebSocket,
+  token: string | null,
+  awaySeconds: number | null
+) => {
+  const payload = JSON.stringify(
+    awaySeconds === null ? { token } : { token, away_seconds: awaySeconds }
+  );
   const payloadBytes = new TextEncoder().encode(payload);
   const message = new Uint8Array(1 + payloadBytes.length);
   message[0] = MSG_AUTH;
@@ -81,76 +81,57 @@ export type RealtimeChange = {
 const FRAME_DEBOUNCE_MS = 250;
 
 /**
- * What a change to one kind of resource makes stale.
+ * What a change to one kind of resource makes stale — as a description, not an
+ * action.
  *
  * Tools come from the registry, so a new tool's events are live the day it
  * ships. The rest are the things the bus can name that are not a tool of their
  * own. A type nothing here claims is ignored on purpose: its parents carry the
  * surfaces that matter, and a queue item is refreshed by refreshing its queue.
  */
-const RESOURCE_INVALIDATORS: Record<string, (id: number) => void> = {
+const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   ...Object.fromEntries(
-    TOOLS.map((tool) => [toolPlural(tool), (id: number) => invalidateTool(tool, id)])
+    TOOLS.map((tool) => [toolPlural(tool), (id: number) => [q.tool(tool, id)]])
   ),
   // A project's activity feed lists its own comments and its tasks', so it is
   // stale for anything that happens anywhere inside the project. Declared after
   // the registry spread, which it extends rather than replaces.
-  projects: (id) => {
-    invalidateTool(Tool.project, id);
-    void invalidateProjectActivity(id);
-  },
-  tasks: (id) => {
-    void invalidateTask(id);
-    void invalidateAllTasks();
-  },
-  subtasks: (id) => {
-    void invalidateSubtask(id);
-  },
-  comments: () => {
-    // The guild's recent-activity list is a comment feed of its own. Which
-    // thread moved is a question about the parent, below.
-    void invalidateRecentComments();
-  },
-  calendar_events: (id) => {
-    void invalidateCalendarEvent(id);
-    void invalidateAllCalendarEvents();
-  },
-  initiatives: (id) => {
-    void invalidateInitiative(id);
-    void invalidateAllInitiatives();
-    // An initiative's roster, its roles and what those roles permit all report
-    // against the initiative itself — a membership row and a role row have no
-    // route of their own — so "the initiative changed" has to refresh all
-    // three. Each is one query, and only where the screen showing it is open.
-    void invalidateInitiativeMembers(id);
-    void invalidateInitiativeRoles(id);
-    void invalidateMyPermissions(id);
-  },
-  tags: (id) => {
-    void invalidateTag(id);
-    void invalidateAllTags();
-  },
-  property_definitions: () => {
-    void invalidateAllProperties();
-  },
+  projects: (id) => [q.tool(Tool.project, id), q.projectActivity(id)],
+  tasks: (id) => [q.task(id), q.allTasks()],
+  subtasks: (id) => [q.subtask(id)],
+  // The guild's recent-activity list is a comment feed of its own. Which thread
+  // moved is a question about the parent, below.
+  comments: () => [q.recentComments()],
+  calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
+  // An initiative's roster, its roles and what those roles permit all report
+  // against the initiative itself — a membership row and a role row have no
+  // route of their own — so "the initiative changed" has to name all three.
+  initiatives: (id) => [
+    q.initiative(id),
+    q.allInitiatives(),
+    q.initiativeMembers(id),
+    q.initiativeRoles(id),
+    q.myPermissions(id),
+  ],
+  tags: (id) => [q.tag(id), q.allTags()],
+  // An install belongs to no initiative, so it arrives guild-wide with no
+  // parent to carry it — this is the only thing that refreshes the sidebar's
+  // app list and the settings dialog for another admin's install, rename or
+  // configuration. Takes no id: the reads are keyed by guild, not by install.
+  apps: () => [q.apps()],
+  property_definitions: () => [q.allProperties()],
 };
 
 /**
  * What a change to a child makes stale ON the parent it hangs off.
  *
- * The one thing invalidating the parent does not cover: these queries are keyed
- * by the parent rather than by the child, so nothing about the child's own id
+ * The one thing naming the parent does not cover: these queries are keyed by
+ * the parent rather than by the child, so nothing about the child's own id
  * reaches them.
  */
-const PARENT_EFFECTS: Record<string, (parent: ResourceRef) => void> = {
-  comments: (parent) => {
-    void invalidateCommentsOnResource(parent.type, parent.id);
-  },
-  subtasks: (parent) => {
-    if (parent.type === "tasks") {
-      void invalidateTaskSubtasks(parent.id);
-    }
-  },
+const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
+  comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
+  subtasks: (parent) => (parent.type === "tasks" ? [q.taskSubtasks(parent.id)] : []),
 };
 
 const isRef = (value: unknown): value is ResourceRef => {
@@ -161,12 +142,13 @@ const isRef = (value: unknown): value is ResourceRef => {
 const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
 
 /**
- * Refresh everything a batch of changes made stale, each thing once.
+ * Refresh everything a batch of changes made stale, in one pass over the cache.
  *
- * Two passes over the same batch: the resources named (the change itself, and
- * every resource it sits inside), then the parent-keyed queries only a child
- * can point at. Repeats collapse, so a hundred comments on one task refetch
- * that task's thread once.
+ * Two passes over the same batch collect the description: the resources named
+ * (the change itself, and every resource it sits inside), then the parent-keyed
+ * queries only a child can point at. Nothing is matched until both are in hand,
+ * so three hundred comments on one task cost the same single walk as one — and
+ * the repeats among them collapse when the specs merge.
  */
 export const applyChanges = (changes: readonly RealtimeChange[]) => {
   const refs = new Map<string, ResourceRef>();
@@ -186,12 +168,14 @@ export const applyChanges = (changes: readonly RealtimeChange[]) => {
     }
   }
 
+  const specs: Spec[] = [];
   for (const ref of refs.values()) {
-    RESOURCE_INVALIDATORS[ref.type]?.(ref.id);
+    specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id) ?? []));
   }
   for (const [childType, parent] of effects.values()) {
-    PARENT_EFFECTS[childType]?.(parent);
+    specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
   }
+  if (specs.length > 0) void invalidate(...specs);
 };
 
 export const useRealtimeUpdates = () => {
@@ -235,6 +219,15 @@ export const useRealtimeUpdates = () => {
     // socket rather than invalidating for a guild this tab has left.
     let pending: RealtimeChange[] = [];
     let frameTimer: number | null = null;
+    // The last moment this tab had a socket that was carrying. Any frame is
+    // proof of that, so a beat counts; nothing else does.
+    let lastFrameAt = Date.now();
+    // The last frame received on ANY socket here, which is the last proof this
+    // tab was being carried. Only a frame moves it: an attempt that opens and
+    // dies before hearing anything has proved nothing, and must not shorten the
+    // gap the next attempt reports. Null until the first frame — a tab that has
+    // never been carried asks for nothing, having fetched as it mounted.
+    let carriedUntil: number | null = null;
 
     const enqueue = (changes: RealtimeChange[]) => {
       pending.push(...changes);
@@ -275,12 +268,21 @@ export const useRealtimeUpdates = () => {
       websocket.onopen = () => {
         // Send auth message immediately after connection (token not in URL for
         // security). The guild id scopes the stream to the active guild.
-        sendAuthMessage(websocket, token);
+        sendAuthMessage(
+          websocket,
+          token,
+          carriedUntil === null ? null : (Date.now() - carriedUntil) / 1000
+        );
         // Reset failure count on successful connection
         authFailureCountRef.current = 0;
+        lastFrameAt = Date.now();
       };
 
       websocket.onmessage = (event) => {
+        // Any frame is proof the socket carries, whatever it says. A beat says
+        // only that, and needs nothing below.
+        lastFrameAt = Date.now();
+        carriedUntil = lastFrameAt;
         try {
           // A content-free invalidation bus: every frame is one transaction's
           // worth of {resource, parents, action}, never a serialized model. We
@@ -294,10 +296,13 @@ export const useRealtimeUpdates = () => {
             // A write too large to name row by row — an import, a purge. The
             // frame says so instead of carrying thousands of ids, and the
             // answer is to read the guild again.
-            void invalidateGuildContent();
+            void invalidate(q.guildContent());
             return;
           }
-          enqueue(payload.changes ?? []);
+          const changes = payload.changes ?? [];
+          if (changes.length) {
+            enqueue(changes);
+          }
         } catch {
           // ignore malformed messages
         }
@@ -330,8 +335,22 @@ export const useRealtimeUpdates = () => {
 
     connect();
 
+    // A socket that has gone quiet past the server's beat is closed rather than
+    // trusted. Closing is what starts the reconnect, which is what asks the
+    // server whether anything moved in the meantime.
+    const silenceCheck = window.setInterval(() => {
+      const socket = websocketRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (Date.now() - lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
+        socket.close();
+      }
+    }, SILENCE_CHECK_INTERVAL_MS);
+
     return () => {
       isActive = false;
+      window.clearInterval(silenceCheck);
       if (frameTimer !== null) {
         window.clearTimeout(frameTimer);
         frameTimer = null;

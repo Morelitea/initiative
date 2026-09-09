@@ -28,7 +28,7 @@ import type {
   ResourceGrantSchema,
   WidgetCatalog,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllDashboards, invalidateDashboard } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
@@ -115,13 +115,13 @@ export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListi
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 const invalidateDashboardAndList = (dashboardId: number) =>
-  Promise.all([invalidateDashboard(dashboardId), invalidateAllDashboards()]);
+  invalidate(q.dashboard(dashboardId), q.allDashboards());
 
 export const useCreateDashboard = (options?: MutationOpts<DashboardRead, DashboardCreate>) =>
   useGuildMutation<DashboardRead, DashboardCreate>(
     {
       mutationFn: (guildId, data) => createDashboardApiV1GGuildIdDashboardsPost(guildId, data),
-      invalidate: () => invalidateAllDashboards(),
+      invalidate: () => invalidate(q.allDashboards()),
       errorKey: "dashboards:error",
     },
     options
@@ -189,7 +189,7 @@ export const useDeleteDashboard = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, dashboardId) =>
         deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete(guildId, dashboardId),
-      invalidate: () => invalidateAllDashboards(),
+      invalidate: () => invalidate(q.allDashboards()),
       errorKey: "dashboards:error",
     },
     options

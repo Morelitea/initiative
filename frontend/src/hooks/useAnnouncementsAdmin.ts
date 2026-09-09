@@ -15,7 +15,7 @@ import type {
   AnnouncementUpdate,
   AnnouncementWrite,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAnnouncements } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -30,20 +30,20 @@ export const usePlatformAnnouncements = (options?: QueryOpts<AnnouncementAdminLi
 export const useCreateAnnouncement = () =>
   useApiMutation<AnnouncementAdminRead, AnnouncementWrite>({
     mutationFn: (data) => createAnnouncementApiV1AnnouncementsAdminPost(data),
-    invalidate: invalidateAnnouncements,
+    invalidate: () => invalidate(q.announcements()),
   });
 
 export const useUpdateAnnouncement = () =>
   useApiMutation<AnnouncementAdminRead, { id: number; data: AnnouncementUpdate }>({
     mutationFn: ({ id, data }) =>
       updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch(id, data),
-    invalidate: invalidateAnnouncements,
+    invalidate: () => invalidate(q.announcements()),
   });
 
 export const useDeleteAnnouncement = () =>
   useApiMutation<void, number>({
     mutationFn: (id) => deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete(id),
-    invalidate: invalidateAnnouncements,
+    invalidate: () => invalidate(q.announcements()),
   });
 
 /** Store one picture and get back the URL a section should point at. */

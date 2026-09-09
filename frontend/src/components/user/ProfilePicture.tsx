@@ -1,5 +1,5 @@
 import { Camera } from "lucide-react";
-import { type ChangeEvent, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -12,6 +12,7 @@ import {
   uploadMyAvatarApiV1UsersMeAvatarPut,
 } from "@/api/generated/users/users";
 import { Button } from "@/components/ui/button";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
@@ -106,10 +107,7 @@ export const ProfilePicture = ({
     }
   };
 
-  const pick = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  const pick = (file: File) => {
     void run(async () => uploadMyAvatarApiV1UsersMeAvatarPut({ file: await renderAvatar(file) }));
   };
 
@@ -150,7 +148,7 @@ export const ProfilePicture = ({
             <TabsTrigger value="url">{t("settings:profile.avatarUrlTab")}</TabsTrigger>
           </TabsBar>
           <TabsContent value="upload" className="space-y-2">
-            <Input type="file" accept="image/*" disabled={busy} onChange={pick} />
+            <ImagePicker accept="image/*" disabled={busy} onSelect={pick} />
             <p className="text-muted-foreground text-xs">
               {t("settings:profile.avatarUploadHelp")}
             </p>
