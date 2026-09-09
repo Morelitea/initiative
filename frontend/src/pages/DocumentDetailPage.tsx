@@ -315,16 +315,27 @@ export const DocumentDetailPage = () => {
     if (seededDocumentRef.current === document.id) {
       return;
     }
-    // A whiteboard decides between its write-ahead cache and the server by
-    // comparing against document.updated_at, so it must not decide against a
-    // React Query cache hit from a previous visit — that snapshot's updated_at
-    // predates everything other users did since, making any local cache look
-    // newer than it is. Wait for this mount's fetch to settle (an errored fetch
-    // settles too, so offline still falls back to the cached document).
-    if (document.document_type === "whiteboard" && !documentQuery.isFetchedAfterMount) {
+    // Opening a document already in the React Query cache renders it from that
+    // snapshot before this mount's fetch has been anywhere. It predates
+    // whatever else has happened since, so it is filled in but not committed:
+    // every answer up to and including this mount's own is taken, and only
+    // that one closes the door. Committing the snapshot instead would leave
+    // the page holding content older than the server's — and, because the
+    // difference reads as unsaved work, saving it back over the newer copy.
+    //
+    // A whiteboard cannot even be filled in from it: it decides between its
+    // write-ahead cache and the server by comparing against
+    // document.updated_at, and a stale snapshot's timestamp makes any local
+    // cache look newer than it is. It waits instead, which its own readiness
+    // flag already accounts for. (An errored fetch settles too, so offline
+    // still falls back to the cached document.)
+    const settled = documentQuery.isFetchedAfterMount;
+    if (document.document_type === "whiteboard" && !settled) {
       return;
     }
-    seededDocumentRef.current = document.id;
+    if (settled) {
+      seededDocumentRef.current = document.id;
+    }
 
     if (document.document_type === "whiteboard") {
       // The write-ahead cache first. On every local edit the scene is written
