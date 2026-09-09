@@ -33,6 +33,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
+    "@capacitor/camera": "^8.2.4",
     "@capacitor/core": "^8.5.0",
     "@capacitor/device": "^8.0.3",
     "@capacitor/haptics": "^8.0.2",

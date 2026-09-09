@@ -153,5 +153,14 @@
   "offline": {
     "banner": "Du bist offline — angezeigt wird, was dieses Gerät zuletzt geladen hat.",
     "lastUpdated": "Zuletzt aktualisiert {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Bild auswählen",
+    "takePhoto": "Foto aufnehmen",
+    "chooseFromLibrary": "Aus der Galerie wählen",
+    "chooseFile": "Datei auswählen",
+    "permission": "Initiative braucht Zugriff auf Kamera und Fotos. Erlaube ihn in den Geräteeinstellungen und versuche es erneut.",
+    "unavailable": "Dieses Gerät hat keine Kamera für ein Foto.",
+    "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
   }
 }

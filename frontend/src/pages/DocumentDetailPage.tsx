@@ -16,16 +16,7 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import {
-  type ChangeEvent,
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
@@ -100,6 +91,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -198,7 +190,6 @@ export const DocumentDetailPage = () => {
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isAutosaveRef = useRef(false);
-  const featuredImageInputRef = useRef<HTMLInputElement>(null);
   // Refs for sendBeacon - need latest values in event handlers
   const contentStateRef = useRef<{ documentId: number; content: SerializedEditorState } | null>(
     null
@@ -840,13 +831,8 @@ export const DocumentDetailPage = () => {
     };
   }, [parsedId, token, activeGuildId, canEditDocument]);
 
-  const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFeaturedImageChange = async (file: File) => {
     if (!canEditDocument) {
-      return;
-    }
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -870,13 +856,6 @@ export const DocumentDetailPage = () => {
     } finally {
       setIsUploadingFeaturedImage(false);
     }
-  };
-
-  const openFeaturedImagePicker = () => {
-    if (!canEditDocument) {
-      return;
-    }
-    featuredImageInputRef.current?.click();
   };
 
   const handleTagsChange = useCallback(
@@ -1139,20 +1118,13 @@ export const DocumentDetailPage = () => {
                         )}
                       </div>
                       <div className="space-y-2">
-                        <input
-                          ref={featuredImageInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleFeaturedImageChange}
-                        />
                         {canEditDocument ? (
                           <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={openFeaturedImagePicker}
+                            <ImagePicker
+                              variant="button"
+                              accept="image/*"
                               disabled={isUploadingFeaturedImage}
+                              onSelect={handleFeaturedImageChange}
                             >
                               {isUploadingFeaturedImage ? (
                                 <>
@@ -1165,7 +1137,7 @@ export const DocumentDetailPage = () => {
                                   {t("detail.uploadImage")}
                                 </>
                               )}
-                            </Button>
+                            </ImagePicker>
                             {featuredImageUrl ? (
                               <Button
                                 type="button"
