@@ -352,7 +352,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       setActiveGuildId(guildId);
-      await resetGuildScopedQueries();
+      await resetGuildScopedQueries(guildId);
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
     [userId, refreshGuilds, refreshUser]
@@ -369,7 +369,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     }
     setActiveGuildId(guildId);
     persistGuildId(guildId);
-    await resetGuildScopedQueries();
+    await resetGuildScopedQueries(guildId);
   }, []);
 
   // Each browser tab holds its OWN guild, taken from its `/c/{guildId}` URL —

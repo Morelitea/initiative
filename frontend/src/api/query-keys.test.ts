@@ -143,6 +143,26 @@ describe("query-keys guild scoping", () => {
       expect(version()).toBe(true);
       expect(recents()).toBe(true);
     });
+
+    it("keeps the arriving guild's own data — it is not the departing guild's", async () => {
+      const arriving = survives(["/api/v1/g/5/projects/"]);
+      const arrivingDetail = survives(["/api/v1/g/5/tasks/12"]);
+      const departing = survives(["/api/v1/g/4/projects/"]);
+
+      await resetGuildScopedQueries(5);
+
+      expect(arriving()).toBe(true);
+      expect(arrivingDetail()).toBe(true);
+      expect(departing()).toBe(false);
+    });
+
+    it("still drops everything guild-scoped when no arriving guild is named", async () => {
+      const five = survives(["/api/v1/g/5/projects/"]);
+
+      await resetGuildScopedQueries();
+
+      expect(five()).toBe(false);
+    });
   });
 });
 
