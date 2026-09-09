@@ -316,6 +316,29 @@ export const invalidatePlatformGuilds = () => invalidatePersonalExact([`/api/v1/
 // detail read.
 export const invalidateAppServices = () => invalidatePersonalPrefix("/api/v1/app-services");
 
+// ── Installed apps (guild) ───────────────────────────────────────────────────
+// The other half of the same domain: a service is the platform's registration
+// of an app, an install is one community's copy of it.
+//
+// One helper for every read of an install, because one write moves all of them
+// — the sidebar's list, the settings dialog's detail, the members view — and
+// because the bus names the install guild-wide, with no parent to carry it.
+// Two key shapes to reach: the list is Orval's URL key, while the detail and
+// members reads are hand-written and keyed by name. The named pair still
+// carries its guild in element 1, so it is matched against the active guild
+// like every other guild key rather than by name alone.
+const APP_DETAIL_KEYS: readonly unknown[] = ["guild-app", "guild-app-members"];
+
+export const invalidateApps = () =>
+  Promise.all([
+    invalidateGuildPrefix("/api/v1/apps"),
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        APP_DETAIL_KEYS.includes(q.queryKey[0]) &&
+        (scopedGuildId === null || q.queryKey[1] === scopedGuildId),
+    }),
+  ]);
+
 // ── AI Settings (platform config is personal; guild/member/resolved are guild-scoped) ──
 
 export const invalidateAllAISettings = () =>

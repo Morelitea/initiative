@@ -175,6 +175,27 @@ describe("realtime resource frames", () => {
     expect(permissions(), "my permissions").toBe(true);
   });
 
+  it("refreshes the app list and an install's own reads", () => {
+    // Guild-wide and parentless: nothing else on the client covers it.
+    const list = seed([`/api/v1/g/${GUILD}/apps/`]);
+    const detail = seed(["guild-app", GUILD, ENTITY_ID]);
+    const members = seed(["guild-app-members", GUILD, ENTITY_ID]);
+
+    applyChanges([{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }]);
+
+    expect(list(), "app list").toBe(true);
+    expect(detail(), "app detail").toBe(true);
+    expect(members(), "app members").toBe(true);
+  });
+
+  it("leaves another guild's install reads alone", () => {
+    const other = seed(["guild-app", GUILD + 1, ENTITY_ID]);
+
+    applyChanges([{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }]);
+
+    expect(other()).toBe(false);
+  });
+
   it("ignores a resource type it has no invalidation for", () => {
     const untouched = seed([`/api/v1/g/${GUILD}/tasks/${ENTITY_ID}`]);
 

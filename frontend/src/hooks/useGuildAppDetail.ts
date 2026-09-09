@@ -8,7 +8,7 @@
  * configuring — which the list shows.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   type AppConfigValue,
@@ -31,7 +31,7 @@ import {
   updateGuildAppConfig,
   upgradeGuildApp,
 } from "@/api/appConnections";
-import { getListGuildAppsApiV1GGuildIdAppsGetQueryKey } from "@/api/generated/apps/apps";
+import { invalidateApps } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
 export const guildAppDetailKey = (guildId: number, appId: number) =>
@@ -58,55 +58,40 @@ export const useGuildAppMembers = (appId: number, enabled: boolean) => {
   });
 };
 
-/** Every mutation below refreshes the same three reads, so a connection change
- *  cannot leave the settings page, the Members view and the sidebar disagreeing
- *  about what is configured. */
-const useAppInvalidation = (appId: number) => {
-  const guildId = useActiveGuildId();
-  const queryClient = useQueryClient();
-  return () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: guildAppDetailKey(guildId, appId) }),
-      queryClient.invalidateQueries({ queryKey: guildAppMembersKey(guildId, appId) }),
-      queryClient.invalidateQueries({
-        queryKey: getListGuildAppsApiV1GGuildIdAppsGetQueryKey(guildId),
-      }),
-    ]);
-};
+// Every mutation below refreshes the same three reads through the shared
+// `invalidateApps`, so a connection change cannot leave the settings page, the
+// Members view and the sidebar disagreeing about what is configured — and a
+// write from here refreshes exactly what a frame off the realtime bus does.
 
 export const useUpdateAppConfig = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<GuildAppDetail, unknown, Record<string, Record<string, AppConfigValue>>>({
     mutationFn: (values) => updateGuildAppConfig(guildId, appId, values),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 export const useUpgradeApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<GuildAppDetail, unknown, void>({
     mutationFn: () => upgradeGuildApp(guildId, appId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 export const useConnectApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<AppConnectStart, unknown, string>({
     mutationFn: (connectionId) => connectGuildApp(guildId, appId, connectionId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 export const useDisconnectApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, string>({
     mutationFn: (connectionId) => disconnectGuildApp(guildId, appId, connectionId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
@@ -117,17 +102,15 @@ export interface MemberConnectionTarget {
 
 export const useRevokeMemberConnection = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, MemberConnectionTarget>({
     mutationFn: ({ userId, connectionId }) =>
       revokeMemberConnection(guildId, appId, userId, connectionId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 export const useBlockMemberConnection = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, MemberConnectionTarget & { blocked: boolean }>({
     // One mutation for both directions: the button is a toggle, and splitting
     // it would mean two hooks that must stay in step about what "blocked" means.
@@ -135,16 +118,15 @@ export const useBlockMemberConnection = (appId: number) => {
       blocked
         ? unblockMemberConnection(guildId, appId, userId, connectionId)
         : blockMemberConnection(guildId, appId, userId, connectionId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 export const useRevokeAllConnections = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAllMemberConnections(guildId, appId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
@@ -154,20 +136,18 @@ export const useRevokeAllConnections = (appId: number) => {
  *  already given. Takes no user id: the caller is the subject. */
 export const useGrantAppDelegation = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<AppDelegation, unknown, boolean>({
     mutationFn: (canWrite) => grantAppDelegation(guildId, appId, canWrite),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 /** Withdraw your own. */
 export const useRevokeAppDelegation = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAppDelegation(guildId, appId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
@@ -175,19 +155,17 @@ export const useRevokeAppDelegation = (appId: number) => {
  *  that creates one — governance runs one way here. */
 export const useRevokeMemberDelegation = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, number>({
     mutationFn: (userId) => revokeMemberDelegation(guildId, appId, userId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
 
 /** Stop the app acting as anybody, without uninstalling it. */
 export const useRevokeAllDelegations = (appId: number) => {
   const guildId = useActiveGuildId();
-  const invalidate = useAppInvalidation(appId);
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAllMemberDelegations(guildId, appId),
-    onSuccess: invalidate,
+    onSuccess: invalidateApps,
   });
 };
