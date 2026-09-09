@@ -66,8 +66,12 @@ def _comment_initiative() -> ColumnElement[Optional[int]]:
     return sa_func.coalesce(*lookups)
 
 
-def _initiative_query(model: Any, row_id: int) -> Select[tuple[Optional[int]]]:
-    """A select yielding ``row_id``'s initiative, or nothing if it is not there.
+def _initiative_query(model: Any, row_id: int) -> Select[tuple[int, Optional[int]]]:
+    """A select yielding ``row_id`` and its initiative, or no row at all.
+
+    The id rides along so the two cases stay apart: a row that exists and
+    belongs to no initiative (a guild calendar) answers ``None`` for the
+    second column, which a single-column select could not tell from no row.
 
     Most tables carry ``initiative_id``. A task does not — it belongs to a
     project — and a comment names one of several parents, so each is read
@@ -77,14 +81,16 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[Optional[int]]]:
 
     live = getattr(model, "deleted_at", None)
     if model is Comment:
-        statement = select(_comment_initiative()).where(Comment.id == row_id)
+        statement = select(Comment.id, _comment_initiative()).where(
+            Comment.id == row_id
+        )
     elif hasattr(model, "initiative_id"):
-        statement = select(model.initiative_id).where(model.id == row_id)
+        statement = select(model.id, model.initiative_id).where(model.id == row_id)
     else:
         from app.models.tenant.project import Project
 
         statement = (
-            select(Project.initiative_id)
+            select(model.id, Project.initiative_id)
             .join(model, model.project_id == Project.id)
             .where(model.id == row_id)
         )
@@ -142,7 +148,7 @@ async def reader_is_in_the_initiative(
         found = (await probe.exec(_initiative_query(model, row_id))).first()
         if found is None:
             return False
-        initiative_id = found[0] if isinstance(found, tuple) else found
+        initiative_id = found[1]
         if initiative_id is None:
             return True
         member = (

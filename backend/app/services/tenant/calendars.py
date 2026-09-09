@@ -133,9 +133,15 @@ async def get_calendar_for_export(
     )
     calendar = (await session.exec(stmt)).one_or_none()
     if calendar is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CalendarMessages.NOT_FOUND,
+        from app.services import reachability
+
+        raise await reachability.missing_or_denied(
+            "calendars",
+            calendar_id,
+            int(current_user.id or 0),
+            guild_id,
+            not_found=CalendarMessages.NOT_FOUND,
+            denied=CalendarMessages.PERMISSION_REQUIRED,
         )
     if calendar.initiative is not None and not calendar.initiative.calendars_enabled:
         raise HTTPException(

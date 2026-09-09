@@ -79,7 +79,11 @@ async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    # posts_enabled defaults to False.
+    # The factory switches every tool on, so a test about one being OFF
+    # turns it off.
+    a.initiative.posts_enabled = False
+    session.add(a.initiative)
+    await session.commit()
 
     response = await client.post(
         a.g("/posts/"),
