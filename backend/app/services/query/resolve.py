@@ -377,11 +377,15 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
     Resolve()(select)
 
 
-def _ordinals(select: ast.SelectStmt) -> set[int]:
-    """Numbers that are part of the grammar rather than values.
+def _literal_positions(select: ast.SelectStmt) -> set[int]:
+    """Constants that stay constants.
 
-    ``GROUP BY 1`` and ``ORDER BY 1`` select an output column; a parameter
-    there would be the number one.
+    Two kinds. ``GROUP BY 1`` and ``ORDER BY 1`` select an output column, and a
+    parameter there would be the number one. And a constant standing alone in
+    the select list has nothing to take a type from — Postgres reads an
+    unadorned parameter there as text — where the same constant compared
+    against a column takes that column's type, which is what makes
+    ``priority = $1`` work against an enum.
     """
     marked: set[int] = set()
     for entry in select.groupClause or ():
@@ -390,11 +394,14 @@ def _ordinals(select: ast.SelectStmt) -> set[int]:
     for entry in select.sortClause or ():
         if isinstance(entry, ast.SortBy) and isinstance(entry.node, ast.A_Const):
             marked.add(id(entry.node))
+    for target in select.targetList or ():
+        if isinstance(target, ast.ResTarget) and isinstance(target.val, ast.A_Const):
+            marked.add(id(target.val))
     return marked
 
 
 def _bind_literals(select: ast.SelectStmt) -> tuple[Any, ...]:
-    ordinals = _ordinals(select)
+    ordinals = _literal_positions(select)
     values: list[Any] = []
 
     class Bind(Visitor):
