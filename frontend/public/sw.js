@@ -40,10 +40,20 @@ self.addEventListener("fetch", (event) => {
   }
 
   const requestUrl = new URL(request.url);
+
+  // Only this app's own origin is ours to answer. In the native app the API is
+  // a different origin entirely, and taking one of its requests over here would
+  // re-issue it from the worker — a separate context, with its own rules about
+  // what it may load, and nothing gained by the move.
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
   const requestPath = requestUrl.pathname;
 
+  // Not cached here (see above), so there is nothing to add: leaving it alone
+  // is what passing it through means.
   if (requestPath.startsWith("/api/")) {
-    event.respondWith(fetch(request));
     return;
   }
 
@@ -85,11 +95,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // For hashed Vite assets (js/css), always go network-first without caching
-  if (/\/(assets|@fs)\//.test(requestPath)) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  event.respondWith(fetch(request));
+  // Everything else — the hashed Vite assets included — is left to the browser.
+  // `respondWith(fetch(request))` reads as "pass it through", but it moves the
+  // request into the worker to do nothing with it.
 });
