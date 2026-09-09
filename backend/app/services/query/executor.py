@@ -26,7 +26,11 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from asyncpg.exceptions import QueryCanceledError
+from asyncpg.exceptions import (
+    DataError,
+    QueryCanceledError,
+    UndefinedFunctionError,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -167,6 +171,12 @@ async def execute(
             )
     except QueryCanceledError as cancelled:
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
+    except (DataError, UndefinedFunctionError) as failed:
+        # The database's answer to a statement it accepted and could not
+        # finish: a division by zero, a value that will not convert, a
+        # function called with types it does not take. The reader wrote the
+        # statement, so they are told what the database said about it.
+        raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
 async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:

@@ -279,6 +279,7 @@
   "QUERY_TOO_EXPENSIVE": "Cette requête demande plus de travail qu'une requête ne peut en faire. Restreignez-la : moins de tables, ou un filtre qui réduit les lignes.",
   "QUERY_TIMED_OUT": "Cette requête a pris trop de temps et a été arrêtée.",
   "QUERY_BUSY": "Cette communauté a déjà autant de requêtes en cours qu'elle le peut. Réessayez dans un instant.",
+  "QUERY_EXECUTION_FAILED": "La base de données n'a pas pu terminer cette requête — vérifiez s'il y a une division par zéro, une valeur non convertible, ou une fonction recevant un argument du mauvais type.",
   "RATE_LIMITED": "Trop de requêtes. Veuillez patienter un moment et réessayer.",
   "unableToLoadGuilds": "Impossible de charger les communautés.",
   "TRASH_ITEM_NOT_FOUND": "Cet élément de la corbeille n'est plus disponible.",

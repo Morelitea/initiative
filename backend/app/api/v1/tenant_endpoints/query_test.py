@@ -60,6 +60,19 @@ async def test_a_write_is_refused_before_it_reaches_the_database(client, acting_
     assert response.json()["detail"] == QueryMessages.READ_ONLY
 
 
+async def test_a_statement_the_database_cannot_finish_is_a_refusal(client, acting_user):
+    """It parsed and resolved; the database had the last word on it. That is
+    still something the reader can correct, so it comes back as one."""
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query"),
+        json={"sql": "SELECT count(*) / 0 AS n FROM projects"},
+        headers=actor.headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == QueryMessages.EXECUTION_FAILED
+
+
 async def test_a_non_member_cannot_reach_the_guilds_queries(client, acting_user):
     resident = await acting_user(guild_role=GuildRole.admin, initiative=True)
     outsider = await acting_user(guild_role=GuildRole.member)

@@ -592,6 +592,10 @@ class QueryMessages:
     TIMED_OUT = "QUERY_TIMED_OUT"
     #: This guild already has as many queries running as it may.
     BUSY = "QUERY_BUSY"
+    #: The statement parsed and resolved, and the database refused it while
+    #: running it — dividing by zero, a value that will not convert, a
+    #: function called with types it does not take.
+    EXECUTION_FAILED = "QUERY_EXECUTION_FAILED"
 
 
 class NotificationMessages:
