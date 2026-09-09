@@ -54,14 +54,15 @@ class _Room:
     rows, and neither is allowed to be the only one that works.
     """
 
-    def __init__(self, guild_id: int, initiative_id: int) -> None:
+    def __init__(self, guild_id: int, initiative_id: int, user_id: int = 1) -> None:
         self._guild_id = guild_id
         self._initiative_id = initiative_id
+        self._user_id = user_id
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Room":
         await manager.connect(
-            self._guild_id, [self._initiative_id], self.socket, user_id=1
+            self._guild_id, [self._initiative_id], self.socket, user_id=self._user_id
         )
         await room_sink.process_room_sweep()
         return self
@@ -248,12 +249,20 @@ async def test_answering_a_poll_tells_the_room_the_tallies_moved(
 async def test_a_notice_never_reaches_another_initiatives_room(
     client: AsyncClient, acting_user, session
 ):
-    """The room key is (guild, initiative): a board next door hears nothing."""
+    """The room key is (guild, initiative): a board next door hears nothing.
+
+    Read by somebody who is on that board and on no other. The author is on
+    both, and both rooms are theirs — a socket of theirs is put into each of
+    them, so it is the wrong reader to ask.
+    """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     elsewhere = await create_initiative(session, a.guild, a.user)
+    neighbour = await create_user(session)
+    await create_guild_membership(session, user=neighbour, guild=a.guild)
+    await create_initiative_member(session, elsewhere, neighbour)
 
-    async with _Room(a.guild.id, elsewhere.id) as room:
+    async with _Room(a.guild.id, elsewhere.id, user_id=neighbour.id) as room:
         response = await client.post(
             a.g("/posts/"),
             headers=a.headers,
