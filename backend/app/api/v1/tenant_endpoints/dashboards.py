@@ -787,13 +787,18 @@ async def run_widget_query(
         session, dashboard_id, guild_context.guild_id
     )
     if through is not None and published_views.names_the_reader(
-        {"widgets": [{"binding": binding}]}
+        dashboard.definition, dashboard.config
     ):
-        # A statement about the reader is not one set of numbers, so it does not
-        # get the grant — it answers from this reader's own access instead.
-        # Saving one on a publishing dashboard is refused where it is written;
-        # this is the same rule where it is run, so it holds however the
-        # statement arrived.
+        # A statement about the reader is not one set of numbers, so a canvas
+        # holding one does not publish — none of it, not just that widget.
+        #
+        # Canvas-wide because the notice is: a reader is told once that these
+        # figures are shared, and per-widget publishing would leave ordinary
+        # tiles serving published rows with nothing saying so. One predicate
+        # decides both, so what the dashboard says and what it does cannot come
+        # apart. Saving such a statement on a publishing dashboard is refused
+        # where it is written; this is the same rule where it is run, so it
+        # holds however the statement arrived.
         through = None
     try:
         result = await query_service.run(

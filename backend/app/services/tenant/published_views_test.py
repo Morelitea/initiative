@@ -25,16 +25,18 @@ pytestmark = pytest.mark.integration
 COUNT_TASKS = "SELECT count(*) AS n FROM tasks"
 
 
-def dashboard_body(sql: str = COUNT_TASKS) -> dict:
+def dashboard_body(*statements: str) -> dict:
+    """A canvas of one stat per statement, w1, w2, … in order."""
     return {
         "version": 1,
         "widgets": [
             {
-                "id": "w1",
+                "id": f"w{index + 1}",
                 "type": "stat",
-                "grid": {"x": 0, "y": 0, "w": 4, "h": 2},
+                "grid": {"x": 0, "y": index * 2, "w": 4, "h": 2},
                 "binding": {"source": "query", "sql": sql},
             }
+            for index, sql in enumerate(statements or (COUNT_TASKS,))
         ],
     }
 
@@ -439,6 +441,58 @@ class TestTheReaderCannotBeSmuggledIn:
         assert after.json()["published_active"] is False
         # Still listed: its author manages it whether or not it is serving.
         assert after.json()["published_over"] != []
+
+    async def test_one_reader_question_stops_the_whole_canvas_publishing(
+        self, client, session, acting_user
+    ):
+        """The notice is about the dashboard, so publishing has to be too.
+
+        Leaving ordinary widgets publishing while one names the reader would
+        take the notice away — a reader would keep seeing rows beyond their own
+        access with nothing on the page saying so.
+        """
+        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await dashboards_on(session, author.initiative)
+        reader = await acting_user(
+            guild_role=GuildRole.member,
+            guild=author.guild,
+            initiative=author.initiative,
+            initiative_role="member",
+        )
+        project = await create_project(session, author.initiative, author.user)
+        await create_task(session, project, assignees=[author.user])
+
+        dashboard_id = await make_dashboard(client, author)
+        await client.put(
+            author.g(f"/dashboards/{dashboard_id}/published"),
+            json={
+                "resources": [{"resource_type": "project", "resource_id": project.id}]
+            },
+            headers=author.headers,
+        )
+        assert await widget_rows(client, reader, dashboard_id) == [[1]]
+
+        # A second widget arrives naming the reader, by a route that skips the
+        # checks — the canvas now holds one of each.
+        from app.db.session import set_rls_context
+        from app.models.tenant.dashboard import Dashboard
+
+        await set_rls_context(session, guild_id=author.guild.id, guild_role="admin")
+        row = await session.get(Dashboard, dashboard_id)
+        assert row is not None
+        row.definition = dashboard_body(
+            COUNT_TASKS, "SELECT count(*) AS n FROM tasks WHERE created_by = me"
+        )
+        session.add(row)
+        await session.commit()
+
+        # The ordinary widget stops publishing too, so nothing is shown beyond
+        # this reader's own access without the notice that says so.
+        assert await widget_rows(client, reader, dashboard_id) == [[0]]
+        detail = await client.get(
+            reader.g(f"/dashboards/{dashboard_id}"), headers=reader.headers
+        )
+        assert detail.json()["published_active"] is False
 
 
 class TestItFailsClosedOnTheAuthor:
