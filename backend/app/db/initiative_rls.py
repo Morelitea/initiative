@@ -62,14 +62,9 @@ class DacPath:
     membership one, or None where no tool governs the table. Both gates come
     from the same declaration and the same join, so a child table asks its
     parent about its role and its sharing once rather than twice.
-
-    ``self_governed`` marks a table that IS the governed resource. Its INSERT
-    asks gate 3 for the tool's *create* right and asks gate 4 nothing at all,
-    because a resource has no sharing until it exists (see ``app.db.guild_ddl``).
     """
 
     predicate: DacBuilder
-    self_governed: bool = False
 
 
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
@@ -158,7 +153,7 @@ def _dac_self(tool: Tool | None = None) -> DacPath:
             creating=command == "INSERT" and tool is None,
         )
 
-    return DacPath(predicate=build, self_governed=True)
+    return DacPath(predicate=build)
 
 
 def _dac_via(

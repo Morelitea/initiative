@@ -27,17 +27,14 @@ from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
-from app.models.tenant.project import ProjectPermissionLevel as PL
 from app.models.tenant.queue import Queue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
-    PROJECT_LEVEL_ORDER,
     audience_user_ids,
     compute_permission,
     dac_scope_clause,
     effective_level,
-    effective_permission_level,
     has_project_write_access,
     require_access,
 )
@@ -176,31 +173,6 @@ async def _remove_from_initiative(session, initiative, user) -> None:
         )
     )
     await session.commit()
-
-
-# ── effective_permission_level (pure helper) ─────────────────────────────────
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("user_level", "role_level", "expected"),
-    [
-        (None, None, None),
-        (PL.read, None, PL.read),
-        (None, PL.write, PL.write),
-        (PL.read, PL.owner, PL.owner),
-        (PL.owner, PL.read, PL.owner),
-    ],
-)
-def test_effective_permission_level_takes_the_higher_of_the_two(
-    user_level, role_level, expected
-):
-    """The user's own grant and their role's grant combine by taking the higher,
-    in either order."""
-    assert (
-        effective_permission_level(user_level, role_level, PROJECT_LEVEL_ORDER)
-        == expected
-    )
 
 
 # ── Every tool resolves sharing through the same engine ──────────────────────

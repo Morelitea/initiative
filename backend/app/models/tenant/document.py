@@ -225,12 +225,6 @@ class ProjectDocument(SQLModel, table=True):
     document: Optional[Document] = Relationship(back_populates="project_links")
 
 
-class DocumentPermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"
-
-
 class DocumentLink(CreatedByMixin, table=True):
     """Tracks wikilinks between documents for backlinks queries."""
 

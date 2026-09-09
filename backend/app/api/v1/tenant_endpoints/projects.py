@@ -54,6 +54,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import search as search_service
 from app.services import rls as rls_service
@@ -192,6 +193,7 @@ async def _get_project_or_404(
     session: SessionDep,
     guild_id: int | None = None,
     *,
+    user_id: int,
     populate_existing: bool = False,
 ) -> Project:
     statement = (
@@ -232,6 +234,15 @@ async def _get_project_or_404(
     result = await session.exec(statement)
     project = result.one_or_none()
     if not project:
+        if guild_id is not None:
+            raise await reachability.missing_or_denied(
+                "projects",
+                project_id,
+                user_id,
+                guild_id,
+                not_found=ProjectMessages.NOT_FOUND,
+                denied=ProjectMessages.NO_ACCESS,
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
         )
@@ -1230,7 +1241,10 @@ async def create_project(
     template_project: Project | None = None
     if project_in.template_id is not None:
         template_project = await _get_project_or_404(
-            project_in.template_id, session, guild_context.guild_id
+            project_in.template_id,
+            session,
+            guild_context.guild_id,
+            user_id=current_user.id,
         )
         if not template_project.is_template:
             raise HTTPException(
@@ -1360,7 +1374,9 @@ async def create_project(
 
     await session.commit()
 
-    project = await _get_project_or_404(project.id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project.id, session, guild_context.guild_id, user_id=current_user.id
+    )
     if project.initiative_id and project.initiative:
         # Notify every member the project is shared with, derived from the grants:
         # all members, members of a granted role, or a directly granted user.
@@ -1404,7 +1420,9 @@ async def archive_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1416,7 +1434,9 @@ async def archive_project(
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
-    updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    updated = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _attach_task_summaries(session, [updated])
     await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
@@ -1439,7 +1459,7 @@ async def duplicate_project(
     guild_context: GuildContextDep,
 ) -> ProjectRead:
     source_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id
+        project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _require_project_membership(
         source_project,
@@ -1541,7 +1561,7 @@ async def duplicate_project(
     await session.commit()
 
     new_project = await _get_project_or_404(
-        new_project.id, session, guild_context.guild_id
+        new_project.id, session, guild_context.guild_id, user_id=current_user.id
     )
     if new_project.initiative_id and new_project.initiative:
         notify_ids = [
@@ -1575,7 +1595,9 @@ async def unarchive_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1587,7 +1609,9 @@ async def unarchive_project(
         project.archived_at = None
         session.add(project)
         await session.commit()
-    updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    updated = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _attach_task_summaries(session, [updated])
     await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
@@ -1661,7 +1685,9 @@ async def record_project_view(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> RecentViewWrite:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1690,7 +1716,9 @@ async def clear_project_view(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1712,7 +1740,9 @@ async def favorite_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1732,7 +1762,9 @@ async def unfavorite_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1754,7 +1786,9 @@ async def project_activity_feed(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=20),
 ) -> ProjectActivityResponse:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1800,7 +1834,9 @@ async def read_project(
     guild_context: GuildContextDep,
     include_deleted: IncludeDeletedDep = False,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1841,7 +1877,9 @@ async def search_project_members(
     rehydrating stored ids into names/avatars) rather than searching; it
     narrows the same assignable set, so an id outside it returns nothing.
     """
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(project, current_user, session, access="read")
 
     # Candidate pool = the initiative's members. User-level grants are validated
@@ -1918,7 +1956,9 @@ async def update_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -1958,7 +1998,9 @@ async def update_project(
 
     session.add(project)
     await session.commit()
-    project = await _get_project_or_404(project.id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project.id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _attach_task_summaries(session, [project])
     await _broadcast_project(project, "updated")
     return await _project_read_for_user(
@@ -1976,7 +2018,9 @@ async def attach_project_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -2006,7 +2050,7 @@ async def attach_project_document(
         user_id=current_user.id,
     )
     updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id
+        project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated_project])
     await _broadcast_project(updated_project, "updated")
@@ -2025,7 +2069,9 @@ async def detach_project_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -2054,7 +2100,7 @@ async def detach_project_document(
         project_id=project.id,
     )
     updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id
+        project_id, session, guild_context.guild_id, user_id=current_user.id
     )
     await _attach_task_summaries(session, [updated_project])
     await _broadcast_project(updated_project, "updated")
@@ -2147,7 +2193,9 @@ async def delete_project(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     await _require_project_membership(
         project,
         current_user,
@@ -2189,7 +2237,9 @@ async def set_project_grants(
     await resource_access.set_resource_grants(
         session, Tool.project, project_id, current_user, guild_context, grants
     )
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_context.guild_id, user_id=current_user.id
+    )
     return await _project_read_for_user(session, current_user, project)
 
 
@@ -2209,7 +2259,9 @@ async def count_project_export_rows(
     standalone backups; the initiative/guild aggregate export passes
     ``access="read"``, its deliberate relaxation), then return the task count
     as the size proxy for inline-vs-job selection."""
-    project = await _get_project_or_404(project_id, session, guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_id, user_id=current_user.id
+    )
     await _require_project_membership(project, current_user, session, access=access)
     return (
         await session.exec(
@@ -2232,7 +2284,9 @@ async def build_project_export_for_user(
     keys (name / handle) so the file imports cleanly on another instance.
     The initiative/guild aggregate export passes ``access="read"`` — its
     deliberate relaxation; standalone exports keep write."""
-    project = await _get_project_or_404(project_id, session, guild_id)
+    project = await _get_project_or_404(
+        project_id, session, guild_id, user_id=current_user.id
+    )
     await _require_project_membership(project, current_user, session, access=access)
     return await project_export_service.build_project_export(
         session,
