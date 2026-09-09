@@ -67,7 +67,9 @@ from app.models.platform.app_service_registration import (
 )
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.fields.spec import FieldType
 from app.services.marketplace.context_jwt import mint_context_token
+from app.services.query.rows import RowColumn
 from app.services.marketplace.service_apps import clears_visibility
 from app.services.safe_http import build_validated_request
 from app.services.tenant import app_config as app_config_service
@@ -195,6 +197,36 @@ def find_read_endpoint(
 
 
 # --- reading an answer through what was declared ----------------------------
+
+
+#: What an endpoint's declared return types are, in the vocabulary the query
+#: surface already speaks. Two closed sets, mapped once: a URL is text to
+#: anybody reading it, and a moment is a moment however the app spells it.
+_RETURN_FIELD_TYPES: dict[str, FieldType] = {
+    "bool": FieldType.boolean,
+    "datetime": FieldType.date,
+    "int": FieldType.number,
+    "string": FieldType.text,
+    "url": FieldType.text,
+}
+
+
+def row_columns(endpoint: Mapping[str, Any]) -> tuple[RowColumn, ...]:
+    """The columns the rows of this endpoint hold, as it declared them.
+
+    The returns marked ``list`` are the ones that become rows (see
+    :func:`_read_answer`), so they are the whole of what a statement over those
+    rows may name. Declared rather than discovered, which is what lets a
+    statement be checked before the endpoint has ever run.
+    """
+    return tuple(
+        RowColumn(
+            name=entry["key"],
+            type=_RETURN_FIELD_TYPES.get(entry.get("type"), FieldType.text),
+        )
+        for entry in _declared_returns(endpoint)
+        if entry.get("list") is True
+    )
 
 
 def _declared_returns(endpoint: Mapping[str, Any]) -> list[dict[str, Any]]:
