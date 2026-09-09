@@ -107,9 +107,25 @@ describe("isSessionRejected", () => {
     expect(isSessionRejected({ response: { status: 503 } })).toBe(false);
   });
 
+  it("is true when the account itself is over", () => {
+    // Both come back from the current-user dependency as codes, not prose.
+    expect(
+      isSessionRejected({ response: { status: 400, data: { detail: "INACTIVE_USER" } } })
+    ).toBe(true);
+    expect(
+      isSessionRejected({ response: { status: 404, data: { detail: "USER_NOT_FOUND" } } })
+    ).toBe(true);
+  });
+
   it("is false for a refusal that is about the request, not the session", () => {
     expect(isSessionRejected({ response: { status: 403 } })).toBe(false);
+    // A bare 400 or 404 is too broad to read as the account being over — the
+    // code is what says so.
     expect(isSessionRejected({ response: { status: 404 } })).toBe(false);
+    expect(isSessionRejected({ response: { status: 400 } })).toBe(false);
+    expect(
+      isSessionRejected({ response: { status: 400, data: { detail: "SOMETHING_ELSE" } } })
+    ).toBe(false);
   });
 
   it("is false when nothing answered at all", () => {

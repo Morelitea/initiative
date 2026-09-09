@@ -65,8 +65,16 @@ vi.mock("@/lib/offlineSession", () => ({
   readOfflineSession: () => snapshot,
   isNoAnswerError: (error: unknown) =>
     typeof error === "object" && error !== null && !("response" in error),
-  isSessionRejected: (error: unknown) =>
-    (error as { response?: { status?: number } })?.response?.status === 401,
+  isSessionRejected: (error: unknown) => {
+    const response = (error as { response?: { status?: number; data?: { detail?: string } } })
+      ?.response;
+    if (!response) return false;
+    if (response.status === 401) return true;
+    return (
+      (response.status === 400 || response.status === 404) &&
+      ["INACTIVE_USER", "USER_NOT_FOUND"].includes(response.data?.detail ?? "")
+    );
+  },
 }));
 
 import { AuthProvider, useAuth } from "./useAuth";
@@ -185,6 +193,20 @@ describe("bootstrapping when the server does answer", () => {
     expect(auth.user).toBeNull();
     // A bad gateway is the server having a bad time, not the end of a session.
     expect(clearWhiteboards).not.toHaveBeenCalled();
+  });
+
+  it("clears whiteboards when the account has been deactivated", async () => {
+    offlineEnabled = false;
+    get.mockRejectedValue({
+      request: {},
+      response: { status: 400, data: { detail: "INACTIVE_USER" } },
+    });
+
+    renderAuth();
+
+    await waitFor(() => expect(auth.loading).toBe(false));
+    // The account is switched off, so the session is over as surely as a 401.
+    expect(clearWhiteboards).toHaveBeenCalled();
   });
 
   it("clears whiteboards on the web when the server does refuse the session", async () => {

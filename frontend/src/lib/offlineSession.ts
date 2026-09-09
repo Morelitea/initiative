@@ -108,18 +108,31 @@ export const readOfflineSession = (serverUrl: string): UserRead | null => {
  * axios reports for a dropped connection, a DNS failure or a timeout.
  */
 /**
+ * Account states that end a session for good: the account has been switched off,
+ * or it is no longer there. Both come back from the current-user dependency
+ * (`INACTIVE_USER`, `USER_NOT_FOUND`) as codes rather than prose, which is what
+ * makes them safe to key on.
+ */
+const TERMINAL_ACCOUNT_CODES = new Set(["INACTIVE_USER", "USER_NOT_FOUND"]);
+
+/**
  * True when the server refused the session itself.
  *
  * The companion question to {@link isNoAnswerError}, and a narrower one than
  * "did the server answer". A 500 or a 502 is an answer, but it says the server
- * is having trouble — not that this session is over. Only a 401 is the server
- * declining the credentials it was given, so only a 401 ends the session's
- * hold on anything kept for it.
+ * is having trouble, not that this session is over; a 403 refuses one thing,
+ * not the session. What counts is the server declining the credentials it was
+ * given (401), or saying the account behind them is deactivated or gone — and
+ * for those two the status alone is too broad, so the error code decides.
  */
 export const isSessionRejected = (error: unknown): boolean => {
   if (typeof error !== "object" || error === null) return false;
-  const status = (error as { response?: { status?: unknown } }).response?.status;
-  return status === 401;
+  const response = (error as { response?: { status?: unknown; data?: unknown } }).response;
+  if (!response) return false;
+  if (response.status === 401) return true;
+  if (response.status !== 400 && response.status !== 404) return false;
+  const detail = (response.data as { detail?: unknown } | undefined)?.detail;
+  return typeof detail === "string" && TERMINAL_ACCOUNT_CODES.has(detail);
 };
 
 export const isNoAnswerError = (error: unknown): boolean => {
