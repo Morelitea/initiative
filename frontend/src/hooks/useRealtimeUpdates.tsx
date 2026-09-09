@@ -32,6 +32,16 @@ import { useAuth } from "./useAuth";
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
 
+// The server says something every 30s even with no news (its
+// HEARTBEAT_SECONDS), so silence past a couple of those is the socket having
+// stopped carrying rather than the guild being quiet. A dropped connection
+// does not always close: a suspended laptop, a network that goes away
+// mid-flight and a NAT timeout all leave one reporting itself open and
+// delivering nothing.
+const SERVER_SILENCE_LIMIT_MS = 90_000;
+// How often that is checked. Cheap: a comparison against a timestamp.
+const SILENCE_CHECK_INTERVAL_MS = 15_000;
+
 const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
     return null;
@@ -53,9 +63,19 @@ const buildWebsocketUrl = (guildId: number) => {
  * only streams that guild's events), so the payload carries the token only.
  * The hook reconnects on guild switch, so the subscription always tracks the
  * guild this tab is looking at.
+ *
+ * A reconnect also says how long this tab was without a socket, which is what
+ * the server needs to answer whether anything happened in that time. A first
+ * connect says nothing: the route that just mounted fetched its own data.
  */
-const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
-  const payload = JSON.stringify({ token });
+const sendAuthMessage = (
+  websocket: WebSocket,
+  token: string | null,
+  awaySeconds: number | null
+) => {
+  const payload = JSON.stringify(
+    awaySeconds === null ? { token } : { token, away_seconds: awaySeconds }
+  );
   const payloadBytes = new TextEncoder().encode(payload);
   const message = new Uint8Array(1 + payloadBytes.length);
   message[0] = MSG_AUTH;
@@ -243,6 +263,12 @@ export const useRealtimeUpdates = () => {
     // socket rather than invalidating for a guild this tab has left.
     let pending: RealtimeChange[] = [];
     let frameTimer: number | null = null;
+    // The last moment this tab had a socket that was carrying. Any frame is
+    // proof of that, so a beat counts; nothing else does.
+    let lastFrameAt = Date.now();
+    // Set when a socket closes, so the next one can say how long the tab went
+    // without one. Null until then — a first connect asks for nothing.
+    let carriedUntil: number | null = null;
 
     const enqueue = (changes: RealtimeChange[]) => {
       pending.push(...changes);
@@ -283,12 +309,20 @@ export const useRealtimeUpdates = () => {
       websocket.onopen = () => {
         // Send auth message immediately after connection (token not in URL for
         // security). The guild id scopes the stream to the active guild.
-        sendAuthMessage(websocket, token);
+        sendAuthMessage(
+          websocket,
+          token,
+          carriedUntil === null ? null : (Date.now() - carriedUntil) / 1000
+        );
         // Reset failure count on successful connection
         authFailureCountRef.current = 0;
+        lastFrameAt = Date.now();
       };
 
       websocket.onmessage = (event) => {
+        // Any frame is proof the socket carries, whatever it says. A beat says
+        // only that, and needs nothing below.
+        lastFrameAt = Date.now();
         try {
           // A content-free invalidation bus: every frame is one transaction's
           // worth of {resource, parents, action}, never a serialized model. We
@@ -305,7 +339,10 @@ export const useRealtimeUpdates = () => {
             void invalidateGuildContent();
             return;
           }
-          enqueue(payload.changes ?? []);
+          const changes = payload.changes ?? [];
+          if (changes.length) {
+            enqueue(changes);
+          }
         } catch {
           // ignore malformed messages
         }
@@ -319,6 +356,9 @@ export const useRealtimeUpdates = () => {
         if (websocketRef.current === websocket) {
           websocketRef.current = null;
         }
+        // Dated from the last frame rather than from now: a socket that went
+        // quiet stopped carrying when it went quiet, not when we noticed.
+        carriedUntil = lastFrameAt;
         // WS_1008_POLICY_VIOLATION (1008) indicates auth failure (403)
         if (event.code === 1008) {
           authFailureCountRef.current += 1;
@@ -338,8 +378,22 @@ export const useRealtimeUpdates = () => {
 
     connect();
 
+    // A socket that has gone quiet past the server's beat is closed rather than
+    // trusted. Closing is what starts the reconnect, which is what asks the
+    // server whether anything moved in the meantime.
+    const silenceCheck = window.setInterval(() => {
+      const socket = websocketRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (Date.now() - lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
+        socket.close();
+      }
+    }, SILENCE_CHECK_INTERVAL_MS);
+
     return () => {
       isActive = false;
+      window.clearInterval(silenceCheck);
       if (frameTimer !== null) {
         window.clearTimeout(frameTimer);
         frameTimer = null;
