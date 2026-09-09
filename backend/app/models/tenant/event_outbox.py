@@ -6,6 +6,11 @@ carries **identifiers and changed column names only** — never a value. A
 consumer learns *that* something changed and reads the current state back
 through the REST API, where the six gates apply to the read.
 
+Alongside the resource it names, a row carries the addressable resources
+between that resource and its initiative (``parents``), because a change is
+rarely interesting only where it happened: a comment moves a thread and the
+count on the card its parent shows.
+
 ``initiative_id`` is NOT NULL and resolved by the trigger from the same
 ``INITIATIVE_PATHS`` declaration that renders the table's RLS policies, so an
 event is scoped exactly like the row it describes. The outbox itself carries
@@ -20,7 +25,7 @@ therefore serve any number of subscribers, and retention is a plain age sweep.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -28,8 +33,9 @@ from sqlalchemy import (
     DateTime,
     Integer,
     String,
+    text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field, SQLModel
 
 #: The three actions the trigger emits. A soft delete is reported as ``deleted``
@@ -97,4 +103,18 @@ class EventOutbox(SQLModel, table=True):
     changed: list[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(String(length=63)), nullable=False, server_default="{}"),
+    )
+
+    # The addressable resources between this one and its initiative, innermost
+    # first: ``[{"type": "tasks", "id": 4}, {"type": "projects", "id": 7}]`` for
+    # a comment on a task. Identifiers like the rest of the row — a consumer
+    # that wants a parent reads it back through the route that serves it.
+    #
+    # Empty for a resource that hangs off nothing but its initiative, which is
+    # every tool's own table. The chain comes from the same INITIATIVE_PATHS
+    # walk that stamps ``initiative_id``, stopping at each resource that has a
+    # route of its own.
+    parents: list[dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     )

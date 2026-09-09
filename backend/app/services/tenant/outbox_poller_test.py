@@ -90,9 +90,25 @@ def test_one_transaction_is_one_envelope():
             "event_type",
             "initiative_id",
             "resource",
+            "parents",
             "action",
             "changed",
         }
+
+
+def test_the_envelope_carries_the_parent_chain():
+    """A subscriber hears which surfaces a change touches, as identifiers.
+
+    Each parent is addressed exactly like the resource itself, so acting on
+    one is the same read through the same gates.
+    """
+    subscription = _subscription()
+    chain = [{"type": "projects", "id": 7}]
+    envelope = outbox_poller._envelope(subscription, 500, [_row(1, 500, parents=chain)])
+
+    (change,) = envelope["changes"]
+    assert change["parents"] == chain
+    assert all(set(parent) == {"type", "id"} for parent in change["parents"])
 
 
 async def test_every_subscription_in_a_guild_is_drained(

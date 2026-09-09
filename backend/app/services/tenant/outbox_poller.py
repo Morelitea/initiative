@@ -141,6 +141,10 @@ def _envelope(
                 "event_type": _event_type(row),
                 "initiative_id": row.initiative_id,
                 "resource": {"type": row.resource_type, "id": row.resource_id},
+                # The addressable resources between that one and the
+                # initiative, innermost first. Identifiers only, read back
+                # through the routes that serve them.
+                "parents": list(row.parents),
                 "action": row.action,
                 "changed": list(row.changed),
             }

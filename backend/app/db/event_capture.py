@@ -15,6 +15,17 @@ What lands in ``event_outbox`` is identifiers, an action, and the **names** of
 the columns that changed. Never a value: a consumer reads current state back
 through the REST API, where the six gates apply to the read.
 
+Every event names its parents
+-----------------------------
+A row is rarely interesting on its own: a comment moves a thread AND the count
+on the card its parent shows, a task moves its project's board. So an event
+also carries the ADDRESSABLE resources between it and its initiative,
+innermost first — the chain the registry already walks to stamp
+``initiative_id``, stopping at each thing that has a route of its own.
+
+Identifiers, like the rest of the row. A consumer that wants the parent reads
+it back through the route that already serves it.
+
 Sub-resources report their parent
 ---------------------------------
 Over half these tables are junctions with a composite primary key
@@ -46,6 +57,8 @@ from sqlmodel import SQLModel
 
 from app.db.initiative_rls import (
     EVENTED_TABLES,
+    INITIATIVE_PATHS,
+    NO_PARENTS,
     event_source,
     initiative_locator,
 )
@@ -53,6 +66,11 @@ from app.db.initiative_rls import (
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE, so
 #: every registry expression is rendered against this rather than NEW/OLD.
 ROW = "($1)"
+
+#: Alias for the parent row a reports-as table borrows its chain from. Long on
+#: purpose: the borrowed chain brings the registry's own short aliases with it,
+#: and an inner one shadowing this would silently join the wrong row.
+_PARENT_ALIAS = "outbox_parent"
 
 #: The function name every per-table trigger calls. Created once in ``public``
 #: (not per guild schema): the body names content tables unqualified, so it
@@ -101,6 +119,21 @@ class CaptureSpec:
         (resource_type,) = self.resource_types
         return resource_type
 
+    @property
+    def parents_expr(self) -> str:
+        """Row expression yielding this event's parent chain, or "" for none.
+
+        Empty for the tool tables and everything reporting against one, so
+        those pay nothing for the column.
+        """
+        return _parents_expr(
+            table=self.table,
+            facet=self.facet,
+            resource_types=self.resource_types,
+            resource_id_expr=self.resource_id_expr,
+            resource_type_expr=self.resource_type_expr,
+        )
+
 
 def _singular(table: str) -> str:
     """Junction owners are all regular plurals in this schema."""
@@ -112,6 +145,55 @@ def _owner_of(column: Column[Any]) -> str | None:
     for fk in column.foreign_keys:
         return fk.column.table.name
     return None
+
+
+def _parents_expr(
+    *,
+    table: str,
+    facet: str | None,
+    resource_types: frozenset[str],
+    resource_id_expr: str,
+    resource_type_expr: str | None,
+) -> str:
+    """The chain an event from ``table`` carries, or "" for none.
+
+    The chain belongs to the resource the event NAMES, not to the table the
+    trigger sits on: a tag landing on a task is reported as the task, and what
+    a subscriber wants with it is the task's project. So a table reporting
+    against a parent borrows that parent's own declaration, one indexed lookup
+    by primary key — and skips even that where the parent has no chain, which
+    is every tool table.
+    """
+    if facet is None:
+        path = INITIATIVE_PATHS.get(table)
+        own = path.parents(ROW) if path is not None else NO_PARENTS
+        return "" if own == NO_PARENTS else own
+
+    chains = {
+        parent: (
+            INITIATIVE_PATHS[parent].parents(_PARENT_ALIAS)
+            if parent in INITIATIVE_PATHS
+            else NO_PARENTS
+        )
+        for parent in sorted(resource_types)
+    }
+    if all(chain == NO_PARENTS for chain in chains.values()):
+        return ""
+
+    def lookup(parent: str) -> str:
+        if chains[parent] == NO_PARENTS:
+            return NO_PARENTS
+        return (
+            f"(SELECT {chains[parent]} FROM {parent} {_PARENT_ALIAS} "  # noqa: S608
+            f"WHERE {_PARENT_ALIAS}.id = {resource_id_expr})"
+        )
+
+    if resource_type_expr is None:
+        (parent,) = resource_types
+        return f"COALESCE({lookup(parent)}, {NO_PARENTS})"
+
+    arms = " ".join(f"WHEN '{parent}' THEN {lookup(parent)}" for parent in chains)
+    return f"COALESCE((CASE {resource_type_expr} {arms} END), {NO_PARENTS})"
 
 
 def build_specs() -> list[CaptureSpec]:
@@ -196,6 +278,7 @@ def build_specs() -> list[CaptureSpec]:
 #:   4 — array literal of column names excluded from ``changed``
 #:   5 — 'guild' when this table has no initiative and a NULL is expected
 #:   6 — expression resolving the resource TYPE, or '' when arg 1 is the answer
+#:   7 — expression resolving the resource's parent chain, or '' when it has none
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -210,6 +293,7 @@ DECLARE
     v_new        jsonb;
     v_old        jsonb;
     v_facet      text := TG_ARGV[3];
+    v_parents    jsonb := '[]'::jsonb;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
@@ -301,6 +385,14 @@ BEGIN
         END IF;
     END IF;
 
+    -- The addressable resources between this row and its initiative. Resolved
+    -- last, so a row that turned out not to be worth reporting never paid for
+    -- the lookup, and skipped entirely where the resource has no parents.
+    IF TG_ARGV[7] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[7] INTO v_parents USING v_row;
+        v_parents := COALESCE(v_parents, '[]'::jsonb);
+    END IF;
+
     v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
 
     -- Write to the outbox of the schema the CHANGED ROW lives in, named from
@@ -310,10 +402,10 @@ BEGIN
     EXECUTE format(
         'INSERT INTO %I.event_outbox ('
         '  txn_id, occurred_at, actor_user_id, initiative_id,'
-        '  resource_type, resource_id, action, changed'
-        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6)',
+        '  resource_type, resource_id, action, changed, parents'
+        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6, $7)',
         TG_TABLE_SCHEMA
-    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed;
+    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed, v_parents;
 
     RETURN NULL;
 END
@@ -357,7 +449,8 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"    '{spec.facet or ''}',",
             f"    {_housekeeping_literal(spec.table)},",
             f"    '{'guild' if source.guild_wide else ''}',",
-            f"    {_quoted(type_expr or '')}",
+            f"    {_quoted(type_expr or '')},",
+            f"    {_quoted(spec.parents_expr)}",
             "  );",
         ]
     )
@@ -374,8 +467,9 @@ _HEADER = """\
 -- (which resource an event names), and EVENT_SOURCES (the deviations from
 -- those), so a new content table is captured without a second declaration.
 --
--- The outbox carries identifiers and changed column NAMES only. Values are read
--- back through the REST API, where the six gates apply to the read.
+-- The outbox carries identifiers, a parent chain and changed column NAMES only.
+-- Values are read back through the REST API, where the six gates apply to the
+-- read.
 -- ============================================================================"""
 
 
