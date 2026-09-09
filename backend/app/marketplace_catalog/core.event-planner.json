@@ -27,7 +27,8 @@
           "h": 5
         },
         "binding": {
-          "source": "calendar_entries"
+          "source": "query",
+          "sql": "SELECT title, start_at, end_at FROM calendar_events ORDER BY start_at"
         },
         "title": "The schedule",
         "options": {
@@ -44,7 +45,8 @@
           "h": 4
         },
         "binding": {
-          "source": "calendar_entries"
+          "source": "query",
+          "sql": "SELECT title, start_at, end_at, location FROM calendar_events ORDER BY start_at"
         },
         "title": "Every event"
       }

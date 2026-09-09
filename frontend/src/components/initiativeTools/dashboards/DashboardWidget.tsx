@@ -32,11 +32,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useBindingLabels } from "@/hooks/useBindingLabels";
+import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
+import { canDraw, resolveMapping } from "@/lib/widgets/shape";
+import { shapeFor } from "@/lib/widgets/shapes";
 
 export interface DashboardWidgetProps {
   widget: DefinitionWidget;
@@ -106,8 +109,19 @@ export function DashboardWidget({
   const data = sampleData
     ? isAppWidget
       ? { source: "app" as const, ...appSample }
-      : sampleFor(binding.source, widget.type)
+      : sampleFor(widget.type)
     : live.data;
+  // Which columns fill this widget's slots. Resolved here rather than in the
+  // sandbox: it needs the widget's declared shape and the author's overrides,
+  // and neither is the widget's to read.
+  const catalogQuery = useWidgetCatalog();
+  const shape = shapeFor(widget.type, catalogQuery.data);
+  const rows = data.source === "rows";
+  const slots = rows ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  // A query edited under a saved widget can stop returning the shape it draws.
+  // The table draws any shape, so it is what a tile falls back to — showing the
+  // rows that did come back beats showing an empty chart.
+  const drawable = !rows || canDraw(data.columns, shape, widget.mapping);
   const isLoading = sampleData ? false : live.isLoading;
   const errorCode = sampleData ? undefined : live.errorCode;
 
@@ -149,7 +163,7 @@ export function DashboardWidget({
             />
           )}
         </div>
-        {!unconfigured && !restricted && (
+        {!unconfigured && !restricted && drawable && (
           <Button
             size="icon"
             variant="ghost"
@@ -203,11 +217,12 @@ export function DashboardWidget({
             type={widget.type}
             data={data}
             config={widget.options}
+            slots={slots}
             source={moduleSource}
             errorCode={errorCode}
             isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
-            view={view}
+            view={drawable ? view : "table"}
             chromeless
           />
         )}

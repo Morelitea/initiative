@@ -29,7 +29,14 @@ def _manifest(**overrides):
         "version": "1.0.0",
         "definition": {
             "widgets": [
-                {"id": "w1", "type": "stat", "binding": {"source": "task_counts"}}
+                {
+                    "id": "w1",
+                    "type": "stat",
+                    "binding": {
+                        "source": "query",
+                        "sql": "SELECT count(*) AS n FROM tasks",
+                    },
+                }
             ]
         },
     }
@@ -140,7 +147,10 @@ class TestDefinitions:
                             {
                                 "id": "w1",
                                 "type": "iframe",
-                                "binding": {"source": "tasks"},
+                                "binding": {
+                                    "source": "query",
+                                    "sql": "SELECT count(*) AS n FROM tasks",
+                                },
                             }
                         ]
                     }
@@ -346,7 +356,10 @@ class TestVersions:
                             {
                                 "id": "w1",
                                 "type": "table",
-                                "binding": {"source": "tasks"},
+                                "binding": {
+                                    "source": "query",
+                                    "sql": "SELECT count(*) AS n FROM tasks",
+                                },
                             }
                         ]
                     }

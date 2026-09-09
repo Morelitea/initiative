@@ -56,42 +56,14 @@ const meta = {
     },
     group: {
       label: {
-        en: "Group rows by",
-        de: "Zeilen gruppieren nach",
-        es: "Agrupar filas por",
-        fr: "Grouper les lignes par",
+        en: "Grouping",
+        de: "Gruppierung",
+        es: "Agrupación",
+        fr: "Regroupement",
       },
       values: {
-        project: {
-          en: "Project",
-          de: "Projekt",
-          es: "Proyecto",
-          fr: "Projet",
-        },
-        status: {
-          en: "Status",
-          de: "Status",
-          es: "Estado",
-          fr: "Statut",
-        },
-        priority: {
-          en: "Priority",
-          de: "Priorität",
-          es: "Prioridad",
-          fr: "Priorité",
-        },
-        assignee: {
-          en: "Assignee",
-          de: "Zuständig",
-          es: "Responsable",
-          fr: "Responsable",
-        },
-        none: {
-          en: "Nothing — one row each",
-          de: "Nichts – eine Zeile pro Eintrag",
-          es: "Nada: una fila por elemento",
-          fr: "Rien — une ligne par élément",
-        },
+        on: { en: "Fold into groups", de: "In Gruppen falten", es: "Agrupar", fr: "Regrouper" },
+        none: { en: "Flat", de: "Flach", es: "Plano", fr: "À plat" },
       },
     },
     rollup: {
@@ -151,59 +123,27 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
-  noProjects: {
-    en: "No projects match",
-    de: "Keine Projekte passen",
-    es: "Ningún proyecto coincide",
-    fr: "Aucun projet ne correspond",
-  },
-  nothingScheduled: {
-    en: "Nothing scheduled",
-    de: "Nichts geplant",
-    es: "Nada programado",
-    fr: "Rien de planifié",
+  needDates: {
+    en: "Needs a date column to place work on",
+    de: "Benötigt eine Datumsspalte für die Einordnung",
+    es: "Necesita una columna de fecha donde situar el trabajo",
+    fr: "Nécessite une colonne de date où situer le travail",
   },
   nothingSchedYet: {
-    en: "Nothing is scheduled yet",
-    de: "Noch nichts geplant",
-    es: "Aún no hay nada programado",
-    fr: "Rien n'est encore planifié",
-  },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
-  },
-  allTasks: {
-    en: "All tasks",
-    de: "Alle Aufgaben",
-    es: "Todas las tareas",
-    fr: "Toutes les tâches",
-  },
-  allProjects: {
-    en: "All projects",
-    de: "Alle Projekte",
-    es: "Todos los proyectos",
-    fr: "Tous les projets",
+    en: "Nothing with a date",
+    de: "Nichts mit Datum",
+    es: "Nada con fecha",
+    fr: "Rien avec une date",
   },
   everything: { en: "Everything", de: "Alles", es: "Todo", fr: "Tout" },
-  noProject: { en: "No project", de: "Kein Projekt", es: "Sin proyecto", fr: "Sans projet" },
-  noStatus: { en: "No status", de: "Kein Status", es: "Sin estado", fr: "Sans statut" },
-  noPriority: {
-    en: "No priority",
-    de: "Keine Priorität",
-    es: "Sin prioridad",
-    fr: "Sans priorité",
-  },
-  unassigned: { en: "Unassigned", de: "Nicht zugewiesen", es: "Sin asignar", fr: "Non attribué" },
-  calendar: { en: "Calendar", de: "Kalender", es: "Calendario", fr: "Calendrier" },
+  noGroup: { en: "Ungrouped", de: "Ohne Gruppe", es: "Sin grupo", fr: "Sans groupe" },
+  untitled: { en: "Untitled", de: "Ohne Titel", es: "Sin título", fr: "Sans titre" },
 };
 
 /**
@@ -232,7 +172,7 @@ function render(data, config, context) {
   };
   const DAY = 86400000;
   const scale = config.scale || "week";
-  const grouping = config.group || "project";
+  const grouping = config.group || "on";
   const wantRollup = config.rollup !== "off";
   const startFolded = config.start === "folded";
 
@@ -305,68 +245,66 @@ function render(data, config, context) {
     return late ? "negative" : "accent";
   };
 
-  const isDone = (task) => task.statusCategory === "done";
-  const isOverdue = (task) => !isDone(task) && has(task.dueDate) && task.dueDate < today;
+  // Which columns fill this widget's slots, resolved by the host.
+  const slots = context?.slots || {};
+  const labelAt = (slots.label || [])[0];
+  const startAt = (slots.start || [])[0];
+  const endAt = (slots.end || [])[0];
+  const groupAt = (slots.group || [])[0];
 
-  /** One task as its own row. Returns null for a task with no dates at all —
-   *  it has nowhere to sit on an axis, and a zero-width bar at an arbitrary
-   *  point would be a lie rather than a gap. */
-  const taskLane = (task) => {
-    const done = isDone(task);
-    const tone = done ? "positive" : isOverdue(task) ? "negative" : "accent";
-    const who = task.assignees?.length ? task.assignees.join(", ") : undefined;
-
-    // A due date with no start is a dated instant, not a stretch of work.
-    if (!has(task.startDate)) {
-      if (!has(task.dueDate)) return null;
-      return {
-        label: task.title,
-        spans: [
-          {
-            kind: "milestone",
-            label: task.title,
-            start: task.dueDate,
-            end: task.dueDate,
-            tone: tone,
-            progress: done ? 1 : 0,
-            caption: who,
-          },
-        ],
-      };
-    }
-
-    const planned = has(task.dueDate)
-      ? Math.max(task.dueDate, task.startDate)
-      : task.startDate + DAY;
-    // A finished task draws what happened; what was planned stays as a ghost
-    // beneath it, so an overrun reads as the gap between the two.
-    const actual = done && has(task.completedAt) ? task.completedAt : planned;
-    const span = {
-      kind: "bar",
-      label: task.title,
-      start: task.startDate,
-      end: Math.max(actual, task.startDate + DAY),
-      tone: tone,
-      progress: done ? 1 : 0,
-      caption: who,
-    };
-    if (done && has(task.completedAt) && Math.abs(task.completedAt - planned) >= DAY) {
-      span.baseline = { start: task.startDate, end: Math.max(planned, task.startDate + DAY) };
-    }
-    return { label: task.title, spans: [span] };
+  const at = (row, index) => (index !== undefined ? row[index] : null);
+  const moment = (row, index) => {
+    const value = at(row, index);
+    return typeof value === "number" ? value : null;
+  };
+  const text = (row, index) => {
+    const value = at(row, index);
+    return value === null || value === undefined ? null : String(value);
   };
 
-  /** Which lane(s) a task belongs to. Assignee is the resource view: a task
-   *  with two owners appears on both rows, which is the whole point of looking
-   *  at a schedule that way. */
-  const groupKeys = (task) => {
-    if (grouping === "status") return [task.status || say("noStatus")];
-    if (grouping === "priority") return [task.priority || say("noPriority")];
-    if (grouping === "assignee") {
-      return task.assignees?.length ? task.assignees : [say("unassigned")];
+  /** Work whose end has passed reads as behind; there is no completion column
+   *  in the general case, so nothing claims one. */
+  const isPast = (row) => {
+    const end = moment(row, endAt);
+    return end !== null && end < today;
+  };
+
+  /** One row as its own lane. Returns null for a row with no start — it has
+   *  nowhere to sit on an axis, and a zero-width bar at an arbitrary point
+   *  would be a lie rather than a gap. */
+  const rowLane = (row) => {
+    const start = moment(row, startAt);
+    const end = moment(row, endAt);
+    const label = text(row, labelAt) || say("untitled");
+    const tone = isPast(row) ? "muted" : "accent";
+
+    // An end with no start is a dated instant, not a stretch of work.
+    if (start === null) {
+      if (end === null) return null;
+      return {
+        label: label,
+        spans: [{ kind: "milestone", label: label, start: end, end: end, tone: tone }],
+      };
     }
-    if (grouping === "project") return [task.projectName || say("noProject")];
-    return [];
+    return {
+      label: label,
+      spans: [
+        {
+          kind: "bar",
+          label: label,
+          start: start,
+          end: Math.max(end === null ? start + DAY : end, start + DAY),
+          tone: tone,
+        },
+      ],
+    };
+  };
+
+  /** Which lane a row belongs to — the column the author mapped to `group`, or
+   *  no grouping at all when they mapped none. */
+  const groupKeys = (row) => {
+    if (grouping === "none" || groupAt === undefined) return [];
+    return [text(row, groupAt) || say("noGroup")];
   };
 
   /** The lanes, plus the total row above them. `done`/`total` are the real
@@ -441,100 +379,10 @@ function render(data, config, context) {
     return lanes.concat(flat);
   };
 
-  switch (data.source) {
-    case "tasks": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noTasks"));
-      const lanes = grouped(rows, taskLane, groupKeys, isDone, isOverdue);
-      const done = rows.filter(isDone).length;
-      return timeline(withRollup(say("allTasks"), lanes, done, rows.length));
-    }
+  const rows = data.rows || [];
+  if (!rows.length) return empty(say("noRows"));
+  if (startAt === undefined && endAt === undefined) return empty(say("needDates"));
 
-    case "projects": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noProjects"));
-
-      // The tasks arrive on the same envelope the progress columns were counted
-      // from, so a project folds open onto its own work without a second
-      // binding. An older host that sends none simply yields groups with
-      // nothing under them.
-      const byProject = new Map();
-      for (const task of data.tasks || []) {
-        if (!has(task.projectId)) continue;
-        const list = byProject.get(task.projectId);
-        if (list) list.push(task);
-        else byProject.set(task.projectId, [task]);
-      }
-
-      const lanes = [];
-      for (const project of rows) {
-        const own = byProject.get(project.id) || [];
-        const children = grouping === "none" ? [] : own.map(taskLane).filter(Boolean).sort(byStart);
-        const extent = extentOf(children);
-        // The project's own dates are the plan. Where it has none, the work
-        // under it stands in for them rather than dropping the row.
-        const start = has(project.startDate) ? project.startDate : extent ? extent.start : null;
-        const end = has(project.endDate) ? project.endDate : extent ? extent.end : null;
-        if (!has(start)) continue;
-
-        const total = project.taskCount || own.length;
-        const done = project.doneCount || 0;
-        const late = own.some(isOverdue) || (has(end) && end < today && done < total);
-        const tone = groupTone(done, total, late);
-        lanes.push({
-          label: project.name,
-          caption: done + "/" + total,
-          tone: tone,
-          collapsed: startFolded,
-          children: children,
-          spans: [
-            {
-              kind: "summary",
-              label: project.name,
-              start: start,
-              end: Math.max(has(end) ? end : start, start + DAY),
-              tone: tone,
-              progress: total > 0 ? share(done, total) : project.progress || 0,
-            },
-          ],
-        });
-      }
-
-      // The total row counts *projects*, not their tasks: "two of five delivered"
-      // is what a portfolio row is for.
-      const complete = rows.filter(
-        (project) => project.taskCount > 0 && project.doneCount >= project.taskCount
-      ).length;
-      return timeline(withRollup(say("allProjects"), lanes, complete, rows.length));
-    }
-
-    case "calendar_entries": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("nothingScheduled"));
-      const past = (entry) => entry.end < today;
-      const entryLane = (entry) => {
-        const long = entry.allDay || entry.end - entry.start >= DAY;
-        return {
-          label: entry.title,
-          spans: [
-            {
-              kind: long ? "bar" : "milestone",
-              label: entry.title,
-              start: entry.start,
-              end: Math.max(entry.end, entry.start + (entry.allDay ? DAY : 0)),
-              tone: past(entry) ? "muted" : "accent",
-            },
-          ],
-        };
-      };
-      // Nothing about a calendar entry answers "which project" or "whose
-      // priority", so every grouping but "none" means the calendar it sits on.
-      const keysOf = (entry) => (grouping === "none" ? [] : [entry.calendarName || "Calendar"]);
-      const lanes = grouped(rows, entryLane, keysOf, past, () => false);
-      return timeline(withRollup(say("everything"), lanes, rows.filter(past).length, rows.length));
-    }
-
-    default:
-      return empty(say("cannotDraw") + data.source);
-  }
+  const lanes = grouped(rows, rowLane, groupKeys, isPast, () => false);
+  return timeline(withRollup(say("everything"), lanes, rows.filter(isPast).length, rows.length));
 }

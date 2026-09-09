@@ -367,7 +367,14 @@ class TestUpgrade:
             version="2.0.0",
             definition={
                 "widgets": [
-                    {"id": "w9", "type": "stat", "binding": {"source": "task_counts"}}
+                    {
+                        "id": "w9",
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
                 ]
             },
         )

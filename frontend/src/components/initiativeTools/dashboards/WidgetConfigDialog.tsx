@@ -25,7 +25,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type AppDataParam, type AppEndpointRead, appWidgetEntry } from "@/api/appData";
-import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
+import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
+import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,17 +46,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
-import { useCalendarsList } from "@/hooks/useCalendars";
-import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
-import { useProjects } from "@/hooks/useProjects";
-import { useProperties } from "@/hooks/useProperties";
+import { useQueryBuilder } from "@/hooks/useQueryBuilder";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
-import { readConditions } from "@/lib/widgets/conditions";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
 import {
@@ -67,7 +65,6 @@ import {
 } from "@/lib/widgets/sources";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-import { FilterBuilder } from "./FilterBuilder";
 import { WidgetTile } from "./WidgetTile";
 
 /** The only source an app widget binds. A namespaced type says which app and
@@ -107,7 +104,7 @@ export function WidgetConfigDialog({
     widget,
     (loaded) => ({
       title: loaded?.title ?? "",
-      binding: loaded?.binding ?? ({ source: "tasks" } as WidgetBinding),
+      binding: loaded?.binding ?? ({ source: "query" } as WidgetBinding),
       options: loaded?.options ?? ({} as Record<string, string>),
     }),
     [open, widget?.id],
@@ -151,7 +148,7 @@ export function WidgetConfigDialog({
   );
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  const sources = isApp ? APP_SOURCES : (entry?.sources ?? []);
+  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 
@@ -172,70 +169,25 @@ export function WidgetConfigDialog({
   const appEndpoint = appEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
   const appParams = (binding.params ?? {}) as Record<string, unknown>;
 
-  // Which lists this source's controls need. Each is enabled only while its own
-  // control is on screen, so opening the dialog for a counter widget does not
-  // fetch this initiative's documents.
-  // Read from the parameters this *widget* offers, not the source's whole list:
-  // a table bound to tasks is never shown the property picker, so it must not
-  // fetch the definitions behind it either.
-  const params = widget ? paramsFor(source, widget.type) : [];
+  // Which lists this source's controls need. Enabled only while the control is
+  // on screen, so opening the dialog for a statement fetches nothing.
+  const params = paramsFor(source);
   const needs = (kind: EntityKind) =>
     open && params.some((p) => p.kind === "entity" && p.entity === kind);
 
-  const counterGroups = useCounterGroupsList(
-    { initiative_id: initiativeId },
-    { enabled: needs("counter_group") }
-  );
   const documents = useDocumentsList(
     { document_type: "spreadsheet", initiative_id: initiativeId },
     { enabled: needs("document") }
   );
-  const projects = useProjects(undefined, { enabled: needs("project") });
-  const calendars = useCalendarsList(
-    { initiative_id: initiativeId },
-    { enabled: needs("calendar") }
-  );
-  const properties = useProperties({ initiativeId, enabled: needs("property") });
-  // The list endpoint returns group summaries; the counters themselves come
-  // from the group's own read, which is also the query the widget will use.
-  const selectedGroup = useCounterGroup(binding.counter_group_id ?? null, {
-    enabled: open && needs("counter") && Boolean(binding.counter_group_id),
-  });
 
   const entityOptions = useMemo(
     (): Record<EntityKind, { value: string; label: string }[]> => ({
-      project: (projects.data?.items ?? [])
-        .filter((project) => project.initiative_id === initiativeId)
-        .map((project) => ({ value: String(project.id), label: project.name })),
-      calendar: (calendars.data?.items ?? []).map((calendar) => ({
-        value: String(calendar.id),
-        label: calendar.name,
-      })),
-      counter_group: (counterGroups.data?.items ?? []).map((group) => ({
-        value: String(group.id),
-        label: group.name,
-      })),
-      counter: (selectedGroup.data?.counters ?? []).map((counter) => ({
-        value: String(counter.id),
-        label: counter.name,
-      })),
       document: (documents.data?.items ?? []).map((document) => ({
         value: String(document.id),
         label: document.name,
       })),
-      property: (properties.data ?? [])
-        .filter((property) => property.initiative_id === initiativeId)
-        .map((property) => ({ value: String(property.id), label: property.name })),
     }),
-    [
-      projects.data,
-      calendars.data,
-      counterGroups.data,
-      selectedGroup.data,
-      documents.data,
-      properties.data,
-      initiativeId,
-    ]
+    [documents.data]
   );
 
   // A binding for an app widget names its install. Filled in from the type
@@ -371,7 +323,9 @@ export function WidgetConfigDialog({
                 <SelectContent>
                   {sources.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {t(`dashboards:bindingSource.${option}` as const)}
+                      {t(`dashboards:bindingSource.${option}` as const, {
+                        defaultValue: option,
+                      })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -522,21 +476,17 @@ function ParamControl({
   switch (param.kind) {
     case "entity": {
       const entity = param as EntityParam;
-      // A dependent picker waits for its parent: no group chosen, no counters
-      // to choose from.
-      if (entity.within && !binding[entity.within]) return null;
       const value = binding[param.key];
       return (
         <section className="space-y-2">
           <Label>{t(`dashboards:bindingParam.${entity.entity}` as const)}</Label>
           <Select
             value={typeof value === "number" ? String(value) : entity.required ? "" : "all"}
-            onValueChange={(next) => {
-              const id = next === "all" ? null : Number(next);
-              // Repointing a parent invalidates the child that sat inside it.
-              const cleared = entity.entity === "counter_group" ? { counter_id: null } : undefined;
-              onChange({ [param.key]: id, ...cleared } as Partial<WidgetBinding>);
-            }}
+            onValueChange={(next) =>
+              onChange({
+                [param.key]: next === "all" ? null : Number(next),
+              } as Partial<WidgetBinding>)
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder={t("dashboards:config.choose")} />
@@ -558,63 +508,14 @@ function ParamControl({
       );
     }
 
-    case "enum":
+    case "sql":
       return (
-        <section className="space-y-2">
-          <Label>{t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}</Label>
-          <Select
-            value={(binding[param.key] as string) ?? param.fallback}
-            onValueChange={(next) => onChange({ [param.key]: next } as Partial<WidgetBinding>)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {param.values.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`dashboards:paramValue.${value}` as const, { defaultValue: value })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </section>
-      );
-
-    case "window":
-      return (
-        <section className="space-y-2">
-          <Label htmlFor={`param-${key}`}>
-            {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
-          </Label>
-          <Input
-            id={`param-${key}`}
-            type="number"
-            min={1}
-            value={(binding[param.key] as number) ?? param.fallback}
-            onChange={(event) =>
-              onChange({
-                [param.key]: Number(event.target.value) || param.fallback,
-              } as Partial<WidgetBinding>)
-            }
-          />
-          <p className="text-muted-foreground text-xs">
-            {t("dashboards:config.windowDays", {
-              count: (binding[param.key] as number) ?? param.fallback,
-            })}
-          </p>
-        </section>
-      );
-
-    case "filters":
-      return (
-        <section className="space-y-2">
-          <h3 className="font-medium text-sm">{t("dashboards:filterBuilder.heading")}</h3>
-          <FilterBuilder
-            value={readConditions(binding.conditions)}
-            initiativeId={initiativeId}
-            onChange={(next) => onChange({ conditions: next.length ? next : undefined })}
-          />
-        </section>
+        <QueryParam
+          binding={binding}
+          initiativeId={initiativeId}
+          onChange={onChange}
+          paramKey={param.key as keyof WidgetBinding}
+        />
       );
 
     default:
@@ -626,7 +527,7 @@ function ParamControl({
           <Input
             id={`param-${key}`}
             value={(binding[param.key] as string) ?? ""}
-            placeholder={param.placeholder}
+            placeholder={param.kind === "text" ? param.placeholder : undefined}
             onChange={(event) =>
               onChange({ [param.key]: event.target.value } as Partial<WidgetBinding>)
             }
@@ -921,5 +822,105 @@ function BindingPreview({
       </div>
       <p className="text-muted-foreground text-xs">{t("config.previewHint")}</p>
     </aside>
+  );
+}
+
+/**
+ * How a widget is pointed at data: by clicking, with the statement shown.
+ *
+ * The builder is the surface, not the fallback. Somebody who does not write SQL
+ * has to be able to build a dashboard, so what they choose is a description and
+ * the server writes the statement from it — which is also what guarantees the
+ * statement is one the surface will run.
+ *
+ * Not every statement has a description behind it. The ones a listing ships and
+ * the ones the cutover wrote were never clicked, so there is nothing for the
+ * builder to reopen on — and rebuilding one from a guess would replace somebody
+ * else's query with our own. Those are shown as they are, and stay that way
+ * until an author asks to build a new one. Opening a widget's configuration
+ * never rewrites it.
+ *
+ * The SQL is read-only either way. A statement typed by hand is the next thing
+ * to build (it needs the builder to go read-only behind it, with the text
+ * authoritative); until then, showing what the clicking produced is what makes
+ * the builder legible rather than magic.
+ */
+
+/** Where a widget starts when nothing has been chosen yet: how many rows there
+ *  are. It is the smallest query that draws something, so a new widget is
+ *  never empty while its author decides what they wanted. */
+const NEW_QUERY: QueryBuildRequest = {
+  dataset: "tasks",
+  columns: [{ field: "*", aggregate: "count", alias: "count" }],
+  where: [],
+  group_by: [],
+};
+
+function QueryParam({
+  binding,
+  initiativeId,
+  paramKey,
+  onChange,
+}: {
+  binding: WidgetBinding;
+  initiativeId: number;
+  paramKey: keyof WidgetBinding;
+  onChange: (patch: Partial<WidgetBinding>) => void;
+}) {
+  const { t } = useTranslation(["dashboards", "common"]);
+  const stored = binding[paramKey] as string | undefined;
+  // A statement with no description behind it stays as it is: `undefined` here
+  // means the builder is not driving this binding, and nothing below writes.
+  const [spec, setSpec] = useState<QueryBuildRequest | undefined>(() => {
+    const described = binding.spec as QueryBuildRequest | undefined;
+    if (described) return { ...described, initiative_id: initiativeId };
+    return stored ? undefined : { ...NEW_QUERY, initiative_id: initiativeId };
+  });
+  const built = useQueryBuilder(spec ?? null);
+
+  // The statement and the description are stored together: the description is
+  // what reopens the builder on what somebody built, rather than leaving them
+  // to read back their own SQL.
+  useEffect(() => {
+    if (!spec) return;
+    if (built.data?.sql && built.data.sql !== binding[paramKey]) {
+      onChange({ [paramKey]: built.data.sql, spec } as Partial<WidgetBinding>);
+    }
+  }, [built.data?.sql, binding, paramKey, onChange, spec]);
+
+  return (
+    <section className="space-y-3">
+      {spec ? (
+        <QueryBuilder spec={spec} onChange={setSpec} />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3">
+          <p className="text-muted-foreground text-xs">{t("dashboards:builder.notBuilt")}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSpec({ ...NEW_QUERY, initiative_id: initiativeId })}
+          >
+            {t("dashboards:builder.buildNew")}
+          </Button>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="built-sql">{t("dashboards:builder.statement")}</Label>
+        <Textarea
+          id="built-sql"
+          readOnly
+          rows={4}
+          spellCheck={false}
+          className="bg-muted font-mono text-xs"
+          value={(spec ? built.data?.sql : undefined) ?? stored ?? ""}
+        />
+        {built.isError ? (
+          <p className="text-destructive text-xs">{t("dashboards:builder.refused")}</p>
+        ) : (
+          <p className="text-muted-foreground text-xs">{t("dashboards:config.sqlHelp")}</p>
+        )}
+      </div>
+    </section>
   );
 }

@@ -27,7 +27,8 @@
           "h": 2
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT count(*) AS tasks FROM tasks WHERE completed_at IS NULL"
         },
         "title": "Open work"
       },
@@ -41,7 +42,8 @@
           "h": 4
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT s.category AS status, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id GROUP BY s.category"
         },
         "title": "Work by status",
         "options": {
@@ -58,7 +60,8 @@
           "h": 2
         },
         "binding": {
-          "source": "projects"
+          "source": "query",
+          "sql": "SELECT count(completed_at) AS finished, count(*) AS total FROM tasks"
         },
         "title": "Overall progress"
       },
@@ -72,7 +75,8 @@
           "h": 5
         },
         "binding": {
-          "source": "projects"
+          "source": "query",
+          "sql": "SELECT p.name AS project, count(*) AS tasks FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) DESC"
         },
         "title": "Projects"
       }

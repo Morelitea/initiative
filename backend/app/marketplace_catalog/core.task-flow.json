@@ -27,7 +27,8 @@
           "h": 5
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT s.category AS stage, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id GROUP BY s.category ORDER BY count(*) DESC"
         },
         "title": "Stages"
       },
@@ -41,7 +42,8 @@
           "h": 5
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT s.category AS status, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id GROUP BY s.category"
         },
         "title": "Work by status",
         "options": {
@@ -58,8 +60,8 @@
           "h": 3
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "day"
+          "source": "query",
+          "sql": "SELECT date_trunc('day', completed_at) AS day, count(*) AS completed FROM tasks WHERE completed_at IS NOT NULL GROUP BY date_trunc('day', completed_at) ORDER BY date_trunc('day', completed_at)"
         },
         "title": "Activity by day"
       }

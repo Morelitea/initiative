@@ -19,6 +19,7 @@
  * which are our endpoints — stay app-owned.
  */
 
+import type { TFunction } from "i18next";
 import { Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,19 +40,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMetas } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
-import type { WidgetSource } from "@/lib/widgets/dataShapes";
-import { MAX_WIDGETS, unboundSlots } from "@/lib/widgets/definition";
+import { MAX_WIDGETS } from "@/lib/widgets/definition";
 import { sampleFor } from "@/lib/widgets/sampleData";
+import { resolveMapping } from "@/lib/widgets/shape";
 import { localized, type WidgetMeta, widgetDisplayName } from "@/lib/widgets/widgetMeta";
 
 import { WidgetTile } from "./WidgetTile";
@@ -76,20 +69,21 @@ interface PickerItem {
 /**
  * Where a freshly added widget points.
  *
- * The first source that needs no ids, so a new widget draws something
- * immediately instead of landing on "choose what this shows". Sources that need
- * an id (a counter, a sheet) are still offered — they just aren't the default.
+ * Always a statement, because that is what a widget draws. The author writes it
+ * in the config dialog; until they do, the widget sits unconfigured rather than
+ * showing somebody else's idea of a default.
  */
-const defaultSource = (entry: WidgetCatalogEntry): WidgetSource =>
-  asSource(
-    entry.sources.find((source) => unboundSlots({ source } as WidgetBinding).length === 0) ??
-      entry.sources[0]
-  );
+const NEW_WIDGET_SOURCE = "query";
 
-/** The catalog's source names and the widget data shapes are the same set —
- *  `sampleData.test.ts` holds them equal against the generated enum — so a
- *  served source is read as one here rather than re-validated. */
-const asSource = (value: string): WidgetSource => value as WidgetSource;
+/** What a widget needs its columns to be, as a line under its name. Read off
+ *  the shape it declares, so it is the same answer the picker filters on. */
+const shapeSummary = (entry: WidgetCatalogEntry, t: TFunction<"dashboards">): string =>
+  entry.shape
+    .map((slot) => {
+      const name = t(`slot.${slot.name}` as const, { defaultValue: slot.name });
+      return slot.required ? name : `${name}?`;
+    })
+    .join(" · ");
 
 export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps) {
   const { t, i18n } = useTranslation("dashboards");
@@ -113,13 +107,13 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
           optionLabel(option, meta, language),
           ...option.values.map((value) => valueLabel(option.key, value, meta, language)),
         ]);
-        const sourceLabels = entry.sources.map((source) => t(`bindingSource.${source}` as const));
+        const shapeLabel = shapeSummary(entry, t);
         return {
           entry,
           meta,
           name,
           description,
-          haystack: [name, description, ...optionLabels, ...sourceLabels].join(" ").toLowerCase(),
+          haystack: [name, description, ...optionLabels, shapeLabel].join(" ").toLowerCase(),
         };
       }),
     [entries, metas, language, t]
@@ -237,18 +231,20 @@ function WidgetDetail({
 }) {
   const { t, i18n } = useTranslation("dashboards");
   const { entry, meta, name, description } = item;
-  const [source, setSource] = useState(() => defaultSource(entry));
   const [options, setOptions] = useState<Record<string, string>>({});
   const language = i18n.language;
 
-  const data = useMemo(() => sampleFor(source, entry.type), [source, entry.type]);
+  // Previewed over rows shaped the way this widget draws, so somebody choosing
+  // one sees the real thing rather than a description of it.
+  const data = useMemo(() => sampleFor(entry.type), [entry.type]);
+  const slots = useMemo(() => resolveMapping(data.columns, entry.shape), [data, entry.shape]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-3">
       {/* min-w-0 + overflow-hidden: a wide preview (a table) clips inside its
           pane instead of forcing the dialog wider than the screen. */}
       <div className="h-52 shrink-0 overflow-hidden rounded-lg border bg-card p-3">
-        <WidgetTile type={entry.type} data={data} config={options} chromeless />
+        <WidgetTile type={entry.type} data={data} config={options} slots={slots} chromeless />
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
@@ -257,24 +253,12 @@ function WidgetDetail({
           {description && <p className="text-muted-foreground text-sm">{description}</p>}
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor={`picker-source-${entry.type}`}>{t("picker.data")}</Label>
-          <Select value={source} onValueChange={(value) => setSource(asSource(value))}>
-            <SelectTrigger id={`picker-source-${entry.type}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {entry.sources.map((candidate) => (
-                <SelectItem key={candidate} value={candidate}>
-                  {t(`bindingSource.${candidate}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {unboundSlots({ source } as WidgetBinding).length > 0 && (
-            <p className="text-muted-foreground text-xs">{t("picker.needsBinding")}</p>
-          )}
-        </div>
+        {entry.shape.length > 0 && (
+          <div className="space-y-1.5">
+            <Label>{t("picker.data")}</Label>
+            <p className="text-muted-foreground text-sm">{shapeSummary(entry, t)}</p>
+          </div>
+        )}
 
         {entry.options.map((option) => (
           <fieldset key={option.key} className="space-y-1.5">
@@ -312,7 +296,7 @@ function WidgetDetail({
 
       <Button
         className="shrink-0 self-end"
-        onClick={() => onAdd(source, Object.keys(options).length ? options : undefined)}
+        onClick={() => onAdd(NEW_WIDGET_SOURCE, Object.keys(options).length ? options : undefined)}
       >
         <Plus className="mr-1.5 h-4 w-4" />
         {t("picker.add", { widget: name })}

@@ -34,7 +34,7 @@ const catalog = {
       min_h: 3,
       default_w: 12,
       default_h: 6,
-      sources: ["tasks"],
+      sources: ["query"],
       options: [],
     },
     {
@@ -43,7 +43,7 @@ const catalog = {
       min_h: 2,
       default_w: 3,
       default_h: 2,
-      sources: ["counter"],
+      sources: ["query"],
       options: [],
     },
     {
@@ -52,7 +52,7 @@ const catalog = {
       min_h: 3,
       default_w: 6,
       default_h: 4,
-      sources: ["task_counts"],
+      sources: ["query"],
       options: [{ key: "mark", values: ["bar", "line"] }],
     },
   ],
@@ -61,7 +61,7 @@ const catalog = {
 
 const withWidgets = (...types: string[]): DashboardDefinition =>
   types.reduce(
-    (definition, type) => addWidget(definition, catalog, type, "tasks"),
+    (definition, type) => addWidget(definition, catalog, type, "query"),
     EMPTY_DEFINITION
   );
 
@@ -93,20 +93,20 @@ describe("addWidget", () => {
   it("gives every widget a distinct id, including after a removal", () => {
     const two = withWidgets("stat", "stat");
     const afterRemoval = removeWidget(two, "w1");
-    const readded = addWidget(afterRemoval, catalog, "stat", "counter");
+    const readded = addWidget(afterRemoval, catalog, "stat", "query");
     const ids = readded.widgets.map((widget) => widget.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("resolves a preset to its primitive with its options applied", () => {
-    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "bar_chart", "task_counts").widgets;
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "bar_chart", "query").widgets;
     expect(widget.type).toBe("chart");
     expect(widget.preset).toBe("bar_chart");
     expect(widget.options).toEqual({ mark: "bar" });
   });
 
   it("carries the display options the picker chose", () => {
-    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "task_counts", {
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "query", {
       mark: "pie",
     }).widgets;
     expect(widget.type).toBe("chart");
@@ -117,7 +117,7 @@ describe("addWidget", () => {
   it("lets a preset's own options win over the ones passed in", () => {
     // A preset *is* its options; filling in the rest is fine, contradicting it
     // is not — same order the backend normalizer applies them in.
-    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "bar_chart", "task_counts", {
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "bar_chart", "query", {
       mark: "pie",
       stacked: "true",
     }).widgets;
@@ -125,12 +125,12 @@ describe("addWidget", () => {
   });
 
   it("stores no options when none were chosen", () => {
-    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "task_counts").widgets;
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "query").widgets;
     expect(widget.options).toBeUndefined();
   });
 
   it("falls back to a usable size when the catalog has not loaded", () => {
-    const [widget] = addWidget(EMPTY_DEFINITION, undefined, "stat", "counter").widgets;
+    const [widget] = addWidget(EMPTY_DEFINITION, undefined, "stat", "query").widgets;
     expect(widget.grid.w).toBeGreaterThan(0);
     expect(widget.grid.h).toBeGreaterThan(0);
   });
@@ -194,35 +194,34 @@ describe("effectiveBinding", () => {
   it("layers instance config over the definition's binding", () => {
     // The seam that makes an installed listing work: the catalog definition
     // cannot know this guild's counter ids, so the install fills them in.
-    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
+    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "query");
     const config = readConfig({
       widgets: { w1: { counter_group_id: 4, counter_id: 9 } },
     });
     expect(effectiveBinding(definition.widgets[0], config)).toEqual({
-      source: "counter",
+      source: "query",
       counter_group_id: 4,
       counter_id: 9,
     });
   });
 
   it("leaves a widget with no config entry on its own binding", () => {
-    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
+    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "query");
     expect(effectiveBinding(definition.widgets[0], readConfig({}))).toEqual({
-      source: "counter",
+      source: "query",
     });
   });
 });
 
 describe("unboundSlots", () => {
   it("names what a binding still needs", () => {
-    expect(unboundSlots({ source: "counter" })).toEqual(["counter_group_id", "counter_id"]);
-    expect(unboundSlots({ source: "counter", counter_group_id: 1 })).toEqual(["counter_id"]);
+    expect(unboundSlots({ source: "query" })).toEqual(["sql"]);
     expect(unboundSlots({ source: "sheet_range", document_id: 3 })).toEqual(["range"]);
   });
 
-  it("is empty for sources that need no ids", () => {
-    expect(unboundSlots({ source: "tasks" })).toEqual([]);
-    expect(unboundSlots({ source: "task_counts" })).toEqual([]);
+  it("is empty once every required parameter is filled", () => {
+    expect(unboundSlots({ source: "query", sql: "SELECT title FROM tasks" })).toEqual([]);
+    expect(unboundSlots({ source: "sheet_range", document_id: 3, range: "A1:B2" })).toEqual([]);
   });
 });
 

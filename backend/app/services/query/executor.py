@@ -25,12 +25,14 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any, AsyncIterator, Mapping
 
 from asyncpg.exceptions import (
     DataError,
     QueryCanceledError,
-    UndefinedFunctionError,
+    SyntaxOrAccessError,
 )
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -47,16 +49,20 @@ from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 class QueryResult:
     """What a query returned, and what it cost to say so."""
 
-    #: Output names, in order. Not necessarily distinct — ``SELECT t.id, p.id``
-    #: is a legal query and names both columns ``id``.
-    columns: tuple[str, ...]
+    #: The output columns, in order, named and typed. Not necessarily distinct
+    #: — ``SELECT t.id, p.id`` is a legal query and names both columns ``id``.
+    columns: tuple[QueryColumn, ...]
     #: One tuple per row, positional against :attr:`columns`. Positional rather
     #: than keyed for the reason above: a mapping keeps one value per name.
+    #: Values arrive in the spellings a client holds (see :func:`_wire`).
     rows: tuple[tuple[Any, ...], ...]
     #: The planner's estimate for the statement that ran.
     cost: float
     #: Whether there were more rows than one query returns.
     truncated: bool
+    #: The datasets the statement read. What a tile can honestly say it is
+    #: showing, now that there is no source name to print.
+    relations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -73,9 +79,10 @@ class QueryColumn:
 _NUMBER_TYPES = frozenset(
     {"int2", "int4", "int8", "numeric", "float4", "float8", "money"}
 )
-_DATE_TYPES = frozenset(
-    {"date", "time", "timetz", "timestamp", "timestamptz", "interval"}
-)
+#: Only points on a timeline. A ``time`` has no day and an ``interval`` is a
+#: length rather than a moment, so neither is something a tile can place on one;
+#: both read as text, which is what they are to a reader.
+_DATE_TYPES = frozenset({"date", "timestamp", "timestamptz"})
 
 
 async def _enum_types(connection: Any, oids: set[int]) -> set[int]:
@@ -113,6 +120,57 @@ def _column_type(attribute: Any, enum_oids: set[int]) -> FieldType:
     if name == "bool":
         return FieldType.boolean
     return FieldType.text
+
+
+def _wire(value: Any) -> Any:
+    """One value, in a spelling a client can hold.
+
+    Two conversions, both so that a query's rows read like every other part of
+    the app's: a moment becomes epoch milliseconds UTC, which is the one
+    spelling of a timestamp the widgets take; and an exact number becomes a
+    number, where the database's arbitrary-precision type would otherwise arrive
+    as a string and stop counting as one. Anything else with no JSON spelling is
+    written out rather than dropped.
+    """
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    # Before date, because every datetime is one.
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return int(moment.timestamp() * 1000)
+    if isinstance(value, date):
+        midnight = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        return int(midnight.timestamp() * 1000)
+    return str(value)
+
+
+async def _described(
+    connection: Any, prepared: Any, statement: ResolvedQuery
+) -> tuple[QueryColumn, ...]:
+    """The output columns of a prepared statement, named and typed.
+
+    Shared by running a statement and describing one, because they are the same
+    question asked at two moments — a tile that draws a query needs to know what
+    its columns hold, and asking twice would be asking the same statement twice.
+    """
+    attributes = prepared.get_attributes()
+    enum_oids = await _enum_types(
+        connection, {attribute.type.oid for attribute in attributes}
+    )
+    declared = statement.column_types
+    return tuple(
+        QueryColumn(
+            name=attribute.name,
+            type=(
+                declared[position]
+                if position < len(declared) and declared[position] is not None
+                else _column_type(attribute, enum_oids)
+            ),
+        )
+        for position, attribute in enumerate(attributes)
+    )
 
 
 #: Names the query surface's locks apart from anything else that takes one.
@@ -179,18 +237,20 @@ async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
 async def _translated_failures() -> AsyncIterator[None]:
     """Turn what the database says into what this surface answers.
 
-    The two things a statement this surface accepted can still do: run out of
-    the time it is allowed, or fail on a value — a division by zero, a value
-    that will not convert, a function called with types it does not take. Both
-    are the reader's statement rather than the app's, so both are told back
-    with a code and what the database said, and both reach the reader whether
-    the statement was run or only described.
+    Two things a statement this surface accepted can still do. It can run out
+    of the time it is allowed. And it can be a statement the server will not
+    run: a value that will not convert or a division by zero, or a shape the
+    grammar allows and the planner rejects — a column selected beside an
+    aggregate without being grouped, a function called with types it does not
+    take. Every one of them is the reader's statement rather than the app's, so
+    each is told back with a code and what the database said, whether the
+    statement was run or only described.
     """
     try:
         yield
     except QueryCanceledError as cancelled:
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
-    except (DataError, UndefinedFunctionError) as failed:
+    except (DataError, SyntaxOrAccessError) as failed:
         raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
@@ -202,10 +262,24 @@ def _routed_guild(context: Mapping[str, Any]) -> int:
     return int(guild_id)
 
 
+def _scoped(context: Mapping[str, Any], initiative_id: int | None) -> dict[str, Any]:
+    """The request's own context, as the query role, narrowed to one initiative.
+
+    Both entry points below establish the same thing, so they say it once: the
+    reader is whoever the request admitted, the role is the query role, and the
+    scope is the surface's if it named one.
+    """
+    routed = dict(context)
+    routed["query"] = True
+    routed["scope_initiative_id"] = initiative_id
+    return routed
+
+
 async def execute(
     statement: ResolvedQuery,
     *,
     context: Mapping[str, Any],
+    initiative_id: int | None = None,
 ) -> QueryResult:
     """Run an already-resolved statement under *context*.
 
@@ -215,10 +289,14 @@ async def execute(
     reaches through any other part of the app — a member's, a read-only
     member's, a grantee's — decided once, by the dependency that admitted the
     request, rather than again here.
+
+    *initiative_id* narrows that to one initiative. A statement names datasets
+    rather than a scope, so an initiative-scoped surface says which initiative
+    it is asking about and the policies on the tables it reads answer for that
+    one. It removes rows and never adds any, so a caller may always pass it.
     """
     guild_id = _routed_guild(context)
-    routed = dict(context)
-    routed["query"] = True
+    routed = _scoped(context, initiative_id)
     async with _translated_failures():
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
@@ -239,7 +317,7 @@ async def execute(
                 raise QueryError(QueryMessages.TOO_EXPENSIVE, f"{cost:.0f}")
 
             prepared = await connection.prepare(statement.sql)
-            columns = tuple(attribute.name for attribute in prepared.get_attributes())
+            columns = await _described(connection, prepared, statement)
 
             limit = settings.QUERY_MAX_ROWS
             rows: list[tuple[Any, ...]] = []
@@ -248,7 +326,7 @@ async def execute(
                 if len(rows) >= limit:
                     truncated = True
                     break
-                rows.append(tuple(record))
+                rows.append(tuple(_wire(value) for value in record))
 
             await session.rollback()
             return QueryResult(
@@ -256,15 +334,20 @@ async def execute(
                 rows=tuple(rows),
                 cost=cost,
                 truncated=truncated,
+                relations=statement.relations,
             )
 
 
-async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
+async def run(
+    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
+) -> QueryResult:
     """Read *sql* and run what it resolves to."""
-    return await execute(resolve(sql), context=context)
+    return await execute(resolve(sql), context=context, initiative_id=initiative_id)
 
 
-async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn, ...]:
+async def describe(
+    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
+) -> tuple[tuple[QueryColumn, ...], tuple[str, ...]]:
     """What *sql* would return, without returning it.
 
     The statement is prepared and its description read back. Preparing plans;
@@ -276,8 +359,7 @@ async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn
     statement is only preparable against the schema its reader is routed to.
     """
     statement = resolve(sql)
-    routed = dict(context)
-    routed["query"] = True
+    routed = _scoped(context, initiative_id)
     _routed_guild(context)
 
     async with _translated_failures():
@@ -290,21 +372,6 @@ async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn
             await _bound_transaction(sqlalchemy_connection)
             await set_rls_context(session, **routed)
             prepared = await connection.prepare(statement.sql)
-            attributes = prepared.get_attributes()
-            enum_oids = await _enum_types(
-                connection, {attribute.type.oid for attribute in attributes}
-            )
-            declared = statement.column_types
-            columns = tuple(
-                QueryColumn(
-                    name=attribute.name,
-                    type=(
-                        declared[position]
-                        if position < len(declared) and declared[position] is not None
-                        else _column_type(attribute, enum_oids)
-                    ),
-                )
-                for position, attribute in enumerate(attributes)
-            )
+            columns = await _described(connection, prepared, statement)
             await session.rollback()
-            return columns
+            return columns, statement.relations

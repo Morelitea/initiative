@@ -46,7 +46,7 @@ async def guild(engine):
 
 async def test_it_returns_columns_and_rows(guild):
     result = await run("SELECT title FROM tasks", context=_context(guild))
-    assert result.columns == ("title",)
+    assert result.columns == (QueryColumn(name="title", type=FieldType.text),)
     assert result.rows == ()
 
 
@@ -56,7 +56,7 @@ async def test_an_aggregate_answers_without_shipping_the_rows(guild):
         "SELECT count(*) AS n FROM tasks",
         context=_context(guild),
     )
-    assert result.columns == ("n",)
+    assert result.columns == (QueryColumn(name="n", type=FieldType.number),)
     assert result.rows == ((0,),)
 
 
@@ -127,7 +127,7 @@ async def test_a_grantee_routes_by_the_grant(guild):
             "pam_read": True,
         },
     )
-    assert result.columns == ("title",)
+    assert result.columns == (QueryColumn(name="title", type=FieldType.text),)
 
 
 async def test_a_context_that_routes_nowhere_is_refused(guild):
@@ -146,7 +146,10 @@ async def test_a_query_keeping_both_names_keeps_both_values(guild):
         relations=("tasks",),
     )
     result = await execute(doubled, context=_context(guild))
-    assert result.columns == ("id", "id")
+    assert result.columns == (
+        QueryColumn(name="id", type=FieldType.number),
+        QueryColumn(name="id", type=FieldType.number),
+    )
     assert result.rows == ((1, 2),)
 
 
@@ -194,7 +197,7 @@ async def test_a_field_selected_on_its_own_is_typed_by_the_registry(guild):
     """``project_id`` is stored as an integer and means a project. The shape a
     query reports and the fields a dataset offers answer that the same way,
     because one declaration answers both."""
-    columns = await describe(
+    columns, _ = await describe(
         "SELECT project_id, title FROM tasks", context=_context(guild)
     )
     assert columns == (
@@ -205,7 +208,7 @@ async def test_a_field_selected_on_its_own_is_typed_by_the_registry(guild):
 
 async def test_an_output_built_from_fields_is_typed_by_the_database(guild):
     """Nothing declares what an expression is, so the database describes it."""
-    columns = await describe(
+    columns, _ = await describe(
         "SELECT lower(title) AS t, length(title) AS n FROM tasks",
         context=_context(guild),
     )
@@ -213,3 +216,29 @@ async def test_an_output_built_from_fields_is_typed_by_the_database(guild):
         QueryColumn(name="t", type=FieldType.text),
         QueryColumn(name="n", type=FieldType.number),
     )
+
+
+async def test_a_moment_comes_back_as_a_moment(guild):
+    """Timestamps are epoch milliseconds UTC — the one spelling the widgets
+    read — and an exact number is a number rather than its decimal spelling."""
+    statement = resolve("SELECT title FROM tasks")
+    values = type(statement)(
+        sql=(
+            "SELECT timestamptz '2026-01-02T03:04:05Z' AS at,"
+            " date '2026-01-02' AS on_day,"
+            " numeric '12.5' AS exact"
+        ),
+        parameters=(),
+        relations=("tasks",),
+    )
+    result = await execute(values, context=_context(guild))
+    assert result.rows == ((1767323045000, 1767312000000, 12.5),)
+
+
+async def test_a_length_of_time_is_not_a_moment(guild):
+    """An interval is a length, not a point, so nothing offers to place it on a
+    timeline."""
+    columns, _ = await describe(
+        "SELECT interval '3 days' AS gap FROM tasks", context=_context(guild)
+    )
+    assert columns == (QueryColumn(name="gap", type=FieldType.text),)
