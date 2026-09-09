@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An assistant can read the rest of your work, not just the tasks** — the MCP server covered projects, tasks and initiatives, so anything asked of it was answered from tasks alone. It now reads documents, queues, counters, calendars and their events, notices and dashboards — including what a dashboard tile currently says, which is usually the fastest answer to "how is this going". Still read-only: the four things it may write are unchanged, and every call goes through the same permission checks you do, so it sees what you see and nothing else. File downloads, who voted in a poll and who has read a notice are deliberately left out.
+
 ## [0.67.0] - 2026-09-09
 
 ### Added
-- **An assistant can read the rest of your work, not just the tasks** — the MCP server covered projects, tasks and initiatives, so anything asked of it was answered from tasks alone. It now reads documents, queues, counters, calendars and their events, notices and dashboards — including what a dashboard tile currently says, which is usually the fastest answer to "how is this going". Still read-only: the four things it may write are unchanged, and every call goes through the same permission checks you do, so it sees what you see and nothing else. File downloads, who voted in a poll and who has read a notice are deliberately left out.
 
 - **The phone app takes the picture, and reads with no signal** — every image upload (profile picture, community icon and banner, document images, notice screenshots) now offers the camera beside the photo library. And silence from the server is no longer read as a rejection: instead of the sign-in screen you get the tasks, documents, notices and calendars this device had already loaded, for up to a day, behind a bar saying when it last updated. Reading only.
 - **Reactions can be turned off per notice** — a switch beside the comments one, on by default; turning it off keeps the reactions already there.

@@ -16,8 +16,6 @@ become a tool:
     edit a task, move a task, add a comment), each gated client-side by Claude
     Code's per-write permission prompt. Destructive (delete), bulk (archive-all,
     reorder), AI-generation, and property/tag routes are deliberately excluded.
-
-See ``history/mcp-server-design.md``.
 """
 
 from __future__ import annotations
