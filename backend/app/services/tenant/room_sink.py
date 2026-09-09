@@ -37,11 +37,11 @@ takes longer than the window to commit — its rows are stamped when it began �
 and that one is delivered by its hint.
 
 So the hint is load-bearing for exactly one case, and the case where hints go
-missing is knowable: they reach only whoever is listening, and the bus counts
-the times it has come up. A sweep that finds that number has moved knows it was
-deaf for a while and cannot know for how long, so it says the one honest thing
-— that more happened than it can name — and the room reads the guild again.
-Rare, coarse, and the only part of this that is.
+missing is knowable: they reach only whoever is listening, and the bus says so
+when it comes up. A sweep that hears that knows it was deaf for a while and
+cannot know for how long, so it says the one honest thing — that more happened
+than it can name — and the room reads the guild again. Rare, coarse, and the
+only part of this that is.
 
 Both are scoped to the guilds this process actually holds a socket for, so a
 deployment with nobody connected reads nothing.
@@ -60,7 +60,6 @@ from app.db import session as db_session
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
-from app.services.platform import notify_bus
 from app.services.realtime import manager
 
 logger = logging.getLogger(__name__)
@@ -90,9 +89,16 @@ MAX_CHANGES = 500
 
 _SCHEMA_PREFIX = "guild_"
 
-#: The bus generation the last sweep ran under. A change means hints went
-#: missing in between.
-_bus_generation: int | None = None
+#: Set when the bus comes up, cleared by the sweep that acts on it. True means
+#: hints went missing for some unknown stretch before it.
+_missed_hints = False
+
+
+async def on_bus_connected() -> None:
+    """The bus is up, so it was down. Registered in the app's lifespan."""
+    global _missed_hints
+    _missed_hints = True
+
 
 #: guild_id -> the outbox ids this process has already sent for it, pruned to
 #: the sweep window. In memory and per process: it says what THIS process's
@@ -217,11 +223,8 @@ async def process_room_sweep() -> None:
     the answer to a transaction becoming visible after a later one has already
     gone out.
     """
-    global _bus_generation
-    generation = notify_bus.bus.generation
-    # A first observation says nothing: it is where counting starts, not a gap.
-    deaf = _bus_generation is not None and generation != _bus_generation
-    _bus_generation = generation
+    global _missed_hints
+    deaf, _missed_hints = _missed_hints, False
 
     watched = manager.guild_ids()
     for guild_id in set(_delivered) - set(watched):

@@ -45,6 +45,11 @@ MSG_ACTIVE = 6
 # against a slow network, short against a socket that will never send one.
 AUTH_TIMEOUT_SECONDS = 10.0
 
+#: How long the socket may say nothing before it says so. Silence is otherwise
+#: indistinguishable from a channel that has stopped carrying, and the client
+#: has nothing else to go on: it only speaks when its person does.
+HEARTBEAT_SECONDS = 30.0
+
 
 @router.get("/", response_model=NotificationListResponse)
 async def list_notifications(
@@ -182,11 +187,22 @@ async def websocket_notifications(websocket: WebSocket):
         chosen_presence=chosen_presence,
         presence_known_at=presence_known_at,
     )
+    heartbeat = user_stream.build_frame(user_stream.RESOURCE_HEARTBEAT, "alive")
     try:
         while True:
             # Awaiting keeps the socket open and surfaces the disconnect; the
             # one frame the client does send is its person's activity.
-            frame = await websocket.receive()
+            #
+            # The wait is bounded so the quiet case says something. A client
+            # cannot tell a channel with no news from one that has stopped
+            # carrying — a half-open connection reports itself open and
+            # delivers nothing — so a beat goes out whenever nothing else has,
+            # and the client reads silence past it as the socket being gone.
+            try:
+                frame = await asyncio.wait_for(websocket.receive(), HEARTBEAT_SECONDS)
+            except asyncio.TimeoutError:
+                await websocket.send_json(heartbeat)
+                continue
             if frame.get("type") == "websocket.disconnect":
                 break
             data = frame.get("bytes")

@@ -25,11 +25,17 @@ const MSG_AUTH = 5;
 /** Stands in for the browser's WebSocket, with the transitions driven by hand. */
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
+  // The hook reads these off the constructor, which is this once stubbed in.
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
 
   url: string;
   binaryType = "blob";
   sent: Uint8Array[] = [];
   closed = false;
+  readyState: number = MockWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onerror: (() => void) | null = null;
@@ -46,11 +52,13 @@ class MockWebSocket {
 
   close() {
     this.closed = true;
+    this.readyState = MockWebSocket.CLOSED;
     this.onclose?.({ code: 1000 });
   }
 
   // ── Driving helpers ──
   open() {
+    this.readyState = MockWebSocket.OPEN;
     this.onopen?.();
   }
 
@@ -59,6 +67,7 @@ class MockWebSocket {
   }
 
   serverClose(code: number) {
+    this.readyState = MockWebSocket.CLOSED;
     this.onclose?.({ code });
   }
 
@@ -188,6 +197,74 @@ describe("useNotificationStream", () => {
     expect(refreshUser).toHaveBeenCalledTimes(1);
     expect(invalidateNotifications).toHaveBeenCalledTimes(1);
     expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads everything when the server says its own bus was down", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latest();
+    socket.open();
+    invalidateNotifications.mockClear();
+    invalidateContactGrants.mockClear();
+    refreshUser.mockClear();
+
+    // The socket never dropped, so nothing here noticed. The gap was on the
+    // server's side of it, and it cannot say what went past — only that
+    // something did.
+    socket.receive({ resource: "resync", action: "changed", ids: {} });
+
+    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a heartbeat beyond taking it as proof of life", () => {
+    renderWithProviders(<Probe />);
+    const socket = latest();
+    socket.open();
+    invalidateNotifications.mockClear();
+
+    socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
+
+    expect(invalidateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("closes a socket the server has gone silent on", async () => {
+    // A dropped connection does not always close — a suspended laptop, a NAT
+    // timeout — and one that reports itself open while delivering nothing
+    // would otherwise keep the fallback poll switched off indefinitely.
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(<Probe />);
+      const socket = latest();
+      socket.open();
+      expect(socket.readyState).toBe(MockWebSocket.OPEN);
+
+      // Past the limit, and past the next check after it.
+      await vi.advanceTimersByTimeAsync(110_000);
+
+      expect(socket.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a socket the server is still beating on", async () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(<Probe />);
+      const socket = latest();
+      socket.open();
+
+      for (let elapsed = 0; elapsed < 95_000; elapsed += 30_000) {
+        await vi.advanceTimersByTimeAsync(30_000);
+        socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
+      }
+
+      expect(socket.closed).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("tries the account again when the re-read fails", async () => {
