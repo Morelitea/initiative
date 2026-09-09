@@ -1925,6 +1925,7 @@ export type ControlKind = (typeof ControlKind)[keyof typeof ControlKind];
 export const ControlKind = {
   select: "select",
   task_status: "task_status",
+  task: "task",
   member: "member",
   tag: "tag",
   project: "project",
@@ -2233,6 +2234,8 @@ export const DatasetName = {
   counter_groups: "counter_groups",
   counters: "counters",
   task_statuses: "task_statuses",
+  task_assignees: "task_assignees",
+  members: "members",
 } as const;
 
 /**

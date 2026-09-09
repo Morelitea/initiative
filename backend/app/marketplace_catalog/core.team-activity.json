@@ -4,8 +4,8 @@
   "kind": "dashboard",
   "name": "Team activity",
   "publisher": "Initiative",
-  "description": "What is getting done, and where.",
-  "long_description": "A read-only pulse of the initiative's work. How it spreads across the projects, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
+  "description": "Who is doing what, and when it gets done.",
+  "long_description": "A read-only pulse of the initiative's people. How the work spreads across the team, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-team-activity.svg",
   "images": [],
   "version": "1.0.0",
@@ -58,9 +58,9 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT p.name AS project, count(*) AS tasks FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) DESC"
+          "sql": "SELECT m.display_name AS person, count(*) AS tasks FROM tasks t JOIN task_assignees a ON a.task_id = t.id JOIN members m ON m.id = a.user_id GROUP BY m.display_name ORDER BY count(*) DESC"
         },
-        "title": "Work by project",
+        "title": "Work by person",
         "options": {
           "mark": "bar"
         }

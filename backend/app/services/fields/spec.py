@@ -57,6 +57,9 @@ class ControlKind(str, Enum):
     #: for every enum the database already defines, rather than one per list.
     select = "select"
     task_status = "task_status"
+    #: One task, chosen from the ones in reach. What a row hanging off a task
+    #: points back at.
+    task = "task"
     member = "member"
     tag = "tag"
     project = "project"
@@ -98,6 +101,7 @@ _RANGE = frozenset({FilterOp.lt, FilterOp.lte, FilterOp.gt, FilterOp.gte})
 CONTROLS: dict[ControlKind, tuple[FieldType, frozenset[FilterOp]]] = {
     ControlKind.select: (FieldType.enum, _IN),
     ControlKind.task_status: (FieldType.reference, _IN),
+    ControlKind.task: (FieldType.reference, _IN),
     ControlKind.member: (FieldType.reference, _IN),
     ControlKind.tag: (FieldType.reference, _IN),
     ControlKind.project: (FieldType.reference, _EQ),
