@@ -96,7 +96,6 @@ export const SettingsStoragePage = () => {
     onSuccess: () => {
       toast.success(t("storage.saveSuccess"));
       setSecret("");
-      form.settle();
     },
     onError: () => toast.error(t("storage.saveError")),
   });
@@ -140,7 +139,8 @@ export const SettingsStoragePage = () => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    updateMutation.mutate(buildPayload());
+    const sent = form.values;
+    updateMutation.mutate(buildPayload(), { onSuccess: () => form.settle(sent) });
   };
 
   return (

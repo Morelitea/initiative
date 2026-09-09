@@ -82,6 +82,27 @@ describe("coming back to a window mid-edit", () => {
     await waitFor(() => expect(result.current.values.name).toBe("Renamed by somebody else"));
   });
 
+  it("does not count a save as covering what was typed while it was in flight", async () => {
+    // The round trip is the window: press Save, keep typing, and the reply is
+    // for the older text. Returning to the tab must not then bring that back.
+    let name = "Q3 Roadmap";
+    const queryFn = vi.fn(async () => ({ id: 7, name }));
+    const { result } = renderQueriedForm(queryFn);
+    await waitFor(() => expect(result.current.values.name).toBe("Q3 Roadmap"));
+
+    act(() => result.current.set({ name: "Sent" }));
+    const sent = result.current.values;
+    act(() => result.current.set({ name: "Sent, and then some" }));
+    act(() => result.current.settle(sent));
+
+    name = "Sent";
+    age(["entity", 7]);
+    refocus();
+
+    await waitFor(() => expect(queryFn).toHaveBeenCalledTimes(2));
+    expect(result.current.values.name).toBe("Sent, and then some");
+  });
+
   it("asks for nothing while the answer is still fresh", async () => {
     const queryFn = vi.fn(async () => ({ id: 7, name: "Q3 Roadmap" }));
     const { result } = renderQueriedForm(queryFn);

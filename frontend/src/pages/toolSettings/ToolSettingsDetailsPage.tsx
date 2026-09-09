@@ -60,13 +60,16 @@ export const ToolSettingsDetailsPage = () => {
   const showsReactionSwitch = tool === Tool.post;
 
   const handleDetailsSave = () => {
-    const trimmedName = details.values.name.trim();
+    // What is being sent, so anything typed while this is in flight is not
+    // counted as saved by it.
+    const sent = details.values;
+    const trimmedName = sent.name.trim();
     if (!trimmedName) return;
     update?.mutate(
-      { name: trimmedName, description: details.values.description.trim() || null },
+      { name: trimmedName, description: sent.description.trim() || null },
       {
         onSuccess: () => {
-          details.settle();
+          details.settle(sent);
           toast.success(t("toolSettings.detailsUpdated"));
         },
       }

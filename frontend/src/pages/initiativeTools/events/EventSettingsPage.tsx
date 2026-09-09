@@ -210,17 +210,11 @@ export function EventSettingsPage() {
   );
 
   const updateEvent = useUpdateCalendarEvent(eventId, {
-    onSuccess: () => {
-      details.settle();
-      toast.success(t("detailsUpdated"));
-    },
+    onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
   const setAttendees = useSetEventAttendees(eventId, {
-    onSuccess: () => {
-      attendees.settle();
-      toast.success(t("detailsUpdated"));
-    },
+    onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
   const setEventTags = useSetEventTags(eventId);
@@ -252,23 +246,32 @@ export function EventSettingsPage() {
 
   const handleSave = () => {
     if (!datesValid) return;
-    const startValue = allDay ? `${startDate}T00:00:00` : `${startDate}T${startTime}:00`;
-    const endValue = allDay
-      ? `${endDate || startDate}T23:59:59`
-      : `${endDate || startDate}T${endTime}:00`;
+    // What is being sent, so anything changed while this is in flight is not
+    // counted as saved by it.
+    const sent = details.values;
+    const startValue = sent.allDay
+      ? `${sent.startDate}T00:00:00`
+      : `${sent.startDate}T${sent.startTime}:00`;
+    const endValue = sent.allDay
+      ? `${sent.endDate || sent.startDate}T23:59:59`
+      : `${sent.endDate || sent.startDate}T${sent.endTime}:00`;
 
-    updateEvent.mutate({
-      title: title.trim() || undefined,
-      description: description.trim() || undefined,
-      location: location.trim() || undefined,
-      start_at: new Date(startValue).toISOString(),
-      end_at: new Date(endValue).toISOString(),
-      all_day: allDay,
-    });
+    updateEvent.mutate(
+      {
+        title: sent.title.trim() || undefined,
+        description: sent.description.trim() || undefined,
+        location: sent.location.trim() || undefined,
+        start_at: new Date(startValue).toISOString(),
+        end_at: new Date(endValue).toISOString(),
+        all_day: sent.allDay,
+      },
+      { onSuccess: () => details.settle(sent) }
+    );
   };
 
   const handleSaveAttendees = () => {
-    setAttendees.mutate(attendeeIds);
+    const sent = attendees.values;
+    setAttendees.mutate(sent.ids, { onSuccess: () => attendees.settle(sent) });
   };
 
   if (isLoading) {

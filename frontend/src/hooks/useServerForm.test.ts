@@ -129,7 +129,7 @@ describe("useServerForm", () => {
       const { result, rerender } = renderForm(entity());
 
       act(() => result.current.set({ name: "Half-written" }));
-      act(() => result.current.settle());
+      act(() => result.current.settle({ name: "Half-written", description: "" }));
       expect(result.current.edited).toBe(false);
       // Still showing what was typed — settling does not undo it.
       expect(result.current.values.name).toBe("Half-written");

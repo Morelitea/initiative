@@ -68,9 +68,11 @@ export const InitiativeSettingsDetailsPage = () => {
   const setDescription = (next: string) => details.set({ description: next });
   const setColor = (next: string) => details.set({ color: next });
 
+  // Shared with the join-policy and auto-join switches below, which write one
+  // field each — so settling the details form belongs to the details save, not
+  // here, or a switch would mark somebody's half-written description saved.
   const updateInitiative = useUpdateInitiative({
     onSuccess: () => {
-      details.settle();
       toast.success(t("settings.updated"));
     },
     onError: (error) => {
@@ -85,14 +87,18 @@ export const InitiativeSettingsDetailsPage = () => {
       toast.error(t("settings.nameRequired"));
       return;
     }
-    updateInitiative.mutate({
-      initiativeId,
-      data: {
-        name: trimmedName,
-        description: description.trim() || undefined,
-        color,
+    const sent = details.values;
+    updateInitiative.mutate(
+      {
+        initiativeId,
+        data: {
+          name: trimmedName,
+          description: sent.description.trim() || undefined,
+          color: sent.color,
+        },
       },
-    });
+      { onSuccess: () => details.settle(sent) }
+    );
   };
 
   // Only the field the manager touched is sent, so an unrelated save never

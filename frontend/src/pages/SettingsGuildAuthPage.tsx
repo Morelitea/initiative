@@ -87,6 +87,9 @@ export const SettingsGuildAuthPage = () => {
   const canSave = policy === "open" || providerId != null;
 
   const save = () => {
+    // What is being sent, so a choice changed while this is in flight is not
+    // counted as saved by it.
+    const sent = form.values;
     updatePolicy.mutate(
       policy === "open"
         ? { policy: "open" }
@@ -95,7 +98,7 @@ export const SettingsGuildAuthPage = () => {
         onSuccess: () => {
           setError(null);
           setSelfUnsatisfiedSlug(null);
-          form.settle();
+          form.settle(sent);
           toast.success(t("guildAuth.policy.saved"));
         },
         onError: (err: unknown) => {

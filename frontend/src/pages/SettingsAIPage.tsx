@@ -47,10 +47,7 @@ export const SettingsAIPage = () => {
   const setMode = (next: AIConfigMode) => form.set({ mode: next });
 
   const updateMode = useUpdatePlatformAIMode({
-    onSuccess: () => {
-      form.settle();
-      toast.success(t("platformAI.modeSaved"));
-    },
+    onSuccess: () => toast.success(t("platformAI.modeSaved")),
     onError: (error) => toast.error(getErrorMessage(error, "settings:platformAI.modeSaveError")),
   });
 
@@ -86,7 +83,10 @@ export const SettingsAIPage = () => {
   const isDirty = mode !== modeQuery.data.mode;
 
   const handleSave = () => {
-    updateMode.mutate({ mode });
+    // What is being sent, so a mode picked while this is in flight is not
+    // counted as saved by it.
+    const sent = form.values;
+    updateMode.mutate({ mode: sent.mode }, { onSuccess: () => form.settle(sent) });
   };
 
   return (

@@ -17,13 +17,16 @@ export interface ServerForm<V> {
   set: (patch: Partial<V> | ((previous: V) => Partial<V>)) => void;
   edited: boolean;
   /**
-   * Go back to following the server, having saved. Pass what was sent and it
-   * only takes effect while the fields still hold it — a save that started
-   * before the last keystroke must not mark that keystroke saved. Judged by
+   * Go back to following the server, having saved what this says was sent.
+   * It only takes effect while the fields still hold that: a save is a round
+   * trip, and anything typed during one has not been saved by it. Judged by
    * the same equality the form is compared with, so a form whose values are
    * deeper than fields settles on the same terms it adopts on.
+   *
+   * Required rather than optional because the version that guesses is wrong
+   * every time somebody is quick.
    */
-  settle: (saved?: V) => void;
+  settle: (saved: V) => void;
 }
 
 interface State<V> {
@@ -95,9 +98,9 @@ export function useServerForm<S, V extends object>(
     }));
   }, []);
 
-  const settle = useCallback((saved?: V) => {
+  const settle = useCallback((saved: V) => {
     setState((previous) =>
-      previous.edited && (!saved || sameRef.current(previous.values, saved))
+      previous.edited && sameRef.current(previous.values, saved)
         ? { ...previous, edited: false }
         : previous
     );

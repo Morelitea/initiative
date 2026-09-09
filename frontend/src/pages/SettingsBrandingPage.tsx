@@ -37,18 +37,16 @@ export const SettingsBrandingPage = () => {
   );
 
   const updateInterface = useUpdateInterfaceSettings({
-    onSuccess: () => {
-      form.settle();
-      toast.success(t("branding.interfaceSuccess"));
-    },
+    onSuccess: () => toast.success(t("branding.interfaceSuccess")),
   });
 
   const handleInterfaceSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    updateInterface.mutate({
-      light_accent_color: form.values.light,
-      dark_accent_color: form.values.dark,
-    });
+    const sent = form.values;
+    updateInterface.mutate(
+      { light_accent_color: sent.light, dark_accent_color: sent.dark },
+      { onSuccess: () => form.settle(sent) }
+    );
   };
 
   if (!isPlatformAdmin) {

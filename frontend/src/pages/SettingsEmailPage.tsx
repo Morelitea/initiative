@@ -60,7 +60,6 @@ export const SettingsEmailPage = () => {
     onSuccess: () => {
       toast.success(t("email.saveSuccess"));
       setPassword("");
-      form.settle();
     },
     onError: () => toast.error(t("email.saveError")),
   });
@@ -84,19 +83,22 @@ export const SettingsEmailPage = () => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // What is being sent, so anything typed while this is in flight is not
+    // counted as saved by it.
+    const sent = form.values;
     const payload: EmailPayload = {
-      host: form.values.host || null,
-      port: form.values.port ? Number(form.values.port) : null,
-      secure: form.values.secure,
-      reject_unauthorized: form.values.reject_unauthorized,
-      username: form.values.username || null,
-      from_address: form.values.from_address || null,
-      test_recipient: form.values.test_recipient || null,
+      host: sent.host || null,
+      port: sent.port ? Number(sent.port) : null,
+      secure: sent.secure,
+      reject_unauthorized: sent.reject_unauthorized,
+      username: sent.username || null,
+      from_address: sent.from_address || null,
+      test_recipient: sent.test_recipient || null,
     };
     if (password) {
       payload.password = password;
     }
-    updateMutation.mutate(payload);
+    updateMutation.mutate(payload, { onSuccess: () => form.settle(sent) });
   };
 
   return (
