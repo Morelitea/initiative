@@ -282,3 +282,54 @@ class TestItAgreesWithPostgres:
     def test_where_a_missing_value_sorts(self, clause, expected):
         answered = run(f"SELECT revenue FROM rows ORDER BY {clause}")
         assert [row[0] for row in answered] == expected
+
+
+class TestAGroupedStatementReadsLikeOne:
+    """``GROUP BY`` is the one place a name means something different from
+    everywhere else, and the one place a column has to be covered."""
+
+    def test_a_name_is_an_input_column_before_it_is_an_alias(self):
+        """The opposite of ``ORDER BY``. An alias shadowing a column of the
+        rows groups by the column, which is what a table would do — and then
+        refuses the ungrouped expression beside it, as a table would."""
+        with pytest.raises(QueryError) as refused:
+            plan(
+                "SELECT lower(shop) AS revenue, count(*) AS n "
+                "FROM rows GROUP BY revenue",
+                READS,
+            )
+        assert refused.value.code == QueryMessages.UNGROUPED_FIELD
+
+    def test_an_alias_that_shadows_nothing_still_names_its_output(self):
+        assert run("SELECT lower(shop) AS s, count(*) AS n FROM rows GROUP BY s") == (
+            ("north", 2),
+            ("south", 2),
+        )
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT shop, count(*) AS n FROM rows",
+            "SELECT shop, count(*) AS n FROM rows GROUP BY revenue",
+        ],
+    )
+    def test_a_column_beside_an_aggregate_has_to_be_grouped(self, sql):
+        with pytest.raises(QueryError) as refused:
+            plan(sql, READS)
+        assert refused.value.code == QueryMessages.UNGROUPED_FIELD
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT shop, count(*) AS n FROM rows GROUP BY shop",
+            "SELECT lower(shop) AS s, count(*) AS n FROM rows GROUP BY lower(shop)",
+            # Grouped by the column the expression reads, which covers it.
+            "SELECT lower(shop) AS s, count(*) AS n FROM rows GROUP BY shop",
+            "SELECT shop, count(*) AS n FROM rows GROUP BY 1",
+            "SELECT count(*) AS n FROM rows",
+            "SELECT shop, revenue FROM rows",
+            "SELECT max(revenue) AS m FROM rows",
+        ],
+    )
+    def test_what_is_covered_is_accepted(self, sql):
+        plan(sql, READS)

@@ -33,6 +33,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 from pglast import ast
+from pglast.stream import RawStream
 from pglast.enums import (
     A_Expr_Kind,
     SortByNulls,
@@ -130,11 +131,73 @@ def plan(sql: str, reads: Sequence[RowColumn]) -> RowPlan:
         raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "DISTINCT ON")
     declared = {column.name: column for column in reads}
     _resolve_names(select, declared)
+    _check_grouping(
+        select,
+        [
+            target.name or ""
+            for target in select.targetList or ()
+            if isinstance(target, ast.ResTarget)
+        ],
+        [column.name for column in reads],
+    )
     return RowPlan(
         select=select,
         reads=tuple(reads),
         columns=_output_columns(select, declared),
     )
+
+
+def _check_grouping(
+    select: ast.SelectStmt, outputs: Sequence[str], reads: Sequence[str]
+) -> None:
+    """Every column a grouped statement reads outside an aggregate is grouped.
+
+    The rule Postgres states as *"column must appear in the GROUP BY clause or
+    be used in an aggregate function"*. Without it a statement that a table
+    would refuse answers here from whichever row of the group came first, which
+    is the one difference between the two paths worth least.
+    """
+    if not select.groupClause and not _has_aggregate(select.targetList):
+        return
+    grouped = {
+        RawStream()(_group_expression(entry, select, outputs, reads))
+        for entry in select.groupClause or ()
+    }
+    for target in select.targetList or ():
+        if not isinstance(target, ast.ResTarget) or target.val is None:
+            continue
+        if RawStream()(target.val) in grouped:
+            continue
+        for reference in _ungrouped_refs(target.val):
+            if RawStream()(reference) not in grouped:
+                names = _name_parts(reference.fields)
+                raise QueryError(
+                    QueryMessages.UNGROUPED_FIELD,
+                    f"{RELATION}.{names[-1] if names else ''}",
+                )
+
+
+def _ungrouped_refs(node: Any) -> list[ast.ColumnRef]:
+    """Column references outside any aggregate. What an aggregate reads is its
+    own business — that is the whole point of reducing a group."""
+    found: list[ast.ColumnRef] = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, ast.FuncCall) and _aggregate_name(value):
+            return
+        if isinstance(value, ast.ColumnRef):
+            found.append(value)
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                walk(item)
+            return
+        if isinstance(value, ast.Node):
+            for name in value.__slots__:
+                walk(getattr(value, name, None))
+
+    walk(node)
+    return found
 
 
 def _check_relation(select: ast.SelectStmt) -> None:
@@ -359,7 +422,12 @@ def evaluate(
     """
     select = plan.select
     kept = [row for row in rows if _truthy(_value(select.whereClause, row, None))]
-    groups = _grouped(select, kept, plan.columns)
+    groups = _grouped(
+        select,
+        kept,
+        [column.name for column in plan.columns],
+        [column.name for column in plan.reads],
+    )
     if select.havingClause is not None:
         groups = [
             group
@@ -413,13 +481,21 @@ def _distinct(produced: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
     return kept
 
 
-def _group_expression(entry: Any, select: ast.SelectStmt, names: Sequence[str]) -> Any:
+def _group_expression(
+    entry: Any,
+    select: ast.SelectStmt,
+    outputs: Sequence[str],
+    reads: Sequence[str],
+) -> Any:
     """What a ``GROUP BY`` entry actually groups by.
 
-    Postgres resolves an ordinal and an output alias against the select list, so
-    ``GROUP BY 1`` groups by the first output's *expression* rather than by the
-    number one. Read the same way here, or every row would share a key and
-    collapse into a single group.
+    An ordinal names the select list, so ``GROUP BY 1`` groups by the first
+    output's *expression* rather than by the number one.
+
+    A name goes the other way round from ``ORDER BY``: an unqualified one is an
+    **input column** wherever there is one, and only falls back to an output
+    alias where there is not. So an alias shadowing a column of the rows groups
+    by the column, which is what the same statement does against a table.
     """
     targets = [
         target
@@ -433,15 +509,17 @@ def _group_expression(entry: Any, select: ast.SelectStmt, names: Sequence[str]) 
         raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "GROUP BY")
     if isinstance(entry, ast.ColumnRef):
         parts = _name_parts(entry.fields)
-        if parts and parts[-1] in names:
-            return targets[list(names).index(parts[-1])].val
+        name = parts[-1] if parts else ""
+        if name and name not in reads and name in outputs:
+            return targets[list(outputs).index(name)].val
     return entry
 
 
 def _grouped(
     select: ast.SelectStmt,
     rows: list[Mapping[str, Any]],
-    columns: Sequence[RowColumn] = (),
+    outputs: Sequence[str] = (),
+    reads: Sequence[str] = (),
 ) -> list[list[Mapping[str, Any]]]:
     """The rows, in the groups the statement asks for.
 
@@ -455,9 +533,8 @@ def _grouped(
             return [list(rows)]
         return [[row] for row in rows]
 
-    declared = [column.name for column in columns]
     grouping = [
-        _group_expression(entry, select, declared) for entry in select.groupClause
+        _group_expression(entry, select, outputs, reads) for entry in select.groupClause
     ]
     keys: dict[tuple, list[Mapping[str, Any]]] = {}
     for row in rows:
