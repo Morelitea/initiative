@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AIConfigMode } from "@/api/generated/initiativeAPI.schemas";
@@ -22,6 +21,7 @@ import {
   useUpdatePlatformConnection,
 } from "@/hooks/useAISettings";
 import { useAuth } from "@/hooks/useAuth";
+import { useServerForm } from "@/hooks/useServerForm";
 import { getProvidersForScope } from "@/lib/ai-providers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -35,16 +35,18 @@ export const SettingsAIPage = () => {
   const isPlatformOwner = hasCapability(user, Capability.configManage);
 
   const modeQuery = usePlatformAIMode({ enabled: isPlatformOwner });
-  const [mode, setMode] = useState<AIConfigMode>("disabled");
-
-  useEffect(() => {
-    if (modeQuery.data) {
-      setMode(modeQuery.data.mode);
-    }
-  }, [modeQuery.data]);
+  // Chosen, then saved: a refetch in between must not put the old mode back.
+  const form = useServerForm(modeQuery.data, (settings) => ({
+    mode: settings?.mode ?? ("disabled" as AIConfigMode),
+  }));
+  const mode = form.values.mode;
+  const setMode = (next: AIConfigMode) => form.set({ mode: next });
 
   const updateMode = useUpdatePlatformAIMode({
-    onSuccess: () => toast.success(t("platformAI.modeSaved")),
+    onSuccess: () => {
+      form.settle();
+      toast.success(t("platformAI.modeSaved"));
+    },
     onError: (error) => toast.error(getErrorMessage(error, "settings:platformAI.modeSaveError")),
   });
 

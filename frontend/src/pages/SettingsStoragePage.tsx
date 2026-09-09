@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { StorageSettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useServerForm } from "@/hooks/useServerForm";
 import {
   useStartStorageBackfill,
   useStorageBackfillStatus,
@@ -44,10 +45,21 @@ export const SettingsStoragePage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const [formState, setFormState] = useState(DEFAULT_STATE);
-  const [secret, setSecret] = useState("");
-
   const storageQuery = useStorageSettings({ enabled: isPlatformAdmin });
+  // A bucket, a region, an endpoint and a key are typed in one at a time and
+  // saved together, so a refetch part-way through must leave them alone.
+  const form = useServerForm(storageQuery.data, (data) => ({
+    backend: data?.backend === "s3" ? "s3" : DEFAULT_STATE.backend,
+    s3_bucket: data?.s3_bucket ?? DEFAULT_STATE.s3_bucket,
+    s3_region: data?.s3_region ?? DEFAULT_STATE.s3_region,
+    s3_endpoint_url: data?.s3_endpoint_url ?? DEFAULT_STATE.s3_endpoint_url,
+    s3_access_key_id: data?.s3_access_key_id ?? DEFAULT_STATE.s3_access_key_id,
+    s3_use_path_style: data?.s3_use_path_style ?? DEFAULT_STATE.s3_use_path_style,
+    s3_kms_key_id: data?.s3_kms_key_id ?? DEFAULT_STATE.s3_kms_key_id,
+    s3_local_fallback: data?.s3_local_fallback ?? DEFAULT_STATE.s3_local_fallback,
+  }));
+  // Never seeded — the server does not hand the secret back.
+  const [secret, setSecret] = useState("");
   const hasSecret = storageQuery.data?.has_secret_access_key ?? false;
 
   const backfillStatus = useStorageBackfillStatus({
@@ -57,32 +69,16 @@ export const SettingsStoragePage = () => {
   });
   const isBackfilling = backfillStatus.data?.status === "running";
 
-  useEffect(() => {
-    if (storageQuery.data) {
-      const data = storageQuery.data;
-      setFormState({
-        backend: data.backend === "s3" ? "s3" : "local",
-        s3_bucket: data.s3_bucket ?? "",
-        s3_region: data.s3_region ?? "us-east-1",
-        s3_endpoint_url: data.s3_endpoint_url ?? "",
-        s3_access_key_id: data.s3_access_key_id ?? "",
-        s3_use_path_style: data.s3_use_path_style,
-        s3_kms_key_id: data.s3_kms_key_id ?? "",
-        s3_local_fallback: data.s3_local_fallback,
-      });
-    }
-  }, [storageQuery.data]);
-
   const buildPayload = (): StorageSettingsUpdate => {
     const payload: StorageSettingsUpdate = {
-      backend: formState.backend,
-      s3_bucket: formState.s3_bucket || null,
-      s3_region: formState.s3_region || "us-east-1",
-      s3_endpoint_url: formState.s3_endpoint_url || null,
-      s3_access_key_id: formState.s3_access_key_id || null,
-      s3_use_path_style: formState.s3_use_path_style,
-      s3_kms_key_id: formState.s3_kms_key_id || null,
-      s3_local_fallback: formState.s3_local_fallback,
+      backend: form.values.backend,
+      s3_bucket: form.values.s3_bucket || null,
+      s3_region: form.values.s3_region || "us-east-1",
+      s3_endpoint_url: form.values.s3_endpoint_url || null,
+      s3_access_key_id: form.values.s3_access_key_id || null,
+      s3_use_path_style: form.values.s3_use_path_style,
+      s3_kms_key_id: form.values.s3_kms_key_id || null,
+      s3_local_fallback: form.values.s3_local_fallback,
     };
     // Only send the secret when the admin typed one, so an empty field keeps the
     // stored key (the backend treats "field absent" as "unchanged").
@@ -96,6 +92,7 @@ export const SettingsStoragePage = () => {
     onSuccess: () => {
       toast.success(t("storage.saveSuccess"));
       setSecret("");
+      form.settle();
     },
     onError: () => toast.error(t("storage.saveError")),
   });
@@ -135,7 +132,7 @@ export const SettingsStoragePage = () => {
     return <p className="text-destructive text-sm">{t("storage.loadError")}</p>;
   }
 
-  const isS3 = formState.backend === "s3";
+  const isS3 = form.values.backend === "s3";
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,12 +150,12 @@ export const SettingsStoragePage = () => {
           <div className="space-y-2">
             <Label htmlFor="storage-backend">{t("storage.backendLabel")}</Label>
             <Select
-              value={formState.backend}
+              value={form.values.backend}
               onValueChange={(value) => {
                 // Guard against a stray empty value (Radix can emit one during
                 // mount in jsdom); only accept the two real backends.
                 if (value === "local" || value === "s3") {
-                  setFormState((prev) => ({ ...prev, backend: value }));
+                  form.set({ backend: value });
                 }
               }}
             >
@@ -185,10 +182,8 @@ export const SettingsStoragePage = () => {
                   <Label htmlFor="s3-bucket">{t("storage.bucketLabel")}</Label>
                   <Input
                     id="s3-bucket"
-                    value={formState.s3_bucket}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, s3_bucket: event.target.value }))
-                    }
+                    value={form.values.s3_bucket}
+                    onChange={(event) => form.set({ s3_bucket: event.target.value })}
                     placeholder={t("storage.bucketPlaceholder")}
                   />
                 </div>
@@ -196,10 +191,8 @@ export const SettingsStoragePage = () => {
                   <Label htmlFor="s3-region">{t("storage.regionLabel")}</Label>
                   <Input
                     id="s3-region"
-                    value={formState.s3_region}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, s3_region: event.target.value }))
-                    }
+                    value={form.values.s3_region}
+                    onChange={(event) => form.set({ s3_region: event.target.value })}
                     placeholder="us-east-1"
                   />
                 </div>
@@ -209,10 +202,8 @@ export const SettingsStoragePage = () => {
                 <Label htmlFor="s3-endpoint">{t("storage.endpointLabel")}</Label>
                 <Input
                   id="s3-endpoint"
-                  value={formState.s3_endpoint_url}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, s3_endpoint_url: event.target.value }))
-                  }
+                  value={form.values.s3_endpoint_url}
+                  onChange={(event) => form.set({ s3_endpoint_url: event.target.value })}
                   placeholder={t("storage.endpointPlaceholder")}
                 />
                 <p className="text-muted-foreground text-xs">{t("storage.endpointHelp")}</p>
@@ -223,10 +214,8 @@ export const SettingsStoragePage = () => {
                   <Label htmlFor="s3-access-key">{t("storage.accessKeyLabel")}</Label>
                   <Input
                     id="s3-access-key"
-                    value={formState.s3_access_key_id}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, s3_access_key_id: event.target.value }))
-                    }
+                    value={form.values.s3_access_key_id}
+                    onChange={(event) => form.set({ s3_access_key_id: event.target.value })}
                     placeholder={t("storage.accessKeyPlaceholder")}
                   />
                 </div>
@@ -247,10 +236,8 @@ export const SettingsStoragePage = () => {
                 <Label htmlFor="s3-kms">{t("storage.kmsLabel")}</Label>
                 <Input
                   id="s3-kms"
-                  value={formState.s3_kms_key_id}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, s3_kms_key_id: event.target.value }))
-                  }
+                  value={form.values.s3_kms_key_id}
+                  onChange={(event) => form.set({ s3_kms_key_id: event.target.value })}
                   placeholder={t("storage.kmsPlaceholder")}
                 />
               </div>
@@ -262,10 +249,8 @@ export const SettingsStoragePage = () => {
                     <p className="text-muted-foreground text-sm">{t("storage.pathStyleHelp")}</p>
                   </div>
                   <Switch
-                    checked={formState.s3_use_path_style}
-                    onCheckedChange={(checked) =>
-                      setFormState((prev) => ({ ...prev, s3_use_path_style: Boolean(checked) }))
-                    }
+                    checked={form.values.s3_use_path_style}
+                    onCheckedChange={(checked) => form.set({ s3_use_path_style: Boolean(checked) })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-md border px-4 py-3">
@@ -276,10 +261,8 @@ export const SettingsStoragePage = () => {
                     </p>
                   </div>
                   <Switch
-                    checked={formState.s3_local_fallback}
-                    onCheckedChange={(checked) =>
-                      setFormState((prev) => ({ ...prev, s3_local_fallback: Boolean(checked) }))
-                    }
+                    checked={form.values.s3_local_fallback}
+                    onCheckedChange={(checked) => form.set({ s3_local_fallback: Boolean(checked) })}
                   />
                 </div>
               </div>

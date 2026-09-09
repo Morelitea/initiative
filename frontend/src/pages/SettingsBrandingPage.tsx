@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
@@ -14,6 +14,7 @@ import {
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -22,29 +23,27 @@ export const SettingsBrandingPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const [lightColor, setLightColor] = useState("#2563eb");
-  const [darkColor, setDarkColor] = useState("#60a5fa");
-
   const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
+
+  // Both colours are picked and then saved together, so a refetch between the
+  // picking and the saving must not put the old pair back.
+  const form = useServerForm(interfaceQuery.data, (settings) => ({
+    light: settings?.light_accent_color ?? "#2563eb",
+    dark: settings?.dark_accent_color ?? "#60a5fa",
+  }));
 
   const updateInterface = useUpdateInterfaceSettings({
     onSuccess: () => {
+      form.settle();
       toast.success(t("branding.interfaceSuccess"));
     },
   });
 
-  useEffect(() => {
-    if (interfaceQuery.data) {
-      setLightColor(interfaceQuery.data.light_accent_color);
-      setDarkColor(interfaceQuery.data.dark_accent_color);
-    }
-  }, [interfaceQuery.data]);
-
   const handleInterfaceSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     updateInterface.mutate({
-      light_accent_color: lightColor,
-      dark_accent_color: darkColor,
+      light_accent_color: form.values.light,
+      dark_accent_color: form.values.dark,
     });
   };
 
@@ -74,8 +73,8 @@ export const SettingsBrandingPage = () => {
                 </Label>
                 <ColorPickerPopover
                   id="light-accent"
-                  value={lightColor}
-                  onChange={setLightColor}
+                  value={form.values.light}
+                  onChange={(next) => form.set({ light: next })}
                   triggerLabel={t("branding.adjust")}
                 />
                 <p className="text-muted-foreground text-xs">{t("branding.lightModeHelp")}</p>
@@ -87,8 +86,8 @@ export const SettingsBrandingPage = () => {
                 </Label>
                 <ColorPickerPopover
                   id="dark-accent"
-                  value={darkColor}
-                  onChange={setDarkColor}
+                  value={form.values.dark}
+                  onChange={(next) => form.set({ dark: next })}
                   triggerLabel={t("branding.adjust")}
                 />
                 <p className="text-muted-foreground text-xs">{t("branding.darkModeHelp")}</p>

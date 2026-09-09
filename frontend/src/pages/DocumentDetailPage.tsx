@@ -45,6 +45,7 @@ import { TagPicker } from "@/components/tags/TagPicker";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
@@ -164,7 +165,6 @@ export const DocumentDetailPage = () => {
     () => getItem(metadataCollapsedStorageKey) === "true"
   );
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
-  const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
   const [whiteboardScene, setWhiteboardScene] = useState<WhiteboardScene>(() => ({
     elements: [],
@@ -243,6 +243,14 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+
+  // The name follows the document until somebody starts renaming it: a
+  // refetch — a comment on this document, a window coming back to the front —
+  // must not take a half-typed name away, and a rename by somebody else must
+  // still arrive while nobody here is typing one.
+  const titleField = useServerForm(document, (loaded) => ({ title: loaded?.name ?? "" }));
+  const title = titleField.values.title;
+  const setTitle = (next: string) => titleField.set({ title: next });
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -295,7 +303,6 @@ export const DocumentDetailPage = () => {
     if (!document) {
       return;
     }
-    setTitle(document.name);
     if (document.document_type === "whiteboard") {
       // Only load the whiteboard scene once per document ID. Subsequent
       // document changes (from PATCH responses, cache updates, etc.) must
@@ -455,6 +462,9 @@ export const DocumentDetailPage = () => {
     // same behavior: the Capacitor Network plugin is authoritative on native.
     suppressErrorToast: () => !isOnline,
     onSuccess: () => {
+      // The name that was just written is the server's now, so the field goes
+      // back to following later answers.
+      titleField.settle();
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }

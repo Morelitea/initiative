@@ -51,6 +51,7 @@ import {
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -71,16 +72,37 @@ export function EventSettingsPage() {
   // authority once it arrives, and null is a guild-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("10:00");
-  const [allDay, setAllDay] = useState(false);
+  // Everything here waits for one of the two Save buttons, so a refetch part
+  // way through editing must leave what is on screen alone.
+  const form = useServerForm(event, (loaded) => {
+    const start = loaded ? new Date(loaded.start_at) : null;
+    const end = loaded ? new Date(loaded.end_at) : null;
+    return {
+      title: loaded?.title ?? "",
+      description: loaded?.description ?? "",
+      location: loaded?.location ?? "",
+      startDate: start ? toDateKey(start) : "",
+      startTime: start ? toTimeSlotRounded(start) : "09:00",
+      endDate: end ? toDateKey(end) : "",
+      endTime: end ? toTimeSlotRounded(end) : "10:00",
+      allDay: loaded?.all_day ?? false,
+      attendeeIds: loaded?.attendees.map((attendee) => attendee.user_id) ?? [],
+    };
+  });
+  const { title, description, location, startDate, startTime, endDate, endTime, allDay } =
+    form.values;
+  const attendeeIds = form.values.attendeeIds;
+  const setTitle = (next: string) => form.set({ title: next });
+  const setDescription = (next: string) => form.set({ description: next });
+  const setLocation = (next: string) => form.set({ location: next });
+  const setStartDate = (next: string) => form.set({ startDate: next });
+  const setStartTime = (next: string) => form.set({ startTime: next });
+  const setEndDate = (next: string) => form.set({ endDate: next });
+  const setEndTime = (next: string) => form.set({ endTime: next });
+  const setAllDay = (next: boolean) => form.set({ allDay: next });
+  const setAttendeeIds = (next: number[]) => form.set({ attendeeIds: next });
+  // Written the moment a tag is picked, so this one keeps following the server.
   const [tags, setTags] = useState<TagSummary[]>([]);
-  const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Custom properties — staging pattern: newly-attached definitions land in
@@ -145,18 +167,7 @@ export function EventSettingsPage() {
 
   useEffect(() => {
     if (event) {
-      setTitle(event.title);
-      setDescription(event.description ?? "");
-      setLocation(event.location ?? "");
-      const start = new Date(event.start_at);
-      const end = new Date(event.end_at);
-      setStartDate(toDateKey(start));
-      setStartTime(toTimeSlotRounded(start));
-      setEndDate(toDateKey(end));
-      setEndTime(toTimeSlotRounded(end));
-      setAllDay(event.all_day);
       setTags(event.tags ?? []);
-      setAttendeeIds(event.attendees.map((a) => a.user_id));
     }
   }, [event]);
 
@@ -190,11 +201,17 @@ export function EventSettingsPage() {
   );
 
   const updateEvent = useUpdateCalendarEvent(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => {
+      form.settle();
+      toast.success(t("detailsUpdated"));
+    },
   });
 
   const setAttendees = useSetEventAttendees(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => {
+      form.settle();
+      toast.success(t("detailsUpdated"));
+    },
   });
 
   const setEventTags = useSetEventTags(eventId);

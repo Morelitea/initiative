@@ -9,7 +9,7 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -28,6 +28,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGrantToolToRoles, useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
+import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isToolEnabled, TOGGLEABLE_TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
@@ -51,20 +52,21 @@ export const InitiativeSettingsDetailsPage = () => {
   const [toolToEnable, setToolToEnable] = useState<Tool | null>(null);
   const [toolToDisable, setToolToDisable] = useState<Tool | null>(null);
 
-  const [name, setName] = useState(initiative?.name ?? "");
-  const [description, setDescription] = useState(initiative?.description ?? "");
-  const [color, setColor] = useState(initiative?.color ?? DEFAULT_INITIATIVE_COLOR);
-
-  useEffect(() => {
-    if (initiative) {
-      setName(initiative.name);
-      setDescription(initiative.description ?? "");
-      setColor(initiative.color ?? DEFAULT_INITIATIVE_COLOR);
-    }
-  }, [initiative]);
+  // All three wait for Save, so a refetch mid-sentence must not take the
+  // sentence away.
+  const details = useServerForm(initiative, (loaded) => ({
+    name: loaded?.name ?? "",
+    description: loaded?.description ?? "",
+    color: loaded?.color ?? DEFAULT_INITIATIVE_COLOR,
+  }));
+  const { name, description, color } = details.values;
+  const setName = (next: string) => details.set({ name: next });
+  const setDescription = (next: string) => details.set({ description: next });
+  const setColor = (next: string) => details.set({ color: next });
 
   const updateInitiative = useUpdateInitiative({
     onSuccess: () => {
+      details.settle();
       toast.success(t("settings.updated"));
     },
     onError: (error) => {

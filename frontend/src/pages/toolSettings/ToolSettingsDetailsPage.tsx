@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useSetPostReactions } from "@/hooks/usePostReactions";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
@@ -28,15 +29,20 @@ export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation("common");
   const { tool, entity, canManage, update, detailsExtra } = useToolSettings();
 
-  const [nameValue, setNameValue] = useState(entity.name);
-  const [descriptionValue, setDescriptionValue] = useState(entity.description ?? "");
+  // Name and description wait for Save, so a refetch arriving mid-sentence
+  // must not take the sentence away.
+  const details = useServerForm(entity, (loaded) => ({
+    name: loaded?.name ?? "",
+    description: loaded?.description ?? "",
+  }));
+
+  // The rest are written the moment they are changed, so the local copy is
+  // only the preview and the server stays the truth.
   const [tags, setTags] = useState<TagSummary[]>(entity.tags ?? []);
   const [commentsEnabled, setCommentsEnabled] = useState(entity.comments_enabled);
   const [reactionsEnabled, setReactionsEnabled] = useState(entity.reactions_enabled ?? true);
 
   useEffect(() => {
-    setNameValue(entity.name);
-    setDescriptionValue(entity.description ?? "");
     setTags(entity.tags ?? []);
     setCommentsEnabled(entity.comments_enabled);
     setReactionsEnabled(entity.reactions_enabled ?? true);
@@ -50,11 +56,16 @@ export const ToolSettingsDetailsPage = () => {
   const showsReactionSwitch = tool === Tool.post;
 
   const handleDetailsSave = () => {
-    const trimmedName = nameValue.trim();
+    const trimmedName = details.values.name.trim();
     if (!trimmedName) return;
     update?.mutate(
-      { name: trimmedName, description: descriptionValue.trim() || null },
-      { onSuccess: () => toast.success(t("toolSettings.detailsUpdated")) }
+      { name: trimmedName, description: details.values.description.trim() || null },
+      {
+        onSuccess: () => {
+          details.settle();
+          toast.success(t("toolSettings.detailsUpdated"));
+        },
+      }
     );
   };
 
@@ -70,8 +81,8 @@ export const ToolSettingsDetailsPage = () => {
               <Label htmlFor="tool-settings-name">{t("name")}</Label>
               <Input
                 id="tool-settings-name"
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
+                value={details.values.name}
+                onChange={(e) => details.set({ name: e.target.value })}
                 placeholder={t("toolSettings.namePlaceholder")}
                 disabled={!canManage}
               />
@@ -80,15 +91,18 @@ export const ToolSettingsDetailsPage = () => {
               <Label htmlFor="tool-settings-description">{t("description")}</Label>
               <Textarea
                 id="tool-settings-description"
-                value={descriptionValue}
-                onChange={(e) => setDescriptionValue(e.target.value)}
+                value={details.values.description}
+                onChange={(e) => details.set({ description: e.target.value })}
                 placeholder={t("toolSettings.descriptionPlaceholder")}
                 disabled={!canManage}
                 rows={3}
               />
             </div>
             {canManage && (
-              <Button onClick={handleDetailsSave} disabled={update.isPending || !nameValue.trim()}>
+              <Button
+                onClick={handleDetailsSave}
+                disabled={update.isPending || !details.values.name.trim()}
+              >
                 {update.isPending ? t("toolSettings.saving") : t("save")}
               </Button>
             )}

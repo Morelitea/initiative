@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
@@ -23,6 +23,7 @@ import {
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useInterfaceSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -60,17 +61,17 @@ export const SettingsGuildAuthPage = () => {
     [providersQuery.data]
   );
 
-  const [policy, setPolicy] = useState<"open" | "required">("open");
-  const [providerId, setProviderId] = useState<number | null>(null);
+  // Chosen here, saved by the button below — a refetch in between must not
+  // undo the choice.
+  const form = useServerForm(policyQuery.data, (loaded) => ({
+    policy: loaded?.policy ?? ("open" as "open" | "required"),
+    providerId: loaded?.provider_id ?? null,
+  }));
+  const { policy, providerId } = form.values;
+  const setPolicy = (next: "open" | "required") => form.set({ policy: next });
+  const setProviderId = (next: number | null) => form.set({ providerId: next });
   const [error, setError] = useState<string | null>(null);
   const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (policyQuery.data) {
-      setPolicy(policyQuery.data.policy);
-      setProviderId(policyQuery.data.provider_id ?? null);
-    }
-  }, [policyQuery.data]);
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
@@ -90,6 +91,7 @@ export const SettingsGuildAuthPage = () => {
         onSuccess: () => {
           setError(null);
           setSelfUnsatisfiedSlug(null);
+          form.settle();
           toast.success(t("guildAuth.policy.saved"));
         },
         onError: (err: unknown) => {

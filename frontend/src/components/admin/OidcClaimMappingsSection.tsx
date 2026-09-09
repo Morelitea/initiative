@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OIDCClaimMappingRead } from "@/api/generated/initiativeAPI.schemas";
@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useServerForm } from "@/hooks/useServerForm";
 import {
   useCreateOidcMapping,
   useDeleteOidcMapping,
@@ -34,7 +35,6 @@ import { toast } from "@/lib/chesterToast";
 export const OidcClaimMappingsSection = () => {
   const { t } = useTranslation("settings");
 
-  const [claimPath, setClaimPath] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -49,14 +49,16 @@ export const OidcClaimMappingsSection = () => {
   const mappingsQuery = useOidcMappings();
   const optionsQuery = useOidcMappingOptions();
 
-  useEffect(() => {
-    if (mappingsQuery.data) {
-      setClaimPath(mappingsQuery.data.claim_path ?? "");
-    }
-  }, [mappingsQuery.data]);
+  // Typed, then saved by the button beside it.
+  const claimPathForm = useServerForm(mappingsQuery.data, (loaded) => ({
+    claimPath: loaded?.claim_path ?? "",
+  }));
 
   const updateClaimPath = useUpdateOidcClaimPath({
-    onSuccess: () => toast.success(t("auth.claimPathSuccess")),
+    onSuccess: () => {
+      claimPathForm.settle();
+      toast.success(t("auth.claimPathSuccess"));
+    },
     onError: () => toast.error(t("auth.claimPathError")),
   });
 
@@ -123,7 +125,7 @@ export const OidcClaimMappingsSection = () => {
 
   const handleClaimPathSubmit = (e: FormEvent) => {
     e.preventDefault();
-    updateClaimPath.mutate({ claim_path: claimPath.trim() || null });
+    updateClaimPath.mutate({ claim_path: claimPathForm.values.claimPath.trim() || null });
   };
 
   const handleMappingSubmit = (e: FormEvent) => {
@@ -177,8 +179,8 @@ export const OidcClaimMappingsSection = () => {
               <Label htmlFor="claim-path">{t("auth.claimPathLabel")}</Label>
               <Input
                 id="claim-path"
-                value={claimPath}
-                onChange={(e) => setClaimPath(e.target.value)}
+                value={claimPathForm.values.claimPath}
+                onChange={(e) => claimPathForm.set({ claimPath: e.target.value })}
                 placeholder={t("auth.claimPathPlaceholder")}
               />
             </div>
