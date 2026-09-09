@@ -5,7 +5,7 @@ query may name two columns the same thing — ``SELECT t.id, p.id`` is legal and
 gives both the name ``id``. A mapping would keep one of the two.
 """
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import Field
 
@@ -77,6 +77,27 @@ class QueryConditionSpec(SanitizedBaseModel):
     field: str = Field(min_length=1, max_length=100)
     op: FilterOp = FilterOp.eq
     value: Any = None
+    #: The same comparison, answered the other way.
+    negate: bool = False
+
+
+class QueryFilterGroupSpec(SanitizedBaseModel):
+    """Comparisons held together by one word.
+
+    ``conditions`` is required rather than defaulted, so a comparison cannot
+    read as an empty group: the two shapes are told apart by which key they
+    carry.
+    """
+
+    logic: Literal["and", "or"] = "and"
+    conditions: List["QueryFilterNode"] = Field(max_length=20)
+
+
+#: One line of a filter: a comparison, or a bracket around more of them. The
+#: group comes first so a bracket is read as one.
+QueryFilterNode = Union[QueryFilterGroupSpec, QueryConditionSpec]
+
+QueryFilterGroupSpec.model_rebuild()
 
 
 class QuerySortSpec(SanitizedBaseModel):
@@ -94,7 +115,7 @@ class QueryBuildRequest(SanitizedBaseModel):
 
     dataset: str = Field(min_length=1, max_length=100)
     columns: List[QueryColumnSpec] = Field(min_length=1, max_length=20)
-    where: List[QueryConditionSpec] = Field(default_factory=list, max_length=20)
+    where: List[QueryFilterNode] = Field(default_factory=list, max_length=20)
     group_by: List[str] = Field(default_factory=list, max_length=10)
     order_by: Optional[QuerySortSpec] = None
     limit: Optional[int] = Field(default=None, gt=0, le=10_000)

@@ -267,7 +267,8 @@
     "absolute": "On a date",
     "relativeDays": "Days from today",
     "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale.",
-    "loading": "Loading filters…"
+    "loading": "Loading filters…",
+    "noFields": "Nothing to filter on here yet."
   },
   "tableView": {
     "caption": "The same data as a table",

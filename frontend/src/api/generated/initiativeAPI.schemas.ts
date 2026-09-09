@@ -5140,6 +5140,14 @@ export interface QueryColumnSpec {
   alias?: string | null;
 }
 
+export type QueryFilterGroupSpecLogic =
+  (typeof QueryFilterGroupSpecLogic)[keyof typeof QueryFilterGroupSpecLogic];
+
+export const QueryFilterGroupSpecLogic = {
+  and: "and",
+  or: "or",
+} as const;
+
 /**
  * One comparison, in the vocabulary the filter DSL already uses.
  */
@@ -5151,6 +5159,20 @@ export interface QueryConditionSpec {
   field: string;
   op?: FilterOp;
   value?: unknown;
+  negate?: boolean;
+}
+
+/**
+ * Comparisons held together by one word.
+ *
+ * ``conditions`` is required rather than defaulted, so a comparison cannot
+ * read as an empty group: the two shapes are told apart by which key they
+ * carry.
+ */
+export interface QueryFilterGroupSpec {
+  logic?: QueryFilterGroupSpecLogic;
+  /** @maxItems 20 */
+  conditions: (QueryFilterGroupSpec | QueryConditionSpec)[];
 }
 
 export interface QuerySortSpec {
@@ -5181,7 +5203,7 @@ export interface QueryBuildRequest {
    */
   columns: QueryColumnSpec[];
   /** @maxItems 20 */
-  where?: QueryConditionSpec[];
+  where?: (QueryFilterGroupSpec | QueryConditionSpec)[];
   /** @maxItems 10 */
   group_by?: string[];
   order_by?: QuerySortSpec | null;

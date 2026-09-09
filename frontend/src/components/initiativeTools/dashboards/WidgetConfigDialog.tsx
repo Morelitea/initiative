@@ -1017,7 +1017,7 @@ function QueryParam({
 
       <TabsContent value="build" className="space-y-3">
         {spec ? (
-          <QueryBuilder spec={spec} onChange={setSpec} />
+          <QueryBuilder spec={spec} onChange={setSpec} initiativeId={initiativeId} />
         ) : (
           <div className="space-y-2 rounded-lg border border-dashed p-3">
             <p className="text-muted-foreground text-xs">{t("dashboards:builder.notBuilt")}</p>

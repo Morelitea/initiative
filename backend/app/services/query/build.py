@@ -20,7 +20,7 @@ the same SQL.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence, Union
 
 from pglast import ast
 from pglast.enums import A_Expr_Kind, BoolExprType, LimitOption, SortByDir
@@ -73,6 +73,33 @@ class Condition:
     field: str
     op: FilterOp = FilterOp.eq
     value: Any = None
+    #: The same comparison, answered the other way.
+    negate: bool = False
+
+
+@dataclass(frozen=True)
+class Group:
+    """Conditions held together by one word.
+
+    The filter builder has always described nested groups, because "high or
+    urgent, and mine" is an ordinary thing to ask and a flat list of ANDs
+    cannot say it. This is that shape, so a description and a filter stay one
+    vocabulary rather than two.
+    """
+
+    logic: str = "and"
+    conditions: Sequence["Node"] = field(default_factory=tuple)
+
+
+#: One line of a filter: a comparison, or a bracket around more of them.
+Node = Union[Condition, Group]
+
+#: The words a bracket may be held together by.
+_LOGIC = {"and": BoolExprType.AND_EXPR, "or": BoolExprType.OR_EXPR}
+
+#: How deep a description may bracket. The builder offers one level; this
+#: bounds what may arrive, not what anybody clicks.
+MAX_GROUP_DEPTH = 3
 
 
 @dataclass(frozen=True)
@@ -87,7 +114,7 @@ class QuerySpec:
 
     dataset: str
     columns: Sequence[Column] = field(default_factory=tuple)
-    where: Sequence[Condition] = field(default_factory=tuple)
+    where: Sequence[Node] = field(default_factory=tuple)
     #: Columns to group by, named the way the select list names them.
     group_by: Sequence[str] = field(default_factory=tuple)
     order_by: Optional[Sort] = None
@@ -117,6 +144,8 @@ def _literal(value: Any) -> ast.Node:
     what it contains is the deparser's problem and not a quoting rule of ours."""
     if value is None:
         return ast.A_Const(isnull=True)
+    if isinstance(value, Mapping) and "relative" in value:
+        return _relative(value["relative"])
     if isinstance(value, bool):
         return ast.A_Const(val=ast.Boolean(boolval=value))
     if isinstance(value, int):
@@ -124,6 +153,30 @@ def _literal(value: Any) -> ast.Node:
     if isinstance(value, float):
         return ast.A_Const(val=ast.Float(fval=repr(value)))
     return ast.A_Const(val=ast.String(sval=str(value)))
+
+
+def _relative(days: Any) -> ast.Node:
+    """A date the reader gave as a distance, kept as one.
+
+    A dashboard is a standing question: "due in the next 30 days" has to still
+    mean that next month, so what is written is the distance, and the day it is
+    counted from is read when the tile runs.
+    """
+    # A whole number of days and nothing else: ``int()`` would read 1.9 as one
+    # day and ``True`` as one day, and a date boundary quietly one place from
+    # where it was asked for is worse than a refusal.
+    if not isinstance(days, int) or isinstance(days, bool):
+        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "relative")
+    offset = days
+    return ast.A_Expr(
+        kind=A_Expr_Kind.AEXPR_OP,
+        name=(ast.String(sval="+" if offset >= 0 else "-"),),
+        lexpr=ast.FuncCall(funcname=(ast.String(sval="now"),), args=()),
+        rexpr=ast.TypeCast(
+            arg=ast.A_Const(val=ast.String(sval=f"{abs(offset)} days")),
+            typeName=ast.TypeName(names=(ast.String(sval="interval"),)),
+        ),
+    )
 
 
 def _expression(column: Column) -> ast.Node:
@@ -224,15 +277,50 @@ def _predicate(dataset_name: str, condition: Condition) -> ast.Node:
     )
 
 
-def _where(dataset_name: str, conditions: Sequence[Condition]) -> Optional[ast.Node]:
-    """Every condition, AND-ed. A flat list, because that is what a builder
-    produces and a nested one would spend a level nobody asked for."""
-    if not conditions:
+def _where(
+    dataset_name: str, nodes: Sequence[Node], depth: int = 0
+) -> Optional[ast.Node]:
+    """Everything the description asks of a row.
+
+    A list is AND-ed, which is what a reader means by writing two lines. A
+    group says its own word instead, over a list of its own.
+    """
+    predicates = tuple(
+        held
+        for node in nodes
+        for held in (_node(dataset_name, node, depth),)
+        if held is not None
+    )
+    if not predicates:
         return None
-    predicates = tuple(_predicate(dataset_name, condition) for condition in conditions)
     if len(predicates) == 1:
         return predicates[0]
     return ast.BoolExpr(boolop=BoolExprType.AND_EXPR, args=predicates)
+
+
+def _node(dataset_name: str, node: Node, depth: int) -> Optional[ast.Node]:
+    if depth > MAX_GROUP_DEPTH:
+        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "group depth")
+    if isinstance(node, Group):
+        if node.logic not in _LOGIC:
+            raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, str(node.logic))
+        inner = tuple(
+            held
+            for entry in node.conditions
+            for held in (_node(dataset_name, entry, depth + 1),)
+            if held is not None
+        )
+        if not inner:
+            # A bracket somebody opened and did not fill asks nothing, which is
+            # better than refusing to save what they were part way through.
+            return None
+        if len(inner) == 1:
+            return inner[0]
+        return ast.BoolExpr(boolop=_LOGIC[node.logic], args=inner)
+    predicate = _predicate(dataset_name, node)
+    if node.negate:
+        return ast.BoolExpr(boolop=BoolExprType.NOT_EXPR, args=(predicate,))
+    return predicate
 
 
 def _check_field(name: str, field_name: str) -> None:
@@ -254,12 +342,39 @@ def _check_field(name: str, field_name: str) -> None:
         raise QueryError(QueryMessages.UNKNOWN_FIELD, f"{relation_name}.{plain}")
 
 
+def _check_depth(nodes: Sequence[Node]) -> None:
+    """That a description does not bracket deeper than it may.
+
+    Walked with a stack of its own rather than by recursion, and before
+    anything else reads the description — so the bound below is what stops a
+    deep one, rather than whichever traversal happens to reach it first.
+    """
+    pending = [(node, 0) for node in nodes]
+    while pending:
+        node, depth = pending.pop()
+        if depth > MAX_GROUP_DEPTH:
+            raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "group depth")
+        if isinstance(node, Group):
+            pending.extend((entry, depth + 1) for entry in node.conditions)
+
+
+def _leaves(nodes: Sequence[Node]) -> list[Condition]:
+    """Every comparison a description holds, however it is bracketed."""
+    found: list[Condition] = []
+    for node in nodes:
+        if isinstance(node, Group):
+            found.extend(_leaves(node.conditions))
+        else:
+            found.append(node)
+    return found
+
+
 def _relations_named(spec: QuerySpec) -> list[str]:
     """The relations this description reads through, in the order first met."""
     named: list[str] = []
     for name in (
         [column.field for column in spec.columns]
-        + [condition.field for condition in spec.where]
+        + [condition.field for condition in _leaves(spec.where)]
         + ([spec.order_by.field] if spec.order_by else [])
         + list(spec.group_by)
     ):
@@ -329,7 +444,8 @@ def build(spec: QuerySpec) -> str:
     for column in spec.columns:
         if column.field != "*":
             _check_field(spec.dataset, column.field)
-    for condition in spec.where:
+    _check_depth(spec.where)
+    for condition in _leaves(spec.where):
         _check_field(spec.dataset, condition.field)
 
     # A bare column is already named after itself, so an alias there would read

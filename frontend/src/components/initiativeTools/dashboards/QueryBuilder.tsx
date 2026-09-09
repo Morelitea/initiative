@@ -21,6 +21,7 @@ import {
   type QueryBuildRequest,
   type QueryColumnSpec,
 } from "@/api/generated/initiativeAPI.schemas";
+import { FilterBuilder } from "@/components/initiativeTools/dashboards/FilterBuilder";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import { useFieldCatalogs } from "@/hooks/useQueryVocabulary";
+import type { FilterNode } from "@/lib/widgets/conditions";
 
 /** The datasets a query may name. Read from the generated enum, which is the
  *  backend's own registry — so a dataset declared there is offered here on the
@@ -48,9 +50,11 @@ const COUNT_ALL: QueryColumnSpec = { field: "*", aggregate: "count", alias: "cou
 export interface QueryBuilderProps {
   spec: QueryBuildRequest;
   onChange: (spec: QueryBuildRequest) => void;
+  /** The dashboard's initiative. Every list a filter picks from is its own. */
+  initiativeId: number;
 }
 
-export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
+export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps) {
   const { t } = useTranslation(["dashboards", "common"]);
   const { fields, relations } = useFieldCatalog(spec.dataset as DatasetName);
   // What each related dataset holds. A relation says only its name and where
@@ -236,6 +240,16 @@ export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
           <Plus className="mr-1 h-4 w-4" />
           {t("dashboards:builder.addColumn")}
         </Button>
+      </section>
+
+      <section className="space-y-2">
+        <Label>{t("dashboards:filterBuilder.heading")}</Label>
+        <FilterBuilder
+          dataset={spec.dataset}
+          initiativeId={initiativeId}
+          value={(spec.where ?? []) as FilterNode[]}
+          onChange={(where) => patch({ where })}
+        />
       </section>
 
       <section className="space-y-2">

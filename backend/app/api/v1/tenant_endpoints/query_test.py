@@ -239,6 +239,63 @@ async def test_a_built_query_can_be_run_as_it_came_back(client, session, acting_
     assert ran.json()["rows"] == [[1]]
 
 
+async def test_a_built_query_brackets_what_it_was_told_to(client, session, acting_user):
+    """ "High or urgent, and mine" is one description and two words. What comes
+    back has to be a statement this surface runs, brackets and all."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, actor.initiative, actor.user)
+    await create_task(session, project, priority="high")
+    await create_task(session, project, priority="low")
+
+    built = await client.post(
+        actor.g("/query/build"),
+        json={
+            "dataset": "tasks",
+            "columns": [{"field": "*", "aggregate": "count", "alias": "n"}],
+            "where": [
+                {
+                    "logic": "or",
+                    "conditions": [
+                        {"field": "priority", "op": "eq", "value": "high"},
+                        {"field": "priority", "op": "eq", "value": "urgent"},
+                    ],
+                },
+                {"field": "is_archived", "op": "eq", "value": False},
+            ],
+            "initiative_id": actor.initiative.id,
+        },
+        headers=actor.headers,
+    )
+    assert built.status_code == 200, built.json()
+    assert "OR" in built.json()["sql"]
+
+    ran = await client.post(
+        actor.g("/query"),
+        json={"sql": built.json()["sql"], "initiative_id": actor.initiative.id},
+        headers=actor.headers,
+    )
+    assert ran.status_code == 200, ran.json()
+    assert ran.json()["rows"] == [[1]]
+
+
+async def test_a_built_query_keeps_a_date_a_distance(client, acting_user):
+    """A tile asking about the next 30 days has to still be asking that next
+    month, so the offset is what the statement carries."""
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/build"),
+        json={
+            "dataset": "tasks",
+            "columns": [{"field": "*", "aggregate": "count", "alias": "n"}],
+            "where": [{"field": "due_date", "op": "lte", "value": {"relative": 30}}],
+        },
+        headers=actor.headers,
+    )
+    assert response.status_code == 200, response.json()
+    assert "interval" in response.json()["sql"].lower()
+    assert "now()" in response.json()["sql"].lower()
+
+
 async def test_a_builder_cannot_describe_a_dataset_nobody_declared(client, acting_user):
     actor = await acting_user(guild_role=GuildRole.member, initiative=True)
     response = await client.post(
