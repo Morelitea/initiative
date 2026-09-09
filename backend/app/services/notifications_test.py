@@ -1288,6 +1288,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     from app.services.platform import user_notifications
 
     author = await create_user(session, email="rollup-rolled-off@example.com")
+    guild = await create_guild(session, creator=author)
     bob = 2
     # 25 gestures counted, only the newest 20 remembered: bob's first has
     # rolled off the detail, his second is the newest entry.
@@ -1301,7 +1302,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         user_id=author.id,
         notification_type=NotificationType.comment_reaction,
         data={
-            "guild_id": 1,
+            "guild_id": guild.id,
             "target_type": "comment",
             "target_id": 5,
             "count": 25,
@@ -1320,7 +1321,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         emoji="\N{THUMBS UP SIGN}",
         target_type="comment",
         target_id=5,
-        guild_id=1,
+        guild_id=guild.id,
     )
 
     assert line.data["count"] == 24
