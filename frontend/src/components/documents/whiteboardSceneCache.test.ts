@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import {
+  clearAllWhiteboardSceneCaches,
   clearWhiteboardSceneCache,
   loadWhiteboardScene,
   stampWhiteboardSceneCache,
@@ -71,5 +72,26 @@ describe("stampWhiteboardSceneCache / clearWhiteboardSceneCache", () => {
     stampWhiteboardSceneCache(DOC_ID, scene("local"));
     clearWhiteboardSceneCache(DOC_ID);
     expect(getItem(KEY)).toBeNull();
+  });
+});
+
+describe("clearAllWhiteboardSceneCaches", () => {
+  it("takes every whiteboard's scene off the device", () => {
+    stampWhiteboardSceneCache(DOC_ID, scene("one"));
+    stampWhiteboardSceneCache(DOC_ID + 1, scene("two"));
+
+    clearAllWhiteboardSceneCaches();
+
+    expect(getItem(KEY)).toBeNull();
+    expect(getItem(`wb-scene-${DOC_ID + 1}`)).toBeNull();
+  });
+
+  it("leaves everything that is not a scene alone", () => {
+    setItem("initiative-language", "en");
+    stampWhiteboardSceneCache(DOC_ID, scene("one"));
+
+    clearAllWhiteboardSceneCaches();
+
+    expect(getItem("initiative-language")).toBe("en");
   });
 });

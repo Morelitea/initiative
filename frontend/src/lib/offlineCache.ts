@@ -321,6 +321,29 @@ export const hydrateGuildShard = async (guildId: number): Promise<void> => {
 };
 
 /**
+ * Keep only these communities' cached content and drop the rest.
+ *
+ * Called with a membership list the server has just confirmed. A community
+ * somebody has left, been removed from, or now reaches only by a time-bound
+ * grant stops appearing in that list, and its content goes with it rather than
+ * waiting out the 24 hours — when we learn while online that a membership is
+ * over, there is no reason to leave the content sitting there.
+ *
+ * Only ever call this with an authoritative list. The remembered list a launch
+ * with no signal falls back to is not one: pruning against it would delete
+ * everything the device had, which is the opposite of the point.
+ */
+export const retainOnlyGuilds = async (guildIds: Iterable<number>): Promise<void> => {
+  if (!isOfflineCacheEnabled()) return;
+  const keep = new Set([...guildIds].map(guildShard));
+  try {
+    await getPersister().retainShards((shard) => shard === PLATFORM_SHARD || keep.has(shard));
+  } catch {
+    // Best effort; anything missed still ages out on its own clock.
+  }
+};
+
+/**
  * Forget one community's cached content, leaving every other community's in
  * place. Used when a community stops being an ordinary membership — it is left,
  * or it becomes reachable only by a time-bound grant — where erasing the whole

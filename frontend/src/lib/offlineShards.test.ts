@@ -190,6 +190,41 @@ describe("cleaning up after itself", () => {
     expect([...store.data.keys()]).toEqual([]);
   });
 
+  it("prunes communities the membership list no longer names", async () => {
+    const p = build(store, () => ["platform"]);
+    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks", "/api/v1/users/me"]));
+
+    // The server says the user is only in g3 now.
+    await p.retainShards((shard) => shard === "platform" || shard === "g3");
+
+    expect(store.data.has("react-query:g3")).toBe(true);
+    expect(store.data.has("react-query:g5")).toBe(false);
+    expect(store.data.has("react-query:platform")).toBe(true);
+  });
+
+  it("prunes a community it never loaded, reading the index to find it", async () => {
+    const writer = build(store, () => ["platform"]);
+    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+
+    // A departed community is exactly one nothing has opened this session.
+    const fresh = build(store, () => ["platform"]);
+    await fresh.retainShards((shard) => shard !== "g5");
+
+    expect(store.data.has("react-query:g5")).toBe(false);
+    expect(store.data.has("react-query:g3")).toBe(true);
+  });
+
+  it("keeps the index honest after a prune", async () => {
+    const p = build(store, () => ["platform", "g3", "g5"]);
+    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+    await p.retainShards((shard) => shard !== "g5");
+
+    // A later launch must not believe g5 is still there.
+    const next = build(store, () => ["platform", "g3", "g5"]);
+    const restored = await next.restoreClient();
+    expect(restored?.clientState.queries.map((q) => q.queryKey[0])).toEqual(["/api/v1/g/3/tasks"]);
+  });
+
   it("has nothing to restore before anything was written", async () => {
     const p = build(store, () => ["platform"]);
     expect(await p.restoreClient()).toBeUndefined();

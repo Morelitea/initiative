@@ -17,6 +17,7 @@ import {
   setHasActiveSession,
 } from "@/api/client";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
@@ -391,6 +392,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // with it goes at the same time.
     clearOfflineSession();
     void purgeOfflineCache();
+    clearAllWhiteboardSceneCaches();
   }, [setUser, replaceIdentity]);
 
   useEffect(() => {

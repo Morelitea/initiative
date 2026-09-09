@@ -14,15 +14,16 @@ import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { persistGuildId, readStoredGuildId } from "@/lib/activeGuildStorage";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   addGrantOnlyGuildIds,
-  forgetGuildOffline,
   hydrateGuildShard,
   isOfflineCacheEnabled,
+  retainOnlyGuilds,
   setGrantOnlyGuildIds,
 } from "@/lib/offlineCache";
 import {
@@ -127,6 +128,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, refreshUser } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [guilds, setGuilds] = useState<GuildEntry[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
@@ -135,6 +137,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
   const hasFetchedRef = useRef(false);
+  /** True while the switcher is showing the list this device remembered rather
+   *  than one the server gave us. */
+  const showingRememberedGuildsRef = useRef(false);
   const activeGuildIdRef = useRef(activeGuildId);
   activeGuildIdRef.current = activeGuildId;
   // Mirror the active guild to the invalidation layer synchronously on every
@@ -170,13 +175,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       .map((guild) => guild.id);
     if (grantsKnown) {
       setGrantOnlyGuildIds(grantIds);
-      // A community that is now reached only by a grant may have been an
-      // ordinary membership when it was last cached, so anything already on
-      // disk for it goes. Per-community storage means this costs the one
-      // community rather than the whole cache.
-      for (const id of grantIds) {
-        void forgetGuildOffline(id);
-      }
     } else {
       addGrantOnlyGuildIds(grantIds);
     }
@@ -247,6 +245,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // the time the device is looked at again.
       if (isOfflineCacheEnabled()) {
         saveOfflineGuilds(response.data, currentServerKey());
+        // This list is the server's answer, so it is the one moment we can say
+        // which communities the device should still be holding content for.
+        showingRememberedGuildsRef.current = false;
+        void retainOnlyGuilds(response.data.map((guild) => guild.id));
       }
 
       applyGuildState([...response.data, ...grantGuilds], grantsKnown);
@@ -258,6 +260,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         const remembered = readOfflineGuilds<GuildEntry>(currentServerKey());
         if (remembered && remembered.length > 0) {
           hasFetchedRef.current = true;
+          showingRememberedGuildsRef.current = true;
           applyGuildState(remembered, false);
           setLoading(false);
           return;
@@ -327,10 +330,19 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
       setLoading(false);
       hasFetchedRef.current = false;
+      showingRememberedGuildsRef.current = false;
       return;
     }
     void refreshGuilds();
   }, [userId, refreshGuilds]);
+
+  // A remembered list is only ever a stand-in. Signal returning is the moment
+  // to replace it — nothing else would, since the list is fetched off the
+  // user's id and that has not changed.
+  useEffect(() => {
+    if (!isOnline || !showingRememberedGuildsRef.current) return;
+    void refreshGuilds();
+  }, [isOnline, refreshGuilds]);
 
   const switchGuild = useCallback(
     async (guildId: number) => {
