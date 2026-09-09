@@ -1,0 +1,144 @@
+"""Quiet hours: suppress overnight, then say what happened once.
+
+The suppression is a predicate next to the preference check. The summary is a
+query, not a queue — everything held back is already in the inbox, unread and
+stamped inside the window, so there is nothing else to record.
+"""
+
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.platform.notification import NotificationType
+from app.services.notifications import _run_quiet_hours_summary_pass
+from app.services.platform import notification_prefs, user_notifications
+from app.testing import create_guild, create_user, set_notification_prefs
+
+NIGHT = {"quiet_hours": {"start": "22:00", "end": "07:00"}}
+
+
+def _at(hour: int, day: int = 9) -> datetime:
+    return datetime(2026, 9, day, hour, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.unit
+def test_a_window_still_running_has_nothing_to_summarise():
+    assert (
+        notification_prefs.last_window_close(NIGHT, tz_name="UTC", now=_at(23)) is None
+    )
+
+
+@pytest.mark.unit
+def test_the_window_that_just_closed_is_found():
+    window = notification_prefs.last_window_close(NIGHT, tz_name="UTC", now=_at(8))
+    assert window is not None
+    opened, closed = window
+    assert closed == _at(7)
+    # Overnight: it opened the evening before.
+    assert opened == _at(22, day=8)
+
+
+@pytest.mark.unit
+def test_a_long_past_window_is_not_summarised():
+    """A "while you were asleep" about the night before last is noise."""
+    assert (
+        notification_prefs.last_window_close(NIGHT, tz_name="UTC", now=_at(20)) is None
+    )
+
+
+@pytest.mark.unit
+def test_no_window_means_no_summary():
+    assert notification_prefs.last_window_close({}, tz_name="UTC", now=_at(8)) is None
+
+
+@pytest.mark.integration
+async def test_the_summary_says_what_happened_and_only_once(session: AsyncSession):
+    user = await create_user(session, email="quiet-summary@example.com", timezone="UTC")
+    guild = await create_guild(session, creator=user)
+    await set_notification_prefs(session, user, dict(NIGHT))
+
+    # Two things, inside last night's window.
+    for _ in range(2):
+        notification = await user_notifications.create_notification(
+            session,
+            user_id=user.id,
+            notification_type=NotificationType.mention,
+            data={"guild_id": guild.id},
+        )
+        assert notification is not None
+        notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+        assert email.await_count == 1
+        body = email.await_args.kwargs["body_text"]
+        assert "2" in body
+        assert guild.name in body
+
+        # The window is stamped, so a second pass inside the grace period says
+        # nothing more.
+        await _run_quiet_hours_summary_pass(session, now=_at(9))
+        assert email.await_count == 1
+
+
+@pytest.mark.integration
+async def test_a_quiet_night_sends_nothing(session: AsyncSession):
+    user = await create_user(session, email="quiet-nothing@example.com", timezone="UTC")
+    await set_notification_prefs(session, user, dict(NIGHT))
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    assert email.await_count == 0
+
+
+@pytest.mark.integration
+async def test_an_account_with_no_window_is_left_alone(session: AsyncSession):
+    user = await create_user(session, email="quiet-none@example.com", timezone="UTC")
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={},
+    )
+    await session.commit()
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    assert email.await_count == 0
+
+
+@pytest.mark.integration
+async def test_nothing_read_before_the_window_closed_is_counted(
+    session: AsyncSession,
+):
+    """The summary is what is still waiting, not what arrived."""
+    user = await create_user(session, email="quiet-read@example.com", timezone="UTC")
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    notification.read_at = _at(23, day=8) + timedelta(minutes=5)
+    await session.commit()
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    assert email.await_count == 0

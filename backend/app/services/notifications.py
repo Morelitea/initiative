@@ -20,6 +20,7 @@ from app.core.notification_categories import (
     CATEGORY_SPECS,
     Channel,
     NotificationCategory,
+    category_of,
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -35,7 +36,7 @@ from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.services.platform import accounts as accounts_service
-from app.models.platform.notification import NotificationType
+from app.models.platform.notification import Notification, NotificationType
 from app.services import email as email_service
 from app.services.platform import notification_prefs
 from app.services.platform import user_notifications
@@ -52,6 +53,9 @@ logger = logging.getLogger(__name__)
 
 DIGEST_POLL_SECONDS = 60
 OVERDUE_POLL_SECONDS = 300
+# The summary goes out when a window closes, so the poll only has to be finer
+# than the grace period it is bounded by.
+QUIET_SUMMARY_POLL_SECONDS = 600
 # A task-assignment digest waits for the flurry to end rather than firing on
 # the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
 # lone assignment still lands promptly while a burst collapses into one
@@ -2703,6 +2707,160 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
 async def process_overdue_notifications() -> None:
     async with AdminSessionLocal() as session:
         await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Quiet hours: one summary when the window closes
+# ---------------------------------------------------------------------------
+
+
+async def _quiet_summary_rows(
+    session: AsyncSession, *, user_id: int, since: datetime, until: datetime
+) -> list[tuple[NotificationCategory, int | None, int]]:
+    """What was held back, grouped by category and community.
+
+    A query, not a queue. Everything suppressed overnight is already sitting in
+    the inbox unread and stamped inside the window, so there is nothing else to
+    record and nothing to drain.
+    """
+    stmt = (
+        select(
+            Notification.type,
+            Notification.guild_id,
+            func.count().label("total"),
+        )
+        .where(
+            Notification.user_id == user_id,
+            Notification.read_at.is_(None),
+            Notification.created_at >= since,
+            Notification.created_at < until,
+        )
+        .group_by(Notification.type, Notification.guild_id)
+    )
+    rows = (await session.exec(stmt)).all()
+    grouped: dict[tuple[NotificationCategory, int | None], int] = {}
+    for notification_type, guild_id, total in rows:
+        key = (category_of(NotificationType(notification_type)), guild_id)
+        grouped[key] = grouped.get(key, 0) + int(total)
+    return [
+        (category, guild_id, total) for (category, guild_id), total in grouped.items()
+    ]
+
+
+def _quiet_summary_body(
+    rows: list[tuple[NotificationCategory, int | None, int]],
+    *,
+    guild_names: Mapping[int, str],
+    locale: str,
+) -> str:
+    """The summary's text, from the grouped counts.
+
+    One function over the rows, deliberately — it is the seam a written summary
+    would replace, and replacing it would be replacing this and nothing else.
+    """
+    by_guild: dict[int | None, list[str]] = {}
+    for category, guild_id, total in sorted(
+        rows, key=lambda row: (row[1] or 0, row[0].value)
+    ):
+        line = _nt(f"quietHours.category.{category.value}", locale, count=total)
+        by_guild.setdefault(guild_id, []).append(line)
+    parts: list[str] = []
+    for guild_id, lines in by_guild.items():
+        name = guild_names.get(guild_id) if guild_id is not None else None
+        joined = ", ".join(lines)
+        parts.append(f"{name} — {joined}" if name else joined)
+    return "<br>".join(parts)
+
+
+async def _run_quiet_hours_summary_pass(
+    session: AsyncSession, *, now: datetime
+) -> None:
+    """Tell each account what it missed, once, when its window closes."""
+    users = (await session.exec(select(User))).scalars().all()
+    all_prefs = await notification_prefs.load_prefs_for(
+        session, [user.id for user in users]
+    )
+    for user in users:
+        prefs = all_prefs.get(user.id)
+        if not prefs:
+            continue
+        window = notification_prefs.last_window_close(
+            prefs, tz_name=user.timezone, now=now
+        )
+        if window is None:
+            continue
+        opened, closed = window
+        stamped = prefs.get("quiet_hours", {}).get("last_summary_at")
+        if isinstance(stamped, str):
+            try:
+                if datetime.fromisoformat(stamped) >= closed:
+                    continue  # this window has already been summarised
+            except ValueError:
+                pass
+
+        rows = await _quiet_summary_rows(
+            session, user_id=user.id, since=opened, until=closed
+        )
+        # Stamp whether or not anything is sent, so a quiet night is not
+        # re-examined on every poll for the rest of the grace period.
+        document = dict(prefs)
+        document["quiet_hours"] = {
+            **document.get("quiet_hours", {}),
+            "last_summary_at": closed.isoformat(),
+        }
+        await notification_prefs.save_prefs(session, user.id, document)
+        await session.commit()
+        if not rows:
+            continue
+
+        locale = _recipient_locale(user)
+        guild_ids = [guild_id for _, guild_id, _ in rows if guild_id is not None]
+        guild_names: dict[int, str] = {}
+        if guild_ids:
+            found = (
+                (await session.exec(select(Guild).where(Guild.id.in_(guild_ids))))
+                .scalars()
+                .all()
+            )
+            guild_names = {guild.id: guild.name for guild in found}
+        total = sum(count for _, _, count in rows)
+        body = _quiet_summary_body(rows, guild_names=guild_names, locale=locale)
+        headline = _nt("quietHours.summary.title", locale)
+
+        if notification_prefs.wants(
+            prefs,
+            notification_type=NotificationType.overdue_tasks,
+            channel=Channel.email,
+        ):
+            try:
+                await email_service.send_mention_email(
+                    session,
+                    user,
+                    subject=email_t("quietHours.summary.subject", locale, count=total),
+                    headline=headline,
+                    body_text=body,
+                    link=_build_smart_link(target_path="/notifications", guild_id=None),
+                )
+            except email_service.EmailNotConfiguredError:
+                logger.warning("SMTP not configured; skipping quiet-hours summary")
+            except RuntimeError as exc:  # pragma: no cover
+                logger.error("Failed to send quiet-hours summary: %s", exc)
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=user.id,
+                notification_type=NotificationType.overdue_tasks,
+                title=headline,
+                body=_nt("quietHours.summary.body", locale, count=total),
+                data={"type": "quiet_hours_summary", "target_path": "/notifications"},
+            )
+        except Exception as exc:
+            logger.error("Failed to push quiet-hours summary: %s", exc, exc_info=True)
+
+
+async def process_quiet_hours_summaries() -> None:
+    async with AdminSessionLocal() as session:
+        await _run_quiet_hours_summary_pass(session, now=datetime.now(timezone.utc))
 
 
 async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:

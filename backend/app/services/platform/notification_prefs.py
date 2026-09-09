@@ -7,7 +7,7 @@ touching a key.
 
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Mapping, Optional
 from zoneinfo import ZoneInfo
 
@@ -167,6 +167,46 @@ def in_quiet_hours(
 #: The channels quiet hours holds back. The bell is not one of them: it
 #: interrupts nobody, and it is what the account wakes up to.
 QUIET_CHANNELS: frozenset[Channel] = frozenset({Channel.email, Channel.push})
+
+#: How long after a window closes its summary is still worth sending. Past
+#: this the news has kept until whenever the account next looks, and a
+#: "while you were asleep" about the night before last is noise.
+QUIET_SUMMARY_GRACE = timedelta(hours=6)
+
+
+def last_window_close(
+    prefs: Mapping[str, Any] | None,
+    *,
+    tz_name: str | None,
+    now: datetime | None = None,
+) -> Optional[tuple[datetime, datetime]]:
+    """The window that most recently closed, as ``(opened_at, closed_at)``.
+
+    Both are absolute instants, so the summary can ask for exactly what was
+    held back. Returns None when there is no window, when the window has not
+    closed within :data:`QUIET_SUMMARY_GRACE`, or when ``now`` is still inside
+    it — a window that has not finished has nothing to summarise yet.
+    """
+    window = quiet_hours(prefs)
+    if window is None:
+        return None
+    start, end = window
+    tz = _resolve_timezone(tz_name)
+    moment = (now or datetime.now(timezone.utc)).astimezone(tz)
+    if in_quiet_hours(prefs, tz_name=tz_name, now=moment):
+        return None
+
+    closed = moment.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
+    if closed > moment:
+        closed -= timedelta(days=1)
+    opened = closed.replace(hour=start.hour, minute=start.minute)
+    if opened >= closed:
+        # An overnight window opened the day before it closed.
+        opened -= timedelta(days=1)
+
+    if moment - closed > QUIET_SUMMARY_GRACE:
+        return None
+    return opened.astimezone(timezone.utc), closed.astimezone(timezone.utc)
 
 
 # --- Loading -----------------------------------------------------------------

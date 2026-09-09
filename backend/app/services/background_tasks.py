@@ -26,10 +26,12 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_reaction_digests,
         process_task_assignment_digests,
         process_overdue_notifications,
+        process_quiet_hours_summaries,
         process_event_reminders,
         ASSIGNMENT_GC_POLL_SECONDS,
         DIGEST_POLL_SECONDS,
         OVERDUE_POLL_SECONDS,
+        QUIET_SUMMARY_POLL_SECONDS,
         EVENT_REMINDER_POLL_SECONDS,
     )
     from app.services.oidc_refresh import (
@@ -113,6 +115,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(
             _loop_worker(
                 process_event_reminders, EVENT_REMINDER_POLL_SECONDS, "event-reminder"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_quiet_hours_summaries,
+                QUIET_SUMMARY_POLL_SECONDS,
+                "quiet-hours-summary",
             )
         ),
         asyncio.create_task(

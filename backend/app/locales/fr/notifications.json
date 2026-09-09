@@ -123,5 +123,29 @@
   "directMessage": {
     "title": "{{sender}} t'a envoyé un message",
     "body": "Ouvre Initiative pour le lire."
+  },
+  "quietHours": {
+    "summary": {
+      "title": "Pendant votre absence",
+      "body": "{{count}} choses se sont passées pendant votre absence.",
+      "subject": "{{count}} choses se sont passées pendant votre absence"
+    },
+    "category": {
+      "mentions": "{{count}} mentions",
+      "replies": "{{count}} réponses",
+      "comments": "{{count}} commentaires",
+      "reactions": "{{count}} réactions",
+      "assignments": "{{count}} tâches assignées",
+      "due_dates": "{{count}} rappels de retard",
+      "membership": "{{count}} changements d'adhésion",
+      "approvals": "{{count}} en attente de vous",
+      "posts": "{{count}} annonces",
+      "events": "{{count}} changements d'événements",
+      "event_reminders": "{{count}} rappels d'événements",
+      "direct_messages": "{{count}} messages directs",
+      "connections": "{{count}} changements de contacts",
+      "jobs": "{{count}} exports et imports",
+      "account": "{{count}} avis de compte"
+    }
   }
 }

@@ -123,5 +123,29 @@
   "directMessage": {
     "title": "{{sender}} te envió un mensaje",
     "body": "Abre Initiative para leerlo."
+  },
+  "quietHours": {
+    "summary": {
+      "title": "Mientras no estabas",
+      "body": "Pasaron {{count}} cosas mientras no estabas.",
+      "subject": "Pasaron {{count}} cosas mientras no estabas"
+    },
+    "category": {
+      "mentions": "{{count}} menciones",
+      "replies": "{{count}} respuestas",
+      "comments": "{{count}} comentarios",
+      "reactions": "{{count}} reacciones",
+      "assignments": "{{count}} tareas asignadas",
+      "due_dates": "{{count}} avisos de vencidas",
+      "membership": "{{count}} cambios de membresía",
+      "approvals": "{{count}} esperan por ti",
+      "posts": "{{count}} publicaciones",
+      "events": "{{count}} cambios de eventos",
+      "event_reminders": "{{count}} recordatorios de eventos",
+      "direct_messages": "{{count}} mensajes directos",
+      "connections": "{{count}} cambios de contactos",
+      "jobs": "{{count}} exportaciones e importaciones",
+      "account": "{{count}} avisos de cuenta"
+    }
   }
 }
