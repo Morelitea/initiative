@@ -67,6 +67,7 @@ async def test_a_comment_on_a_task_names_its_initiative_and_tool(
         project_name="Web",
         guild_id=guild.id,
         initiative_id=9,
+        tool=Tool.project.value,
     )
     await session.commit()
 
@@ -119,3 +120,77 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
     assert line.guild_id == guild.id
     assert line.initiative_id is None
     assert line.tool is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "notifier,kwargs,tool",
+    [
+        (
+            "notify_comment_mention",
+            {
+                "comment_id": 1,
+                "task_id": 4,
+                "document_id": None,
+                "context_title": "Fix it",
+            },
+            Tool.project.value,
+        ),
+        (
+            "notify_comment_reply",
+            {
+                "comment_id": 1,
+                "task_id": 4,
+                "document_id": None,
+                "context_title": "Fix it",
+            },
+            Tool.project.value,
+        ),
+        (
+            "notify_comment_mention",
+            {
+                "comment_id": 1,
+                "task_id": None,
+                "document_id": 7,
+                "context_title": "Runbook",
+            },
+            Tool.document.value,
+        ),
+    ],
+)
+async def test_every_comment_notifier_records_its_tool(
+    session: AsyncSession, notifier: str, kwargs: dict, tool: str
+):
+    """A mention or reply lights the same row a comment does.
+
+    Setting the tool on some of them and not others is what left Projects and
+    Documents dark for the notifications people actually get.
+    """
+    recipient = await create_user(session, email=f"place-{notifier}-{tool}@example.com")
+    guild = await create_guild(session, creator=recipient)
+    actor = await create_user(
+        session, email=f"place-actor-{notifier}-{tool}@example.com"
+    )
+
+    recipient_kwarg = {
+        "notify_comment_mention": "mentioned_user",
+        "notify_comment_reply": "parent_author",
+    }[notifier]
+    actor_kwarg = {
+        "notify_comment_mention": "mentioned_by",
+        "notify_comment_reply": "replier",
+    }[notifier]
+
+    await getattr(notifications_service, notifier)(
+        session,
+        **{recipient_kwarg: recipient, actor_kwarg: actor},
+        guild_id=guild.id,
+        initiative_id=3,
+        tool=tool,
+        **kwargs,
+    )
+    await session.commit()
+
+    line = await _only(session, recipient.id)
+    assert line.initiative_id == 3
+    assert line.tool == tool

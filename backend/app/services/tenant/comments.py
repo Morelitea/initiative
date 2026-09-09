@@ -728,6 +728,15 @@ async def _process_comment_notifications(
     notified_user_ids: Set[int] = set()
     content = comment.content
     context_title = ctx.title
+    # Which sidebar row this comment belongs under. A tool comment names its
+    # own tool; a task comment belongs to the Projects list the task lives in.
+    comment_tool = (
+        ctx.tool.value
+        if ctx.tool is not None
+        else Tool.project.value
+        if ctx.task is not None
+        else None
+    )
 
     # Tool parents beyond task/document link through the entity reference the
     # resolver understands; the original pair keeps its dedicated fields.
@@ -755,6 +764,7 @@ async def _process_comment_notifications(
                 context_title=context_title,
                 guild_id=guild_id,
                 initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(parent_comment.created_by)
 
@@ -780,6 +790,7 @@ async def _process_comment_notifications(
             context_title=context_title,
             guild_id=guild_id,
             initiative_id=ctx.initiative_id,
+            tool=comment_tool,
         )
         notified_user_ids.add(user_id)
 
@@ -812,6 +823,7 @@ async def _process_comment_notifications(
                 context_title=context_title,
                 guild_id=guild_id,
                 initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(assignee.id)
 
@@ -838,6 +850,7 @@ async def _process_comment_notifications(
                     project_name=project_name,
                     guild_id=guild_id,
                     initiative_id=ctx.initiative_id,
+                    tool=comment_tool,
                 )
                 notified_user_ids.add(assignee.id)
 
@@ -855,6 +868,7 @@ async def _process_comment_notifications(
                 entity_name=ctx.title,
                 guild_id=guild_id,
                 initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(cast(int, owner.id))
 
