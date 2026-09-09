@@ -32,11 +32,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useBindingLabels } from "@/hooks/useBindingLabels";
+import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
+import { resolveMapping } from "@/lib/widgets/shape";
 
 export interface DashboardWidgetProps {
   widget: DefinitionWidget;
@@ -106,8 +108,15 @@ export function DashboardWidget({
   const data = sampleData
     ? isAppWidget
       ? { source: "app" as const, ...appSample }
-      : sampleFor(binding.source, widget.type)
+      : sampleFor(widget.type)
     : live.data;
+  // Which columns fill this widget's slots. Resolved here rather than in the
+  // sandbox: it needs the widget's declared shape and the author's overrides,
+  // and neither is the widget's to read.
+  const catalogQuery = useWidgetCatalog();
+  const shape = catalogQuery.data?.widgets.find((entry) => entry.type === widget.type)?.shape ?? [];
+  const slots =
+    data.source === "rows" ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
   const isLoading = sampleData ? false : live.isLoading;
   const errorCode = sampleData ? undefined : live.errorCode;
 
@@ -203,6 +212,7 @@ export function DashboardWidget({
             type={widget.type}
             data={data}
             config={widget.options}
+            slots={slots}
             source={moduleSource}
             errorCode={errorCode}
             isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}

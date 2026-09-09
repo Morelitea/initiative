@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "Die Daten dieses Widgets konnten nicht geladen werden. Versuche es erneut."
   },
   "bindingSource": {
-    "app": "App-Daten",
-    "tasks": "Aufgaben",
-    "projects": "Projekte",
-    "calendar_entries": "Kalendereinträge",
-    "task_counts": "Aufgabenzahlen",
-    "counter": "Zähler",
-    "counter_group": "Zählergruppe",
-    "sheet_range": "Tabellenbereich"
+    "query": "SQL-Abfrage",
+    "sheet_range": "Tabellenbereich",
+    "app": "App-Daten"
   },
   "gallery": {
     "title": "Widget-Galerie",
@@ -153,7 +148,8 @@
     "appParamPlaceholder": "Wählen…",
     "appParamNeedsSibling": "Wähle zuerst den Wert darüber.",
     "appParamListHint": "Werte durch Kommas trennen.",
-    "all_property": "Keine Eigenschaft"
+    "all_property": "Keine Eigenschaft",
+    "sqlHelp": "Ein reines Lese-SELECT über die Daten dieser Community. Es läuft unter deinem Konto und liefert daher nur, was du ohnehin sehen kannst."
   },
   "picker": {
     "title": "Widget hinzufügen",
@@ -298,19 +294,12 @@
     "due": "Fällig"
   },
   "bindingParam": {
-    "project": "Projekt",
-    "calendar": "Kalender",
-    "counter_group": "Zählergruppe",
-    "counter": "Zähler",
     "document": "Tabelle",
     "sheet": "Blatt",
     "range": "Bereich",
     "app_uid": "App",
     "source_id": "App-Datenquelle",
-    "bucket": "Zählungen gruppieren nach",
-    "day_field": "Jede Aufgabe zählen am",
-    "window_days": "Zeitfenster (Tage)",
-    "property": "Eigenschaft"
+    "sql": "Anweisung"
   },
   "paramValue": {
     "status_category": "Statuskategorie",
@@ -322,5 +311,17 @@
     "completed": "Abschlussdatum",
     "created": "Erstellungsdatum",
     "due": "Fälligkeitsdatum"
+  },
+  "slot": {
+    "label": "Bezeichnung",
+    "value": "Wert",
+    "start": "Beginn",
+    "end": "Ende",
+    "group": "Gruppe",
+    "at": "Datum",
+    "card": "Karte",
+    "column": "Spalte",
+    "date": "Datum",
+    "total": "Gesamt"
   }
 }

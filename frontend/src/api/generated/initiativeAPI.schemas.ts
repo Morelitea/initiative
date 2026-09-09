@@ -4953,6 +4953,7 @@ export interface QueryResponse {
   columns: QueryColumnDescription[];
   rows: unknown[][];
   truncated: boolean;
+  relations: string[];
 }
 
 /**
@@ -4960,6 +4961,7 @@ export interface QueryResponse {
  */
 export interface QueryShapeResponse {
   columns: QueryColumnDescription[];
+  relations: string[];
 }
 
 export interface QueueCreate {

@@ -20,10 +20,11 @@ import { useTranslation } from "react-i18next";
 
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
+import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
-import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { BUILTIN_WIDGET_TYPES } from "@/lib/widgets/registry";
-import { ALL_SAMPLES, SOURCES_BY_WIDGET, sampleFor } from "@/lib/widgets/sampleData";
+import { ALL_SAMPLES, sampleFor } from "@/lib/widgets/sampleData";
+import { resolveMapping } from "@/lib/widgets/shape";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** Widget modules that misbehave in each way the runtime bounds, so the error
@@ -57,17 +58,10 @@ export function WidgetGalleryPage() {
   // them from the module rather than from our locale files.
   const { meta: chartMeta } = useWidgetMeta("chart");
 
-  const tiles = useMemo(
-    () =>
-      BUILTIN_WIDGET_TYPES.flatMap((type) =>
-        (SOURCES_BY_WIDGET[type] ?? []).map((source: WidgetSource) => ({
-          key: `${type}:${source}`,
-          type,
-          source,
-        }))
-      ),
-    []
-  );
+  // One tile per widget. A widget draws columns now, so there is no source
+  // dimension to cross it with — what varies is the shape, and each widget's
+  // sample is the shape it declares.
+  const tiles = useMemo(() => BUILTIN_WIDGET_TYPES.map((type) => ({ key: type, type })), []);
 
   return (
     <div className="space-y-6">
@@ -97,8 +91,8 @@ export function WidgetGalleryPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {tiles.map(({ key, type, source }) => (
-          <GalleryTile key={key} type={type} source={source} markOverride={markOverride} />
+        {tiles.map(({ key, type }) => (
+          <GalleryTile key={key} type={type} markOverride={markOverride} />
         ))}
       </div>
 
@@ -114,7 +108,7 @@ export function WidgetGalleryPage() {
               type="stat"
               title={t(`gallery.failure.${widget.key}` as const)}
               source={widget.source}
-              data={sampleFor("task_counts")}
+              data={sampleFor("stat")}
             />
           </div>
         ))}
@@ -123,29 +117,20 @@ export function WidgetGalleryPage() {
   );
 }
 
-/** One combination. Titled from the widget's own name plus our label for the
- *  binding source — the source names our endpoints, so that half is ours. */
-function GalleryTile({
-  type,
-  source,
-  markOverride,
-}: {
-  type: string;
-  source: WidgetSource;
-  markOverride: string | null;
-}) {
-  const { t } = useTranslation("dashboards");
+/** One widget, over rows shaped the way it draws. */
+function GalleryTile({ type, markOverride }: { type: string; markOverride: string | null }) {
   const { name } = useWidgetMeta(type);
+  const catalog = useWidgetCatalog();
+  const shape = catalog.data?.widgets.find((entry) => entry.type === type)?.shape ?? [];
+  const data = sampleFor(type);
 
   return (
     <div className="h-64">
       <WidgetTile
         type={type}
-        title={t("gallery.tileTitle", {
-          widget: name,
-          source: t(`bindingSource.${source}` as const),
-        })}
-        data={sampleFor(source, type)}
+        title={name}
+        data={data}
+        slots={resolveMapping(data.columns, shape)}
         config={type === "chart" && markOverride ? { mark: markOverride } : undefined}
       />
     </div>

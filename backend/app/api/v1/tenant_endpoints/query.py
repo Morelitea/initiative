@@ -47,7 +47,7 @@ async def describe_query(
     Costs a plan and no rows, so a builder may ask as often as it likes.
     """
     try:
-        columns = await query_service.describe(
+        columns, relations = await query_service.describe(
             payload.sql, context=rls_context_params(session)
         )
     except query_service.QueryError as refused:
@@ -55,7 +55,7 @@ async def describe_query(
             status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
-    return QueryShapeResponse(columns=_described(columns))
+    return QueryShapeResponse(columns=_described(columns), relations=list(relations))
 
 
 def _described(
@@ -87,4 +87,5 @@ async def run_query(
         columns=_described(result.columns),
         rows=[list(row) for row in result.rows],
         truncated=result.truncated,
+        relations=list(result.relations),
     )

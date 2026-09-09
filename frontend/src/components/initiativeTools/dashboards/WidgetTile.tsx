@@ -31,6 +31,10 @@ export interface WidgetTileProps {
   /** Overrides the registry lookup. This is the seam a marketplace listing's
    *  own widget module arrives through; it runs the same way ours does. */
   source?: string;
+  /** Which of the data's columns fill each of the widget's slots. Resolved by
+   *  the caller, which is the only place that has the widget's declared shape
+   *  and the author's overrides together. */
+  slots?: Record<string, number[]>;
   /** Draw this failure instead of running the widget — for the one case the
    *  module cannot speak to, its data never arriving. Running it over empty rows
    *  would show "nothing to display", which is a different and misleading claim
@@ -60,6 +64,7 @@ export function WidgetTile({
   title,
   data,
   config,
+  slots,
   className,
   source,
   errorCode,
@@ -108,6 +113,7 @@ export function WidgetTile({
       config: config ?? {},
       now,
       locale: i18n.language,
+      slots,
     }).then((outcome) => {
       if (!cancelled) setState({ status: "done", outcome });
     });
@@ -115,7 +121,7 @@ export function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [type, data, config, source, now, errorCode, isLoading, i18n.language]);
+  }, [type, data, config, source, now, errorCode, isLoading, i18n.language, slots]);
 
   const body =
     isLoading || state.status === "loading" ? (

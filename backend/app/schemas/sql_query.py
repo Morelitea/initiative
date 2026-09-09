@@ -35,6 +35,8 @@ class QueryShapeResponse(SanitizedBaseModel):
     """What a statement would return, without returning it."""
 
     columns: List[QueryColumnDescription]
+    #: The datasets the statement reads.
+    relations: List[str]
 
 
 class QueryResponse(SanitizedBaseModel):
@@ -48,3 +50,5 @@ class QueryResponse(SanitizedBaseModel):
     rows: List[List[Any]]
     #: Whether there were more rows than one query returns.
     truncated: bool
+    #: The datasets the statement read.
+    relations: List[str]

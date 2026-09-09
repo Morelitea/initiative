@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "This widget's data could not be loaded. Try again."
   },
   "bindingSource": {
-    "app": "App data",
-    "tasks": "Tasks",
-    "projects": "Projects",
-    "calendar_entries": "Calendar entries",
-    "task_counts": "Task counts",
-    "counter": "Counter",
-    "counter_group": "Counter group",
-    "sheet_range": "Sheet range"
+    "query": "SQL query",
+    "sheet_range": "Sheet range",
+    "app": "App data"
   },
   "gallery": {
     "title": "Widget gallery",
@@ -153,7 +148,8 @@
     "appParamPlaceholder": "Choose…",
     "appParamNeedsSibling": "Choose the value above first.",
     "appParamListHint": "Separate values with commas.",
-    "all_property": "No property"
+    "all_property": "No property",
+    "sqlHelp": "A read-only SELECT over this community's data. It runs as you, so it returns what you can already see."
   },
   "picker": {
     "title": "Add a widget",
@@ -298,19 +294,12 @@
     "is_null": "is empty"
   },
   "bindingParam": {
-    "project": "Project",
-    "calendar": "Calendar",
-    "counter_group": "Counter group",
-    "counter": "Counter",
     "document": "Spreadsheet",
     "sheet": "Sheet",
     "range": "Range",
     "app_uid": "App",
     "source_id": "App data source",
-    "bucket": "Group counts by",
-    "day_field": "Count each task on its",
-    "window_days": "Time window (days)",
-    "property": "Property"
+    "sql": "Statement"
   },
   "paramValue": {
     "status_category": "Status category",
@@ -322,5 +311,17 @@
     "completed": "Completion date",
     "created": "Creation date",
     "due": "Due date"
+  },
+  "slot": {
+    "label": "Label",
+    "value": "Value",
+    "start": "Start",
+    "end": "End",
+    "group": "Group",
+    "at": "Date",
+    "card": "Card",
+    "column": "Column",
+    "date": "Date",
+    "total": "Total"
   }
 }

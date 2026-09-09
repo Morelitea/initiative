@@ -45,17 +45,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
-import { useCalendarsList } from "@/hooks/useCalendars";
-import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
-import { useProjects } from "@/hooks/useProjects";
-import { useProperties } from "@/hooks/useProperties";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
-import { readConditions } from "@/lib/widgets/conditions";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
 import {
@@ -67,7 +63,6 @@ import {
 } from "@/lib/widgets/sources";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-import { FilterBuilder } from "./FilterBuilder";
 import { WidgetTile } from "./WidgetTile";
 
 /** The only source an app widget binds. A namespaced type says which app and
@@ -107,7 +102,7 @@ export function WidgetConfigDialog({
     widget,
     (loaded) => ({
       title: loaded?.title ?? "",
-      binding: loaded?.binding ?? ({ source: "tasks" } as WidgetBinding),
+      binding: loaded?.binding ?? ({ source: "query" } as WidgetBinding),
       options: loaded?.options ?? ({} as Record<string, string>),
     }),
     [open, widget?.id],
@@ -151,7 +146,7 @@ export function WidgetConfigDialog({
   );
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  const sources = isApp ? APP_SOURCES : (entry?.sources ?? []);
+  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 
@@ -172,70 +167,25 @@ export function WidgetConfigDialog({
   const appEndpoint = appEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
   const appParams = (binding.params ?? {}) as Record<string, unknown>;
 
-  // Which lists this source's controls need. Each is enabled only while its own
-  // control is on screen, so opening the dialog for a counter widget does not
-  // fetch this initiative's documents.
-  // Read from the parameters this *widget* offers, not the source's whole list:
-  // a table bound to tasks is never shown the property picker, so it must not
-  // fetch the definitions behind it either.
-  const params = widget ? paramsFor(source, widget.type) : [];
+  // Which lists this source's controls need. Enabled only while the control is
+  // on screen, so opening the dialog for a statement fetches nothing.
+  const params = paramsFor(source);
   const needs = (kind: EntityKind) =>
     open && params.some((p) => p.kind === "entity" && p.entity === kind);
 
-  const counterGroups = useCounterGroupsList(
-    { initiative_id: initiativeId },
-    { enabled: needs("counter_group") }
-  );
   const documents = useDocumentsList(
     { document_type: "spreadsheet", initiative_id: initiativeId },
     { enabled: needs("document") }
   );
-  const projects = useProjects(undefined, { enabled: needs("project") });
-  const calendars = useCalendarsList(
-    { initiative_id: initiativeId },
-    { enabled: needs("calendar") }
-  );
-  const properties = useProperties({ initiativeId, enabled: needs("property") });
-  // The list endpoint returns group summaries; the counters themselves come
-  // from the group's own read, which is also the query the widget will use.
-  const selectedGroup = useCounterGroup(binding.counter_group_id ?? null, {
-    enabled: open && needs("counter") && Boolean(binding.counter_group_id),
-  });
 
   const entityOptions = useMemo(
     (): Record<EntityKind, { value: string; label: string }[]> => ({
-      project: (projects.data?.items ?? [])
-        .filter((project) => project.initiative_id === initiativeId)
-        .map((project) => ({ value: String(project.id), label: project.name })),
-      calendar: (calendars.data?.items ?? []).map((calendar) => ({
-        value: String(calendar.id),
-        label: calendar.name,
-      })),
-      counter_group: (counterGroups.data?.items ?? []).map((group) => ({
-        value: String(group.id),
-        label: group.name,
-      })),
-      counter: (selectedGroup.data?.counters ?? []).map((counter) => ({
-        value: String(counter.id),
-        label: counter.name,
-      })),
       document: (documents.data?.items ?? []).map((document) => ({
         value: String(document.id),
         label: document.name,
       })),
-      property: (properties.data ?? [])
-        .filter((property) => property.initiative_id === initiativeId)
-        .map((property) => ({ value: String(property.id), label: property.name })),
     }),
-    [
-      projects.data,
-      calendars.data,
-      counterGroups.data,
-      selectedGroup.data,
-      documents.data,
-      properties.data,
-      initiativeId,
-    ]
+    [documents.data]
   );
 
   // A binding for an app widget names its install. Filled in from the type
@@ -371,7 +321,9 @@ export function WidgetConfigDialog({
                 <SelectContent>
                   {sources.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {t(`dashboards:bindingSource.${option}` as const)}
+                      {t(`dashboards:bindingSource.${option}` as const, {
+                        defaultValue: option,
+                      })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -522,21 +474,17 @@ function ParamControl({
   switch (param.kind) {
     case "entity": {
       const entity = param as EntityParam;
-      // A dependent picker waits for its parent: no group chosen, no counters
-      // to choose from.
-      if (entity.within && !binding[entity.within]) return null;
       const value = binding[param.key];
       return (
         <section className="space-y-2">
           <Label>{t(`dashboards:bindingParam.${entity.entity}` as const)}</Label>
           <Select
             value={typeof value === "number" ? String(value) : entity.required ? "" : "all"}
-            onValueChange={(next) => {
-              const id = next === "all" ? null : Number(next);
-              // Repointing a parent invalidates the child that sat inside it.
-              const cleared = entity.entity === "counter_group" ? { counter_id: null } : undefined;
-              onChange({ [param.key]: id, ...cleared } as Partial<WidgetBinding>);
-            }}
+            onValueChange={(next) =>
+              onChange({
+                [param.key]: next === "all" ? null : Number(next),
+              } as Partial<WidgetBinding>)
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder={t("dashboards:config.choose")} />
@@ -558,62 +506,23 @@ function ParamControl({
       );
     }
 
-    case "enum":
-      return (
-        <section className="space-y-2">
-          <Label>{t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}</Label>
-          <Select
-            value={(binding[param.key] as string) ?? param.fallback}
-            onValueChange={(next) => onChange({ [param.key]: next } as Partial<WidgetBinding>)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {param.values.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`dashboards:paramValue.${value}` as const, { defaultValue: value })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </section>
-      );
-
-    case "window":
+    case "sql":
       return (
         <section className="space-y-2">
           <Label htmlFor={`param-${key}`}>
             {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
           </Label>
-          <Input
+          <Textarea
             id={`param-${key}`}
-            type="number"
-            min={1}
-            value={(binding[param.key] as number) ?? param.fallback}
+            rows={8}
+            spellCheck={false}
+            className="font-mono text-xs"
+            value={(binding[param.key] as string) ?? ""}
             onChange={(event) =>
-              onChange({
-                [param.key]: Number(event.target.value) || param.fallback,
-              } as Partial<WidgetBinding>)
+              onChange({ [param.key]: event.target.value } as Partial<WidgetBinding>)
             }
           />
-          <p className="text-muted-foreground text-xs">
-            {t("dashboards:config.windowDays", {
-              count: (binding[param.key] as number) ?? param.fallback,
-            })}
-          </p>
-        </section>
-      );
-
-    case "filters":
-      return (
-        <section className="space-y-2">
-          <h3 className="font-medium text-sm">{t("dashboards:filterBuilder.heading")}</h3>
-          <FilterBuilder
-            value={readConditions(binding.conditions)}
-            initiativeId={initiativeId}
-            onChange={(next) => onChange({ conditions: next.length ? next : undefined })}
-          />
+          <p className="text-muted-foreground text-xs">{t("dashboards:config.sqlHelp")}</p>
         </section>
       );
 
@@ -626,7 +535,7 @@ function ParamControl({
           <Input
             id={`param-${key}`}
             value={(binding[param.key] as string) ?? ""}
-            placeholder={param.placeholder}
+            placeholder={param.kind === "text" ? param.placeholder : undefined}
             onChange={(event) =>
               onChange({ [param.key]: event.target.value } as Partial<WidgetBinding>)
             }

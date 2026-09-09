@@ -60,6 +60,9 @@ class QueryResult:
     cost: float
     #: Whether there were more rows than one query returns.
     truncated: bool
+    #: The datasets the statement read. What a tile can honestly say it is
+    #: showing, now that there is no source name to print.
+    relations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -311,6 +314,7 @@ async def execute(
                 rows=tuple(rows),
                 cost=cost,
                 truncated=truncated,
+                relations=statement.relations,
             )
 
 
@@ -319,7 +323,9 @@ async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
     return await execute(resolve(sql), context=context)
 
 
-async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn, ...]:
+async def describe(
+    sql: str, *, context: Mapping[str, Any]
+) -> tuple[tuple[QueryColumn, ...], tuple[str, ...]]:
     """What *sql* would return, without returning it.
 
     The statement is prepared and its description read back. Preparing plans;
@@ -347,4 +353,4 @@ async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn
             prepared = await connection.prepare(statement.sql)
             columns = await _described(connection, prepared, statement)
             await session.rollback()
-            return columns
+            return columns, statement.relations

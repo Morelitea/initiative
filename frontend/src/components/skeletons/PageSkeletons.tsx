@@ -529,7 +529,7 @@ export const ProfilePageSkeleton = ({ label }: LabelledSkeletonProps) => (
     <div className="flex flex-wrap items-end gap-4">
       <Skeleton className="size-24 shrink-0 rounded-full sm:size-28" />
       <Skeleton className="mb-1 h-8 w-56" />
-      <Skeleton className="mb-1 ms-auto h-4 w-32" />
+      <Skeleton className="ms-auto mb-1 h-4 w-32" />
     </div>
     <Skeleton className="h-64 w-full rounded-2xl" />
   </SkeletonRegion>

@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "No se han podido cargar los datos de este widget. Inténtalo de nuevo."
   },
   "bindingSource": {
-    "app": "Datos de la app",
-    "tasks": "Tareas",
-    "projects": "Proyectos",
-    "calendar_entries": "Entradas de calendario",
-    "task_counts": "Recuentos de tareas",
-    "counter": "Contador",
-    "counter_group": "Grupo de contadores",
-    "sheet_range": "Rango de hoja"
+    "query": "Consulta SQL",
+    "sheet_range": "Rango de hoja",
+    "app": "Datos de la app"
   },
   "gallery": {
     "title": "Galería de widgets",
@@ -153,7 +148,8 @@
     "appParamPlaceholder": "Elige…",
     "appParamNeedsSibling": "Elige primero el valor de arriba.",
     "appParamListHint": "Separa los valores con comas.",
-    "all_property": "Sin propiedad"
+    "all_property": "Sin propiedad",
+    "sqlHelp": "Un SELECT de solo lectura sobre los datos de esta comunidad. Se ejecuta como tú, así que devuelve lo que ya puedes ver."
   },
   "picker": {
     "title": "Añadir un widget",
@@ -298,19 +294,12 @@
     "due": "Vence"
   },
   "bindingParam": {
-    "project": "Proyecto",
-    "calendar": "Calendario",
-    "counter_group": "Grupo de contadores",
-    "counter": "Contador",
     "document": "Hoja de cálculo",
     "sheet": "Hoja",
     "range": "Rango",
     "app_uid": "App",
     "source_id": "Fuente de datos de la app",
-    "bucket": "Agrupar los recuentos por",
-    "day_field": "Contar cada tarea en su",
-    "window_days": "Ventana temporal (días)",
-    "property": "Propiedad"
+    "sql": "Sentencia"
   },
   "paramValue": {
     "status_category": "Categoría de estado",
@@ -322,5 +311,17 @@
     "completed": "Fecha de finalización",
     "created": "Fecha de creación",
     "due": "Fecha límite"
+  },
+  "slot": {
+    "label": "Etiqueta",
+    "value": "Valor",
+    "start": "Inicio",
+    "end": "Fin",
+    "group": "Grupo",
+    "at": "Fecha",
+    "card": "Tarjeta",
+    "column": "Columna",
+    "date": "Fecha",
+    "total": "Total"
   }
 }

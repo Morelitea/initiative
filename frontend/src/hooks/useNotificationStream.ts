@@ -311,5 +311,5 @@ export const useNotificationStream = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, userId, refreshAccount]);
+  }, [token, userId, refreshAccount, refreshContacts]);
 };

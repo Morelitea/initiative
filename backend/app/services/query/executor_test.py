@@ -197,7 +197,7 @@ async def test_a_field_selected_on_its_own_is_typed_by_the_registry(guild):
     """``project_id`` is stored as an integer and means a project. The shape a
     query reports and the fields a dataset offers answer that the same way,
     because one declaration answers both."""
-    columns = await describe(
+    columns, _ = await describe(
         "SELECT project_id, title FROM tasks", context=_context(guild)
     )
     assert columns == (
@@ -208,7 +208,7 @@ async def test_a_field_selected_on_its_own_is_typed_by_the_registry(guild):
 
 async def test_an_output_built_from_fields_is_typed_by_the_database(guild):
     """Nothing declares what an expression is, so the database describes it."""
-    columns = await describe(
+    columns, _ = await describe(
         "SELECT lower(title) AS t, length(title) AS n FROM tasks",
         context=_context(guild),
     )
@@ -238,7 +238,7 @@ async def test_a_moment_comes_back_as_a_moment(guild):
 async def test_a_length_of_time_is_not_a_moment(guild):
     """An interval is a length, not a point, so nothing offers to place it on a
     timeline."""
-    columns = await describe(
+    columns, _ = await describe(
         "SELECT interval '3 days' AS gap FROM tasks", context=_context(guild)
     )
     assert columns == (QueryColumn(name="gap", type=FieldType.text),)

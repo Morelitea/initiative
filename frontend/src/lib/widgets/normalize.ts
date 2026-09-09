@@ -11,7 +11,7 @@
 import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
 
-import type { CellValue, ColumnType, DataColumn, WidgetData } from "./dataShapes";
+import type { CellValue, ColumnType, DataColumn, WidgetData, WidgetSource } from "./dataShapes";
 
 /** A cell, in the three shapes a JSON value can usefully be. */
 const cell = (value: unknown): CellValue => {
@@ -103,7 +103,7 @@ export const normalizeSheetRange = (
 
 /** The envelope for a binding we fetched nothing for — one whose parameters the
  *  instance config has not filled in yet. */
-export const emptyDataFor = (source: WidgetData["source"]): WidgetData =>
+export const emptyDataFor = (source: WidgetSource): WidgetData =>
   source === "app"
     ? { source: "app", rows: [], values: {} }
     : { source: "rows", columns: [], rows: [] };

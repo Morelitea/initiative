@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "Les données de ce widget n'ont pas pu être chargées. Réessayez."
   },
   "bindingSource": {
-    "app": "Données de l'app",
-    "tasks": "Tâches",
-    "projects": "Projets",
-    "calendar_entries": "Entrées de calendrier",
-    "task_counts": "Nombre de tâches",
-    "counter": "Compteur",
-    "counter_group": "Groupe de compteurs",
-    "sheet_range": "Plage de feuille"
+    "query": "Requête SQL",
+    "sheet_range": "Plage de feuille",
+    "app": "Données de l'app"
   },
   "gallery": {
     "title": "Galerie de widgets",
@@ -153,7 +148,8 @@
     "appParamPlaceholder": "Choisir…",
     "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
     "appParamListHint": "Séparez les valeurs par des virgules.",
-    "all_property": "Aucune propriété"
+    "all_property": "Aucune propriété",
+    "sqlHelp": "Un SELECT en lecture seule sur les données de cette communauté. Il s'exécute en votre nom et ne renvoie donc que ce que vous pouvez déjà voir."
   },
   "picker": {
     "title": "Ajouter un widget",
@@ -298,19 +294,12 @@
     "due": "Échéance"
   },
   "bindingParam": {
-    "project": "Projet",
-    "calendar": "Calendrier",
-    "counter_group": "Groupe de compteurs",
-    "counter": "Compteur",
     "document": "Feuille de calcul",
     "sheet": "Feuille",
     "range": "Plage",
     "app_uid": "Application",
     "source_id": "Source de données de l'application",
-    "bucket": "Grouper les comptages par",
-    "day_field": "Compter chaque tâche à sa",
-    "window_days": "Fenêtre temporelle (jours)",
-    "property": "Propriété"
+    "sql": "Instruction"
   },
   "paramValue": {
     "status_category": "Catégorie de statut",
@@ -322,5 +311,17 @@
     "completed": "Date de fin",
     "created": "Date de création",
     "due": "Date d'échéance"
+  },
+  "slot": {
+    "label": "Libellé",
+    "value": "Valeur",
+    "start": "Début",
+    "end": "Fin",
+    "group": "Groupe",
+    "at": "Date",
+    "card": "Carte",
+    "column": "Colonne",
+    "date": "Date",
+    "total": "Total"
   }
 }
