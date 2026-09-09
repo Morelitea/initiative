@@ -1,25 +1,13 @@
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
+import { openLiveSocket } from "@/lib/liveSocket";
 import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
-
-// Message type for authentication (must match backend)
-const MSG_AUTH = 5;
-
-// The server says something every 30s even with no news (its
-// HEARTBEAT_SECONDS), so silence past a couple of those is the socket having
-// stopped carrying rather than the guild being quiet. A dropped connection
-// does not always close: a suspended laptop, a network that goes away
-// mid-flight and a NAT timeout all leave one reporting itself open and
-// delivering nothing.
-const SERVER_SILENCE_LIMIT_MS = 90_000;
-// How often that is checked. Cheap: a comparison against a timestamp.
-const SILENCE_CHECK_INTERVAL_MS = 15_000;
 
 const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
@@ -32,34 +20,6 @@ const buildWebsocketUrl = (guildId: number) => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     return `${protocol}://${window.location.host}/api/v1/g/${guildId}/events/updates`;
   }
-};
-
-/**
- * Send authentication message over WebSocket.
- * Must be sent immediately after connection opens.
- *
- * The socket is scoped server-side to the guild in the route path (the backend
- * only streams that guild's events), so the payload carries the token only.
- * The hook reconnects on guild switch, so the subscription always tracks the
- * guild this tab is looking at.
- *
- * A reconnect also says how long this tab was without a socket, which is what
- * the server needs to answer whether anything happened in that time. A first
- * connect says nothing: the route that just mounted fetched its own data.
- */
-const sendAuthMessage = (
-  websocket: WebSocket,
-  token: string | null,
-  awaySeconds: number | null
-) => {
-  const payload = JSON.stringify(
-    awaySeconds === null ? { token } : { token, away_seconds: awaySeconds }
-  );
-  const payloadBytes = new TextEncoder().encode(payload);
-  const message = new Uint8Array(1 + payloadBytes.length);
-  message[0] = MSG_AUTH;
-  message.set(payloadBytes, 1);
-  websocket.send(message);
 };
 
 /** One thing the bus can name: what changed, or something it sits inside. */
@@ -190,44 +150,22 @@ export const useRealtimeUpdates = () => {
   // path segment, so the URL is the single source of truth.
   const params = useParams({ strict: false }) as { guildId?: string };
   const routeGuildId = params.guildId ? Number(params.guildId) : null;
-  const websocketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
     // The socket is scoped to a single guild — in personal mode there's
     // nothing to subscribe to, and the backend would reject the auth payload.
     if (userId === null || routeGuildId === null) {
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      authFailureCountRef.current = 0;
       return;
     }
-    // routeGuildId is non-null past the guard; capture for the /c/{guildId}
-    // websocket path used in the connect() closure below.
-    const guildId = routeGuildId;
-
-    let isActive = true;
+    const wsUrl = buildWebsocketUrl(routeGuildId);
+    if (!wsUrl) {
+      return;
+    }
 
     // Effect-scoped, so unmount and guild-switch clear the timer with the
     // socket rather than invalidating for a guild this tab has left.
     let pending: RealtimeChange[] = [];
     let frameTimer: number | null = null;
-    // The last moment this tab had a socket that was carrying. Any frame is
-    // proof of that, so a beat counts; nothing else does.
-    let lastFrameAt = Date.now();
-    // The last frame received on ANY socket here, which is the last proof this
-    // tab was being carried. Only a frame moves it: an attempt that opens and
-    // dies before hearing anything has proved nothing, and must not shorten the
-    // gap the next attempt reports. Null until the first frame — a tab that has
-    // never been carried asks for nothing, having fetched as it mounted.
-    let carriedUntil: number | null = null;
 
     const enqueue = (changes: RealtimeChange[]) => {
       pending.push(...changes);
@@ -242,126 +180,41 @@ export const useRealtimeUpdates = () => {
       }, FRAME_DEBOUNCE_MS);
     };
 
-    const scheduleReconnect = (delayMs = 2000) => {
-      if (!isActive || reconnectTimerRef.current !== null) {
-        return;
-      }
-      reconnectTimerRef.current = window.setTimeout(() => {
-        reconnectTimerRef.current = null;
-        connect();
-      }, delayMs);
-    };
-
-    const connect = () => {
-      if (!isActive) {
-        return;
-      }
-      const wsUrl = buildWebsocketUrl(guildId);
-      if (!wsUrl) {
-        scheduleReconnect();
-        return;
-      }
-      const websocket = new WebSocket(wsUrl);
-      websocket.binaryType = "arraybuffer";
-      websocketRef.current = websocket;
-
-      websocket.onopen = () => {
-        // Send auth message immediately after connection (token not in URL for
-        // security). The guild id scopes the stream to the active guild.
-        sendAuthMessage(
-          websocket,
-          token,
-          carriedUntil === null ? null : (Date.now() - carriedUntil) / 1000
-        );
-        // Reset failure count on successful connection
-        authFailureCountRef.current = 0;
-        lastFrameAt = Date.now();
-      };
-
-      websocket.onmessage = (event) => {
-        // Any frame is proof the socket carries, whatever it says. A beat says
-        // only that, and needs nothing below.
-        lastFrameAt = Date.now();
-        carriedUntil = lastFrameAt;
-        try {
-          // A content-free invalidation bus: every frame is one transaction's
-          // worth of {resource, parents, action}, never a serialized model. We
-          // read the identifiers and refetch through the normal (RLS + DAC
-          // gated) REST path — that refetch is the authorization gate.
-          const payload = JSON.parse(event.data) as {
-            changes?: RealtimeChange[];
-            more?: boolean;
-          };
-          if (payload.more) {
-            // A write too large to name row by row — an import, a purge. The
-            // frame says so instead of carrying thousands of ids, and the
-            // answer is to read the guild again.
-            void invalidate(q.guildContent());
-            return;
-          }
-          const changes = payload.changes ?? [];
-          if (changes.length) {
-            enqueue(changes);
-          }
-        } catch {
-          // ignore malformed messages
-        }
-      };
-
-      websocket.onerror = () => {
-        websocket.close();
-      };
-
-      websocket.onclose = (event) => {
-        if (websocketRef.current === websocket) {
-          websocketRef.current = null;
-        }
-        // WS_1008_POLICY_VIOLATION (1008) indicates auth failure (403)
-        if (event.code === 1008) {
-          authFailureCountRef.current += 1;
-          // After 3 consecutive auth failures, stop trying and log out
-          if (authFailureCountRef.current >= 3) {
-            console.warn("WebSocket auth failed repeatedly, logging out");
-            logout();
-            return;
-          }
-          // Use exponential backoff for auth failures
-          scheduleReconnect(Math.min(30000, 2000 * 2 ** authFailureCountRef.current));
+    const connection = openLiveSocket({
+      url: wsUrl,
+      // The guild is in the address, so the frame carries the credential and
+      // the gap this tab is asking to have answered.
+      auth: (awaySeconds) =>
+        awaySeconds === null ? { token } : { token, away_seconds: awaySeconds },
+      onFrame: (payload) => {
+        // A content-free invalidation bus: every frame is one transaction's
+        // worth of {resource, parents, action}, never a serialized model. We
+        // read the identifiers and refetch through the normal (RLS + DAC
+        // gated) REST path — that refetch is the authorization gate.
+        const frame = payload as { changes?: RealtimeChange[]; more?: boolean };
+        if (frame.more) {
+          // A write too large to name row by row — an import, a purge — or a
+          // gap this socket was away for. Either way the frame says so instead
+          // of carrying ids, and the answer is to read the guild again.
+          void invalidate(q.guildContent());
           return;
         }
-        scheduleReconnect();
-      };
-    };
-
-    connect();
-
-    // A socket that has gone quiet past the server's beat is closed rather than
-    // trusted. Closing is what starts the reconnect, which is what asks the
-    // server whether anything moved in the meantime.
-    const silenceCheck = window.setInterval(() => {
-      const socket = websocketRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      if (Date.now() - lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
-        socket.close();
-      }
-    }, SILENCE_CHECK_INTERVAL_MS);
+        const changes = frame.changes ?? [];
+        if (changes.length) {
+          enqueue(changes);
+        }
+      },
+      onAuthRejected: () => {
+        console.warn("WebSocket auth failed repeatedly, logging out");
+        logout();
+      },
+    });
 
     return () => {
-      isActive = false;
-      window.clearInterval(silenceCheck);
+      connection.close();
       if (frameTimer !== null) {
         window.clearTimeout(frameTimer);
         frameTimer = null;
-      }
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
       }
     };
   }, [token, userId, routeGuildId, logout]);

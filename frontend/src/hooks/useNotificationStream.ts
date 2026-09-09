@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { openLiveSocket } from "@/lib/liveSocket";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
-// Message type for authentication (must match the backend's MSG_AUTH).
-const MSG_AUTH = 5;
 // "Somebody just did something here" (the backend's MSG_ACTIVE). One byte, no
 // payload: the socket already knows whose it is.
 const MSG_ACTIVE = 6;
@@ -19,19 +18,6 @@ const ACTIVITY_INTERVAL_MS = 60_000;
 // machine; a tab coming back to the front covers returning to it.
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 
-const RECONNECT_DELAY_MS = 2000;
-const MAX_RECONNECT_DELAY_MS = 30_000;
-
-// The server says something every 30s even with no news (its HEARTBEAT_SECONDS),
-// so silence past a couple of those is the socket having stopped carrying
-// rather than nothing having happened. A dropped connection does not always
-// close: a suspended laptop, a network that goes away mid-flight and a NAT
-// timeout all leave one reporting itself open and delivering nothing, and this
-// channel has no other way to notice — it speaks only when its person does.
-const SERVER_SILENCE_LIMIT_MS = 90_000;
-// How often that is checked. Cheap: a comparison against a timestamp.
-const SILENCE_CHECK_INTERVAL_MS = 15_000;
-
 // A frame is the only prompt to re-read the account, so a re-read that fails
 // has to keep trying: there is no poll behind it any more, and the next frame
 // may never come for this account. What is bounded is the *rate*, not the
@@ -40,9 +26,6 @@ const SILENCE_CHECK_INTERVAL_MS = 15_000;
 // prevent. Backs off to a slow beat and stays there until one lands.
 const ACCOUNT_RETRY_DELAYS_MS = [2000, 8000, 30_000, 60_000] as const;
 const ACCOUNT_RETRY_MAX_DELAY_MS = 300_000;
-// Three consecutive policy-violation closes means the credential is no good,
-// not that the network blinked — same rule as the guild events socket.
-const MAX_AUTH_FAILURES = 3;
 
 // ── Connection state, shared with whoever renders the bell ──────────────────
 // The socket is mounted once at the app shell, but the component that decides
@@ -84,22 +67,6 @@ export const useNotificationStreamConnected = (): boolean =>
     () => false
   );
 
-const sendActivityMessage = (websocket: WebSocket) => {
-  if (websocket.readyState !== WebSocket.OPEN) {
-    return;
-  }
-  websocket.send(new Uint8Array([MSG_ACTIVE]));
-};
-
-const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
-  const payload = JSON.stringify({ token });
-  const payloadBytes = new TextEncoder().encode(payload);
-  const message = new Uint8Array(1 + payloadBytes.length);
-  message[0] = MSG_AUTH;
-  message.set(payloadBytes, 1);
-  websocket.send(message);
-};
-
 /**
  * Subscribe to the signed-in user's notification channel.
  *
@@ -127,9 +94,6 @@ export const useNotificationStream = () => {
   // itself down and rebuild in a loop, each rebuild asking for the re-read that
   // ends it. Who they are is the id.
   const userId = user?.id ?? null;
-  const websocketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const authFailureCountRef = useRef(0);
   // Held in a ref so a new `refreshUser` identity does not tear the socket
   // down and rebuild it: the handler wants the current one, not the one that
   // existed when we connected.
@@ -191,120 +155,46 @@ export const useNotificationStream = () => {
       return;
     }
 
-    let isActive = true;
-    let lastFrameAt = Date.now();
-
-    const scheduleReconnect = (delayMs = RECONNECT_DELAY_MS) => {
-      if (!isActive || reconnectTimerRef.current !== null) {
-        return;
-      }
-      reconnectTimerRef.current = window.setTimeout(() => {
-        reconnectTimerRef.current = null;
-        connect();
-      }, delayMs);
-    };
-
-    const connect = () => {
-      if (!isActive) {
-        return;
-      }
-      let websocket: WebSocket;
-      try {
-        websocket = new WebSocket(buildApiWsUrl("notifications/stream"));
-      } catch {
-        scheduleReconnect();
-        return;
-      }
-      websocket.binaryType = "arraybuffer";
-      websocketRef.current = websocket;
-
-      websocket.onopen = () => {
-        // The token rides in the first frame rather than the URL, so it never
-        // lands in a proxy or server access log.
-        sendAuthMessage(websocket, token);
-        authFailureCountRef.current = 0;
-        lastFrameAt = Date.now();
-        setConnected(true);
-        // The socket was down for some interval — anything that happened in it
-        // was never signalled, so catch up once on the way back up.
-        resync();
-      };
-
-      websocket.onmessage = (event) => {
-        // Any frame is proof the socket carries, whatever it says.
-        lastFrameAt = Date.now();
-        try {
-          const payload = JSON.parse(event.data) as { resource?: string };
-          // Two channels over one socket. A frame carries nothing but which
-          // one it is; what it means is a refetch, and the refetch is where
-          // anything is actually decided.
-          if (payload.resource === "heartbeat") {
-            // Nothing to do beyond what has already been done: the frame's
-            // whole content is that it arrived.
-            return;
-          }
-          if (payload.resource === "resync") {
-            // The server's own bus was down for a while, so frames went past
-            // with nobody listening for them. It cannot say which, so this
-            // says the same thing a reconnect does: read everything again.
-            resync();
-          } else if (payload.resource === "notification") {
-            void invalidate(q.notifications());
-          } else if (payload.resource === "account") {
-            refreshAccount();
-          } else if (payload.resource === "contacts") {
-            refreshContacts();
-          } else if (payload.resource === "dm") {
-            // A direct-message frame says only that there is something to
-            // collect. The page that owns the mailbox does the reading.
-            void invalidate(q.directMessages());
-          }
-        } catch {
-          // ignore malformed frames
+    const connection = openLiveSocket({
+      url: buildApiWsUrl("notifications/stream"),
+      // The inbox is addressed by nothing but the credential.
+      auth: () => ({ token }),
+      onStatus: (up) => {
+        setConnected(up);
+        if (up) {
+          // The socket was down for some interval — anything that happened in
+          // it was never signalled, so catch up once on the way back up.
+          resync();
         }
-      };
-
-      websocket.onerror = () => {
-        websocket.close();
-      };
-
-      websocket.onclose = (event) => {
-        if (websocketRef.current === websocket) {
-          websocketRef.current = null;
-        }
-        setConnected(false);
-        // WS_1008_POLICY_VIOLATION — the credential was rejected. Back off
-        // hard and give up rather than hammering the endpoint; the bell falls
-        // back to polling, and the guild events socket owns logging out.
-        if (event.code === 1008) {
-          authFailureCountRef.current += 1;
-          if (authFailureCountRef.current >= MAX_AUTH_FAILURES) {
-            return;
-          }
-          scheduleReconnect(
-            Math.min(MAX_RECONNECT_DELAY_MS, RECONNECT_DELAY_MS * 2 ** authFailureCountRef.current)
-          );
+      },
+      onFrame: (payload) => {
+        const frame = payload as { resource?: string };
+        // Several channels over one socket. A frame carries nothing but which
+        // one it is; what it means is a refetch, and the refetch is where
+        // anything is actually decided.
+        if (frame.resource === "heartbeat") {
+          // Nothing to do beyond what has already been done: the frame's whole
+          // content is that it arrived.
           return;
         }
-        scheduleReconnect();
-      };
-    };
-
-    connect();
-
-    // A socket that has gone quiet past the server's beat is closed rather than
-    // trusted. Closing is what puts the fallback poll back and starts the
-    // reconnect that catches up — none of which a half-open connection would
-    // ever reach on its own.
-    const silenceCheck = window.setInterval(() => {
-      const socket = websocketRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      if (Date.now() - lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
-        socket.close();
-      }
-    }, SILENCE_CHECK_INTERVAL_MS);
+        if (frame.resource === "resync") {
+          // The server's own bus was down for a while, so frames went past
+          // with nobody listening for them. It cannot say which, so this says
+          // the same thing a reconnect does: read everything again.
+          resync();
+        } else if (frame.resource === "notification") {
+          void invalidate(q.notifications());
+        } else if (frame.resource === "account") {
+          refreshAccount();
+        } else if (frame.resource === "contacts") {
+          refreshContacts();
+        } else if (frame.resource === "dm") {
+          // A direct-message frame says only that there is something to
+          // collect. The page that owns the mailbox does the reading.
+          void invalidate(q.directMessages());
+        }
+      },
+    });
 
     // Throttled at the source rather than on a timer: no frame goes out for a
     // tab nobody is touching, which is exactly the state being reported.
@@ -315,9 +205,7 @@ export const useNotificationStream = () => {
         return;
       }
       lastReported = now;
-      if (websocketRef.current) {
-        sendActivityMessage(websocketRef.current);
-      }
+      connection.send(new Uint8Array([MSG_ACTIVE]));
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -332,21 +220,12 @@ export const useNotificationStream = () => {
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      isActive = false;
-      window.clearInterval(silenceCheck);
       for (const name of ACTIVITY_EVENTS) {
         window.removeEventListener(name, reportActivity);
       }
       document.removeEventListener("visibilitychange", onVisibilityChange);
       setConnected(false);
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
-      }
+      connection.close();
     };
   }, [token, userId, resync, refreshAccount, refreshContacts]);
 };
