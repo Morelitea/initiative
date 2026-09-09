@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -35,8 +36,7 @@ export const DocumentSettingsPage = () => {
 
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
-  const [duplicateTitle, setDuplicateTitle] = useState("");
-  const [copyTitle, setCopyTitle] = useState("");
+
   const [copyInitiativeId, setCopyInitiativeId] = useState("");
   const [isTemplate, setIsTemplate] = useState(false);
 
@@ -62,12 +62,26 @@ export const DocumentSettingsPage = () => {
     return creatableInitiatives.filter((initiative) => initiative.id !== document.initiative_id);
   }, [document, creatableInitiatives]);
 
+  // Names for the two copy dialogs, suggested from the document but typed
+  // over. The template switch below is written the moment it changes, so it
+  // keeps following the server instead.
+  const titles = useServerForm(
+    document,
+    (loaded) => ({
+      duplicate: loaded ? t("settings.duplicateTitlePlaceholder", { title: loaded.name }) : "",
+      copy: loaded?.name ?? "",
+    }),
+    document?.id
+  );
+  const duplicateTitle = titles.values.duplicate;
+  const copyTitle = titles.values.copy;
+  const setDuplicateTitle = (next: string) => titles.set({ duplicate: next });
+  const setCopyTitle = (next: string) => titles.set({ copy: next });
+
   useEffect(() => {
     if (!document) return;
     setIsTemplate(document.is_template);
-    setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.name }));
-    setCopyTitle(document.name);
-  }, [document, t]);
+  }, [document]);
 
   useEffect(() => {
     if (!copyDialogOpen) return;

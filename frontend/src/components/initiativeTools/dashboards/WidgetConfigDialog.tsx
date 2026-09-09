@@ -51,6 +51,7 @@ import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useProperties } from "@/hooks/useProperties";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
@@ -100,18 +101,32 @@ export function WidgetConfigDialog({
   const { t, i18n } = useTranslation(["dashboards", "common"]);
   const { meta } = useWidgetMeta(widget?.type ?? "");
 
-  const [title, setTitle] = useState("");
-  const [binding, setBinding] = useState<WidgetBinding>({ source: "tasks" });
-  const [options, setOptions] = useState<Record<string, string>>({});
-
-  // Reset from the widget each time the dialog opens, so a cancelled edit
-  // leaves nothing behind.
-  useEffect(() => {
-    if (!widget || !open) return;
-    setTitle(widget.title ?? "");
-    setBinding(widget.binding);
-    setOptions(widget.options ?? {});
-  }, [widget, open]);
+  // Filled in from the widget each time the dialog opens, so a cancelled edit
+  // leaves nothing behind — and a refetch part-way through one does not either.
+  const form = useServerForm(
+    widget,
+    (loaded) => ({
+      title: loaded?.title ?? "",
+      binding: loaded?.binding ?? ({ source: "tasks" } as WidgetBinding),
+      options: loaded?.options ?? ({} as Record<string, string>),
+    }),
+    [open, widget?.id],
+    (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  );
+  const { title, binding, options } = form.values;
+  const setTitle = (next: string) => form.set({ title: next });
+  // Both take an updater as well as a value, the way the state they replaced
+  // did — several handlers here change one key of the object they read.
+  const setBinding = (next: WidgetBinding | ((current: WidgetBinding) => WidgetBinding)) =>
+    form.set((previous) => ({
+      binding: typeof next === "function" ? next(previous.binding) : next,
+    }));
+  const setOptions = (
+    next: Record<string, string> | ((current: Record<string, string>) => Record<string, string>)
+  ) =>
+    form.set((previous) => ({
+      options: typeof next === "function" ? next(previous.options) : next,
+    }));
 
   /**
    * An installed app's widget is not in the built-in catalog, and looking for
@@ -226,14 +241,16 @@ export function WidgetConfigDialog({
   // A binding for an app widget names its install. Filled in from the type
   // rather than typed: `app:<uid>:<widget>` already carries the uid, and a
   // definition whose binding disagrees with its type is one the server refuses.
+  const setForm = form.set;
   useEffect(() => {
     if (!open || !app) return;
-    setBinding((current) =>
-      current.source === "app" && current.app_uid === app.entry.app_uid
-        ? current
-        : { ...current, source: "app", app_uid: app.entry.app_uid }
-    );
-  }, [open, app]);
+    setForm(({ binding }) => ({
+      binding:
+        binding.source === "app" && binding.app_uid === app.entry.app_uid
+          ? binding
+          : { ...binding, source: "app", app_uid: app.entry.app_uid },
+    }));
+  }, [open, app, setForm]);
 
   const setBindingValue = (patch: Partial<WidgetBinding>) =>
     setBinding((current) => ({ ...current, ...patch }));

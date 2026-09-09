@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useEmailSettings, useSendTestEmail, useUpdateEmailSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -35,31 +36,31 @@ export const SettingsEmailPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const [formState, setFormState] = useState(DEFAULT_STATE);
-  const [password, setPassword] = useState("");
-  const [testRecipient, setTestRecipient] = useState("");
   const emailQuery = useEmailSettings({ enabled: isPlatformAdmin });
-
-  useEffect(() => {
-    if (emailQuery.data) {
-      const data = emailQuery.data;
-      setFormState({
-        host: data.host ?? "",
-        port: data.port ? String(data.port) : "",
-        secure: data.secure,
-        reject_unauthorized: data.reject_unauthorized,
-        username: data.username ?? "",
-        from_address: data.from_address ?? "",
-      });
-      setTestRecipient(data.test_recipient ?? "");
-    }
-  }, [emailQuery.data]);
+  // A server's address and credentials are typed in a few fields at a time and
+  // saved at the end, so a refetch mid-way must leave them where they are.
+  const form = useServerForm(
+    emailQuery.data,
+    (settings) => ({
+      host: settings?.host ?? DEFAULT_STATE.host,
+      port: settings?.port ? String(settings.port) : DEFAULT_STATE.port,
+      secure: settings?.secure ?? DEFAULT_STATE.secure,
+      reject_unauthorized: settings?.reject_unauthorized ?? DEFAULT_STATE.reject_unauthorized,
+      username: settings?.username ?? DEFAULT_STATE.username,
+      from_address: settings?.from_address ?? DEFAULT_STATE.from_address,
+      test_recipient: settings?.test_recipient ?? "",
+    }),
+    "email"
+  );
+  // Never seeded — the server does not hand a password back, so this field is
+  // write-only and empty means "leave it as it is".
+  const [password, setPassword] = useState("");
 
   const updateMutation = useUpdateEmailSettings({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success(t("email.saveSuccess"));
       setPassword("");
-      setTestRecipient(data.test_recipient ?? "");
+      form.settle();
     },
     onError: () => toast.error(t("email.saveError")),
   });
@@ -84,13 +85,13 @@ export const SettingsEmailPage = () => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const payload: EmailPayload = {
-      host: formState.host || null,
-      port: formState.port ? Number(formState.port) : null,
-      secure: formState.secure,
-      reject_unauthorized: formState.reject_unauthorized,
-      username: formState.username || null,
-      from_address: formState.from_address || null,
-      test_recipient: testRecipient || null,
+      host: form.values.host || null,
+      port: form.values.port ? Number(form.values.port) : null,
+      secure: form.values.secure,
+      reject_unauthorized: form.values.reject_unauthorized,
+      username: form.values.username || null,
+      from_address: form.values.from_address || null,
+      test_recipient: form.values.test_recipient || null,
     };
     if (password) {
       payload.password = password;
@@ -111,10 +112,8 @@ export const SettingsEmailPage = () => {
               <Label htmlFor="smtp-host">{t("email.hostLabel")}</Label>
               <Input
                 id="smtp-host"
-                value={formState.host}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, host: event.target.value }))
-                }
+                value={form.values.host}
+                onChange={(event) => form.set({ host: event.target.value })}
                 placeholder={t("email.hostPlaceholder")}
               />
             </div>
@@ -125,10 +124,8 @@ export const SettingsEmailPage = () => {
                 type="number"
                 min={1}
                 max={65535}
-                value={formState.port}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, port: event.target.value }))
-                }
+                value={form.values.port}
+                onChange={(event) => form.set({ port: event.target.value })}
                 placeholder={t("email.portPlaceholder")}
               />
             </div>
@@ -140,10 +137,8 @@ export const SettingsEmailPage = () => {
                 <p className="text-muted-foreground text-sm">{t("email.secureHelp")}</p>
               </div>
               <Switch
-                checked={formState.secure}
-                onCheckedChange={(checked) =>
-                  setFormState((prev) => ({ ...prev, secure: Boolean(checked) }))
-                }
+                checked={form.values.secure}
+                onCheckedChange={(checked) => form.set({ secure: Boolean(checked) })}
               />
             </div>
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
@@ -152,10 +147,8 @@ export const SettingsEmailPage = () => {
                 <p className="text-muted-foreground text-sm">{t("email.rejectUnauthorizedHelp")}</p>
               </div>
               <Switch
-                checked={formState.reject_unauthorized}
-                onCheckedChange={(checked) =>
-                  setFormState((prev) => ({ ...prev, reject_unauthorized: Boolean(checked) }))
-                }
+                checked={form.values.reject_unauthorized}
+                onCheckedChange={(checked) => form.set({ reject_unauthorized: Boolean(checked) })}
               />
             </div>
           </div>
@@ -164,10 +157,8 @@ export const SettingsEmailPage = () => {
               <Label htmlFor="smtp-username">{t("email.usernameLabel")}</Label>
               <Input
                 id="smtp-username"
-                value={formState.username}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, username: event.target.value }))
-                }
+                value={form.values.username}
+                onChange={(event) => form.set({ username: event.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -186,10 +177,8 @@ export const SettingsEmailPage = () => {
             <Label htmlFor="smtp-from">{t("email.fromAddressLabel")}</Label>
             <Input
               id="smtp-from"
-              value={formState.from_address}
-              onChange={(event) =>
-                setFormState((prev) => ({ ...prev, from_address: event.target.value }))
-              }
+              value={form.values.from_address}
+              onChange={(event) => form.set({ from_address: event.target.value })}
               placeholder={t("email.fromAddressPlaceholder")}
             />
           </div>
@@ -199,8 +188,8 @@ export const SettingsEmailPage = () => {
               <Input
                 id="smtp-test-recipient"
                 type="email"
-                value={testRecipient}
-                onChange={(event) => setTestRecipient(event.target.value)}
+                value={form.values.test_recipient}
+                onChange={(event) => form.set({ test_recipient: event.target.value })}
                 placeholder={t("email.testRecipientPlaceholder")}
               />
             </div>
@@ -209,7 +198,9 @@ export const SettingsEmailPage = () => {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => testMutation.mutate({ recipient: testRecipient || null })}
+                onClick={() =>
+                  testMutation.mutate({ recipient: form.values.test_recipient || null })
+                }
                 disabled={testMutation.isPending}
               >
                 {testMutation.isPending ? t("email.sendingTest") : t("email.sendTest")}

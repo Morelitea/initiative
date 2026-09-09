@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useOidcSettings, useUpdateOidcSettings } from "@/hooks/useSettings";
 import { Capability, hasCapability } from "@/lib/permissions";
 
@@ -37,34 +38,28 @@ export const SettingsAuthPage = () => {
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
   const [clientSecret, setClientSecret] = useState("");
-  const [formState, setFormState] = useState({
-    enabled: false,
-    issuer: "",
-    client_id: "",
-    provider_name: "",
-    scopes: "openid profile email offline_access",
-  });
-
   const oidcQuery = useOidcSettings({ enabled: isPlatformAdmin });
+
+  // A provider is described across five fields and saved once at the end, so a
+  // refetch part-way through must not take the description back.
+  const form = useServerForm(
+    oidcQuery.data,
+    (settings) => ({
+      enabled: settings?.enabled ?? false,
+      issuer: settings?.issuer ?? "",
+      client_id: settings?.client_id ?? "",
+      provider_name: settings?.provider_name ?? "",
+      scopes: settings?.scopes.join(" ") ?? "openid profile email offline_access",
+    }),
+    "oidc"
+  );
 
   const updateOidcSettings = useUpdateOidcSettings({
     onSuccess: () => {
       setClientSecret("");
+      form.settle();
     },
   });
-
-  useEffect(() => {
-    if (oidcQuery.data) {
-      const settings = oidcQuery.data;
-      setFormState({
-        enabled: settings.enabled,
-        issuer: settings.issuer ?? "",
-        client_id: settings.client_id ?? "",
-        provider_name: settings.provider_name ?? "",
-        scopes: settings.scopes.join(" "),
-      });
-    }
-  }, [oidcQuery.data]);
 
   if (oidcQuery.isLoading) {
     if (!isPlatformAdmin) {
@@ -88,11 +83,11 @@ export const SettingsAuthPage = () => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     updateOidcSettings.mutate({
-      enabled: formState.enabled,
-      issuer: formState.issuer || null,
-      client_id: formState.client_id || null,
-      provider_name: formState.provider_name || null,
-      scopes: formState.scopes.split(/[\s,]+/).filter(Boolean),
+      enabled: form.values.enabled,
+      issuer: form.values.issuer || null,
+      client_id: form.values.client_id || null,
+      provider_name: form.values.provider_name || null,
+      scopes: form.values.scopes.split(/[\s,]+/).filter(Boolean),
       client_secret: clientSecret || undefined,
     } as OidcSettings & { client_secret?: string });
   };
@@ -127,10 +122,8 @@ export const SettingsAuthPage = () => {
               </div>
               <Switch
                 id="oidc-enabled"
-                checked={formState.enabled}
-                onCheckedChange={(checked) =>
-                  setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
-                }
+                checked={form.values.enabled}
+                onCheckedChange={(checked) => form.set({ enabled: Boolean(checked) })}
               />
             </div>
             <div className="space-y-2">
@@ -138,10 +131,8 @@ export const SettingsAuthPage = () => {
               <Input
                 id="issuer"
                 type="url"
-                value={formState.issuer}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, issuer: event.target.value }))
-                }
+                value={form.values.issuer}
+                onChange={(event) => form.set({ issuer: event.target.value })}
                 placeholder={t("auth.issuerPlaceholder")}
               />
             </div>
@@ -149,10 +140,8 @@ export const SettingsAuthPage = () => {
               <Label htmlFor="client-id">{t("auth.clientIdLabel")}</Label>
               <Input
                 id="client-id"
-                value={formState.client_id}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, client_id: event.target.value }))
-                }
+                value={form.values.client_id}
+                onChange={(event) => form.set({ client_id: event.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -170,10 +159,8 @@ export const SettingsAuthPage = () => {
               <Label htmlFor="provider-name">{t("auth.providerNameLabel")}</Label>
               <Input
                 id="provider-name"
-                value={formState.provider_name}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, provider_name: event.target.value }))
-                }
+                value={form.values.provider_name}
+                onChange={(event) => form.set({ provider_name: event.target.value })}
                 placeholder={t("auth.providerNamePlaceholder")}
               />
             </div>
@@ -181,10 +168,8 @@ export const SettingsAuthPage = () => {
               <Label htmlFor="scopes">{t("auth.scopesLabel")}</Label>
               <Input
                 id="scopes"
-                value={formState.scopes}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, scopes: event.target.value }))
-                }
+                value={form.values.scopes}
+                onChange={(event) => form.set({ scopes: event.target.value })}
                 placeholder={t("auth.scopesPlaceholder")}
               />
             </div>
