@@ -378,6 +378,7 @@
     "add": "Publicar",
     "stop": "Dejar de publicar esto",
     "notice_one": "Muestra una cifra publicada: la misma para todo el mundo aquí",
-    "notice_other": "Muestra {{count}} cifras publicadas: las mismas para todo el mundo aquí"
+    "notice_other": "Muestra {{count}} cifras publicadas: las mismas para todo el mundo aquí",
+    "unnamed": "Elemento n.º {{id}}"
   }
 }

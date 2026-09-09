@@ -200,25 +200,40 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
     return True
 
 
-def statements_in(definition: dict[str, Any] | None) -> list[str]:
-    """Every statement a definition holds, in the order its widgets sit in."""
+def statements_in(
+    definition: dict[str, Any] | None, config: dict[str, Any] | None = None
+) -> list[str]:
+    """Every statement this dashboard would run, in widget order.
+
+    Read the way the fetch path reads it: the instance config layers over the
+    definition, so a statement a config override supplies is one of these. The
+    two have to be looked at together or a check on the definition alone is a
+    check on something that never runs.
+    """
     widgets = (definition or {}).get("widgets")
     if not isinstance(widgets, list):
         return []
+    overrides = (config or {}).get("widgets") or {}
     found: list[str] = []
     for widget in widgets:
         if not isinstance(widget, dict):
             continue
         binding = widget.get("binding")
-        if not isinstance(binding, dict) or binding.get("source") != "query":
+        if not isinstance(binding, dict):
             continue
-        sql = binding.get("sql")
+        override = overrides.get(str(widget.get("id")))
+        effective = {**binding, **(override if isinstance(override, dict) else {})}
+        if effective.get("source") != "query":
+            continue
+        sql = effective.get("sql")
         if isinstance(sql, str) and sql.strip():
             found.append(sql)
     return found
 
 
-def names_the_reader(definition: dict[str, Any] | None) -> bool:
+def names_the_reader(
+    definition: dict[str, Any] | None, config: dict[str, Any] | None = None
+) -> bool:
     """Whether anything here asks about whoever is looking at it.
 
     A published view is one set of numbers for everybody, and ``me`` is what
@@ -229,7 +244,7 @@ def names_the_reader(definition: dict[str, Any] | None) -> bool:
     """
     from app.services.query import QueryError, resolve
 
-    for sql in statements_in(definition):
+    for sql in statements_in(definition, config):
         try:
             if resolve(sql).names_the_reader:
                 return True

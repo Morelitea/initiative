@@ -140,6 +140,13 @@ class DashboardRead(DashboardSummary):
     #: be told the numbers are not their own, which is the disclosure the whole
     #: mechanism rests on.
     published_over: List[PublishedOver] = Field(default_factory=list)
+    #: Whether those grants are serving right now. A published view rests on
+    #: its author's standing access, and stops when that stops — so the list
+    #: above says what somebody published and this says whether it is what
+    #: anybody is currently seeing. Telling a reader the figures are shared
+    #: when the dashboard has fallen back to their own would be the disclosure
+    #: saying the opposite of what is happening.
+    published_active: bool = False
 
 
 class PublishRequest(SanitizedBaseModel):

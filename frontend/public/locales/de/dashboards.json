@@ -378,6 +378,7 @@
     "add": "Veröffentlichen",
     "stop": "Nicht mehr veröffentlichen",
     "notice_one": "Zeigt eine veröffentlichte Zahl — für alle hier dieselbe",
-    "notice_other": "Zeigt {{count}} veröffentlichte Zahlen — für alle hier dieselben"
+    "notice_other": "Zeigt {{count}} veröffentlichte Zahlen — für alle hier dieselben",
+    "unnamed": "Element #{{id}}"
   }
 }

@@ -37,7 +37,14 @@ export interface PublishedViewCardProps {
 export function PublishedViewCard({ dashboard }: PublishedViewCardProps) {
   const { t } = useTranslation(["dashboards", "common"]);
   const publish = useSetPublishedView(dashboard.id);
-  const projects = useProjects();
+  // This initiative's projects, and only the columns a picker needs. Scoped
+  // rather than filtered afterwards: a guild's whole project list is a longer
+  // answer than this question has, and paging through it to find one
+  // initiative's would be the wrong shape of request.
+  const projects = useProjects({
+    initiative_id: dashboard.initiative_id,
+    slim: true,
+  });
   const [adding, setAdding] = useState<string>("");
 
   const published: PublishTarget[] = useMemo(

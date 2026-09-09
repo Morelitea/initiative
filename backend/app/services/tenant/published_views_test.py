@@ -341,6 +341,63 @@ class TestWhatItWillNotDo:
         assert refused.status_code in (403, 404)
 
 
+class TestTheReaderCannotBeSmuggledIn:
+    """``me`` is what makes a statement answer per person, so it and a
+    published view cannot both hold. The refusals are where a statement is
+    written; this is the same rule where one is run, so it holds however the
+    statement got there."""
+
+    async def test_a_config_override_does_not_publish_the_reader(
+        self, client, session, acting_user
+    ):
+        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await dashboards_on(session, author.initiative)
+        reader = await acting_user(
+            guild_role=GuildRole.member,
+            guild=author.guild,
+            initiative=author.initiative,
+            initiative_role="member",
+        )
+        project = await create_project(session, author.initiative, author.user)
+        await create_task(session, project, assignees=[author.user])
+
+        dashboard_id = await make_dashboard(client, author)
+        await client.put(
+            author.g(f"/dashboards/{dashboard_id}/published"),
+            json={
+                "resources": [{"resource_type": "project", "resource_id": project.id}]
+            },
+            headers=author.headers,
+        )
+        assert await widget_rows(client, reader, dashboard_id) == [[1]]
+
+        # The definition stays clean; the override is where the reader arrives.
+        overridden = await client.patch(
+            author.g(f"/dashboards/{dashboard_id}"),
+            json={
+                "config": {
+                    "widgets": {
+                        "w1": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks WHERE created_by = me",
+                        }
+                    }
+                }
+            },
+            headers=author.headers,
+        )
+        # Either the save is refused, or the statement runs without the grant.
+        # Both are the same rule; what must not happen is a published figure
+        # that answers differently per person.
+        if overridden.status_code == 200:
+            assert await widget_rows(client, reader, dashboard_id) == [[0]]
+        else:
+            assert overridden.status_code == 422
+            assert overridden.json()["detail"] == (
+                DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER
+            )
+
+
 class TestItFailsClosedOnTheAuthor:
     """A published view serves on somebody's standing say-so, and is re-asked
     at every fetch rather than trusted from when the row was written. An author
@@ -376,6 +433,15 @@ class TestItFailsClosedOnTheAuthor:
 
         # Back to the reader's own access, which is none of it.
         assert await widget_rows(client, reader, dashboard_id) == [[0]]
+
+        # And the dashboard stops saying the figures are shared, because they
+        # are not any more.
+        detail = await client.get(
+            reader.g(f"/dashboards/{dashboard_id}"), headers=reader.headers
+        )
+        assert detail.status_code == 200
+        assert detail.json()["published_active"] is False
+        assert detail.json()["published_over"] != []
 
     async def test_an_author_who_left_the_guild_publishes_nothing(
         self, client, session, acting_user

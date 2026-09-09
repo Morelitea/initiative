@@ -347,6 +347,11 @@ class SharingMessages:
     been given the wording for it.
     """
 
+    #: A grant naming a dashboard, sent to a resource's own sharing. That kind
+    #: is made and taken back against the dashboard that publishes it, so this
+    #: list neither writes nor removes one.
+    DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
+
     @staticmethod
     def grantee_lacks_tool(tool: "Tool") -> str:
         """Sharing was addressed to somebody whose role does not reach ``tool``."""

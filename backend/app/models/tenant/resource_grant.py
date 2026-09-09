@@ -143,8 +143,7 @@ class ResourceGrant(CreatedByMixin, table=True):
             Integer,
             ForeignKey("dashboards.id", ondelete="CASCADE"),
             nullable=True,
-            index=True,
-        ),
+        ),  # indexed by the partial ix_resource_grants_dashboard
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)

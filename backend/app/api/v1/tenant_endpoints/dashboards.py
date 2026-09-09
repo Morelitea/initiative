@@ -439,7 +439,9 @@ async def read_dashboard(
     )
     # With what it publishes over: a reader has to be able to tell that some of
     # these numbers are not their own.
-    return await _serialized_with_published(session, dashboard, current_user)
+    return await _serialized_with_published(
+        session, dashboard, current_user, guild_context.guild_id
+    )
 
 
 @router.post("/", response_model=DashboardRead, status_code=status.HTTP_201_CREATED)
@@ -586,7 +588,7 @@ async def update_dashboard(
                 )
             # And it stays one set of numbers: `me` is what makes a statement
             # answer differently for each reader.
-            if published_views.names_the_reader(normalized):
+            if published_views.names_the_reader(normalized, normalized_config):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
@@ -752,6 +754,15 @@ async def run_widget_query(
     through = await published_views.serves_through(
         session, dashboard_id, guild_context.guild_id
     )
+    if through is not None and published_views.names_the_reader(
+        {"widgets": [{"binding": binding}]}
+    ):
+        # A statement about the reader is not one set of numbers, so it does not
+        # get the grant — it answers from this reader's own access instead.
+        # Saving one on a publishing dashboard is refused where it is written;
+        # this is the same rule where it is run, so it holds however the
+        # statement arrived.
+        through = None
     try:
         result = await query_service.run(
             sql,
@@ -808,7 +819,9 @@ async def set_published_view(
         guild_context,
         access="write",
     )
-    if payload.resources and published_views.names_the_reader(dashboard.definition):
+    if payload.resources and published_views.names_the_reader(
+        dashboard.definition, dashboard.config
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
@@ -859,7 +872,9 @@ async def set_published_view(
     await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard_id)
-    return await _serialized_with_published(session, hydrated, current_user)
+    return await _serialized_with_published(
+        session, hydrated, current_user, guild_context.guild_id
+    )
 
 
 @router.delete(
@@ -939,17 +954,27 @@ async def _may_revoke(
 
 
 async def _serialized_with_published(
-    session: Any, dashboard: Dashboard, user: User
+    session: Any, dashboard: Dashboard, user: User, guild_id: int
 ) -> DashboardRead:
-    """A dashboard read, saying what it publishes over."""
+    """A dashboard read, saying what it publishes over and whether that stands.
+
+    Both, because they answer different questions. The list is what somebody
+    published, which its author manages whether or not it is serving; the flag
+    is whether these tiles are currently showing it, which is what a reader is
+    told.
+    """
     read = serialize_dashboard(dashboard, user_id=user.id)
+    grants = await published_views.published_by(session, dashboard.id)
     read.published_over = [
         PublishedOver(
             resource_type=str(grant.resource_type),
             resource_id=grant.resource_id,
         )
-        for grant in await published_views.published_by(session, dashboard.id)
+        for grant in grants
     ]
+    read.published_active = bool(grants) and await published_views.author_still_reaches(
+        grants, guild_id
+    )
     return read
 
 

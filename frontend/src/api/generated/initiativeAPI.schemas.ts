@@ -2309,6 +2309,7 @@ export interface DashboardRead {
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
   published_over: PublishedOver[];
+  published_active: boolean;
 }
 
 export type DashboardUpdateDefinition = { [key: string]: unknown } | null;

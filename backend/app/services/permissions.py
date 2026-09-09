@@ -554,6 +554,15 @@ async def replace_resource_grants(
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
     for g in grants:
+        if getattr(g, "dashboard_id", None) is not None:
+            # Reported by this shape, never taken by it: a published view is
+            # made against the dashboard that publishes it. Silently dropping
+            # one here would let a caller believe they had made a share that
+            # was never written.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=SharingMessages.DASHBOARD_GRANT_NOT_SET_HERE,
+            )
         level = g.level
         if level not in ("read", "write"):
             continue  # owner is preserved server-side, never set via this list

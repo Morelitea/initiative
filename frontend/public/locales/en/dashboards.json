@@ -378,6 +378,7 @@
     "add": "Publish",
     "stop": "Stop publishing this",
     "notice_one": "Shows one published figure — the same for everyone here",
-    "notice_other": "Shows {{count}} published figures — the same for everyone here"
+    "notice_other": "Shows {{count}} published figures — the same for everyone here",
+    "unnamed": "Item #{{id}}"
   }
 }

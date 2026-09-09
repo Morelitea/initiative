@@ -110,7 +110,12 @@ export function DashboardDetailPage() {
           {dashboard?.description && (
             <p className="text-muted-foreground text-sm">{dashboard.description}</p>
           )}
-          {dashboard && <PublishedViewNotice published={dashboard.published_over} />}
+          {dashboard && (
+            <PublishedViewNotice
+              published={dashboard.published_over}
+              active={dashboard.published_active}
+            />
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
