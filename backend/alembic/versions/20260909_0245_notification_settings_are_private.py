@@ -295,7 +295,38 @@ def upgrade() -> None:
         op.drop_column("users", column)
 
 
+def _restore_expression() -> str:
+    """The reverse of the backfill: each column false where the document says so.
+
+    A downgrade that recreated the columns at their default would discard every
+    opt-out the account had made, so the values come back out of the document
+    before it is dropped. ``membership`` seeded two columns, and both take its
+    value back.
+    """
+    legs: list[str] = []
+    for column, categories in _EMAIL_SOURCES.items():
+        # A column that seeded several categories is back off only if every one
+        # of them is off — the same direction the merge went.
+        tests = " AND ".join(
+            f"(p.prefs #>> '{{categories,{category},email}}') = 'false'"
+            for category in categories
+        )
+        legs.append(f"{column} = NOT ({tests})")
+    for column, categories in _PUSH_SOURCES.items():
+        tests = " AND ".join(
+            f"(p.prefs #>> '{{categories,{category},push}}') = 'false'"
+            for category in categories
+        )
+        legs.append(f"{column} = NOT ({tests})")
+    for channel, columns in _MEMBERSHIP_SOURCES.items():
+        test = f"(p.prefs #>> '{{categories,membership,{channel}}}') = 'false'"
+        for column in columns:
+            legs.append(f"{column} = NOT {test}")
+    return ", ".join(legs)
+
+
 def downgrade() -> None:
+    conn = op.get_bind()
     for column in _DROPPED_COLUMNS:
         op.add_column(
             "users",
@@ -303,6 +334,13 @@ def downgrade() -> None:
                 column, sa.Boolean(), nullable=False, server_default=sa.text("true")
             ),
         )
+    # Values first, while the document still exists.
+    conn.execute(
+        sa.text(
+            "UPDATE public.users AS u SET " + _restore_expression() + " "
+            "FROM public.user_notification_prefs AS p WHERE p.user_id = u.id"
+        )
+    )
 
     for base in _base_roles():
         for command in ("select", "insert", "update", "delete"):

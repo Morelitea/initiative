@@ -142,3 +142,107 @@ async def test_nothing_read_before_the_window_closed_is_counted(
         await _run_quiet_hours_summary_pass(session, now=_at(8))
 
     assert email.await_count == 0
+
+
+@pytest.mark.integration
+async def test_the_summary_carries_only_what_the_channel_may_say(
+    session: AsyncSession,
+):
+    """A category switched off for email is not named in the email."""
+    user = await create_user(
+        session, email="quiet-channels@example.com", timezone="UTC"
+    )
+    guild = await create_guild(session, creator=user)
+    await set_notification_prefs(
+        session,
+        user,
+        {**NIGHT, "categories": {"reactions": {"email": False}}},
+    )
+    for notification_type in (
+        NotificationType.mention,
+        NotificationType.comment_reaction,
+    ):
+        notification = await user_notifications.create_notification(
+            session,
+            user_id=user.id,
+            notification_type=notification_type,
+            data={"guild_id": guild.id},
+        )
+        assert notification is not None
+        notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    body = email.await_args.kwargs["body_text"]
+    assert "mention" in body.lower()
+    assert "reaction" not in body.lower()
+
+
+@pytest.mark.integration
+async def test_nothing_either_channel_may_say_sends_nothing(session: AsyncSession):
+    user = await create_user(
+        session, email="quiet-allmuted@example.com", timezone="UTC"
+    )
+    guild = await create_guild(session, creator=user)
+    await set_notification_prefs(
+        session,
+        user,
+        {
+            **NIGHT,
+            "categories": {"reactions": {"email": False, "push": False}},
+        },
+    )
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.comment_reaction,
+        data={"guild_id": guild.id},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as email:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    assert email.await_count == 0
+
+
+@pytest.mark.integration
+async def test_a_failed_send_is_tried_again(session: AsyncSession):
+    """The window is stamped by a delivery, not by the attempt — an
+    unconfigured channel must not burn the account's one summary."""
+    user = await create_user(session, email="quiet-retry@example.com", timezone="UTC")
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    from app.services import email as email_service
+
+    with patch(
+        "app.services.email.send_mention_email",
+        new_callable=AsyncMock,
+        side_effect=email_service.EmailNotConfiguredError(),
+    ) as failing:
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+        assert failing.await_count == 1
+
+    with patch(
+        "app.services.email.send_mention_email", new_callable=AsyncMock
+    ) as retried:
+        await _run_quiet_hours_summary_pass(session, now=_at(9))
+
+    assert retried.await_count == 1

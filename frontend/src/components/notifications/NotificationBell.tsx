@@ -16,9 +16,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
+  useAllUnreadNotifications,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
-  useNotifications,
 } from "@/hooks/useNotifications";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 
@@ -42,23 +42,21 @@ export const NotificationBell = () => {
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 
-  const notificationsQuery = useNotifications({
-    // Everything still unread. The popover is the working set — what is left
-    // to deal with — which is what makes a number on the bell unnecessary:
-    // you do not need to be told how many are waiting by something you can
-    // open and see.
-    unreadOnly: true,
-    // A connected tab holds no timer at all. The channel refetches this the
-    // moment the inbox moves, and it reaches every worker rather than the one
-    // that happened to write the row — so there is nothing for a timer to
-    // catch. What a timer used to cover was the channel itself going quiet,
-    // and the server now says so when that has happened, which is the one
-    // thing a timer could never tell the difference from silence.
-    //
-    // With no socket at all (a proxy that drops upgrades, an offline tab)
-    // there is nothing to say it, so the poll stands.
-    refetchInterval: streamConnected ? false : NOTIFICATION_POLL_INTERVAL_MS,
+  // Everything still unread, every page of it. The popover is the working set
+  // — what is left to deal with — which is what makes a number on the bell
+  // unnecessary: you do not need to be told how many are waiting by something
+  // you can open and see. Stopping at one page would break that promise for
+  // exactly the people with most to look at.
+  //
+  // A connected tab holds no polling timer. The channel refetches the inbox
+  // the moment it moves, and it reaches every worker rather than the one that
+  // happened to write the row. What a timer used to cover was the channel
+  // itself going quiet, and the server now says so when that has happened.
+  // With no socket at all (a proxy that drops upgrades, an offline tab) there
+  // is nothing to say it, so the poll stands.
+  const notificationsQuery = useAllUnreadNotifications({
     enabled: isEnabled,
+    refetchInterval: streamConnected ? false : NOTIFICATION_POLL_INTERVAL_MS,
   });
 
   const markReadMutation = useMarkNotificationRead();
@@ -69,7 +67,7 @@ export const NotificationBell = () => {
     return null;
   }
 
-  const unread = notificationsQuery.data?.notifications ?? [];
+  const unread = notificationsQuery.notifications;
   // A row read while the popover is open keeps its place, dimmed, until the
   // popover closes. The list is unread-only, so without this it would vanish
   // under the pointer and reflow everything beneath it.
@@ -84,7 +82,7 @@ export const NotificationBell = () => {
   const hasNotifications = notifications.length > 0;
   // A dot, not a number. The popover shows every unread item, so there is
   // nothing for a count to summarise.
-  const hasUnread = (notificationsQuery.data?.unread_count ?? 0) > 0;
+  const hasUnread = notificationsQuery.unreadCount > 0;
 
   const handleNotificationClick = async (notification: NotificationRead) => {
     // Not awaited: the read is applied to the cache as it is sent, so the dot

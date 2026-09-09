@@ -98,6 +98,18 @@ class Channels:
 MAX_ROLLED_UP_COMMENTERS = 10
 
 
+async def _lock_rollup_line(session: AsyncSession, key: str) -> None:
+    """Serialize the read-then-write on one recipient's rolled-up line.
+
+    Every rollup in the app does the same thing — look for an unread line to
+    join, then write or extend it — so they all take this. Transaction-scoped,
+    and keyed narrowly enough that only events aimed at the same line ever wait.
+    """
+    await session.exec(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
+    )
+
+
 def _comment_rollup_key(entity_type: str, entity_id: int) -> str:
     """What decides which line a comment joins: the thing being commented on.
 
@@ -173,6 +185,12 @@ async def _roll_up_comment(
     "no bell, but do email me": there is nothing to collect them into.
     """
     match = {"rollup_key": rollup_key}
+    # Two comments landing on the same thread at once would otherwise both find
+    # no line to join and write one each, or both read the same count and lose
+    # one. Transaction-scoped and keyed per (recipient, thread), so only
+    # comments aimed at the same line ever wait — the same lock the reaction
+    # and direct-message rollups take.
+    await _lock_rollup_line(session, f"comment-line:{rollup_key}:{recipient.id}")
     existing = await user_notifications.find_unread_by_data(
         session,
         user_id=recipient.id,
@@ -2230,18 +2248,6 @@ def _reaction_line(
     }
 
 
-async def _lock_reaction_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
-
-    Two people reacting to the same comment at the same moment would otherwise
-    both find no line to join and write one each. Transaction-scoped, and keyed
-    narrowly enough that only reactions aimed at the same line ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
-
-
 async def enqueue_reaction_event(
     session: AsyncSession,
     *,
@@ -2271,7 +2277,7 @@ async def enqueue_reaction_event(
         "reactor_id": reactor.id,
         "reactor_name": reactor_name,
     }
-    await _lock_reaction_line(
+    await _lock_rollup_line(
         session,
         f"reaction-bell:{guild_id}:{reaction.target_type}:"
         f"{reaction.target_id}:{author.id}",
@@ -2364,7 +2370,7 @@ async def withdraw_reaction_event(
     longer prove it was ever there, so both are left alone rather than
     decremented on a guess.
     """
-    await _lock_reaction_line(
+    await _lock_rollup_line(
         session,
         f"reaction-bell:{guild_id}:{target_type}:{target_id}:{author_id}",
     )
@@ -2772,6 +2778,30 @@ def _quiet_summary_body(
     return "<br>".join(parts)
 
 
+def _rows_for_channel(
+    rows: list[tuple[NotificationCategory, int | None, int]],
+    *,
+    prefs: Mapping[str, Any],
+    channel: Channel,
+) -> list[tuple[NotificationCategory, int | None, int]]:
+    """The part of a summary one channel is allowed to carry.
+
+    Resolved per (category, community) exactly as the live path resolves it, so
+    a summary never mentions something the account has switched off for that
+    channel, and a channel with nothing left to say is not sent at all.
+    """
+    return [
+        (category, guild_id, count)
+        for category, guild_id, count in rows
+        if notification_prefs.wants(
+            prefs,
+            notification_type=_sample_type(category),
+            channel=channel,
+            guild_id=guild_id,
+        )
+    ]
+
+
 async def _run_quiet_hours_summary_pass(
     session: AsyncSession, *, now: datetime
 ) -> None:
@@ -2798,64 +2828,91 @@ async def _run_quiet_hours_summary_pass(
             except ValueError:
                 pass
 
+        async def _stamp(_user_id: int = user.id, _prefs: Mapping = prefs) -> None:
+            document = dict(_prefs)
+            document["quiet_hours"] = {
+                **document.get("quiet_hours", {}),
+                "last_summary_at": closed.isoformat(),
+            }
+            await notification_prefs.save_prefs(session, _user_id, document)
+            await session.commit()
+
         rows = await _quiet_summary_rows(
             session, user_id=user.id, since=opened, until=closed
         )
-        # Stamp whether or not anything is sent, so a quiet night is not
-        # re-examined on every poll for the rest of the grace period.
-        document = dict(prefs)
-        document["quiet_hours"] = {
-            **document.get("quiet_hours", {}),
-            "last_summary_at": closed.isoformat(),
-        }
-        await notification_prefs.save_prefs(session, user.id, document)
-        await session.commit()
-        if not rows:
+        email_rows = _rows_for_channel(rows, prefs=prefs, channel=Channel.email)
+        push_rows = _rows_for_channel(rows, prefs=prefs, channel=Channel.push)
+        if not email_rows and not push_rows:
+            # Nothing either channel may carry. Stamped so a quiet night is not
+            # reconsidered on every poll for the rest of the grace period.
+            await _stamp()
             continue
 
         locale = _recipient_locale(user)
-        guild_ids = [guild_id for _, guild_id, _ in rows if guild_id is not None]
+        guild_ids = {guild_id for _, guild_id, _ in rows if guild_id is not None}
         guild_names: dict[int, str] = {}
         if guild_ids:
             found = (
-                (await session.exec(select(Guild).where(Guild.id.in_(guild_ids))))
+                (
+                    await session.exec(
+                        select(Guild).where(Guild.id.in_(sorted(guild_ids)))
+                    )
+                )
                 .scalars()
                 .all()
             )
             guild_names = {guild.id: guild.name for guild in found}
-        total = sum(count for _, _, count in rows)
-        body = _quiet_summary_body(rows, guild_names=guild_names, locale=locale)
         headline = _nt("quietHours.summary.title", locale)
 
-        if notification_prefs.wants(
-            prefs,
-            notification_type=NotificationType.overdue_tasks,
-            channel=Channel.email,
-        ):
+        # Only stamp once something actually went out, so a channel that is
+        # merely unconfigured (no SMTP, no FCM) is retried on the next poll
+        # rather than burning the account's one summary for the window.
+        delivered = False
+        if email_rows:
             try:
                 await email_service.send_mention_email(
                     session,
                     user,
-                    subject=email_t("quietHours.summary.subject", locale, count=total),
+                    subject=email_t(
+                        "quietHours.summary.subject",
+                        locale,
+                        count=sum(count for _, _, count in email_rows),
+                    ),
                     headline=headline,
-                    body_text=body,
+                    body_text=_quiet_summary_body(
+                        email_rows, guild_names=guild_names, locale=locale
+                    ),
                     link=_build_smart_link(target_path="/notifications", guild_id=None),
                 )
+                delivered = True
             except email_service.EmailNotConfiguredError:
                 logger.warning("SMTP not configured; skipping quiet-hours summary")
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send quiet-hours summary: %s", exc)
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=user.id,
-                notification_type=NotificationType.overdue_tasks,
-                title=headline,
-                body=_nt("quietHours.summary.body", locale, count=total),
-                data={"type": "quiet_hours_summary", "target_path": "/notifications"},
-            )
-        except Exception as exc:
-            logger.error("Failed to push quiet-hours summary: %s", exc, exc_info=True)
+        if push_rows:
+            try:
+                sent = await push_notifications.send_push_to_user(
+                    session=session,
+                    user_id=user.id,
+                    notification_type=_sample_type(push_rows[0][0]),
+                    title=headline,
+                    body=_nt(
+                        "quietHours.summary.body",
+                        locale,
+                        count=sum(count for _, _, count in push_rows),
+                    ),
+                    data={
+                        "type": "quiet_hours_summary",
+                        "target_path": "/notifications",
+                    },
+                )
+                delivered = delivered or bool(sent)
+            except Exception as exc:
+                logger.error(
+                    "Failed to push quiet-hours summary: %s", exc, exc_info=True
+                )
+        if delivered:
+            await _stamp()
 
 
 async def process_quiet_hours_summaries() -> None:

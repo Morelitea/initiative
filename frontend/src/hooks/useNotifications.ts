@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 
 import type {
   NotificationCountResponse,
@@ -70,6 +71,7 @@ export const useNotificationHistory = (options?: {
   unreadOnly?: boolean;
   guildId?: number;
   personalOnly?: boolean;
+  refetchInterval?: number | false;
 }) => {
   const params = {
     limit: NOTIFICATION_PAGE_SIZE,
@@ -87,7 +89,47 @@ export const useNotificationHistory = (options?: {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last: NotificationListResponse) => last.next_cursor ?? undefined,
     enabled: options?.enabled,
+    refetchInterval: options?.refetchInterval,
   });
+};
+
+/**
+ * Every unread notification — all of them, however many pages that takes.
+ *
+ * The popover's promise is that opening it shows the whole unread set, which
+ * is what makes a count on the bell unnecessary. One page of fifty would
+ * quietly break that for exactly the people it matters most to, so this
+ * follows the cursor to the end.
+ */
+export const useAllUnreadNotifications = (options?: {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+}) => {
+  const query = useNotificationHistory({
+    enabled: options?.enabled,
+    unreadOnly: true,
+    refetchInterval: options?.refetchInterval,
+  });
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const notifications = useMemo(
+    () => query.data?.pages.flatMap((page) => page.notifications) ?? [],
+    [query.data]
+  );
+  return {
+    notifications,
+    // The server's own total, not the length of what has arrived — the dot has
+    // to be right before the last page lands.
+    unreadCount: query.data?.pages[0]?.unread_count ?? 0,
+    isLoading: query.isLoading,
+    isComplete: !query.hasNextPage,
+  };
 };
 
 /**
@@ -123,33 +165,53 @@ export const useUnreadPlaces = (options?: {
  * A failure invalidates, so the server's answer replaces this rather than the
  * optimistic state standing.
  */
+/** Fold a read into one cached page, returning it unchanged when nothing moved. */
+const applyReadToPage = (
+  page: NotificationListResponse,
+  matches: (notification: NotificationRead) => boolean,
+  readAt: string
+): NotificationListResponse => {
+  let cleared = 0;
+  const notifications = page.notifications.map((notification) => {
+    if (notification.read_at || !matches(notification)) {
+      return notification;
+    }
+    cleared += 1;
+    return { ...notification, read_at: readAt };
+  });
+  if (cleared === 0) {
+    return page;
+  }
+  return {
+    ...page,
+    notifications,
+    unread_count: Math.max(0, page.unread_count - cleared),
+  };
+};
+
+type CachedList =
+  | NotificationListResponse
+  | { pages: NotificationListResponse[]; pageParams: unknown[] };
+
 const applyRead = (client: QueryClient, matches: (notification: NotificationRead) => boolean) =>
-  // Every cached list, not one: the popover asks with `unread_only` and the
-  // inbox page with its own filters, so they are separate cache entries and a
-  // read has to reach all of them.
-  client.setQueriesData<NotificationListResponse>(
+  // Every cached list, not one: the popover reads its unread set a page at a
+  // time while the inbox page holds its own filters, so they are separate
+  // entries — and one is paginated and one is not. A read has to reach both
+  // shapes or the dot moves in one place and not the other.
+  client.setQueriesData<CachedList>(
     { queryKey: getListNotificationsApiV1NotificationsGetQueryKey() },
     (current) => {
       if (!current) {
         return current;
       }
       const readAt = new Date().toISOString();
-      let cleared = 0;
-      const notifications = current.notifications.map((notification) => {
-        if (notification.read_at || !matches(notification)) {
-          return notification;
-        }
-        cleared += 1;
-        return { ...notification, read_at: readAt };
-      });
-      if (cleared === 0) {
-        return current;
+      if ("pages" in current) {
+        const pages = current.pages.map((page) => applyReadToPage(page, matches, readAt));
+        return pages.some((page, index) => page !== current.pages[index])
+          ? { ...current, pages }
+          : current;
       }
-      return {
-        ...current,
-        notifications,
-        unread_count: Math.max(0, current.unread_count - cleared),
-      };
+      return applyReadToPage(current, matches, readAt);
     }
   );
 
