@@ -369,5 +369,16 @@
     "counters": "Zähler",
     "counter_groups": "Zählergruppen",
     "task_statuses": "Aufgabenstatus"
+  },
+  "published": {
+    "title": "Veröffentlichte Zahlen",
+    "help": "Ein Dashboard zeigt normalerweise jeder Person, was sie ohnehin sehen kann. Was hier genannt ist, sehen alle gleich, die dieses Dashboard öffnen können — eine Zahl, die gemeinsame Grundlage sein muss, ist dann eine und nicht mehrere. Veröffentlichen lässt sich nur, was du selbst öffnen kannst, und wem es gehört, kann es jederzeit zurückziehen.",
+    "empty": "Nichts veröffentlicht. Jede Kachel antwortet aus Sicht der lesenden Person.",
+    "choose": "Projekt wählen",
+    "add": "Veröffentlichen",
+    "stop": "Nicht mehr veröffentlichen",
+    "notice_one": "Zeigt eine veröffentlichte Zahl — für alle hier dieselbe",
+    "notice_other": "Zeigt {{count}} veröffentlichte Zahlen — für alle hier dieselben",
+    "unnamed": "Element #{{id}}"
   }
 }

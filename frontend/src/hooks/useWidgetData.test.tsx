@@ -14,10 +14,12 @@ import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 
 const idle = { data: undefined, isLoading: false, isError: false };
 const useSqlQuery = vi.fn(() => idle);
+const useWidgetQuery = vi.fn(() => idle);
 const useDocument = vi.fn(() => idle);
 
 vi.mock("@/hooks/useSqlQuery", () => ({
   useSqlQuery: (...args: unknown[]) => useSqlQuery(...args),
+  useWidgetQuery: (...args: unknown[]) => useWidgetQuery(...args),
 }));
 vi.mock("@/hooks/useDocuments", () => ({
   useDocument: (...args: unknown[]) => useDocument(...args),
@@ -121,5 +123,34 @@ describe("a sheet-range binding", () => {
     const { result } = run({ source: "sheet_range", document_id: 3, range: "A1:B2" }, 4);
     expect(result.current.isRestricted).toBe(true);
     useDocument.mockReturnValue(idle);
+  });
+});
+
+describe("a widget already on a dashboard", () => {
+  /** A placed widget names itself and lets the server look the statement up.
+   *  Nothing about the request says what to run, which is what lets a
+   *  dashboard show rows the reader could not otherwise reach. */
+  const placed = () =>
+    renderHook(() =>
+      useWidgetData({ source: "query", sql: "SELECT 1 AS n FROM tasks" }, 7, 11, "w1")
+    );
+
+  it("is read by naming it, not by sending its statement", () => {
+    placed();
+    expect(useWidgetQuery).toHaveBeenCalled();
+    expect(useWidgetQuery.mock.calls.at(-1)?.slice(0, 2)).toEqual([11, "w1"]);
+    // The statement hook is not the one asking.
+    expect(
+      Boolean((useSqlQuery.mock.calls.at(-1)?.[2] as { enabled?: boolean } | undefined)?.enabled)
+    ).toBe(false);
+  });
+
+  it("sends the statement while it is still being written", () => {
+    // No dashboard and no widget: the config dialog's preview, which has
+    // nothing stored yet for the server to look up.
+    renderHook(() => useWidgetData({ source: "query", sql: "SELECT 1 AS n FROM tasks" }, 7));
+    expect(
+      Boolean((useSqlQuery.mock.calls.at(-1)?.[2] as { enabled?: boolean } | undefined)?.enabled)
+    ).toBe(true);
   });
 });

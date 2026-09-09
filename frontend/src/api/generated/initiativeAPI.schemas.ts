@@ -1101,20 +1101,28 @@ export const ResourceGrantSchemaLevel = {
 
 /**
  * One ``resource_grants`` row — exactly the columns that define a grant: a
- * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
- * initiative members (``all_initiative_members``). Exactly one grantee is set.
+ * ``level`` for a user (``user_id``), an initiative role (``role_id``), all
+ * initiative members (``all_initiative_members``), or a dashboard
+ * (``dashboard_id``). Exactly one grantee is set.
  *
  * The identical shape both reports a resource's grants (``grants`` is a list of
  * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
  * read-only or write-only. The server always preserves the resource's owner
  * grant. Role display names are resolved client-side from the initiative's roles
  * by ``role_id``.
+ *
+ * A **dashboard** grantee is reported here and not taken from here: it is what
+ * a published view is made of, the owner sees it in their sharing panel, and
+ * the server keeps it whatever this list says. Taking one back is its own act,
+ * against the dashboard that published it — so a client that knows nothing
+ * about published views cannot remove one by saving the panel.
  */
 export interface ResourceGrantSchema {
   level: ResourceGrantSchemaLevel;
   user_id?: number | null;
   role_id?: number | null;
   all_initiative_members?: boolean;
+  dashboard_id?: number | null;
 }
 
 export interface CalendarCreate {
@@ -2270,6 +2278,15 @@ export type DashboardReadDefinition = { [key: string]: unknown };
 
 export type DashboardReadConfig = { [key: string]: unknown };
 
+/**
+ * One resource this dashboard shows to everybody who can open it.
+ */
+export interface PublishedOver {
+  resource_type: string;
+  resource_id: number;
+  name?: string | null;
+}
+
 export interface DashboardRead {
   /**
    * @minLength 1
@@ -2291,6 +2308,8 @@ export interface DashboardRead {
   grants: ResourceGrantSchema[];
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
+  published_over: PublishedOver[];
+  published_active: boolean;
 }
 
 export type DashboardUpdateDefinition = { [key: string]: unknown } | null;
@@ -5092,6 +5111,27 @@ export interface PropertyValueInput {
  */
 export interface PropertyValuesSetRequest {
   values?: PropertyValueInput[];
+}
+
+export interface PublishTarget {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  resource_type: string;
+  /** @exclusiveMinimum 0 */
+  resource_id: number;
+}
+
+/**
+ * What a dashboard should publish over, in full.
+ *
+ * The whole list each time, like the sharing panel: publishing is an explicit
+ * act and what it grants over is what somebody looked at when they did it.
+ */
+export interface PublishRequest {
+  /** @maxItems 50 */
+  resources?: PublishTarget[];
 }
 
 /**

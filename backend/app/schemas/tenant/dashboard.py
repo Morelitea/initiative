@@ -119,11 +119,52 @@ class DashboardListResponse(SanitizedBaseModel):
     has_next: bool
 
 
+class PublishedOver(SanitizedBaseModel):
+    """One resource this dashboard shows to everybody who can open it."""
+
+    resource_type: str
+    resource_id: int
+    #: What it is called, where the reader of *this* payload may see it named.
+    #: Absent otherwise: a published view discloses that it exists, never what
+    #: it is called to somebody who cannot reach it.
+    name: Optional[str] = None
+
+
 class DashboardRead(DashboardSummary):
     # The canvas body is only sent on the detail read — a list of dashboards
     # doesn't render widgets, and definitions are the largest field here.
     definition: Dict[str, Any] = Field(default_factory=dict)
     config: Dict[str, Any] = Field(default_factory=dict)
+    #: What this dashboard publishes over: the resources its tiles read through
+    #: its own grants rather than through the viewer's. Present so a reader can
+    #: be told the numbers are not their own, which is the disclosure the whole
+    #: mechanism rests on.
+    published_over: List[PublishedOver] = Field(default_factory=list)
+    #: Whether those grants are serving right now. A published view rests on
+    #: its author's standing access, and stops when that stops — so the list
+    #: above says what somebody published and this says whether it is what
+    #: anybody is currently seeing. Telling a reader the figures are shared
+    #: when the dashboard has fallen back to their own would be the disclosure
+    #: saying the opposite of what is happening.
+    published_active: bool = False
+
+
+class PublishRequest(SanitizedBaseModel):
+    """What a dashboard should publish over, in full.
+
+    The whole list each time, like the sharing panel: publishing is an explicit
+    act and what it grants over is what somebody looked at when they did it.
+    """
+
+    resources: List["PublishTarget"] = Field(default_factory=list, max_length=50)
+
+
+class PublishTarget(SanitizedBaseModel):
+    resource_type: str = Field(min_length=1, max_length=32)
+    resource_id: int = Field(gt=0)
+
+
+PublishRequest.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------

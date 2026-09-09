@@ -369,5 +369,16 @@
     "counters": "Counters",
     "counter_groups": "Counter groups",
     "task_statuses": "Task statuses"
+  },
+  "published": {
+    "title": "Published figures",
+    "help": "A dashboard normally shows each person what they can already see. Anything named here is shown the same way to everyone who can open this dashboard — so a figure that has to be common ground is one number, not several. You can only publish what you can open yourself, and whoever owns it can take it back at any time.",
+    "empty": "Nothing published. Every tile answers from whoever is looking at it.",
+    "choose": "Choose a project",
+    "add": "Publish",
+    "stop": "Stop publishing this",
+    "notice_one": "Shows one published figure — the same for everyone here",
+    "notice_other": "Shows {{count}} published figures — the same for everyone here",
+    "unnamed": "Item #{{id}}"
   }
 }

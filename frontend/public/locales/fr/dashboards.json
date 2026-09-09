@@ -369,5 +369,16 @@
     "counters": "Compteurs",
     "counter_groups": "Groupes de compteurs",
     "task_statuses": "Statuts de tâche"
+  },
+  "published": {
+    "title": "Chiffres publiés",
+    "help": "Un tableau de bord montre normalement à chacun ce qu'il peut déjà voir. Ce qui est nommé ici s'affiche de la même façon pour toutes les personnes qui peuvent ouvrir ce tableau de bord : un chiffre qui doit servir de base commune en est un seul, et non plusieurs. Vous ne pouvez publier que ce que vous pouvez ouvrir vous-même, et son propriétaire peut le retirer à tout moment.",
+    "empty": "Rien de publié. Chaque tuile répond selon la personne qui la regarde.",
+    "choose": "Choisissez un projet",
+    "add": "Publier",
+    "stop": "Ne plus publier ceci",
+    "notice_one": "Affiche un chiffre publié — le même pour tout le monde ici",
+    "notice_other": "Affiche {{count}} chiffres publiés — les mêmes pour tout le monde ici",
+    "unnamed": "Élément n° {{id}}"
   }
 }

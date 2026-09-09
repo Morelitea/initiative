@@ -174,6 +174,7 @@ _CONTEXT_SQL = (
     "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('app.override_initiatives', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
+    "set_config('app.via_dashboard_id', :vdash, true), "
     "set_config('app.guild_shows_member_names', :names, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
@@ -200,6 +201,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # list so the policy reads it with one string_to_array; empty when none.
     override = params.get("override_initiatives") or ()
     scope_initiative_id = params.get("scope_initiative_id")
+    via_dashboard_id = params.get("via_dashboard_id")
     override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
 
     # Billing-service path (set_billing_context): assumes the
@@ -219,6 +221,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
+            "vdash": "",
             "names": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),
@@ -297,6 +300,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
+        "vdash": str(int(via_dashboard_id)) if via_dashboard_id is not None else "",
         "sp": sp,
         "role": role_target,
     }
@@ -348,6 +352,7 @@ async def set_rls_context(
     satisfied_providers: Optional[Sequence[int] | str] = None,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
+    via_dashboard_id: Optional[int] = None,
     shows_member_names: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
@@ -377,6 +382,13 @@ async def set_rls_context(
     level while reads (and the member/admin RLS legs) behave normally. It is
     independent of the PAM read-grant routing, which derives the same role
     from ``pam_read``/``pam_write``.
+
+    ``via_dashboard_id`` names the dashboard this request is drawing. A grant
+    whose grantee is that dashboard answers while it is set and at no other
+    time, which is what makes a published view a property of the fetch rather
+    than of the reader. It is written by the one path that runs a placed
+    widget's stored statement, after that dashboard's own gates have admitted
+    the reader — never from anything a request supplies.
 
     ``scope_initiative_id`` narrows the read to one initiative: rows belonging
     to another are not part of the answer, whatever else the context allows.
@@ -464,6 +476,7 @@ async def set_rls_context(
         "satisfied_providers": satisfied_providers,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
+        "via_dashboard_id": via_dashboard_id,
         "shows_member_names": bool(shows_member_names),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()

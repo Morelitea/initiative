@@ -77,6 +77,11 @@ class ResolvedQuery:
     #: name one. ``None`` where the output is an expression rather than a
     #: field, and the database is the one to describe it.
     column_types: tuple[FieldType | None, ...] = ()
+    #: Whether the statement asked about whoever is reading it. A caller that
+    #: needs one answer for everybody has to know, because this is the one
+    #: thing in the language that makes a statement answer differently per
+    #: person.
+    names_the_reader: bool = False
 
     def explain(self) -> str:
         """This statement, asking for its plan instead of its rows.
@@ -667,16 +672,23 @@ def _check_viewer(select: ast.SelectStmt, scope: dict[str, str]) -> None:
             raise QueryError(QueryMessages.VIEWER_NEEDS_A_PERSON, VIEWER)
 
 
-def _resolve_viewer(select: ast.SelectStmt) -> None:
-    """Write the reader in wherever the statement said ``me``."""
+def _resolve_viewer(select: ast.SelectStmt) -> bool:
+    """Write the reader in wherever the statement said ``me``.
+
+    Answers whether it said so anywhere, for the caller that has to know.
+    """
+    named = False
 
     class Expand(Visitor):
         def visit_ColumnRef(self, ancestors: Any, node: ast.ColumnRef) -> Any:
+            nonlocal named
             if _name_parts(node.fields) == [VIEWER]:
+                named = True
                 return _viewer_node()
             return None
 
     Expand()(select)
+    return named
 
 
 def _constants_in(node: Any) -> set[int]:
@@ -790,10 +802,11 @@ def resolve(sql: str) -> ResolvedQuery:
     _check_viewer(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
-    _resolve_viewer(select)
+    names_the_reader = _resolve_viewer(select)
     return ResolvedQuery(
         sql=RawStream()(select),
         parameters=parameters,
         relations=tuple(sorted(set(scope.values()))),
         column_types=column_types,
+        names_the_reader=names_the_reader,
     )

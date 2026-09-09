@@ -40,7 +40,10 @@ router = APIRouter()
 
 #: What each refusal is, as HTTP. Everything not named here is something the
 #: reader can fix in the statement.
-_STATUS = {
+#:
+#: Public, because the dashboard path runs statements too and a refusal should
+#: not be one status here and another there.
+REFUSAL_STATUS = {
     QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
     QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
 }
@@ -64,7 +67,7 @@ async def describe_query(
         )
     except query_service.QueryError as refused:
         raise HTTPException(
-            status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
     return QueryShapeResponse(columns=_described(columns), relations=list(relations))
@@ -94,7 +97,7 @@ async def run_query(
         )
     except query_service.QueryError as refused:
         raise HTTPException(
-            status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
     return QueryResponse(
@@ -126,7 +129,7 @@ async def build_query(
         )
     except query_service.QueryError as refused:
         raise HTTPException(
-            status_code=_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
     return QueryBuildResponse(
