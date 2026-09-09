@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { setGrantOnlyGuildIds } from "@/lib/offlineCache";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
@@ -166,6 +167,14 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const applyGuildState = useCallback((guildList: GuildEntry[]) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
+
+    // A guild reached only by a time-bound PAM/break-glass grant must leave
+    // nothing behind on the device when the grant expires, so its content is
+    // never written to the offline cache. This is the only place that knows
+    // which guilds those are.
+    setGrantOnlyGuildIds(
+      sortedGuilds.filter((guild) => guild.accessType === "grant").map((guild) => guild.id)
+    );
 
     // Use functional update to avoid overriding in-flight guild switches.
     // Only change activeGuildId when the current value is no longer valid.

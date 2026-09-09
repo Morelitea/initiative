@@ -18,9 +18,23 @@ import {
 } from "@/api/client";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  isOfflineCacheEnabled,
+  purgeOfflineCache,
+  restoredIdentityMismatch,
+  setOfflineWritesAllowed,
+} from "@/lib/offlineCache";
+import {
+  clearOfflineSession,
+  currentServerKey,
+  isNoAnswerError,
+  readOfflineSession,
+  saveOfflineSession,
+} from "@/lib/offlineSession";
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
@@ -54,6 +68,13 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   isDeviceToken: boolean;
+  /**
+   * True when the signed-in user came from a stored snapshot that the server
+   * has not confirmed — the app opened with no signal. Reading is allowed (see
+   * `history/offline-reading-design.md`); it is cleared as soon as any request
+   * succeeds, and the session is signed out if one is ever rejected.
+   */
+  sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
@@ -74,6 +95,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isDeviceToken, setIsDeviceToken] = useState(false);
   const [user, setUserState] = useState<UserRead | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [sessionUnverified, setSessionUnverified] = useState(false);
+  const { isOnline } = useNetworkStatus();
 
   // Keep the React user state and the api-client session flag in lockstep so
   // the 401 interceptor always knows whether to treat a 401 as session expiry
@@ -100,10 +123,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const appliedReadRef = useRef(0);
   const identityEpochRef = useRef(0);
 
-  const setUser = useCallback((nextUser: UserRead | null) => {
-    setUserState(nextUser);
-    setHasActiveSession(nextUser !== null);
+  /** A server-confirmed answer about who is here: record it (or unrecord it),
+   *  and the session is no longer running on a snapshot. */
+  const rememberIdentity = useCallback((nextUser: UserRead | null) => {
+    setSessionUnverified(false);
+    if (!isOfflineCacheEnabled()) return;
+    if (!nextUser) {
+      setOfflineWritesAllowed(false);
+      clearOfflineSession();
+      return;
+    }
+    // The cache restored at boot belonged to whoever was last signed in here.
+    // If that is not this person, sign-out never ran — the app was killed, or
+    // the token was revoked server-side — and the content must not survive the
+    // handover.
+    if (restoredIdentityMismatch(nextUser.id)) {
+      queryClient.clear();
+      void purgeOfflineCache();
+    }
+    saveOfflineSession(nextUser, currentServerKey());
+    setOfflineWritesAllowed(true);
   }, []);
+
+  const setUser = useCallback(
+    (nextUser: UserRead | null) => {
+      setUserState(nextUser);
+      setHasActiveSession(nextUser !== null);
+      rememberIdentity(nextUser);
+    },
+    [rememberIdentity]
+  );
 
   /** Apply a re-read of the same person, keeping the object when nothing moved.
    *
@@ -112,12 +161,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    *  fresh object for one of those re-runs every effect keyed on the user —
    *  including the socket that asked for the re-read — so an answer that says
    *  nothing new has to be indistinguishable from no answer at all. */
-  const applyRead = useCallback((nextUser: UserRead) => {
-    setUserState((current) =>
-      current && JSON.stringify(current) === JSON.stringify(nextUser) ? current : nextUser
-    );
-    setHasActiveSession(true);
-  }, []);
+  const applyRead = useCallback(
+    (nextUser: UserRead) => {
+      setUserState((current) =>
+        current && JSON.stringify(current) === JSON.stringify(nextUser) ? current : nextUser
+      );
+      setHasActiveSession(true);
+      rememberIdentity(nextUser);
+    },
+    [rememberIdentity]
+  );
 
   /** Sign-in / sign-out: a new person, so every read in flight is stale. */
   const replaceIdentity = useCallback(
@@ -171,7 +224,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const response = await apiClient.get<UserRead>("/users/me");
         setUser(response.data);
-      } catch {
+      } catch (error) {
+        // Two very different failures used to land here together. If the server
+        // answered at all — a 401, anything — the session is over and the
+        // cleanup below is right. If nothing answered, we simply could not ask,
+        // and signing the user out for having no signal is what made offline
+        // reading impossible. Fall back to the stored snapshot instead, marked
+        // unverified until a request succeeds.
+        const snapshot =
+          isOfflineCacheEnabled() && isNoAnswerError(error)
+            ? readOfflineSession(currentServerKey())
+            : null;
+        if (snapshot) {
+          // Deliberately not through setUser: that would re-save the snapshot
+          // and push its expiry out, so an app opened offline every day would
+          // never age out.
+          setUserState(snapshot);
+          setHasActiveSession(true);
+          setSessionUnverified(true);
+          return;
+        }
         replaceIdentity(null);
         if (isNative) {
           // Clear stale native token
@@ -187,6 +259,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     void bootstrap();
   }, [setUser, replaceIdentity]);
+
+  // An unverified session is a claim, not a fact. Re-check it the moment the
+  // device has signal again rather than waiting for a screen to ask: a success
+  // confirms it, and a rejection reaches the 401 interceptor, which signs out.
+  useEffect(() => {
+    if (!sessionUnverified || !isOnline) return;
+    void refreshUser().catch(() => {
+      // Still nothing answering, or the session is gone and the 401 interceptor
+      // has already surfaced it. Either way there is nothing to do here.
+    });
+  }, [sessionUnverified, isOnline, refreshUser]);
 
   const login = async ({ email, password, deviceName }: LoginPayload) => {
     try {
@@ -308,6 +391,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();
+    // replaceIdentity already dropped the session snapshot; the cache it went
+    // with has to go too, or the next person to open the app on this device
+    // would be handed the last one's content.
+    clearOfflineSession();
+    void purgeOfflineCache();
   }, [setUser, replaceIdentity]);
 
   useEffect(() => {
@@ -330,6 +418,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     token,
     loading,
     isDeviceToken,
+    sessionUnverified,
     login,
     register,
     completeOidcLogin,
