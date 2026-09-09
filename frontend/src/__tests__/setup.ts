@@ -6,12 +6,19 @@ import "fake-indexeddb/auto";
 
 import { webcrypto } from "node:crypto";
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 
 import { resetFactories } from "./factories";
 import { server } from "./helpers/msw-server";
 import "./helpers/i18n-test";
+
+// findBy/waitFor keep their own ceiling, separate from vitest's testTimeout, and
+// it defaults to one second. A whole-suite run has every worker transforming the
+// app's import graphs at once, so a query that resolves promptly in isolation can
+// sit queued past that and fail on the clock rather than the assertion. Kept well
+// under testTimeout so a genuinely stuck wait still reports as the wait it was.
+configure({ asyncUtilTimeout: 5_000 });
 
 // ---------------------------------------------------------------------------
 // Global Capacitor mocks – these modules are imported at the top level by many
