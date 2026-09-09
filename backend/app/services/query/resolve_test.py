@@ -12,7 +12,32 @@ import pytest
 
 from app.core.messages import QueryMessages
 from app.services.query import QueryError, resolve
-from app.services.query.resolve import SUPPORTED_CALLS
+
+#: The function spellings this surface supports, as a reader writes them.
+#: Postgres reports the name it resolved, so a spelling that is really a node
+#: of its own (``coalesce``) or that arrives qualified (``extract``) is still
+#: covered here — the assertion is that the spelling works, not what it
+#: becomes.
+SUPPORTED_CALLS = (
+    "count(1)",
+    "sum(1)",
+    "avg(1)",
+    "min(1)",
+    "max(1)",
+    "coalesce(1, 2)",
+    "nullif(1, 2)",
+    "greatest(1, 2)",
+    "least(1, 2)",
+    "abs(1)",
+    "round(1)",
+    "length('a')",
+    "lower('a')",
+    "upper('a')",
+    "concat('a', 'b')",
+    "date_trunc('day', now())",
+    "extract(year from now())",
+    "now()",
+)
 
 pytestmark = pytest.mark.unit
 
@@ -74,7 +99,7 @@ class TestOnlyAReadIsAdmitted:
 
     def test_set_operations_are_not_accepted(self):
         """Read-only, but the surface admits one SELECT and this is two."""
-        assert refusal("SELECT 1 UNION SELECT 2") == QueryMessages.READ_ONLY
+        assert refusal("SELECT 1 UNION SELECT 2") == (QueryMessages.UNSUPPORTED_SYNTAX)
 
 
 class TestNamesResolveThroughTheRegistry:
@@ -171,7 +196,8 @@ class TestNothingOfTheOriginalTravels:
     def test_the_statement_is_generated_not_forwarded(self):
         """Physical names, and only names the registry produced."""
         resolved = resolve("SELECT title FROM tasks WHERE priority = 'urgent'")
-        assert resolved.sql == "SELECT title FROM tasks WHERE priority = :p0"
+        assert resolved.sql == "SELECT title FROM tasks WHERE priority = $1"
+        assert resolved.parameters == ("urgent",)
 
     def test_comments_do_not_survive(self):
         """Comments are dropped when the statement is generated."""
@@ -179,30 +205,29 @@ class TestNothingOfTheOriginalTravels:
         assert "note" not in resolved.sql
         assert "trailing" not in resolved.sql
 
-    def test_a_nested_comment_carries_nothing_out(self):
-        """Postgres nests block comments and this parser does not, so the two
-        disagree about where one ends. What runs is this parser's reading of
-        the statement, with the comments dropped."""
-        for sql in (
+    @pytest.mark.parametrize(
+        "sql",
+        [
             "SELECT title /* /* x */ */ FROM tasks",
             "SELECT title /* /* */ , evil */ FROM tasks",
-        ):
-            try:
-                generated = resolve(sql).sql
-            except QueryError:
-                continue
-            assert "evil" not in generated
-            assert "/*" not in generated
+        ],
+    )
+    def test_a_nested_comment_is_read_the_way_the_server_reads_it(self, sql):
+        """Postgres nests block comments, so all of that is one comment and
+        ``evil`` is inside it. A parser that did not nest them would end the
+        comment at the first ``*/`` and read the rest as part of the
+        statement; this is the case the server's own grammar settles."""
+        assert resolve(sql).sql == "SELECT title FROM tasks"
 
     def test_literals_leave_as_parameters(self):
         resolved = resolve("SELECT title FROM tasks WHERE title = 'x' AND id > 3")
-        assert sorted(resolved.parameters.values(), key=str) == [3, "x"]
+        assert resolved.parameters == ("x", 3)
         assert "'x'" not in resolved.sql
 
     def test_a_quote_in_a_literal_is_a_value_not_syntax(self):
         resolved = resolve("SELECT title FROM tasks WHERE title = 'it''s; DROP--'")
         assert "DROP" not in resolved.sql
-        assert list(resolved.parameters.values()) == ["it's; DROP--"]
+        assert resolved.parameters == ("it's; DROP--",)
 
     def test_an_ordinal_stays_an_ordinal(self):
         """``GROUP BY 1`` selects the first output column; a parameter there

@@ -40,7 +40,11 @@ dependencies = [
     "openpyxl>=3.1.5",
     "python-docx>=1.2.0",
     "markdown-it-py>=4.2.0",
-    "sqlglot>=30.18,<31",
+    # PostgreSQL's own parser (libpg_query), for the SQL query surface. The
+    # major line tracks a server major: 7.x is PostgreSQL 17, 8.x is 18. Keep
+    # it on the line matching the server we run, so what the validator reads is
+    # what the server will parse.
+    "pglast>=7.18,<8",
 ]
 
 [dependency-groups]
