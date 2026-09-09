@@ -13,6 +13,7 @@ import { tagHandlers } from "./tag.handlers";
 import { taskHandlers } from "./task.handlers";
 import { toolCountHandlers } from "./toolCount.handlers";
 import { userHandlers } from "./user.handlers";
+import { versionHandlers } from "./version.handlers";
 
 export const handlers = [
   ...authHandlers,
@@ -30,4 +31,5 @@ export const handlers = [
   ...dmHandlers,
   ...toolCountHandlers,
   ...notificationHandlers,
+  ...versionHandlers,
 ];

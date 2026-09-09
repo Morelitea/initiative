@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Sheets: a formula that reads another formula** — `=IF(B9<0,0,B9)`, `=SUM(A2:A9)` and anything else pointing at a cell that is itself a formula could come back `#ERROR!`, and whether it did depended on where you had scrolled. It doesn't any more. `=INDEX(Data!A2:A9, …)` also read from the wrong sheet, and now reads from the one it names.
+- **A dashboard tile that joins text together, or reads a part out of a date, draws again** — a widget whose query used `concat` or `extract` was refused by the database instead of answered. That is what broke *Who is carrying what* on the *Project health* and *Team activity* dashboards, and any tile of your own written the same way. Both draw again, and nothing needs re-saving.
 
 ## [0.67.0] - 2026-09-09
 
