@@ -37,6 +37,7 @@ from app.core.config import settings
 from app.core.messages import QueryMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
+from app.services.fields.spec import FieldType
 from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 
 
@@ -54,6 +55,61 @@ class QueryResult:
     cost: float
     #: Whether there were more rows than one query returns.
     truncated: bool
+
+
+@dataclass(frozen=True)
+class QueryColumn:
+    """One output column, as the database describes it before running."""
+
+    name: str
+    type: FieldType
+
+
+#: What a Postgres type is, in the vocabulary the field registry already uses.
+#: Only the distinctions a reader's tile turns on: whether a value counts,
+#: whether it falls on a timeline, whether it is a yes or no.
+_NUMBER_TYPES = frozenset(
+    {"int2", "int4", "int8", "numeric", "float4", "float8", "money"}
+)
+_DATE_TYPES = frozenset(
+    {"date", "time", "timetz", "timestamp", "timestamptz", "interval"}
+)
+
+
+async def _enum_types(connection: Any, oids: set[int]) -> set[int]:
+    """Which of these types are a closed vocabulary the database defines.
+
+    Asked of the catalog rather than read off the description: a prepared
+    statement reports every type as scalar, so an enum column is
+    indistinguishable there from the text it is stored beside.
+    """
+    if not oids:
+        return set()
+    rows = await connection.fetch(
+        "SELECT oid FROM pg_type WHERE oid = ANY($1::oid[]) AND typtype = 'e'",
+        list(oids),
+    )
+    return {row["oid"] for row in rows}
+
+
+def _column_type(attribute: Any, enum_oids: set[int]) -> FieldType:
+    """The type of one output column.
+
+    Only the distinctions a tile turns on. A closed vocabulary reads as an enum
+    here and as an enum in the field registry, which reaches the same answer
+    from the model rather than the catalog.
+    """
+    postgres_type = attribute.type
+    if postgres_type.oid in enum_oids:
+        return FieldType.enum
+    name = postgres_type.name
+    if name in _NUMBER_TYPES:
+        return FieldType.number
+    if name in _DATE_TYPES:
+        return FieldType.date
+    if name == "bool":
+        return FieldType.boolean
+    return FieldType.text
 
 
 #: Names the query surface's locks apart from anything else that takes one.
@@ -182,3 +238,43 @@ async def execute(
 async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
     """Read *sql* and run what it resolves to."""
     return await execute(resolve(sql), context=context)
+
+
+async def describe(sql: str, *, context: Mapping[str, Any]) -> tuple[QueryColumn, ...]:
+    """What *sql* would return, without returning it.
+
+    The statement is prepared and its description read back. Preparing plans;
+    it does not execute, so this costs a plan and no rows however much data the
+    statement would have touched — which is what makes it usable at save time,
+    on every keystroke of a builder if need be.
+
+    It runs in the same transaction and role as the real thing, because a
+    statement is only preparable against the schema its reader is routed to.
+    """
+    statement = resolve(sql)
+    routed = dict(context)
+    routed["query"] = True
+    _routed_guild(context)
+
+    async with AsyncSession(db_session.query_engine) as session:
+        await session.begin()
+        sqlalchemy_connection = await session.connection()
+        raw = await sqlalchemy_connection.get_raw_connection()
+        connection = raw.driver_connection
+
+        await _bound_transaction(sqlalchemy_connection)
+        await set_rls_context(session, **routed)
+        try:
+            prepared = await connection.prepare(statement.sql)
+        except (DataError, UndefinedFunctionError) as failed:
+            raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
+        attributes = prepared.get_attributes()
+        enum_oids = await _enum_types(
+            connection, {attribute.type.oid for attribute in attributes}
+        )
+        columns = tuple(
+            QueryColumn(name=attribute.name, type=_column_type(attribute, enum_oids))
+            for attribute in attributes
+        )
+        await session.rollback()
+        return columns

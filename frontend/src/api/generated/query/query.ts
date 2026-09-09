@@ -12,13 +12,113 @@ import type {
   UseMutationResult,
 } from "@tanstack/react-query";
 
-import type { HTTPValidationError, QueryRequest, QueryResponse } from "../initiativeAPI.schemas";
+import type {
+  HTTPValidationError,
+  QueryRequest,
+  QueryResponse,
+  QueryShapeResponse,
+} from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
+/**
+ * Say what one statement would return, without running it.
+ *
+ * Costs a plan and no rows, so a builder may ask as often as it likes.
+ * @summary Describe Query
+ */
+export const describeQueryApiV1GGuildIdQueryDescribePost = (
+  guildId: number,
+  queryRequest: BodyType<QueryRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<QueryShapeResponse>(
+    {
+      url: `/api/v1/g/${guildId}/query/describe`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: queryRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDescribeQueryApiV1GGuildIdQueryDescribePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+    TError,
+    { guildId: number; data: BodyType<QueryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+  TError,
+  { guildId: number; data: BodyType<QueryRequest> },
+  TContext
+> => {
+  const mutationKey = ["describeQueryApiV1GGuildIdQueryDescribePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+    { guildId: number; data: BodyType<QueryRequest> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return describeQueryApiV1GGuildIdQueryDescribePost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>
+>;
+export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationBody = BodyType<QueryRequest>;
+export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Describe Query
+ */
+export const useDescribeQueryApiV1GGuildIdQueryDescribePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+      TError,
+      { guildId: number; data: BodyType<QueryRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+  TError,
+  { guildId: number; data: BodyType<QueryRequest> },
+  TContext
+> => {
+  return useMutation(
+    getDescribeQueryApiV1GGuildIdQueryDescribePostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Read one statement and return its rows.
  * @summary Run Query

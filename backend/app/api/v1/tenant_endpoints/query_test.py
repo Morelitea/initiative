@@ -73,6 +73,67 @@ async def test_a_statement_the_database_cannot_finish_is_a_refusal(client, actin
     assert response.json()["detail"] == QueryMessages.EXECUTION_FAILED
 
 
+async def test_describing_a_statement_names_its_columns_and_types(client, acting_user):
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/describe"),
+        json={"sql": "SELECT name, created_at, is_archived, id FROM projects"},
+        headers=actor.headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["columns"] == [
+        {"name": "name", "type": "text"},
+        {"name": "created_at", "type": "date"},
+        {"name": "is_archived", "type": "boolean"},
+        {"name": "id", "type": "number"},
+    ]
+
+
+async def test_a_closed_vocabulary_describes_as_one(client, acting_user):
+    """``priority`` is a database enum, which is the same signal the field
+    registry reads — so a query's shape and a dataset's fields say it the
+    same way."""
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/describe"),
+        json={"sql": "SELECT priority FROM tasks"},
+        headers=actor.headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["columns"] == [{"name": "priority", "type": "enum"}]
+
+
+async def test_describing_runs_nothing(client, session, acting_user):
+    """A statement that would fail while running still describes, because
+    describing plans and does not execute."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await create_project(session, actor.initiative, actor.user)
+    described = await client.post(
+        actor.g("/query/describe"),
+        json={"sql": "SELECT count(*) / 0 AS n FROM projects"},
+        headers=actor.headers,
+    )
+    ran = await client.post(
+        actor.g("/query"),
+        json={"sql": "SELECT count(*) / 0 AS n FROM projects"},
+        headers=actor.headers,
+    )
+    assert described.status_code == 200
+    assert described.json()["columns"] == [{"name": "n", "type": "number"}]
+    assert ran.status_code == 400
+
+
+async def test_a_statement_that_does_not_resolve_does_not_describe(client, acting_user):
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/describe"),
+        json={"sql": "SELECT id FROM users"},
+        headers=actor.headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == QueryMessages.UNKNOWN_RELATION
+
+
 async def test_a_non_member_cannot_reach_the_guilds_queries(client, acting_user):
     resident = await acting_user(guild_role=GuildRole.admin, initiative=True)
     outsider = await acting_user(guild_role=GuildRole.member)
