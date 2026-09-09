@@ -42,14 +42,7 @@ import type {
   PlatformAIModeResponse,
   PlatformAIModeUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  invalidateAllAISettings,
-  invalidateGuildAIConnections,
-  invalidateMemberAI,
-  invalidateMyAI,
-  invalidatePlatformAIConnections,
-  invalidateResolvedAISettings,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
@@ -59,9 +52,11 @@ import type { QueryOpts } from "@/types/query";
  * owning admin's list and every member surface that resolves through it. */
 const invalidateConnectionSurfaces = (scope: ConnectionScope) =>
   Promise.all([
-    scope === "platform" ? invalidatePlatformAIConnections() : invalidateGuildAIConnections(),
-    invalidateMemberAI(),
-    invalidateResolvedAISettings(),
+    scope === "platform"
+      ? invalidate(q.platformAIConnections())
+      : invalidate(q.guildAIConnections()),
+    invalidate(q.memberAI()),
+    invalidate(q.resolvedAISettings()),
   ]);
 
 /**
@@ -80,7 +75,7 @@ const invalidateMemberSurfaces = (guildId: number) =>
     }),
     // The personal "My AI" page aggregates every guild, so a per-guild write
     // must refresh it too.
-    invalidateMyAI(),
+    invalidate(q.myAI()),
   ]);
 
 // ── Platform mode (personal / platform) ───────────────────────────────────────
@@ -104,7 +99,7 @@ export const useUpdatePlatformAIMode = (
     onSuccess: (...args) => {
       // A mode change flips every downstream surface (connections, member view,
       // resolved) across the active guild — flush the whole AI family.
-      void invalidateAllAISettings();
+      void invalidate(q.allAISettings());
       onSuccess?.(...args);
     },
   });

@@ -20,15 +20,7 @@ import {
   updateTagApiV1GGuildIdTagsTagIdPatch,
 } from "@/api/generated/tags/tags";
 import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
-import {
-  invalidateAllCalendars,
-  invalidateAllCounterGroups,
-  invalidateAllDocuments,
-  invalidateAllProjects,
-  invalidateAllQueues,
-  invalidateAllTags,
-  invalidateAllTasks,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -38,12 +30,14 @@ import type { MutationOpts } from "@/types/mutation";
 /** Refresh every list that embeds TagSummary chips — a rename/recolor or
  * delete must reach all of them, not just the tags list. */
 const invalidateTagBearers = () => {
-  void invalidateAllTasks();
-  void invalidateAllProjects();
-  void invalidateAllDocuments();
-  void invalidateAllQueues();
-  void invalidateAllCounterGroups();
-  void invalidateAllCalendars();
+  void invalidate(
+    q.allTasks(),
+    q.allProjects(),
+    q.allDocuments(),
+    q.allQueues(),
+    q.allCounterGroups(),
+    q.allCalendars()
+  );
 };
 
 export const useTags = (options?: { enabled?: boolean }) => {
@@ -70,7 +64,7 @@ export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) =>
   useGuildMutation<TagRead, TagCreate>(
     {
       mutationFn: (guildId, data) => createTagApiV1GGuildIdTagsPost(guildId, data),
-      invalidate: () => invalidateAllTags(),
+      invalidate: () => invalidate(q.allTags()),
       errorKey: "tags:createError",
     },
     options
@@ -90,7 +84,7 @@ export const useUpdateTag = (
     },
     onSuccess: (...args) => {
       toast.success(t("updated"));
-      void invalidateAllTags();
+      void invalidate(q.allTags());
       invalidateTagBearers();
       onSuccess?.(...args);
     },
@@ -122,7 +116,7 @@ export const useDeleteTag = (
       if (!silent) {
         toast.success(t("deleted"));
       }
-      void invalidateAllTags();
+      void invalidate(q.allTags());
       invalidateTagBearers();
       onSuccess?.(...args);
     },
@@ -143,7 +137,7 @@ export const useSetTaskTags = (
         setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut(guildId, taskId, {
           tag_ids: tagIds,
         }),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "tags:taskTagsError",
     },
     options

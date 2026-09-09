@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllDashboards } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { CreateDashboardDialog } from "@/components/initiativeTools/dashboards/CreateDashboardDialog";
@@ -121,7 +121,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
           <BulkAccessSection
             selection={selection}
             tool={Tool.dashboard}
-            invalidate={invalidateAllDashboards}
+            invalidate={() => invalidate(q.allDashboards())}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {dashboards.map((dashboard) => (

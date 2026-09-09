@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllDocuments } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog as GenericBulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
@@ -41,7 +41,7 @@ export function BulkEditTagsDialog({ documents, ...dialogProps }: BulkEditDocume
       items={documents}
       targetType="document"
       guildId={guildId}
-      onInvalidate={() => void invalidateAllDocuments()}
+      onInvalidate={() => void invalidate(q.allDocuments())}
       labels={labels}
     />
   );

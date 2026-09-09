@@ -38,7 +38,7 @@ import type {
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllCounterGroups, invalidateCounterGroup } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -137,7 +137,7 @@ export const useCounterGroup = (groupId: number | null, options?: QueryOpts<Coun
 // ── Group mutations ─────────────────────────────────────────────────────────
 
 const invalidateGroupAndList = (groupId: number) =>
-  Promise.all([invalidateCounterGroup(groupId), invalidateAllCounterGroups()]);
+  invalidate(q.counterGroup(groupId), q.allCounterGroups());
 
 export const useCreateCounterGroup = (
   options?: MutationOpts<CounterGroupRead, CounterGroupCreate>
@@ -146,7 +146,7 @@ export const useCreateCounterGroup = (
     {
       mutationFn: (guildId, data) =>
         createCounterGroupApiV1GGuildIdCounterGroupsPost(guildId, data),
-      invalidate: () => invalidateAllCounterGroups(),
+      invalidate: () => invalidate(q.allCounterGroups()),
       errorKey: "counterGroups:error",
     },
     options
@@ -174,7 +174,7 @@ export const useDuplicateCounterGroup = (
     {
       mutationFn: (guildId, data) =>
         duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost(guildId, groupId, data),
-      invalidate: () => invalidateAllCounterGroups(),
+      invalidate: () => invalidate(q.allCounterGroups()),
       errorKey: "counterGroups:error",
     },
     options
@@ -186,7 +186,7 @@ export const useDeleteCounterGroup = (options?: MutationOpts<void, number>) =>
       mutationFn: async (guildId, groupId) => {
         await deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete(guildId, groupId);
       },
-      invalidate: () => invalidateAllCounterGroups(),
+      invalidate: () => invalidate(q.allCounterGroups()),
       errorKey: "counterGroups:error",
     },
     options
@@ -250,7 +250,7 @@ export const useUpdateCounter = (
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateCounterGroup(groupId);
+      void invalidate(q.counterGroup(groupId));
       onSettled?.(...args);
     },
   });
@@ -286,8 +286,7 @@ export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, n
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateCounterGroup(groupId);
-      void invalidateAllCounterGroups();
+      void invalidate(q.counterGroup(groupId), q.allCounterGroups());
       onSettled?.(...args);
     },
   });
@@ -330,7 +329,7 @@ export const useSetCount = (
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateCounterGroup(groupId);
+      void invalidate(q.counterGroup(groupId));
       onSettled?.(...args);
     },
   });
@@ -370,7 +369,7 @@ const makeValueOpHook = (
         (onSuccess as any)?.(...args);
       },
       onSettled: (...args) => {
-        void invalidateCounterGroup(groupId);
+        void invalidate(q.counterGroup(groupId));
         (onSettled as any)?.(...args);
       },
     });
@@ -423,7 +422,7 @@ export const useResetAllCounters = (
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateCounterGroup(groupId);
+      void invalidate(q.counterGroup(groupId));
       onSettled?.(...args);
     },
   });
@@ -478,7 +477,7 @@ export const useSortCounters = (
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateCounterGroup(groupId);
+      void invalidate(q.counterGroup(groupId));
       onSettled?.(...args);
     },
   });
@@ -555,7 +554,7 @@ export const useSteppedCount = (groupId: number) => {
       } catch (error) {
         toast.error(getErrorMessage(error, "counterGroups:error"));
         pending.current.delete(counterId);
-        void invalidateCounterGroup(groupId);
+        void invalidate(q.counterGroup(groupId));
       }
     },
     [guildId, groupId]

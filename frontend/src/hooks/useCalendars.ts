@@ -24,7 +24,7 @@ import type {
   ListMyCalendarsApiV1MeCalendarsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllCalendars, invalidateCalendar } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -87,13 +87,13 @@ export const useCalendar = (calendarId: number | null, options?: QueryOpts<Calen
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 const invalidateCalendarAndList = (calendarId: number) =>
-  Promise.all([invalidateCalendar(calendarId), invalidateAllCalendars()]);
+  invalidate(q.calendar(calendarId), q.allCalendars());
 
 export const useCreateCalendar = (options?: MutationOpts<CalendarRead, CalendarCreate>) =>
   useGuildMutation<CalendarRead, CalendarCreate>(
     {
       mutationFn: (guildId, data) => createCalendarApiV1GGuildIdCalendarsPost(guildId, data),
-      invalidate: () => invalidateAllCalendars(),
+      invalidate: () => invalidate(q.allCalendars()),
       errorKey: "calendars:error",
     },
     options
@@ -118,7 +118,7 @@ export const useDeleteCalendar = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, calendarId) =>
         deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete(guildId, calendarId),
-      invalidate: () => invalidateAllCalendars(),
+      invalidate: () => invalidate(q.allCalendars()),
       errorKey: "calendars:error",
     },
     options

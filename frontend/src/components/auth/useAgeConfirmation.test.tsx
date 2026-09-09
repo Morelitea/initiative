@@ -12,11 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const post = vi.fn();
 const refreshUser = vi.fn();
-const invalidations = vi.hoisted(() => ({
-  dmSettings: vi.fn(),
-  contacts: vi.fn(),
-  contactGrants: vi.fn(),
-}));
+const invalidations = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/client", () => ({
   apiClient: { post: (...args: unknown[]) => post(...args) },
@@ -26,11 +22,14 @@ vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ refreshUser }),
 }));
 
-vi.mock("@/api/query-keys", () => ({
-  invalidateDmSettings: () => invalidations.dmSettings(),
-  invalidateContacts: () => invalidations.contacts(),
-  invalidateContactGrants: () => invalidations.contactGrants(),
+// One entry point now, so the assertion is on WHAT was named rather than on
+// which of three helpers ran. `q` stays real: the specs are the comparison.
+vi.mock("@/api/query-keys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/query-keys")>()),
+  invalidate: (...specs: unknown[]) => invalidations(...specs),
 }));
+
+import { q } from "@/api/query-keys";
 
 import { useAgeConfirmation } from "./useAgeConfirmation";
 
@@ -52,9 +51,7 @@ describe("confirming an age", () => {
       birthdate: "1990-01-01",
     });
     expect(refreshUser).toHaveBeenCalled();
-    expect(invalidations.dmSettings).toHaveBeenCalled();
-    expect(invalidations.contacts).toHaveBeenCalled();
-    expect(invalidations.contactGrants).toHaveBeenCalled();
+    expect(invalidations).toHaveBeenCalledWith(q.dmSettings(), q.contacts(), q.contactGrants());
   });
 
   it("keeps what is on screen when the answer was refused", async () => {
@@ -67,7 +64,6 @@ describe("confirming an age", () => {
     await waitFor(() => expect(result.current.birthdate).toBe("2020-01-01"));
     await result.current.confirm();
 
-    expect(invalidations.dmSettings).not.toHaveBeenCalled();
-    expect(invalidations.contacts).not.toHaveBeenCalled();
+    expect(invalidations).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllProjects } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -51,7 +51,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
-    await invalidateAllProjects();
+    await invalidate(q.allProjects());
   }, []);
   const {
     open: isComposerOpen,

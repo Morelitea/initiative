@@ -1,6 +1,6 @@
 import type { Tool, ToolCommentSettings } from "@/api/generated/initiativeAPI.schemas";
 import { setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut } from "@/api/generated/tools/tools";
-import { invalidateAllComments, invalidateTool } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -24,10 +24,10 @@ export const useSetToolComments = (
           comments_enabled: enabled,
         }),
       invalidate: (_data, vars) => {
-        invalidateTool(tool, vars.id);
+        invalidate(q.tool(tool, vars.id));
         // The thread itself: turning the switch back on shows the comments that
         // were there all along, so the cached (refused) read must go.
-        void invalidateAllComments();
+        void invalidate(q.allComments());
       },
       errorKey: "common:toolSettings.commentsError",
     },

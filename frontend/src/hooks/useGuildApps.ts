@@ -22,7 +22,7 @@ import type {
   GuildAppRead,
   GuildAppUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateApps } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -43,7 +43,7 @@ export const useInstallGuildApp = (options?: MutationOpts<GuildAppRead, GuildApp
   return useGuildMutation<GuildAppRead, GuildAppInstall>(
     {
       mutationFn: (guildId, data) => installGuildAppApiV1GGuildIdAppsPost(guildId, data),
-      invalidate: invalidateApps,
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options
@@ -58,7 +58,7 @@ export const useUpdateGuildApp = (
     {
       mutationFn: (guildId, data) =>
         updateGuildAppApiV1GGuildIdAppsAppIdPatch(guildId, appId, data),
-      invalidate: invalidateApps,
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options
@@ -69,7 +69,7 @@ export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
   return useGuildMutation<void, number>(
     {
       mutationFn: (guildId, appId) => uninstallGuildAppApiV1GGuildIdAppsAppIdDelete(guildId, appId),
-      invalidate: invalidateApps,
+      invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
     options
