@@ -209,3 +209,76 @@ class TestWhatItAnswers:
         """An app is not a table: a key it did not send reads as absent rather
         than failing the whole read."""
         assert run("SELECT revenue FROM rows", [{"shop": "west"}]) == ((None,),)
+
+
+class TestItAgreesWithPostgres:
+    """The clauses the validator admits, and the truth values SQL has.
+
+    Each of these was accepted by the planner and then quietly ignored or got
+    wrong by the evaluator, which is the one failure mode worth most: the same
+    statement over a task list and over an app's rows answering differently.
+    """
+
+    def test_distinct_returns_each_row_once(self):
+        assert run("SELECT DISTINCT shop FROM rows") == (("north",), ("south",))
+
+    def test_distinct_on_is_refused_rather_than_ignored(self):
+        """It picks one row per key by an ordering this does not own."""
+        with pytest.raises(QueryError):
+            plan("SELECT DISTINCT ON (shop) shop FROM rows", READS)
+
+    def test_offset_skips_before_the_limit_takes(self):
+        assert run("SELECT shop FROM rows ORDER BY shop, revenue LIMIT 2 OFFSET 1") == (
+            ("north",),
+            ("south",),
+        )
+
+    def test_having_filters_the_groups(self):
+        counted = "SELECT shop, count(*) AS n FROM rows GROUP BY shop HAVING count(*)"
+        assert run(f"{counted} > 1") == (("north", 2), ("south", 2))
+        assert run(f"{counted} > 2") == ()
+
+    def test_grouping_by_an_ordinal_groups_by_that_output(self):
+        """``GROUP BY 1`` names the first output's expression, not the number
+        one — which would put every row in one group."""
+        assert run("SELECT shop, count(*) AS n FROM rows GROUP BY 1") == (
+            ("north", 2),
+            ("south", 2),
+        )
+
+    def test_grouping_by_an_alias_groups_by_what_it_names(self):
+        assert run("SELECT lower(shop) AS s, count(*) AS n FROM rows GROUP BY s") == (
+            ("north", 2),
+            ("south", 2),
+        )
+
+    @pytest.mark.parametrize(
+        "predicate,expected",
+        [
+            # `NOT unknown` is unknown, not true, so the row with no revenue is
+            # not brought back by negating a comparison against it.
+            ("NOT (revenue = 10)", 2),
+            ("revenue NOT IN (10, NULL)", 0),
+            ("revenue IN (10, NULL)", 1),
+            ("NOT (revenue > 100)", 3),
+            ("revenue > 6 OR shop = 'south'", 3),
+            ("revenue > 6 AND shop = 'south'", 1),
+        ],
+    )
+    def test_a_missing_value_makes_a_predicate_unknown(self, predicate, expected):
+        assert len(run(f"SELECT shop FROM rows WHERE {predicate}")) == expected
+
+    @pytest.mark.parametrize(
+        "clause,expected",
+        [
+            # Absent sorts as though larger than anything: last going up, first
+            # coming down, unless the statement says otherwise.
+            ("revenue", [5, 7, 10, None]),
+            ("revenue DESC", [None, 10, 7, 5]),
+            ("revenue NULLS FIRST", [None, 5, 7, 10]),
+            ("revenue DESC NULLS LAST", [10, 7, 5, None]),
+        ],
+    )
+    def test_where_a_missing_value_sorts(self, clause, expected):
+        answered = run(f"SELECT revenue FROM rows ORDER BY {clause}")
+        assert [row[0] for row in answered] == expected

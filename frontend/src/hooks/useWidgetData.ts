@@ -294,24 +294,24 @@ export function useWidgetData(
         const values = appQuery.data?.values ?? {};
         const meta: DataMeta = { total: rows.length };
         // A binding with a statement asks a question of the app's rows, and the
-        // server answers it with columns — which is the envelope every built-in
-        // widget draws. So a chart can be pointed at an app, while an app's own
-        // module keeps being handed the app's own shape.
-        const described = appQuery.data?.columns ?? [];
-        if (described.length) {
-          // The server answers a statement with rows keyed by the names it
-          // produced; a widget reads them positionally against the columns.
-          const names = described.map((column) => column.name);
-          const positional = rows.map((row) =>
-            names.map((name) => (row as Record<string, unknown>)[name])
-          );
+        // server answers with a table — the same envelope a query produces. So
+        // a chart can be pointed at an app, while an app's own module keeps
+        // being handed the app's own shape.
+        const table = appQuery.data?.table;
+        if (table) {
+          const described = table.columns ?? [];
+          const answered: DataMeta = { total: table.rows?.length ?? 0 };
           return {
-            data: { source: "rows", ...normalizeQueryRows(described, positional), meta },
+            data: {
+              source: "rows",
+              ...normalizeQueryRows(described, table.rows ?? []),
+              meta: answered,
+            },
             isLoading: appQuery.isLoading,
             isUnbound: false,
             isRestricted: false,
             refetch,
-            meta,
+            meta: answered,
           };
         }
         return {

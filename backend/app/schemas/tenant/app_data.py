@@ -25,6 +25,18 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.sql_query import QueryColumnDescription
 
 
+class AppDataTable(SanitizedBaseModel):
+    """Rows a statement produced, and what they hold.
+
+    Positional against ``columns`` rather than keyed by name, for the reason
+    every other read of this surface is: a statement may name two outputs the
+    same thing, and a mapping would keep one of the two.
+    """
+
+    columns: List[QueryColumnDescription] = []
+    rows: List[List[Any]] = []
+
+
 class AppDataResponse(SanitizedBaseModel):
     """One data source's answer, in the two shapes its endpoint declared."""
 
@@ -35,10 +47,10 @@ class AppDataResponse(SanitizedBaseModel):
     #: The endpoint's single-valued returns: what the answer says about itself
     #: rather than about any one item in it, and still there when there are no
     #: items at all.
-    #: What the rows hold, where a statement made them. Empty otherwise: an
-    #: app's own rows are read by the names its manifest declared, and its
-    #: widget module already knows them.
-    columns: List[QueryColumnDescription] = []
+    #: What a statement made of those rows, where the binding carried one.
+    #: Absent otherwise: an app's own rows are read by the names its manifest
+    #: declared, and its widget module already knows them.
+    table: Optional["AppDataTable"] = None
     values: Dict[str, Any] = {}
     #: When the *upstream* call happened. A cached body keeps the time it was
     #: actually obtained, so a viewer can tell how fresh the answer is rather

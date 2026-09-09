@@ -143,6 +143,8 @@
     "all_counter": "Alle Zähler",
     "all_document": "Alle Tabellen",
     "appEndpoint": "Was es liest",
+    "app": "App",
+    "appPlaceholder": "App auswählen",
     "appEndpointPlaceholder": "Lesevorgang wählen…",
     "appNotInstalled": "Diese App ist in dieser Community nicht installiert.",
     "appParamPlaceholder": "Wählen…",

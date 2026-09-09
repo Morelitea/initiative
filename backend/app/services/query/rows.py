@@ -35,6 +35,7 @@ from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 from pglast import ast
 from pglast.enums import (
     A_Expr_Kind,
+    SortByNulls,
     BoolExprType,
     BoolTestType,
     MinMaxOp,
@@ -120,6 +121,13 @@ def plan(sql: str, reads: Sequence[RowColumn]) -> RowPlan:
     select = _parse(sql)
     _check_nodes(select)
     _check_relation(select)
+    # ``DISTINCT`` is a list holding one ``None``; ``DISTINCT ON`` holds the
+    # expressions it is distinct on, which picks a row per key by an ordering
+    # this does not own.
+    if select.distinctClause and any(
+        entry is not None for entry in select.distinctClause
+    ):
+        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "DISTINCT ON")
     declared = {column.name: column for column in reads}
     _resolve_names(select, declared)
     return RowPlan(
@@ -351,7 +359,13 @@ def evaluate(
     """
     select = plan.select
     kept = [row for row in rows if _truthy(_value(select.whereClause, row, None))]
-    groups = _grouped(select, kept)
+    groups = _grouped(select, kept, plan.columns)
+    if select.havingClause is not None:
+        groups = [
+            group
+            for group in groups
+            if _truthy(_value(select.havingClause, group[0] if group else {}, group))
+        ]
     targets = [
         target
         for target in select.targetList or ()
@@ -365,15 +379,69 @@ def evaluate(
         for group in groups
     ]
     produced = _ordered(select, plan, groups, produced)
-    if select.limitCount is not None:
-        limit = _value(select.limitCount, {}, None)
-        if isinstance(limit, (int, float)):
-            produced = produced[: max(0, int(limit))]
+    if select.distinctClause is not None:
+        produced = _distinct(produced)
+    # Offset before limit, the way the clauses read: skip, then take.
+    offset = _count(select.limitOffset)
+    if offset:
+        produced = produced[offset:]
+    limit = _count(select.limitCount)
+    if limit is not None:
+        produced = produced[:limit]
     return tuple(produced)
 
 
+def _count(node: Any) -> Optional[int]:
+    """A row count from ``LIMIT`` or ``OFFSET``, or ``None`` for no bound."""
+    if node is None:
+        return None
+    value = _value(node, {}, None)
+    return max(0, int(value)) if isinstance(value, (int, float)) else None
+
+
+def _distinct(produced: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+    """One row per distinct row, first kept — which is what ``DISTINCT`` means
+    once the ordering has already been applied."""
+    seen: set[tuple] = set()
+    kept: list[tuple[Any, ...]] = []
+    for row in produced:
+        key = tuple(_sortable(value) for value in row)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(row)
+    return kept
+
+
+def _group_expression(entry: Any, select: ast.SelectStmt, names: Sequence[str]) -> Any:
+    """What a ``GROUP BY`` entry actually groups by.
+
+    Postgres resolves an ordinal and an output alias against the select list, so
+    ``GROUP BY 1`` groups by the first output's *expression* rather than by the
+    number one. Read the same way here, or every row would share a key and
+    collapse into a single group.
+    """
+    targets = [
+        target
+        for target in select.targetList or ()
+        if isinstance(target, ast.ResTarget)
+    ]
+    if isinstance(entry, ast.A_Const) and isinstance(entry.val, ast.Integer):
+        ordinal = entry.val.ival - 1
+        if 0 <= ordinal < len(targets):
+            return targets[ordinal].val
+        raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "GROUP BY")
+    if isinstance(entry, ast.ColumnRef):
+        parts = _name_parts(entry.fields)
+        if parts and parts[-1] in names:
+            return targets[list(names).index(parts[-1])].val
+    return entry
+
+
 def _grouped(
-    select: ast.SelectStmt, rows: list[Mapping[str, Any]]
+    select: ast.SelectStmt,
+    rows: list[Mapping[str, Any]],
+    columns: Sequence[RowColumn] = (),
 ) -> list[list[Mapping[str, Any]]]:
     """The rows, in the groups the statement asks for.
 
@@ -387,9 +455,13 @@ def _grouped(
             return [list(rows)]
         return [[row] for row in rows]
 
+    declared = [column.name for column in columns]
+    grouping = [
+        _group_expression(entry, select, declared) for entry in select.groupClause
+    ]
     keys: dict[tuple, list[Mapping[str, Any]]] = {}
     for row in rows:
-        key = tuple(_value(entry, row, None) for entry in select.groupClause)
+        key = tuple(_sortable(_value(entry, row, None)) for entry in grouping)
         keys.setdefault(key, []).append(row)
     return list(keys.values())
 
@@ -410,8 +482,18 @@ def _ordered(
         if not isinstance(entry, ast.SortBy):
             continue
         descending = entry.sortby_dir == SortByDir.SORTBY_DESC
+        # Absent sorts as though larger than anything, which is last going up
+        # and first coming down — so the default follows the direction.
+        nulls_first = entry.sortby_nulls == SortByNulls.SORTBY_NULLS_FIRST or (
+            entry.sortby_nulls == SortByNulls.SORTBY_NULLS_DEFAULT and descending
+        )
+        # And the sort below is reversed for a descending one, which reverses
+        # this too: to land first there, absent has to key highest.
+        nulls_low = nulls_first != descending
         paired.sort(
-            key=lambda pair, node=entry.node: _sortable(_sort_value(node, pair, names)),
+            key=lambda pair, node=entry.node, low=nulls_low: _sortable(
+                _sort_value(node, pair, names), nulls_low=low
+            ),
             reverse=descending,
         )
     return [row for row, _group in paired]
@@ -435,14 +517,17 @@ def _sort_value(
     return _value(node, group[0] if group else {}, group)
 
 
-def _sortable(value: Any) -> tuple[int, Any]:
+def _sortable(value: Any, *, nulls_low: bool = False) -> tuple[int, Any]:
     """A key that orders mixed values without raising.
 
-    Nothing sorts against ``None``, so it goes last; anything that is not a
-    number or a string is compared as its text, which is what a reader sees.
+    Nothing sorts against ``None``, so it goes to one end or the other;
+    anything that is not a number or a string is compared as its text, which is
+    what a reader sees. ``nulls_low`` is where the *key* goes, not where the
+    row ends up: a caller sorting descending works that out against its own
+    direction.
     """
     if value is None:
-        return (2, "")
+        return (-1, "") if nulls_low else (2, "")
     if isinstance(value, bool):
         return (0, float(value))
     if isinstance(value, (int, float)):
@@ -567,13 +652,26 @@ def _boolean_test(node: ast.BooleanTest, row: Mapping[str, Any], group: Any) -> 
     return test(found)
 
 
-def _bool_expr(node: ast.BoolExpr, row: Mapping[str, Any], group: Any) -> bool:
-    values = [_truthy(_value(a, row, group)) for a in node.args or ()]
+def _bool_expr(node: ast.BoolExpr, row: Mapping[str, Any], group: Any) -> Any:
+    """``AND``/``OR``/``NOT``, with unknown carried through.
+
+    SQL has three truth values and the third is why this is not Python's
+    ``and``. ``NOT unknown`` is unknown rather than true, and an ``AND`` with an
+    unknown in it is false only if something else is false — which is what
+    decides whether a row with a missing value survives a ``WHERE``.
+    """
+    values = [_value(a, row, group) for a in node.args or ()]
     if node.boolop == BoolExprType.AND_EXPR:
-        return all(values)
+        if any(v is False or (v is not None and not _truthy(v)) for v in values):
+            return False
+        return None if any(v is None for v in values) else True
     if node.boolop == BoolExprType.OR_EXPR:
-        return any(values)
-    return not values[0] if values else True
+        if any(v is not None and _truthy(v) for v in values):
+            return True
+        return None if any(v is None for v in values) else False
+    if not values:
+        return True
+    return None if values[0] is None else not _truthy(values[0])
 
 
 def _a_expr(node: ast.A_Expr, row: Mapping[str, Any], group: Any) -> Any:
@@ -584,7 +682,16 @@ def _a_expr(node: ast.A_Expr, row: Mapping[str, Any], group: Any) -> Any:
     # operator negated — which is how the grammar says it, not a second kind.
     if node.kind == A_Expr_Kind.AEXPR_IN:
         candidates = [_value(item, row, group) for item in node.rexpr or ()]
-        found = any(_compare(left, candidate) == 0 for candidate in candidates)
+        if left is None:
+            return None
+        found = any(
+            candidate is not None and _compare(left, candidate) == 0
+            for candidate in candidates
+        )
+        # No match, but something in the list was unknown: whether it would have
+        # matched is unknown too, so the answer is.
+        if not found and any(candidate is None for candidate in candidates):
+            return None
         return found if operator == "=" else not found
 
     right = _value(node.rexpr, row, group)

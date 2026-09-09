@@ -143,6 +143,8 @@
     "all_counter": "Tous les compteurs",
     "all_document": "Toutes les feuilles de calcul",
     "appEndpoint": "Ce qu'il lit",
+    "app": "Application",
+    "appPlaceholder": "Choisir une application",
     "appEndpointPlaceholder": "Choisir une lecture…",
     "appNotInstalled": "Cette application n'est pas installée dans cette communauté.",
     "appParamPlaceholder": "Choisir…",

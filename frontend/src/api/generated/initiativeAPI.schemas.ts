@@ -642,11 +642,23 @@ export interface QueryColumnDescription {
 }
 
 /**
+ * Rows a statement produced, and what they hold.
+ *
+ * Positional against ``columns`` rather than keyed by name, for the reason
+ * every other read of this surface is: a statement may name two outputs the
+ * same thing, and a mapping would keep one of the two.
+ */
+export interface AppDataTable {
+  columns?: QueryColumnDescription[];
+  rows?: unknown[][];
+}
+
+/**
  * One data source's answer, in the two shapes its endpoint declared.
  */
 export interface AppDataResponse {
   rows?: AppDataResponseRowsItem[];
-  columns?: QueryColumnDescription[];
+  table?: AppDataTable | null;
   values?: AppDataResponseValues;
   fetched_at: string;
   cached?: boolean;

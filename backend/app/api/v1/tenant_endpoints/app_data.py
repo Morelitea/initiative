@@ -52,6 +52,7 @@ from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
 from app.services.query.resolve import QueryError
 from app.schemas.tenant.app_data import (
+    AppDataTable,
     AppDataResponse,
     AppEndpointRead,
     AppParamOption,
@@ -287,10 +288,10 @@ async def read_app_data(
     # After the fetch, so a statement is a transformation of a shared answer:
     # twenty viewers of the same binding are still one upstream call, whatever
     # each of their widgets asks of the rows.
-    rows, columns = _transformed(app, endpoint_id, bound.get(widget_id or ""), result)
+    table = _transformed(app, endpoint_id, bound.get(widget_id or ""), result)
     return AppDataResponse(
-        rows=rows,
-        columns=columns,
+        rows=result.rows,
+        table=table,
         values=result.values,
         fetched_at=result.fetched_at,
         cached=result.cached,
@@ -302,17 +303,17 @@ def _transformed(
     endpoint_id: str,
     binding: dict[str, Any] | None,
     result: "app_data_service.AppDataResult",
-) -> tuple[list[dict[str, Any]], list[QueryColumnDescription]]:
-    """The rows this widget draws, and what they hold.
+) -> AppDataTable | None:
+    """What this widget's statement made of the rows, or nothing.
 
-    A binding with no statement is the app's own rows, verbatim, as they have
-    always been — and no columns, because the app's widget module reads them by
-    the names its manifest declared. A binding with one gets what the statement
-    made of them, described, so a built-in widget can be pointed at an app.
+    A binding with no statement draws the app's own rows, as it always has —
+    the app's widget module reads them by the names its manifest declared. A
+    binding with one gets a table beside them: described, and positional, so a
+    built-in widget can be pointed at an app.
     """
     statement = (binding or {}).get("sql")
     if not isinstance(statement, str) or not statement.strip():
-        return result.rows, []
+        return None
 
     endpoint = app_data_service.find_read_endpoint(app.definition, endpoint_id)
     if endpoint is None:
@@ -328,13 +329,12 @@ def _transformed(
             status_code=status.HTTP_400_BAD_REQUEST, detail=refused.code
         ) from refused
 
-    names = [column.name for column in planned.columns]
-    return (
-        [dict(zip(names, row)) for row in answered],
-        [
+    return AppDataTable(
+        columns=[
             QueryColumnDescription(name=column.name, type=column.type)
             for column in planned.columns
         ],
+        rows=[list(row) for row in answered],
     )
 
 

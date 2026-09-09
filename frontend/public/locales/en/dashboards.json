@@ -143,6 +143,8 @@
     "all_counter": "All counters",
     "all_document": "All spreadsheets",
     "appEndpoint": "What it reads",
+    "app": "App",
+    "appPlaceholder": "Choose an app",
     "appEndpointPlaceholder": "Choose a read…",
     "appNotInstalled": "This app is not installed in this community.",
     "appParamPlaceholder": "Choose…",

@@ -1343,14 +1343,29 @@ class TestAStatementOverTheRows:
         )
         assert response.status_code == 200, response.json()
         body = response.json()
-        assert body["columns"] == [
+        assert body["table"]["columns"] == [
             {"name": "day", "type": "text"},
             {"name": "total", "type": "number"},
         ]
-        assert body["rows"] == [
-            {"day": "mon", "total": 7.0},
-            {"day": "tue", "total": 5.0},
-        ]
+        assert body["table"]["rows"] == [["mon", 7.0], ["tue", 5.0]]
+
+    async def test_two_outputs_of_one_name_both_survive(
+        self, client, session, acting_user, upstream
+    ):
+        """Positional, for the reason every read of this surface is: a mapping
+        would keep one of the two."""
+        upstream.rows = [{"days": "mon", "totals": 3}]
+        a, app, dashboard = await _workspace(
+            session,
+            acting_user,
+            ORDERS_SUMMARY,
+            sql="SELECT days, totals AS days FROM rows",
+        )
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="w1"), headers=a.headers
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["table"]["rows"] == [["mon", 3]]
 
     async def test_a_binding_with_no_statement_is_untouched(
         self, client, session, acting_user, upstream
@@ -1362,7 +1377,7 @@ class TestAStatementOverTheRows:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["columns"] == []
+        assert body["table"] is None
         assert body["rows"] == [{"id": 1}]
 
     async def test_the_statement_that_runs_is_the_stored_one(
@@ -1382,4 +1397,4 @@ class TestAStatementOverTheRows:
         )
         assert response.status_code == 200
         # Untransformed, because no widget of that id binds this endpoint.
-        assert response.json()["columns"] == []
+        assert response.json()["table"] is None
