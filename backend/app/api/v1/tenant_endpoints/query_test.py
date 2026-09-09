@@ -408,3 +408,77 @@ def _unfilled(columns: list[FieldType], shape) -> list[str]:
         else:
             taken.add(found)
     return missing
+
+
+class TestGroupingByPerson:
+    """The one thing the old sources could do that a statement could not.
+
+    Naming a person needs the account projection, and the query surface had no
+    way to reach one — so the cutover turned every "by assignee" widget into a
+    grouping by project. It reaches the guild's own view of its members now,
+    which is what makes this a question about *these* people.
+    """
+
+    async def test_work_can_be_counted_by_the_person_doing_it(
+        self, client, session, acting_user
+    ):
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        project = await create_project(session, actor.initiative, actor.user)
+        await create_task(session, project, assignees=[actor.user])
+        await create_task(session, project, assignees=[actor.user])
+        await create_task(session, project)
+
+        response = await client.post(
+            actor.g("/query"),
+            json={
+                "sql": (
+                    "SELECT m.display_name AS person, count(*) AS tasks "
+                    "FROM tasks t JOIN task_assignees a ON a.task_id = t.id "
+                    "JOIN members m ON m.id = a.user_id "
+                    "GROUP BY m.display_name"
+                ),
+                "initiative_id": actor.initiative.id,
+            },
+            headers=actor.headers,
+        )
+        assert response.status_code == 200, response.json()
+        body = response.json()
+        assert body["columns"] == [
+            {"name": "person", "type": "text"},
+            {"name": "tasks", "type": "number"},
+        ]
+        # The unassigned task is not somebody's work, so it is not a row here.
+        assert body["rows"] == [[body["rows"][0][0], 2]]
+
+    async def test_the_members_it_names_are_this_guilds(
+        self, client, session, acting_user
+    ):
+        """A person is an account platform-wide; a member is a member of this
+        guild. Listing them answers the second question."""
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        stranger = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+        response = await client.post(
+            actor.g("/query"),
+            json={"sql": "SELECT id FROM members"},
+            headers=actor.headers,
+        )
+        assert response.status_code == 200
+        found = {row[0] for row in response.json()["rows"]}
+        assert actor.user.id in found
+        assert stranger.user.id not in found
+
+    async def test_a_name_the_guild_does_not_render_falls_back_to_the_handle(
+        self, client, session, acting_user
+    ):
+        """``display_name`` is what a chart groups by either way, so a guild
+        that shows no real names still gets one column per person."""
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        response = await client.post(
+            actor.g("/query"),
+            json={"sql": "SELECT display_name FROM members"},
+            headers=actor.headers,
+        )
+        assert response.status_code == 200
+        names = [row[0] for row in response.json()["rows"]]
+        assert names and all(name for name in names)

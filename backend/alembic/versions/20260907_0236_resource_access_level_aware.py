@@ -26,9 +26,7 @@ depends_on = None
 def _fn(*, level_aware: bool) -> str:
     """The function body, with and without the grant-level leg."""
     level_leg = (
-        "AND (NOT p_need_write OR g.level IN ('write', 'owner'))"
-        if level_aware
-        else ""
+        "AND (NOT p_need_write OR g.level IN ('write', 'owner'))" if level_aware else ""
     )
     return f"""
 CREATE OR REPLACE FUNCTION public.resource_access(
