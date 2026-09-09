@@ -8,7 +8,8 @@ Five things bound a query, and they are independent of each other:
 
 * a **pool of its own**, so these statements wait for each other rather than
   for the requests serving every other page;
-* a **cap per guild** on how many run at once;
+* a **cap per guild** on how many run at once, held in the database so it is
+  the whole deployment's cap rather than each process's;
 * a **read-only transaction**, which refuses a write whatever the statement
   says;
 * the **query role**, which holds ``SELECT`` and no more;
@@ -21,7 +22,6 @@ perfectly legal, and it does so without executing it.
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -40,25 +40,40 @@ from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 class QueryResult:
     """What a query returned, and what it cost to say so."""
 
+    #: Output names, in order. Not necessarily distinct — ``SELECT t.id, p.id``
+    #: is a legal query and names both columns ``id``.
     columns: tuple[str, ...]
-    rows: tuple[dict[str, Any], ...]
+    #: One tuple per row, positional against :attr:`columns`. Positional rather
+    #: than keyed for the reason above: a mapping keeps one value per name.
+    rows: tuple[tuple[Any, ...], ...]
     #: The planner's estimate for the statement that ran.
     cost: float
     #: Whether there were more rows than one query returns.
     truncated: bool
 
 
-#: One semaphore per guild, made on first use. A guild that has never run a
-#: query has no entry; one that has holds an object of a few bytes.
-_in_flight: dict[int, asyncio.Semaphore] = {}
+#: Names the query surface's locks apart from anything else that takes one.
+#: Advisory locks are keyed by two integers and share one space per database.
+_LOCK_SPACE = 0x51_55_45_52  # "QUER"
 
 
-def _guild_slot(guild_id: int) -> asyncio.Semaphore:
-    slot = _in_flight.get(guild_id)
-    if slot is None:
-        slot = asyncio.Semaphore(settings.QUERY_MAX_CONCURRENT_PER_GUILD)
-        _in_flight[guild_id] = slot
-    return slot
+async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
+    """Take one of this guild's slots, or report that it has none free.
+
+    The slots are advisory locks rather than a counter in this process, so the
+    cap is the deployment's however many workers or replicas serve it. Each is
+    held for the transaction and released when it ends, so a query that fails
+    or is cancelled gives its slot back without anything having to notice.
+    """
+    for slot in range(settings.QUERY_MAX_CONCURRENT_PER_GUILD):
+        taken = await connection.fetchval(
+            "SELECT pg_try_advisory_xact_lock($1, $2)",
+            _LOCK_SPACE + int(guild_id),
+            slot,
+        )
+        if taken:
+            return True
+    return False
 
 
 async def _bound_transaction(connection: Any) -> None:
@@ -102,14 +117,6 @@ async def execute(
     initiative policies read the request's own identity, exactly as they do on
     every other path.
     """
-    slot = _guild_slot(guild_id)
-    try:
-        await asyncio.wait_for(
-            slot.acquire(), timeout=settings.QUERY_POOL_TIMEOUT_SECONDS
-        )
-    except (TimeoutError, asyncio.TimeoutError) as expired:
-        raise QueryError(QueryMessages.BUSY, str(guild_id)) from expired
-
     try:
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
@@ -121,6 +128,8 @@ async def execute(
             connection = raw.driver_connection
 
             await _bound_transaction(sqlalchemy_connection)
+            if not await _claim_a_slot(connection, guild_id):
+                raise QueryError(QueryMessages.BUSY, str(guild_id))
             await set_rls_context(
                 session,
                 user_id=user_id,
@@ -138,13 +147,13 @@ async def execute(
             columns = tuple(attribute.name for attribute in prepared.get_attributes())
 
             limit = settings.QUERY_MAX_ROWS
-            rows: list[dict[str, Any]] = []
+            rows: list[tuple[Any, ...]] = []
             truncated = False
             async for record in prepared.cursor(*statement.parameters):
-                if len(rows) == limit:
+                if len(rows) >= limit:
                     truncated = True
                     break
-                rows.append(dict(record))
+                rows.append(tuple(record))
 
             await session.rollback()
             return QueryResult(
@@ -155,8 +164,6 @@ async def execute(
             )
     except QueryCanceledError as cancelled:
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
-    finally:
-        slot.release()
 
 
 async def run(

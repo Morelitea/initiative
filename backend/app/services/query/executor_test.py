@@ -47,7 +47,7 @@ async def test_an_aggregate_answers_without_shipping_the_rows(guild):
         guild_role="admin",
     )
     assert result.columns == ("n",)
-    assert result.rows == ({"n": 0},)
+    assert result.rows == ((0,),)
 
 
 async def test_it_reports_what_the_planner_expected(guild):
@@ -109,16 +109,26 @@ async def test_more_rows_than_one_query_returns_are_cut_off(guild, monkeypatch):
     assert result.truncated is True
 
 
+async def test_a_query_keeping_both_names_keeps_both_values(guild):
+    """``SELECT t.id, p.id`` names both columns ``id``. Rows are positional
+    for exactly this: a mapping would keep one of the two."""
+    statement = resolve("SELECT title FROM tasks")
+    doubled = type(statement)(
+        sql="SELECT 1 AS id, 2 AS id",
+        parameters=(),
+        relations=("tasks",),
+    )
+    result = await execute(doubled, guild_id=guild, user_id=1, guild_role="admin")
+    assert result.columns == ("id", "id")
+    assert result.rows == ((1, 2),)
+
+
 async def test_a_guild_runs_only_so_many_at_once(guild, monkeypatch):
-    """The cap is per guild, so one community's queries wait for each other
-    rather than for everybody's."""
+    """The cap is per guild and lives in the database, so it is the cap for
+    the deployment rather than for each process serving it."""
     import asyncio
 
     monkeypatch.setattr(settings, "QUERY_MAX_CONCURRENT_PER_GUILD", 1)
-    monkeypatch.setattr(settings, "QUERY_POOL_TIMEOUT_SECONDS", 1)
-    from app.services.query import executor
-
-    executor._in_flight.pop(guild, None)
     statement = resolve("SELECT title FROM tasks")
     slow = type(statement)(
         sql="SELECT pg_sleep(2) AS slept", parameters=(), relations=("tasks",)
@@ -140,4 +150,3 @@ async def test_a_guild_runs_only_so_many_at_once(guild, monkeypatch):
         held.cancel()
         with pytest.raises(BaseException):
             await held
-        executor._in_flight.pop(guild, None)
