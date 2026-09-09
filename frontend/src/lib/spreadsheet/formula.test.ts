@@ -187,3 +187,69 @@ describe("cross-sheet references", () => {
     expect(e.evaluate(0, 0).error).toBe("#CYCLE!");
   });
 });
+
+describe("formulas that read other formula cells", () => {
+  const workbook = (
+    sheets: { id: string; name: string; cells: Record<string, CellValue> }[],
+    activeSheetId = sheets[0].id
+  ) =>
+    createEvaluator({
+      sheets: sheets.map((s) => ({ ...s, cells: new Map(Object.entries(s.cells)) })),
+      activeSheetId,
+    });
+
+  it("passes a formula cell as a function argument", () => {
+    expect(evalA1("=IF(B2<0,0,B2)", { "1:1": "=1+1" }).value).toBe(2);
+  });
+
+  it("aggregates a range made entirely of formula cells", () => {
+    expect(evalA1("=SUM(A2:A4)", { "1:0": "=1*1", "2:0": "=2*2", "3:0": "=3*3" }).value).toBe(14);
+  });
+
+  it("nests several levels deep", () => {
+    expect(
+      evalA1("=SUM(A2:A3)", {
+        "1:0": "=MAX(A4,A5)",
+        "2:0": "=MIN(A4,A5)",
+        "3:0": 10,
+        "4:0": "=2+3",
+      }).value
+    ).toBe(15);
+  });
+
+  it("evaluates identically whatever order the cells are asked for", () => {
+    const cells = { "0:0": "=IF(B2<0,0,B2)", "1:1": "=1+1" };
+    // Cold: the dependency is resolved mid-parse of the outer formula.
+    expect(sheet(cells).evaluate(0, 0).value).toBe(2);
+    // Warm: the dependency was evaluated (and cached) first.
+    const warm = sheet(cells);
+    warm.evaluate(1, 1);
+    expect(warm.evaluate(0, 0).value).toBe(2);
+  });
+
+  it("passes a formula cell from another sheet as a function argument", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "=IF(Data!A1>0,Data!A1,0)" } },
+      { id: "s2", name: "Data", cells: { "0:0": "=B1+1", "0:1": 4 } },
+    ]);
+    expect(e.evaluate(0, 0).value).toBe(5);
+  });
+
+  it("still reports a cycle reached through a function argument", () => {
+    expect(evalA1("=IF(A1>0,1,2)").error).toBe("#CYCLE!");
+  });
+
+  it("still reports a cycle that closes two formulas away", () => {
+    expect(evalA1("=IF(B1>0,1,2)", { "0:1": "=A1+1" }).error).toBe("#CYCLE!");
+  });
+});
+
+describe("functions that would reach outside the workbook", () => {
+  it("answers WEBSERVICE as an unknown name", () => {
+    expect(evalA1('=WEBSERVICE("https://example.com")').error).toBe("#NAME?");
+  });
+
+  it("answers FILTERXML as an unknown name", () => {
+    expect(evalA1('=FILTERXML("<a/>","//a")').error).toBe("#NAME?");
+  });
+});
