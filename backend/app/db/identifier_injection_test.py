@@ -16,6 +16,7 @@ import pytest
 
 from app.db.schema_provisioning import (
     PLATFORM_TIERS,
+    guild_query_role_name,
     guild_readonly_role_name,
     guild_role_name,
     guild_schema_name,
@@ -31,6 +32,7 @@ _GUILD_ID_BUILDERS = (
     guild_role_name,
     guild_readonly_role_name,
     guild_support_role_name,
+    guild_query_role_name,
 )
 
 # Values a path/query param could smuggle if int-coercion were ever dropped.
@@ -57,15 +59,15 @@ def test_guild_name_builders_reject_or_sanitize_hostile_ids(builder, hostile):
         name = builder(hostile)
     except (ValueError, TypeError):
         return  # rejected outright — the common case
-    assert re.fullmatch(r"[A-Za-z0-9_]*guild_[0-9]+(_ro|_support)?", name), name
+    assert re.fullmatch(r"[A-Za-z0-9_]*guild_[0-9]+(_ro|_support|_q)?", name), name
 
 
 @pytest.mark.parametrize("builder", _GUILD_ID_BUILDERS, ids=lambda b: b.__name__)
 def test_guild_name_builders_emit_identifier_safe_names(builder):
     """For a real integer id the output is only ``<prefix>guild_<digits>`` with
-    an optional ``_ro``/``_support`` suffix — no quotable characters."""
+    an optional ``_ro``/``_support``/``_q`` suffix — no quotable characters."""
     name = builder(42)
-    assert re.fullmatch(r"[A-Za-z0-9_]*guild_42(_ro|_support)?", name), name
+    assert re.fullmatch(r"[A-Za-z0-9_]*guild_42(_ro|_support|_q)?", name), name
 
 
 @pytest.mark.parametrize("tier", PLATFORM_TIERS)
