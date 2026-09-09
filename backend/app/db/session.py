@@ -29,6 +29,18 @@ admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
 provisioning_engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
+#: A pool of its own for reader-written SQL, so what those statements wait for
+#: is each other rather than the requests serving every other page. Same login
+#: as the request path — the difference is the role each statement assumes and
+#: the transaction it runs in, not who connects.
+query_engine = create_async_engine(
+    settings.DATABASE_URL_APP,
+    echo=False,
+    pool_size=settings.QUERY_POOL_SIZE,
+    max_overflow=0,
+    pool_timeout=settings.QUERY_POOL_TIMEOUT_SECONDS,
+)
+
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     autoflush=False,
@@ -179,6 +191,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_write = bool(params.get("pam_write"))
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
+    query = bool(params.get("query"))
     billing_guild_id = params.get("billing_guild_id")
     # Initiatives where the request holds "Full access". Rendered as a comma
     # list so the policy reads it with one string_to_array; empty when none.
@@ -213,6 +226,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # routes nowhere, so the grantee sees nothing. Lazy import avoids a
     # circular import — schema_provisioning imports this module.
     from app.db.schema_provisioning import (
+        guild_query_role_name,
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
@@ -243,7 +257,11 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - otherwise (real membership, break-glass): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
-        if read_only_grant or read_only:
+        if query:
+            # A query runs as the query role whatever else the request is:
+            # a member's, a read-only member's, or a grantee's.
+            name_fn = guild_query_role_name
+        elif read_only_grant or read_only:
             name_fn = guild_readonly_role_name
         elif support_grant:
             name_fn = guild_support_role_name
@@ -316,6 +334,7 @@ async def set_rls_context(
     pam_write: bool = False,
     platform_role: Optional[str] = None,
     read_only: bool = False,
+    query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     override_initiatives: Optional[Sequence[int]] = None,
 ) -> None:
@@ -410,6 +429,7 @@ async def set_rls_context(
         "pam_write": pam_write,
         "platform_role": platform_role,
         "read_only": read_only,
+        "query": query,
         "satisfied_providers": satisfied_providers,
         "override_initiatives": tuple(override_initiatives or ()),
     }

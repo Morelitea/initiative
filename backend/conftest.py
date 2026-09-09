@@ -620,6 +620,14 @@ async def _schema_test_harness(engine, monkeypatch):
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
     monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+
+    # The query surface keeps a pool of its own, so it needs pointing at this
+    # worker's database like the others — it is created at import against the
+    # configured one.
+    test_query_engine = create_async_engine(
+        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "query_engine", test_query_engine)
     monkeypatch.setattr(
         db_session,
         "AdminSessionLocal",
@@ -645,6 +653,7 @@ async def _schema_test_harness(engine, monkeypatch):
     )
     yield
     await test_admin_engine.dispose()
+    await test_query_engine.dispose()
 
 
 @pytest.fixture(scope="function")
