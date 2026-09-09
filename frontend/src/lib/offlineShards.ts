@@ -47,6 +47,9 @@ export interface ShardedPersister {
   readShard: (shard: string) => Promise<DehydratedQuery[] | null>;
   /** Forget one community's content without touching any other. */
   forgetShard: (shard: string) => Promise<void>;
+  /** Drop every shard the predicate rejects. For pruning against a membership
+   *  list that has just been read from the server. */
+  retainShards: (keep: (shard: string) => boolean) => Promise<void>;
 }
 
 const KEY_PREFIX = "react-query";
@@ -219,5 +222,28 @@ export const createShardedPersister = ({
     },
 
     forgetShard: dropShard,
+
+    retainShards: async (keep) => {
+      // The index is the list of what is on disk, not what this session
+      // loaded: a community left behind is precisely one nothing has opened.
+      const index = parse<ShardIndex>(await store.getItem(INDEX_KEY));
+      if (!index?.shards) return;
+
+      const survivors: Record<string, number> = {};
+      let changed = false;
+      for (const [shard, savedAt] of Object.entries({ ...index.shards, ...known })) {
+        if (keep(shard)) {
+          survivors[shard] = savedAt;
+          continue;
+        }
+        await store.removeItem(shardKey(shard));
+        lastWritten.delete(shard);
+        loaded.delete(shard);
+        changed = true;
+      }
+      if (!changed) return;
+      known = survivors;
+      await writeIndex(index.buster);
+    },
   };
 };

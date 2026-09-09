@@ -33,7 +33,10 @@ export function useCanonicalInitiativeId(
     const { pathname, search, hash } = router.state.location;
     const corrected = canonicalInitiativePath(pathname, entityInitiativeId);
     if (corrected === pathname) return;
-    void router.navigate({ to: `${corrected}${search ?? ""}${hash ?? ""}`, replace: true });
+    // Search and hash are handed over as they are rather than pasted onto the
+    // path: `search` is the parsed object, not a string, so building a URL out
+    // of it threw instead of navigating.
+    void router.navigate({ to: corrected, search, hash, replace: true });
   }, [router, settled, entityInitiativeId, fromPath]);
 
   return effective;
