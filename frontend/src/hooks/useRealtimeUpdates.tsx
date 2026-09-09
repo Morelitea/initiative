@@ -13,6 +13,8 @@ import {
   invalidateGuildContent,
   invalidateInitiative,
   invalidateInitiativeMembers,
+  invalidateInitiativeRoles,
+  invalidateMyPermissions,
   invalidateProjectActivity,
   invalidateRecentComments,
   invalidateSubtask,
@@ -116,9 +118,13 @@ const RESOURCE_INVALIDATORS: Record<string, (id: number) => void> = {
   initiatives: (id) => {
     void invalidateInitiative(id);
     void invalidateAllInitiatives();
-    // Roles and membership report against the initiative, so the roster is
-    // what "the initiative changed" most often means.
+    // An initiative's roster, its roles and what those roles permit all report
+    // against the initiative itself — a membership row and a role row have no
+    // route of their own — so "the initiative changed" has to refresh all
+    // three. Each is one query, and only where the screen showing it is open.
     void invalidateInitiativeMembers(id);
+    void invalidateInitiativeRoles(id);
+    void invalidateMyPermissions(id);
   },
   tags: (id) => {
     void invalidateTag(id);

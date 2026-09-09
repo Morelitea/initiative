@@ -8,6 +8,8 @@ the log covering for each other.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.models.platform.guild import GuildRole
@@ -147,6 +149,31 @@ async def test_nothing_is_read_for_a_guild_nobody_is_watching(session, acting_us
     assert a.guild.id not in room_sink._delivered
 
 
+async def test_what_is_remembered_is_pruned_to_the_window(session, acting_user):
+    """The record of what has been sent is the window, so it cannot grow."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    async with _Watcher(a.guild.id, a.initiative.id) as watcher:
+        await create_task(session, a.project)
+        await watcher.catch_up()
+
+        from app.db.session import set_rls_context
+        from sqlmodel import select
+
+        await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+        in_window = {
+            row.id
+            for row in await session.exec(
+                select(EventOutbox).where(
+                    EventOutbox.occurred_at
+                    > datetime.now(timezone.utc)
+                    - timedelta(seconds=room_sink.SWEEP_WINDOW_SECONDS)
+                )
+            )
+        }
+        assert room_sink._delivered[a.guild.id] == in_window
+
+
 async def test_leaving_drops_the_mark(session, acting_user):
     """So the next socket to arrive is brought up to the log's end rather than
     told everything that happened while nobody was looking."""
@@ -172,26 +199,61 @@ async def test_the_same_change_is_not_sent_twice_by_the_sweep(session, acting_us
         assert len(watcher.named("tasks")) == first
 
 
-async def test_a_hint_names_the_transaction_it_is_raised_for(session, acting_user):
-    """The prompt path: no watermark, just the rows that transaction wrote."""
+async def _txn_of(session, guild_id: int, resource_type: str, resource_id: int) -> int:
+    """The transaction the log recorded one change under."""
     from app.db.session import set_rls_context
     from sqlmodel import select
 
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    row = (
+        await session.exec(
+            select(EventOutbox)
+            .where(EventOutbox.resource_type == resource_type)
+            .where(EventOutbox.resource_id == resource_id)
+            .order_by(EventOutbox.id.asc())
+        )
+    ).first()
+    assert row is not None, f"nothing was logged for {resource_type} {resource_id}"
+    return row.txn_id
+
+
+async def test_a_change_below_one_already_sent_is_still_delivered(session, acting_user):
+    """Outbox ids are handed out before commit, so "everything above the
+    highest id sent" would step over a transaction that became visible late.
+
+    Here the second change is delivered by its hint and the first one's hint is
+    never raised — the reconnect case. The sweep has to go back for it, and to
+    not repeat the one already sent.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    async with _Watcher(a.guild.id, a.initiative.id) as watcher:
+        earlier = await create_task(session, a.project)
+        later = await create_task(session, a.project)
+
+        # Only the later transaction is announced.
+        await room_sink.deliver(
+            f"guild_{a.guild.id}:{await _txn_of(session, a.guild.id, 'tasks', later.id)}"
+        )
+        assert [c["resource"]["id"] for c in watcher.named("tasks")] == [later.id]
+
+        await watcher.catch_up()
+
+        sent = [c["resource"]["id"] for c in watcher.named("tasks")]
+        assert earlier.id in sent, f"the earlier change was stepped over; got {sent}"
+        assert sent.count(later.id) == 1, f"the announced change repeated; got {sent}"
+
+
+async def test_a_hint_names_the_transaction_it_is_raised_for(session, acting_user):
+    """The prompt path: no watermark, just the rows that transaction wrote."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project)
-        await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
-        row = (
-            await session.exec(
-                select(EventOutbox)
-                .where(EventOutbox.resource_id == task.id)
-                .where(EventOutbox.resource_type == "tasks")
-            )
-        ).first()
-        assert row is not None
 
-        await room_sink.deliver(f"guild_{a.guild.id}:{row.txn_id}")
+        await room_sink.deliver(
+            f"guild_{a.guild.id}:{await _txn_of(session, a.guild.id, 'tasks', task.id)}"
+        )
 
         assert [c["resource"]["id"] for c in watcher.named("tasks")] == [task.id]
 
