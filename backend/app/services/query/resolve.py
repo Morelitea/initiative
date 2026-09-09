@@ -209,19 +209,22 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
     known = set(dataset_names())
     scope: dict[str, str] = {}
 
-    joins: list[ast.JoinExpr] = []
+    # Each join, with the relations on either side of it. A join is bound by a
+    # condition relating what it *adds* to what was already there, so knowing
+    # which relations those are is part of reading the tree.
+    joins: list[tuple[ast.JoinExpr, set[str], set[str]]] = []
 
-    def visit(node: Any) -> None:
+    def visit(node: Any) -> set[str]:
         if isinstance(node, ast.JoinExpr):
             if node.usingClause:
                 # ``USING`` names columns positionally rather than as column
                 # references, so the resolving pass below never sees them.
                 # ``ON`` says the same thing in a form that resolves.
                 raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "USING")
-            joins.append(node)
-            visit(node.larg)
-            visit(node.rarg)
-            return
+            left = visit(node.larg)
+            right = visit(node.rarg)
+            joins.append((node, left, right))
+            return left | right
         if not isinstance(node, ast.RangeVar):
             raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, type(node).__name__)
         if node.schemaname or node.catalogname:
@@ -233,13 +236,14 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
             raise QueryError(QueryMessages.DUPLICATE_ALIAS, handle)
         scope[handle] = node.relname
         node.relname = _physical_table(node.relname)
+        return {handle}
 
     visit(select.fromClause[0])
 
     # After the relations, so a statement gets the more specific answer: an
     # alias used twice is named as that, not as the join it sits in.
-    for join in joins:
-        if not _join_is_bound(join):
+    for join, left, right in joins:
+        if not _join_is_bound(join, left, right):
             raise QueryError(QueryMessages.JOIN_WITHOUT_CONDITION, "JOIN")
 
     if len(scope) > MAX_RELATIONS:
@@ -262,14 +266,18 @@ def _relations_named(node: Any) -> set[str]:
     return named
 
 
-def _join_is_bound(join: ast.JoinExpr) -> bool:
-    """Whether a join's condition actually pairs its rows with something.
+def _join_is_bound(join: ast.JoinExpr, left: set[str], right: set[str]) -> bool:
+    """Whether a join's condition ties what it adds to what was already there.
 
-    The test is one comparison whose two sides read from *different*
-    relations — which is what relates a row to a row. Mentioning two relations
-    somewhere in the condition is not enough: ``ON tasks.id > 0 AND
-    projects.id > 0`` names both and still pairs every row with every row, and
-    so do ``ON true`` and ``ON tasks.id > 0``.
+    The test is one comparison reading a relation from each side of *this*
+    join. Weaker readings each let a cross product through:
+
+    * "the condition is not empty" admits ``ON true``;
+    * "it mentions two relations" admits ``ON tasks.id > 0 AND
+      projects.id > 0``, which filters each relation and still pairs every
+      surviving row with every other;
+    * "it relates some two relations" admits a third join whose condition
+      relates the first two, leaving the one being added unconstrained.
     """
     if join.quals is None:
         return False
@@ -278,9 +286,9 @@ def _join_is_bound(join: ast.JoinExpr) -> bool:
     class Relating(Visitor):
         def visit_A_Expr(self, ancestors: Any, node: ast.A_Expr) -> None:
             nonlocal relating
-            left = _relations_named(node.lexpr)
-            right = _relations_named(node.rexpr)
-            if left and right and left.isdisjoint(right):
+            near = _relations_named(node.lexpr)
+            far = _relations_named(node.rexpr)
+            if (near & left and far & right) or (near & right and far & left):
                 relating = True
 
     Relating()(join.quals)

@@ -210,6 +210,24 @@ class TestStructuralCost:
         )
         assert resolve(sql).relations == ("projects", "tasks")
 
+    def test_a_later_join_must_tie_in_what_it_adds(self):
+        """The third join's condition relates the first two relations, so the
+        one it adds is joined to nothing and multiplies the result."""
+        sql = (
+            "SELECT a.id FROM tasks a "
+            "JOIN tasks b ON a.id = b.id "
+            "JOIN tasks c ON a.id = b.id"
+        )
+        assert refusal(sql) == QueryMessages.JOIN_WITHOUT_CONDITION
+
+    def test_a_chain_of_joins_each_tying_in_is_accepted(self):
+        sql = (
+            "SELECT a.id FROM tasks a "
+            "JOIN tasks b ON a.project_id = b.project_id "
+            "JOIN projects c ON b.project_id = c.id"
+        )
+        assert resolve(sql).relations == ("projects", "tasks")
+
     @pytest.mark.parametrize(
         "sql",
         [
