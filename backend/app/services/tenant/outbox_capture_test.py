@@ -451,3 +451,159 @@ async def test_the_log_is_written_only_by_the_trigger(
             ),
             params={"i": a.initiative.id, "u": a.user.id},
         )
+
+
+# ---------------------------------------------------------------------------
+# The parent chain
+# ---------------------------------------------------------------------------
+#
+# An event names the addressable resources between its resource and the
+# initiative, innermost first, so a consumer can refresh the surfaces a change
+# touches without a lookup of its own. Asserted against a real Postgres because
+# the chain is rendered SQL, and rendering it correctly is not the same as it
+# resolving the right rows.
+
+
+def _chain(row: EventOutbox) -> list[tuple[str, int]]:
+    return [(p["type"], p["id"]) for p in row.parents]
+
+
+async def test_a_tool_entity_names_no_parents(session, acting_user):
+    """A project hangs off nothing but its initiative."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "projects" and r.resource_id == a.project.id
+    ]
+    assert rows, "creating a project produced no outbox row"
+    assert rows[0].parents == []
+
+
+async def test_a_task_names_its_project(session, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "tasks" and r.resource_id == task.id
+    ]
+    assert _chain(rows[0]) == [("projects", a.project.id)]
+
+
+async def test_a_comment_on_a_task_names_the_task_and_its_project(session, acting_user):
+    """The two-hop case, and the reason the chain is a list.
+
+    A task comment shows up in two places at once: the thread on the task, and
+    the project's activity feed. Both are named, from the join the initiative
+    lookup was already making.
+    """
+    from app.testing import create_comment
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task)
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "comments" and r.resource_id == comment.id
+    ]
+    assert rows, "commenting produced no outbox row"
+    assert _chain(rows[0]) == [("tasks", task.id), ("projects", a.project.id)]
+
+
+async def test_a_comment_on_a_tool_entity_names_that_entity(session, acting_user):
+    """One parent, and the COALESCE picks it — a comment has exactly one."""
+    from app.testing import create_comment, create_document
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    document = await create_document(session, a.initiative, a.user)
+    comment = await create_comment(session, a.user, document=document)
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "comments" and r.resource_id == comment.id
+    ]
+    assert _chain(rows[0]) == [("documents", document.id)]
+
+
+async def test_a_facet_carries_its_owner_chain(session, acting_user):
+    """A tag lands on a task; the event names the task, and the task's project.
+
+    The chain belongs to the resource the event NAMES, not to the junction the
+    trigger fired on — so a reports-as table borrows its owner's declaration.
+    """
+    from app.services.tenant import tags as tags_service
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    tag = await create_tag(session, a.guild)
+
+    before = len(await _outbox(session, a.guild.id))
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TAG_LINKS["task"],
+        guild_id=a.guild.id,
+        entity_id=task.id,
+        tag_ids=[tag.id],
+    )
+    await session.commit()
+
+    tagged = [
+        r
+        for r in (await _outbox(session, a.guild.id))[before:]
+        if r.resource_type == "tasks" and r.changed == ["tags"]
+    ]
+    assert tagged, "tagging produced no task-scoped row"
+    assert _chain(tagged[-1]) == [("projects", a.project.id)]
+
+
+async def test_a_reaction_borrows_the_chain_of_what_it_is_on(session, acting_user):
+    """Polymorphic borrow: a reaction reports as its target, so it carries the
+    target's parents — a comment's task and project, not the reaction's own."""
+    from app.core.reactions import ReactionTarget
+    from app.services.tenant import reactions as reactions_service
+    from app.testing import create_comment
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task)
+
+    before = len(await _outbox(session, a.guild.id))
+    await reactions_service.toggle_reaction(
+        session,
+        target=ReactionTarget.comment,
+        target_id=comment.id,
+        emoji="👍",
+        user=a.user,
+        guild_id=a.guild.id,
+    )
+    await session.commit()
+
+    reacted = [
+        r
+        for r in (await _outbox(session, a.guild.id))[before:]
+        if r.resource_type == "comments" and r.changed == ["reactions"]
+    ]
+    assert reacted, "reacting produced no comment-scoped row"
+    assert reacted[-1].resource_id == comment.id
+    assert _chain(reacted[-1]) == [("tasks", task.id), ("projects", a.project.id)]
+
+
+async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_user):
+    """Same rule as the rest of the row: names and ids, never a value."""
+    from app.testing import create_comment
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    await create_comment(session, a.user, task=task, content="secret text")
+
+    for row in await _outbox(session, a.guild.id):
+        for parent in row.parents:
+            assert set(parent) == {"type", "id"}, parent
+            assert isinstance(parent["type"], str)
+            assert isinstance(parent["id"], int)
