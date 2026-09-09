@@ -13,6 +13,7 @@ import pytest
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
+from app.core.tools import Tool
 from app.main import app
 from app.mcp_server import Base64FilterMiddleware, _redact_base64, build_mcp_server
 
@@ -57,18 +58,61 @@ async def test_mcp_tools_are_curated():
 
     assert names, "expected the curated tools to be present"
 
-    # Every tool is for an allowed resource (projects / tasks / initiatives, plus
-    # adding a comment). Excluded surfaces (admin, auth, settings, documents,
-    # queues, users, uploads, grants, …) carry none of these words, so this also
+    # Every tool is for an initiative, one of the tools an initiative holds, or
+    # the comment surface they share. Everything else (admin, auth, settings,
+    # users, uploads, grants, …) carries none of these words, so this also
     # proves none of them leaked through.
-    allowed = ("project", "task", "initiative", "comment")
+    allowed = (
+        "initiative",
+        "comment",
+        # The things a tool holds, which the enum names only their parent of:
+        # a task belongs to a project, a counter to a counter group.
+        "task",
+        "counter",
+        "backlink",
+        "widget",
+        *(tool.value for tool in Tool),
+        *(tool.plural for tool in Tool),
+    )
     off_list = [n for n in names if not any(a in n for a in allowed)]
     assert not off_list, f"tools outside the allow-list: {off_list}"
+
+    # And every tool an initiative holds is readable. Derived from the enum
+    # rather than listed, so a seventh kind arrives here as a failure rather
+    # than as a surface nobody remembered to open.
+    for tool in Tool:
+        stem = tool.value.replace("_", "")
+        assert any(stem in n.replace("_", "") for n in names), (
+            f"no MCP tool reads {tool.value}"
+        )
 
     # Join requests sit on the initiatives router and would otherwise ride in on
     # its tag, but they name who asked to be let in and quote their note — a
     # manager's queue, not a working surface. Carved out explicitly.
     assert not [n for n in names if "join_request" in n]
+
+
+@pytest.mark.unit
+async def test_the_tool_reads_stop_short_of_these():
+    """What riding in on a tag would have brought, and why each stays out.
+
+    Opening a tool's tag exposes every GET it carries, and a few of those are
+    not the working surface the rest are. Named here so removing one is a
+    decision somebody makes rather than a line that quietly stops matching.
+    """
+    names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
+
+    # Bytes rather than an answer: a document, one of its versions, a calendar
+    # file. None is something a tool result carries usefully.
+    assert not [n for n in names if "download" in n or "export" in n]
+    # People rather than work: who voted which way, who has read a notice.
+    assert not [n for n in names if "voter" in n or n.endswith("_reads")]
+    # The dashboard editor's own vocabulary, not anything a dashboard shows.
+    assert not [n for n in names if "widget_catalog" in n or "installed_listing" in n]
+
+    # The one that has to be present, because it is the whole point of reading
+    # a dashboard: what a tile on it currently says.
+    assert any("run_widget_query" in n for n in names)
 
 
 @pytest.mark.unit

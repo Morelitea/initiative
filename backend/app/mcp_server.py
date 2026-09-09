@@ -6,15 +6,16 @@ authentication and the six RLS gates apply by reuse — never re-implemented.
 
 The surface is curated and default-deny, so a newly added route can't silently
 become a tool:
-  * **Reads** — every ``GET`` route for projects, tasks, and initiatives, plus
-    the two comment reads that pair with the comment write (a parent's thread
-    and a single comment by id).
+  * **Reads** — every ``GET`` route for initiatives and for the tools they hold
+    (projects and tasks, documents, queues, counters, calendars and their
+    events, notices, dashboards), plus the two comment reads that pair with the
+    comment write (a parent's thread and a single comment by id). A handful are
+    carved back out: file downloads, who voted and who has read, and the
+    dashboard editor's own palette.
   * **Writes** — a small, explicit allow-list of safe mutations (create a task,
     edit a task, move a task, add a comment), each gated client-side by Claude
     Code's per-write permission prompt. Destructive (delete), bulk (archive-all,
     reorder), AI-generation, and property/tag routes are deliberately excluded.
-
-See ``history/mcp-server-design.md``.
 """
 
 from __future__ import annotations
@@ -40,7 +41,27 @@ if TYPE_CHECKING:
 # ``task-statuses`` exposes only its GET (list a project's statuses) — its
 # POST/PATCH/reorder routes aren't in the write allow-list, so they stay
 # excluded — giving a caller the status ids needed to place or move a task.
-READ_TAGS = ("projects", "tasks", "initiatives", "task-statuses")
+#
+# Every tool an initiative holds is readable, not only the two it starts with.
+# An agent asked "how is this going" was previously answering from tasks alone,
+# which is the shape of the question rather than the shape of the work: the
+# rota is a queue, the write-up is a document, the numbers are counters, and
+# what somebody would actually look at first is a dashboard. Writes stay where
+# they were — the four in ``_WRITE_ROUTE_MAPS`` — so this widens what can be
+# read and nothing else.
+READ_TAGS = (
+    "projects",
+    "tasks",
+    "initiatives",
+    "task-statuses",
+    "documents",
+    "queues",
+    "counters",
+    "calendars",
+    "calendar-events",
+    "posts",
+    "dashboards",
+)
 
 # Curated safe writes: an explicit allow-list matched by exact path *shape* so
 # only these four mutations are exposed — create a task (``POST /tasks/``), edit a
@@ -76,9 +97,33 @@ _COMMENT_READ_ROUTE_MAPS = [
     RouteMap(methods=["GET"], pattern=r".*/comments/\{[^}]+\}$", mcp_type=MCPType.TOOL),
 ]
 
+# Carved out of the tag rules below, each for a reason the tag itself cannot
+# express. Ordered ahead of them so the exclusion wins.
+_TOOL_READ_EXCLUSIONS = [
+    # Bytes rather than an answer. A download hands back a file — a document's
+    # contents, or one of its versions — and an export hands back a calendar
+    # file. Neither is something a tool result can carry usefully, and a large
+    # one would fill a caller's context with an attachment it cannot open.
+    RouteMap(pattern=r".*/download$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/export\.ics$", mcp_type=MCPType.EXCLUDE),
+    # Who voted which way, and who has read a notice. Both are about people
+    # rather than about the work, and neither is answerable from the thing an
+    # agent was asked to do — the same reason join requests are carved out of
+    # the initiatives tag.
+    RouteMap(pattern=r".*/poll/voters$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/reads$", mcp_type=MCPType.EXCLUDE),
+    # The editor's own vocabulary. ``widget-catalog`` is the palette a person
+    # arranges a dashboard from and ``installed-listings`` is what the
+    # marketplace has put in this guild; both describe the authoring surface
+    # rather than anything a dashboard is showing.
+    RouteMap(pattern=r".*/widget-catalog$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/installed-listings$", mcp_type=MCPType.EXCLUDE),
+]
+
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
     *_COMMENT_READ_ROUTE_MAPS,
+    *_TOOL_READ_EXCLUSIONS,
     # Carved out of the ``initiatives`` read surface below: a join request names
     # who asked to be let in and carries their free-text note, which is
     # membership administration for a manager to answer rather than part of the
