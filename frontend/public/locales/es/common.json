@@ -153,5 +153,14 @@
   "offline": {
     "banner": "Estás sin conexión: se muestra lo último que cargó este dispositivo.",
     "lastUpdated": "Última actualización {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Elegir una imagen",
+    "takePhoto": "Hacer una foto",
+    "chooseFromLibrary": "Elegir de la galería",
+    "chooseFile": "Elegir un archivo",
+    "permission": "Initiative necesita permiso para usar la cámara y las fotos. Actívalo en los ajustes del dispositivo e inténtalo de nuevo.",
+    "unavailable": "Este dispositivo no tiene cámara para hacer una foto.",
+    "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
   }
 }

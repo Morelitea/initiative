@@ -47,6 +47,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Initiative uses the camera so you can attach a photo you take right now.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Initiative uses your photo library so you can attach pictures you already have.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -153,5 +153,14 @@
   "offline": {
     "banner": "You're offline — showing what this device last loaded.",
     "lastUpdated": "Last updated {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Choose an image",
+    "takePhoto": "Take a photo",
+    "chooseFromLibrary": "Choose from library",
+    "chooseFile": "Choose a file",
+    "permission": "Initiative needs permission to use your camera and photos. Allow it in your device settings, then try again.",
+    "unavailable": "This device has no camera to take a photo with.",
+    "failed": "That photo could not be read. Try again."
   }
 }
