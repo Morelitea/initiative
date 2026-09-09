@@ -11,6 +11,7 @@ import pytest
 
 from app.api.v1.platform_endpoints.field_catalog import read_query_vocabulary
 from app.models.platform.guild import GuildRole
+from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
 from app.services.query.resolve import QueryError, resolve
 
@@ -18,8 +19,13 @@ from app.services.query.resolve import QueryError, resolve
 @pytest.mark.unit
 class TestTheVocabularyIsTheValidatorsOwn:
     def test_every_dataset_offered_can_be_read(self):
-        for dataset in read_query_vocabulary().datasets:
-            resolve(f"SELECT id FROM {dataset}")
+        """Named with a field it actually declares, not with ``id``: a join
+        table is keyed by the two things it relates and has no id of its own."""
+        for name in read_query_vocabulary().datasets:
+            field = next(
+                spec.name for spec in dataset(name).fields if spec.column is not None
+            )
+            resolve(f"SELECT {field} FROM {name}")
 
     def test_every_function_offered_is_one_the_validator_accepts(self):
         """Called with an argument each takes, so a refusal here is the name

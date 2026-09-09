@@ -19,6 +19,7 @@ them at all.
 import pytest
 from sqlalchemy import text
 
+from app.db.schema_provisioning import guild_query_role_name
 from app.testing import create_guild, create_guild_membership, create_user
 
 pytestmark = pytest.mark.database
@@ -28,8 +29,14 @@ _IDS = "SELECT id FROM public.current_guild_members ORDER BY id"
 
 
 async def _as_query_role(conn, guild_id: int):
-    """Become the role a query runs as. Everything below reads through it."""
-    await conn.execute(text(f'SET LOCAL ROLE "guild_{int(guild_id)}_q"'))
+    """Become the role a query runs as. Everything below reads through it.
+
+    Named through the provisioner's own helper rather than spelled out: every
+    test run gets its own prefixed roles, and roles are cluster-global — so a
+    hand-written ``guild_1_q`` finds whatever another database left lying
+    around, or nothing at all.
+    """
+    await conn.execute(text(f'SET LOCAL ROLE "{guild_query_role_name(guild_id)}"'))
 
 
 async def _routed(conn, guild_id: int | None, *, pam: bool = False):
