@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bursts of change stop stuttering** — a batch is worked out once rather than per item: a third of a second of unresponsive page becomes under a millisecond.
 
 ### Fixed
+- **A dashboard tile nobody has pointed anywhere stops reporting a failure** — a widget placed but not yet given anything to show asked the server for a statement it does not have, and drew that refusal as data it could not load.
 - **An empty heatmap says it is empty** — a daily-activity tile with nothing to show yet reported that it had no date column to place values on, sending its author to fix a query that was never wrong.
 
 - **The unread dot reaches the initiative and the tool** — it lit the community and stopped there, because almost nothing recorded where it happened: a mention, a reply, a comment or an assignment named its community and nothing inside it. They carry the initiative and the tool now, so the dot runs all the way down the sidebar and finding what happened is following a trail. On the rail it also moves onto the community's picture, where a presence dot sits, rather than hanging off the corner of the square behind it.

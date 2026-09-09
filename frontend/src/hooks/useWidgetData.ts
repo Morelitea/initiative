@@ -124,7 +124,12 @@ export function useWidgetData(
   // question somebody published, and there is no way to ask another of them.
   // A widget that is not placed yet — the config dialog's preview — has no
   // stored statement to look up, so it sends the one being written.
-  const placed = typeof dashboardId === "number" && Boolean(widgetId);
+  // A widget nobody has pointed anywhere yet has no statement for the server to
+  // look up, and asking for one is a request that can only come back empty
+  // handed. The binding here is the effective one — the definition with the
+  // instance config over it, which is what the server reads too — so this asks
+  // the same question the lookup would.
+  const placed = typeof dashboardId === "number" && Boolean(widgetId) && Boolean(binding.sql);
   const widgetQuery = useWidgetQuery(
     source === "query" && placed ? (dashboardId ?? null) : null,
     source === "query" && placed ? (widgetId ?? null) : null,

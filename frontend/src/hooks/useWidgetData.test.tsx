@@ -145,6 +145,18 @@ describe("a widget already on a dashboard", () => {
     ).toBe(false);
   });
 
+  it("asks for nothing where nobody has pointed it anywhere", () => {
+    // A placed widget with no statement has none for the server to look up,
+    // and the tile already draws this as unconfigured rather than as a
+    // failure. Asking would be a request that can only come back empty
+    // handed — and one that reads as a broken tile if anything downstream
+    // treats a refusal as an error.
+    renderHook(() => useWidgetData({ source: "query" }, 7, 11, "w1"));
+    const asked = useWidgetQuery.mock.calls.at(-1);
+    expect(asked?.slice(0, 2)).toEqual([null, null]);
+    expect(Boolean((asked?.[2] as { enabled?: boolean } | undefined)?.enabled)).toBe(false);
+  });
+
   it("sends the statement while it is still being written", () => {
     // No dashboard and no widget: the config dialog's preview, which has
     // nothing stored yet for the server to look up.
