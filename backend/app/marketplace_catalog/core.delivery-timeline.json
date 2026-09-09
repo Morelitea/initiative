@@ -46,7 +46,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS tasks FROM tasks WHERE due_date IS NOT NULL"
+          "sql": "SELECT count(*) AS tasks FROM tasks WHERE due_date IS NOT NULL AND completed_at IS NULL"
         },
         "title": "Still open"
       },
@@ -61,7 +61,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT title, start_date, due_date, priority FROM tasks ORDER BY due_date"
+          "sql": "SELECT title, start_date, due_date, priority FROM tasks WHERE completed_at IS NULL ORDER BY due_date"
         },
         "title": "Open work"
       }

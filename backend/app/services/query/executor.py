@@ -32,7 +32,7 @@ from typing import Any, AsyncIterator, Mapping
 from asyncpg.exceptions import (
     DataError,
     QueryCanceledError,
-    UndefinedFunctionError,
+    SyntaxOrAccessError,
 )
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -237,18 +237,20 @@ async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
 async def _translated_failures() -> AsyncIterator[None]:
     """Turn what the database says into what this surface answers.
 
-    The two things a statement this surface accepted can still do: run out of
-    the time it is allowed, or fail on a value — a division by zero, a value
-    that will not convert, a function called with types it does not take. Both
-    are the reader's statement rather than the app's, so both are told back
-    with a code and what the database said, and both reach the reader whether
-    the statement was run or only described.
+    Two things a statement this surface accepted can still do. It can run out
+    of the time it is allowed. And it can be a statement the server will not
+    run: a value that will not convert or a division by zero, or a shape the
+    grammar allows and the planner rejects — a column selected beside an
+    aggregate without being grouped, a function called with types it does not
+    take. Every one of them is the reader's statement rather than the app's, so
+    each is told back with a code and what the database said, whether the
+    statement was run or only described.
     """
     try:
         yield
     except QueryCanceledError as cancelled:
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
-    except (DataError, UndefinedFunctionError) as failed:
+    except (DataError, SyntaxOrAccessError) as failed:
         raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
@@ -260,10 +262,24 @@ def _routed_guild(context: Mapping[str, Any]) -> int:
     return int(guild_id)
 
 
+def _scoped(context: Mapping[str, Any], initiative_id: int | None) -> dict[str, Any]:
+    """The request's own context, as the query role, narrowed to one initiative.
+
+    Both entry points below establish the same thing, so they say it once: the
+    reader is whoever the request admitted, the role is the query role, and the
+    scope is the surface's if it named one.
+    """
+    routed = dict(context)
+    routed["query"] = True
+    routed["scope_initiative_id"] = initiative_id
+    return routed
+
+
 async def execute(
     statement: ResolvedQuery,
     *,
     context: Mapping[str, Any],
+    initiative_id: int | None = None,
 ) -> QueryResult:
     """Run an already-resolved statement under *context*.
 
@@ -273,10 +289,14 @@ async def execute(
     reaches through any other part of the app — a member's, a read-only
     member's, a grantee's — decided once, by the dependency that admitted the
     request, rather than again here.
+
+    *initiative_id* narrows that to one initiative. A statement names datasets
+    rather than a scope, so an initiative-scoped surface says which initiative
+    it is asking about and the policies on the tables it reads answer for that
+    one. It removes rows and never adds any, so a caller may always pass it.
     """
     guild_id = _routed_guild(context)
-    routed = dict(context)
-    routed["query"] = True
+    routed = _scoped(context, initiative_id)
     async with _translated_failures():
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
@@ -318,13 +338,15 @@ async def execute(
             )
 
 
-async def run(sql: str, *, context: Mapping[str, Any]) -> QueryResult:
+async def run(
+    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
+) -> QueryResult:
     """Read *sql* and run what it resolves to."""
-    return await execute(resolve(sql), context=context)
+    return await execute(resolve(sql), context=context, initiative_id=initiative_id)
 
 
 async def describe(
-    sql: str, *, context: Mapping[str, Any]
+    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
 ) -> tuple[tuple[QueryColumn, ...], tuple[str, ...]]:
     """What *sql* would return, without returning it.
 
@@ -337,8 +359,7 @@ async def describe(
     statement is only preparable against the schema its reader is routed to.
     """
     statement = resolve(sql)
-    routed = dict(context)
-    routed["query"] = True
+    routed = _scoped(context, initiative_id)
     _routed_guild(context)
 
     async with _translated_failures():

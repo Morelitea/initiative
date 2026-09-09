@@ -21,6 +21,11 @@ class QueryRequest(SanitizedBaseModel):
     #: surface accepts fits comfortably, and a payload past it is not a query
     #: anybody wrote by hand.
     sql: str = Field(min_length=1, max_length=20_000)
+    #: Which initiative the answer is about. A statement names datasets, not a
+    #: scope, so a surface that belongs to one initiative says so and the rows
+    #: come back narrowed to it. Omitted means the whole guild the reader
+    #: reaches.
+    initiative_id: Optional[int] = Field(default=None, gt=0)
 
 
 class QueryColumnDescription(SanitizedBaseModel):
@@ -93,6 +98,11 @@ class QueryBuildRequest(SanitizedBaseModel):
     group_by: List[str] = Field(default_factory=list, max_length=10)
     order_by: Optional[QuerySortSpec] = None
     limit: Optional[int] = Field(default=None, gt=0, le=10_000)
+    #: Which initiative the answer is about. A statement names datasets, not a
+    #: scope, so a surface that belongs to one initiative says so and the rows
+    #: come back narrowed to it. Omitted means the whole guild the reader
+    #: reaches.
+    initiative_id: Optional[int] = Field(default=None, gt=0)
 
 
 class QueryBuildResponse(SanitizedBaseModel):

@@ -38,7 +38,7 @@ import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
-import { resolveMapping } from "@/lib/widgets/shape";
+import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
 
 export interface DashboardWidgetProps {
@@ -116,8 +116,12 @@ export function DashboardWidget({
   // and neither is the widget's to read.
   const catalogQuery = useWidgetCatalog();
   const shape = shapeFor(widget.type, catalogQuery.data);
-  const slots =
-    data.source === "rows" ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  const rows = data.source === "rows";
+  const slots = rows ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  // A query edited under a saved widget can stop returning the shape it draws.
+  // The table draws any shape, so it is what a tile falls back to — showing the
+  // rows that did come back beats showing an empty chart.
+  const drawable = !rows || canDraw(data.columns, shape, widget.mapping);
   const isLoading = sampleData ? false : live.isLoading;
   const errorCode = sampleData ? undefined : live.errorCode;
 
@@ -159,7 +163,7 @@ export function DashboardWidget({
             />
           )}
         </div>
-        {!unconfigured && !restricted && (
+        {!unconfigured && !restricted && drawable && (
           <Button
             size="icon"
             variant="ghost"
@@ -218,7 +222,7 @@ export function DashboardWidget({
             errorCode={errorCode}
             isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
-            view={view}
+            view={drawable ? view : "table"}
             chromeless
           />
         )}

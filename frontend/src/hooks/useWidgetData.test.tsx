@@ -32,8 +32,10 @@ vi.mock("@/hooks/useAppData", () => ({
 
 /** The statement the query hook was actually asked for. */
 const asked = (): unknown => useSqlQuery.mock.calls.at(-1)?.[0];
+/** The initiative it was asked to narrow the answer to. */
+const scopedTo = (): unknown => useSqlQuery.mock.calls.at(-1)?.[1];
 const enabled = (): boolean =>
-  Boolean((useSqlQuery.mock.calls.at(-1)?.[1] as { enabled?: boolean } | undefined)?.enabled);
+  Boolean((useSqlQuery.mock.calls.at(-1)?.[2] as { enabled?: boolean } | undefined)?.enabled);
 
 const run = (binding: WidgetBinding, initiativeId: number | undefined) =>
   renderHook(() => useWidgetData(binding, initiativeId));
@@ -48,6 +50,13 @@ describe("a query binding", () => {
     run({ source: "query", sql: "SELECT title FROM tasks" }, 4);
     expect(asked()).toBe("SELECT title FROM tasks");
     expect(enabled()).toBe(true);
+  });
+
+  it("asks about the dashboard's own initiative", () => {
+    // A statement names datasets, not a scope, so the dashboard's own
+    // initiative is what decides which rows the answer is about.
+    run({ source: "query", sql: "SELECT title FROM tasks" }, 4);
+    expect(scopedTo()).toBe(4);
   });
 
   it("asks for nothing without an initiative", () => {

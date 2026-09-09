@@ -336,6 +336,8 @@
     "everythingTogether": "Everything together",
     "groupByHelp": "Group rows that share a value, and count or total the rest.",
     "statement": "The statement this builds",
+    "notBuilt": "This widget's query was not built by clicking, so it is shown as it is.",
+    "buildNew": "Build a new query",
     "refused": "That combination cannot be read. Try a different column."
   },
   "aggregate": {

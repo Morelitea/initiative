@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS tasks FROM tasks"
+          "sql": "SELECT count(*) AS tasks FROM tasks WHERE completed_at IS NULL"
         },
         "title": "Open work"
       },
@@ -61,7 +61,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT p.name AS project, count(*) AS tasks FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name"
+          "sql": "SELECT count(completed_at) AS finished, count(*) AS total FROM tasks"
         },
         "title": "Overall progress"
       },

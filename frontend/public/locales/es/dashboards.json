@@ -336,6 +336,8 @@
     "everythingTogether": "Todo junto",
     "groupByHelp": "Agrupa las filas que comparten un valor y cuenta o suma el resto.",
     "statement": "La sentencia que esto construye",
+    "notBuilt": "La consulta de este widget no se creó haciendo clic, así que se muestra tal cual.",
+    "buildNew": "Crear una consulta nueva",
     "refused": "Esa combinación no se puede leer. Prueba con otra columna."
   },
   "aggregate": {

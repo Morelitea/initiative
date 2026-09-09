@@ -172,6 +172,7 @@ _CONTEXT_SQL = (
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('app.override_initiatives', :ovr, true), "
+    "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -196,6 +197,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # Initiatives where the request holds "Full access". Rendered as a comma
     # list so the policy reads it with one string_to_array; empty when none.
     override = params.get("override_initiatives") or ()
+    scope_initiative_id = params.get("scope_initiative_id")
     override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
 
     # Billing-service path (set_billing_context): assumes the
@@ -214,6 +216,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "satp": "",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
+            "sinit": "",
             "sp": _search_path("public"),
             "role": billing_role_name(),
         }
@@ -287,6 +290,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "bgid": "",
         "ovr": override_csv,
+        "sinit": str(int(scope_initiative_id))
+        if scope_initiative_id is not None
+        else "",
         "sp": sp,
         "role": role_target,
     }
@@ -337,6 +343,7 @@ async def set_rls_context(
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     override_initiatives: Optional[Sequence[int]] = None,
+    scope_initiative_id: Optional[int] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -365,6 +372,13 @@ async def set_rls_context(
     level while reads (and the member/admin RLS legs) behave normally. It is
     independent of the PAM read-grant routing, which derives the same role
     from ``pam_read``/``pam_write``.
+
+    ``scope_initiative_id`` narrows the read to one initiative: rows belonging
+    to another are not part of the answer, whatever else the context allows.
+    It only ever removes rows — an initiative the caller could not reach
+    anyway yields nothing — and it is what lets an initiative-scoped surface
+    ask a guild-scoped question and get its own initiative's answer. Unset
+    means no narrowing, which is every ordinary request.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -432,6 +446,7 @@ async def set_rls_context(
         "query": query,
         "satisfied_providers": satisfied_providers,
         "override_initiatives": tuple(override_initiatives or ()),
+        "scope_initiative_id": scope_initiative_id,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

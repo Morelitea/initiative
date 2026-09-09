@@ -4,8 +4,8 @@
   "kind": "dashboard",
   "name": "Team activity",
   "publisher": "Initiative",
-  "description": "Who is doing what, and when it gets done.",
-  "long_description": "A read-only pulse of the initiative's people. How the work spreads across the team, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
+  "description": "What is getting done, and where.",
+  "long_description": "A read-only pulse of the initiative's work. How it spreads across the projects, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-team-activity.svg",
   "images": [],
   "version": "1.0.0",
@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT date_trunc('day', created_at) AS day, count(*) AS opened FROM tasks GROUP BY date_trunc('day', created_at) ORDER BY date_trunc('day', created_at)"
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL"
         },
         "title": "Finished"
       },
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT date_trunc('day', created_at) AS day, count(*) AS opened FROM tasks GROUP BY date_trunc('day', created_at) ORDER BY date_trunc('day', created_at)"
+          "sql": "SELECT date_trunc('day', completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL GROUP BY date_trunc('day', completed_at) ORDER BY date_trunc('day', completed_at)"
         },
         "title": "Completions by day"
       },
@@ -60,7 +60,7 @@
           "source": "query",
           "sql": "SELECT p.name AS project, count(*) AS tasks FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) DESC"
         },
-        "title": "Work by person",
+        "title": "Work by project",
         "options": {
           "mark": "bar"
         }

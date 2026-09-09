@@ -4988,6 +4988,7 @@ export interface QueryBuildRequest {
   group_by?: string[];
   order_by?: QuerySortSpec | null;
   limit?: number | null;
+  initiative_id?: number | null;
 }
 
 /**
@@ -5016,6 +5017,7 @@ export interface QueryRequest {
    * @maxLength 20000
    */
   sql: string;
+  initiative_id?: number | null;
 }
 
 /**

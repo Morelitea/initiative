@@ -91,9 +91,10 @@ export interface WidgetDataResult {
  * held against the initiative afterwards, so an id pointing into another one
  * resolves to absent — the same rendering as a deleted or unshared target.
  *
- * A statement needs no such holding: it runs under the reader's own session
- * against their guild's schema, and the policies on the tables it reads decide
- * every row it returns.
+ * A statement is held against it the same way, but at the database rather than
+ * afterwards: the initiative goes with the request, and the policies on the
+ * tables the statement reads answer for that initiative alone. So a widget
+ * cannot show another initiative's rows even to a reader who is in both.
  *
  * `dashboardId` is the row the widget sits on, and only the `app` source needs
  * it: an app's data is guild-level, so the proxy is told which
@@ -108,11 +109,15 @@ export function useWidgetData(
   const source = binding.source;
   const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
 
-  // The statement is the request: no ids to resolve first, and nothing to
-  // narrow it by afterwards — a query says what it reads.
-  const sqlQuery = useSqlQuery(source === "query" ? (binding.sql ?? null) : null, {
-    enabled: scoped && source === "query",
-  });
+  // The statement is the request: no ids to resolve first. What it does not
+  // say is *whose* — a statement names datasets, and the reader belongs to
+  // however many initiatives they belong to — so the dashboard's own
+  // initiative goes with it and the rows come back narrowed to it.
+  const sqlQuery = useSqlQuery(
+    source === "query" ? (binding.sql ?? null) : null,
+    scoped ? initiativeId : undefined,
+    { enabled: scoped && source === "query" }
+  );
   const documentQuery = useDocument(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );

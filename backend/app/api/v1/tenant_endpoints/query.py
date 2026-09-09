@@ -7,6 +7,11 @@ same grant if there is one. A query therefore returns what its author reaches
 through any other part of the app, which is why membership is the whole of the
 permission question here.
 
+A statement names datasets rather than a scope, so a caller that belongs to
+one initiative sends its id and the rows come back narrowed to it. That only
+ever removes rows — the reader still reaches exactly what they reach elsewhere —
+and it is what lets an initiative's dashboard ask a guild-scoped question.
+
 What the statement may say, and what running it may cost, are answered in
 :mod:`app.services.query`.
 """
@@ -51,7 +56,9 @@ async def describe_query(
     """
     try:
         columns, relations = await query_service.describe(
-            payload.sql, context=rls_context_params(session)
+            payload.sql,
+            context=rls_context_params(session),
+            initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:
         raise HTTPException(
@@ -79,7 +86,9 @@ async def run_query(
     """Read one statement and return its rows."""
     try:
         result = await query_service.run(
-            payload.sql, context=rls_context_params(session)
+            payload.sql,
+            context=rls_context_params(session),
+            initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:
         raise HTTPException(
@@ -109,7 +118,9 @@ async def build_query(
     try:
         sql = query_builder.build(_spec(payload))
         columns, relations = await query_service.describe(
-            sql, context=rls_context_params(session)
+            sql,
+            context=rls_context_params(session),
+            initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:
         raise HTTPException(

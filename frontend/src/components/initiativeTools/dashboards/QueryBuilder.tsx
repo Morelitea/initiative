@@ -16,10 +16,10 @@ import { Plus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
+import {
   DatasetName,
-  QueryBuildRequest,
-  QueryColumnSpec,
+  type QueryBuildRequest,
+  type QueryColumnSpec,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,16 +33,10 @@ import {
 import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import type { FilterFieldSpec } from "@/lib/widgets/conditions";
 
-/** The datasets a query may name. Served by the backend's own registry, so a
- *  dataset declared there is offered here without an edit. */
-const DATASETS: DatasetName[] = [
-  "tasks",
-  "projects",
-  "calendar_events",
-  "counters",
-  "counter_groups",
-  "task_statuses",
-] as DatasetName[];
+/** The datasets a query may name. Read from the generated enum, which is the
+ *  backend's own registry — so a dataset declared there is offered here on the
+ *  next generation rather than after an edit to a second list. */
+const DATASETS = Object.values(DatasetName) as DatasetName[];
 
 /** What a column may be reduced to, mirroring the builder's own set. */
 const AGGREGATES = ["count", "sum", "avg", "min", "max"] as const;

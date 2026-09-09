@@ -371,6 +371,43 @@ class TestShapesATileAsks:
         assert resolve(sql).sql
 
 
+class TestAGroupedExpressionKeepsItsShape:
+    """``GROUP BY`` finds its output column by matching the expression, so both
+    copies have to be written the same way. A parameter is numbered by where it
+    is met, and the copies are met in different clauses — so a constant inside
+    a grouped expression stays a constant, on both sides."""
+
+    def test_a_bucket_is_written_the_same_way_twice(self):
+        resolved = resolve(
+            "SELECT date_trunc('day', completed_at) AS day, count(*) AS n "
+            "FROM tasks GROUP BY date_trunc('day', completed_at) "
+            "ORDER BY date_trunc('day', completed_at)"
+        )
+        assert resolved.parameters == ()
+        assert resolved.sql.count("date_trunc('day', completed_at)") == 3
+
+    def test_a_value_compared_against_a_column_is_still_bound(self):
+        """The narrowing keeps its parameter: that is what lets an unadorned
+        value take the column's type rather than reading as text."""
+        resolved = resolve(
+            "SELECT date_trunc('day', completed_at) AS day, count(*) AS n "
+            "FROM tasks WHERE priority = 'high' "
+            "GROUP BY date_trunc('day', completed_at)"
+        )
+        assert resolved.parameters == ("high",)
+        assert "priority = $1" in resolved.sql
+
+    def test_an_ordinal_still_selects_an_output_column(self):
+        """``GROUP BY 1`` matches by position, so the expression it names has
+        nothing to agree with and its constant binds as usual."""
+        resolved = resolve(
+            "SELECT date_trunc('month', due_date) AS m, count(*) AS n "
+            "FROM tasks GROUP BY 1 ORDER BY 1"
+        )
+        assert resolved.parameters == ("month",)
+        assert "GROUP BY 1" in resolved.sql
+
+
 class TestSubqueriesAreNotAcceptedYet:
     """Deny-by-default means these are refused rather than half-supported;
     admitting them is adding a scope to resolve against, not removing a check."""

@@ -434,26 +434,73 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
     Resolve()(select)
 
 
+def _constants_in(node: Any) -> set[int]:
+    """Every constant anywhere under *node*."""
+    found: set[int] = set()
+
+    class Collect(Visitor):
+        def visit_A_Const(self, ancestors: Any, inner: ast.A_Const) -> None:
+            found.add(id(inner))
+
+    if node is not None:
+        Collect()(node)
+    return found
+
+
+def _grouped_expressions(select: ast.SelectStmt) -> tuple[set[int], set[str]]:
+    """Constants inside what a statement groups or orders by, and how those
+    expressions are written.
+
+    ``GROUP BY`` finds its output column by matching the expression, so the two
+    copies of one have to be written the same way. A parameter is numbered by
+    where it is met, and the two copies are met in different places — so a
+    constant under either clause stays the constant it was, and so does its
+    twin in the select list.
+    """
+    marked: set[int] = set()
+    written: set[str] = set()
+    stream = RawStream()
+    for entry in select.groupClause or ():
+        if isinstance(entry, ast.A_Const):
+            continue
+        marked |= _constants_in(entry)
+        written.add(stream(entry))
+    for entry in select.sortClause or ():
+        node = entry.node if isinstance(entry, ast.SortBy) else entry
+        if node is None or isinstance(node, ast.A_Const):
+            continue
+        marked |= _constants_in(node)
+        written.add(stream(node))
+    return marked, written
+
+
 def _literal_positions(select: ast.SelectStmt) -> set[int]:
     """Constants that stay constants.
 
-    Two kinds. ``GROUP BY 1`` and ``ORDER BY 1`` select an output column, and a
-    parameter there would be the number one. And a constant standing alone in
-    the select list has nothing to take a type from — Postgres reads an
-    unadorned parameter there as text — where the same constant compared
-    against a column takes that column's type, which is what makes
-    ``priority = $1`` work against an enum.
+    Three kinds. ``GROUP BY 1`` and ``ORDER BY 1`` select an output column, and
+    a parameter there would be the number one. A constant standing alone in the
+    select list has nothing to take a type from — Postgres reads an unadorned
+    parameter there as text — where the same constant compared against a column
+    takes that column's type, which is what makes ``priority = $1`` work
+    against an enum. And a constant inside a grouped or ordered expression is
+    part of how that expression is written, which is what the output column is
+    found by.
     """
-    marked: set[int] = set()
+    marked, grouped = _grouped_expressions(select)
     for entry in select.groupClause or ():
         if isinstance(entry, ast.A_Const):
             marked.add(id(entry))
     for entry in select.sortClause or ():
         if isinstance(entry, ast.SortBy) and isinstance(entry.node, ast.A_Const):
             marked.add(id(entry.node))
+    stream = RawStream()
     for target in select.targetList or ():
-        if isinstance(target, ast.ResTarget) and isinstance(target.val, ast.A_Const):
+        if not isinstance(target, ast.ResTarget):
+            continue
+        if isinstance(target.val, ast.A_Const):
             marked.add(id(target.val))
+        elif target.val is not None and stream(target.val) in grouped:
+            marked |= _constants_in(target.val)
     return marked
 
 

@@ -512,6 +512,7 @@ function ParamControl({
       return (
         <QueryParam
           binding={binding}
+          initiativeId={initiativeId}
           onChange={onChange}
           paramKey={param.key as keyof WidgetBinding}
         />
@@ -832,36 +833,56 @@ function BindingPreview({
  * the server writes the statement from it — which is also what guarantees the
  * statement is one the surface will run.
  *
- * The SQL is read-only here. A statement typed by hand is the next thing to
- * build (it needs the builder to go read-only behind it, with the text
+ * Not every statement has a description behind it. The ones a listing ships and
+ * the ones the cutover wrote were never clicked, so there is nothing for the
+ * builder to reopen on — and rebuilding one from a guess would replace somebody
+ * else's query with our own. Those are shown as they are, and stay that way
+ * until an author asks to build a new one. Opening a widget's configuration
+ * never rewrites it.
+ *
+ * The SQL is read-only either way. A statement typed by hand is the next thing
+ * to build (it needs the builder to go read-only behind it, with the text
  * authoritative); until then, showing what the clicking produced is what makes
  * the builder legible rather than magic.
  */
+
+/** Where a widget starts when nothing has been chosen yet: how many rows there
+ *  are. It is the smallest query that draws something, so a new widget is
+ *  never empty while its author decides what they wanted. */
+const NEW_QUERY: QueryBuildRequest = {
+  dataset: "tasks",
+  columns: [{ field: "*", aggregate: "count", alias: "count" }],
+  where: [],
+  group_by: [],
+};
+
 function QueryParam({
   binding,
+  initiativeId,
   paramKey,
   onChange,
 }: {
   binding: WidgetBinding;
+  initiativeId: number;
   paramKey: keyof WidgetBinding;
   onChange: (patch: Partial<WidgetBinding>) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const [spec, setSpec] = useState<QueryBuildRequest>(
-    () =>
-      (binding.spec as QueryBuildRequest | undefined) ?? {
-        dataset: "tasks",
-        columns: [{ field: "*", aggregate: "count", alias: "count" }],
-        where: [],
-        group_by: [],
-      }
-  );
-  const built = useQueryBuilder(spec);
+  const stored = binding[paramKey] as string | undefined;
+  // A statement with no description behind it stays as it is: `undefined` here
+  // means the builder is not driving this binding, and nothing below writes.
+  const [spec, setSpec] = useState<QueryBuildRequest | undefined>(() => {
+    const described = binding.spec as QueryBuildRequest | undefined;
+    if (described) return { ...described, initiative_id: initiativeId };
+    return stored ? undefined : { ...NEW_QUERY, initiative_id: initiativeId };
+  });
+  const built = useQueryBuilder(spec ?? null);
 
   // The statement and the description are stored together: the description is
   // what reopens the builder on what somebody built, rather than leaving them
   // to read back their own SQL.
   useEffect(() => {
+    if (!spec) return;
     if (built.data?.sql && built.data.sql !== binding[paramKey]) {
       onChange({ [paramKey]: built.data.sql, spec } as Partial<WidgetBinding>);
     }
@@ -869,7 +890,20 @@ function QueryParam({
 
   return (
     <section className="space-y-3">
-      <QueryBuilder spec={spec} onChange={setSpec} />
+      {spec ? (
+        <QueryBuilder spec={spec} onChange={setSpec} />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3">
+          <p className="text-muted-foreground text-xs">{t("dashboards:builder.notBuilt")}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSpec({ ...NEW_QUERY, initiative_id: initiativeId })}
+          >
+            {t("dashboards:builder.buildNew")}
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="built-sql">{t("dashboards:builder.statement")}</Label>
@@ -879,7 +913,7 @@ function QueryParam({
           rows={4}
           spellCheck={false}
           className="bg-muted font-mono text-xs"
-          value={built.data?.sql ?? (binding[paramKey] as string) ?? ""}
+          value={(spec ? built.data?.sql : undefined) ?? stored ?? ""}
         />
         {built.isError ? (
           <p className="text-destructive text-xs">{t("dashboards:builder.refused")}</p>
