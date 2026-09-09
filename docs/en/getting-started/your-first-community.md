@@ -65,6 +65,10 @@ Click a community's icon on the rail and the whole app moves over with you: side
 
 ## Next
 
-You're in. Either build a mental picture with [how Initiative is organized](../concepts/index.md), or skip it entirely and go straight to the [how-to guides](../guides/index.md).
+You're in. Now click the **Initiative logo** at the top of the rail, above the community icons.
+
+That's [your space](../guides/your-space.md): everything assigned to you, pulled out of every community you're in, on one page. It's where you'll start most days, and it's the reason belonging to four groups doesn't mean checking four groups.
+
+After that, either build a mental picture with [how Initiative is organized](../concepts/index.md), or skip it entirely and go straight to the [how-to guides](../guides/index.md).
 
 Both are completely valid life choices and we won't ask which you picked.

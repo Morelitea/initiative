@@ -6,23 +6,29 @@ icon: lucide/user
 
 Most of Initiative is organised by community and initiative, which is excellent right up until you belong to four of them and simply want to know what you're supposed to be doing today.
 
-That's what **your space** is for: personal views that gather *your* things from across **every** community at once. Click the **Initiative logo** in the **top-left corner**, above your communities on the rail.
+That's what **your space** is for: personal views that gather *your* things from across **every** community at once.
+
+You've already been in it. Signing in puts you here, and the **Initiative logo** in the **top-left corner** — above your communities on the rail — brings you back from wherever you've got to. The sidebar swaps to your own short list: My Tasks, My Calendar, My Tools, My Messages, My Stats.
 
 ## My Tasks
 
-Everything assigned to you, from every community and every project, in one list. Group it **by date** or **by community**, filter by priority, status or community.
+Everything assigned to you, from every community and every project, in one list — the page signing in drops you on. Group it **by date** or **by community**, filter by priority or status, or swap the table for a **calendar**.
 
 If you only ever open one page in Initiative for the rest of your life, it's this one.
 
-## Tasks I Created
+### Focus
 
-The tasks *you* made, wherever they ended up. Useful for gently following up on the things you handed to other people, in a way that isn't nagging because you've got a list.
+The short list at the top: what actually wants doing. Overdue work always shows, and past that you set how far ahead to look for each priority — so an urgent thing can appear a month out while a low one waits until the day.
+
+**Pin** anything to keep it there whatever those settings say. The thing you promised on the phone. The thing that isn't due for weeks but will comprehensively ruin the week it *is* due.
+
+Tick something off and it stays until tomorrow, struck through, with the count above it going up. The pile shrinking is the point.
 
 ## My Tools
 
-Every project, document, queue, counter, calendar, dashboard and board that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
+Every project, document, queue, counter, calendar, dashboard and post that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
-A tool you have none of anywhere doesn't get a tab at all. Never touched a queue? No queue tab, and no empty table sulking behind it.
+A tool you have none of anywhere doesn't appear at all. Never touched a queue? No queue, and no empty table sulking behind it.
 
 "Reached you" means the same thing everywhere in your space: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It does **not** mean "everything you could theoretically prise open if you went looking". Even a community admin, who can reach absolutely anything in their community, gets their own work here rather than a 400-row inventory of everybody else's.
 
