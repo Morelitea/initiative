@@ -1,7 +1,7 @@
 import type { PostReactionSettings } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setPostReactionSettingsApiV1GGuildIdPostsPostIdReactionsPut } from "@/api/generated/posts/posts";
-import { invalidateTool } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -23,7 +23,7 @@ export const useSetPostReactions = (
           reactions_enabled: enabled,
         }),
       invalidate: (_data, vars) => {
-        invalidateTool(Tool.post, vars.id);
+        invalidate(q.tool(Tool.post, vars.id));
       },
       errorKey: "common:toolSettings.reactionsError",
     },

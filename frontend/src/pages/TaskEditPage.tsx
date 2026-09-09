@@ -22,7 +22,7 @@ import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
-import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { Markdown } from "@/components/Markdown";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
@@ -273,12 +273,13 @@ export const TaskEditPage = () => {
       );
       const previousProjectId = moveContext?.previousProjectId;
       if (typeof previousProjectId === "number") {
-        void invalidateProjectTaskStatuses(previousProjectId);
-        void invalidateProject(previousProjectId);
+        void invalidate(q.projectTaskStatuses(previousProjectId), q.project(previousProjectId));
       }
       if (typeof moveContext?.targetProjectId === "number") {
-        void invalidateProjectTaskStatuses(moveContext.targetProjectId);
-        void invalidateProject(moveContext.targetProjectId);
+        void invalidate(
+          q.projectTaskStatuses(moveContext.targetProjectId),
+          q.project(moveContext.targetProjectId)
+        );
       }
       setIsMoveDialogOpen(false);
       toast.success(

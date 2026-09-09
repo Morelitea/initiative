@@ -26,7 +26,7 @@ import type {
   FilterPresetReorderRequest,
   FilterPresetUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateProjectFilterPresets } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -63,7 +63,7 @@ export const useCreateFilterPreset = (
     {
       mutationFn: (guildId, data) =>
         createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost(guildId, projectId, data),
-      invalidate: () => invalidateProjectFilterPresets(projectId),
+      invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
     options
@@ -82,7 +82,7 @@ export const useUpdateFilterPreset = (
           presetId,
           data
         ),
-      invalidate: () => invalidateProjectFilterPresets(projectId),
+      invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
     options
@@ -97,7 +97,7 @@ export const useDeleteFilterPreset = (projectId: number, options?: MutationOpts<
           projectId,
           presetId
         ),
-      invalidate: () => invalidateProjectFilterPresets(projectId),
+      invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetDeleteError",
     },
     options
@@ -115,7 +115,7 @@ export const useReorderFilterPresets = (
           projectId,
           data
         ),
-      invalidate: () => invalidateProjectFilterPresets(projectId),
+      invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
     options

@@ -28,19 +28,13 @@ import {
   useUpdateDmSettingsApiV1MeDmSettingsPatch,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DirectMessagePermissionsResponse } from "@/api/generated/initiativeAPI.schemas";
-import {
-  invalidateContactGrants,
-  invalidateDmSettings,
-  invalidateIgnoredAccounts,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 /** Everything a change to one of these lists can affect. */
 export const refreshContactLists = () => {
-  void invalidateContactGrants();
-  void invalidateIgnoredAccounts();
-  void invalidateDmSettings();
+  void invalidate(q.contactGrants(), q.ignoredAccounts(), q.dmSettings());
 };
 
 /**

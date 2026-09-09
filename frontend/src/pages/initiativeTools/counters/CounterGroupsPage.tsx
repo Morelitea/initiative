@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllCounterGroups } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
@@ -130,7 +130,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
           <BulkAccessSection
             selection={selection}
             tool={Tool.counter_group}
-            invalidate={invalidateAllCounterGroups}
+            invalidate={() => invalidate(q.allCounterGroups())}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((group) => (

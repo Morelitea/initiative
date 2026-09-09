@@ -11,7 +11,7 @@ import {
   markAllNotificationsReadApiV1NotificationsReadAllPost,
   markNotificationReadApiV1NotificationsNotificationIdReadPost,
 } from "@/api/generated/notifications/notifications";
-import { invalidateNotifications } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -81,7 +81,7 @@ export const useMarkNotificationRead = (options?: MutationOpts<NotificationRead,
     {
       mutationFn: (notificationId) =>
         markNotificationReadApiV1NotificationsNotificationIdReadPost(notificationId),
-      invalidate: () => invalidateNotifications(),
+      invalidate: () => invalidate(q.notifications()),
     },
     {
       ...options,
@@ -109,7 +109,7 @@ export const useMarkAllNotificationsRead = (
   return useApiMutation<NotificationCountResponse, void>(
     {
       mutationFn: () => markAllNotificationsReadApiV1NotificationsReadAllPost(),
-      invalidate: () => invalidateNotifications(),
+      invalidate: () => invalidate(q.notifications()),
     },
     {
       ...options,

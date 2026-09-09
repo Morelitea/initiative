@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllTasks, invalidateProjectTaskStatuses } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -341,8 +341,7 @@ export const ProjectTaskStatusesManager = ({
 
     // The centralized hook invalidates per-call, but we also need to ensure
     // all tasks are refreshed after bulk edits (category changes may affect task display).
-    void invalidateProjectTaskStatuses(projectId);
-    void invalidateAllTasks();
+    void invalidate(q.projectTaskStatuses(projectId), q.allTasks());
   };
 
   const hasChanges = useMemo(() => {

@@ -14,7 +14,7 @@ import {
   listUnownedContentApiV1GGuildIdUsersUnownedContentGet,
   transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost,
 } from "@/api/generated/users/users";
-import { invalidateGuildMembers } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -141,7 +141,7 @@ export const TransferContentOwnershipDialog = ({
             member.id,
             body
           )) as unknown as OwnershipTransferResponse;
-      void invalidateGuildMembers();
+      void invalidate(q.guildMembers());
       toast.success(t("transferOwnership.moved", { count: result.total }));
       onSuccess?.();
       onOpenChange(false);

@@ -5,21 +5,24 @@ import { buildUser } from "@/__tests__/factories";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
 
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
 
-const invalidateNotifications = vi.fn();
-const invalidateContactGrants = vi.fn();
-const invalidateIgnoredAccounts = vi.fn();
-const invalidateDmSettings = vi.fn();
+// One entry point now, so a batch is one call naming several things. `q` stays
+// real — the spec it builds is what these assertions compare against.
+const invalidations = vi.hoisted(() => vi.fn());
 vi.mock("@/api/query-keys", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/query-keys")>()),
-  invalidateNotifications: () => invalidateNotifications(),
-  invalidateContactGrants: () => invalidateContactGrants(),
-  invalidateIgnoredAccounts: () => invalidateIgnoredAccounts(),
-  invalidateDmSettings: () => invalidateDmSettings(),
+  invalidate: (...specs: unknown[]) => invalidations(...specs),
 }));
+
+/** How many batches named this. */
+const timesNamed = (spec: unknown) =>
+  invalidations.mock.calls.filter((call: unknown[]) =>
+    call.some((named) => JSON.stringify(named) === JSON.stringify(spec))
+  ).length;
 
 const MSG_AUTH = 5;
 
@@ -31,7 +34,7 @@ const Probe = () => {
 describe("useNotificationStream", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
-    invalidateNotifications.mockClear();
+    invalidations.mockClear();
     vi.stubGlobal("WebSocket", MockWebSocket);
   });
 
@@ -63,11 +66,11 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    invalidateNotifications.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "notification", action: "created", ids: {} });
 
-    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+    expect(timesNamed(q.notifications())).toBe(1);
   });
 
   it("catches up on connect, since nothing signalled while the socket was down", () => {
@@ -75,7 +78,7 @@ describe("useNotificationStream", () => {
 
     latestSocket().open();
 
-    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+    expect(timesNamed(q.notifications())).toBe(1);
   });
 
   it("re-reads the account when the server says its standing changed", () => {
@@ -85,15 +88,14 @@ describe("useNotificationStream", () => {
     socket.open();
     // The catch-up on connect pokes every channel; this test is about the frame.
     refreshUser.mockClear();
-    invalidateNotifications.mockClear();
-    invalidateContactGrants.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "account", action: "membership", ids: {} });
 
     expect(refreshUser).toHaveBeenCalledTimes(1);
     // Three channels over one socket: none answers for the others.
-    expect(invalidateNotifications).not.toHaveBeenCalled();
-    expect(invalidateContactGrants).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
+    expect(timesNamed(q.contactGrants())).toBe(0);
   });
 
   it("re-reads the contact lists when the server says they moved", () => {
@@ -102,34 +104,30 @@ describe("useNotificationStream", () => {
     const socket = latestSocket();
     socket.open();
     refreshUser.mockClear();
-    invalidateNotifications.mockClear();
-    invalidateContactGrants.mockClear();
-    invalidateIgnoredAccounts.mockClear();
-    invalidateDmSettings.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "contacts", action: "changed", ids: {} });
 
     // All three move together: accepting a connection opens a channel, and
     // leaving a community closes one.
-    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
-    expect(invalidateIgnoredAccounts).toHaveBeenCalledTimes(1);
-    expect(invalidateDmSettings).toHaveBeenCalledTimes(1);
+    expect(timesNamed(q.contactGrants())).toBe(1);
+    expect(timesNamed(q.ignoredAccounts())).toBe(1);
+    expect(timesNamed(q.dmSettings())).toBe(1);
     // And neither of the other channels is disturbed.
     expect(refreshUser).not.toHaveBeenCalled();
-    expect(invalidateNotifications).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
   });
 
   it("ignores a frame naming a channel it does not know", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    invalidateNotifications.mockClear();
-    invalidateContactGrants.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "something-new", action: "changed", ids: {} });
 
-    expect(invalidateNotifications).not.toHaveBeenCalled();
-    expect(invalidateContactGrants).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
+    expect(timesNamed(q.contactGrants())).toBe(0);
   });
 
   it("catches up on both channels after the socket was down", () => {
@@ -141,8 +139,8 @@ describe("useNotificationStream", () => {
     // Anything that happened while it was down was never signalled, and that
     // includes being added to a community.
     expect(refreshUser).toHaveBeenCalledTimes(1);
-    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
-    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+    expect(timesNamed(q.notifications())).toBe(1);
+    expect(timesNamed(q.contactGrants())).toBe(1);
   });
 
   it("re-reads everything when the server says its own bus was down", () => {
@@ -150,8 +148,7 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />, { auth: { refreshUser } });
     const socket = latestSocket();
     socket.open();
-    invalidateNotifications.mockClear();
-    invalidateContactGrants.mockClear();
+    invalidations.mockClear();
     refreshUser.mockClear();
 
     // The socket never dropped, so nothing here noticed. The gap was on the
@@ -159,8 +156,8 @@ describe("useNotificationStream", () => {
     // something did.
     socket.receive({ resource: "resync", action: "changed", ids: {} });
 
-    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
-    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+    expect(timesNamed(q.notifications())).toBe(1);
+    expect(timesNamed(q.contactGrants())).toBe(1);
     expect(refreshUser).toHaveBeenCalledTimes(1);
   });
 
@@ -168,11 +165,11 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    invalidateNotifications.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
 
-    expect(invalidateNotifications).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
   });
 
   it("closes a socket the server has gone silent on", async () => {
@@ -294,12 +291,12 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    invalidateNotifications.mockClear();
+    invalidations.mockClear();
 
     socket.receive({ resource: "task", ids: { task_id: 1 } });
     socket.onmessage?.({ data: "not json" });
 
-    expect(invalidateNotifications).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
   });
 
   it("stays up across an account re-read rather than rebuilding for it", () => {

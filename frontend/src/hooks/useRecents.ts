@@ -13,7 +13,7 @@ import {
   getListRecentsApiV1RecentsGetQueryKey,
   listRecentsApiV1RecentsGet,
 } from "@/api/generated/recents/recents";
-import { invalidateRecents } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 
 export type RecentEntityType = RecentItemRead["entity_type"];
 
@@ -61,7 +61,7 @@ export const useRecordRecentView = (entityType: RecentEntityType, guildId: numbe
       await recorders[entityType](guildId, entityId);
     },
     onSuccess: () => {
-      void invalidateRecents();
+      void invalidate(q.recents());
     },
   });
 };
@@ -87,7 +87,7 @@ export const useClearRecentView = () => {
       await clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId);
     },
     onSuccess: () => {
-      void invalidateRecents();
+      void invalidate(q.recents());
     },
   });
 };
@@ -119,7 +119,7 @@ export const useClearRecentViews = () => {
       );
     },
     onSettled: () => {
-      void invalidateRecents();
+      void invalidate(q.recents());
     },
   });
 };

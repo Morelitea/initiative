@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAdminUsers } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -658,7 +658,7 @@ export const SettingsPlatformUsersPage = () => {
           open={deleteUserTarget !== null}
           onOpenChange={(open) => !open && setDeleteUserTarget(null)}
           onSuccess={() => {
-            void invalidateAdminUsers();
+            void invalidate(q.adminUsers());
           }}
           targetUser={deleteUserTarget}
         />

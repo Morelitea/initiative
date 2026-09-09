@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
-import {
-  invalidateContactGrants,
-  invalidateDirectMessages,
-  invalidateDmSettings,
-  invalidateIgnoredAccounts,
-  invalidateNotifications,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
@@ -169,19 +163,17 @@ export const useNotificationStream = () => {
   // frame moves all three lists, because they change together: accepting a
   // connection opens a channel, and leaving a community closes one.
   const refreshContacts = useCallback(() => {
-    void invalidateContactGrants();
-    void invalidateIgnoredAccounts();
-    void invalidateDmSettings();
+    void invalidate(q.contactGrants(), q.ignoredAccounts(), q.dmSettings());
   }, []);
 
   // Everything this socket follows, re-read at once. Used where the gap is
   // real but its contents are not knowable: our own reconnect, and the
   // server's.
   const resync = useCallback(() => {
-    void invalidateNotifications();
+    void invalidate(q.notifications());
     refreshAccount();
     refreshContacts();
-    void invalidateDirectMessages();
+    void invalidate(q.directMessages());
   }, [refreshAccount, refreshContacts]);
 
   useEffect(
@@ -257,7 +249,7 @@ export const useNotificationStream = () => {
             // says the same thing a reconnect does: read everything again.
             resync();
           } else if (payload.resource === "notification") {
-            void invalidateNotifications();
+            void invalidate(q.notifications());
           } else if (payload.resource === "account") {
             refreshAccount();
           } else if (payload.resource === "contacts") {
@@ -265,7 +257,7 @@ export const useNotificationStream = () => {
           } else if (payload.resource === "dm") {
             // A direct-message frame says only that there is something to
             // collect. The page that owns the mailbox does the reading.
-            void invalidateDirectMessages();
+            void invalidate(q.directMessages());
           }
         } catch {
           // ignore malformed frames

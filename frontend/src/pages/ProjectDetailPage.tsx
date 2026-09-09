@@ -4,11 +4,7 @@ import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  invalidateAllTasks,
-  invalidateProject,
-  invalidateProjectTaskStatuses,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
@@ -55,11 +51,11 @@ export const ProjectDetailPage = () => {
   );
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([
-      invalidateProject(parsedProjectId),
-      invalidateAllTasks(),
-      invalidateProjectTaskStatuses(parsedProjectId),
-    ]);
+    await invalidate(
+      q.project(parsedProjectId),
+      q.allTasks(),
+      q.projectTaskStatuses(parsedProjectId)
+    );
   }, [parsedProjectId]);
 
   const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);

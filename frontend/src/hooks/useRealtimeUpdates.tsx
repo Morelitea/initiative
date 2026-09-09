@@ -2,28 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  invalidateAllCalendarEvents,
-  invalidateAllInitiatives,
-  invalidateAllProperties,
-  invalidateAllTags,
-  invalidateAllTasks,
-  invalidateApps,
-  invalidateCalendarEvent,
-  invalidateCommentsOnResource,
-  invalidateGuildContent,
-  invalidateInitiative,
-  invalidateInitiativeMembers,
-  invalidateInitiativeRoles,
-  invalidateMyPermissions,
-  invalidateProjectActivity,
-  invalidateRecentComments,
-  invalidateSubtask,
-  invalidateTag,
-  invalidateTask,
-  invalidateTaskSubtasks,
-  invalidateTool,
-} from "@/api/query-keys";
+import { invalidate, q, type Spec } from "@/api/query-keys";
 import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
@@ -102,83 +81,57 @@ export type RealtimeChange = {
 const FRAME_DEBOUNCE_MS = 250;
 
 /**
- * What a change to one kind of resource makes stale.
+ * What a change to one kind of resource makes stale — as a description, not an
+ * action.
  *
  * Tools come from the registry, so a new tool's events are live the day it
  * ships. The rest are the things the bus can name that are not a tool of their
  * own. A type nothing here claims is ignored on purpose: its parents carry the
  * surfaces that matter, and a queue item is refreshed by refreshing its queue.
  */
-const RESOURCE_INVALIDATORS: Record<string, (id: number) => void> = {
+const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   ...Object.fromEntries(
-    TOOLS.map((tool) => [toolPlural(tool), (id: number) => invalidateTool(tool, id)])
+    TOOLS.map((tool) => [toolPlural(tool), (id: number) => [q.tool(tool, id)]])
   ),
   // A project's activity feed lists its own comments and its tasks', so it is
   // stale for anything that happens anywhere inside the project. Declared after
   // the registry spread, which it extends rather than replaces.
-  projects: (id) => {
-    invalidateTool(Tool.project, id);
-    void invalidateProjectActivity(id);
-  },
-  tasks: (id) => {
-    void invalidateTask(id);
-    void invalidateAllTasks();
-  },
-  subtasks: (id) => {
-    void invalidateSubtask(id);
-  },
-  comments: () => {
-    // The guild's recent-activity list is a comment feed of its own. Which
-    // thread moved is a question about the parent, below.
-    void invalidateRecentComments();
-  },
-  calendar_events: (id) => {
-    void invalidateCalendarEvent(id);
-    void invalidateAllCalendarEvents();
-  },
-  initiatives: (id) => {
-    void invalidateInitiative(id);
-    void invalidateAllInitiatives();
-    // An initiative's roster, its roles and what those roles permit all report
-    // against the initiative itself — a membership row and a role row have no
-    // route of their own — so "the initiative changed" has to refresh all
-    // three. Each is one query, and only where the screen showing it is open.
-    void invalidateInitiativeMembers(id);
-    void invalidateInitiativeRoles(id);
-    void invalidateMyPermissions(id);
-  },
-  tags: (id) => {
-    void invalidateTag(id);
-    void invalidateAllTags();
-  },
+  projects: (id) => [q.tool(Tool.project, id), q.projectActivity(id)],
+  tasks: (id) => [q.task(id), q.allTasks()],
+  subtasks: (id) => [q.subtask(id)],
+  // The guild's recent-activity list is a comment feed of its own. Which thread
+  // moved is a question about the parent, below.
+  comments: () => [q.recentComments()],
+  calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
+  // An initiative's roster, its roles and what those roles permit all report
+  // against the initiative itself — a membership row and a role row have no
+  // route of their own — so "the initiative changed" has to name all three.
+  initiatives: (id) => [
+    q.initiative(id),
+    q.allInitiatives(),
+    q.initiativeMembers(id),
+    q.initiativeRoles(id),
+    q.myPermissions(id),
+  ],
+  tags: (id) => [q.tag(id), q.allTags()],
   // An install belongs to no initiative, so it arrives guild-wide with no
   // parent to carry it — this is the only thing that refreshes the sidebar's
   // app list and the settings dialog for another admin's install, rename or
   // configuration. Takes no id: the reads are keyed by guild, not by install.
-  apps: () => {
-    void invalidateApps();
-  },
-  property_definitions: () => {
-    void invalidateAllProperties();
-  },
+  apps: () => [q.apps()],
+  property_definitions: () => [q.allProperties()],
 };
 
 /**
  * What a change to a child makes stale ON the parent it hangs off.
  *
- * The one thing invalidating the parent does not cover: these queries are keyed
- * by the parent rather than by the child, so nothing about the child's own id
+ * The one thing naming the parent does not cover: these queries are keyed by
+ * the parent rather than by the child, so nothing about the child's own id
  * reaches them.
  */
-const PARENT_EFFECTS: Record<string, (parent: ResourceRef) => void> = {
-  comments: (parent) => {
-    void invalidateCommentsOnResource(parent.type, parent.id);
-  },
-  subtasks: (parent) => {
-    if (parent.type === "tasks") {
-      void invalidateTaskSubtasks(parent.id);
-    }
-  },
+const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
+  comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
+  subtasks: (parent) => (parent.type === "tasks" ? [q.taskSubtasks(parent.id)] : []),
 };
 
 const isRef = (value: unknown): value is ResourceRef => {
@@ -189,12 +142,13 @@ const isRef = (value: unknown): value is ResourceRef => {
 const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
 
 /**
- * Refresh everything a batch of changes made stale, each thing once.
+ * Refresh everything a batch of changes made stale, in one pass over the cache.
  *
- * Two passes over the same batch: the resources named (the change itself, and
- * every resource it sits inside), then the parent-keyed queries only a child
- * can point at. Repeats collapse, so a hundred comments on one task refetch
- * that task's thread once.
+ * Two passes over the same batch collect the description: the resources named
+ * (the change itself, and every resource it sits inside), then the parent-keyed
+ * queries only a child can point at. Nothing is matched until both are in hand,
+ * so three hundred comments on one task cost the same single walk as one — and
+ * the repeats among them collapse when the specs merge.
  */
 export const applyChanges = (changes: readonly RealtimeChange[]) => {
   const refs = new Map<string, ResourceRef>();
@@ -214,12 +168,14 @@ export const applyChanges = (changes: readonly RealtimeChange[]) => {
     }
   }
 
+  const specs: Spec[] = [];
   for (const ref of refs.values()) {
-    RESOURCE_INVALIDATORS[ref.type]?.(ref.id);
+    specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id) ?? []));
   }
   for (const [childType, parent] of effects.values()) {
-    PARENT_EFFECTS[childType]?.(parent);
+    specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
   }
+  if (specs.length > 0) void invalidate(...specs);
 };
 
 export const useRealtimeUpdates = () => {
@@ -336,7 +292,7 @@ export const useRealtimeUpdates = () => {
             // A write too large to name row by row — an import, a purge. The
             // frame says so instead of carrying thousands of ids, and the
             // answer is to read the guild again.
-            void invalidateGuildContent();
+            void invalidate(q.guildContent());
             return;
           }
           const changes = payload.changes ?? [];
