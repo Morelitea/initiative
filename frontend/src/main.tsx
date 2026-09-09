@@ -96,8 +96,10 @@ async function bootstrap() {
 
     // Before the first query runs: a restored cache is only worth having if
     // React Query leaves it on screen instead of refetching over it while
-    // there is no network to refetch from.
-    bindOnlineManagerToDevice();
+    // there is no network to refetch from. Awaited so the device's answer is
+    // in hand before anything can ask — bounded internally, so a plugin that
+    // does not answer delays boot rather than ending it.
+    await bindOnlineManagerToDevice();
   }
 
   const withQueryClient = (children: React.ReactNode) =>

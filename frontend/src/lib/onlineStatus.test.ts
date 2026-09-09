@@ -27,7 +27,7 @@ const emitStatus = (connected: boolean) => {
 
 const native = (value: boolean) => vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(value);
 
-/** Let the plugin promises the binding kicked off settle. */
+/** Let the promises the binding kicked off settle. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
@@ -38,6 +38,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
   // The manager is a singleton shared by the whole suite; hand it back the way
   // it was found, online and with nobody listening to a mocked plugin.
   onlineManager.setEventListener(() => () => {});
@@ -48,8 +49,7 @@ describe("bindOnlineManagerToDevice", () => {
   it("leaves the browser's own detection alone off-native", async () => {
     native(false);
 
-    bindOnlineManagerToDevice();
-    await settle();
+    await bindOnlineManagerToDevice();
 
     expect(addListener).not.toHaveBeenCalled();
     expect(getStatus).not.toHaveBeenCalled();
@@ -59,8 +59,7 @@ describe("bindOnlineManagerToDevice", () => {
     native(true);
     getStatus.mockResolvedValue({ connected: false });
 
-    bindOnlineManagerToDevice();
-    await settle();
+    await bindOnlineManagerToDevice();
 
     expect(onlineManager.isOnline()).toBe(false);
   });
@@ -68,8 +67,7 @@ describe("bindOnlineManagerToDevice", () => {
   it("follows the device as the connection comes and goes", async () => {
     native(true);
 
-    bindOnlineManagerToDevice();
-    await settle();
+    await bindOnlineManagerToDevice();
     expect(addListener).toHaveBeenCalledWith("networkStatusChange", expect.any(Function));
 
     emitStatus(false);
@@ -79,34 +77,102 @@ describe("bindOnlineManagerToDevice", () => {
     expect(onlineManager.isOnline()).toBe(true);
   });
 
+  it("does not start listening until the first reading is in", async () => {
+    native(true);
+    // The device takes its time answering.
+    let resolveStatus: (value: { connected: boolean }) => void = () => {};
+    getStatus.mockReturnValue(
+      new Promise<{ connected: boolean }>((resolve) => {
+        resolveStatus = resolve;
+      })
+    );
+
+    const binding = bindOnlineManagerToDevice();
+    await settle();
+
+    // The ordering is the whole guarantee: while the first reading is still in
+    // flight there is no listener, so a change cannot arrive and then be
+    // overwritten by the older snapshot landing after it.
+    expect(addListener).not.toHaveBeenCalled();
+
+    resolveStatus({ connected: false });
+    await binding;
+
+    expect(addListener).toHaveBeenCalled();
+    expect(onlineManager.isOnline()).toBe(false);
+  });
+
+  it("lets a later change override the first reading", async () => {
+    native(true);
+    getStatus.mockResolvedValue({ connected: true });
+
+    await bindOnlineManagerToDevice();
+    emitStatus(false);
+
+    expect(onlineManager.isOnline()).toBe(false);
+  });
+
+  it("gives up on a device that will not answer rather than holding up boot", async () => {
+    vi.useFakeTimers();
+    native(true);
+    getStatus.mockReturnValue(new Promise(() => {}));
+
+    const binding = bindOnlineManagerToDevice();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await binding;
+
+    // No answer is not evidence of being offline; the listener still stands.
+    expect(onlineManager.isOnline()).toBe(true);
+    expect(addListener).toHaveBeenCalled();
+  });
+
   it("does not claim to be offline when the status cannot be read", async () => {
     native(true);
     getStatus.mockRejectedValue(new Error("plugin unavailable"));
 
-    bindOnlineManagerToDevice();
-    await settle();
+    await bindOnlineManagerToDevice();
 
     expect(onlineManager.isOnline()).toBe(true);
   });
 
-  it("survives a listener that could not be registered", async () => {
+  it("falls back to the browser's events when the listener cannot be registered", async () => {
     native(true);
     addListener.mockRejectedValue(new Error("plugin unavailable"));
 
-    bindOnlineManagerToDevice();
+    await bindOnlineManagerToDevice();
     await settle();
 
+    // Installing a listener took React Query's own off, so something has to
+    // report a change — otherwise the app is stuck until it restarts.
+    window.dispatchEvent(new Event("offline"));
+    expect(onlineManager.isOnline()).toBe(false);
+
+    window.dispatchEvent(new Event("online"));
     expect(onlineManager.isOnline()).toBe(true);
   });
 
   it("removes the listener when the manager swaps it out", async () => {
     native(true);
 
-    bindOnlineManagerToDevice();
+    await bindOnlineManagerToDevice();
     await settle();
 
     // Replacing the event listener runs the previous one's teardown.
     onlineManager.setEventListener(() => () => {});
     expect(remove).toHaveBeenCalled();
+  });
+
+  it("stops listening to the browser fallback on teardown too", async () => {
+    native(true);
+    addListener.mockRejectedValue(new Error("plugin unavailable"));
+
+    await bindOnlineManagerToDevice();
+    await settle();
+    onlineManager.setEventListener(() => () => {});
+    onlineManager.setOnline(true);
+
+    window.dispatchEvent(new Event("offline"));
+
+    expect(onlineManager.isOnline()).toBe(true);
   });
 });

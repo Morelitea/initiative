@@ -26,20 +26,65 @@ import { onlineManager } from "@tanstack/react-query";
 const needsNativeBinding = (): boolean => Capacitor.isNativePlatform();
 
 /**
+ * How long boot will wait for the device's first answer.
+ *
+ * Bounded on purpose. The first reading has to be in hand before anything can
+ * query, or the very race this exists to prevent happens during the gap. But
+ * this runs on the boot path, where a plugin call that never settles is a
+ * plugin call that strands the app behind the splash screen — so the wait
+ * gives up rather than being open-ended, and boot continues on React Query's
+ * own detection, which is what it used before any of this existed.
+ */
+const FIRST_STATUS_TIMEOUT_MS = 2_000;
+
+/** The device's current answer, or `null` for "could not say in time". */
+const firstStatus = async (): Promise<boolean | null> => {
+  try {
+    return await Promise.race([
+      Network.getStatus().then((status) => status.connected),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), FIRST_STATUS_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    // A status we could not read is not evidence of being offline, and claiming
+    // it would pause every query on a working connection.
+    return null;
+  }
+};
+
+/**
  * Point React Query's online state at the device.
  *
- * Deliberately does not await the first reading: this runs on the boot path,
- * and a plugin call that never settles there is one that strands the app (see
- * the awaits in `main.tsx`). The listener is installed synchronously and the
- * first status corrects it a moment later — before any query runs, because the
- * persisted cache has to be read from IndexedDB first either way.
+ * Awaited by the boot path: the first reading is applied *before* the change
+ * listener is installed, so there is no window in which a stale snapshot can
+ * land on top of a newer event, and no window in which a query runs against
+ * the WebView's wrong answer.
  */
-export const bindOnlineManagerToDevice = (): void => {
+export const bindOnlineManagerToDevice = async (): Promise<void> => {
   if (!needsNativeBinding()) return;
+
+  const connected = await firstStatus();
 
   onlineManager.setEventListener((setOnline) => {
     let handle: PluginListenerHandle | null = null;
     let cancelled = false;
+    let removeFallback: (() => void) | null = null;
+
+    // Installing an event listener takes React Query's own off. If the plugin
+    // will not give us one, something still has to report a change, so the
+    // browser's events — unreliable here, but not nothing — take over rather
+    // than leaving the app with no source at all until it is restarted.
+    const fallBackToBrowserEvents = () => {
+      const goOnline = () => setOnline(true);
+      const goOffline = () => setOnline(false);
+      window.addEventListener("online", goOnline);
+      window.addEventListener("offline", goOffline);
+      removeFallback = () => {
+        window.removeEventListener("online", goOnline);
+        window.removeEventListener("offline", goOffline);
+      };
+    };
 
     Network.addListener("networkStatusChange", (status) => setOnline(status.connected))
       .then((registered) => {
@@ -50,20 +95,17 @@ export const bindOnlineManagerToDevice = (): void => {
         }
       })
       .catch(() => {
-        // Without the listener React Query keeps its own detection, which is
-        // the behaviour we had before this existed rather than a new failure.
-      });
-
-    Network.getStatus()
-      .then((status) => setOnline(status.connected))
-      .catch(() => {
-        // A status we could not read is not evidence of being offline, and
-        // claiming it would pause every query on a working connection.
+        if (!cancelled) fallBackToBrowserEvents();
       });
 
     return () => {
       cancelled = true;
       if (handle) void handle.remove();
+      removeFallback?.();
     };
   });
+
+  // After the listener, so the two cannot be applied out of order — and
+  // synchronously after it, so no event can arrive in between.
+  if (connected !== null) onlineManager.setOnline(connected);
 };
