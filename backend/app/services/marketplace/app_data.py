@@ -93,6 +93,7 @@ __all__ = [
     "fetch_app_source",
     "find_param",
     "find_read_endpoint",
+    "row_columns",
     "project_returns",
     "resolve_param_options",
     "service_public_id",
