@@ -16,24 +16,22 @@ What you get told about, and where, is entirely yours to decide. Nothing is bein
 | **Email** | Messages to your inbox. |
 | **Mobile app** | Push notifications on your phone (needs the app, and permission). |
 
-All three are yours to switch on and off, category by category, with no minimum — the bell included. Two categories keep the bell whatever else you set: **Waiting on you** and **Your account**. Somebody waiting on your decision, or a change made to your account by somebody else, is not the kind of thing to find out about later. Their email and mobile switches still work normally.
-
-Bell notifications arrive **as they happen** — a mention lands the moment it's written, not whenever the page next thinks to check. Marking one read updates your other open tabs too, so you don't clear the same thing three times.
+All three are yours, category by category, with no minimum — the bell included. Two categories keep the bell whatever you set: **Waiting on you** and **Your account**. Somebody's waiting on your decision, or somebody changed something about your account. Neither is a thing to discover in March. Their email and mobile switches turn off like anything else.
 
 ## The bell, and the page behind it
 
-The **bell** holds everything still unread. Not the most recent handful — all of it. The number on it says how much is waiting; opening it shows you what.
+The **bell** holds everything you haven't read. Not the last twenty — the lot. The number says how many; opening it says what.
 
-That number is the only one in the app. Where the unread thing *is* gets a **dot** instead: on the community in the left rail, on the initiative inside it, and on the tool inside that. So finding what happened is following a trail inward rather than opening six communities to check. Counting at each level would be arithmetic when the only question is where to go.
+Everywhere else you get a **dot**: on the community in the left rail, then the initiative inside it, then the tool inside that. Follow it inward and you land on the thing, instead of opening five communities to work out which one was buzzing.
 
-The bell empties as you deal with it, and empty is the normal resting state rather than something to achieve.
+**See all**, at the foot of the bell, opens the full record — read and unread, grouped by day, filterable to unread, to mentions, or to one community. Anything in it can be marked read, marked unread again, or thrown away.
 
-**Notifications** — the **See all** link at the foot of the bell — is the record: everything that has happened, read and unread, grouped by day. Filter it to **Unread**, to **Mentions** (anything somebody addressed to you by name), or to one community. Every row can be marked read, marked unread again, or dismissed.
+Two surfaces, two jobs. The bell is what's left to deal with. The page is what happened.
 
-So the two are different things rather than long and short versions of each other. The bell is what's left to deal with. The page is what happened.
+Notifications arrive **as they happen** — a mention lands the moment it's written. Reading one clears it on your other tabs too, so you don't dismiss the same thing three times on three devices.
 
-!!! note "A row you read stays put"
-    Clicking a notification in the bell marks it read, but it doesn't vanish under your cursor — it dims and stays until you close the popover, so the list doesn't reshuffle while you're reading it.
+!!! note "Click one and it stays put"
+    It dims instead of vanishing, so the list doesn't reshuffle itself while you're still reading. It clears out when you close the bell.
 
 ## Choosing what you hear about
 
@@ -57,25 +55,25 @@ So the two are different things rather than long and short versions of each othe
 | **Exports and imports** | Something you asked for has finished. |
 | **Your account** | Something was done to your account by somebody else. |
 
-**Mentions** and **Comments on your work** are deliberately separate. Being named is somebody's decision about you; a comment on a task you happen to be assigned is traffic that grows with how busy the project is. One switch used to govern both, which meant the only way to quieten the second was to give up the first.
+**Mentions** and **Comments on your work** are separate on purpose. Somebody typing your name is a decision about you. Somebody commenting on a task you happen to be on is just how busy the project got. Turn the second one down; keep the first.
 
 ![Notification settings](../images/notifications/settings.png)
 
 ## Per community
 
-Below the grid, every community you're in has a dial with three settings:
+Every community you're in gets one dial.
 
-| Setting | What you get |
+| Setting | What reaches you |
 |---|---|
-| **Everything** | Whatever your category settings allow. The default. |
-| **Only what names me** | Mentions, replies, task assignments, event invitations, anything waiting on your decision, and your own exports and imports. Nothing ambient. |
-| **Nothing** | Nothing at all — including if somebody names you directly. |
+| **Everything** | Whatever your categories allow. The default. |
+| **Only what names me** | Mentions, replies, tasks assigned to you, event invitations, anything waiting on your decision, and your own exports. Nothing ambient. |
+| **Nothing** | Nothing. |
 
-**Nothing** means nothing. It's worth saying plainly, because the useful version of a mute is the one you can trust: a community set this way will not reach you, and a direct mention there is not an exception.
+**Nothing** is the real one, not a quieter one. That community will not reach you, and somebody typing your name there is not an exception — a mute you have to keep checking isn't a mute.
 
-What a community dial can't touch is anything that isn't a community's to say: **direct messages**, **connections**, and **your account**. Those reach you whatever your communities are set to.
+Three things ignore the dial, because they were never a community's to silence: **direct messages**, **connections**, and **your account**.
 
-Most people will never need more than the dial. If you do want one community's settings to differ category by category, open it and the same grid appears inside.
+Most people set the dial and never open the grid again. If you do want one community to differ category by category, it's in there.
 
 ## Timing
 
@@ -94,7 +92,7 @@ A few of these are about *when*, not just *whether*:
 
 ## Quiet hours
 
-Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it. The bell keeps collecting, because the bell interrupts nobody.
+Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it. The bell keeps collecting quietly; it was never going to wake you.
 
 When the window ends you get **one** message per channel saying what happened, grouped by community:
 
@@ -104,9 +102,7 @@ While you were away
   Acme    — 1 event invitation
 ```
 
-One message, not a night's worth replayed at seven in the morning. If nothing happened, nothing is sent.
-
-The window is read in your timezone and wraps midnight, which is the normal case.
+One message, not a night of them replayed at seven in the morning. If nothing happened, nothing arrives.
 
 ## Turning on mobile push
 
