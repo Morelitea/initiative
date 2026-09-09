@@ -1243,7 +1243,10 @@ async def create_marketplace_listing(
                 {
                     "id": "w1",
                     "type": "stat",
-                    "binding": {"source": "task_counts"},
+                    "binding": {
+                        "source": "query",
+                        "sql": "SELECT count(*) AS n FROM tasks",
+                    },
                 }
             ]
         },
@@ -1327,7 +1330,10 @@ async def create_dashboard(
                     {
                         "id": "w1",
                         "type": "stat",
-                        "binding": {"source": "counter", "counter_id": None},
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
                     }
                 ]
             }

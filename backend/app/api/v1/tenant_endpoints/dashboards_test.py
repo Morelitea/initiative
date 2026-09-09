@@ -23,7 +23,10 @@ def _stat_definition() -> dict:
                 "id": "w1",
                 "type": "stat",
                 "title": "Open bugs",
-                "binding": {"source": "counter", "counter_id": None},
+                "binding": {
+                    "source": "query",
+                    "sql": "SELECT count(*) AS n FROM tasks",
+                },
             }
         ]
     }
@@ -98,7 +101,15 @@ async def test_create_rejects_unknown_widget_type(
             "name": "Bad",
             "initiative_id": a.initiative.id,
             "definition": {
-                "widgets": [{"type": "iframe", "binding": {"source": "tasks"}}]
+                "widgets": [
+                    {
+                        "type": "iframe",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
+                ]
             },
         },
     )
@@ -162,7 +173,10 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
                     {
                         "id": "chart1",
                         "type": "line_chart",
-                        "binding": {"source": "task_counts"},
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
                     }
                 ]
             }
@@ -179,7 +193,15 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
         headers=a.headers,
         json={
             "definition": {
-                "widgets": [{"type": "stat", "binding": {"source": "tasks"}}]
+                "widgets": [
+                    {
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
+                ]
             }
         },
     )
@@ -202,7 +224,14 @@ async def test_config_for_removed_widget_is_dropped(
         json={
             "definition": {
                 "widgets": [
-                    {"id": "kept", "type": "stat", "binding": {"source": "counter"}}
+                    {
+                        "id": "kept",
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
                 ]
             },
             "config": {
