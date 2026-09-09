@@ -103,6 +103,22 @@ async def test_a_closed_vocabulary_describes_as_one(client, acting_user):
     assert response.json()["columns"] == [{"name": "priority", "type": "enum"}]
 
 
+async def test_a_field_that_names_a_row_describes_as_a_reference(client, acting_user):
+    """``project_id`` holds an integer and means a project. A query's shape says
+    that in the same word the dataset's fields do."""
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/describe"),
+        json={"sql": "SELECT project_id, title FROM tasks"},
+        headers=actor.headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["columns"] == [
+        {"name": "project_id", "type": "reference"},
+        {"name": "title", "type": "text"},
+    ]
+
+
 async def test_describing_runs_nothing(client, session, acting_user):
     """A statement that would fail while running still describes, because
     describing plans and does not execute."""

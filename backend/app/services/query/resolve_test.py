@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.messages import QueryMessages
+from app.services.fields.spec import FieldType
 from app.services.query import QueryError, resolve
 
 #: The function spellings this surface supports, as a reader writes them.
@@ -386,3 +387,25 @@ class TestSubqueriesAreNotAcceptedYet:
             QueryMessages.UNSUPPORTED_SYNTAX,
             QueryMessages.UNKNOWN_RELATION,
         }
+
+
+def test_an_output_that_is_a_field_carries_the_registrys_type():
+    """Read before the names are rewritten, and by the name the reader wrote."""
+    assert resolve("SELECT project_id, title FROM tasks").column_types == (
+        FieldType.reference,
+        FieldType.text,
+    )
+
+
+def test_a_qualified_field_carries_its_type_too():
+    assert resolve("SELECT t.priority FROM tasks t").column_types == (FieldType.enum,)
+
+
+def test_an_output_built_from_a_field_carries_nothing():
+    """An expression has no field to ask about, and is left to the database."""
+    assert resolve(
+        "SELECT lower(title) AS t, length(title) AS n FROM tasks"
+    ).column_types == (
+        None,
+        None,
+    )

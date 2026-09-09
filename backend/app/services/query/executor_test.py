@@ -8,11 +8,20 @@ planner estimate, a statement timeout.
 from __future__ import annotations
 
 import pytest
+import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.messages import QueryMessages
 from app.db.schema_provisioning import drop_guild_schema, provision_guild_schema
-from app.services.query import QueryError, execute, resolve, run
+from app.services.fields.spec import FieldType
+from app.services.query import (
+    QueryColumn,
+    QueryError,
+    describe,
+    execute,
+    resolve,
+    run,
+)
 
 pytestmark = pytest.mark.database
 
@@ -161,3 +170,46 @@ async def test_a_guild_runs_only_so_many_at_once(guild, monkeypatch):
         held.cancel()
         with pytest.raises(BaseException):
             await held
+
+
+async def test_a_description_that_cannot_be_planned_is_stopped(
+    guild, engine, monkeypatch
+):
+    """Preparing plans, and planning waits its turn for the relation. That wait
+    spends the same time bound a running statement does, and ends the same way."""
+    monkeypatch.setattr(settings, "QUERY_STATEMENT_TIMEOUT_MS", 250)
+    async with engine.connect() as holder:
+        await holder.execute(
+            sa.text(f"LOCK TABLE guild_{_GID}.tasks IN ACCESS EXCLUSIVE MODE")
+        )
+        try:
+            with pytest.raises(QueryError) as stopped:
+                await describe("SELECT title FROM tasks", context=_context(guild))
+        finally:
+            await holder.rollback()
+    assert stopped.value.code == QueryMessages.TIMED_OUT
+
+
+async def test_a_field_selected_on_its_own_is_typed_by_the_registry(guild):
+    """``project_id`` is stored as an integer and means a project. The shape a
+    query reports and the fields a dataset offers answer that the same way,
+    because one declaration answers both."""
+    columns = await describe(
+        "SELECT project_id, title FROM tasks", context=_context(guild)
+    )
+    assert columns == (
+        QueryColumn(name="project_id", type=FieldType.reference),
+        QueryColumn(name="title", type=FieldType.text),
+    )
+
+
+async def test_an_output_built_from_fields_is_typed_by_the_database(guild):
+    """Nothing declares what an expression is, so the database describes it."""
+    columns = await describe(
+        "SELECT lower(title) AS t, length(title) AS n FROM tasks",
+        context=_context(guild),
+    )
+    assert columns == (
+        QueryColumn(name="t", type=FieldType.text),
+        QueryColumn(name="n", type=FieldType.number),
+    )

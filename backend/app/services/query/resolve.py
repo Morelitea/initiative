@@ -41,6 +41,7 @@ from pglast.visitors import Visitor
 from app.core.messages import QueryMessages
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
+from app.services.fields.spec import FieldType
 
 #: How many relations one statement may name. A dashboard tile asks about one
 #: thing, sometimes joined to a second; the ceiling is what keeps a statement's
@@ -69,6 +70,10 @@ class ResolvedQuery:
     #: The datasets this statement reads, for the caller that decides whether
     #: the reader may read them.
     relations: tuple[str, ...] = ()
+    #: What the registry calls each output column, by position, where it can
+    #: name one. ``None`` where the output is an expression rather than a
+    #: field, and the database is the one to describe it.
+    column_types: tuple[FieldType | None, ...] = ()
 
 
 # --- what the surface accepts ------------------------------------------------
@@ -347,6 +352,44 @@ def _alias_positions(select: ast.SelectStmt) -> set[int]:
     return marked
 
 
+def _output_types(
+    select: ast.SelectStmt, scope: dict[str, str]
+) -> tuple[FieldType | None, ...]:
+    """What the registry calls each output column.
+
+    A target that is a field and nothing else *is* that field, and carries the
+    registry's answer about it — an id that names a person is a person on the
+    way out as much as on the way in, where the type it is stored as says only
+    that it is a whole number. Read before the names are rewritten, because the
+    registry is asked by the name the reader wrote.
+
+    Anything built from a field rather than being one has no field to ask, and
+    is left ``None`` for the database to describe.
+    """
+    only = next(iter(scope.values())) if len(scope) == 1 else None
+    return tuple(
+        _target_type(target, scope, only) for target in select.targetList or ()
+    )
+
+
+def _target_type(
+    target: ast.ResTarget, scope: dict[str, str], only: str | None
+) -> FieldType | None:
+    if not isinstance(target.val, ast.ColumnRef):
+        return None
+    names = _name_parts(target.val.fields)
+    if len(names) == 2:
+        dataset_name, field_name = scope.get(names[0]), names[1]
+    elif len(names) == 1:
+        dataset_name, field_name = only, names[0]
+    else:
+        return None
+    if dataset_name is None:
+        return None
+    spec = dataset(dataset_name).by_name.get(field_name)
+    return spec.type if spec is not None else None
+
+
 def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
     aliases = _output_aliases(select)
     alias_positions = _alias_positions(select)
@@ -436,10 +479,12 @@ def resolve(sql: str) -> ResolvedQuery:
     select = _parse(sql)
     _check_nodes(select)
     scope = _relations(select)
+    column_types = _output_types(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
     return ResolvedQuery(
         sql=RawStream()(select),
         parameters=parameters,
         relations=tuple(sorted(set(scope.values()))),
+        column_types=column_types,
     )
