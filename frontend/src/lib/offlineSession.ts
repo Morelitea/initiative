@@ -107,6 +107,21 @@ export const readOfflineSession = (serverUrl: string): UserRead | null => {
  * "offline". Only a request that produced no response qualifies, which is what
  * axios reports for a dropped connection, a DNS failure or a timeout.
  */
+/**
+ * True when the server refused the session itself.
+ *
+ * The companion question to {@link isNoAnswerError}, and a narrower one than
+ * "did the server answer". A 500 or a 502 is an answer, but it says the server
+ * is having trouble — not that this session is over. Only a 401 is the server
+ * declining the credentials it was given, so only a 401 ends the session's
+ * hold on anything kept for it.
+ */
+export const isSessionRejected = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  const status = (error as { response?: { status?: unknown } }).response?.status;
+  return status === 401;
+};
+
 export const isNoAnswerError = (error: unknown): boolean => {
   if (typeof error !== "object" || error === null) return false;
   const candidate = error as { response?: unknown; request?: unknown; code?: string };

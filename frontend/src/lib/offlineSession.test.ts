@@ -7,6 +7,7 @@ import { OFFLINE_CACHE_MAX_AGE_MS } from "./offlineCache";
 import {
   clearOfflineSession,
   isNoAnswerError,
+  isSessionRejected,
   readOfflineGuilds,
   readOfflineSession,
   saveOfflineGuilds,
@@ -92,6 +93,28 @@ describe("the remembered community list", () => {
   it("discards a list it cannot make sense of", () => {
     setItem("initiative-offline-guilds", "{not json");
     expect(readOfflineGuilds(SERVER)).toBeNull();
+  });
+});
+
+describe("isSessionRejected", () => {
+  it("is true only for a 401 — the server declining the credentials", () => {
+    expect(isSessionRejected({ response: { status: 401 } })).toBe(true);
+  });
+
+  it("is false for a server having trouble", () => {
+    expect(isSessionRejected({ response: { status: 500 } })).toBe(false);
+    expect(isSessionRejected({ response: { status: 502 } })).toBe(false);
+    expect(isSessionRejected({ response: { status: 503 } })).toBe(false);
+  });
+
+  it("is false for a refusal that is about the request, not the session", () => {
+    expect(isSessionRejected({ response: { status: 403 } })).toBe(false);
+    expect(isSessionRejected({ response: { status: 404 } })).toBe(false);
+  });
+
+  it("is false when nothing answered at all", () => {
+    expect(isSessionRejected({ request: {} })).toBe(false);
+    expect(isSessionRejected(null)).toBe(false);
   });
 });
 

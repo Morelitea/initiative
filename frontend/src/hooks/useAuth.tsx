@@ -33,6 +33,7 @@ import {
   clearOfflineSession,
   currentServerKey,
   isNoAnswerError,
+  isSessionRejected,
   readOfflineSession,
   saveOfflineSession,
 } from "@/lib/offlineSession";
@@ -243,11 +244,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // answering only means the account could not be read, which is what
         // used to make offline reading impossible — fall back to the stored
         // snapshot, marked unverified until a request succeeds.
-        // Whether the server said anything decides two separate things: which
-        // identity we end up with, and whether the session's content is over.
-        // They come apart on the web, where there is no snapshot to fall back
-        // to — a blip still signs you out there, but it must not be read as the
-        // server refusing the session and take unsaved work with it.
+        // Two separate questions, and they have different answers. Whether the
+        // server said anything decides which identity we end up with. Whether
+        // it refused the session decides if the content it was holding is over
+        // — and only a 401 is a refusal. A 500 or a 502 is an answer from a
+        // server having a bad time, and losing somebody's unsaved drawing over
+        // one would be no better than losing it to a dropped connection.
         const noAnswer = isNoAnswerError(error);
         const snapshot =
           isOfflineCacheEnabled() && noAnswer ? readOfflineSession(currentServerKey()) : null;
@@ -260,7 +262,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSessionUnverified(true);
           return;
         }
-        replaceIdentity(null, !noAnswer);
+        replaceIdentity(null, isSessionRejected(error));
         if (isNative) {
           // Clear stale native token
           setTokenState(null);

@@ -65,6 +65,8 @@ vi.mock("@/lib/offlineSession", () => ({
   readOfflineSession: () => snapshot,
   isNoAnswerError: (error: unknown) =>
     typeof error === "object" && error !== null && !("response" in error),
+  isSessionRejected: (error: unknown) =>
+    (error as { response?: { status?: number } })?.response?.status === 401,
 }));
 
 import { AuthProvider, useAuth } from "./useAuth";
@@ -170,6 +172,18 @@ describe("bootstrapping when the server does answer", () => {
 
     await waitFor(() => expect(auth.loading).toBe(false));
     expect(auth.user).toBeNull();
+    expect(clearWhiteboards).not.toHaveBeenCalled();
+  });
+
+  it("keeps whiteboards through a server error, which is trouble not a refusal", async () => {
+    offlineEnabled = false;
+    get.mockRejectedValue({ request: {}, response: { status: 502 } });
+
+    renderAuth();
+
+    await waitFor(() => expect(auth.loading).toBe(false));
+    expect(auth.user).toBeNull();
+    // A bad gateway is the server having a bad time, not the end of a session.
     expect(clearWhiteboards).not.toHaveBeenCalled();
   });
 
