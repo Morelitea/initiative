@@ -409,13 +409,17 @@ def _grant_statements(
         f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Query role: SELECT on the schema's tables and nothing else. No
-        # sequences — a read names no sequence — and no DML at any level, so a
-        # write is refused by the role before any policy is consulted.
+        # sequences — a read names no sequence — and no DML at any level.
+        #
+        # The shared floor is the read-only one: app_guild_base carries DML on
+        # the shared tables, and a privilege reached by inheritance cannot be
+        # revoked back off. Reading them is needed — the guild policies call
+        # public.guild_auth_satisfied(), which reads public.guild_auth_policies.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{query_role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
         f'GRANT SELECT ON TABLES TO "{query_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{query_role}"',
-        f'GRANT app_guild_base TO "{query_role}"',
+        f'GRANT app_guild_base_ro TO "{query_role}"',
         f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]

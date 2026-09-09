@@ -71,9 +71,10 @@ _SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 #: from guild provisioning. Granting them ``WITH ADMIN OPTION`` where they
 #: already exist is what lets the provisioner maintain them afterwards.
 _ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'platform_base', 'platform_member', "
-    "'platform_support', 'platform_moderator', 'platform_operator', "
-    "'platform_owner') OR rolname ~ '^guild_[0-9]+(_ro|_support)?$'"
+    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'platform_base', "
+    "'platform_member', 'platform_support', 'platform_moderator', "
+    "'platform_operator', 'platform_owner') "
+    "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q)?$'"
 )
 
 
@@ -385,6 +386,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base')
        OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'platform_base') THEN
         RETURN;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base_ro') THEN
+        EXECUTE format(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+            'GRANT SELECT ON TABLES TO app_guild_base_ro',
+            provisioner);
     END IF;
     EXECUTE format(
         'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '

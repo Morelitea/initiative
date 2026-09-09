@@ -1,10 +1,8 @@
 """What the per-guild query role can and cannot do.
 
-The SQL query surface runs a reader's own statement, so the role it runs as is
-the layer that does not depend on the validator being right. These assertions
-*attempt* each operation and require an error, rather than reading a grant —
-a grant can be read correctly and still not be the whole answer, because
-ownership, defaults and PUBLIC all grant on their own.
+These assertions *attempt* each operation and require an error, rather than
+reading a grant — a grant can be read correctly and still not be the whole
+answer, because ownership, defaults and PUBLIC all grant on their own.
 """
 
 import pytest
@@ -43,9 +41,8 @@ async def _as_query_role(conn, statement: str):
 
     The search path matters: the initiative-RLS policies defer to
     ``public.initiative_access``, whose body names ``initiative_members``
-    without a schema so it resolves against the caller's path — the guild's own
-    membership table. Without the path the policy cannot be evaluated at all,
-    which is a different failure from the one each test is about.
+    without a schema, so it resolves against the caller's path — the guild's
+    own membership table.
     """
     schema = guild_schema_name(_GID)
     await conn.exec_driver_sql(f'SET ROLE "{guild_query_role_name(_GID)}"')
@@ -135,29 +132,59 @@ async def test_it_cannot_read_another_guilds_schema(engine, provisioned):
 
 
 async def test_the_login_role_holds_no_standing_access(engine, provisioned):
-    """Membership in the query role is granted WITH INHERIT FALSE, so reaching
-    the schema takes an explicit SET ROLE rather than merely being the app."""
-    schema, _ = provisioned
+    """Membership is granted WITH INHERIT FALSE, so reaching the schema takes
+    an explicit SET ROLE rather than merely being the app.
+
+    The two halves are asserted separately because one implies the other:
+    ``USAGE`` (privileges arrive by inheritance) is the half that must be
+    false, and ``MEMBER`` (may SET ROLE) the half that must be true. A single
+    expression combining them cannot tell the two settings apart.
+    """
     role = guild_query_role_name(_GID)
     async with engine.connect() as conn:
-        inherited = await conn.scalar(
-            text(
-                "SELECT pg_has_role(:login, :role, 'USAGE') "
-                "AND NOT pg_has_role(:login, :role, 'MEMBER')"
-            ),
+        standing = await conn.scalar(
+            text("SELECT pg_has_role(:login, :role, 'USAGE')"),
             {"login": "app_user", "role": role},
         )
-        # USAGE without MEMBER would mean standing access; the grant is the
-        # other way round, so this is false.
-        assert inherited is False
+        may_assume = await conn.scalar(
+            text("SELECT pg_has_role(:login, :role, 'MEMBER')"),
+            {"login": "app_user", "role": role},
+        )
+        assert standing is False, "privileges should not arrive by inheritance"
+        assert may_assume is True, "the login role should still be able to SET ROLE"
+
+
+@pytest.mark.parametrize(
+    "table", ["public.user_view_preferences", "public.user_tokens", "public.guilds"]
+)
+@pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])
+async def test_it_cannot_write_shared_tables(engine, provisioned, table, verb):
+    """The shared floor it inherits is the read-only one. The writable floor
+    every other guild role carries would arrive by inheritance, and an
+    inherited privilege cannot be revoked back off."""
+    role = guild_query_role_name(_GID)
+    async with engine.connect() as conn:
+        granted = await conn.scalar(
+            text("SELECT has_table_privilege(:r, :t, :p)"),
+            {"r": role, "t": table, "p": verb},
+        )
+        assert granted is False, f"{verb} on {table}"
+
+
+async def test_it_can_read_shared_tables(engine, provisioned):
+    """Reading them is what a guild-schema query needs: the policies call
+    ``public.guild_auth_satisfied()``, which reads ``guild_auth_policies``."""
+    async with engine.connect() as conn:
+        result = await _as_query_role(
+            conn, "SELECT count(*) FROM public.guild_auth_policies"
+        )
+        assert result.scalar() >= 0
 
 
 async def test_the_catalogs_are_readable_like_any_role(engine, provisioned):
     """PostgreSQL grants the system catalogs to PUBLIC, so this role reads
-    names from them as every role does. Recorded rather than assumed: the
-    catalogs are not where a query is kept away from other schemas — the
-    validator is, resolving every relation through the field registry and
-    refusing a schema-qualified name outright."""
+    names from them as every role does. Recorded because the opposite is easy
+    to assume."""
     async with engine.connect() as conn:
         result = await _as_query_role(conn, "SELECT count(*) FROM pg_catalog.pg_class")
         assert result.scalar() > 0
@@ -174,9 +201,7 @@ async def test_the_catalogs_are_readable_like_any_role(engine, provisioned):
 async def test_the_privileged_catalogs_stay_privileged(
     engine, provisioned, what, statement
 ):
-    """Where the line actually falls. Reading catalog *names* is one thing;
-    these are the parts PostgreSQL keeps for a superuser, and this role is not
-    one."""
+    """The parts PostgreSQL keeps for a superuser. This role is not one."""
     async with engine.connect() as conn:
         with pytest.raises((ProgrammingError, DBAPIError)):
             await _as_query_role(conn, statement)
