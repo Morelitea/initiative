@@ -54,8 +54,6 @@ def test_the_families_do_not_publish_the_account():
         "age_confirmed_at",
         "locale",
         "timezone",
-        "email_mentions",
-        "push_mentions",
         "last_task_assignment_digest_at",
     }
     published = account_only & PUBLISHED_COLUMNS

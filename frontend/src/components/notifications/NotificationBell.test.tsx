@@ -187,7 +187,7 @@ describe("NotificationBell reading", () => {
     vi.clearAllMocks();
   });
 
-  it("clears the badge on the click, not on the answer", async () => {
+  it("clears the dot on the click, not on the answer", async () => {
     // The server is made to take its time; nothing on screen should wait for
     // it. Marking read is a statement about the reader, and the notification
     // is one you are navigating away from anyway.
@@ -207,16 +207,18 @@ describe("NotificationBell reading", () => {
     );
 
     renderWithProviders(<NotificationBell />);
-    await screen.findByText("1");
+    await screen.findByRole("button", { name: /unread activity/i });
 
     await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await userEvent.click(await screen.findByText(/was assigned to you/i));
 
-    await waitFor(() => expect(screen.queryByText("1")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /unread activity/i })).not.toBeInTheDocument()
+    );
     release?.();
   });
 
-  it("puts the badge back if the server refuses the read", async () => {
+  it("puts the dot back if the server refuses the read", async () => {
     const notice = unreadNotice();
     server.use(
       http.get("/api/v1/notifications/", () =>
@@ -226,14 +228,16 @@ describe("NotificationBell reading", () => {
     );
 
     renderWithProviders(<NotificationBell />);
-    await screen.findByText("1");
+    await screen.findByRole("button", { name: /unread activity/i });
 
     await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await userEvent.click(await screen.findByText(/was assigned to you/i));
 
     // The optimistic read gives way to what the server says rather than
     // standing: a refetch follows the refusal.
-    await waitFor(() => expect(screen.getByText("1")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /unread activity/i })).toBeInTheDocument()
+    );
   });
 });
 

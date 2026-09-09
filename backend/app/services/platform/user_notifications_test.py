@@ -13,15 +13,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import NotificationType
 from app.services.platform import user_notifications
-from app.testing import create_user
+from app.testing import create_guild, create_user
 
 
-async def _line(session: AsyncSession, user_id: int, **data):
+async def _line(session: AsyncSession, user_id: int, *, guild_id: int, **data):
     return await user_notifications.create_notification(
         session,
         user_id=user_id,
         notification_type=NotificationType.comment_reaction,
-        data={"guild_id": 1, "target_type": "comment", "target_id": 5, **data},
+        data={
+            "guild_id": guild_id,
+            "target_type": "comment",
+            "target_id": 5,
+            **data,
+        },
     )
 
 
@@ -31,7 +36,8 @@ class TestRefreshNotification:
         self, session: AsyncSession
     ):
         user = await create_user(session, email="rollup-read-race@example.com")
-        line = await _line(session, user.id, count=1)
+        guild = await create_guild(session, creator=user)
+        line = await _line(session, user.id, guild_id=guild.id, count=1)
         line.read_at = datetime.now(timezone.utc)
         await session.flush()
 
@@ -42,7 +48,8 @@ class TestRefreshNotification:
 
     async def test_a_withdrawal_leaves_a_read_line_read(self, session: AsyncSession):
         user = await create_user(session, email="rollup-withdraw-read@example.com")
-        line = await _line(session, user.id, count=2)
+        guild = await create_guild(session, creator=user)
+        line = await _line(session, user.id, guild_id=guild.id, count=2)
         read_at = datetime.now(timezone.utc)
         line.read_at = read_at
         await session.flush()
@@ -58,14 +65,15 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
     """The match is what decides which line a reaction joins, so a near miss on
     any one key must start a new line rather than land on the wrong comment."""
     user = await create_user(session, email="rollup-match@example.com")
-    wanted = await _line(session, user.id, count=1)
-    await _line(session, user.id, target_id=6, count=1)
+    guild = await create_guild(session, creator=user)
+    wanted = await _line(session, user.id, guild_id=guild.id, count=1)
+    await _line(session, user.id, guild_id=guild.id, target_id=6, count=1)
 
     found = await user_notifications.find_unread_by_data(
         session,
         user_id=user.id,
         notification_type=NotificationType.comment_reaction,
-        match={"guild_id": 1, "target_type": "comment", "target_id": 5},
+        match={"guild_id": guild.id, "target_type": "comment", "target_id": 5},
     )
     assert found is not None and found.id == wanted.id
 
@@ -74,7 +82,7 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_reaction,
-            match={"guild_id": 2, "target_type": "comment", "target_id": 5},
+            match={"guild_id": guild.id + 1, "target_type": "comment", "target_id": 5},
         )
         is None
     )
@@ -86,7 +94,7 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_reaction,
-            match={"guild_id": 1, "target_type": "comment", "target_id": 5},
+            match={"guild_id": guild.id, "target_type": "comment", "target_id": 5},
         )
         is None
     )

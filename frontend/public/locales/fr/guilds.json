@@ -278,7 +278,30 @@
     "exportReady": "Votre export est prêt — cliquez pour le télécharger.",
     "exportFailed": "Votre export a échoué. Réessayez.",
     "importReady": "Votre import est terminé — cliquez pour voir le rapport.",
-    "importFailed": "Votre import a échoué. Cliquez pour voir ce qui s'est passé."
+    "importFailed": "Votre import a échoué. Cliquez pour voir ce qui s'est passé.",
+    "commentsOnTask": "{{name}} a laissé {{count}} commentaires sur {{taskTitle}}",
+    "commentsOnTaskMulti": "{{name}} et {{others}} autres ont laissé {{count}} commentaires sur {{taskTitle}}",
+    "commentsOnResource": "{{name}} a laissé {{count}} commentaires sur {{entityName}}",
+    "commentsOnResourceMulti": "{{name}} et {{others}} autres ont laissé {{count}} commentaires sur {{entityName}}",
+    "seeAll": "Tout voir",
+    "inbox": {
+      "title": "Notifications",
+      "today": "Aujourd'hui",
+      "yesterday": "Hier",
+      "empty": "Rien pour l'instant.",
+      "loadMore": "Charger plus",
+      "markRead": "Marquer comme lu",
+      "markUnread": "Marquer comme non lu",
+      "dismiss": "Ignorer",
+      "filterByCommunity": "Filtrer par communauté",
+      "allCommunities": "Toutes les communautés",
+      "filters": {
+        "all": "Tout",
+        "unread": "Non lues",
+        "personal": "Mentions"
+      }
+    },
+    "ariaLabelUnread": "Notifications — activité non lue"
   },
   "version": {
     "newVersionAvailable": "Nouvelle version disponible",
@@ -433,5 +456,6 @@
     "actions": "Actions",
     "failed": "Les membres de cette communauté n'ont pas pu être chargés.",
     "searchPlaceholder": "Filtrer les membres"
-  }
+  },
+  "unreadHere": "Activité non lue"
 }

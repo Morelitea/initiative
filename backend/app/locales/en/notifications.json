@@ -123,5 +123,29 @@
   "directMessage": {
     "title": "{{sender}} sent you a message",
     "body": "Open Initiative to read it."
+  },
+  "quietHours": {
+    "summary": {
+      "title": "While you were away",
+      "body": "{{count}} things happened while you were away.",
+      "subject": "{{count}} things happened while you were away"
+    },
+    "category": {
+      "mentions": "{{count}} mentions",
+      "replies": "{{count}} replies",
+      "comments": "{{count}} comments",
+      "reactions": "{{count}} reactions",
+      "assignments": "{{count}} task assignments",
+      "due_dates": "{{count}} overdue reminders",
+      "membership": "{{count}} membership updates",
+      "approvals": "{{count}} waiting on you",
+      "posts": "{{count}} posts",
+      "events": "{{count}} event updates",
+      "event_reminders": "{{count}} event reminders",
+      "direct_messages": "{{count}} direct messages",
+      "connections": "{{count}} connection updates",
+      "jobs": "{{count}} exports and imports",
+      "account": "{{count}} account notices"
+    }
   }
 }

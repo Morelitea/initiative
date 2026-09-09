@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The phone app takes the picture, and reads with no signal** — every image upload (profile picture, community icon and banner, document images, notice screenshots) now offers the camera beside the photo library. And silence from the server is no longer read as a rejection: instead of the sign-in screen you get the tasks, documents, notices and calendars this device had already loaded, for up to a day, behind a bar saying when it last updated. Reading only.
 - **Reactions can be turned off per notice** — a switch beside the comments one, on by default; turning it off keeps the reactions already there.
+- **The bell can be turned down** — every notification setting used to govern email and mobile only, so the bell filled at the same rate whatever you switched off. It is now a channel of its own, with a switch per category, and a category that names you keeps it whatever else you do.
+- **Quiet hours** — hold email and mobile overnight, in your timezone. The bell still collects, and when the window ends one message says what happened rather than replaying a night of them.
+- **Notifications have a page** — **/notifications** holds everything that has happened, read and unread, grouped by day, filterable by community and by what names you, with mark-unread and dismiss on every row. The bell's popover is now what is still unread, all of it.
+- **Every community has a dial** — set one to say everything, only what names you, or nothing, without touching any other. A per-category grid for a single community sits behind it for anyone who wants one.
 
 ### Changed
 
@@ -20,7 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **What you can reach is your role, and viewing is enough to reply** — a share now reaches somebody only if their initiative role lets them use that tool, and says so instead of quietly doing nothing; and anyone a project, document, notice, queue, counter group or calendar is shared with as a viewer can comment on it and react, where both used to take edit access.
 - **A community answers about a person in its own terms** — approving a member returns their handle, picture, standing and initiative places rather than their whole account record, and a community that shows handles now asks the database for people without their names. Nothing changes on screen.
 - **Webhooks: polls in, drafts out, and what each change sits inside** — answering a poll now sends the notice update and never names the voter; a draft sends nothing until it is published; and every change names its surrounding items as `{type, id}` pairs. Additive — existing subscriptions need no change.
-- **Notifications mark read on click** — the dot and the bell's count move as you click and come back if the server refuses. Times are relative now, with the full date on hover.
+- **Comments arrive as one line per thread** — twenty comments on a task you are on used to be twenty notifications, twenty emails and twenty pushes. They now roll up into a single line naming who commented and how many, and interrupt once. Reading it starts a fresh one, so new activity is still news.
+- **Mentions and ambient comment traffic are separate settings** — one switch used to govern both being named and somebody commenting on a task you happen to be assigned, so the only way to quieten the second was to lose the first.
+- **Nothing is counted** — the bell, and every community on the rail, show a dot rather than a number. Opening the bell shows every unread item, which is what the number was standing in for.
+- **Notifications mark read on click** — the dot moves as you click and comes back if the server refuses. Times are relative now, with the full date on hover.
 - **Bursts of change stop stuttering** — a batch is worked out once rather than per item: a third of a second of unresponsive page becomes under a millisecond.
 
 ### Fixed

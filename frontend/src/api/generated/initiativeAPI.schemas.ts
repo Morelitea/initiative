@@ -1596,6 +1596,15 @@ export interface CalendarUpdate {
   color?: string | null;
 }
 
+export type CategoryGroup = (typeof CategoryGroup)[keyof typeof CategoryGroup];
+
+export const CategoryGroup = {
+  addressed_to_me: "addressed_to_me",
+  activity: "activity",
+  community: "community",
+  account: "account",
+} as const;
+
 /**
  * One parsed ``## [version] - date`` section of CHANGELOG.md.
  */
@@ -1612,6 +1621,21 @@ export interface ChangelogEntry {
 export interface ChangelogResponse {
   entries: ChangelogEntry[];
 }
+
+/**
+ * How a notification reaches somebody.
+ *
+ * ``in_app`` is a real channel, not an always-on floor. Before it existed the
+ * bell was written unconditionally and only email and push could be turned
+ * down, which is the whole reason the surface felt loud.
+ */
+export type Channel = (typeof Channel)[keyof typeof Channel];
+
+export const Channel = {
+  in_app: "in_app",
+  email: "email",
+  push: "push",
+} as const;
 
 /**
  * How a profile is dressed: a banner, a frame, trophies under it.
@@ -3501,6 +3525,30 @@ export interface GuildMembershipUpdate {
   role: GuildRole;
 }
 
+export type GuildNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
+
+/**
+ * How much one community is allowed to say.
+ *
+ * The dial almost everyone will use, in place of the per-category grid. It
+ * lives in the settings document rather than on ``guild_memberships`` because
+ * a roster row is read by other people, and this is not theirs to see.
+ */
+export type NotificationLevel = (typeof NotificationLevel)[keyof typeof NotificationLevel];
+
+export const NotificationLevel = {
+  everything: "everything",
+  personal: "personal",
+  nothing: "nothing",
+} as const;
+
+export interface GuildNotificationSettings {
+  guild_id: number;
+  guild_name: string;
+  level: NotificationLevel;
+  categories: GuildNotificationSettingsCategories;
+}
+
 export interface GuildOrderUpdate {
   /** @minItems 1 */
   guildIds: number[];
@@ -4150,8 +4198,55 @@ export interface MyToolCountsResponse {
   counts: MyToolCountsResponseCounts;
 }
 
+export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
+
+export const NotificationCategory = {
+  mentions: "mentions",
+  replies: "replies",
+  comments: "comments",
+  reactions: "reactions",
+  assignments: "assignments",
+  due_dates: "due_dates",
+  membership: "membership",
+  approvals: "approvals",
+  posts: "posts",
+  events: "events",
+  event_reminders: "event_reminders",
+  direct_messages: "direct_messages",
+  connections: "connections",
+  jobs: "jobs",
+  account: "account",
+} as const;
+
+/**
+ * One row of the settings grid, described by the backend.
+ */
+export interface NotificationCategoryRead {
+  category: NotificationCategory;
+  group: CategoryGroup;
+  personal: boolean;
+  guild_scoped: boolean;
+  mutable_channels: Channel[];
+  defaults: Partial<Record<Channel, boolean>>;
+}
+
+/**
+ * One switch being moved. ``guild_id`` scopes it to one community.
+ */
+export interface NotificationChannelSet {
+  guild_id?: number | null;
+  category: NotificationCategory;
+  channel: Channel;
+  enabled: boolean;
+}
+
 export interface NotificationCountResponse {
   unread_count: number;
+}
+
+export interface NotificationLevelSet {
+  guild_id: number;
+  level: NotificationLevel;
 }
 
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
@@ -4203,11 +4298,55 @@ export interface NotificationRead {
   data: NotificationReadData;
   created_at: string;
   read_at: string | null;
+  guild_id: number | null;
+  initiative_id: number | null;
+  tool: string | null;
 }
 
 export interface NotificationListResponse {
   notifications: NotificationRead[];
   unread_count: number;
+  next_cursor: string | null;
+}
+
+/**
+ * One place with unread activity. Every level is optional: a direct
+ * message names none of them, a membership notice only a community.
+ */
+export interface NotificationPlace {
+  guild_id: number | null;
+  initiative_id: number | null;
+  tool: string | null;
+}
+
+export type NotificationPreferencesReadSettings = { [key: string]: { [key: string]: boolean } };
+
+/**
+ * A nightly window, in the account's own timezone. Wraps midnight.
+ */
+export interface QuietHours {
+  start: string;
+  end: string;
+}
+
+export interface NotificationPreferencesRead {
+  categories: NotificationCategoryRead[];
+  settings: NotificationPreferencesReadSettings;
+  quiet_hours: QuietHours | null;
+  guilds: GuildNotificationSettings[];
+}
+
+/**
+ * A partial write: only what moved.
+ *
+ * Whole-document writes would make two open settings tabs clobber each other,
+ * and a single switch is what the page actually sends.
+ */
+export interface NotificationPreferencesUpdate {
+  channels?: NotificationChannelSet[];
+  levels?: NotificationLevelSet[];
+  quiet_hours?: QuietHours | null;
+  clear_quiet_hours?: boolean;
 }
 
 export interface OIDCClaimMappingCreate {
@@ -6124,6 +6263,13 @@ export interface TrashListResponse {
 }
 
 /**
+ * Where the dots go. No counts anywhere — the popover shows the list.
+ */
+export interface UnreadPlacesResponse {
+  places: NotificationPlace[];
+}
+
+/**
  * Short-lived, uploads-scoped credential for native media loads.
  *
  * Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
@@ -6250,26 +6396,6 @@ export interface UserRead {
   recent_tabs_limit: number;
   timezone: string;
   overdue_notification_time: string;
-  email_initiative_addition: boolean;
-  email_task_assignment: boolean;
-  email_project_added: boolean;
-  email_overdue_tasks: boolean;
-  email_mentions: boolean;
-  email_comment_reactions: boolean;
-  push_initiative_addition: boolean;
-  push_task_assignment: boolean;
-  push_project_added: boolean;
-  push_overdue_tasks: boolean;
-  push_mentions: boolean;
-  push_comment_reactions: boolean;
-  email_direct_messages: boolean;
-  push_direct_messages: boolean;
-  email_posts: boolean;
-  push_posts: boolean;
-  email_events: boolean;
-  push_events: boolean;
-  email_event_reminders: boolean;
-  push_event_reminders: boolean;
   event_reminder_minutes_before: number | null;
   last_overdue_notification_at: string | null;
   last_task_assignment_digest_at: string | null;
@@ -6302,26 +6428,6 @@ export interface UserSelfUpdate {
   recent_tabs_limit?: number | null;
   timezone?: string | null;
   overdue_notification_time?: string | null;
-  email_initiative_addition?: boolean | null;
-  email_task_assignment?: boolean | null;
-  email_project_added?: boolean | null;
-  email_overdue_tasks?: boolean | null;
-  email_mentions?: boolean | null;
-  email_comment_reactions?: boolean | null;
-  push_initiative_addition?: boolean | null;
-  push_task_assignment?: boolean | null;
-  push_project_added?: boolean | null;
-  push_overdue_tasks?: boolean | null;
-  push_mentions?: boolean | null;
-  push_comment_reactions?: boolean | null;
-  email_direct_messages?: boolean | null;
-  push_direct_messages?: boolean | null;
-  email_posts?: boolean | null;
-  push_posts?: boolean | null;
-  email_events?: boolean | null;
-  push_events?: boolean | null;
-  email_event_reminders?: boolean | null;
-  push_event_reminders?: boolean | null;
   event_reminder_minutes_before?: number | null;
   color_theme?: string | null;
   task_completion_visual_feedback?: string | null;
@@ -6829,6 +6935,14 @@ export type ListNotificationsApiV1NotificationsGetParams = {
    * @maximum 100
    */
   limit?: number;
+  cursor?: string | null;
+  unread_only?: boolean;
+  guild_id?: number | null;
+  personal_only?: boolean;
+};
+
+export type MarkAllNotificationsReadApiV1NotificationsReadAllPostParams = {
+  guild_id?: number | null;
 };
 
 export type ListProjectsApiV1GGuildIdProjectsGetParams = {

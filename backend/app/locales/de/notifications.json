@@ -123,5 +123,29 @@
   "directMessage": {
     "title": "{{sender}} hat dir eine Nachricht gesendet",
     "body": "Öffne Initiative, um sie zu lesen."
+  },
+  "quietHours": {
+    "summary": {
+      "title": "Während du weg warst",
+      "body": "{{count}} Dinge sind passiert, während du weg warst.",
+      "subject": "{{count}} Dinge sind passiert, während du weg warst"
+    },
+    "category": {
+      "mentions": "{{count}} Erwähnungen",
+      "replies": "{{count}} Antworten",
+      "comments": "{{count}} Kommentare",
+      "reactions": "{{count}} Reaktionen",
+      "assignments": "{{count}} Aufgabenzuweisungen",
+      "due_dates": "{{count}} Erinnerungen an Überfälliges",
+      "membership": "{{count}} Mitgliedschaftsänderungen",
+      "approvals": "{{count}} warten auf dich",
+      "posts": "{{count}} Beiträge",
+      "events": "{{count}} Terminänderungen",
+      "event_reminders": "{{count}} Terminerinnerungen",
+      "direct_messages": "{{count}} Direktnachrichten",
+      "connections": "{{count}} Kontaktänderungen",
+      "jobs": "{{count}} Exporte und Importe",
+      "account": "{{count}} Kontohinweise"
+    }
   }
 }

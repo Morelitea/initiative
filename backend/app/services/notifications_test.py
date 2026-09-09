@@ -54,6 +54,7 @@ from app.testing import (
     create_project,
     create_task,
     create_user,
+    set_notification_prefs,
 )
 
 
@@ -400,7 +401,6 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
     user = await create_user(
         session,
         email="multi-overdue@example.com",
-        email_overdue_tasks=True,
         overdue_notification_time="00:00",  # always past, so the digest fires
         timezone="UTC",
     )
@@ -455,8 +455,6 @@ async def test_overdue_digest_pushes_alongside_email(
     user = await create_user(
         session,
         email="overdue-both@example.com",
-        email_overdue_tasks=True,
-        push_overdue_tasks=True,
         overdue_notification_time="00:00",
         timezone="UTC",
     )
@@ -494,10 +492,11 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     user = await create_user(
         session,
         email="overdue-push-only@example.com",
-        email_overdue_tasks=False,
-        push_overdue_tasks=True,
         overdue_notification_time="00:00",
         timezone="UTC",
+    )
+    await set_notification_prefs(
+        session, user, {"categories": {"due_dates": {"email": False}}}
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
@@ -532,10 +531,11 @@ async def test_overdue_digest_skips_push_when_opted_out(
     user = await create_user(
         session,
         email="overdue-email-only@example.com",
-        email_overdue_tasks=True,
-        push_overdue_tasks=False,
         overdue_notification_time="00:00",
         timezone="UTC",
+    )
+    await set_notification_prefs(
+        session, user, {"categories": {"due_dates": {"push": False}}}
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
@@ -560,8 +560,6 @@ async def test_overdue_digest_skips_template_projects(
     user = await create_user(
         session,
         email="template-overdue@example.com",
-        email_overdue_tasks=True,
-        push_overdue_tasks=True,
         overdue_notification_time="00:00",
         timezone="UTC",
     )
@@ -594,8 +592,6 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
     user = await create_user(
         session,
         email="archived-overdue@example.com",
-        email_overdue_tasks=True,
-        push_overdue_tasks=True,
         overdue_notification_time="00:00",
         timezone="UTC",
     )
@@ -858,8 +854,9 @@ async def test_assignment_digest_pushes_when_email_opted_out(
     user = await create_user(
         session,
         email="digest-push-only@example.com",
-        email_task_assignment=False,
-        push_task_assignment=True,
+    )
+    await set_notification_prefs(
+        session, user, {"categories": {"assignments": {"email": False}}}
     )
     await _assignment_item_in_new_guild(session, user, label="Alpha")
 
@@ -898,9 +895,9 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     session.expunge_all()
     await set_rls_context(session, user_id=user.id)
     fresh = (await session.exec(select(User).where(User.id == user.id))).one()
-    fresh.email_task_assignment = False
-    session.add(fresh)
-    await session.commit()
+    await set_notification_prefs(
+        session, fresh, {"categories": {"assignments": {"email": False}}}
+    )
 
     session.expunge_all()
     await set_rls_context(session)
@@ -1111,8 +1108,11 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     user = await create_user(
         session,
         email="reaction-optout@example.com",
-        email_comment_reactions=False,
-        push_comment_reactions=False,
+    )
+    await set_notification_prefs(
+        session,
+        user,
+        {"categories": {"reactions": {"email": False, "push": False}}},
     )
     await _reaction_item_in_new_guild(session, user, label="Alpha")
 
@@ -1288,6 +1288,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     from app.services.platform import user_notifications
 
     author = await create_user(session, email="rollup-rolled-off@example.com")
+    guild = await create_guild(session, creator=author)
     bob = 2
     # 25 gestures counted, only the newest 20 remembered: bob's first has
     # rolled off the detail, his second is the newest entry.
@@ -1301,7 +1302,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         user_id=author.id,
         notification_type=NotificationType.comment_reaction,
         data={
-            "guild_id": 1,
+            "guild_id": guild.id,
             "target_type": "comment",
             "target_id": 5,
             "count": 25,
@@ -1320,7 +1321,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         emoji="\N{THUMBS UP SIGN}",
         target_type="comment",
         target_id=5,
-        guild_id=1,
+        guild_id=guild.id,
     )
 
     assert line.data["count"] == 24

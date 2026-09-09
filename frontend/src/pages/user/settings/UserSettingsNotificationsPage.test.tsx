@@ -23,22 +23,32 @@ describe("UserSettingsNotificationsPage", () => {
   const renderPage = (overrides = {}) =>
     renderWithProviders(
       <UserSettingsNotificationsPage
-        user={buildUser({
-          email_events: true,
-          push_events: true,
-          email_event_reminders: true,
-          push_event_reminders: true,
-          event_reminder_minutes_before: 15,
-          ...overrides,
-        })}
+        user={buildUser({ event_reminder_minutes_before: 15, ...overrides })}
         refreshUser={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
-  it("renders the Events and Event reminders categories", async () => {
+  it("renders the grid from the registry the server sends", async () => {
     renderPage();
     expect(await screen.findByText("Events")).toBeInTheDocument();
     expect(screen.getByText("Event reminders")).toBeInTheDocument();
+    // Split from mentions: the whole reason ambient comment traffic can now be
+    // quietened on its own.
+    expect(screen.getByText("Mentions")).toBeInTheDocument();
+    expect(screen.getByText("Comments on your work")).toBeInTheDocument();
+  });
+
+  it("offers the bell as a channel", async () => {
+    renderPage();
+    expect(await screen.findByText("Bell")).toBeInTheDocument();
+  });
+
+  it("leaves the bell on and unswitchable for account notices", async () => {
+    renderPage();
+    await screen.findByText("Your account");
+    const bell = screen.getByLabelText("Your account on Bell");
+    expect(bell).toBeDisabled();
+    expect(bell).toBeChecked();
   });
 
   it("shows the configured reminder lead time", async () => {

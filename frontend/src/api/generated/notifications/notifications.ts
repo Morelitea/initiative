@@ -23,13 +23,17 @@ import type {
 import type {
   HTTPValidationError,
   ListNotificationsApiV1NotificationsGetParams,
+  MarkAllNotificationsReadApiV1NotificationsReadAllPostParams,
   NotificationCountResponse,
   NotificationListResponse,
+  NotificationPreferencesRead,
+  NotificationPreferencesUpdate,
   NotificationRead,
+  UnreadPlacesResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -49,6 +53,12 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
+ * One page of the inbox, newest first.
+ *
+ * The popover asks with ``unread_only`` and follows the cursor to the end:
+ * it shows everything still unread, which is what makes a number on the bell
+ * unnecessary. The page takes the same list without the filter, as the
+ * record.
  * @summary List Notifications
  */
 export const listNotificationsApiV1NotificationsGet = (
@@ -203,29 +213,33 @@ export function useListNotificationsApiV1NotificationsGet<
 }
 
 /**
- * @summary Unread Notifications Count
+ * Where this account has unread activity, for the dots.
+ *
+ * One distinct scan over the unread index. Nothing is counted: a dot says
+ * "look here" and the popover says what.
+ * @summary Unread Notification Places
  */
-export const unreadNotificationsCountApiV1NotificationsUnreadCountGet = (
+export const unreadNotificationPlacesApiV1NotificationsUnreadGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<NotificationCountResponse>(
-    { url: `/api/v1/notifications/unread-count`, method: "GET", signal },
+  return apiMutator<UnreadPlacesResponse>(
+    { url: `/api/v1/notifications/unread`, method: "GET", signal },
     options
   );
 };
 
-export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryKey = () => {
-  return [`/api/v1/notifications/unread-count`] as const;
+export const getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey = () => {
+  return [`/api/v1/notifications/unread`] as const;
 };
 
-export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+export const getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
-      Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+      Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
       TError,
       TData
     >
@@ -235,43 +249,42 @@ export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOpt
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryKey();
+    queryOptions?.queryKey ?? getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
-  > = ({ signal }) =>
-    unreadNotificationsCountApiV1NotificationsUnreadCountGet(requestOptions, signal);
+    Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>
+  > = ({ signal }) => unreadNotificationPlacesApiV1NotificationsUnreadGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+    Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type UnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
+export type UnreadNotificationPlacesApiV1NotificationsUnreadGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>
 >;
-export type UnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryError =
+export type UnreadNotificationPlacesApiV1NotificationsUnreadGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
-  TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+export function useUnreadNotificationPlacesApiV1NotificationsUnreadGet<
+  TData = Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+        Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+          Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
           TError,
-          Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
+          Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>
         >,
         "initialData"
       >;
@@ -279,23 +292,23 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
-  TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+export function useUnreadNotificationPlacesApiV1NotificationsUnreadGet<
+  TData = Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+        Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+          Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
           TError,
-          Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
+          Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>
         >,
         "initialData"
       >;
@@ -303,14 +316,14 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
-  TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+export function useUnreadNotificationPlacesApiV1NotificationsUnreadGet<
+  TData = Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+        Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
         TError,
         TData
       >
@@ -320,17 +333,17 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Unread Notifications Count
+ * @summary Unread Notification Places
  */
 
-export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
-  TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+export function useUnreadNotificationPlacesApiV1NotificationsUnreadGet<
+  TData = Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
+        Awaited<ReturnType<typeof unreadNotificationPlacesApiV1NotificationsUnreadGet>>,
         TError,
         TData
       >
@@ -339,8 +352,7 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOptions(options);
+  const queryOptions = getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -439,14 +451,193 @@ export const useMarkNotificationReadApiV1NotificationsNotificationIdReadPost = <
   );
 };
 /**
+ * @summary Mark Notification Unread
+ */
+export const markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost = (
+  notificationId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationRead>(
+    { url: `/api/v1/notifications/${notificationId}/unread`, method: "POST", signal },
+    options
+  );
+};
+
+export const getMarkNotificationUnreadApiV1NotificationsNotificationIdUnreadPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>,
+    TError,
+    { notificationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>,
+  TError,
+  { notificationId: number },
+  TContext
+> => {
+  const mutationKey = ["markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>,
+    { notificationId: number }
+  > = (props) => {
+    const { notificationId } = props ?? {};
+
+    return markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost(
+      notificationId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkNotificationUnreadApiV1NotificationsNotificationIdUnreadPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>
+  >;
+
+export type MarkNotificationUnreadApiV1NotificationsNotificationIdUnreadPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Mark Notification Unread
+ */
+export const useMarkNotificationUnreadApiV1NotificationsNotificationIdUnreadPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>,
+      TError,
+      { notificationId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost>>,
+  TError,
+  { notificationId: number },
+  TContext
+> => {
+  return useMutation(
+    getMarkNotificationUnreadApiV1NotificationsNotificationIdUnreadPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Dismiss Notification
+ */
+export const dismissNotificationApiV1NotificationsNotificationIdDelete = (
+  notificationId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/notifications/${notificationId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDismissNotificationApiV1NotificationsNotificationIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>,
+    TError,
+    { notificationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>,
+  TError,
+  { notificationId: number },
+  TContext
+> => {
+  const mutationKey = ["dismissNotificationApiV1NotificationsNotificationIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>,
+    { notificationId: number }
+  > = (props) => {
+    const { notificationId } = props ?? {};
+
+    return dismissNotificationApiV1NotificationsNotificationIdDelete(
+      notificationId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissNotificationApiV1NotificationsNotificationIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>
+>;
+
+export type DismissNotificationApiV1NotificationsNotificationIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Dismiss Notification
+ */
+export const useDismissNotificationApiV1NotificationsNotificationIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>,
+      TError,
+      { notificationId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof dismissNotificationApiV1NotificationsNotificationIdDelete>>,
+  TError,
+  { notificationId: number },
+  TContext
+> => {
+  return useMutation(
+    getDismissNotificationApiV1NotificationsNotificationIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Clear the unread set, or just one community's part of it.
  * @summary Mark All Notifications Read
  */
 export const markAllNotificationsReadApiV1NotificationsReadAllPost = (
+  params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<NotificationCountResponse>(
-    { url: `/api/v1/notifications/read-all`, method: "POST", signal },
+    { url: `/api/v1/notifications/read-all`, method: "POST", params, signal },
     options
   );
 };
@@ -458,14 +649,14 @@ export const getMarkAllNotificationsReadApiV1NotificationsReadAllPostMutationOpt
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>,
     TError,
-    void,
+    { params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>,
   TError,
-  void,
+  { params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams },
   TContext
 > => {
   const mutationKey = ["markAllNotificationsReadApiV1NotificationsReadAllPost"];
@@ -477,9 +668,11 @@ export const getMarkAllNotificationsReadApiV1NotificationsReadAllPostMutationOpt
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>,
-    void
-  > = () => {
-    return markAllNotificationsReadApiV1NotificationsReadAllPost(requestOptions);
+    { params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return markAllNotificationsReadApiV1NotificationsReadAllPost(params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -503,7 +696,7 @@ export const useMarkAllNotificationsReadApiV1NotificationsReadAllPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>,
       TError,
-      void,
+      { params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -512,11 +705,274 @@ export const useMarkAllNotificationsReadApiV1NotificationsReadAllPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>,
   TError,
-  void,
+  { params?: MarkAllNotificationsReadApiV1NotificationsReadAllPostParams },
   TContext
 > => {
   return useMutation(
     getMarkAllNotificationsReadApiV1NotificationsReadAllPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * The registry, this account's overrides, and each community's level.
+ *
+ * The registry travels with the response so the settings page renders the
+ * categories this build has rather than a copy of the list.
+ * @summary Read My Notification Preferences
+ */
+export const readMyNotificationPreferencesApiV1MeNotificationPreferencesGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationPreferencesRead>(
+    { url: `/api/v1/me/notification-preferences`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryKey = () => {
+  return [`/api/v1/me/notification-preferences`] as const;
+};
+
+export const getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>
+  > = ({ signal }) =>
+    readMyNotificationPreferencesApiV1MeNotificationPreferencesGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>
+>;
+export type ReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadMyNotificationPreferencesApiV1MeNotificationPreferencesGet<
+  TData = Awaited<
+    ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyNotificationPreferencesApiV1MeNotificationPreferencesGet<
+  TData = Awaited<
+    ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyNotificationPreferencesApiV1MeNotificationPreferencesGet<
+  TData = Awaited<
+    ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read My Notification Preferences
+ */
+
+export function useReadMyNotificationPreferencesApiV1MeNotificationPreferencesGet<
+  TData = Awaited<
+    ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyNotificationPreferencesApiV1MeNotificationPreferencesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Move some switches.
+ *
+ * A partial write, because that is what a settings page sends and because two
+ * open tabs must not overwrite each other's unrelated rows.
+ * @summary Update My Notification Preferences
+ */
+export const updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut = (
+  notificationPreferencesUpdate: BodyType<NotificationPreferencesUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationPreferencesRead>(
+    {
+      url: `/api/v1/me/notification-preferences`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: notificationPreferencesUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>,
+    TError,
+    { data: BodyType<NotificationPreferencesUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>,
+  TError,
+  { data: BodyType<NotificationPreferencesUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>,
+    { data: BodyType<NotificationPreferencesUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>
+  >;
+export type UpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPutMutationBody =
+  BodyType<NotificationPreferencesUpdate>;
+export type UpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update My Notification Preferences
+ */
+export const useUpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>,
+      TError,
+      { data: BodyType<NotificationPreferencesUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut>>,
+  TError,
+  { data: BodyType<NotificationPreferencesUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateMyNotificationPreferencesApiV1MeNotificationPreferencesPutMutationOptions(options),
     queryClient
   );
 };

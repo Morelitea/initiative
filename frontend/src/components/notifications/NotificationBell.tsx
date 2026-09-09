@@ -1,10 +1,14 @@
 import { useRouter } from "@tanstack/react-router";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { Badge } from "@/components/ui/badge";
+import {
+  exportDownloadTarget,
+  notificationLink,
+  notificationText,
+} from "@/components/notifications/notificationLine";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -12,383 +16,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
+  useAllUnreadNotifications,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
-  useNotifications,
 } from "@/hooks/useNotifications";
-import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
-import { guildPath } from "@/lib/guildUrl";
-import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
 
 // How often the bell asks on its own, which is only ever when there is no
 // channel to ask for it.
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
-// Build guild-scoped URL directly. Notification rows persist their
-// target_path, so one written before tools moved inside their initiative is
-// mapped onto the `/go` resolver on the way out.
-const buildGuildPath = (guildId: number, targetPath: string): string => {
-  const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  return guildPath(guildId, normalizeLegacyTarget(normalized));
-};
-
-const resolveSmartLink = (notification: NotificationRead): string | null => {
-  const data = notification.data || {};
-  const guildValue = data.guild_id;
-  const targetValue = data.target_path;
-
-  let guildId: number | null = null;
-  if (typeof guildValue === "number") {
-    guildId = guildValue;
-  } else if (typeof guildValue === "string") {
-    const parsed = Number(guildValue);
-    guildId = Number.isFinite(parsed) ? parsed : null;
-  }
-
-  const targetPath = typeof targetValue === "string" ? targetValue : null;
-  if (guildId !== null && targetPath) {
-    return buildGuildPath(guildId, targetPath);
-  }
-
-  if (typeof data.smart_link === "string" && data.smart_link) {
-    try {
-      const base = typeof window !== "undefined" ? window.location.origin : "http://localhost";
-      const parsed = new URL(data.smart_link, base);
-      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    } catch {
-      if (data.smart_link.startsWith("/")) {
-        return data.smart_link;
-      }
-    }
-  }
-
-  return null;
-};
-
-// The `/go` resolver address for a payload that names its parent generically
-// (`entity_type` + `entity_id`), or null when it names nothing recognizable.
-const entityRefFromData = (data: Record<string, unknown>): string | null => {
-  const entityType = typeof data.entity_type === "string" ? data.entity_type : null;
-  const entityId = Number(data.entity_id);
-  if (!entityType || !Number.isFinite(entityId)) {
-    return null;
-  }
-  if (entityType === "task") {
-    return entityRefRoute("task", entityId);
-  }
-  const tool = TOOLS.find((candidate) => candidate === entityType);
-  return tool ? toolRefRoute(tool, entityId) : null;
-};
-
-const notificationLink = (notification: NotificationRead): string | null => {
-  const smartLink = resolveSmartLink(notification);
-  if (smartLink) {
-    return smartLink;
-  }
-  const data = notification.data || {};
-  switch (notification.type) {
-    // These hold ids and nothing else, so they address the `/go` resolver,
-    // which reads the entity and works out where it lives.
-    case "task_assignment": {
-      const taskId = Number(data.task_id);
-      if (Number.isFinite(taskId) && data.task_id != null) {
-        return entityRefRoute("task", taskId);
-      }
-      if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
-      }
-      return null;
-    }
-    case "initiative_added":
-      // The initiative list is a section of the guild home now.
-      return "/";
-    case "project_added":
-      if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
-      }
-      return null;
-    case "import_ready":
-    case "import_failed": {
-      // The report lives on the guild's Data settings tab (the jobs table's
-      // "View report"). Absolute guild path — the notification names its guild.
-      const guildId = Number(data.guild_id);
-      return Number.isFinite(guildId) ? buildGuildPath(guildId, "/settings/data") : null;
-    }
-    case "user_pending_approval":
-      return "/settings";
-    case "direct_message":
-      // The page opens the conversation itself: the thread is read out of this
-      // device's own store, so there is nothing for a route param to fetch.
-      return "/messages";
-    case "mention":
-    case "comment_reply":
-    case "comment_on_resource":
-      if (typeof data.document_id === "number") {
-        return entityRefRoute("document", data.document_id);
-      }
-      return entityRefFromData(data);
-    case "post_published":
-      if (typeof data.post_id === "number") {
-        return entityRefRoute("post", data.post_id);
-      }
-      return null;
-    case "access_grant_requested":
-    case "access_grant_approved":
-    case "access_grant_denied":
-    case "access_grant_revoked":
-      // The Access tab serves both requesters (their requests) and approvers
-      // (the queue). It's a platform route, not guild-scoped.
-      return "/settings/admin/access";
-    case "event_invitation":
-    case "event_updated":
-    case "event_cancelled":
-    case "event_rsvp":
-    case "event_reminder": {
-      const eventId = Number(data.event_id);
-      return Number.isFinite(eventId) ? entityRefRoute("event", eventId) : null;
-    }
-    default:
-      return null;
-  }
-};
-
-// Returns the localized level word, or null when the level is unknown (e.g.
-// older notifications written before access_level was included) — callers then
-// fall back to a generic, level-less message rather than mislabeling it.
-const accessLevelLabel = (
-  level: unknown,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string | null => {
-  if (level === "read_write") return t("notifications.accessLevelReadWrite");
-  if (level === "read") return t("notifications.accessLevelRead");
-  return null;
-};
-
-// How many distinct emoji a rolled-up reaction line shows before it stops —
-// the sentence names the reactors, the chips on the comment itself are the
-// full picture.
-const MAX_SHOWN_REACTION_EMOJI = 3;
-
-// A reaction notification rolls up every reaction to the same comment, so the
-// line names the most recent reactor, how many others joined them, and the
-// emoji used. Rows written before the rollup carry their one reaction in the
-// top-level `emoji`/`reactor_name` fields, which read here as a rollup of one.
-const reactionSummary = (
-  data: Record<string, unknown>
-): { reactorName: string | null; emoji: string; others: number } => {
-  const text = (value: unknown): string | null =>
-    typeof value === "string" && value ? value : null;
-  const entries = Array.isArray(data.reactions)
-    ? (data.reactions as Array<Record<string, unknown>>)
-    : [];
-
-  const names = entries
-    .map((entry) => text(entry?.reactor_name))
-    .filter((name): name is string => name !== null);
-  const emoji = entries
-    .map((entry) => text(entry?.emoji))
-    .filter((value): value is string => value !== null);
-
-  const reactorName = text(data.reactor_name) ?? names[names.length - 1] ?? null;
-  const latestEmoji = text(data.emoji);
-  if (emoji.length === 0 && latestEmoji) {
-    emoji.push(latestEmoji);
-  }
-
-  // `reactor_count` counts everyone the line has rolled up, including people
-  // whose reactions have since rolled off the detail it keeps — counting the
-  // names here would understate the crowd on a busy comment. Rows written
-  // before the roster existed only ever had the names, so they use those.
-  const rostered = Number(data.reactor_count);
-  const others = Number.isFinite(rostered)
-    ? Math.max(rostered - 1, 0)
-    : new Set(names.filter((name) => name !== reactorName)).size;
-
-  return {
-    reactorName,
-    emoji: Array.from(new Set(emoji)).slice(0, MAX_SHOWN_REACTION_EMOJI).join(""),
-    others,
-  };
-};
-
-const notificationText = (
-  notification: NotificationRead,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string => {
-  const data = notification.data || {};
-  switch (notification.type) {
-    case "task_assignment":
-      return t("notifications.taskAssignment", {
-        taskTitle: data.task_title ?? "A task",
-        projectName: data.project_name ?? "a project",
-        assignedBy: data.assigned_by_name
-          ? t("notifications.taskAssignmentBy", { name: data.assigned_by_name })
-          : "",
-      });
-    case "initiative_added":
-      return t("notifications.initiativeAdded", {
-        initiativeName: data.initiative_name ?? "initiative",
-      });
-    case "project_added":
-      return t("notifications.projectAdded", {
-        projectName: data.project_name ?? "A project",
-        initiativeName: data.initiative_name ?? "an initiative",
-      });
-    case "user_pending_approval":
-      return t("notifications.userPendingApproval", { email: data.email ?? "A user" });
-    case "mention":
-      // Check if it's a comment mention or document mention
-      if (data.comment_id) {
-        return t("notifications.mentionComment", {
-          mentionedBy: data.mentioned_by_name ?? "Someone",
-          contextTitle: data.context_title ?? "an item",
-        });
-      }
-      return t("notifications.mentionDocument", {
-        mentionedBy: data.mentioned_by_name ?? "Someone",
-        // Notifications stored before the rename still carry `document_title`.
-        documentTitle: data.document_name ?? data.document_title ?? "a document",
-      });
-    case "comment_on_task":
-      return t("notifications.commentOnTask", {
-        commenterName: data.commenter_name ?? "Someone",
-        taskTitle: data.task_title ?? "your task",
-      });
-    case "comment_on_resource":
-      return t("notifications.commentOnResource", {
-        commenterName: data.commenter_name ?? "Someone",
-        entityName: data.entity_name ?? "an item",
-      });
-    case "post_published":
-      return t("notifications.postPublished", {
-        authorName: data.author_name ?? "Someone",
-        postName: data.post_name ?? "a post",
-      });
-    case "comment_reply":
-      return t("notifications.commentReply", {
-        replierName: data.replier_name ?? "Someone",
-        contextTitle: data.context_title ?? "an item",
-      });
-    case "direct_message": {
-      // Who and how many. There is no preview here and no way to add one --
-      // the server has no key to the message it is announcing.
-      const count = typeof data.count === "number" ? data.count : 1;
-      const senderName = data.sender_name ?? "Someone";
-      return count > 1
-        ? t("notifications.directMessageMany", { senderName, count })
-        : t("notifications.directMessage", { senderName });
-    }
-    case "comment_reaction": {
-      const { reactorName, emoji, others } = reactionSummary(data);
-      const options = {
-        reactorName: reactorName ?? "Someone",
-        emoji,
-        contextTitle: data.context_title ?? "an item",
-      };
-      return others > 0
-        ? t("notifications.commentReactionMulti", { ...options, count: others })
-        : t("notifications.commentReaction", options);
-    }
-    case "access_grant_requested": {
-      const level = accessLevelLabel(data.access_level, t);
-      const requester = data.requester_name ?? "Someone";
-      const guild = data.guild_name ?? "a guild";
-      return level
-        ? t("notifications.accessGrantRequested", { requester, level, guild })
-        : t("notifications.accessGrantRequestedGeneric", { requester, guild });
-    }
-    case "access_grant_approved": {
-      const level = accessLevelLabel(data.access_level, t);
-      const guild = data.guild_name ?? "a guild";
-      return level
-        ? t("notifications.accessGrantApproved", { level, guild })
-        : t("notifications.accessGrantApprovedGeneric", { guild });
-    }
-    case "access_grant_denied":
-      return t("notifications.accessGrantDenied", { guild: data.guild_name ?? "a guild" });
-    case "access_grant_revoked":
-      return t("notifications.accessGrantRevoked", { guild: data.guild_name ?? "a guild" });
-    case "event_invitation":
-      return t("notifications.eventInvitation", {
-        organizer: data.organizer_name ?? "Someone",
-        eventTitle: data.event_title ?? "an event",
-      });
-    case "event_updated":
-      return data.time_changed
-        ? t("notifications.eventRescheduled", {
-            editor: data.editor_name ?? "Someone",
-            eventTitle: data.event_title ?? "an event",
-          })
-        : t("notifications.eventUpdated", {
-            editor: data.editor_name ?? "Someone",
-            eventTitle: data.event_title ?? "an event",
-          });
-    case "event_cancelled":
-      return t("notifications.eventCancelled", {
-        canceller: data.canceller_name ?? "Someone",
-        eventTitle: data.event_title ?? "an event",
-      });
-    case "event_rsvp":
-      return t("notifications.eventRsvp", {
-        responder: data.responder_name ?? "Someone",
-        status: data.rsvp_status ?? "responded",
-        eventTitle: data.event_title ?? "an event",
-      });
-    case "event_reminder":
-      return t("notifications.eventReminder", {
-        eventTitle: data.event_title ?? "an event",
-      });
-    case "initiative_join_requested":
-      return t("notifications.initiativeJoinRequested", {
-        requester: data.requester_name ?? "Someone",
-        initiativeName: data.initiative_name ?? "an initiative",
-      });
-    case "initiative_join_approved":
-      return t("notifications.initiativeJoinApproved", {
-        initiativeName: data.initiative_name ?? "an initiative",
-      });
-    case "initiative_join_denied":
-      return t("notifications.initiativeJoinDenied", {
-        initiativeName: data.initiative_name ?? "an initiative",
-      });
-    case "export_ready":
-      return t("notifications.exportReady");
-    case "export_failed":
-      return t("notifications.exportFailed");
-    case "import_ready":
-      return t("notifications.importReady");
-    case "import_failed":
-      return t("notifications.importFailed");
-    default:
-      return t("notifications.defaultNotification");
-  }
-};
-
-/** Export artifacts are fetched, not navigated to — pull the ids the download
- * call needs, or null when the payload is malformed. */
-const exportDownloadTarget = (
-  notification: NotificationRead
-): { guildId: number; jobId: number; source: string; format: string } | null => {
-  if (notification.type !== "export_ready") {
-    return null;
-  }
-  const data = notification.data || {};
-  const guildId = Number(data.guild_id);
-  const jobId = Number(data.export_job_id);
-  if (!Number.isFinite(guildId) || !Number.isFinite(jobId)) {
-    return null;
-  }
-  return {
-    guildId,
-    jobId,
-    source: typeof data.source === "string" ? data.source : "tasks",
-    format: typeof data.format === "string" ? data.format : "pdf",
-  };
-};
-
 export const NotificationBell = () => {
   const [open, setOpen] = useState(false);
+  // Rows read while the popover is open. The list is unread-only, so without
+  // this they would vanish under the pointer and reflow what is beneath them.
+  const [justRead, setJustRead] = useState<number[]>([]);
+  // Their content, kept because the unread-only query stops returning them the
+  // moment the read lands.
+  const readWhileOpen = useRef(new Map<number, NotificationRead>());
   const router = useRouter();
   const { user } = useAuth();
   // "tasks" is loaded alongside so the export download's cross-namespace
@@ -397,18 +42,21 @@ export const NotificationBell = () => {
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 
-  const notificationsQuery = useNotifications({
-    // A connected tab holds no timer at all. The channel refetches this the
-    // moment the inbox moves, and it reaches every worker rather than the one
-    // that happened to write the row — so there is nothing for a timer to
-    // catch. What a timer used to cover was the channel itself going quiet,
-    // and the server now says so when that has happened, which is the one
-    // thing a timer could never tell the difference from silence.
-    //
-    // With no socket at all (a proxy that drops upgrades, an offline tab)
-    // there is nothing to say it, so the poll stands.
-    refetchInterval: streamConnected ? false : NOTIFICATION_POLL_INTERVAL_MS,
+  // Everything still unread, every page of it. The popover is the working set
+  // — what is left to deal with — which is what makes a number on the bell
+  // unnecessary: you do not need to be told how many are waiting by something
+  // you can open and see. Stopping at one page would break that promise for
+  // exactly the people with most to look at.
+  //
+  // A connected tab holds no polling timer. The channel refetches the inbox
+  // the moment it moves, and it reaches every worker rather than the one that
+  // happened to write the row. What a timer used to cover was the channel
+  // itself going quiet, and the server now says so when that has happened.
+  // With no socket at all (a proxy that drops upgrades, an offline tab) there
+  // is nothing to say it, so the poll stands.
+  const notificationsQuery = useAllUnreadNotifications({
     enabled: isEnabled,
+    refetchInterval: streamConnected ? false : NOTIFICATION_POLL_INTERVAL_MS,
   });
 
   const markReadMutation = useMarkNotificationRead();
@@ -419,9 +67,22 @@ export const NotificationBell = () => {
     return null;
   }
 
-  const unreadCount = notificationsQuery.data?.unread_count ?? 0;
-  const notifications = notificationsQuery.data?.notifications ?? [];
+  const unread = notificationsQuery.notifications;
+  // A row read while the popover is open keeps its place, dimmed, until the
+  // popover closes. The list is unread-only, so without this it would vanish
+  // under the pointer and reflow everything beneath it.
+  const held = justRead
+    .map((id) => readWhileOpen.current.get(id))
+    .filter((row): row is NotificationRead => row !== undefined);
+  // Deduped by id: a row can be in both while the refetch that drops it from
+  // the unread list is still in flight.
+  const notifications = [
+    ...new Map([...unread, ...held].map((row) => [row.id, row])).values(),
+  ].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const hasNotifications = notifications.length > 0;
+  // A dot, not a number. The popover shows every unread item, so there is
+  // nothing for a count to summarise.
+  const hasUnread = notificationsQuery.unreadCount > 0;
 
   const handleNotificationClick = async (notification: NotificationRead) => {
     // Not awaited: the read is applied to the cache as it is sent, so the dot
@@ -429,6 +90,8 @@ export const NotificationBell = () => {
     // server having answered. Waiting for it only ever showed as a stall
     // between the click and the page it opens.
     if (!notification.read_at) {
+      readWhileOpen.current.set(notification.id, notification);
+      setJustRead((seen) => [...seen, notification.id]);
       markReadMutation.mutate(notification.id);
     }
     // A finished export is fetched, not navigated to: the artifact lives
@@ -475,7 +138,9 @@ export const NotificationBell = () => {
             <li key={notification.id}>
               <button
                 type="button"
-                className="flex w-full items-start gap-3 px-2 py-3 text-left transition hover:bg-accent/50"
+                className={`flex w-full items-start gap-3 px-2 py-3 text-left transition hover:bg-accent/50 ${
+                  justRead.includes(notification.id) ? "opacity-50" : ""
+                }`}
                 onClick={() => void handleNotificationClick(notification)}
               >
                 <div className="flex-1">
@@ -490,7 +155,7 @@ export const NotificationBell = () => {
                     className="mt-1 block text-muted-foreground text-xs"
                   />
                 </div>
-                {notification.read_at ? null : (
+                {justRead.includes(notification.id) ? null : (
                   <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
                 )}
               </button>
@@ -502,19 +167,30 @@ export const NotificationBell = () => {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          // The list settles now rather than under the pointer.
+          setJustRead([]);
+          readWhileOpen.current.clear();
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
           className="relative"
-          aria-label={t("notifications.ariaLabel")}
+          aria-label={hasUnread ? t("notifications.ariaLabelUnread") : t("notifications.ariaLabel")}
         >
           <Bell className="h-5 w-5" />
-          {unreadCount > 0 ? (
-            <Badge className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </Badge>
+          {hasUnread ? (
+            <span
+              aria-hidden
+              className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+            />
           ) : null}
         </Button>
       </PopoverTrigger>
@@ -525,7 +201,7 @@ export const NotificationBell = () => {
             variant="ghost"
             size="sm"
             className="text-xs"
-            disabled={unreadCount === 0 || markAllMutation.isPending}
+            disabled={!hasUnread || markAllMutation.isPending}
             onClick={() => markAllMutation.mutate()}
           >
             <CheckCheck className="h-3 w-3" />
@@ -533,6 +209,19 @@ export const NotificationBell = () => {
           </Button>
         </div>
         {renderContent()}
+        <div className="border-t pt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: "/notifications" });
+            }}
+          >
+            {t("notifications.seeAll")}
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

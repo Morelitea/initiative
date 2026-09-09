@@ -69,6 +69,7 @@ _RLS_SHARED_TABLES = {
     "marketplace_listings",
     "marketplace_media",
     "marketplace_registry_state",
+    "notifications",
     "oidc_claim_mappings",
     "platform_ai_connections",
     "profile_favorites",
@@ -79,6 +80,7 @@ _RLS_SHARED_TABLES = {
     "user_dm_guild_optouts",
     "user_dm_settings",
     "user_ignores",
+    "user_notification_prefs",
     "user_view_preferences",
     "users",
 }
