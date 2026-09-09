@@ -12,9 +12,11 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildSearchSuggestion } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 
 const page = () => () => <CreateDocumentDialog open onOpenChange={() => {}} initiativeId={7} />;
@@ -26,14 +28,12 @@ describe("CreateDocumentDialog", () => {
       guildHttp.get("/search/recent", ({ request }) => {
         asked.push(new URL(request.url));
         return HttpResponse.json([
-          {
+          buildSearchSuggestion({
             entity_type: "document",
-            entity_id: 12,
+            tool: Tool.document,
             title: "Session prep",
             initiative_id: 7,
-            tool: "document",
-            tool_id: 12,
-          },
+          }),
         ]);
       })
     );
