@@ -546,6 +546,43 @@ class QueryMessages:
     INVALID_CONDITIONS = "QUERY_INVALID_CONDITIONS"
     INVALID_SORT_FIELDS = "QUERY_INVALID_SORT_FIELDS"
 
+    # The SQL query surface. Each names what a reader has to change about
+    # their query, and travels with the offending word as detail so a client
+    # can point at it.
+
+    #: The text is not SQL this build can parse.
+    UNPARSEABLE = "QUERY_UNPARSEABLE"
+    #: More than one statement in the text.
+    ONE_STATEMENT_ONLY = "QUERY_ONE_STATEMENT_ONLY"
+    #: The statement is not a SELECT.
+    READ_ONLY = "QUERY_READ_ONLY"
+    #: Valid SQL, but a construct this surface does not accept.
+    UNSUPPORTED_SYNTAX = "QUERY_UNSUPPORTED_SYNTAX"
+    #: A function outside the allow-list.
+    UNSUPPORTED_FUNCTION = "QUERY_UNSUPPORTED_FUNCTION"
+    #: A name that is not one of the datasets this deployment offers.
+    UNKNOWN_RELATION = "QUERY_UNKNOWN_RELATION"
+    #: A statement that reads no relation. A query on this surface asks about
+    #: data, and the caller has to know which data to check the reader against.
+    MISSING_RELATION = "QUERY_MISSING_RELATION"
+    #: A schema-qualified name. Relations are named on their own.
+    QUALIFIED_RELATION = "QUERY_QUALIFIED_RELATION"
+    #: A column the named dataset does not have.
+    UNKNOWN_FIELD = "QUERY_UNKNOWN_FIELD"
+    #: A field that exists but is computed rather than stored, so there is no
+    #: column for a query to name yet.
+    FIELD_NOT_SELECTABLE = "QUERY_FIELD_NOT_SELECTABLE"
+    #: An unqualified column that more than one relation in scope could mean.
+    AMBIGUOUS_FIELD = "QUERY_AMBIGUOUS_FIELD"
+    #: The same alias used for two relations.
+    DUPLICATE_ALIAS = "QUERY_DUPLICATE_ALIAS"
+    #: A join with nothing joining it, which pairs every row with every row.
+    JOIN_WITHOUT_CONDITION = "QUERY_JOIN_WITHOUT_CONDITION"
+    #: More relations in one statement than this surface allows.
+    TOO_MANY_RELATIONS = "QUERY_TOO_MANY_RELATIONS"
+    #: ``*`` outside ``count(*)``. A query names the columns it wants.
+    STAR_NOT_ALLOWED = "QUERY_STAR_NOT_ALLOWED"
+
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"
