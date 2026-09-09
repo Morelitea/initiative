@@ -139,7 +139,17 @@ export function WidgetTile({
   if (chromeless) {
     // No label here: the canvas's own <section> already names this region, and
     // a second label on a plain div would only add noise for a screen reader.
-    return <div className={cn("h-full w-full text-card-foreground", className)}>{body}</div>;
+    //
+    // Clipped, like the framed one below it. A tile is a fixed box on a grid
+    // and what it holds is drawn by a renderer that cannot know how much room
+    // it has — so the box is the last word on where its contents end. Each
+    // renderer still fits itself first; this is what makes "it did not" a
+    // clipped edge rather than a chart lying across the tile beside it.
+    return (
+      <div className={cn("h-full w-full overflow-hidden text-card-foreground", className)}>
+        {body}
+      </div>
+    );
   }
 
   return (

@@ -17,12 +17,20 @@ type Node = Extract<SceneNode, { kind: "funnel" }>;
  * own tone still gets it; that is how a widget marks one step as the problem.
  */
 export function FunnelNode({ node }: { node: Node }) {
-  const top = node.stages[0]?.value ?? 0;
+  // Measured against the largest stage rather than the first. A funnel usually
+  // narrows, and for one that does these are the same number — but nothing
+  // makes the data narrow. A statement grouping by status returns its rows in
+  // whatever order it likes, so "the first" is not "the widest", and scaling
+  // against it drew every larger stage past the end of the panel.
+  const top = node.stages.reduce((widest, stage) => Math.max(widest, stage.value), 0);
 
   return (
     <div className="flex h-full w-full flex-col justify-center gap-1.5 p-1">
       {node.stages.map((stage, index) => {
-        const width = top > 0 ? Math.max(0.04, stage.value / top) : 1;
+        // Floored so the smallest stage is still a mark, capped because a bar
+        // is drawn inside a box — the same bounds every other proportional
+        // fill on a dashboard is held to.
+        const width = top > 0 ? Math.min(1, Math.max(0.04, stage.value / top)) : 1;
         const previous = node.stages[index - 1]?.value;
         const conversion = previous && previous > 0 ? stage.value / previous : undefined;
 
