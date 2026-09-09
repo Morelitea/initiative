@@ -70,6 +70,7 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserGuildRead,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -106,7 +107,7 @@ from app.services.platform import guild_images as images_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.services.platform.guilds import adopt_guild_name_display
+from app.services.platform.guilds import guild_renders_member_names
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
@@ -1065,7 +1066,7 @@ async def update_users_me(
     return payload
 
 
-@guild_router.post("/{user_id}/approve", response_model=UserRead)
+@guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
 async def approve_user(
     user_id: int,
     session: AdminSessionDep,
@@ -1078,6 +1079,11 @@ async def approve_user(
     not a guild's to write. ``GuildAdminContext`` plus the membership join
     below are the authorization — the guild admin may only reach someone who is
     already a member of the guild they administer.
+
+    Answers with ``UserGuildRead`` — the account as the guild reads it, which
+    is the standing that just changed and the handle it belongs to. The row
+    loaded here is the whole ``User``, because the write needs it; what leaves
+    is the guild's read of it.
     """
     stmt = (
         select(User)
@@ -1156,8 +1162,8 @@ async def get_my_initiative_members(
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id)
-    await adopt_guild_name_display(session, guild_id=guild_id)
+    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
+    await set_rls_context(session, guild_id=guild_id, shows_member_names=shows_names)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

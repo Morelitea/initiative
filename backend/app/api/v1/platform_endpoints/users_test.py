@@ -802,6 +802,57 @@ async def test_list_users_only_shows_guild_members(
     assert data[0]["id"] == user1.id
 
 
+@pytest.mark.integration
+async def test_approve_user_answers_with_the_guild_read(
+    client: AsyncClient, session: AsyncSession
+):
+    """Approving a member answers with the guild's read of that account.
+
+    The guild here renders real names, which is the loudest this shape ever
+    gets: the reply still carries the handle and the standing that just
+    changed, and none of the account itself — no name, no address, no platform
+    tier, none of its settings.
+    """
+    guild = await create_guild(session)
+    assert guild.show_member_names is True
+
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    pending = await create_user(
+        session,
+        username="pending-one",
+        full_name="Pending Person",
+        status=UserStatus.deactivated,
+    )
+    await create_guild_membership(session, user=pending, guild=guild)
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/{pending.id}/approve",
+        headers=get_auth_headers(admin),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == pending.id
+    assert body["username"] == "pending-one"
+    assert body["status"] == UserStatus.active.value
+
+    for absent in (
+        "full_name",
+        "email",
+        "role",
+        "email_verified",
+        "timezone",
+        "locale",
+    ):
+        assert absent not in body, absent
+
+    await session.refresh(pending)
+    assert pending.status == UserStatus.active
+
+
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
     """Strip the UTF-8 BOM and parse the CSV body into (headers, rows)."""
     import csv

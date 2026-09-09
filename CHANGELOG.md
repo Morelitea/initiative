@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A notification is marked read the moment you click it.** The click used to wait for the server to agree: the blue dot and the count on the bell only moved once the round trip finished, which on a notification that opens a page meant staring at an unread notification you had already read. It now takes effect as you click, and the request follows behind — if the server refuses it, the count comes back. *Mark all read* is the same. Times in the list are relative now too (*2 minutes ago*) and keep themselves current as you look at them, with the full date on hover.
 
+- **Approving a member answers about their membership, not about their account.** Letting somebody into a community replied with their whole account record — the address they sign in with, their standing across the platform, every notification and display setting on it. The reply is now the community's own read of that person: the handle, the picture, the standing that just changed, and where they sit in the community's initiatives. A community shows real names where it has asked to, on the rosters and pickers that draw people; this answer draws nobody, so it carries no name.
+
+- **A community that shows handles asks for people without their names.** A community can render its members by handle rather than by real name, and a listed one always does. That choice now reaches the database: what a community's pages read of a person carries a name only where the community asked for one. Nothing changes on screen — the same communities show the same thing — it is settled a layer further down.
+
 ### Fixed
 
 - **Deleting a community now clears it for everyone who was in it.** Members with the app open kept the deleted community in their sidebar — it was gone, but their tab had no way to find that out, so it sat there failing to open until the page was reloaded. Everyone in a community is now told as it goes.

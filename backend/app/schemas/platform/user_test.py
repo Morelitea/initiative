@@ -12,7 +12,11 @@ from pydantic import ValidationError
 
 from app.schemas.platform import user as user_schemas
 from app.schemas.platform.user import (
+    GuildNameVisibility,
     ProfileDecorations,
+    UserGuildMember,
+    UserGuildRead,
+    UserIdentity,
     UserPublic,
     UserRead,
     UserSelfUpdate,
@@ -50,6 +54,38 @@ def test_there_is_no_schema_for_editing_another_account() -> None:
     the assertion.
     """
     assert not hasattr(user_schemas, "UserUpdate")
+
+
+@pytest.mark.unit
+def test_the_guild_read_of_an_account_carries_no_name() -> None:
+    """``UserGuildRead`` is a handle and a standing, and stops there.
+
+    The membership surfaces read an account back to say what it is now. None of
+    the account's own business travels with the answer, and neither does the
+    person's name: this shape draws nobody, so the field is not declared and
+    there is nothing for ``show_member_names`` to govern.
+    """
+    for absent in ("full_name", "email", "role"):
+        assert absent not in UserGuildRead.model_fields
+
+    assert not issubclass(UserGuildRead, GuildNameVisibility)
+
+
+@pytest.mark.unit
+def test_the_shape_everything_is_built_from_has_no_name() -> None:
+    """``UserIdentity`` is the half every user shape shares, and the name is
+    deliberately not in it — a shape adds one only by saying so."""
+    assert "full_name" not in UserIdentity.model_fields
+    assert not issubclass(UserIdentity, GuildNameVisibility)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("schema", [UserPublic, UserGuildMember, UserSummary])
+def test_a_guild_shape_that_shows_a_name_is_governed_by_the_setting(schema) -> None:
+    """Declaring ``full_name`` and inheriting ``GuildNameVisibility`` travel
+    together, so a name is never rendered outside a guild that asked for one."""
+    assert "full_name" in schema.model_fields
+    assert issubclass(schema, GuildNameVisibility)
 
 
 @pytest.mark.unit

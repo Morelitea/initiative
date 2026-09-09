@@ -222,20 +222,16 @@ export const UserStatus = {
 } as const;
 
 /**
- * A person, as everyone else sees them.
- *
- * The handle (``username`` + ``discriminator``) is always here and is what
- * renders when there is no name to show. ``status`` comes along so the
- * frontend can mark an account that is no longer in use without replacing the
- * identifier that keeps an old thread legible.
+ * A person, as everyone else sees them — the handle, and the name where
+ * the guild being read renders one.
  */
 export interface UserPublic {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
+  full_name: string | null;
 }
 
 /**
@@ -1880,9 +1876,9 @@ export interface ContactRead {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
+  full_name: string | null;
   profile_decorations: ProfileDecorationsOutput;
   guild_role: string | null;
   presence: Presence;
@@ -3732,9 +3728,9 @@ export interface UserSummary {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
+  full_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
   guild_role: string | null;
 }
@@ -6116,21 +6112,45 @@ export interface UserInitiativeRole {
 /**
  * A member, for the guild's own member-management surface.
  *
- * Carries the membership facts a guild admin manages — guild role, whether
- * the membership is OIDC-managed, when the account joined — and none of the
- * account's own: no address, no platform tier, no word on whether the address
- * was ever confirmed, and a name only where the guild shows names. Two
- * members are told apart by their handle, which is unique.
+ * :class:`UserGuildRead` plus the membership facts a guild admin manages —
+ * guild role, whether the membership is OIDC-managed — and a name, where the
+ * guild shows names. Two members are told apart by their handle, which is
+ * unique.
  */
 export interface UserGuildMember {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
+  created_at: string;
+  initiative_roles: UserInitiativeRole[];
+  full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
+}
+
+/**
+ * One account, as the guild administering its membership reads it back.
+ *
+ * The membership surfaces ask one thing about somebody and this is the
+ * answer: the handle, the picture, the standing, when the account started,
+ * and where the person sits in the guild's initiatives. None of the account's
+ * own business comes with it — no address, no platform tier, no word on
+ * whether the address was ever confirmed, no preferences.
+ *
+ * Nor does the name, and it is absent here rather than blanked on the way
+ * out. A real name is rendered on the surfaces that draw people — a roster, a
+ * picker, a byline — and only in a guild that asked for names; those shapes
+ * say so by carrying ``GuildNameVisibility``. Reading back an account is not
+ * one of them, so the field is not in the shape at all.
+ */
+export interface UserGuildRead {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
 }
