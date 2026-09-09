@@ -38,7 +38,7 @@ import {
   reorderTasksApiV1GGuildIdTasksReorderPost,
   updateTaskApiV1GGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
-import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
@@ -107,7 +107,7 @@ export const useCreateTask = (
   useGuildMutation<TaskRead, Parameters<typeof createTaskApiV1GGuildIdTasksPost>[1]>(
     {
       mutationFn: (guildId, data) => createTaskApiV1GGuildIdTasksPost(guildId, data),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.createError",
     },
     options
@@ -182,8 +182,7 @@ export const useUpdateTask = (
     },
     onSuccess: (...args) => {
       const [updated, vars, context] = args;
-      void invalidateAllTasks();
-      void invalidateTask(vars.taskId);
+      void invalidate(q.allTasks(), q.task(vars.taskId));
 
       // Completion feedback: only when (a) the current user is signed in,
       // (b) the status actually transitioned non-done -> done. Audio +
@@ -247,8 +246,7 @@ export const useUpdateTaskInGuild = (
     },
     onSuccess: (...args) => {
       const [updated, vars, context] = args;
-      void invalidateAllTasks();
-      void invalidateTask(vars.taskId);
+      void invalidate(q.allTasks(), q.task(vars.taskId));
 
       const previousCategory = (context as { previousCategory?: string | null } | undefined)
         ?.previousCategory;
@@ -273,7 +271,7 @@ export const useDeleteTask = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, taskId) => deleteTaskApiV1GGuildIdTasksTaskIdDelete(guildId, taskId),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
     },
     options
@@ -287,7 +285,7 @@ export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) =>
           taskIds.map((id) => deleteTaskApiV1GGuildIdTasksTaskIdDelete(guildId, id))
         );
       },
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
     },
     options
@@ -308,7 +306,7 @@ export const useBulkUpdateTasks = (
         Promise.all(
           taskIds.map((taskId) => updateTaskApiV1GGuildIdTasksTaskIdPatch(guildId, taskId, changes))
         ),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkUpdateError",
     },
     options
@@ -325,7 +323,7 @@ export const useBulkArchiveTasks = (options?: MutationOpts<TaskRead[], number[]>
             } as Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2])
           )
         ),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.archiveError",
     },
     options
@@ -340,7 +338,7 @@ export const useMoveTask = (
         moveTaskApiV1GGuildIdTasksTaskIdMovePost(guildId, taskId, {
           target_project_id: targetProjectId,
         }),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "tasks:edit.moveError",
     },
     options
@@ -351,7 +349,7 @@ export const useDuplicateTask = (options?: MutationOpts<TaskRead, number>) =>
     {
       mutationFn: (guildId, taskId) =>
         duplicateTaskApiV1GGuildIdTasksTaskIdDuplicatePost(guildId, taskId),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "common:error",
     },
     options
@@ -411,7 +409,7 @@ export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRe
     },
     onSuccess: (...args) => {
       const [, , context] = args;
-      void invalidateAllTasks();
+      void invalidate(q.allTasks());
 
       const ctx = context as
         | { didTransitionToDone?: boolean; assignedTransitionToDone?: boolean }
@@ -439,7 +437,7 @@ export const useArchiveDoneTasks = (
           project_id: projectId,
           ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
         } as Parameters<typeof archiveDoneTasksApiV1GGuildIdTasksArchiveDonePost>[1]),
-      invalidate: () => invalidateAllTasks(),
+      invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.archiveError",
     },
     options
@@ -460,9 +458,7 @@ export const useGenerateTaskDescription = (
 // ── Subtask Mutations ───────────────────────────────────────────────────────
 
 const invalidateSubtaskRelated = (taskId: number) => {
-  void invalidateTaskSubtasks(taskId);
-  void invalidateTask(taskId);
-  void invalidateAllTasks();
+  void invalidate(q.taskSubtasks(taskId), q.task(taskId), q.allTasks());
 };
 
 export const useCreateSubtask = (

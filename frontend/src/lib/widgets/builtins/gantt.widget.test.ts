@@ -2,27 +2,45 @@
  * The Gantt through the whole path it takes in production: sandboxed module,
  * validator, scene. Asserted on the scene rather than on the DOM, because the
  * decisions worth pinning here are the widget's — what becomes a group, what
- * counts as done, what a total row is counting — and none of them are visible
- * in a rendering.
+ * becomes a milestone rather than a bar, what a total row is counting — and
+ * none of them are visible in a rendering.
  */
 import { describe, expect, it } from "vitest";
 
-import type { WidgetSource } from "../dataShapes";
+import type { CellValue, TabularData } from "../dataShapes";
 import { builtinWidgetSource } from "../registry";
 import { renderInSandbox } from "../runtime/sandbox";
-import { SAMPLE_NOW, sampleFor } from "../sampleData";
+import { SAMPLE_NOW } from "../sampleData";
 import type { TimelineLane, TimelineNode } from "../sceneSpec";
 import { validateScene } from "../validateScene";
 
+const DAY = 86_400_000;
+const T0 = SAMPLE_NOW;
+
+const SLOTS = { label: [0], start: [1], end: [2], group: [3] };
+
+const rows = (body: CellValue[][]): TabularData => ({
+  source: "rows",
+  columns: [
+    { name: "task", type: "text" },
+    { name: "starts", type: "date" },
+    { name: "ends", type: "date" },
+    { name: "team", type: "text" },
+  ],
+  rows: body,
+});
+
 const draw = async (
-  source: WidgetSource,
-  config: Record<string, string> = {}
+  data: TabularData,
+  config: Record<string, string> = {},
+  slots: Record<string, number[]> = SLOTS
 ): Promise<TimelineNode> => {
   const result = await renderInSandbox({
     source: builtinWidgetSource("gantt") as string,
-    data: sampleFor(source, "gantt"),
+    data,
     config,
-    now: SAMPLE_NOW,
+    slots,
+    now: T0,
   });
   expect(result.ok, JSON.stringify(result)).toBe(true);
   if (!result.ok) throw new Error("render failed");
@@ -42,131 +60,96 @@ const laneNamed = (lanes: TimelineLane[], label: string): TimelineLane => {
   return found;
 };
 
-const childNamed = (lane: TimelineLane, label: string): TimelineLane =>
-  laneNamed(lane.children ?? [], label);
+const work = rows([
+  ["Design review", T0 - 12 * DAY, T0 - 5 * DAY, "Platform"],
+  ["Build the importer", T0 - 6 * DAY, T0 + 4 * DAY, "Platform"],
+  ["Write the migration", T0 - 2 * DAY, T0 + 9 * DAY, "Data"],
+]);
 
-describe("gantt over projects", () => {
-  it("makes each project a group its own work folds into", async () => {
-    const scene = await draw("projects");
-    const apollo = laneNamed(scene.lanes, "Apollo");
-
-    expect(apollo.spans[0].kind).toBe("summary");
-    // Two of Apollo's four tasks are done, and that is what the bracket fills to.
-    expect(apollo.spans[0].progress).toBe(0.5);
-    expect(apollo.caption).toBe("2/4");
-    expect(apollo.children?.map((child) => child.label)).toContain("Migrate the search index");
+describe("lanes", () => {
+  it("folds rows into the column mapped to the group slot", async () => {
+    const scene = await draw(work);
+    const platform = laneNamed(scene.lanes, "Platform");
+    expect(platform.children?.map((lane) => lane.label).sort()).toEqual([
+      "Build the importer",
+      "Design review",
+    ]);
+    expect(laneNamed(scene.lanes, "Data").children).toHaveLength(1);
   });
 
-  it("counts projects, not tasks, in the total row", async () => {
-    const scene = await draw("projects");
-    // Cygnus is the only one of the three with all its work finished.
-    expect(scene.lanes[0]).toMatchObject({ label: "All projects", caption: "1/3" });
-    expect(scene.lanes[0].spans[0].progress).toBeCloseTo(1 / 3);
-  });
-
-  it("reaches across everything nested under it", async () => {
-    const scene = await draw("projects");
-    const total = scene.lanes[0].spans[0];
-    const every = scene.lanes.slice(1).flatMap((lane) => lane.spans);
-    expect(total.start).toBe(Math.min(...every.map((span) => span.start)));
-    expect(total.end).toBe(Math.max(...every.map((span) => span.end)));
-  });
-
-  it("leaves the groups shut when the widget is set to start folded", async () => {
-    const scene = await draw("projects", { start: "folded" });
-    expect(laneNamed(scene.lanes, "Apollo").collapsed).toBe(true);
-  });
-
-  it("drops the total row when it is switched off", async () => {
-    const scene = await draw("projects", { rollup: "off" });
-    expect(scene.lanes.map((lane) => lane.label)).not.toContain("All projects");
-  });
-
-  it("stops nesting when grouping is off", async () => {
-    const scene = await draw("projects", { group: "none" });
-    for (const lane of scene.lanes) expect(lane.children ?? []).toHaveLength(0);
-  });
-});
-
-describe("gantt over tasks", () => {
-  it("groups by project by default, and by whatever else is asked for", async () => {
-    expect((await draw("tasks")).lanes.map((lane) => lane.label)).toEqual(
-      expect.arrayContaining(["Apollo", "Borealis", "No project"])
-    );
-    expect((await draw("tasks", { group: "assignee" })).lanes.map((lane) => lane.label)).toEqual(
-      expect.arrayContaining(["Ada", "Grace", "Lin", "Unassigned"])
-    );
-  });
-
-  it("puts shared work on every owner's row but counts it once", async () => {
-    const scene = await draw("tasks", { group: "assignee" });
-    // "Ship the migration" belongs to Grace and Ada, so it sits on both rows…
-    expect(childNamed(laneNamed(scene.lanes, "Ada"), "Ship the migration")).toBeDefined();
-    expect(childNamed(laneNamed(scene.lanes, "Grace"), "Ship the migration")).toBeDefined();
-    // …while the total is still nine tasks, three of them done.
-    expect(scene.lanes[0].caption).toBe("3/9");
-  });
-
-  it("draws a date with no duration as a milestone", async () => {
-    const scene = await draw("tasks");
-    // "Beta sign-off" has a due date and no start: an instant, not a stretch.
-    const signOff = childNamed(laneNamed(scene.lanes, "Apollo"), "Beta sign-off");
-    expect(signOff.spans[0].kind).toBe("milestone");
-    expect(signOff.spans[0].start).toBe(signOff.spans[0].end);
-  });
-
-  it("keeps the plan as a baseline under work that did not land on it", async () => {
-    const scene = await draw("tasks");
-    const shipped = childNamed(laneNamed(scene.lanes, "Apollo"), "Ship the migration");
-    const span = shipped.spans[0];
-    expect(span.baseline).toBeDefined();
-    // The bar runs to when it was actually finished; the ghost to when it was due.
-    expect(span.end).toBeGreaterThan(span.baseline?.end ?? 0);
-  });
-
-  it("has no baseline for work that landed when it was planned to", async () => {
-    const scene = await draw("tasks");
-    expect(
-      childNamed(laneNamed(scene.lanes, "Borealis"), "Rewrite the onboarding copy").spans[0]
-        .baseline
-    ).toBeUndefined();
-  });
-
-  it("tones work by whether it is done, late, or neither", async () => {
-    const scene = await draw("tasks");
-    const apollo = laneNamed(scene.lanes, "Apollo");
-    expect(childNamed(apollo, "Draft the spec").spans[0].tone).toBe("positive");
-    expect(childNamed(apollo, "Migrate the search index").spans[0].tone).toBe("accent");
-    // Past its date and still open, which carries up to the group as well.
-    const stalled = laneNamed(scene.lanes, "No project");
-    expect(childNamed(stalled, "Chase the vendor").spans[0].tone).toBe("negative");
-    expect(stalled.tone).toBe("negative");
-  });
-
-  it("gives one row per task when grouping is off", async () => {
-    const scene = await draw("tasks", { group: "none" });
-    expect(scene.lanes.map((lane) => lane.label)).toContain("Chase the vendor");
-    for (const lane of scene.lanes) expect(lane.children ?? []).toHaveLength(0);
-  });
-});
-
-describe("gantt over calendar entries", () => {
-  it("groups by the calendar an entry sits on", async () => {
-    const scene = await draw("calendar_entries");
-    expect(laneNamed(scene.lanes, "Team").children?.map((child) => child.label)).toEqual([
-      "Kickoff",
-      "Retro",
+  it("draws every row flat when grouping is off", async () => {
+    const scene = await draw(work, { group: "none", rollup: "off" });
+    expect(scene.lanes.map((lane) => lane.label).sort()).toEqual([
+      "Build the importer",
+      "Design review",
+      "Write the migration",
     ]);
   });
+
+  it("puts a total row above everything", async () => {
+    const scene = await draw(work, { rollup: "on" });
+    expect(scene.lanes[0].label).toBe("Everything");
+    // Two of the three have already ended.
+    expect(scene.lanes[0].caption).toBe("1/3");
+  });
 });
 
-describe("gantt scenes", () => {
-  it("carries the minute it judged against, so the marker is not the renderer's own", async () => {
-    expect((await draw("tasks")).now).toBe(SAMPLE_NOW);
+describe("spans", () => {
+  it("draws a row with a start and an end as a bar", async () => {
+    const scene = await draw(work, { group: "none", rollup: "off" });
+    const lane = laneNamed(scene.lanes, "Design review");
+    expect(lane.spans[0].kind).toBe("bar");
+    expect(lane.spans[0].start).toBe(T0 - 12 * DAY);
   });
 
-  it("passes the scale through as the axis hint", async () => {
-    expect((await draw("tasks", { scale: "month" })).scale).toBe("month");
-    expect((await draw("tasks")).scale).toBe("week");
+  it("draws a row with only an end as a dated instant", async () => {
+    // A date with nothing before it is a moment, not a stretch of work.
+    const milestone = rows([["Ship it", null, T0 + 3 * DAY, "Platform"]]);
+    const scene = await draw(milestone, { group: "none", rollup: "off" });
+    expect(laneNamed(scene.lanes, "Ship it").spans[0].kind).toBe("milestone");
+  });
+
+  it("leaves out a row with no dates at all", async () => {
+    // It has nowhere to sit on an axis, and a zero-width bar at an arbitrary
+    // point would be a lie rather than a gap. With nothing else to draw the
+    // widget says so rather than showing an axis over an empty chart.
+    const undated = rows([["Someday", null, null, "Platform"]]);
+    const result = await renderInSandbox({
+      source: builtinWidgetSource("gantt") as string,
+      data: undated,
+      config: { group: "none", rollup: "off" },
+      slots: SLOTS,
+      now: T0,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const validation = validateScene(result.value);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+    expect(validation.spec.scene.kind).toBe("empty");
+  });
+
+  it("tones work whose end has passed as done with", async () => {
+    const scene = await draw(work, { group: "none", rollup: "off" });
+    expect(laneNamed(scene.lanes, "Design review").spans[0].tone).toBe("muted");
+    expect(laneNamed(scene.lanes, "Build the importer").spans[0].tone).toBe("accent");
+  });
+});
+
+describe("what it refuses to draw", () => {
+  it("says so when no date column was mapped", async () => {
+    const result = await renderInSandbox({
+      source: builtinWidgetSource("gantt") as string,
+      data: work,
+      config: {},
+      slots: { label: [0] },
+      now: T0,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const validation = validateScene(result.value);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+    expect(validation.spec.scene.kind).toBe("empty");
   });
 });

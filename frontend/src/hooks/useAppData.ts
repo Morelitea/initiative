@@ -44,7 +44,8 @@ export const appDataKey = (
   appId: number,
   endpointId: string,
   dashboardId: number,
-  params: Record<string, unknown> | undefined
+  params: Record<string, unknown> | undefined,
+  widgetId?: string
 ) =>
   [
     "app-data",
@@ -52,6 +53,10 @@ export const appDataKey = (
     appId,
     endpointId,
     dashboardId,
+    // Two widgets on one dashboard may read the same endpoint and ask
+    // different things of its rows, so what each of them gets back is its own
+    // answer. The upstream call is still shared — that sharing is the server's.
+    widgetId ?? null,
     // Canonical, so two widgets that bound the same parameters in a different
     // order still share one request. Parameter values are scalars, so a sorted
     // entry list is the whole of it.
@@ -77,6 +82,9 @@ export interface AppDataQuery {
   endpointId: string | undefined;
   dashboardId: number | undefined;
   params?: Record<string, unknown>;
+  /** Which widget is asking. Only matters where its binding carries a
+   *  statement: the server runs the one it has stored, never one sent here. */
+  widgetId?: string;
   /** The source's declared freshness, in seconds. Capped before use. */
   cacheTtlSeconds?: number;
   enabled?: boolean;
@@ -88,6 +96,7 @@ export const useAppData = ({
   endpointId,
   dashboardId,
   params,
+  widgetId,
   cacheTtlSeconds,
   enabled = true,
 }: AppDataQuery) => {
@@ -107,7 +116,7 @@ export const useAppData = ({
   const staleSeconds = Math.max(0, Math.min(cacheTtlSeconds ?? 0, MAX_APP_STALE_SECONDS));
 
   return useQuery<AppDataResponse>({
-    queryKey: appDataKey(guildId, appId ?? 0, endpointId ?? "", dashboardId ?? 0, params),
+    queryKey: appDataKey(guildId, appId ?? 0, endpointId ?? "", dashboardId ?? 0, params, widgetId),
     queryFn: () =>
       getAppData({
         guildId,
@@ -115,6 +124,7 @@ export const useAppData = ({
         endpointId: endpointId as string,
         dashboardId: dashboardId as number,
         params,
+        widgetId,
       }),
     enabled: ready,
     staleTime: staleSeconds * 1000,

@@ -4,6 +4,8 @@ These constants are used as HTTPException detail strings. The frontend
 maps these codes to localized user-facing messages via errors.json.
 """
 
+from app.core.tools import Tool
+
 
 class CommonMessages:
     """Codes that belong to no one tool.
@@ -337,12 +339,32 @@ class CommentMessages:
     COMMENTS_DISABLED = "COMMENTS_DISABLED"
 
 
+class SharingMessages:
+    """Refusals from the sharing flow.
+
+    One code per tool, derived from the enum rather than written out, so a new
+    tool has one the day it exists. ``tools_test`` fails if a locale has not
+    been given the wording for it.
+    """
+
+    #: A grant naming a dashboard, sent to a resource's own sharing. That kind
+    #: is made and taken back against the dashboard that publishes it, so this
+    #: list neither writes nor removes one.
+    DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
+
+    @staticmethod
+    def grantee_lacks_tool(tool: "Tool") -> str:
+        """Sharing was addressed to somebody whose role does not reach ``tool``."""
+        return f"GRANTEE_LACKS_{tool.value.upper()}_ACCESS"
+
+
 class ReactionMessages:
     TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
     PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
     NOT_FOUND = "REACTION_NOT_FOUND"
     INVALID_EMOJI = "REACTION_INVALID_EMOJI"
     TOO_MANY = "REACTION_TOO_MANY"
+    DISABLED = "REACTION_DISABLED"
 
 
 class SettingsMessages:
@@ -529,6 +551,66 @@ class QueryMessages:
     INVALID_CONDITIONS = "QUERY_INVALID_CONDITIONS"
     INVALID_SORT_FIELDS = "QUERY_INVALID_SORT_FIELDS"
 
+    # The SQL query surface. Each names what a reader has to change about
+    # their query, and travels with the offending word as detail so a client
+    # can point at it.
+
+    #: The text is not SQL this build can parse.
+    UNPARSEABLE = "QUERY_UNPARSEABLE"
+    #: More than one statement in the text.
+    ONE_STATEMENT_ONLY = "QUERY_ONE_STATEMENT_ONLY"
+    #: The statement is not a SELECT.
+    READ_ONLY = "QUERY_READ_ONLY"
+    #: Valid SQL, but a construct this surface does not accept.
+    UNSUPPORTED_SYNTAX = "QUERY_UNSUPPORTED_SYNTAX"
+    #: A function outside the allow-list.
+    UNSUPPORTED_FUNCTION = "QUERY_UNSUPPORTED_FUNCTION"
+    #: A name that is not one of the datasets this deployment offers.
+    UNKNOWN_RELATION = "QUERY_UNKNOWN_RELATION"
+    #: A statement that reads no relation. A query on this surface asks about
+    #: data, and the caller has to know which data to check the reader against.
+    MISSING_RELATION = "QUERY_MISSING_RELATION"
+    #: A schema-qualified name. Relations are named on their own.
+    QUALIFIED_RELATION = "QUERY_QUALIFIED_RELATION"
+    #: A column the named dataset does not have.
+    UNKNOWN_FIELD = "QUERY_UNKNOWN_FIELD"
+    #: A field that exists but is computed rather than stored, so there is no
+    #: column for a query to name yet.
+    FIELD_NOT_SELECTABLE = "QUERY_FIELD_NOT_SELECTABLE"
+    #: A column read beside an aggregate without being grouped, so there is no
+    #: one value of it per row of the answer.
+    UNGROUPED_FIELD = "QUERY_UNGROUPED_FIELD"
+    #: An unqualified column that more than one relation in scope could mean.
+    AMBIGUOUS_FIELD = "QUERY_AMBIGUOUS_FIELD"
+    #: The same alias used for two relations.
+    DUPLICATE_ALIAS = "QUERY_DUPLICATE_ALIAS"
+    #: A join with nothing joining it, which pairs every row with every row.
+    JOIN_WITHOUT_CONDITION = "QUERY_JOIN_WITHOUT_CONDITION"
+    #: More relations in one statement than this surface allows.
+    TOO_MANY_RELATIONS = "QUERY_TOO_MANY_RELATIONS"
+    #: ``*`` outside ``count(*)``. A query names the columns it wants.
+    STAR_NOT_ALLOWED = "QUERY_STAR_NOT_ALLOWED"
+    #: A name the surface keeps for itself. ``me`` is the reader, so nothing
+    #: else may be called it and nowhere it means nothing may say it.
+    RESERVED_NAME = "QUERY_RESERVED_NAME"
+    #: ``me`` somewhere it says nothing: the reader is a person, so the only
+    #: thing to compare them with is a field that holds one.
+    VIEWER_NEEDS_A_PERSON = "QUERY_VIEWER_NEEDS_A_PERSON"
+
+    # Execution.
+
+    #: The planner's estimate for this statement is above what the surface
+    #: runs. Nothing was executed.
+    TOO_EXPENSIVE = "QUERY_TOO_EXPENSIVE"
+    #: The statement ran longer than one query may.
+    TIMED_OUT = "QUERY_TIMED_OUT"
+    #: This guild already has as many queries running as it may.
+    BUSY = "QUERY_BUSY"
+    #: The statement parsed and resolved, and the database refused it while
+    #: running it — dividing by zero, a value that will not convert, a
+    #: function called with types it does not take.
+    EXECUTION_FAILED = "QUERY_EXECUTION_FAILED"
+
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"
@@ -593,6 +675,22 @@ class DashboardMessages:
     BINDING_SOURCE_UNKNOWN = "DASHBOARD_BINDING_SOURCE_UNKNOWN"
     BINDING_SOURCE_NOT_ALLOWED = "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
+    BINDING_SQL_MISSING = "BINDING_SQL_MISSING"
+    # Published views (app.services.tenant.published_views).
+    #: A widget of this dashboard that holds no statement to run.
+    WIDGET_HAS_NO_QUERY = "DASHBOARD_WIDGET_HAS_NO_QUERY"
+    #: Publishing over a resource the author cannot read themselves. A
+    #: published view hands on the author's own reach and never more than it.
+    PUBLISH_BEYOND_YOUR_REACH = "DASHBOARD_PUBLISH_BEYOND_YOUR_REACH"
+    #: Editing what a publishing dashboard asks, without the access it
+    #: publishes over. The statement is what decides which of those rows a
+    #: reader sees, so changing one is the same act as writing it.
+    EDIT_NEEDS_THE_PUBLISHED_ACCESS = "DASHBOARD_EDIT_NEEDS_THE_PUBLISHED_ACCESS"
+    #: ``me`` in a statement on a dashboard that publishes. A published view is
+    #: one set of numbers for everybody, and the reader is not fixed.
+    PUBLISHED_VIEW_HAS_NO_READER = "DASHBOARD_PUBLISHED_VIEW_HAS_NO_READER"
+    BINDING_SQL_TOO_LONG = "BINDING_SQL_TOO_LONG"
+    WIDGET_MAPPING_INVALID = "WIDGET_MAPPING_INVALID"
 
 
 class PostMessages:

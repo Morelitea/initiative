@@ -23,7 +23,10 @@ def _stat_definition() -> dict:
                 "id": "w1",
                 "type": "stat",
                 "title": "Open bugs",
-                "binding": {"source": "counter", "counter_id": None},
+                "binding": {
+                    "source": "query",
+                    "sql": "SELECT count(*) AS n FROM tasks",
+                },
             }
         ]
     }
@@ -98,7 +101,15 @@ async def test_create_rejects_unknown_widget_type(
             "name": "Bad",
             "initiative_id": a.initiative.id,
             "definition": {
-                "widgets": [{"type": "iframe", "binding": {"source": "tasks"}}]
+                "widgets": [
+                    {
+                        "type": "iframe",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
+                ]
             },
         },
     )
@@ -112,7 +123,11 @@ async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    # dashboards_enabled defaults to False.
+    # The factory switches every tool on, so a test about one being OFF
+    # turns it off.
+    a.initiative.dashboards_enabled = False
+    session.add(a.initiative)
+    await session.commit()
 
     response = await client.post(
         a.g("/dashboards/"),
@@ -158,7 +173,10 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
                     {
                         "id": "chart1",
                         "type": "line_chart",
-                        "binding": {"source": "task_counts"},
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
                     }
                 ]
             }
@@ -175,12 +193,20 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
         headers=a.headers,
         json={
             "definition": {
-                "widgets": [{"type": "stat", "binding": {"source": "tasks"}}]
+                "widgets": [
+                    {
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT secret FROM pg_shadow",
+                        },
+                    }
+                ]
             }
         },
     )
     assert bad.status_code == 422
-    assert bad.json()["detail"] == "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
+    assert bad.json()["detail"] == "QUERY_UNKNOWN_RELATION"
 
 
 @pytest.mark.integration
@@ -198,7 +224,14 @@ async def test_config_for_removed_widget_is_dropped(
         json={
             "definition": {
                 "widgets": [
-                    {"id": "kept", "type": "stat", "binding": {"source": "counter"}}
+                    {
+                        "id": "kept",
+                        "type": "stat",
+                        "binding": {
+                            "source": "query",
+                            "sql": "SELECT count(*) AS n FROM tasks",
+                        },
+                    }
                 ]
             },
             "config": {
@@ -381,7 +414,14 @@ async def test_widget_catalog_projects_the_registry(
             spec.default_w,
             spec.default_h,
         )
-        assert set(entry["sources"]) == set(spec.sources)
+        # Served in declared order, because inference walks the slots in it.
+        assert [slot["name"] for slot in entry["shape"]] == [
+            slot.name for slot in spec.shape
+        ]
+        for served, slot in zip(entry["shape"], spec.shape):
+            assert set(served["types"]) == {kind.value for kind in slot.types}
+            assert served["required"] is slot.required
+            assert served["repeatable"] is slot.repeatable
         assert {option["key"] for option in entry["options"]} == set(spec.options)
         for option in entry["options"]:
             declared = spec.options[option["key"]]

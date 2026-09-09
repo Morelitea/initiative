@@ -407,12 +407,15 @@ export function PostDetailPage() {
           )}
           {/* Reacting is a read-level gesture — anyone who can see the
               notice can react to it — so this is offered to every reader,
-              not only to whoever may edit. */}
-          <ReactionBar
-            targetType={ReactionTarget.post}
-            targetId={post.id}
-            groups={post.reactions}
-          />
+              not only to whoever may edit. A notice with reactions turned
+              off shows none. */}
+          {post.reactions_enabled && (
+            <ReactionBar
+              targetType={ReactionTarget.post}
+              targetId={post.id}
+              groups={post.reactions}
+            />
+          )}
           {post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {post.tags.map((tag) => (

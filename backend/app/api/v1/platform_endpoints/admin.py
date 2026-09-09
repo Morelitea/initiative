@@ -57,7 +57,7 @@ from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
-from app.services.platform.guilds import adopt_guild_name_display
+from app.services.platform.guilds import guild_renders_member_names
 from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
@@ -1037,8 +1037,10 @@ async def admin_get_initiative_members(
     admin so the member list comes from the live data, not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-    await adopt_guild_name_display(session, guild_id=guild_id)
+    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
+    await set_rls_context(
+        session, guild_id=guild_id, guild_role="admin", shows_member_names=shows_names
+    )
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)

@@ -278,7 +278,30 @@
     "exportReady": "Dein Export ist bereit — klicke zum Herunterladen.",
     "exportFailed": "Dein Export ist fehlgeschlagen. Versuche es erneut.",
     "importReady": "Dein Import ist abgeschlossen — klicke, um den Bericht anzusehen.",
-    "importFailed": "Dein Import ist fehlgeschlagen. Klicke, um zu sehen, was passiert ist."
+    "importFailed": "Dein Import ist fehlgeschlagen. Klicke, um zu sehen, was passiert ist.",
+    "commentsOnTask": "{{name}} hat {{count}} Kommentare zu {{taskTitle}} geschrieben",
+    "commentsOnTaskMulti": "{{name}} und {{others}} weitere haben {{count}} Kommentare zu {{taskTitle}} geschrieben",
+    "commentsOnResource": "{{name}} hat {{count}} Kommentare zu {{entityName}} geschrieben",
+    "commentsOnResourceMulti": "{{name}} und {{others}} weitere haben {{count}} Kommentare zu {{entityName}} geschrieben",
+    "seeAll": "Alle ansehen",
+    "inbox": {
+      "title": "Benachrichtigungen",
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "empty": "Hier ist noch nichts.",
+      "loadMore": "Mehr laden",
+      "markRead": "Als gelesen markieren",
+      "markUnread": "Als ungelesen markieren",
+      "dismiss": "Entfernen",
+      "filterByCommunity": "Nach Community filtern",
+      "allCommunities": "Alle Communities",
+      "filters": {
+        "all": "Alle",
+        "unread": "Ungelesen",
+        "personal": "Erwähnungen"
+      }
+    },
+    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen"
   },
   "version": {
     "newVersionAvailable": "Neue Version verfügbar",
@@ -433,5 +456,6 @@
     "actions": "Aktionen",
     "failed": "Die Mitglieder dieser Community konnten nicht geladen werden.",
     "searchPlaceholder": "Mitglieder filtern"
-  }
+  },
+  "unreadHere": "Ungelesenes"
 }

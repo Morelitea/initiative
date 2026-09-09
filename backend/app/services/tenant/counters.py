@@ -13,7 +13,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.services import permissions as permissions_service
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
 from app.services.permissions import (
@@ -151,9 +150,6 @@ async def list_counter_group_ids_for_export(
     conditions = [
         CounterGroup.initiative_id.in_(initiative_ids),
         Initiative.counter_groups_enabled == True,  # noqa: E712
-        permissions_service.dac_scope_clause(
-            Tool.counter_group, CounterGroup.id, current_user.id, guild_id=guild_id
-        ),
     ]
     statement = (
         select(CounterGroup.id)
@@ -301,6 +297,12 @@ async def duplicate_counter_group(
                     initiative_id=new_group.initiative_id,
                 )
             )
+
+    # The sharing has to be IN the database before the counters are, because a
+    # counter is reached through its group: adding it to the session is not
+    # enough, since a flush orders its statements by table rather than by the
+    # order things were added.
+    await session.flush()
 
     for counter in getattr(source, "counters", None) or []:
         if counter.deleted_at is not None:

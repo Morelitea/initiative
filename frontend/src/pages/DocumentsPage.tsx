@@ -11,7 +11,7 @@ import type {
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllDocuments } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
@@ -885,7 +885,7 @@ export const DocumentsView = ({
         onOpenChange={setBulkEditAccessOpen}
         items={selectedDocuments}
         resourceType={Tool.document}
-        invalidate={invalidateAllDocuments}
+        invalidate={() => invalidate(q.allDocuments())}
         onSuccess={() => {}}
       />
     </div>

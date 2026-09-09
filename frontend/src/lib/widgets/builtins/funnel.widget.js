@@ -55,29 +55,17 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
-  },
-  rangeEmpty: {
-    en: "Range is empty",
-    de: "Bereich ist leer",
-    es: "El rango está vacío",
-    fr: "La plage est vide",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
   noNumeric: {
-    en: "No numeric values in range",
-    de: "Keine Zahlenwerte im Bereich",
-    es: "No hay valores numéricos en el rango",
-    fr: "Aucune valeur numérique dans la plage",
-  },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
+    en: "No numeric column to stage",
+    de: "Keine Zahlenspalte für Stufen",
+    es: "Ninguna columna numérica para las etapas",
+    fr: "Aucune colonne numérique à mettre en étapes",
   },
   nothingToStage: {
     en: "Nothing to stage",
@@ -99,7 +87,7 @@ const strings = {
  * The order matters too: a workflow's own sequence is usually the point, so
  * sorting is opt-in rather than the default.
  *
- * @param {import("../dataShapes").WidgetData} data
+ * @param {import("../dataShapes").TabularData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
 function render(data, config, context) {
@@ -110,6 +98,12 @@ function render(data, config, context) {
     const entry = strings[key] || {};
     return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
   };
+  // Which columns fill this widget's slots. Resolved by the host, which is the
+  // only place that has the widget's declared shape and the author's overrides
+  // together; what arrives is the answer.
+  const slots = context?.slots || {};
+  const labelAt = (slots.label || [])[0];
+  const valueAt = (slots.value || [])[0];
   const sorted = config.order === "descending";
 
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
@@ -120,34 +114,17 @@ function render(data, config, context) {
     return { v: 1, scene: { kind: "funnel", stages: ordered } };
   };
 
-  switch (data.source) {
-    case "task_counts": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noTasks"));
-      return funnel(rows.map((row) => ({ label: row.bucket, value: row.count })));
-    }
+  const rows = data.rows || [];
+  if (!rows.length) return empty(say("noRows"));
+  if (valueAt === undefined) return empty(say("noNumeric"));
 
-    case "sheet_range": {
-      const range = data.range;
-      if (!range?.rows.length) return empty(say("rangeEmpty"));
-      // A label column and a number column: the first of each, so a two-column
-      // range reads without configuration.
-      const firstRow = range.rows[0];
-      const labelIndex = firstRow.findIndex((cell) => typeof cell !== "number");
-      const valueIndex = firstRow.findIndex((cell) => typeof cell === "number");
-      if (valueIndex < 0) return empty(say("noNumeric"));
-      return funnel(
-        range.rows.map((row, index) => ({
-          label:
-            labelIndex >= 0 && row[labelIndex] !== null
-              ? String(row[labelIndex])
-              : say("stage") + " " + (index + 1),
-          value: typeof row[valueIndex] === "number" ? row[valueIndex] : 0,
-        }))
-      );
-    }
-
-    default:
-      return empty(say("cannotDraw") + data.source);
-  }
+  return funnel(
+    rows.map((row, index) => ({
+      label:
+        labelAt !== undefined && row[labelAt] !== null
+          ? String(row[labelAt])
+          : say("stage") + " " + (index + 1),
+      value: typeof row[valueAt] === "number" ? row[valueAt] : 0,
+    }))
+  );
 }

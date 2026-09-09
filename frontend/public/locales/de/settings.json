@@ -261,29 +261,22 @@
     "scheduleError": "Benachrichtigungszeitplan konnte nicht aktualisiert werden",
     "toggleError": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
     "categoryHeader": "Kategorie",
-    "emailHeader": "E-Mail",
-    "mobileAppHeader": "Mobile App",
     "categories": {
-      "initiativeInvites": "Initiativen-Einladungen",
-      "initiativeInvitesDescription": "Wenn du zu einer neuen Initiative hinzugefügt wirst.",
-      "taskAssignments": "Aufgabenzuweisungen",
-      "taskAssignmentsDescription": "Stündliche Zusammenfassung, wenn andere dir Aufgaben zuweisen.",
       "mentions": "Erwähnungen",
-      "mentionsDescription": "Wenn dich jemand erwähnt oder deine Arbeit kommentiert.",
-      "commentReactions": "Reaktionen",
-      "commentReactionsDescription": "Eine regelmäßige Übersicht, wenn andere auf deine Kommentare reagieren.",
-      "newProject": "Neues Projekt in der Initiative",
-      "newProjectDescription": "Wenn in deinen Initiativen Projekte erstellt werden.",
-      "overdueTasks": "Überfällige Aufgaben",
-      "overdueTasksDescription": "Tägliche Erinnerung für überfällige Aufgaben zu deiner geplanten Zeit.",
-      "events": "Termine",
-      "eventsDescription": "Wenn du zu einem Termin eingeladen wirst oder sich ein Termin ändert, an dem du teilnimmst.",
-      "eventReminders": "Terminerinnerungen",
-      "eventRemindersDescription": "Eine Erinnerung, bevor Termine beginnen, an denen du teilnimmst.",
-      "directMessages": "Direktnachrichten",
-      "directMessagesDescription": "Jemand hat dir eine Direktnachricht gesendet. Enthält nie deren Inhalt.",
+      "replies": "Antworten",
+      "comments": "Kommentare zu deiner Arbeit",
+      "reactions": "Reaktionen",
+      "assignments": "Aufgabenzuweisungen",
+      "due_dates": "Überfällige Aufgaben",
+      "membership": "Neue Mitgliedschaften",
+      "approvals": "Wartet auf dich",
       "posts": "Beiträge",
-      "postsDescription": "Wenn ein Beitrag auf einer für dich sichtbaren Pinnwand erscheint."
+      "events": "Termine",
+      "event_reminders": "Terminerinnerungen",
+      "direct_messages": "Direktnachrichten",
+      "connections": "Kontakte",
+      "jobs": "Exporte und Importe",
+      "account": "Dein Konto"
     },
     "reminderLeadTime": {
       "label": "Erinnere mich",
@@ -297,8 +290,54 @@
     },
     "scheduleTitle": "Tägliche Erinnerung",
     "scheduleDescription": "Wann die Erinnerung an Überfälliges rausgeht – und nach welcher Uhr.",
-    "channelsTitle": "Worüber du hörst",
-    "channelsDescription": "Wähl je Art von Neuigkeit einen Kanal. Glocken-Benachrichtigungen kommen so oder so."
+    "channelsTitle": "Worüber du informiert wirst",
+    "channelsDescription": "Eine Zeile pro Art von Neuigkeit, ein Schalter pro Kanal. Nichts ist aktiv, was du nicht aktiv gelassen hast.",
+    "switchLabel": "{{category}} über {{channel}}",
+    "channels": {
+      "in_app": "Glocke",
+      "email": "E-Mail",
+      "push": "Mobil"
+    },
+    "groups": {
+      "addressed_to_me": "An mich gerichtet",
+      "activity": "Aktivität",
+      "community": "Community",
+      "account": "Konto"
+    },
+    "categoryDescriptions": {
+      "mentions": "Jemand hat deinen Namen geschrieben.",
+      "replies": "Jemand hat auf etwas geantwortet, das du geschrieben hast.",
+      "comments": "Jemand hat eine Aufgabe kommentiert, an der du beteiligt bist, oder etwas von dir. Pro Thread zusammengefasst.",
+      "reactions": "Jemand hat auf einen deiner Kommentare reagiert.",
+      "assignments": "Jemand hat dir Aufgaben zugewiesen. Eine Zusammenfassung, nicht eine pro Aufgabe.",
+      "due_dates": "Ein täglicher Hinweis auf Überfälliges, zu einer Zeit deiner Wahl.",
+      "membership": "Du wurdest zu einer Initiative hinzugefügt oder ein Projekt ist darin entstanden.",
+      "approvals": "Jemand wartet auf deine Entscheidung. Erscheint immer in der Glocke.",
+      "posts": "Ein Aushang wurde an einem Board veröffentlicht, das du sehen kannst.",
+      "events": "Du wurdest eingeladen oder etwas hat sich geändert, woran du teilnimmst.",
+      "event_reminders": "Kurz vor einem Termin, zu dem du gehst.",
+      "direct_messages": "Jemand hat dir geschrieben. Wer und wie viele, nie der Inhalt.",
+      "connections": "Jemand möchte sich vernetzen oder hat angenommen.",
+      "jobs": "Ein Export oder Import, den du angefordert hast, ist fertig.",
+      "account": "An deinem Konto wurde etwas geändert. Erscheint immer in der Glocke."
+    },
+    "quietHours": {
+      "title": "Ruhezeiten",
+      "description": "E-Mail und Mobil über Nacht zurückhalten. Die Glocke sammelt weiter, und am Ende geht eine Zusammenfassung raus.",
+      "from": "Von",
+      "to": "Bis"
+    },
+    "communities": {
+      "title": "Pro Community",
+      "description": "Ein Regler pro Community. Stell eine leiser, ohne sonst etwas zu ändern.",
+      "levelLabel": "Wie viel {{guild}} sagt",
+      "mutedHelp": "Diese Community sagt gar nichts — auch nicht, wenn dich jemand direkt nennt.",
+      "levels": {
+        "everything": "Alles",
+        "personal": "Nur was mich nennt",
+        "nothing": "Nichts"
+      }
+    }
   },
   "dangerZone": {
     "serverConnection": "Serververbindung",

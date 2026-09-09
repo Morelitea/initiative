@@ -78,6 +78,11 @@ class QueueImporter:
             )
         )
 
+        # The sharing has to be in the database before the content it governs:
+        # a flush orders its statements by table, not by the order things were
+        # added.
+        await session.flush()
+
         tags_created = 0
         tags_matched = 0
         dropped_members = 0

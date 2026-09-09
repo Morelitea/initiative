@@ -6,7 +6,7 @@ icon: lucide/map
 
 Nobody reads the tour. You're going to skim this, click something, and work it out by touch like everyone else does, and that's genuinely fine — the app is built on the assumption that you will.
 
-But if you'd like the map first: there are four regions on screen. You will spend about 95% of your life in one of them. Here's what the other three are up to.
+But if you'd like the map first: four regions on screen, plus one corner of it that belongs to you rather than to any group. You'll spend about 95% of your life in two of them. Here's what the rest are up to.
 
 ![The Initiative screen, with the community rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)
 
@@ -14,7 +14,13 @@ But if you'd like the map first: there are four regions on screen. You will spen
 
 A narrow column of icons welded to the edge of the screen. One per community you belong to. Click one and the entire app swaps over — sidebar, projects, documents, the lot.
 
-Above them sits the **Initiative logo**, and that one's your corner: My Tasks, Tasks I Created, My Calendar, My Tools, My Messages, My Stats. Everything that's *yours*, gathered from every community at once, so you can see what you've agreed to without opening four communities to find out. See [Your space](../guides/your-space.md).
+## The logo above them
+
+The **Initiative logo** sits above the community icons, and it isn't one. It's your corner — and you have already been in it, because the page you land on when you sign in is **My Tasks**: everything assigned to you, from every community at once, in one list.
+
+Click the logo from anywhere and the sidebar swaps to your own short list — My Tasks, My Calendar, My Tools, My Messages, My Stats. Click a community icon to go back out.
+
+So: **the icons are where the group's work lives, the logo is where yours does.** Belong to four groups and you still only have one list of what you've agreed to. See [Your space](../guides/your-space.md).
 
 ## The sidebar
 

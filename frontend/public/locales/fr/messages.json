@@ -36,7 +36,8 @@
     "hint": "Un identifiant complet, numéro compris, atteint une personne qui n'est dans aucune de vos communautés.",
     "connect": "Se connecter avec {{handle}}",
     "noMatches": "Personne ne correspond.",
-    "empty": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
+    "empty": "Personne dans vos communautés n'a encore activé les messages.",
+    "noCommunities": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
     "unreachable": "Injoignable",
     "showMore": "Afficher plus",
     "favorites": "Favoris"

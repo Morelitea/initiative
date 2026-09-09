@@ -46,12 +46,7 @@ import type {
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
-import {
-  invalidateAllDocuments,
-  invalidateDocument,
-  invalidateDocumentVersions,
-  invalidateProject,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -285,10 +280,10 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
       return newDocument;
     },
     onSuccess: (...args) => {
-      void invalidateAllDocuments();
+      void invalidate(q.allDocuments());
       const projectId = args[1].project_id;
       if (projectId) {
-        void invalidateProject(projectId);
+        void invalidate(q.project(projectId));
       }
       onSuccess?.(...args);
     },
@@ -347,10 +342,10 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
       return newDocument;
     },
     onSuccess: (...args) => {
-      void invalidateAllDocuments();
+      void invalidate(q.allDocuments());
       const projectId = args[1].project_id;
       if (projectId) {
-        void invalidateProject(projectId);
+        void invalidate(q.project(projectId));
       }
       onSuccess?.(...args);
     },
@@ -401,10 +396,9 @@ export const useUploadDocumentVersion = (
     },
     onSuccess: (...args) => {
       const documentId = args[1].documentId;
-      void invalidateDocumentVersions(documentId);
+      void invalidate(q.documentVersions(documentId));
       // Mirror file fields on the document row changed — refresh detail + lists.
-      void invalidateDocument(documentId);
-      void invalidateAllDocuments();
+      void invalidate(q.document(documentId), q.allDocuments());
       toast.success(t("versions.uploadSuccess"));
       onSuccess?.(...args);
     },
@@ -434,9 +428,7 @@ export const useDeleteDocumentVersion = (
     },
     onSuccess: (...args) => {
       const documentId = args[1].documentId;
-      void invalidateDocumentVersions(documentId);
-      void invalidateDocument(documentId);
-      void invalidateAllDocuments();
+      void invalidate(q.documentVersions(documentId), q.document(documentId), q.allDocuments());
       toast.success(t("versions.deleteSuccess"));
       onSuccess?.(...args);
     },
@@ -470,7 +462,7 @@ export const useUpdateDocument = (
         getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
         updated
       );
-      void invalidateAllDocuments();
+      void invalidate(q.allDocuments());
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -494,7 +486,7 @@ export const useDeleteDocument = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, documentId) =>
         deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete(guildId, documentId),
-      invalidate: () => invalidateAllDocuments(),
+      invalidate: () => invalidate(q.allDocuments()),
       errorKey: "documents:bulk.deleteError",
     },
     options
@@ -522,7 +514,7 @@ export const useDeleteDocuments = (
       if (!suppressSuccessToast) {
         toast.success(t("bulk.deleted", { count: documentIds.length }));
       }
-      void invalidateAllDocuments();
+      void invalidate(q.allDocuments());
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -555,7 +547,7 @@ export const useCopyDocument = (
     },
     onSuccess: (...args) => {
       toast.success(t("bulk.duplicated", { count: args[0].length }));
-      void invalidateAllDocuments();
+      void invalidate(q.allDocuments());
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -578,7 +570,7 @@ export const useDuplicateDocument = (
         duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
           name,
         }),
-      invalidate: () => invalidateAllDocuments(),
+      invalidate: () => invalidate(q.allDocuments()),
     },
     options
   );
@@ -591,7 +583,7 @@ export const useCopyDocumentToInitiative = (
     {
       mutationFn: (guildId, data) =>
         copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, data),
-      invalidate: () => invalidateAllDocuments(),
+      invalidate: () => invalidate(q.allDocuments()),
     },
     options
   );
@@ -616,7 +608,7 @@ export const useSetDocumentGrants = (
     {
       mutationFn: (guildId, grants) =>
         setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, documentId, grants),
-      invalidate: () => Promise.all([invalidateDocument(documentId), invalidateAllDocuments()]),
+      invalidate: () => invalidate(q.document(documentId), q.allDocuments()),
       errorKey: "documents:settings.updateAccessError",
     },
     options

@@ -362,7 +362,10 @@ jobs:
           fi
 
           # The native app is only rebuilt when the native shell changed (see the `decide`
-          # job). Web-only releases ship no new APK — existing installs update over the air.
+          # job). Web-only releases ship no new APK — existing installs update over the air,
+          # and an updater tracking these releases falls back to the last one that carried an
+          # APK. Attaching an older APK here instead reads as a new version to those updaters,
+          # which then reinstall the app they already have.
           if [ "$APK_BUILT" = "true" ]; then
             ANDROID_SECTION="### Android App
           Download the APK from the assets below and install on your Android device."
@@ -394,7 +397,7 @@ jobs:
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: artifacts/*.apk
           body_path: release_body.md

@@ -620,6 +620,14 @@ async def _schema_test_harness(engine, monkeypatch):
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
     monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+
+    # The query surface keeps a pool of its own, so it needs pointing at this
+    # worker's database like the others — it is created at import against the
+    # configured one.
+    test_query_engine = create_async_engine(
+        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "query_engine", test_query_engine)
     monkeypatch.setattr(
         db_session,
         "AdminSessionLocal",
@@ -645,6 +653,7 @@ async def _schema_test_harness(engine, monkeypatch):
     )
     yield
     await test_admin_engine.dispose()
+    await test_query_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -716,21 +725,25 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
     # connection: drop the per-guild schemas/roles provisioned during the test
     # (cluster-global roles must not leak between tests), then truncate public.
-    async with engine.begin() as conn:
-        await conn.exec_driver_sql("SET lock_timeout = '10s'")
-        # Per-guild schema/role cleanup only matters if THIS test provisioned a
-        # guild schema (tracked in _provisioned_guild_ids). Most tests don't, so
-        # skip the two catalog scans + DROPs entirely for them.
-        roles: list[str] = []
-        if _provisioned_guild_ids:
-            for (schema,) in (
-                await conn.execute(
-                    text(
-                        "SELECT nspname FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'"
+    # Per-guild schema/role cleanup only matters if THIS test provisioned a
+    # guild schema (tracked in _provisioned_guild_ids). Most tests don't, so
+    # skip the two catalog scans + DROPs entirely for them.
+    roles: list[str] = []
+    schemas: list[str] = []
+    if _provisioned_guild_ids:
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql("SET lock_timeout = '10s'")
+            schemas = [
+                schema
+                for (schema,) in (
+                    await conn.execute(
+                        text(
+                            "SELECT nspname FROM pg_namespace "
+                            "WHERE nspname ~ '^guild_[0-9]+$'"
+                        )
                     )
-                )
-            ).all():
-                await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+                ).all()
+            ]
             # Only the suite's own prefixed roles (test_guild_<id>) — never a
             # co-located dev DB's unprefixed guild_<id> roles (they share this
             # cluster-global catalog but belong to that database).
@@ -744,11 +757,24 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                     )
                 ).all()
             ]
-        # Truncate the SHARED (public-schema) tables to reset state — one
-        # multi-table TRUNCATE (a single round-trip) instead of one statement
-        # per table. Only shared tables exist in public since the v0.53.5
-        # baseline squash; tenant content lives in the per-test guild schemas
-        # dropped above.
+
+    # One schema per transaction. A guild schema holds ~60 tables and their
+    # indexes, policies and triggers, and DROP ... CASCADE takes a lock on each;
+    # dropping several alongside the TRUNCATE below put hundreds of locks in one
+    # transaction, which several xdist workers doing it at once can exhaust
+    # (``max_locks_per_transaction`` sizes one shared table for the cluster).
+    for schema in schemas:
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql("SET lock_timeout = '10s'")
+            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+
+    # Truncate the SHARED (public-schema) tables to reset state — one
+    # multi-table TRUNCATE (a single round-trip) instead of one statement
+    # per table. Only shared tables exist in public since the v0.53.5
+    # baseline squash; tenant content lives in the per-test guild schemas
+    # dropped above.
+    async with engine.begin() as conn:
+        await conn.exec_driver_sql("SET lock_timeout = '10s'")
         await conn.execute(text("SET session_replication_role = 'replica'"))
         shared_tables = ", ".join(
             f'"{table.name}"'

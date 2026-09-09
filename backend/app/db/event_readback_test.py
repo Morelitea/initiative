@@ -1,9 +1,10 @@
 """Every resource the bus can name has to be fetchable by that name.
 
-An event envelope carries ``resource: {type, id}`` and nothing else — no parent,
-no path. That is what lets it stay content-free: the subscriber reads the state
-back through the API, where the gates decide. It only works if the id is a whole
-address, so the route for a resource type is derivable from the type itself:
+An event envelope carries ``resource: {type, id}`` and the same pair for each
+of that resource's parents — identifiers, no paths and no values. That is what
+lets it stay content-free: the subscriber reads the state back through the API,
+where the gates decide. It only works if each id is a whole address, so the
+route for a resource type is derivable from the type itself:
 
     resource_type -> /g/{guild_id}/<kebab>/{id}
 
@@ -24,6 +25,7 @@ import pytest
 
 from app.db.base import *  # noqa: F401,F403 — register every model
 from app.db.event_capture import build_specs
+from app.db.initiative_rls import parent_types
 from app.main import app
 
 pytestmark = pytest.mark.unit
@@ -50,7 +52,17 @@ def _detail_paths() -> set[str]:
 
 
 def _named_resources() -> set[str]:
-    return {r for spec in build_specs() for r in spec.resource_types}
+    """Every type an event can put an id under — its resource, and its parents.
+
+    A parent is addressed exactly like a resource, so the same rule covers
+    both: a chain that names something unfetchable is as broken as a resource
+    that does.
+    """
+    named: set[str] = set()
+    for spec in build_specs():
+        named |= spec.resource_types
+        named |= parent_types(spec.parents_expr)
+    return named
 
 
 def test_every_evented_resource_resolves_by_its_own_id():

@@ -261,29 +261,22 @@
     "scheduleError": "Unable to update notification schedule",
     "toggleError": "Unable to update notification settings",
     "categoryHeader": "Category",
-    "emailHeader": "Email",
-    "mobileAppHeader": "Mobile App",
     "categories": {
-      "initiativeInvites": "Initiative invites",
-      "initiativeInvitesDescription": "When you’re added to a new initiative.",
-      "taskAssignments": "Task assignments",
-      "taskAssignmentsDescription": "Hourly summary when others assign you tasks.",
       "mentions": "Mentions",
-      "mentionsDescription": "When someone mentions you or comments on your work.",
-      "commentReactions": "Reactions",
-      "commentReactionsDescription": "A periodic summary when people react to your comments.",
-      "newProject": "New project in initiative",
-      "newProjectDescription": "When projects are created in your initiatives.",
-      "overdueTasks": "Overdue tasks",
-      "overdueTasksDescription": "Daily reminder for tasks past due at your scheduled time.",
-      "events": "Events",
-      "eventsDescription": "When you’re invited to an event, or one you’re attending changes.",
-      "eventReminders": "Event reminders",
-      "eventRemindersDescription": "A reminder before events you’re attending begin.",
-      "directMessages": "Direct messages",
-      "directMessagesDescription": "Someone sent you a direct message. Never includes what it says.",
+      "replies": "Replies",
+      "comments": "Comments on your work",
+      "reactions": "Reactions",
+      "assignments": "Task assignments",
+      "due_dates": "Overdue tasks",
+      "membership": "Joining things",
+      "approvals": "Waiting on you",
       "posts": "Posts",
-      "postsDescription": "When a notice goes up on a board you can see."
+      "events": "Events",
+      "event_reminders": "Event reminders",
+      "direct_messages": "Direct messages",
+      "connections": "Connections",
+      "jobs": "Exports and imports",
+      "account": "Your account"
     },
     "reminderLeadTime": {
       "label": "Remind me",
@@ -298,7 +291,53 @@
     "scheduleTitle": "Daily reminder",
     "scheduleDescription": "When the overdue reminder goes out, and the clock it goes by.",
     "channelsTitle": "What you hear about",
-    "channelsDescription": "Pick a channel per kind of update. Bell notifications arrive either way."
+    "channelsDescription": "One row per kind of update, one switch per channel. Nothing is on that you have not left on.",
+    "switchLabel": "{{category}} on {{channel}}",
+    "channels": {
+      "in_app": "Bell",
+      "email": "Email",
+      "push": "Mobile"
+    },
+    "groups": {
+      "addressed_to_me": "Addressed to me",
+      "activity": "Activity",
+      "community": "Community",
+      "account": "Account"
+    },
+    "categoryDescriptions": {
+      "mentions": "Somebody wrote your name.",
+      "replies": "Somebody replied to something you said.",
+      "comments": "Somebody commented on a task you are on, or something you made. Rolled up per thread.",
+      "reactions": "Somebody reacted to one of your comments.",
+      "assignments": "Somebody assigned you tasks. One summary, not one per task.",
+      "due_dates": "A daily nudge about what is past due, at a time you choose.",
+      "membership": "You were added to an initiative, or a project appeared in one.",
+      "approvals": "Somebody is waiting on your decision. Always shows in the bell.",
+      "posts": "A notice went up on a board you can see.",
+      "events": "You were invited to something, or something you are attending changed.",
+      "event_reminders": "Shortly before an event you are going to.",
+      "direct_messages": "Somebody messaged you. Who and how many, never what it says.",
+      "connections": "Somebody asked to connect, or accepted.",
+      "jobs": "An export or import you asked for has finished.",
+      "account": "Something was done to your account. Always shows in the bell."
+    },
+    "quietHours": {
+      "title": "Quiet hours",
+      "description": "Hold email and mobile overnight. The bell still collects, and one summary goes out when the window ends.",
+      "from": "From",
+      "to": "Until"
+    },
+    "communities": {
+      "title": "Per community",
+      "description": "One dial each. Set a community to say less without changing anything anywhere else.",
+      "levelLabel": "How much {{guild}} says",
+      "mutedHelp": "This community says nothing at all — including if somebody names you directly.",
+      "levels": {
+        "everything": "Everything",
+        "personal": "Only what names me",
+        "nothing": "Nothing"
+      }
+    }
   },
   "dangerZone": {
     "serverConnection": "Server Connection",

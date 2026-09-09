@@ -117,7 +117,9 @@ async def test_initiative_manager_may_manage_without_a_grant(
         initiative=owner.initiative,
         initiative_role="project_manager",
     )
-    await _grant(session, owner.project, pm.user, ResourceAccessLevel.read)
+    # Manager standing reaches the initiative; sharing still decides what may
+    # change, so managing this project's presets takes a write grant on it.
+    await _grant(session, owner.project, pm.user, ResourceAccessLevel.write)
     await _seed(session, owner.project)
 
     response = await client.post(

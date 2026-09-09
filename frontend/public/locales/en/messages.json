@@ -36,7 +36,8 @@
     "hint": "A whole handle, number included, reaches somebody in none of your communities.",
     "connect": "Connect with {{handle}}",
     "noMatches": "Nobody matches.",
-    "empty": "Nobody to show. You share no communities with anyone yet.",
+    "empty": "Nobody in your communities has messaging turned on yet.",
+    "noCommunities": "Nobody to show. You share no communities with anyone yet.",
     "unreachable": "Not reachable",
     "showMore": "Show more",
     "favorites": "Favorites"

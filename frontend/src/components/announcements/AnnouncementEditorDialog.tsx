@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Eye, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -566,11 +567,9 @@ const SectionEditor = ({
   onRemove,
 }: SectionEditorProps) => {
   const { t } = useTranslation("announcements");
-  const fileInput = useRef<HTMLInputElement>(null);
   const upload = useUploadAnnouncementImage();
 
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
+  const handleFile = async (file: File) => {
     try {
       const result = await upload.mutateAsync(file);
       onChange({ image_url: result.url });
@@ -657,22 +656,12 @@ const SectionEditor = ({
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <input
-            ref={fileInput}
-            type="file"
+          <ImagePicker
+            variant="button"
+            buttonSize="sm"
             accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            onChange={(event) => {
-              void handleFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
             disabled={upload.isPending}
-            onClick={() => fileInput.current?.click()}
+            onSelect={handleFile}
           >
             {upload.isPending ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -680,7 +669,7 @@ const SectionEditor = ({
               <ImagePlus className="mr-1 h-4 w-4" />
             )}
             {section.image_url ? t("admin.replaceImage") : t("admin.addImage")}
-          </Button>
+          </ImagePicker>
           {section.image_url ? (
             <Button
               type="button"

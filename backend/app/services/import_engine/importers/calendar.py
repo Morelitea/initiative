@@ -104,6 +104,11 @@ class CalendarImporter:
             )
         )
 
+        # The sharing has to be in the database before the content it governs:
+        # a flush orders its statements by table, not by the order things were
+        # added.
+        await session.flush()
+
         created = 0
         failed = 0
         tags_created = 0

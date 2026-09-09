@@ -101,6 +101,10 @@
     "commentsDescription": "Permite que se comente esto. Si desactivas los comentarios, se conserva todo lo ya publicado y vuelve a aparecer cuando los actives de nuevo.",
     "commentsToggle": "Activar comentarios",
     "commentsError": "No se pudo guardar la configuración de comentarios.",
+    "reactions": "Reacciones",
+    "reactionsDescription": "Permite que se reaccione a este aviso. Si desactivas las reacciones, se conservan las que ya hay y vuelven a aparecer cuando las actives de nuevo.",
+    "reactionsToggle": "Activar reacciones",
+    "reactionsError": "No se pudo guardar la configuración de reacciones.",
     "permissionsUpdated": "Permisos actualizados",
     "dangerZone": "Zona de peligro",
     "dangerZoneDescription": "Acciones destructivas. Los elementos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
@@ -145,5 +149,18 @@
     "label": "Ir a un mes",
     "jumpedTo": "Desde {{period}}",
     "backToLatest": "Volver a lo más reciente"
+  },
+  "offline": {
+    "banner": "Estás sin conexión: se muestra lo último que cargó este dispositivo.",
+    "lastUpdated": "Última actualización {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Elegir una imagen",
+    "takePhoto": "Hacer una foto",
+    "chooseFromLibrary": "Elegir de la galería",
+    "chooseFile": "Elegir un archivo",
+    "permission": "Initiative necesita permiso para usar la cámara y las fotos. Actívalo en los ajustes del dispositivo e inténtalo de nuevo.",
+    "unavailable": "Este dispositivo no tiene cámara para hacer una foto.",
+    "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
   }
 }

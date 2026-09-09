@@ -71,9 +71,10 @@ _SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 #: from guild provisioning. Granting them ``WITH ADMIN OPTION`` where they
 #: already exist is what lets the provisioner maintain them afterwards.
 _ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'platform_base', 'platform_member', "
-    "'platform_support', 'platform_moderator', 'platform_operator', "
-    "'platform_owner') OR rolname ~ '^guild_[0-9]+(_ro|_support)?$'"
+    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'platform_base', "
+    "'platform_member', 'platform_support', 'platform_moderator', "
+    "'platform_operator', 'platform_owner') "
+    "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q)?$'"
 )
 
 
@@ -377,6 +378,10 @@ $$;
 # shared table grants them nothing until a migration decides, from the audited
 # registry in app.db.system_grants. Skipped until the floors exist — the
 # baseline migration creates them, and the next start asserts this.
+#
+# app_guild_base_ro takes no default privileges. A shared table added later is
+# granted to it by the migration that adds it, once somebody has decided the
+# read floor should have it; guild_base_ro_parity_test is what asks.
 _DEFAULT_PRIVILEGES = """
 DO $$
 DECLARE

@@ -258,6 +258,33 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
             ),
         ),
     ),
+    BuiltinAnnouncement(
+        slug="0-67-notifications",
+        title="Notifications got a lot quieter",
+        category=AnnouncementCategory.feature,
+        published_at=datetime(2026, 9, 9, tzinfo=timezone.utc),
+        # For accounts that lived with the old, louder version.
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+        only_upgrading_from_below="0.67.0",
+        sections=(
+            AnnouncementSection(
+                heading="Four things, all of them quieter",
+                body=(
+                    "**Quiet hours.** Pick a window. Email and mobile hold off "
+                    "inside it, and one message in the morning tells you what "
+                    "you missed.\n\n"
+                    "**A dial per community.** Everything, only what names you, "
+                    "or nothing. Nothing means nothing.\n\n"
+                    "**The bell is a setting now.** It used to be the one thing "
+                    "you could not turn down. It has its own column in the "
+                    "grid, per category.\n\n"
+                    "**Twenty comments on your task are one line.** Not twenty. "
+                    "Same for reactions.\n\n"
+                    "All of it lives in **User settings → Notifications**."
+                ),
+            ),
+        ),
+    ),
 )
 
 

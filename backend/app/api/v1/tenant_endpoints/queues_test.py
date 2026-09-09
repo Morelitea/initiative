@@ -9,7 +9,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.testing import Actor, create_initiative, create_queue
+from app.core.messages import SharingMessages
+from app.core.tools import Tool
+from app.testing import (
+    Actor,
+    create_initiative,
+    create_queue,
+    grant_role_permission,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -751,6 +758,38 @@ async def test_set_queue_grants(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
+async def test_sharing_does_not_reach_past_the_role_gate(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The picker lists only people whose role lets them use the tool, and the
+    endpoint behind it says so rather than accepting a grant that would do
+    nothing — which is what a caller not going through the picker needs to
+    hear."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await grant_role_permission(session, a.initiative, "queues_enabled", enabled=False)
+    queue_data = await _create_queue_via_api(client, a)
+
+    response = await client.put(
+        a.g(f"/queues/{queue_data['id']}/grants"),
+        headers=a.headers,
+        json=[{"user_id": b.user.id, "level": "read"}],
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == SharingMessages.grantee_lacks_tool(Tool.queue)
+
+    # Nothing was written, and the queue is still not theirs to open.
+    seen = await client.get(b.g(f"/queues/{queue_data['id']}"), headers=b.headers)
+    assert seen.status_code in (403, 404)
+
+
+@pytest.mark.integration
 async def test_set_queue_role_grants(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -784,7 +823,9 @@ async def test_set_queue_role_grants(
 
 
 @pytest.mark.integration
-async def test_member_with_read_can_view_queue(client: AsyncClient, acting_user):
+async def test_member_with_read_can_view_queue(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Member with read permission can view but not modify."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(

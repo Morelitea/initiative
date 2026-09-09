@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "No se han podido cargar los datos de este widget. Inténtalo de nuevo."
   },
   "bindingSource": {
-    "app": "Datos de la app",
-    "tasks": "Tareas",
-    "projects": "Proyectos",
-    "calendar_entries": "Entradas de calendario",
-    "task_counts": "Recuentos de tareas",
-    "counter": "Contador",
-    "counter_group": "Grupo de contadores",
-    "sheet_range": "Rango de hoja"
+    "query": "Consulta SQL",
+    "sheet_range": "Rango de hoja",
+    "app": "Datos de la app"
   },
   "gallery": {
     "title": "Galería de widgets",
@@ -148,12 +143,15 @@
     "all_counter": "Todos los contadores",
     "all_document": "Todas las hojas de cálculo",
     "appEndpoint": "Qué lee",
+    "app": "Aplicación",
+    "appPlaceholder": "Elige una aplicación",
     "appEndpointPlaceholder": "Elige una lectura…",
     "appNotInstalled": "Esta aplicación no está instalada en esta comunidad.",
     "appParamPlaceholder": "Elige…",
     "appParamNeedsSibling": "Elige primero el valor de arriba.",
     "appParamListHint": "Separa los valores con comas.",
-    "all_property": "Sin propiedad"
+    "all_property": "Sin propiedad",
+    "sqlHelp": "Un SELECT de solo lectura sobre los datos de esta comunidad. Se ejecuta como tú, así que devuelve lo que ya puedes ver."
   },
   "picker": {
     "title": "Añadir un widget",
@@ -228,7 +226,10 @@
     "completed_at": "Completada",
     "created_at": "Creada",
     "is_archived": "Archivada",
-    "title": "Título"
+    "title": "Título",
+    "description": "Descripción",
+    "updated_at": "Actualizado",
+    "created_by": "Creado por"
   },
   "filterPhrase": {
     "eq": "{{field}} es {{value}}",
@@ -275,7 +276,9 @@
     "relative": "Relativa",
     "absolute": "En una fecha",
     "relativeDays": "Días desde hoy",
-    "relativeHint": "Cuenta desde el momento en que se abre el panel, así que nunca se queda obsoleta."
+    "relativeHint": "Cuenta desde el momento en que se abre el panel, así que nunca se queda obsoleta.",
+    "loading": "Cargando filtros…",
+    "noFields": "Aquí todavía no hay nada por lo que filtrar."
   },
   "tableView": {
     "caption": "Los mismos datos en una tabla",
@@ -294,19 +297,12 @@
     "due": "Vence"
   },
   "bindingParam": {
-    "project": "Proyecto",
-    "calendar": "Calendario",
-    "counter_group": "Grupo de contadores",
-    "counter": "Contador",
     "document": "Hoja de cálculo",
     "sheet": "Hoja",
     "range": "Rango",
     "app_uid": "App",
     "source_id": "Fuente de datos de la app",
-    "bucket": "Agrupar los recuentos por",
-    "day_field": "Contar cada tarea en su",
-    "window_days": "Ventana temporal (días)",
-    "property": "Propiedad"
+    "sql": "Sentencia"
   },
   "paramValue": {
     "status_category": "Categoría de estado",
@@ -318,5 +314,71 @@
     "completed": "Fecha de finalización",
     "created": "Fecha de creación",
     "due": "Fecha límite"
+  },
+  "slot": {
+    "label": "Etiqueta",
+    "value": "Valor",
+    "start": "Inicio",
+    "end": "Fin",
+    "group": "Grupo",
+    "at": "Fecha",
+    "card": "Tarjeta",
+    "column": "Columna",
+    "date": "Fecha",
+    "total": "Total"
+  },
+  "builder": {
+    "dataset": "Qué se lee",
+    "columns": "Columnas",
+    "addColumn": "Añadir columna",
+    "removeColumn": "Quitar esta columna",
+    "everyRow": "Cada fila",
+    "asItIs": "Tal cual",
+    "exactTime": "Hora exacta",
+    "groupBy": "Una fila por",
+    "everythingTogether": "Todo junto",
+    "groupByHelp": "Agrupa las filas que comparten un valor y cuenta o suma el resto.",
+    "statement": "La sentencia que esto construye",
+    "tabBuild": "Crear",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Devuelve: {{columns}}",
+    "checking": "Comprobando esta sentencia…",
+    "notBuilt": "La consulta de este widget no se creó aquí. Crear una nueva la reemplaza.",
+    "buildNew": "Crear una consulta nueva",
+    "refused": "Esa combinación no se puede leer. Prueba con otra columna."
+  },
+  "aggregate": {
+    "count": "Recuento",
+    "sum": "Total",
+    "avg": "Media",
+    "min": "Mínimo",
+    "max": "Máximo"
+  },
+  "bucket": {
+    "day": "Por día",
+    "week": "Por semana",
+    "month": "Por mes",
+    "quarter": "Por trimestre",
+    "year": "Por año"
+  },
+  "dataset": {
+    "tasks": "Tareas",
+    "projects": "Proyectos",
+    "calendar_events": "Eventos del calendario",
+    "counters": "Contadores",
+    "counter_groups": "Grupos de contadores",
+    "task_statuses": "Estados de tarea"
+  },
+  "published": {
+    "title": "Cifras publicadas",
+    "help": "Un panel muestra normalmente a cada persona lo que ya puede ver. Lo que se nombre aquí se muestra igual a todas las personas que puedan abrir este panel, de modo que una cifra que debe ser terreno común sea una sola y no varias. Solo puedes publicar lo que tú misma puedes abrir, y quien sea su dueño puede retirarlo cuando quiera.",
+    "empty": "Nada publicado. Cada tarjeta responde según quien la mire.",
+    "choose": "Elige un proyecto",
+    "add": "Publicar",
+    "stop": "Dejar de publicar esto",
+    "notice_one": "Muestra una cifra publicada: la misma para todo el mundo aquí",
+    "notice_other": "Muestra {{count}} cifras publicadas: las mismas para todo el mundo aquí",
+    "unnamed": "Elemento n.º {{id}}"
   }
 }

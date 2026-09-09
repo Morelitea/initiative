@@ -187,6 +187,52 @@ class Settings(BaseSettings):
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # --- The SQL query surface ----------------------------------------------
+    #
+    # Each of these is a bound, so each has a floor of one: a value below that
+    # would not loosen the limit, it would turn it off or refuse every query.
+    #: Connections kept for reader-written SQL. Small on purpose: it is the
+    #: bound on how much of the database's attention those statements can hold.
+    QUERY_POOL_SIZE: int = Field(default=4, gt=0)
+    #: How long a query waits for one of them before giving up.
+    QUERY_POOL_TIMEOUT_SECONDS: int = Field(default=5, gt=0)
+    #: How many queries one guild may have running at once, across the
+    #: deployment.
+    QUERY_MAX_CONCURRENT_PER_GUILD: int = Field(default=2, gt=0)
+    #: How long one statement may run.
+    QUERY_STATEMENT_TIMEOUT_MS: int = Field(default=5_000, gt=0)
+    #: Sort/hash memory per statement, as a PostgreSQL size.
+    QUERY_WORK_MEM: str = "16MB"
+    #: The planner's estimate above which a statement is refused unrun.
+    QUERY_MAX_COST: float = Field(default=1_000_000.0, gt=0)
+    #: Rows one query may return.
+    QUERY_MAX_ROWS: int = Field(default=5_000, gt=0)
+
+    @field_validator("QUERY_WORK_MEM")
+    @classmethod
+    def _rebuild_work_mem(cls, value: str) -> str:
+        """Read the setting as a number and a unit, and write it back out.
+
+        The result reaches ``SET LOCAL work_mem``, so what goes there is built
+        here from an integer and one of four known words rather than passed
+        through — a value this cannot read is a configuration error and says
+        so at startup.
+        """
+        text = value.strip()
+        unit = ""
+        for known in ("kB", "MB", "GB", "TB"):
+            if text.endswith(known):
+                unit = known
+                text = text[: -len(known)].strip()
+                break
+        if not text.isdigit() or int(text) <= 0:
+            raise ValueError(
+                "QUERY_WORK_MEM must be a positive number, optionally followed "
+                "by kB, MB, GB or TB — for example '16MB'"
+            )
+        return f"{int(text)}{unit}"
+
     # The JWT algorithm and cookie names are constants in app.core.security
     # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
     # JWT algorithm is an alg-confusion hazard, and the cookie names are part
@@ -367,20 +413,23 @@ class Settings(BaseSettings):
         return _format_csp(directives)
 
     @property
-    def widget_sandbox_content_security_policy(self) -> str:
-        """CSP for the widget sandbox worker bundle ONLY (applied per-response).
+    def wasm_worker_content_security_policy(self) -> str:
+        """CSP for the WebAssembly worker bundles ONLY (applied per-response).
 
-        Dashboard widgets are evaluated by QuickJS compiled to WebAssembly
-        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``). A worker takes
-        its policy from the response that served its script rather than from the
-        document that started it, so the WebAssembly source expression is named
-        here — on that one built asset — and the app-wide policy above needs no
-        mention of it.
+        Two workers run WebAssembly: the dashboard widget sandbox, which
+        evaluates widget code with QuickJS
+        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``), and the direct
+        message ratchet, which runs vodozemac
+        (``frontend/src/crypto/ratchet.worker.ts``). A worker takes its policy
+        from the response that served its script rather than from the document
+        that started it, so the WebAssembly source expression is named here — on
+        those built assets — and the app-wide policy above needs no mention of
+        it.
 
-        The worker is given the three things it uses and nothing else: its own
+        Each worker is given the three things it uses and nothing else: its own
         script, WebAssembly compilation, and a same-origin fetch for the
-        ``.wasm`` file. It has no DOM, loads no styles, images, or fonts, and
-        talks to nobody but the page that started it.
+        ``.wasm`` file. Neither has a DOM, loads styles, images, or fonts, or
+        talks to anybody but the page that started it.
         """
         return _format_csp(
             {

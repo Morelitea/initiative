@@ -16,16 +16,7 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import {
-  type ChangeEvent,
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
@@ -45,6 +36,7 @@ import { TagPicker } from "@/components/tags/TagPicker";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
@@ -99,6 +91,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -164,7 +157,6 @@ export const DocumentDetailPage = () => {
     () => getItem(metadataCollapsedStorageKey) === "true"
   );
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
-  const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
   const [whiteboardScene, setWhiteboardScene] = useState<WhiteboardScene>(() => ({
     elements: [],
@@ -198,7 +190,6 @@ export const DocumentDetailPage = () => {
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isAutosaveRef = useRef(false);
-  const featuredImageInputRef = useRef<HTMLInputElement>(null);
   // Refs for sendBeacon - need latest values in event handlers
   const contentStateRef = useRef<{ documentId: number; content: SerializedEditorState } | null>(
     null
@@ -243,6 +234,18 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+
+  // The name follows the document until somebody starts renaming it: a
+  // refetch — a comment on this document, a window coming back to the front —
+  // must not take a half-typed name away, and a rename by somebody else must
+  // still arrive while nobody here is typing one.
+  const titleField = useServerForm(
+    document,
+    (loaded) => ({ title: loaded?.name ?? "" }),
+    document?.id
+  );
+  const title = titleField.values.title;
+  const setTitle = (next: string) => titleField.set({ title: next });
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -263,18 +266,20 @@ export const DocumentDetailPage = () => {
     [document]
   );
 
-  // Track which document ID we've loaded the whiteboard scene for, so we
-  // don't re-run the load logic when `document` updates due to a PATCH
-  // response. Without this guard, a successful autosave would reset
-  // whiteboardScene from the PATCH response's content — which can be
-  // behind the user's current edits if they drew during the round-trip.
-  const loadedWhiteboardForRef = useRef<number | null>(null);
+  // Which document the editable state below was filled in from — content,
+  // scene and featured image alike, whatever the document type.
+  //
+  // The editor reads its content once, at mount, and never again, so the copy
+  // this page holds is the only one a later answer can reach. Replacing it
+  // would leave the two disagreeing: the typing still on screen, the page
+  // believing it matches the server, and so nothing to autosave and nothing to
+  // flush on the way out. Filling it in once per document is what keeps them
+  // the same thing, and it holds for a document type that does not exist yet.
+  const seededDocumentRef = useRef<number | null>(null);
 
-  // Clear content state ref when document ID changes
-  // The ref now tracks which document the content belongs to
   useEffect(() => {
     contentStateRef.current = null;
-    loadedWhiteboardForRef.current = null;
+    seededDocumentRef.current = null;
     setWhiteboardSceneReady(false);
     setWhiteboardSceneFromCache(false);
   }, [parsedId]);
@@ -295,35 +300,40 @@ export const DocumentDetailPage = () => {
     if (!document) {
       return;
     }
-    setTitle(document.name);
-    if (document.document_type === "whiteboard") {
-      // Only load the whiteboard scene once per document ID. Subsequent
-      // document changes (from PATCH responses, cache updates, etc.) must
-      // not overwrite the live scene state.
-      if (loadedWhiteboardForRef.current === document.id) {
-        // Still sync non-scene fields that the user can change in the
-        // metadata card (featured image, tags are handled separately).
-        setFeaturedImageUrl(document.featured_image_url ?? null);
-        setTags(document.tags ?? []);
-        return;
-      }
-      // The cache-vs-server decision below compares against
-      // document.updated_at, so it must not run against a React Query
-      // cache hit from a previous visit — that snapshot's updated_at
-      // predates everything other users did since, making any local cache
-      // look newer than it is. Wait for this mount's fetch to settle (an
-      // errored fetch settles too, so offline still falls back to the
-      // cached document).
-      if (!documentQuery.isFetchedAfterMount) {
-        return;
-      }
-      loadedWhiteboardForRef.current = document.id;
+    // Tags are written the moment they are picked, so they go on following the
+    // server whether or not the rest has been filled in.
+    setTags(document.tags ?? []);
+    if (seededDocumentRef.current === document.id) {
+      return;
+    }
+    // Opening a document already in the React Query cache renders it from that
+    // snapshot before this mount's fetch has been anywhere. It predates
+    // whatever else has happened since, so it is filled in but not committed:
+    // every answer up to and including this mount's own is taken, and only
+    // that one closes the door. Committing the snapshot instead would leave
+    // the page holding content older than the server's — and, because the
+    // difference reads as unsaved work, saving it back over the newer copy.
+    //
+    // A whiteboard cannot even be filled in from it: it decides between its
+    // write-ahead cache and the server by comparing against
+    // document.updated_at, and a stale snapshot's timestamp makes any local
+    // cache look newer than it is. It waits instead, which its own readiness
+    // flag already accounts for. (An errored fetch settles too, so offline
+    // still falls back to the cached document.)
+    const settled = documentQuery.isFetchedAfterMount;
+    if (document.document_type === "whiteboard" && !settled) {
+      return;
+    }
+    if (settled) {
+      seededDocumentRef.current = document.id;
+    }
 
-      // Check the write-ahead cache first. On every local edit the scene is
-      // written to localStorage synchronously (survives refresh), so if
-      // the user refreshes before the keepalive PATCH lands, we still
-      // have the latest scene. The cache wins only while it is strictly
-      // newer than document.updated_at.
+    if (document.document_type === "whiteboard") {
+      // The write-ahead cache first. On every local edit the scene is written
+      // to localStorage synchronously (survives refresh), so if the user
+      // refreshes before the keepalive PATCH lands, we still have the latest
+      // scene. The cache wins only while it is strictly newer than
+      // document.updated_at.
       const { scene, fromCache } = loadWhiteboardScene(
         document.id,
         document.updated_at,
@@ -340,7 +350,6 @@ export const DocumentDetailPage = () => {
       setContentState(normalizedDocumentContent);
     }
     setFeaturedImageUrl(document.featured_image_url ?? null);
-    setTags(document.tags ?? []);
   }, [document, normalizedDocumentContent, documentQuery.isFetchedAfterMount]);
 
   const documentContentJson = useMemo(() => {
@@ -454,7 +463,10 @@ export const DocumentDetailPage = () => {
     // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
     // same behavior: the Capacitor Network plugin is authoritative on native.
     suppressErrorToast: () => !isOnline,
-    onSuccess: () => {
+    onSuccess: (_updated, sent) => {
+      // Only if the field still holds the name this save carried: an autosave
+      // that started before the last keystroke must not mark it saved.
+      titleField.settle({ title: sent.name ?? "" });
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
@@ -819,13 +831,8 @@ export const DocumentDetailPage = () => {
     };
   }, [parsedId, token, activeGuildId, canEditDocument]);
 
-  const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFeaturedImageChange = async (file: File) => {
     if (!canEditDocument) {
-      return;
-    }
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -849,13 +856,6 @@ export const DocumentDetailPage = () => {
     } finally {
       setIsUploadingFeaturedImage(false);
     }
-  };
-
-  const openFeaturedImagePicker = () => {
-    if (!canEditDocument) {
-      return;
-    }
-    featuredImageInputRef.current?.click();
   };
 
   const handleTagsChange = useCallback(
@@ -1118,20 +1118,13 @@ export const DocumentDetailPage = () => {
                         )}
                       </div>
                       <div className="space-y-2">
-                        <input
-                          ref={featuredImageInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleFeaturedImageChange}
-                        />
                         {canEditDocument ? (
                           <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={openFeaturedImagePicker}
+                            <ImagePicker
+                              variant="button"
+                              accept="image/*"
                               disabled={isUploadingFeaturedImage}
+                              onSelect={handleFeaturedImageChange}
                             >
                               {isUploadingFeaturedImage ? (
                                 <>
@@ -1144,7 +1137,7 @@ export const DocumentDetailPage = () => {
                                   {t("detail.uploadImage")}
                                 </>
                               )}
-                            </Button>
+                            </ImagePicker>
                             {featuredImageUrl ? (
                               <Button
                                 type="button"

@@ -4,12 +4,12 @@
   "kind": "dashboard",
   "name": "Project health",
   "publisher": "Initiative",
-  "description": "Where every project in this initiative stands, and what is still open.",
-  "long_description": "A read-only overview of the initiative's projects. Shows how much of each project is done, how the open work splits across statuses, and the full project list underneath.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
+  "description": "Whether the work is moving, how far along each project is, and who is carrying what.",
+  "long_description": "The dashboard to open before a check-in. The top row answers the three questions somebody always asks — how much is open, how much is late, how much got finished lately — and says how far along the whole thing is.\n\nUnderneath, each project's finished and remaining work sits side by side, so a project that has stopped moving is visible next to one that has not. The board deals every open task into a column per person, each card led by its project, which is the fastest way to see who is carrying what and where it came from.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on. Read-only, like every dashboard: it shows the work, and the work is changed where it lives.",
   "avatar_url": "/marketplace/core-project-health.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "Says how far along each project is rather than only how many tasks it has, adds what is late and what was finished lately, and a board showing who is carrying what.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -18,7 +18,7 @@
     },
     "widgets": [
       {
-        "id": "w1",
+        "id": "open",
         "type": "stat",
         "grid": {
           "x": 0,
@@ -27,52 +27,129 @@
           "h": 2
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT count(*) AS open FROM tasks WHERE completed_at IS NULL"
         },
-        "title": "Open work"
+        "title": "Still open"
       },
       {
-        "id": "w2",
-        "type": "chart",
+        "id": "late",
+        "type": "stat",
         "grid": {
           "x": 3,
           "y": 0,
-          "w": 9,
-          "h": 4
-        },
-        "binding": {
-          "source": "task_counts"
-        },
-        "title": "Work by status",
-        "options": {
-          "mark": "bar"
-        }
-      },
-      {
-        "id": "w3",
-        "type": "progress",
-        "grid": {
-          "x": 0,
-          "y": 2,
           "w": 3,
           "h": 2
         },
         "binding": {
-          "source": "projects"
+          "source": "query",
+          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now()"
         },
-        "title": "Overall progress"
+        "title": "Past its date"
       },
       {
-        "id": "w4",
-        "type": "table",
+        "id": "recent",
+        "type": "stat",
+        "grid": {
+          "x": 6,
+          "y": 0,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval)"
+        },
+        "title": "Finished, last 30 days"
+      },
+      {
+        "id": "progress",
+        "type": "progress",
+        "grid": {
+          "x": 9,
+          "y": 0,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT count(completed_at) AS finished, count(*) AS total FROM tasks"
+        },
+        "title": "How far along"
+      },
+      {
+        "id": "per-project",
+        "type": "chart",
         "grid": {
           "x": 0,
-          "y": 4,
-          "w": 12,
+          "y": 2,
+          "w": 7,
           "h": 5
         },
         "binding": {
-          "source": "projects"
+          "source": "query",
+          "sql": "SELECT p.name AS project, count(t.completed_at) AS finished, count(*) - count(t.completed_at) AS remaining FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY p.name"
+        },
+        "title": "Each project, finished and remaining",
+        "options": {
+          "mark": "bar",
+          "stacked": "true",
+          "orientation": "bars"
+        }
+      },
+      {
+        "id": "per-person",
+        "type": "chart",
+        "grid": {
+          "x": 7,
+          "y": 2,
+          "w": 5,
+          "h": 5
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT assignee.display_name AS person, count(*) AS open FROM tasks WHERE completed_at IS NULL GROUP BY assignee.display_name ORDER BY count(*) DESC"
+        },
+        "title": "Open work by person",
+        "options": {
+          "mark": "bar",
+          "orientation": "bars",
+          "values": "end"
+        }
+      },
+      {
+        "id": "carrying",
+        "type": "board",
+        "grid": {
+          "x": 0,
+          "y": 7,
+          "w": 12,
+          "h": 7
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT concat(project.name, ' · ', title) AS card, assignee.display_name AS person, due_date FROM tasks WHERE completed_at IS NULL ORDER BY project.name, due_date"
+        },
+        "title": "Who is carrying what",
+        "options": {
+          "sort": "label",
+          "columns": "largest",
+          "highlight": "overdue",
+          "cards": "compact"
+        }
+      },
+      {
+        "id": "projects",
+        "type": "table",
+        "grid": {
+          "x": 0,
+          "y": 14,
+          "w": 12,
+          "h": 4
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT p.name AS project, count(*) - count(t.completed_at) AS open, count(*) AS total FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) - count(t.completed_at) DESC"
         },
         "title": "Projects"
       }

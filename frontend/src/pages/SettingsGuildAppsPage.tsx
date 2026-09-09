@@ -30,6 +30,7 @@ import { Blocks, ChevronDown, Loader2, ShieldCheck, Store, TriangleAlert } from 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
 import { AppMembersPanel } from "@/components/apps/AppMembersPanel";
 import { AppUpdatesPanel } from "@/components/apps/AppUpdatesPanel";
@@ -73,7 +74,7 @@ export function SettingsGuildAppsPage() {
             <p className="text-muted-foreground text-sm">{t("apps:manage.empty")}</p>
             {isGuildAdmin && (
               <Button variant="outline" asChild>
-                <Link to={gp("/marketplace")} search={{ kind: "app" }}>
+                <Link to={gp("/marketplace")} search={{ kind: ListingKind.app }}>
                   <Store className="mr-1.5 h-4 w-4" />
                   {t("apps:manage.browse")}
                 </Link>

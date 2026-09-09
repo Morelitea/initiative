@@ -101,6 +101,10 @@
     "commentsDescription": "Autorisez les commentaires sur cet élément. Si vous les désactivez, tout ce qui a déjà été publié est conservé et réapparaît lorsque vous les réactivez.",
     "commentsToggle": "Activer les commentaires",
     "commentsError": "Le réglage des commentaires n'a pas pu être enregistré.",
+    "reactions": "Réactions",
+    "reactionsDescription": "Autorisez les réactions à cette annonce. Si vous les désactivez, celles déjà présentes sont conservées et réapparaissent lorsque vous les réactivez.",
+    "reactionsToggle": "Activer les réactions",
+    "reactionsError": "Le réglage des réactions n'a pas pu être enregistré.",
     "permissionsUpdated": "Permissions mises à jour",
     "dangerZone": "Zone de danger",
     "dangerZoneDescription": "Actions destructrices. Les éléments supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
@@ -145,5 +149,18 @@
     "label": "Aller à un mois",
     "jumpedTo": "À partir de {{period}}",
     "backToLatest": "Revenir aux plus récentes"
+  },
+  "offline": {
+    "banner": "Vous êtes hors ligne — affichage du dernier contenu chargé sur cet appareil.",
+    "lastUpdated": "Dernière mise à jour {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Choisir une image",
+    "takePhoto": "Prendre une photo",
+    "chooseFromLibrary": "Choisir dans la galerie",
+    "chooseFile": "Choisir un fichier",
+    "permission": "Initiative a besoin d'accéder à votre appareil photo et à vos photos. Autorisez-le dans les réglages de l'appareil, puis réessayez.",
+    "unavailable": "Cet appareil n'a pas d'appareil photo pour prendre une photo.",
+    "failed": "Cette photo n'a pas pu être lue. Réessayez."
   }
 }

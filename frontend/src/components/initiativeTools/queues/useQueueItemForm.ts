@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { QueueItemRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
@@ -6,9 +6,34 @@ import {
   ENTITY_PICKER_PAGE_SIZE,
   type LinkedEntity,
 } from "@/components/initiativeTools/queues/LinkedEntityPicker";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useServerForm } from "@/hooks/useServerForm";
 
 const DEFAULT_COLOR = "#6366F1";
+
+/** The linked rows are rebuilt on every read, so they are compared by id. */
+const serializeItem = (value: {
+  label: string;
+  position: string;
+  color: string;
+  notes: string;
+  isVisible: boolean;
+  selectedTags: { id: number }[];
+  userId: number | null;
+  selectedDocs: LinkedEntity[];
+  selectedTasks: LinkedEntity[];
+}): string =>
+  JSON.stringify([
+    value.label,
+    value.position,
+    value.color,
+    value.notes,
+    value.isVisible,
+    value.userId,
+    value.selectedTags.map((tag) => tag.id),
+    value.selectedDocs.map((doc) => doc.id),
+    value.selectedTasks.map((task) => task.id),
+  ]);
 
 interface UseQueueItemFormArgs {
   /** Whether the owning dialog is open (gates the picker typeaheads + reset). */
@@ -33,56 +58,43 @@ interface UseQueueItemFormArgs {
  * full list.
  */
 export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormArgs) => {
-  const [label, setLabel] = useState(item?.label ?? "");
-  const [position, setPosition] = useState(item ? String(item.position) : "");
-  const [color, setColor] = useState(item?.color ?? DEFAULT_COLOR);
-  const [notes, setNotes] = useState(item?.notes ?? "");
-  const [isVisible, setIsVisible] = useState(item?.is_visible ?? true);
-  const [selectedTags, setSelectedTags] = useState<TagSummary[]>(item?.tags ?? []);
-  const [userId, setUserId] = useState<number | null>(item?.user_id ?? null);
   // Selections carry their titles: the typeahead only returns rows matching
   // the live query, so a chip's label can't be looked up from the results.
   // An edited item's own links already ship theirs.
-  const [selectedDocs, setSelectedDocs] = useState<LinkedEntity[]>(() =>
-    item ? item.documents.map((d) => ({ id: d.document_id, title: d.name })) : []
+  const form = useServerForm(
+    item,
+    (loaded) => ({
+      label: loaded?.label ?? "",
+      position: loaded ? String(loaded.position) : "",
+      color: loaded?.color ?? DEFAULT_COLOR,
+      notes: loaded?.notes ?? "",
+      isVisible: loaded?.is_visible ?? true,
+      selectedTags: loaded?.tags ?? ([] as TagSummary[]),
+      userId: loaded?.user_id ?? null,
+      selectedDocs: (loaded?.documents.map((d) => ({ id: d.document_id, title: d.name })) ??
+        []) as LinkedEntity[],
+      selectedTasks: (loaded?.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })) ??
+        []) as LinkedEntity[],
+    }),
+    [open, item?.id],
+    (a, b) => serializeItem(a) === serializeItem(b)
   );
-  const [selectedTasks, setSelectedTasks] = useState<LinkedEntity[]>(() =>
-    item ? item.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })) : []
-  );
+  const { label, position, color, notes, isVisible, selectedTags, userId } = form.values;
+  const { selectedDocs, selectedTasks } = form.values;
+  const setLabel = (next: string) => form.set({ label: next });
+  const setPosition = (next: string) => form.set({ position: next });
+  const setColor = (next: string) => form.set({ color: next });
+  const setNotes = (next: string) => form.set({ notes: next });
+  const setIsVisible = (next: boolean) => form.set({ isVisible: next });
+  const setSelectedTags = (next: TagSummary[]) => form.set({ selectedTags: next });
+  const setUserId = (next: number | null) => form.set({ userId: next });
+  const setSelectedDocs = (next: LinkedEntity[]) => form.set({ selectedDocs: next });
+  const setSelectedTasks = (next: LinkedEntity[]) => form.set({ selectedTasks: next });
 
   const [docSearch, setDocSearch] = useState("");
   const [docPickerOpen, setDocPickerOpen] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskPickerOpen, setTaskPickerOpen] = useState(false);
-
-  // Edit mode: re-sync from the item on (re)open. Add mode: reset to defaults on
-  // close. In add mode `item` is always undefined, so the effect fires only on
-  // `open` changes — matching each dialog's original behavior.
-  useEffect(() => {
-    if (item) {
-      if (open) {
-        setLabel(item.label);
-        setPosition(String(item.position));
-        setColor(item.color ?? DEFAULT_COLOR);
-        setNotes(item.notes ?? "");
-        setIsVisible(item.is_visible);
-        setSelectedTags(item.tags);
-        setUserId(item.user_id);
-        setSelectedDocs(item.documents.map((d) => ({ id: d.document_id, title: d.name })));
-        setSelectedTasks(item.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })));
-      }
-    } else if (!open) {
-      setLabel("");
-      setPosition("");
-      setColor(DEFAULT_COLOR);
-      setNotes("");
-      setIsVisible(true);
-      setSelectedTags([]);
-      setUserId(null);
-      setSelectedDocs([]);
-      setSelectedTasks([]);
-    }
-  }, [open, item]);
 
   // The user picker is a server typeahead over the initiative's members
   // (`MemberSelect`), so the form no longer pulls the full roster. An edited
@@ -91,8 +103,9 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
 
   // Both pickers ask the one lookup the whole app searches through, narrowed
   // to this initiative and to live work — a queue item links to something
-  // being done, not to a blueprint or something already put away.
-  const docsQuery = useGuildSearchSuggest(docSearch, {
+  // being done, not to a blueprint or something already put away. Each opens on
+  // what was most recently worked on, so neither starts as an empty box.
+  const docsPicker = useGuildPickerSuggestions(docSearch, {
     types: [SearchEntityType.document],
     initiative_id: initiativeId,
     template: false,
@@ -100,19 +113,19 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     enabled: open && docPickerOpen,
   });
   const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.entity_id, title: doc.title })),
-    [docsQuery.data]
+    () => docsPicker.items.map((doc) => ({ id: doc.entity_id, title: doc.title })),
+    [docsPicker.items]
   );
 
-  const tasksQuery = useGuildSearchSuggest(taskSearch, {
+  const tasksPicker = useGuildPickerSuggestions(taskSearch, {
     types: [SearchEntityType.task],
     initiative_id: initiativeId,
     limit: ENTITY_PICKER_PAGE_SIZE,
     enabled: open && taskPickerOpen,
   });
   const taskResults = useMemo(
-    () => (tasksQuery.data ?? []).map((task) => ({ id: task.entity_id, title: task.title })),
-    [tasksQuery.data]
+    () => tasksPicker.items.map((task) => ({ id: task.entity_id, title: task.title })),
+    [tasksPicker.items]
   );
 
   return {
@@ -143,8 +156,8 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     // Picker option lists
     selectedUser,
     docResults,
-    docsLoading: docsQuery.isFetching,
+    docsLoading: docsPicker.isFetching,
     taskResults,
-    tasksLoading: tasksQuery.isFetching,
+    tasksLoading: tasksPicker.isFetching,
   };
 };

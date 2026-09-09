@@ -26,10 +26,12 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_reaction_digests,
         process_task_assignment_digests,
         process_overdue_notifications,
+        process_quiet_hours_summaries,
         process_event_reminders,
         ASSIGNMENT_GC_POLL_SECONDS,
         DIGEST_POLL_SECONDS,
         OVERDUE_POLL_SECONDS,
+        QUIET_SUMMARY_POLL_SECONDS,
         EVENT_REMINDER_POLL_SECONDS,
     )
     from app.services.oidc_refresh import (
@@ -55,6 +57,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_outbox_deliveries,
         process_outbox_retention,
     )
+    from app.services.tenant.room_sink import ROOM_SWEEP_SECONDS, process_room_sweep
     from app.services.platform.user_tokens import (
         process_expired_token_purge,
         TOKEN_PURGE_POLL_SECONDS,
@@ -116,6 +119,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(
+                process_quiet_hours_summaries,
+                QUIET_SUMMARY_POLL_SECONDS,
+                "quiet-hours-summary",
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
                 process_oidc_refresh_sync, OIDC_SYNC_POLL_SECONDS, "oidc-refresh-sync"
             )
         ),
@@ -152,6 +162,13 @@ def start_background_tasks() -> list[asyncio.Task]:
                 OUTBOX_RETENTION_POLL_SECONDS,
                 "outbox-retention",
             )
+        ),
+        # The room sink's backstop. The prompt path is the capture's own
+        # pg_notify; this covers the hints raised while a worker's bus
+        # connection was rebuilding, and reads nothing for a guild this
+        # process holds no socket for.
+        asyncio.create_task(
+            _loop_worker(process_room_sweep, ROOM_SWEEP_SECONDS, "room-sweep")
         ),
         asyncio.create_task(
             _loop_worker(

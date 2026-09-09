@@ -10,6 +10,9 @@ catalog rather than by whoever writes the next query:
 * ``public.guild_member_profiles`` — those plus ``full_name``, read by every
   guild-routed session. A guild is where colleagues are named; the profile
   page is not in one, which is why the name is in this view and not that one.
+  It arrives only from a guild that renders names: the view reads
+  ``app.guild_shows_member_names``, set from that guild's ``show_member_names``
+  with the rest of the request context, and answers ``NULL`` otherwise.
 
 Which columns those are lives in ``app.db.user_columns``.
 
@@ -83,6 +86,28 @@ guild_member_profiles = Table(
 )
 
 
+#: The same projection, narrowed to the guild a request is routed into
+#: (migration 0244). What the query surface names, because a statement that
+#: named the unnarrowed one would list every account on the deployment.
+current_guild_members = Table(
+    "current_guild_members",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("username", String(32)),
+    Column("discriminator", SmallInteger),
+    Column("full_name", String),
+    Column("avatar_url", String),
+    _status_column(),
+    Column("custom_status", JSONB),
+    Column("profile_decorations", JSONB),
+    Column("created_at", DateTime(timezone=True)),
+    #: The name to group by: the real one where the guild renders it, and the
+    #: handle where it does not.
+    Column("display_name", String),
+    schema="public",
+)
+
+
 class MemberProfile:
     """A person, as guild content refers to them.
 
@@ -114,3 +139,30 @@ class MemberProfile:
 # Into SQLModel's registry rather than a private one, so a relationship on a
 # SQLModel table can name ``"MemberProfile"`` the way it named ``"User"``.
 SQLModel._sa_registry.map_imperatively(MemberProfile, guild_member_profiles)
+
+
+class GuildMember:
+    """A person, as somebody querying this guild's data finds them.
+
+    The same columns :class:`MemberProfile` has, from the view that narrows
+    them to this guild's members — plus the one name a query groups by. It is
+    mapped only so the field registry can read its columns off it; nothing
+    relates to it, and nothing loads it by id.
+    """
+
+    id: int
+    username: str
+    discriminator: int
+    full_name: Optional[str]
+    avatar_url: Optional[str]
+    status: UserStatus
+    custom_status: dict
+    profile_decorations: dict
+    created_at: datetime
+    display_name: str
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"<GuildMember {self.username}#{self.discriminator:04d}>"
+
+
+SQLModel._sa_registry.map_imperatively(GuildMember, current_guild_members)

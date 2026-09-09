@@ -48,7 +48,11 @@ from app.core.messages import AppDataMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
+from app.schemas.sql_query import QueryColumnDescription
+from app.services.query import rows as rows_query
+from app.services.query.resolve import QueryError
 from app.schemas.tenant.app_data import (
+    AppDataTable,
     AppDataResponse,
     AppEndpointRead,
     AppParamOption,
@@ -88,14 +92,14 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-def _binds_endpoint(
+def _bound_bindings(
     definition: dict[str, Any] | None,
     config: dict[str, Any] | None,
     *,
     app_uid: str,
     endpoint_id: str,
-) -> bool:
-    """Whether a dashboard actually displays this endpoint.
+) -> dict[str, dict[str, Any]]:
+    """The widgets of this dashboard that display this endpoint, by widget id.
 
     The instance config layers over the definition's binding exactly as the
     canvas resolves it, so a slot a listing left open and the guild filled in
@@ -103,9 +107,10 @@ def _binds_endpoint(
     """
     widgets = (definition or {}).get("widgets")
     if not isinstance(widgets, list):
-        return False
+        return {}
     stored = config if isinstance(config, dict) else {}
     overrides = stored.get("widgets") or {}
+    bound: dict[str, dict[str, Any]] = {}
     for widget in widgets:
         if not isinstance(widget, dict):
             continue
@@ -119,8 +124,8 @@ def _binds_endpoint(
             and effective.get("app_uid") == app_uid
             and effective.get("endpoint_id") == endpoint_id
         ):
-            return True
-    return False
+            bound[str(widget.get("id"))] = effective
+    return bound
 
 
 # Declared before ``/{app_id}`` on the apps router so the literal path wins the
@@ -176,6 +181,7 @@ async def read_app_widget_catalog(
                 visibility=endpoint.get("visibility") or "member",
                 cache_ttl_seconds=endpoint.get("cache_ttl_seconds") or 0,
                 params=endpoint.get("params") or [],
+                returns=endpoint.get("returns") or [],
             )
             for endpoint in readable.values()
         ]
@@ -224,6 +230,16 @@ async def read_app_data(
         Optional[str],
         Query(description="The binding's parameters, as a JSON object."),
     ] = None,
+    widget_id: Annotated[
+        Optional[str],
+        Query(
+            description=(
+                "Which widget on that dashboard is asking. Only needed where "
+                "its binding carries a statement: what runs is the one stored "
+                "on the widget, never one the request supplies."
+            )
+        ),
+    ] = None,
 ) -> AppDataResponse:
     """One of an app's read endpoints, resolved for this viewer.
 
@@ -245,12 +261,13 @@ async def read_app_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AppDataMessages.ENDPOINT_NOT_FOUND,
         )
-    if not _binds_endpoint(
+    bound = _bound_bindings(
         dashboard.definition,
         dashboard.config,
         app_uid=app.listing_uid,
         endpoint_id=endpoint_id,
-    ):
+    )
+    if not bound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AppDataMessages.ENDPOINT_NOT_FOUND,
@@ -268,11 +285,56 @@ async def read_app_data(
     except app_data_service.AppDataError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
 
+    # After the fetch, so a statement is a transformation of a shared answer:
+    # twenty viewers of the same binding are still one upstream call, whatever
+    # each of their widgets asks of the rows.
+    table = _transformed(app, endpoint_id, bound.get(widget_id or ""), result)
     return AppDataResponse(
         rows=result.rows,
+        table=table,
         values=result.values,
         fetched_at=result.fetched_at,
         cached=result.cached,
+    )
+
+
+def _transformed(
+    app: GuildApp,
+    endpoint_id: str,
+    binding: dict[str, Any] | None,
+    result: "app_data_service.AppDataResult",
+) -> AppDataTable | None:
+    """What this widget's statement made of the rows, or nothing.
+
+    A binding with no statement draws the app's own rows, as it always has —
+    the app's widget module reads them by the names its manifest declared. A
+    binding with one gets a table beside them: described, and positional, so a
+    built-in widget can be pointed at an app.
+    """
+    statement = (binding or {}).get("sql")
+    if not isinstance(statement, str) or not statement.strip():
+        return None
+
+    endpoint = app_data_service.find_read_endpoint(app.definition, endpoint_id)
+    if endpoint is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AppDataMessages.ENDPOINT_NOT_FOUND,
+        )
+    try:
+        planned = rows_query.plan(statement, app_data_service.row_columns(endpoint))
+        answered = rows_query.evaluate(planned, result.rows)
+    except QueryError as refused:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=refused.code
+        ) from refused
+
+    return AppDataTable(
+        columns=[
+            QueryColumnDescription(name=column.name, type=column.type)
+            for column in planned.columns
+        ],
+        rows=[list(row) for row in answered],
     )
 
 

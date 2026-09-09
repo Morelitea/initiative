@@ -1,0 +1,23 @@
+# Accepted Trivy findings, with the reason each is accepted.
+#
+# Anything listed here must carry a justification a reviewer can check. An
+# undocumented suppression is indistinguishable from a missed finding, and the
+# point of the scan is to be believed.
+
+# DS-0002 — "Specify at least 1 USER command in Dockerfile with non-root user"
+#
+# False positive for this image. The Dockerfile genuinely has no USER directive,
+# because privilege is dropped at runtime rather than at build time:
+# backend/entrypoint.sh validates PUID/PGID, refuses 0 explicitly, creates the
+# user and group, chowns /app/uploads, then execs the app through
+# `gosu "$APP_UID:$APP_GID"`. The container starts as root only long enough to
+# set that up, and the process always ends up unprivileged (UID/GID 1000 by
+# default).
+#
+# The PUID/PGID contract is deliberate — it is what lets a self-hoster line the
+# container's ownership up with their own volume permissions, which a build-time
+# USER cannot do. A static check cannot see any of that, so it reports the
+# absence of the directive rather than the presence of the drop.
+#
+# Re-examine if entrypoint.sh stops dropping privilege.
+DS-0002

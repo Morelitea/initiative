@@ -75,6 +75,21 @@ class PostUpdate(SanitizedBaseModel):
     scheduled_for: Optional[datetime] = None
 
 
+class PostReactionSettings(SanitizedBaseModel):
+    """The reactions switch on one notice — the body and the reply of
+    ``PUT /posts/{post_id}/reactions``.
+
+    The comment switch has a generic route because every tool is commentable;
+    this one does not, because only a post takes reactions of its own.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    reactions_enabled: bool
+
+
 class PostPinUpdate(SanitizedBaseModel):
     """Pin or unpin one post. ``pinned`` false clears the expiry with it —
     an expiry belongs to a pin, and keeping a stale one around would silently
@@ -148,6 +163,10 @@ class PostSummary(PostBase):
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
     comments_enabled: bool = True
+    #: When false the notice takes no reactions — the board renders no bar and
+    #: the API refuses to read or add one. The reactions already on it are kept,
+    #: the same way turning a thread off keeps its comments.
+    reactions_enabled: bool = True
     #: How many comments the post has. Served with the board so a reader can
     #: see there is a conversation without opening the post to find out — and
     #: so an empty thread can invite the first one.
@@ -356,12 +375,13 @@ def serialize_post_summary(
             compute_post_permission(post, user_id) if user_id is not None else None
         ),
         comments_enabled=post.comments_enabled,
+        reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),
         tags=tag_summaries(getattr(post, "tag_links", None)),
         grants=serialize_grants(post),
         reactions=(
             reactions_service.summarize(reaction_rows, viewer_id=user_id)
-            if reaction_rows
+            if reaction_rows and post.reactions_enabled
             else []
         ),
     )

@@ -1,5 +1,4 @@
 from datetime import date, datetime, timezone
-from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, Date, DateTime, String, Text
@@ -26,6 +25,10 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
 
 class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "projects"
+    # A tool row is written before anything has been shared, so it is read
+    # back by no RETURNING clause: the id comes from the sequence first and
+    # the INSERT stands alone. See app/db/initiative_rls.py.
+    __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
@@ -113,9 +116,3 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-
-
-class ProjectPermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"

@@ -135,6 +135,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # written on the request path by the account holder; the system engine only
     # reads them for the guild-lifecycle sweeps and clears them on erasure.
     "user_dm_settings": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Seeded when an account is created, read on every fan-out to decide who
+    # wants what, and updated by the settings endpoint.
+    "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_dm_guild_optouts": frozenset({"SELECT", "DELETE"}),
     "contact_grants": frozenset({"SELECT", "DELETE"}),
     # SELECT also carries the notification fan-out: who, of a set of
@@ -278,6 +281,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # Read and written on the authenticated platform-tier path, never before a
     # session is routed.
     "user_dm_settings": None,
+    # Read under the account's own role after routing, never before it.
+    "user_notification_prefs": None,
     "user_dm_guild_optouts": None,
     "contact_grants": None,
     "user_ignores": None,

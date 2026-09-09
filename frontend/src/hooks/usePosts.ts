@@ -44,12 +44,7 @@ import {
   updatePostApiV1GGuildIdPostsPostIdPatch,
   voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut,
 } from "@/api/generated/posts/posts";
-import {
-  invalidateAllPosts,
-  invalidatePost,
-  invalidatePostTimeline,
-  patchCachedPost,
-} from "@/api/query-keys";
+import { invalidate, patchCachedPost, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
@@ -158,14 +153,13 @@ export const usePost = (postId: number | null, options?: QueryOpts<PostRead>) =>
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-const invalidatePostAndList = (postId: number) =>
-  Promise.all([invalidatePost(postId), invalidateAllPosts()]);
+const invalidatePostAndList = (postId: number) => invalidate(q.post(postId), q.allPosts());
 
 export const useCreatePost = (options?: MutationOpts<PostRead, PostCreate>) =>
   useGuildMutation<PostRead, PostCreate>(
     {
       mutationFn: (guildId, data) => createPostApiV1GGuildIdPostsPost(guildId, data),
-      invalidate: () => invalidateAllPosts(),
+      invalidate: () => invalidate(q.allPosts()),
       errorKey: "posts:error",
     },
     options
@@ -260,7 +254,7 @@ export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostRea
       // batch — which is what keeps a scroll from refetching the rail every
       // second and a half.
       onSuccess: (...args) => {
-        if (args[0].marked > 0) void invalidatePostTimeline();
+        if (args[0].marked > 0) void invalidate(q.postTimeline());
         options?.onSuccess?.(...args);
       },
     }
@@ -293,7 +287,7 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
       // A deliberate click, and it puts a month back on the rail under the
       // unread filter.
       onSuccess: (...args) => {
-        void invalidatePostTimeline();
+        void invalidate(q.postTimeline());
         options?.onSuccess?.(...args);
       },
     }
@@ -423,7 +417,7 @@ export const useVoteOnPostPoll = (
       // Put the board back the way it was. The cached copy is the only record
       // of the previous ballot, so it is re-read rather than remembered.
       onError: (...args) => {
-        invalidatePost(postId);
+        invalidate(q.post(postId));
         options?.onError?.(...args);
       },
     }
@@ -447,7 +441,7 @@ export const useRetractPostPollVote = (postId: number, options?: MutationOpts<Po
         options?.onSuccess?.(...args);
       },
       onError: (...args) => {
-        invalidatePost(postId);
+        invalidate(q.post(postId));
         options?.onError?.(...args);
       },
     }
@@ -457,7 +451,7 @@ export const useDeletePost = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, postId) => deletePostApiV1GGuildIdPostsPostIdDelete(guildId, postId),
-      invalidate: () => invalidateAllPosts(),
+      invalidate: () => invalidate(q.allPosts()),
       errorKey: "posts:error",
     },
     options

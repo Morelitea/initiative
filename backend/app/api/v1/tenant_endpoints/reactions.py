@@ -8,7 +8,6 @@ gets these endpoints for free instead of a parallel set of its own.
 from typing import Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
 
 from app.api.deps import (
     GuildContext,
@@ -23,7 +22,6 @@ from app.schemas.tenant.reaction import (
     ReactionSummary,
     ReactionToggle,
 )
-from app.services.realtime import broadcast_event
 from app.services.tenant import reactions as reactions_service
 
 router = APIRouter()
@@ -37,6 +35,8 @@ def _raise(exc: reactions_service.ReactionError) -> NoReturn:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, reactions_service.ReactionPermissionError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, reactions_service.ReactionDisabledError):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
@@ -118,46 +118,4 @@ async def toggle_reaction(
         _raise(exc)
 
     await session.commit()
-    await _broadcast_reaction(
-        session, guild_context.guild_id, target_type, summary.target_id
-    )
     return summary
-
-
-async def _broadcast_reaction(
-    session, guild_id: int, target: ReactionTarget, target_id: int
-) -> None:
-    """Signal the target's initiative room that its reactions moved.
-
-    Content-free like every other event on the bus: the room hears which
-    thing changed and refetches through the RLS + DAC gated REST path, which
-    is where the authorization decision stays.
-    """
-    from app.models.tenant.comment import Comment
-    from app.models.tenant.post import Post
-    from app.services.tenant import comments as comments_service
-
-    if target is ReactionTarget.post:
-        post = (
-            await session.exec(select(Post).where(Post.id == target_id))
-        ).one_or_none()
-        if post is None:
-            return
-        await broadcast_event(
-            guild_id, post.initiative_id, "post", "reacted", {"post_id": post.id}
-        )
-        return
-    if target is not ReactionTarget.comment:
-        return
-    comment = (
-        await session.exec(select(Comment).where(Comment.id == target_id))
-    ).one_or_none()
-    if comment is None:
-        return
-    ids: dict = {"comment_id": comment.id}
-    for column in comments_service.COMMENT_PARENT_COLUMNS:
-        ids[column] = getattr(comment, column)
-    initiative_id = await comments_service.initiative_of_comment(session, comment)
-    if initiative_id is None:
-        return
-    await broadcast_event(guild_id, initiative_id, "comment", "reacted", ids)

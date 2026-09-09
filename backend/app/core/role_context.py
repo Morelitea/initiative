@@ -88,11 +88,10 @@ def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -
 
 
 def override_sharing_initiatives() -> FrozenSet[int]:
-    """Every initiative this request holds "Full access" in.
+    """The initiatives this request holds "Full access" in.
 
-    The set behind :func:`request_overrides_sharing`, for a caller that has to
-    ask about many rows at once rather than one — a statement narrowing a list
-    cannot call a per-id predicate.
+    Read whole rather than asked about one at a time, for a caller that has to
+    put the set back after standing in somebody else's shoes.
     """
     return _override_initiatives.get()
 

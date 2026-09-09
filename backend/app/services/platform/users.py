@@ -13,6 +13,7 @@ from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
@@ -479,20 +480,12 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # — the husk must not keep a face.
     await user_avatars_service.delete_avatar(session, user_id=user_id)
 
-    # Reset notification + interface preferences to defaults so the row
-    # doesn't leak the user's behavioural profile.
-    user.email_initiative_addition = True
-    user.email_task_assignment = True
-    user.email_project_added = True
-    user.email_overdue_tasks = True
-    user.email_mentions = True
-    user.email_comment_reactions = True
-    user.push_initiative_addition = True
-    user.push_task_assignment = True
-    user.push_project_added = True
-    user.push_overdue_tasks = True
-    user.push_mentions = True
-    user.push_comment_reactions = True
+    # Drop the notification settings document so the account leaves no
+    # behavioural profile behind. Absent reads as every default, which is where
+    # a fresh account starts.
+    await session.exec(
+        delete(UserNotificationPrefs).where(UserNotificationPrefs.user_id == user_id)
+    )
 
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)

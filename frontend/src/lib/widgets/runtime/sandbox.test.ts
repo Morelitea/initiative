@@ -96,6 +96,7 @@ describe("the widget sandbox", () => {
       "__config__",
       "__data__",
       "__locale__",
+      "__slots__",
       "decodeURI",
       "decodeURIComponent",
       "encodeURI",

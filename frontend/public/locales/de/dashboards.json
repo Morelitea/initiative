@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "Die Daten dieses Widgets konnten nicht geladen werden. Versuche es erneut."
   },
   "bindingSource": {
-    "app": "App-Daten",
-    "tasks": "Aufgaben",
-    "projects": "Projekte",
-    "calendar_entries": "Kalendereinträge",
-    "task_counts": "Aufgabenzahlen",
-    "counter": "Zähler",
-    "counter_group": "Zählergruppe",
-    "sheet_range": "Tabellenbereich"
+    "query": "SQL-Abfrage",
+    "sheet_range": "Tabellenbereich",
+    "app": "App-Daten"
   },
   "gallery": {
     "title": "Widget-Galerie",
@@ -148,12 +143,15 @@
     "all_counter": "Alle Zähler",
     "all_document": "Alle Tabellen",
     "appEndpoint": "Was es liest",
+    "app": "App",
+    "appPlaceholder": "App auswählen",
     "appEndpointPlaceholder": "Lesevorgang wählen…",
     "appNotInstalled": "Diese App ist in dieser Community nicht installiert.",
     "appParamPlaceholder": "Wählen…",
     "appParamNeedsSibling": "Wähle zuerst den Wert darüber.",
     "appParamListHint": "Werte durch Kommas trennen.",
-    "all_property": "Keine Eigenschaft"
+    "all_property": "Keine Eigenschaft",
+    "sqlHelp": "Ein reines Lese-SELECT über die Daten dieser Community. Es läuft unter deinem Konto und liefert daher nur, was du ohnehin sehen kannst."
   },
   "picker": {
     "title": "Widget hinzufügen",
@@ -228,7 +226,10 @@
     "completed_at": "Abgeschlossen",
     "created_at": "Erstellt",
     "is_archived": "Archiviert",
-    "title": "Titel"
+    "title": "Titel",
+    "description": "Beschreibung",
+    "updated_at": "Aktualisiert",
+    "created_by": "Erstellt von"
   },
   "filterPhrase": {
     "eq": "{{field}} ist {{value}}",
@@ -275,7 +276,9 @@
     "relative": "Relativ",
     "absolute": "An einem Datum",
     "relativeDays": "Tage ab heute",
-    "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie."
+    "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie.",
+    "loading": "Filter werden geladen…",
+    "noFields": "Hier gibt es noch nichts zum Filtern."
   },
   "tableView": {
     "caption": "Dieselben Daten als Tabelle",
@@ -294,19 +297,12 @@
     "due": "Fällig"
   },
   "bindingParam": {
-    "project": "Projekt",
-    "calendar": "Kalender",
-    "counter_group": "Zählergruppe",
-    "counter": "Zähler",
     "document": "Tabelle",
     "sheet": "Blatt",
     "range": "Bereich",
     "app_uid": "App",
     "source_id": "App-Datenquelle",
-    "bucket": "Zählungen gruppieren nach",
-    "day_field": "Jede Aufgabe zählen am",
-    "window_days": "Zeitfenster (Tage)",
-    "property": "Eigenschaft"
+    "sql": "Anweisung"
   },
   "paramValue": {
     "status_category": "Statuskategorie",
@@ -318,5 +314,71 @@
     "completed": "Abschlussdatum",
     "created": "Erstellungsdatum",
     "due": "Fälligkeitsdatum"
+  },
+  "slot": {
+    "label": "Bezeichnung",
+    "value": "Wert",
+    "start": "Beginn",
+    "end": "Ende",
+    "group": "Gruppe",
+    "at": "Datum",
+    "card": "Karte",
+    "column": "Spalte",
+    "date": "Datum",
+    "total": "Gesamt"
+  },
+  "builder": {
+    "dataset": "Was gelesen wird",
+    "columns": "Spalten",
+    "addColumn": "Spalte hinzufügen",
+    "removeColumn": "Spalte entfernen",
+    "everyRow": "Jede Zeile",
+    "asItIs": "Unverändert",
+    "exactTime": "Genaue Zeit",
+    "groupBy": "Eine Zeile je",
+    "everythingTogether": "Alles zusammen",
+    "groupByHelp": "Zeilen mit gleichem Wert zusammenfassen und den Rest zählen oder summieren.",
+    "statement": "Die erzeugte Anweisung",
+    "tabBuild": "Erstellen",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Ergebnis: {{columns}}",
+    "checking": "Diese Anweisung wird geprüft…",
+    "notBuilt": "Die Abfrage dieses Widgets wurde nicht hier erstellt. Eine neue zu erstellen ersetzt sie.",
+    "buildNew": "Neue Abfrage erstellen",
+    "refused": "Diese Kombination kann nicht gelesen werden. Versuche eine andere Spalte."
+  },
+  "aggregate": {
+    "count": "Anzahl",
+    "sum": "Summe",
+    "avg": "Durchschnitt",
+    "min": "Niedrigster",
+    "max": "Höchster"
+  },
+  "bucket": {
+    "day": "Nach Tag",
+    "week": "Nach Woche",
+    "month": "Nach Monat",
+    "quarter": "Nach Quartal",
+    "year": "Nach Jahr"
+  },
+  "dataset": {
+    "tasks": "Aufgaben",
+    "projects": "Projekte",
+    "calendar_events": "Kalendertermine",
+    "counters": "Zähler",
+    "counter_groups": "Zählergruppen",
+    "task_statuses": "Aufgabenstatus"
+  },
+  "published": {
+    "title": "Veröffentlichte Zahlen",
+    "help": "Ein Dashboard zeigt normalerweise jeder Person, was sie ohnehin sehen kann. Was hier genannt ist, sehen alle gleich, die dieses Dashboard öffnen können — eine Zahl, die gemeinsame Grundlage sein muss, ist dann eine und nicht mehrere. Veröffentlichen lässt sich nur, was du selbst öffnen kannst, und wem es gehört, kann es jederzeit zurückziehen.",
+    "empty": "Nichts veröffentlicht. Jede Kachel antwortet aus Sicht der lesenden Person.",
+    "choose": "Projekt wählen",
+    "add": "Veröffentlichen",
+    "stop": "Nicht mehr veröffentlichen",
+    "notice_one": "Zeigt eine veröffentlichte Zahl — für alle hier dieselbe",
+    "notice_other": "Zeigt {{count}} veröffentlichte Zahlen — für alle hier dieselben",
+    "unnamed": "Element #{{id}}"
   }
 }

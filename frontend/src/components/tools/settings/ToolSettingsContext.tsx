@@ -25,6 +25,12 @@ export interface ToolSettingsEntity {
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
   comments_enabled: boolean;
+  /**
+   * Posts only: reactions hang off comments and off posts and off nothing
+   * else, so this is the one tool with a switch of its own for them. Absent
+   * on every other entity, which is why it is optional rather than a union.
+   */
+  reactions_enabled?: boolean;
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */

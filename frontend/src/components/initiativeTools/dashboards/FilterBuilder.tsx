@@ -1,9 +1,10 @@
 /**
  * Authoring the filter half of a data view.
  *
- * The binding has accepted `conditions` since dashboards shipped and nothing
- * could write one, so every task-backed widget has been showing every task in
- * its initiative. This is the control that was missing.
+ * This is the narrowing half of the Build step: which rows the tile is about,
+ * beside which columns it reads. What it produces is a description, and the
+ * server writes the SQL from it — so a filter clicked together here is a
+ * statement the query surface will run.
  *
  * Two decisions worth stating:
  *
@@ -22,10 +23,12 @@
  * tag primitives the task filters use, over lists the viewer can already see.
  */
 
+import type { TFunction } from "i18next";
 import { Plus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { DatasetName } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,34 +41,58 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import {
   type ConditionValue,
+  type FilterFieldSpec,
   type FilterLeaf,
   type FilterNode,
   type FilterOp,
   fieldSpec,
   isGroup,
   isRelativeDate,
-  TASK_FILTER_FIELDS,
+  optionLabelKey,
 } from "@/lib/widgets/conditions";
-
-const STATUS_CATEGORIES = ["backlog", "todo", "in_progress", "done"] as const;
-const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 export interface FilterBuilderProps {
   value: FilterNode[];
   onChange: (next: FilterNode[]) => void;
   /** The dashboard's initiative — every option list below is its own. */
   initiativeId: number;
+  /** What is being filtered. Its fields are what a row may be read against. */
+  dataset: string;
 }
 
-const emptyLeaf = (): FilterLeaf => ({ field: "status_category", op: "in_", value: [] });
+/** The value control a field starts empty at: a list for a picker that takes
+ *  several, today for a date, nothing for the rest. */
+const blankValue = (spec?: FilterFieldSpec): ConditionValue =>
+  spec?.multiple ? [] : spec?.kind === "date" ? { relative: 0 } : "";
 
-export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderProps) {
+/** A condition to start from, over whatever this dataset holds. There is no
+ *  field every dataset has, so the first one it offers is the one to draw. */
+const emptyLeaf = (fields: readonly FilterFieldSpec[]): FilterLeaf => {
+  const first = fields[0];
+  return {
+    field: first?.field ?? "",
+    op: first?.ops[0] ?? "eq",
+    value: blankValue(first),
+  };
+};
+
+/** A field's label, falling back to its name.
+ *
+ *  The names come from the server now, so they cannot be checked against the
+ *  locale file at compile time the way a literal union was. A missing label
+ *  therefore degrades to the field's own name — readable, and visible enough in
+ *  review to be fixed — rather than rendering a raw i18n key. */
+const fieldLabel = (name: string, t: TFunction<readonly ["dashboards", "common"]>): string =>
+  t(`dashboards:filterField.${name}` as never, { defaultValue: name });
+
+export function FilterBuilder({ value, onChange, initiativeId, dataset }: FilterBuilderProps) {
   const { t } = useTranslation(["dashboards", "tasks", "common"]);
 
   // The option lists. Each is a query the canvas or dialog already makes, and
@@ -75,16 +102,12 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
   const tags = useTags();
   const initiative = useInitiative(initiativeId);
 
+  // What may be filtered on, from the server's field registry — one
+  // declaration, so a control cannot offer an operator the engine refuses.
+  const { fields, isLoading: fieldsLoading } = useFieldCatalog(dataset as DatasetName);
+
   const options = useMemo(
     () => ({
-      status_category: STATUS_CATEGORIES.map((category) => ({
-        value: category,
-        label: t(`tasks:statusCategory.${category}` as const),
-      })),
-      priority: PRIORITIES.map((priority) => ({
-        value: priority,
-        label: t(`tasks:priority.${priority}` as const),
-      })),
       project: (projects.data?.items ?? [])
         .filter((project) => project.initiative_id === initiativeId)
         .map((project) => ({ value: String(project.id), label: project.name })),
@@ -110,6 +133,24 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
   // One group level is all that survives the round trip, so the affordance is
   // offered only while none exists.
   const hasGroup = value.some(isGroup);
+
+  // Until the declarations arrive, a condition has no field to be read
+  // against: its operator list and its value control would both fall back to
+  // the plainest thing they can draw, and editing one then rewrites a saved
+  // filter into whatever that plain control emitted. So the rows wait.
+  if (fieldsLoading) {
+    return <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.loading")}</p>;
+  }
+
+  // A dataset that named no fields — because the catalog could not be read, or
+  // because it holds nothing to compare — has nothing to build a condition
+  // from. Offering to add one would store a condition naming no field, which
+  // the server refuses on the next keystroke.
+  if (!fields.length) {
+    return (
+      <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.noFields")}</p>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -144,6 +185,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
               </p>
               {node.conditions.map((child, childIndex) => (
                 <LeafRow
+                  fields={fields}
                   // biome-ignore lint/suspicious/noArrayIndexKey: positional by design
                   key={childIndex}
                   leaf={child as FilterLeaf}
@@ -160,7 +202,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
                 size="sm"
                 variant="ghost"
                 onClick={() =>
-                  replaceAt(index, { ...node, conditions: [...node.conditions, emptyLeaf()] })
+                  replaceAt(index, { ...node, conditions: [...node.conditions, emptyLeaf(fields)] })
                 }
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
@@ -168,13 +210,18 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
               </Button>
             </div>
           ) : (
-            <LeafRow leaf={node} options={options} onChange={(next) => replaceAt(index, next)} />
+            <LeafRow
+              leaf={node}
+              fields={fields}
+              options={options}
+              onChange={(next) => replaceAt(index, next)}
+            />
           )}
         </div>
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => onChange([...value, emptyLeaf()])}>
+        <Button size="sm" variant="outline" onClick={() => onChange([...value, emptyLeaf(fields)])}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t("dashboards:filterBuilder.add")}
         </Button>
@@ -182,7 +229,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => onChange([...value, { logic: "or", conditions: [emptyLeaf()] }])}
+            onClick={() => onChange([...value, { logic: "or", conditions: [emptyLeaf(fields)] }])}
           >
             {t("dashboards:filterBuilder.addGroup")}
           </Button>
@@ -193,8 +240,6 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
 }
 
 type Options = {
-  status_category: { value: string; label: string }[];
-  priority: { value: string; label: string }[];
   project: { value: string; label: string }[];
   tag: { value: string; label: string }[];
   member: { value: string; label: string }[];
@@ -202,38 +247,36 @@ type Options = {
 
 function LeafRow({
   leaf,
+  fields,
   options,
   onChange,
 }: {
   leaf: FilterLeaf;
+  fields: readonly FilterFieldSpec[];
   options: Options;
   onChange: (next: FilterLeaf | null) => void;
 }) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const spec = fieldSpec(leaf.field);
+  const spec = fieldSpec(fields, leaf.field);
 
   const setField = (field: string) => {
-    const next = fieldSpec(field);
+    const next = fieldSpec(fields, field);
     // Changing the field drops the old value rather than carrying a set of tag
     // ids onto a date comparison.
-    onChange({
-      field,
-      op: next?.ops[0] ?? "eq",
-      value: next?.multiple ? [] : next?.kind === "date" ? { relative: 0 } : "",
-    });
+    onChange({ field, op: next?.ops[0] ?? "eq", value: blankValue(next) });
   };
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Select value={leaf.field} onValueChange={setField}>
-          <SelectTrigger className="h-8 flex-1">
+          <SelectTrigger className="h-8 flex-1" aria-label={t("dashboards:filterBuilder.field")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TASK_FILTER_FIELDS.map((field) => (
+            {fields.map((field) => (
               <SelectItem key={field.field} value={field.field}>
-                {t(`dashboards:filterField.${field.field}` as const)}
+                {fieldLabel(field.field, t)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -241,7 +284,7 @@ function LeafRow({
 
         {(spec?.ops.length ?? 0) > 1 && (
           <Select value={leaf.op} onValueChange={(op) => onChange({ ...leaf, op: op as FilterOp })}>
-            <SelectTrigger className="h-8 w-36">
+            <SelectTrigger className="h-8 w-36" aria-label={t("dashboards:filterBuilder.operator")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -266,6 +309,7 @@ function LeafRow({
       </div>
 
       <ValueControl
+        fields={fields}
         leaf={leaf}
         options={options}
         onChange={(value) => onChange({ ...leaf, value })}
@@ -276,31 +320,36 @@ function LeafRow({
 
 function ValueControl({
   leaf,
+  fields,
   options,
   onChange,
 }: {
   leaf: FilterLeaf;
+  fields: readonly FilterFieldSpec[];
   options: Options;
   onChange: (value: ConditionValue) => void;
 }) {
-  const { t } = useTranslation(["dashboards", "common"]);
-  const spec = fieldSpec(leaf.field);
+  const { t } = useTranslation(["dashboards", "tasks", "common"]);
+  const spec = fieldSpec(fields, leaf.field);
 
   // "Is empty" compares against nothing, so there is nothing to choose.
   if (leaf.op === "is_null") return null;
 
   if (spec?.multiple) {
     const list = Array.isArray(leaf.value) ? leaf.value.map(String) : [];
+    // A closed vocabulary carries its own values; everything else is a lookup
+    // this screen already loads.
     const optionList =
-      spec.kind === "status_category"
-        ? options.status_category
-        : spec.kind === "priority"
-          ? options.priority
-          : spec.kind === "member"
-            ? options.member
-            : spec.kind === "tag"
-              ? options.tag
-              : [];
+      spec.kind === "select"
+        ? (spec.options ?? []).map((value) => ({
+            value,
+            label: t(optionLabelKey(leaf.field, value), { defaultValue: value }),
+          }))
+        : spec.kind === "member"
+          ? options.member
+          : spec.kind === "tag"
+            ? options.tag
+            : [];
     return (
       <MultiSelect
         selectedValues={list}
@@ -314,13 +363,35 @@ function ValueControl({
     );
   }
 
+  if (spec?.kind === "member") {
+    return (
+      <Select
+        value={leaf.value != null && leaf.value !== "" ? String(leaf.value) : ""}
+        // Ids travel as numbers; "me" is the language's own word for the
+        // reader and stays a string, so the tile answers per person.
+        onValueChange={(value) => onChange(value === "me" ? value : Number(value))}
+      >
+        <SelectTrigger className="h-8" aria-label={t("dashboards:filterBuilder.value")}>
+          <SelectValue placeholder={t("dashboards:filterBuilder.chooseValue")} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.member.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
   if (spec?.kind === "project") {
     return (
       <Select
         value={leaf.value ? String(leaf.value) : ""}
         onValueChange={(value) => onChange(Number(value))}
       >
-        <SelectTrigger className="h-8">
+        <SelectTrigger className="h-8" aria-label={t("dashboards:filterBuilder.value")}>
           <SelectValue placeholder={t("dashboards:filterBuilder.chooseValue")} />
         </SelectTrigger>
         <SelectContent>

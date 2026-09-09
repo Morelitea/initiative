@@ -9,7 +9,7 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -28,6 +28,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGrantToolToRoles, useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
+import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isToolEnabled, TOGGLEABLE_TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
@@ -51,18 +52,25 @@ export const InitiativeSettingsDetailsPage = () => {
   const [toolToEnable, setToolToEnable] = useState<Tool | null>(null);
   const [toolToDisable, setToolToDisable] = useState<Tool | null>(null);
 
-  const [name, setName] = useState(initiative?.name ?? "");
-  const [description, setDescription] = useState(initiative?.description ?? "");
-  const [color, setColor] = useState(initiative?.color ?? DEFAULT_INITIATIVE_COLOR);
+  // All three wait for Save, so a refetch mid-sentence must not take the
+  // sentence away.
+  const details = useServerForm(
+    initiative,
+    (loaded) => ({
+      name: loaded?.name ?? "",
+      description: loaded?.description ?? "",
+      color: loaded?.color ?? DEFAULT_INITIATIVE_COLOR,
+    }),
+    initiative?.id
+  );
+  const { name, description, color } = details.values;
+  const setName = (next: string) => details.set({ name: next });
+  const setDescription = (next: string) => details.set({ description: next });
+  const setColor = (next: string) => details.set({ color: next });
 
-  useEffect(() => {
-    if (initiative) {
-      setName(initiative.name);
-      setDescription(initiative.description ?? "");
-      setColor(initiative.color ?? DEFAULT_INITIATIVE_COLOR);
-    }
-  }, [initiative]);
-
+  // Shared with the join-policy and auto-join switches below, which write one
+  // field each — so settling the details form belongs to the details save, not
+  // here, or a switch would mark somebody's half-written description saved.
   const updateInitiative = useUpdateInitiative({
     onSuccess: () => {
       toast.success(t("settings.updated"));
@@ -79,14 +87,18 @@ export const InitiativeSettingsDetailsPage = () => {
       toast.error(t("settings.nameRequired"));
       return;
     }
-    updateInitiative.mutate({
-      initiativeId,
-      data: {
-        name: trimmedName,
-        description: description.trim() || undefined,
-        color,
+    const sent = details.values;
+    updateInitiative.mutate(
+      {
+        initiativeId,
+        data: {
+          name: trimmedName,
+          description: sent.description.trim() || undefined,
+          color: sent.color,
+        },
       },
-    });
+      { onSuccess: () => details.settle(sent) }
+    );
   };
 
   // Only the field the manager touched is sent, so an unrelated save never

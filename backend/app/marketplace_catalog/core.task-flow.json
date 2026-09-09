@@ -8,8 +8,8 @@
   "long_description": "A flow view of the initiative's work: the funnel from the widest stage to the narrowest, the same counts as a chart, and a calendar grid of day-by-day activity.\n\nUseful for spotting where work piles up rather than for tracking any one task.",
   "avatar_url": "/marketplace/core-task-flow.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "The stage chart repeated the funnel beside it; it now shows the oldest work still waiting, and what is past its date.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -18,7 +18,7 @@
     },
     "widgets": [
       {
-        "id": "w1",
+        "id": "stages",
         "type": "funnel",
         "grid": {
           "x": 0,
@@ -27,13 +27,14 @@
           "h": 5
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT s.category AS stage, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id GROUP BY s.category"
         },
         "title": "Stages"
       },
       {
-        "id": "w2",
-        "type": "chart",
+        "id": "oldest",
+        "type": "table",
         "grid": {
           "x": 6,
           "y": 0,
@@ -41,27 +42,55 @@
           "h": 5
         },
         "binding": {
-          "source": "task_counts"
+          "source": "query",
+          "sql": "SELECT title, project.name AS project, due_date FROM tasks WHERE completed_at IS NULL ORDER BY tasks.created_at LIMIT 12"
         },
-        "title": "Work by status",
-        "options": {
-          "mark": "pie"
-        }
+        "title": "Waiting longest"
       },
       {
-        "id": "w3",
-        "type": "heatmap",
+        "id": "late",
+        "type": "stat",
         "grid": {
           "x": 0,
           "y": 5,
-          "w": 12,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now()"
+        },
+        "title": "Past its date"
+      },
+      {
+        "id": "recent",
+        "type": "stat",
+        "grid": {
+          "x": 3,
+          "y": 5,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval)"
+        },
+        "title": "Finished, last 30 days"
+      },
+      {
+        "id": "pace",
+        "type": "heatmap",
+        "grid": {
+          "x": 6,
+          "y": 5,
+          "w": 6,
           "h": 3
         },
         "binding": {
-          "source": "task_counts",
-          "bucket": "day"
+          "source": "query",
+          "sql": "SELECT date_trunc('day', completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL GROUP BY date_trunc('day', completed_at) ORDER BY date_trunc('day', completed_at)"
         },
-        "title": "Activity by day"
+        "title": "Finished, day by day"
       }
     ]
   }

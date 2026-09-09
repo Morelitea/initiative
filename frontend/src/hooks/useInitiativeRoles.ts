@@ -18,7 +18,7 @@ import {
   listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
   updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
 } from "@/api/generated/initiatives/initiatives";
-import { invalidateInitiativeRoles, invalidateMyPermissions } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -78,7 +78,7 @@ export const useCreateRole = (initiativeId: number) => {
     },
     onSuccess: () => {
       toast.success(t("settings.roleCreated"));
-      void invalidateInitiativeRoles(initiativeId);
+      void invalidate(q.initiativeRoles(initiativeId));
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.roleCreateError"));
@@ -101,8 +101,7 @@ export const useUpdateRole = (initiativeId: number) => {
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
-      void invalidateInitiativeRoles(initiativeId);
-      void invalidateMyPermissions(initiativeId);
+      void invalidate(q.initiativeRoles(initiativeId), q.myPermissions(initiativeId));
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.roleUpdateError"));
@@ -161,8 +160,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
       return needsGrant.length;
     },
     onSettled: () => {
-      void invalidateInitiativeRoles(initiativeId);
-      void invalidateMyPermissions(initiativeId);
+      void invalidate(q.initiativeRoles(initiativeId), q.myPermissions(initiativeId));
     },
   });
 };
@@ -181,7 +179,7 @@ export const useDeleteRole = (initiativeId: number) => {
     },
     onSuccess: () => {
       toast.success(t("settings.roleDeleted"));
-      void invalidateInitiativeRoles(initiativeId);
+      void invalidate(q.initiativeRoles(initiativeId));
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.roleDeleteError"));

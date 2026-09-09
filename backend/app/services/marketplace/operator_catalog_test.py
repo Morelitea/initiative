@@ -45,7 +45,14 @@ def _manifest(**overrides) -> dict:
         "version": "1.0.0",
         "definition": {
             "widgets": [
-                {"id": "w1", "type": "stat", "binding": {"source": "task_counts"}}
+                {
+                    "id": "w1",
+                    "type": "stat",
+                    "binding": {
+                        "source": "query",
+                        "sql": "SELECT count(*) AS n FROM tasks",
+                    },
+                }
             ]
         },
     }

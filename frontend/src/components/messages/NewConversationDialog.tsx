@@ -199,10 +199,16 @@ export const NewConversationDialog = () => {
           {sections.isLoading || starred.isLoading ? (
             <p className="py-2 text-muted-foreground text-sm">{t("messages:loading")}</p>
           ) : !anybody ? (
+            /* A section arrives for every community that has somebody else in
+               it, listable or not, so its presence is what separates the two
+               silences: people are there and none of them take messages, or
+               there is nobody to have taken them. */
             <p className="py-2 text-muted-foreground text-sm">
               {settled.trim()
                 ? t("messages:newConversation.noMatches")
-                : t("messages:newConversation.empty")}
+                : groups.length
+                  ? t("messages:newConversation.empty")
+                  : t("messages:newConversation.noCommunities")}
             </p>
           ) : (
             <div className="space-y-3">

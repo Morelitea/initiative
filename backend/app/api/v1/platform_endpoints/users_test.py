@@ -97,21 +97,152 @@ async def test_update_current_user_profile(client: AsyncClient, session: AsyncSe
 async def test_update_current_user_notification_preferences(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test updating notification preferences."""
+    """Switching two categories off is remembered."""
     user = await create_user(session)
     headers = get_auth_headers(user)
 
-    update_data = {
-        "email_task_assignment": False,
-        "email_overdue_tasks": False,
-    }
-
-    response = await client.patch("/api/v1/users/me", headers=headers, json=update_data)
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={
+            "channels": [
+                {"category": "assignments", "channel": "email", "enabled": False},
+                {"category": "due_dates", "channel": "email", "enabled": False},
+            ]
+        },
+    )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["email_task_assignment"] is False
-    assert data["email_overdue_tasks"] is False
+    settings = response.json()["settings"]
+    assert settings["assignments"]["email"] is False
+    assert settings["due_dates"]["email"] is False
+
+
+@pytest.mark.integration
+async def test_every_mutable_channel_can_be_switched_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """Every switch the grid renders actually moves.
+
+    The grid is rendered from the registry the response carries, so this walks
+    that same registry rather than a list of its own — a category added
+    tomorrow is covered without editing this test.
+    """
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    registry = (
+        await client.get("/api/v1/me/notification-preferences", headers=headers)
+    ).json()["categories"]
+    changes = [
+        {"category": row["category"], "channel": channel, "enabled": False}
+        for row in registry
+        for channel in row["mutable_channels"]
+    ]
+    assert changes
+
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={"channels": changes},
+    )
+
+    assert response.status_code == 200
+    settings = response.json()["settings"]
+    missing = [
+        (change["category"], change["channel"])
+        for change in changes
+        if settings.get(change["category"], {}).get(change["channel"]) is not False
+    ]
+    assert missing == []
+
+
+@pytest.mark.integration
+async def test_a_channel_that_cannot_be_switched_off_stays_on(
+    client: AsyncClient, session: AsyncSession
+):
+    """Being told your account was acted on is not a preference."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={
+            "channels": [{"category": "account", "channel": "in_app", "enabled": False}]
+        },
+    )
+
+    assert response.status_code == 200
+    assert "in_app" not in response.json()["settings"].get("account", {})
+
+
+@pytest.mark.integration
+async def test_returning_a_switch_to_its_default_leaves_no_trace(
+    client: AsyncClient, session: AsyncSession
+):
+    """Sparseness is what makes "on by default" true by construction."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    off = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={
+            "channels": [{"category": "reactions", "channel": "push", "enabled": False}]
+        },
+    )
+    assert off.json()["settings"]["reactions"]["push"] is False
+
+    back_on = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={
+            "channels": [{"category": "reactions", "channel": "push", "enabled": True}]
+        },
+    )
+    assert back_on.json()["settings"] == {}
+
+
+@pytest.mark.integration
+async def test_a_community_can_be_set_to_say_less(
+    client: AsyncClient, session: AsyncSession
+):
+    """The one dial almost everybody will use."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={"levels": [{"guild_id": guild.id, "level": "personal"}]},
+    )
+
+    assert response.status_code == 200
+    listed = {g["guild_id"]: g for g in response.json()["guilds"]}
+    assert listed[guild.id]["level"] == "personal"
+
+
+@pytest.mark.integration
+async def test_quiet_hours_round_trip(client: AsyncClient, session: AsyncSession):
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    saved = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={"quiet_hours": {"start": "22:00", "end": "07:00"}},
+    )
+    assert saved.json()["quiet_hours"] == {"start": "22:00", "end": "07:00"}
+
+    cleared = await client.put(
+        "/api/v1/me/notification-preferences",
+        headers=headers,
+        json={"clear_quiet_hours": True},
+    )
+    assert cleared.json()["quiet_hours"] is None
 
 
 async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
@@ -157,14 +288,18 @@ async def test_disabling_assignment_email_keeps_the_push_queue(
     await create_guild_membership(session, user=user, guild=guild)
     await _queue_assignment_item(session, user, guild)
 
-    response = await client.patch(
-        "/api/v1/users/me",
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
         headers=get_auth_headers(user),
-        json={"email_task_assignment": False},
+        json={
+            "channels": [
+                {"category": "assignments", "channel": "email", "enabled": False}
+            ]
+        },
     )
 
     assert response.status_code == 200
-    assert response.json()["email_task_assignment"] is False
+    assert response.json()["settings"]["assignments"]["email"] is False
     assert await _pending_assignment_items(session, user, guild) == 1
 
 
@@ -178,10 +313,15 @@ async def test_disabling_both_assignment_channels_clears_the_queue(
     await create_guild_membership(session, user=user, guild=guild)
     await _queue_assignment_item(session, user, guild)
 
-    response = await client.patch(
-        "/api/v1/users/me",
+    response = await client.put(
+        "/api/v1/me/notification-preferences",
         headers=get_auth_headers(user),
-        json={"email_task_assignment": False, "push_task_assignment": False},
+        json={
+            "channels": [
+                {"category": "assignments", "channel": "email", "enabled": False},
+                {"category": "assignments", "channel": "push", "enabled": False},
+            ]
+        },
     )
 
     assert response.status_code == 200
@@ -769,6 +909,57 @@ async def test_list_users_only_shows_guild_members(
     # Should only see user1, not user2
     assert len(data) == 1
     assert data[0]["id"] == user1.id
+
+
+@pytest.mark.integration
+async def test_approve_user_answers_with_the_guild_read(
+    client: AsyncClient, session: AsyncSession
+):
+    """Approving a member answers with the guild's read of that account.
+
+    The guild here renders real names, which is the loudest this shape ever
+    gets: the reply still carries the handle and the standing that just
+    changed, and none of the account itself — no name, no address, no platform
+    tier, none of its settings.
+    """
+    guild = await create_guild(session)
+    assert guild.show_member_names is True
+
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    pending = await create_user(
+        session,
+        username="pending-one",
+        full_name="Pending Person",
+        status=UserStatus.deactivated,
+    )
+    await create_guild_membership(session, user=pending, guild=guild)
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/{pending.id}/approve",
+        headers=get_auth_headers(admin),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == pending.id
+    assert body["username"] == "pending-one"
+    assert body["status"] == UserStatus.active.value
+
+    for absent in (
+        "full_name",
+        "email",
+        "role",
+        "email_verified",
+        "timezone",
+        "locale",
+    ):
+        assert absent not in body, absent
+
+    await session.refresh(pending)
+    assert pending.status == UserStatus.active
 
 
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:

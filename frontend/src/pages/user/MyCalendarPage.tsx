@@ -12,7 +12,7 @@ import {
   type TaskStatusCategory,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllCalendars, invalidateAllTasks } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import {
   buildTaskCalendarEntries,
   type CalendarEntry,
@@ -259,7 +259,7 @@ export const MyCalendarPage = () => {
   const multiGuild = guilds.length > 1;
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([invalidateAllTasks(), invalidateAllCalendars()]);
+    await invalidate(q.allTasks(), q.allCalendars());
   }, []);
 
   // One read-only virtual calendar per project with a task in the window.

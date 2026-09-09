@@ -1,26 +1,23 @@
 /**
  * What each binding source *is* — the one description of a data view.
  *
+ * Three, and they are not variations on a theme. A **query** is a statement
+ * over this guild's datasets. A **sheet_range** is a cell range in a
+ * spreadsheet document; it answers with the same columns and rows a statement
+ * does, and becomes a statement itself once documents are queryable. An **app**
+ * is an installed listing's own endpoint, whose parameters are declared in its
+ * manifest and checked at fetch time — the two slots here are the ones a
+ * *definition* fills: which app, and which of its sources.
+ *
  * The backend deliberately does not declare binding parameters: they belong to
  * the fetcher that consumes them, and mirroring them server-side would mean
- * maintaining every parameter twice. That is right for *validation*, and it
- * leaves a gap this module fills — nothing described a binding, so nothing
- * could describe one to a reader either. A tile could not say what it showed,
- * and the config dialog hand-wrote a branch per source to draw its controls.
+ * maintaining every parameter twice. So this is a *description*, not a second
+ * validator, and it is what lets three surfaces stop restating the same
+ * knowledge:
  *
- * So this is a *description*, not a second validator. A stored definition is
- * still normalized by the server on save, and a binding that disagrees with
- * anything here is still whatever the server says it is. What the registry buys
- * is that four surfaces stop restating the same knowledge:
- *
- * - `unboundSlots()` — which ids a binding still needs (derived from `required`)
- * - the provenance line and popover on every tile
+ * - `unboundSlots()` — which parameters a binding still needs (from `required`)
  * - the config dialog's controls
- * - the empty-state copy, which needs the row noun to say "no tasks match"
- *
- * It stays plain data plus pure functions. Resolving an id to a name is
- * deliberately *not* here: that is a fetch, it belongs to the viewer's own
- * session, and what it may say is an access question (see `provenance.ts`).
+ * - the provenance line on every tile
  */
 
 import type { WidgetBinding } from "@/hooks/useWidgetData";
@@ -29,13 +26,7 @@ import type { WidgetSource } from "@/lib/widgets/dataShapes";
 /** An entity a binding can point at. The kind decides which of the canvas's
  *  already-cached list queries resolves it to a name — never a fetch of its
  *  own, so a dense canvas costs no extra requests. */
-export type EntityKind =
-  | "project"
-  | "counter_group"
-  | "counter"
-  | "calendar"
-  | "document"
-  | "property";
+export type EntityKind = "document";
 
 interface BaseParam {
   /** The binding key this parameter reads and writes. */
@@ -43,31 +34,12 @@ interface BaseParam {
   /** Whether a binding is unusable until this is filled. Drives
    *  {@link unboundSlots}; a listing may ship a widget with the slot empty. */
   required?: boolean;
-  /** The widgets that read this parameter, when only some of them do.
-   *
-   *  A source's parameters are usually the source's alone — every widget bound
-   *  to `tasks` is narrowed by the same project and the same filters. A few are
-   *  not: which custom property to column a board by means nothing to a table
-   *  drawing the same rows, and offering it there would be offering a control
-   *  that does nothing. Omitted means every widget. */
-  usedBy?: readonly string[];
 }
 
 /** An id pointing at another resource in this initiative. */
 export interface EntityParam extends BaseParam {
   kind: "entity";
   entity: EntityKind;
-  /** Only offered once this other parameter has a value — a counter is chosen
-   *  inside a group. */
-  within?: keyof WidgetBinding;
-}
-
-/** A fixed vocabulary the app owns (as distinct from a widget's own display
- *  options, which the widget names in its `meta`). */
-export interface EnumParam extends BaseParam {
-  kind: "enum";
-  values: readonly string[];
-  fallback: string;
 }
 
 /** Free text the source parses — a sheet name, an A1 range. */
@@ -76,94 +48,29 @@ export interface TextParam extends BaseParam {
   placeholder?: string;
 }
 
-/** The filter DSL. One per source at most; the builder owns its own shape. */
-export interface FilterParam extends BaseParam {
-  kind: "filters";
+/** A statement. Its own kind rather than free text: it is many lines, it is
+ *  checked by the server before it runs, and the builder that writes it needs
+ *  somewhere to say so. */
+export interface SqlParam extends BaseParam {
+  kind: "sql";
 }
 
-/** A look-back/look-ahead in days. */
-export interface WindowParam extends BaseParam {
-  kind: "window";
-  fallback: number;
-}
-
-export type SourceParam = EntityParam | EnumParam | TextParam | FilterParam | WindowParam;
+export type SourceParam = EntityParam | TextParam | SqlParam;
 
 export interface SourceDescriptor {
-  /** Singular noun for one row, for counts and empty states ("no *tasks*
-   *  match"). Rendered through i18n plurals, never concatenated. */
-  rowNoun: "task" | "project" | "event" | "counter" | "cell" | "row";
+  /** Singular noun for one row, for counts and empty states. Rendered through
+   *  i18n plurals, never concatenated. */
+  rowNoun: "row";
   params: readonly SourceParam[];
 }
 
-/** Count buckets the `task_counts` source understands. Only `day` has a
- *  calendar shape, which is what a heatmap needs. */
-/** Which of a task's dates a day-bucketed count places it on. Completion is
- *  the historical record, creation is intake, due is the plan — three genuinely
- *  different questions, and until now only the first was reachable. */
-export const DAY_FIELDS = ["completed", "created", "due"] as const;
-
-export const COUNT_BUCKETS = [
-  "status_category",
-  "status",
-  "priority",
-  "project",
-  "assignee",
-  "day",
-] as const;
-
-export const DEFAULT_WINDOW_DAYS = 90;
-
 export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
-  tasks: {
-    rowNoun: "task",
-    params: [
-      { kind: "entity", key: "project_id", entity: "project" },
-      // Which of the initiative's own fields a board deals its columns from.
-      // It rides on the binding rather than on the widget's display options
-      // because those are a closed set of literals decided at build time, and
-      // the whole point of a custom property is that this build never heard of
-      // it.
-      { kind: "entity", key: "property_id", entity: "property", usedBy: ["board"] },
-      { kind: "filters", key: "conditions" },
-    ],
-  },
-  task_counts: {
-    rowNoun: "task",
-    params: [
-      { kind: "entity", key: "project_id", entity: "project" },
-      { kind: "enum", key: "bucket", values: COUNT_BUCKETS, fallback: "status_category" },
-      { kind: "enum", key: "day_field", values: DAY_FIELDS, fallback: "completed" },
-      { kind: "filters", key: "conditions" },
-    ],
-  },
-  projects: {
-    rowNoun: "project",
-    params: [{ kind: "filters", key: "conditions" }],
-  },
-  calendar_entries: {
-    rowNoun: "event",
-    params: [
-      { kind: "entity", key: "calendar_id", entity: "calendar" },
-      { kind: "window", key: "window_days", fallback: DEFAULT_WINDOW_DAYS },
-    ],
-  },
-  counter: {
-    rowNoun: "counter",
-    params: [
-      { kind: "entity", key: "counter_group_id", entity: "counter_group", required: true },
-      {
-        kind: "entity",
-        key: "counter_id",
-        entity: "counter",
-        within: "counter_group_id",
-        required: true,
-      },
-    ],
-  },
-  counter_group: {
-    rowNoun: "counter",
-    params: [{ kind: "entity", key: "counter_group_id", entity: "counter_group", required: true }],
+  query: {
+    rowNoun: "row",
+    // One parameter, and it is the whole binding: a statement says what it
+    // reads, what it narrows to and what it returns, so there is no project to
+    // pick and no filter to build beside it.
+    params: [{ kind: "sql", key: "sql", required: true }],
   },
   sheet_range: {
     rowNoun: "row",
@@ -175,9 +82,6 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
   },
   app: {
     rowNoun: "row",
-    // An app's parameters are the app's — declared in its own manifest and
-    // checked at fetch time. The two slots here are the ones a *definition*
-    // fills: which installed app, and which of its sources.
     params: [
       { kind: "text", key: "app_uid", required: true },
       { kind: "text", key: "endpoint_id", required: true },
@@ -208,26 +112,8 @@ export const entityParams = (source: WidgetSource | string): EntityParam[] =>
     (param): param is EntityParam => param.kind === "entity"
   );
 
-/** The parameters to offer for one source *on one widget* — everything the
- *  source declares, minus the few a different widget reads. */
-export const paramsFor = (
-  source: WidgetSource | string,
-  widgetType: string
-): readonly SourceParam[] =>
-  (sourceDescriptor(source)?.params ?? []).filter(
-    (param) => !param.usedBy || param.usedBy.includes(widgetType)
-  );
-
-/** Whether this source takes filter conditions at all. */
-export const acceptsFilters = (source: WidgetSource | string): boolean =>
-  (sourceDescriptor(source)?.params ?? []).some((param) => param.kind === "filters");
-
-/** The bucket a `task_counts` binding effectively groups by. */
-export const effectiveBucket = (binding: WidgetBinding): string | undefined => {
-  const param = (sourceDescriptor(binding.source)?.params ?? []).find(
-    (candidate): candidate is EnumParam => candidate.kind === "enum" && candidate.key === "bucket"
-  );
-  if (!param) return undefined;
-  const value = binding.bucket;
-  return typeof value === "string" && param.values.includes(value) ? value : param.fallback;
-};
+/** The parameters to offer for one source. Every widget bound to a statement
+ *  is configured the same way, so there is nothing here that varies by widget
+ *  — what varies is the *shape* it draws, which the mapping settles. */
+export const paramsFor = (source: WidgetSource | string): readonly SourceParam[] =>
+  sourceDescriptor(source)?.params ?? [];

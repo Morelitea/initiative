@@ -115,6 +115,18 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 
 ---
 
+## Apps
+
+Initiative is a **PWA** — open it over HTTPS and install it from the browser (address-bar install icon on desktop Chrome/Edge, **Add tab to taskbar** in Firefox on Windows, **Add to Home Screen** on iOS Safari, **Install app** on Android Chrome). It gets its own window, stays signed in, and serves recently viewed projects and tasks offline.
+
+**Android** also has a native Capacitor app, which adds push notifications. It pulls each new web bundle from your server over the air, so you only reinstall when the native shell changes.
+
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="240">](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative)
+
+Or take the newest [release](https://github.com/Morelitea/initiative/releases) with an `.apk` attached — the app is only rebuilt when the native shell changes, so most releases carry none. Full instructions: [Installing the app](https://morelitea.github.io/initiative/en/getting-started/install-the-app/).
+
+---
+
 ## Configuration
 
 ### Key Environment Variables

@@ -27,15 +27,7 @@ import {
   updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
 import { setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
-import {
-  invalidateAllCalendarEvents,
-  invalidateAllDocuments,
-  invalidateAllProperties,
-  invalidateAllTasks,
-  invalidateCalendarEvent,
-  invalidateDocument,
-  invalidateTask,
-} from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -114,7 +106,7 @@ export const useCreateProperty = (
     {
       mutationFn: (guildId, data) =>
         createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(guildId, data),
-      invalidate: () => invalidateAllProperties(),
+      invalidate: () => invalidate(q.allProperties()),
       errorKey: "properties:manager.createError",
     },
     options
@@ -139,12 +131,12 @@ export const useUpdateProperty = (
         ),
       invalidate: () =>
         Promise.all([
-          invalidateAllProperties(),
+          invalidate(q.allProperties()),
           // Embedded summaries on documents/tasks/events need to pick up
           // name/options/color changes.
-          invalidateAllDocuments(),
-          invalidateAllTasks(),
-          invalidateAllCalendarEvents(),
+          invalidate(q.allDocuments()),
+          invalidate(q.allTasks()),
+          invalidate(q.allCalendarEvents()),
         ]),
       errorKey: "properties:manager.updateError",
     },
@@ -160,12 +152,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
           propertyId
         ),
       invalidate: () =>
-        Promise.all([
-          invalidateAllProperties(),
-          invalidateAllDocuments(),
-          invalidateAllTasks(),
-          invalidateAllCalendarEvents(),
-        ]),
+        invalidate(q.allProperties(), q.allDocuments(), q.allTasks(), q.allCalendarEvents()),
       errorKey: "properties:manager.deleteError",
     },
     options
@@ -214,10 +201,7 @@ export const useAppendPropertyOption = () => {
       return { option: newOption, created: true as const };
     },
     onSuccess: (result) => {
-      void invalidateAllProperties();
-      void invalidateAllDocuments();
-      void invalidateAllTasks();
-      void invalidateAllCalendarEvents();
+      void invalidate(q.allProperties(), q.allDocuments(), q.allTasks(), q.allCalendarEvents());
       if (result.created) {
         toast.success(t("input.optionAdded"));
       }
@@ -245,8 +229,7 @@ export const useSetDocumentProperties = (
           documentId,
           values
         ),
-      invalidate: (_data, vars) =>
-        Promise.all([invalidateAllDocuments(), invalidateDocument(vars.documentId)]),
+      invalidate: (_data, vars) => invalidate(q.allDocuments(), q.document(vars.documentId)),
       errorKey: "properties:manager.setValuesError",
     },
     options
@@ -259,7 +242,7 @@ export const useSetTaskProperties = (
     {
       mutationFn: (guildId, { taskId, values }) =>
         setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut(guildId, taskId, values),
-      invalidate: (_data, vars) => Promise.all([invalidateAllTasks(), invalidateTask(vars.taskId)]),
+      invalidate: (_data, vars) => invalidate(q.allTasks(), q.task(vars.taskId)),
       errorKey: "properties:manager.setValuesError",
     },
     options
@@ -272,8 +255,7 @@ export const useSetEventProperties = (
     {
       mutationFn: (guildId, { eventId, values }) =>
         setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut(guildId, eventId, values),
-      invalidate: (_data, vars) =>
-        Promise.all([invalidateAllCalendarEvents(), invalidateCalendarEvent(vars.eventId)]),
+      invalidate: (_data, vars) => invalidate(q.allCalendarEvents(), q.calendarEvent(vars.eventId)),
       errorKey: "properties:manager.setValuesError",
     },
     options

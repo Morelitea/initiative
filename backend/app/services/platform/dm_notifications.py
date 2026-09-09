@@ -25,9 +25,15 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
+from app.core.notification_categories import Channel
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
-from app.services.platform import dm_stream, push_notifications, user_notifications
+from app.services.platform import (
+    dm_stream,
+    notification_prefs,
+    push_notifications,
+    user_notifications,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,9 +145,21 @@ async def _roll_up(
     # fire again.
     if existing is not None:
         return
-    if getattr(recipient, "push_direct_messages", True):
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
+    quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
+
+    def _wanted(channel: Channel) -> bool:
+        if quiet and channel in notification_prefs.QUIET_CHANNELS:
+            return False
+        return notification_prefs.wants(
+            prefs,
+            notification_type=NotificationType.direct_message,
+            channel=channel,
+        )
+
+    if _wanted(Channel.push):
         await _push(session, recipient=recipient, sender_name=sender_name)
-    if getattr(recipient, "email_direct_messages", True):
+    if _wanted(Channel.email):
         await _email(session, recipient=recipient, sender_name=sender_name)
 
 

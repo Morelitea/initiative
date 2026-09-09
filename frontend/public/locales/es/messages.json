@@ -36,7 +36,8 @@
     "hint": "Un identificador completo, con número, alcanza a alguien que no está en ninguna de tus comunidades.",
     "connect": "Conectar con {{handle}}",
     "noMatches": "Nadie coincide.",
-    "empty": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
+    "empty": "Todavía nadie en tus comunidades ha activado los mensajes.",
+    "noCommunities": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
     "unreachable": "No disponible",
     "showMore": "Mostrar más",
     "favorites": "Favoritos"

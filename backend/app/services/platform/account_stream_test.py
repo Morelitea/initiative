@@ -59,12 +59,12 @@ def bus_off(monkeypatch):
     makes it safe to leave out here — the local path is what is under test.
     """
 
-    async def _unavailable(_payload: str) -> None:
+    async def _unavailable(_channel: str, _payload: str) -> None:
         raise RuntimeError("bus not connected")
 
-    from app.services.platform import user_stream_bus
+    from app.services.platform import notify_bus
 
-    monkeypatch.setattr(user_stream_bus, "notify", _unavailable)
+    monkeypatch.setattr(notify_bus, "notify", _unavailable)
 
 
 @pytest.mark.unit
@@ -244,3 +244,31 @@ async def test_listing_a_community_pokes_every_member(
     # until they navigated.
     assert away.id in published_remotely
     assert here.id in published_remotely
+
+
+@pytest.mark.integration
+async def test_deleting_a_guild_tells_the_people_who_were_in_it(
+    session, captured_stream
+) -> None:
+    """The roster goes with the guild, by a cascade nothing in Python sees.
+
+    Every other membership change is announced by the code that wrote the row.
+    This one has no such code — the database clears the roster — so the people
+    it happens to are resolved before the delete or not at all.
+    """
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    member = await create_user(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    await session.commit()
+
+    tab = FakeWebSocket()
+    await captured_stream.connect(member.id, tab)
+
+    await guilds_service.delete_guild(session, guild)
+    await session.commit()
+    await _drain_tasks()
+
+    assert [frame["resource"] for frame in tab.sent] == ["account"]

@@ -20,7 +20,7 @@ from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import create_user, get_auth_headers
+from app.testing import create_user, get_auth_headers, set_notification_prefs
 from app.testing.factories import create_guild_membership, create_initiative_member
 from app.testing.factories import create_initiative
 
@@ -2788,12 +2788,13 @@ async def test_resolution_emails_the_requester(
 async def test_join_request_email_honours_the_initiative_preference(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
-    """These are initiative-membership news, so they ride the preference that
-    already governs that topic — no second toggle for the same idea."""
+    """A join request waits on the manager's decision, so it resolves under
+    ``approvals`` — the category for things somebody has to act on."""
     sent = _capture_join_request_emails(monkeypatch)
 
-    manager = await acting_user(
-        guild_role=GuildRole.member, email_initiative_addition=False
+    manager = await acting_user(guild_role=GuildRole.member)
+    await set_notification_prefs(
+        session, manager.user, {"categories": {"approvals": {"email": False}}}
     )
     initiative = await _requestable(session, manager, name="Knockable")
     member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
@@ -2806,8 +2807,8 @@ async def test_join_request_email_honours_the_initiative_preference(
 
     assert response.status_code == 201
     assert sent == []
-    # The in-app notification still lands: the preference governs email, not the
-    # bell.
+    # The in-app notification still lands: an approval keeps the bell whatever
+    # else is switched off.
     assert (
         len(
             await _notifications_for(

@@ -19,6 +19,8 @@ DRY_RUN=false
 AUTO_CONFIRM=false
 FORCE_NATIVE=false   # force MIN_NATIVE_VERSION bump even if no native change is detected
 CLEANUP_BRANCH=""
+ALEMBIC_HEAD=""        # resolved by resolve_migration_freeze
+FROZEN_MIGRATION=""     # RELEASED_MIGRATION as it stands, same
 ALLOWED_OWNERS=("jordandrako" "LeeJMorel")
 DATE=$(date +%Y-%m-%d)
 
@@ -196,6 +198,64 @@ stamp_min_native_version() {
     fi
 }
 
+# The Alembic head of the tree as it stands, read from the revision files alone —
+# no database and no server. Non-zero when it cannot be determined, with whatever
+# alembic said left on stderr: a swallowed error here is what would let a release
+# ship migrations while RELEASED_MIGRATION still named an older one.
+current_alembic_head() {
+    [[ -x backend/.venv/bin/python ]] || {
+        echo "backend/.venv/bin/python not found — run 'cd backend && uv sync'" >&2
+        return 1
+    }
+    (cd backend && .venv/bin/python -c "
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+print(ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
+")
+}
+
+# Resolves ALEMBIC_HEAD and FROZEN_MIGRATION, or stops the release.
+#
+# Deliberately not a command substitution: `die` inside `$( )` exits only the
+# subshell, and the release would carry on with an empty head — the one outcome
+# this whole marker exists to prevent, since a stale freeze line reads as
+# authoritative and marks shipped revisions as still editable.
+resolve_migration_freeze() {
+    ALEMBIC_HEAD=""
+    ALEMBIC_HEAD=$(current_alembic_head) || true
+    [[ -n "$ALEMBIC_HEAD" ]] || die "Could not read the Alembic head — see the error above (a missing backend/.venv, or branched revisions wanting 'alembic merge'). RELEASED_MIGRATION has to name the newest revision this release ships; left on an older one it marks shipped migrations as still editable."
+    FROZEN_MIGRATION=""
+    [[ -f RELEASED_MIGRATION ]] && FROZEN_MIGRATION=$(tr -d '[:space:]' < RELEASED_MIGRATION)
+    [[ -n "$FROZEN_MIGRATION" ]] || FROZEN_MIGRATION="unknown"
+}
+
+# Record the Alembic head this release ships, and stage it so it lands in the
+# version-bump commit. Every revision at or before the committed value has run
+# on somebody's database and can no longer be edited in place — see "Never edit
+# a migration that has shipped" in CLAUDE.md.
+stamp_released_migration() {
+    resolve_migration_freeze
+    if [[ "$ALEMBIC_HEAD" == "$FROZEN_MIGRATION" ]]; then
+        info "  No new migrations → RELEASED_MIGRATION stays $ALEMBIC_HEAD"
+    else
+        echo "$ALEMBIC_HEAD" > RELEASED_MIGRATION
+        git add RELEASED_MIGRATION
+        warn "  RELEASED_MIGRATION $FROZEN_MIGRATION → $ALEMBIC_HEAD (revisions up to here are frozen from now on)"
+    fi
+}
+
+# Report (without staging) where RELEASED_MIGRATION would land, mirroring
+# stamp_released_migration's decision — including its refusal to proceed, so a
+# dry run surfaces a broken venv rather than the release doing it later.
+preview_released_migration() {
+    resolve_migration_freeze
+    if [[ "$ALEMBIC_HEAD" == "$FROZEN_MIGRATION" ]]; then
+        info "  RELEASED_MIGRATION: stays $ALEMBIC_HEAD (no new migrations)"
+    else
+        warn "  RELEASED_MIGRATION: $FROZEN_MIGRATION → $ALEMBIC_HEAD (frozen from now on)"
+    fi
+}
+
 # Report (without staging) whether MIN_NATIVE_VERSION would move, mirroring
 # stamp_min_native_version's decision. Used in the release preview / dry run.
 preview_min_native_version() {
@@ -325,6 +385,49 @@ check_unreleased_content() {
     info "  Changelog [Unreleased] has content"
 }
 
+# Regenerate the committed frontend API client so it matches the tree.
+#
+# Every generated file carries the VERSION in its header ("OpenAPI spec
+# version: X.Y.Z"), so a version bump alone makes all 55 of them stale — and
+# CI's "Check Generated Types" job filters on backend/ and orval config, so a
+# bump that touches neither skips the job and ships the stale headers. A bump
+# that DOES touch backend/ fails that job instead, on a drift that has nothing
+# to do with the change being shipped. Both paths need this.
+#
+# Exports the OpenAPI spec from the backend (no running server needed), then
+# runs orval + biome-format to match exactly what the CI job does (see
+# .github/workflows/ci.yml). The project formats with biome — using
+# `pnpm prettier` here produced subtle whitespace differences that failed the
+# drift check. Errors are surfaced (no `2>/dev/null` suppression) so a broken
+# regen fails the release rather than silently shipping stale types.
+#
+# $1: the version being released, or empty when no bump is happening (the
+#     regen still runs, to catch a picked schema change whose generated
+#     output was left behind on the source branch).
+regenerate_api_types() {
+    local version="${1:-}"
+
+    [[ -f frontend/package.json ]] || return 0
+    if ! command -v pnpm &>/dev/null; then
+        warn "  pnpm not found — skipping API type regeneration"
+        return 0
+    fi
+
+    dim "  Exporting OpenAPI spec and regenerating frontend types..."
+    (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json)
+    (cd frontend && pnpm orval && pnpm format:api)
+
+    if git diff --quiet frontend/src/api/generated/; then
+        return 0
+    fi
+    git add frontend/src/api/generated/
+    if [[ -n "$version" ]]; then
+        git commit -m "regenerate API types for v$version"
+    else
+        git commit -m "regenerate API types"
+    fi
+}
+
 stamp_changelog() {
     local version="$1"
     local date="$2"
@@ -436,6 +539,7 @@ do_release() {
     echo -e "${BOLD}Version: $current → $new_version${NC}"
     preview_changelog "$new_version"
     preview_min_native_version "origin/main" "origin/dev" "$new_version"
+    preview_released_migration
 
     if $DRY_RUN; then
         info "Dry run complete — no changes made."
@@ -458,26 +562,13 @@ do_release() {
     # Move the native min-version forward if the native shell changed since main.
     stamp_min_native_version "origin/main" "origin/dev" "$new_version"
 
+    # Freeze the revisions this release carries.
+    stamp_released_migration
+
     git add VERSION CHANGELOG.md
     git commit -m "bump version to $new_version"
 
-    # Regenerate frontend types so the version comment stays in sync.
-    # Export OpenAPI spec from the backend (no running server needed),
-    # then run orval + biome-format to match exactly what the CI
-    # "Check Generated Types" job does (see .github/workflows/ci.yml). The
-    # project formats with biome — using `pnpm prettier` here produced
-    # subtle whitespace differences that failed the drift check.
-    # Errors are surfaced (no `2>/dev/null` suppression) so a broken regen
-    # fails the release rather than silently shipping stale types.
-    if [[ -f frontend/package.json ]] && command -v pnpm &>/dev/null; then
-        dim "  Exporting OpenAPI spec and regenerating frontend types..."
-        (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json)
-        (cd frontend && pnpm orval && pnpm format:api)
-        if ! git diff --quiet frontend/src/api/generated/; then
-            git add frontend/src/api/generated/
-            git commit -m "regenerate API types for v$new_version"
-        fi
-    fi
+    regenerate_api_types "$new_version"
 
     git push -u origin "$branch"
     CLEANUP_BRANCH=""
@@ -686,7 +777,11 @@ do_cherry_pick() {
         local current
         current=$(read_version)
         new_version=$(calc_new_version "$current")
-        branch="hotfix/v$new_version"
+        # tag-release.yml tags a merged PR only when its head branch starts with
+        # "release/v", and reads the version from what follows. A version-bumping
+        # hotfix is a release, so it has to carry that prefix or the merge lands a
+        # bumped VERSION on main with no tag, no image, and no GitHub Release.
+        branch="release/v$new_version"
         echo -e "${BOLD}Version: $current → $new_version${NC}"
     else
         branch="hotfix/$DATE"
@@ -746,8 +841,14 @@ do_cherry_pick() {
         fi
         # Move the native min-version forward if the cherry-picked changes touch the shell.
         stamp_min_native_version "origin/main" "HEAD" "$new_version"
+        stamp_released_migration
         git commit -m "bump version to $new_version"
     fi
+
+    # Same release bookkeeping the release mode does: the picked commits may
+    # carry schema changes whose generated output stayed behind, and a bump
+    # restamps the version in every generated header.
+    regenerate_api_types "$new_version"
 
     git push -u origin "$branch"
     CLEANUP_BRANCH=""

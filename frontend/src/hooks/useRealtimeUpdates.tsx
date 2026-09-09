@@ -1,22 +1,13 @@
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
-import {
-  invalidateAllDocuments,
-  invalidateAllProjects,
-  invalidateAllTasks,
-  invalidateDocument,
-  invalidateDocumentComments,
-  invalidateProject,
-  invalidateProjectActivity,
-  invalidateTaskComments,
-} from "@/api/query-keys";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidate, q, type Spec } from "@/api/query-keys";
+import { openLiveSocket } from "@/lib/liveSocket";
+import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
-
-// Message type for authentication (must match backend)
-const MSG_AUTH = 5;
 
 const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
@@ -31,51 +22,120 @@ const buildWebsocketUrl = (guildId: number) => {
   }
 };
 
+/** One thing the bus can name: what changed, or something it sits inside. */
+export type ResourceRef = { type: string; id: number };
+
+/** One change off the wire. Identifiers only — never a serialized model. */
+export type RealtimeChange = {
+  resource?: ResourceRef;
+  parents?: ResourceRef[];
+  action?: string;
+};
+
 /**
- * Send authentication message over WebSocket.
- * Must be sent immediately after connection opens.
- *
- * The socket is scoped server-side to the user's server-held guild context
- * (the backend only streams that guild's events), so the payload carries the
- * token only. The hook reconnects on guild switch — after the context PUT —
- * so the subscription always tracks the active guild.
+ * A burst of frames costs one round of invalidation rather than one per frame.
+ * The server already batches a transaction into a single frame, so this only
+ * has to cover separate writes landing together — somebody dragging cards, an
+ * import committing in chunks.
  */
-const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
-  const payload = JSON.stringify({ token });
-  const payloadBytes = new TextEncoder().encode(payload);
-  const message = new Uint8Array(1 + payloadBytes.length);
-  message[0] = MSG_AUTH;
-  message.set(payloadBytes, 1);
-  websocket.send(message);
+const FRAME_DEBOUNCE_MS = 250;
+
+/**
+ * What a change to one kind of resource makes stale — as a description, not an
+ * action.
+ *
+ * Tools come from the registry, so a new tool's events are live the day it
+ * ships. The rest are the things the bus can name that are not a tool of their
+ * own. A type nothing here claims is ignored on purpose: its parents carry the
+ * surfaces that matter, and a queue item is refreshed by refreshing its queue.
+ */
+const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
+  ...Object.fromEntries(
+    TOOLS.map((tool) => [toolPlural(tool), (id: number) => [q.tool(tool, id)]])
+  ),
+  // A project's activity feed lists its own comments and its tasks', so it is
+  // stale for anything that happens anywhere inside the project. Declared after
+  // the registry spread, which it extends rather than replaces.
+  projects: (id) => [q.tool(Tool.project, id), q.projectActivity(id)],
+  tasks: (id) => [q.task(id), q.allTasks()],
+  subtasks: (id) => [q.subtask(id)],
+  // The guild's recent-activity list is a comment feed of its own. Which thread
+  // moved is a question about the parent, below.
+  comments: () => [q.recentComments()],
+  calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
+  // An initiative's roster, its roles and what those roles permit all report
+  // against the initiative itself — a membership row and a role row have no
+  // route of their own — so "the initiative changed" has to name all three.
+  initiatives: (id) => [
+    q.initiative(id),
+    q.allInitiatives(),
+    q.initiativeMembers(id),
+    q.initiativeRoles(id),
+    q.myPermissions(id),
+  ],
+  tags: (id) => [q.tag(id), q.allTags()],
+  // An install belongs to no initiative, so it arrives guild-wide with no
+  // parent to carry it — this is the only thing that refreshes the sidebar's
+  // app list and the settings dialog for another admin's install, rename or
+  // configuration. Takes no id: the reads are keyed by guild, not by install.
+  apps: () => [q.apps()],
+  property_definitions: () => [q.allProperties()],
 };
 
-// Bursts of task events (an import, another user's bulk operation) coalesce
-// into one refetch per window instead of one per event — the signal is
-// content-free, so collapsing duplicates loses nothing. The debounce state
-// lives inside the socket effect so it dies with the socket.
-const TASK_EVENT_DEBOUNCE_MS = 300;
-
-const handleProjectEvent = () => {
-  void invalidateAllProjects();
+/**
+ * What a change to a child makes stale ON the parent it hangs off.
+ *
+ * The one thing naming the parent does not cover: these queries are keyed by
+ * the parent rather than by the child, so nothing about the child's own id
+ * reaches them.
+ */
+const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
+  comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
+  subtasks: (parent) => (parent.type === "tasks" ? [q.taskSubtasks(parent.id)] : []),
 };
 
-const handleCommentEvent = (data?: Record<string, unknown>) => {
-  const taskId = typeof data?.task_id === "number" ? data.task_id : Number(data?.task_id);
-  if (Number.isFinite(taskId)) {
-    void invalidateTaskComments(taskId);
+const isRef = (value: unknown): value is ResourceRef => {
+  const ref = value as ResourceRef | undefined;
+  return typeof ref?.type === "string" && Number.isFinite(ref?.id);
+};
+
+const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
+
+/**
+ * Refresh everything a batch of changes made stale, in one pass over the cache.
+ *
+ * Two passes over the same batch collect the description: the resources named
+ * (the change itself, and every resource it sits inside), then the parent-keyed
+ * queries only a child can point at. Nothing is matched until both are in hand,
+ * so three hundred comments on one task cost the same single walk as one — and
+ * the repeats among them collapse when the specs merge.
+ */
+export const applyChanges = (changes: readonly RealtimeChange[]) => {
+  const refs = new Map<string, ResourceRef>();
+  const effects = new Map<string, [string, ResourceRef]>();
+
+  for (const change of changes) {
+    const resource = change.resource;
+    const parents = (change.parents ?? []).filter(isRef);
+    if (isRef(resource)) {
+      refs.set(refKey(resource), resource);
+      if (parents[0]) {
+        effects.set(`${resource.type}|${refKey(parents[0])}`, [resource.type, parents[0]]);
+      }
+    }
+    for (const parent of parents) {
+      refs.set(refKey(parent), parent);
+    }
   }
-  const documentId =
-    typeof data?.document_id === "number" ? data.document_id : Number(data?.document_id);
-  if (Number.isFinite(documentId)) {
-    void invalidateDocumentComments(documentId);
-    void invalidateDocument(documentId);
+
+  const specs: Spec[] = [];
+  for (const ref of refs.values()) {
+    specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id) ?? []));
   }
-  void invalidateAllDocuments();
-  const projectId =
-    typeof data?.project_id === "number" ? data.project_id : Number(data?.project_id);
-  if (Number.isFinite(projectId)) {
-    void invalidateProjectActivity(projectId);
+  for (const [childType, parent] of effects.values()) {
+    specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
   }
+  if (specs.length > 0) void invalidate(...specs);
 };
 
 export const useRealtimeUpdates = () => {
@@ -90,154 +150,71 @@ export const useRealtimeUpdates = () => {
   // path segment, so the URL is the single source of truth.
   const params = useParams({ strict: false }) as { guildId?: string };
   const routeGuildId = params.guildId ? Number(params.guildId) : null;
-  const websocketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
     // The socket is scoped to a single guild — in personal mode there's
     // nothing to subscribe to, and the backend would reject the auth payload.
     if (userId === null || routeGuildId === null) {
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      authFailureCountRef.current = 0;
       return;
     }
-    // routeGuildId is non-null past the guard; capture for the /c/{guildId}
-    // websocket path used in the connect() closure below.
-    const guildId = routeGuildId;
+    const wsUrl = buildWebsocketUrl(routeGuildId);
+    if (!wsUrl) {
+      return;
+    }
 
-    let isActive = true;
+    // Effect-scoped, so unmount and guild-switch clear the timer with the
+    // socket rather than invalidating for a guild this tab has left.
+    let pending: RealtimeChange[] = [];
+    let frameTimer: number | null = null;
 
-    // Effect-scoped debounce: a burst of task events costs one refetch per
-    // window, and unmount/guild-switch clears the timer with the socket.
-    const pendingTaskProjectIds = new Set<number>();
-    let taskEventTimer: number | null = null;
-
-    const handleTaskEvent = (data?: Record<string, unknown>) => {
-      const projectId = data?.project_id;
-      if (typeof projectId === "number") {
-        pendingTaskProjectIds.add(projectId);
-      }
-      if (taskEventTimer !== null) {
+    const enqueue = (changes: RealtimeChange[]) => {
+      pending.push(...changes);
+      if (frameTimer !== null) {
         return;
       }
-      taskEventTimer = window.setTimeout(() => {
-        taskEventTimer = null;
-        const projectIds = [...pendingTaskProjectIds];
-        pendingTaskProjectIds.clear();
-        void invalidateAllTasks();
-        for (const id of projectIds) {
-          void invalidateProject(id);
-        }
-      }, TASK_EVENT_DEBOUNCE_MS);
+      frameTimer = window.setTimeout(() => {
+        frameTimer = null;
+        const batch = pending;
+        pending = [];
+        applyChanges(batch);
+      }, FRAME_DEBOUNCE_MS);
     };
 
-    const scheduleReconnect = (delayMs = 2000) => {
-      if (!isActive || reconnectTimerRef.current !== null) {
-        return;
-      }
-      reconnectTimerRef.current = window.setTimeout(() => {
-        reconnectTimerRef.current = null;
-        connect();
-      }, delayMs);
-    };
-
-    const connect = () => {
-      if (!isActive) {
-        return;
-      }
-      const wsUrl = buildWebsocketUrl(guildId);
-      if (!wsUrl) {
-        scheduleReconnect();
-        return;
-      }
-      const websocket = new WebSocket(wsUrl);
-      websocket.binaryType = "arraybuffer";
-      websocketRef.current = websocket;
-
-      websocket.onopen = () => {
-        // Send auth message immediately after connection (token not in URL for
-        // security). The guild id scopes the stream to the active guild.
-        sendAuthMessage(websocket, token);
-        // Reset failure count on successful connection
-        authFailureCountRef.current = 0;
-      };
-
-      websocket.onmessage = (event) => {
-        try {
-          // The realtime stream is a content-free invalidation bus: each message
-          // is an id envelope ({resource, action, ids}), never a serialized
-          // model. We read only the ids and refetch through the normal
-          // (RLS + DAC gated) REST path — that refetch is the authorization gate.
-          const payload = JSON.parse(event.data) as {
-            resource?: string;
-            ids?: Record<string, unknown>;
-          };
-          switch (payload.resource) {
-            case "task":
-              handleTaskEvent(payload.ids);
-              break;
-            case "project":
-              handleProjectEvent();
-              break;
-            case "comment":
-              handleCommentEvent(payload.ids);
-              break;
-            default:
-              break;
-          }
-        } catch {
-          // ignore malformed messages
-        }
-      };
-
-      websocket.onerror = () => {
-        websocket.close();
-      };
-
-      websocket.onclose = (event) => {
-        if (websocketRef.current === websocket) {
-          websocketRef.current = null;
-        }
-        // WS_1008_POLICY_VIOLATION (1008) indicates auth failure (403)
-        if (event.code === 1008) {
-          authFailureCountRef.current += 1;
-          // After 3 consecutive auth failures, stop trying and log out
-          if (authFailureCountRef.current >= 3) {
-            console.warn("WebSocket auth failed repeatedly, logging out");
-            logout();
-            return;
-          }
-          // Use exponential backoff for auth failures
-          scheduleReconnect(Math.min(30000, 2000 * 2 ** authFailureCountRef.current));
+    const connection = openLiveSocket({
+      url: wsUrl,
+      // The guild is in the address, so the frame carries the credential and
+      // the gap this tab is asking to have answered.
+      auth: (awaySeconds) =>
+        awaySeconds === null ? { token } : { token, away_seconds: awaySeconds },
+      onFrame: (payload) => {
+        // A content-free invalidation bus: every frame is one transaction's
+        // worth of {resource, parents, action}, never a serialized model. We
+        // read the identifiers and refetch through the normal (RLS + DAC
+        // gated) REST path — that refetch is the authorization gate.
+        const frame = payload as { changes?: RealtimeChange[]; more?: boolean };
+        if (frame.more) {
+          // A write too large to name row by row — an import, a purge — or a
+          // gap this socket was away for. Either way the frame says so instead
+          // of carrying ids, and the answer is to read the guild again.
+          void invalidate(q.guildContent());
           return;
         }
-        scheduleReconnect();
-      };
-    };
-
-    connect();
+        const changes = frame.changes ?? [];
+        if (changes.length) {
+          enqueue(changes);
+        }
+      },
+      onAuthRejected: () => {
+        console.warn("WebSocket auth failed repeatedly, logging out");
+        logout();
+      },
+    });
 
     return () => {
-      isActive = false;
-      if (taskEventTimer !== null) {
-        window.clearTimeout(taskEventTimer);
-        taskEventTimer = null;
-      }
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
+      connection.close();
+      if (frameTimer !== null) {
+        window.clearTimeout(frameTimer);
+        frameTimer = null;
       }
     };
   }, [token, userId, routeGuildId, logout]);

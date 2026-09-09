@@ -1,5 +1,4 @@
 const STATIC_CACHE = "initiative-static-v3";
-const DATA_CACHE = "initiative-data-v1";
 const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/logo.svg"];
 
 self.addEventListener("install", (event) => {
@@ -18,7 +17,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys.map((key) => {
-            if (![STATIC_CACHE, DATA_CACHE].includes(key)) {
+            if (key !== STATIC_CACHE) {
               return caches.delete(key);
             }
             return null;
@@ -29,8 +28,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-const API_PATTERN = /\/api\/v1\/(projects|tasks)/;
-const AUTH_PATTERN = /\/api\/v1\/auth\//;
+// API responses are not cached here. Cache Storage is keyed by URL alone, with
+// no notion of who asked, how long an entry should live, or when to drop it.
+// Offline reading is handled in src/lib/offlineCache.ts, which has answers for
+// all three.
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -39,34 +40,20 @@ self.addEventListener("fetch", (event) => {
   }
 
   const requestUrl = new URL(request.url);
+
+  // Only this app's own origin is ours to answer. In the native app the API is
+  // a different origin entirely, and taking one of its requests over here would
+  // re-issue it from the worker — a separate context, with its own rules about
+  // what it may load, and nothing gained by the move.
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
   const requestPath = requestUrl.pathname;
 
-  if (AUTH_PATTERN.test(requestPath)) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  if (API_PATTERN.test(requestPath)) {
-    event.respondWith(
-      caches.open(DATA_CACHE).then(async (cache) => {
-        try {
-          const networkResponse = await fetch(request);
-          cache.put(request, networkResponse.clone());
-          return networkResponse;
-        } catch {
-          const cached = await cache.match(request);
-          if (cached) {
-            return cached;
-          }
-          throw new Error("Network error and no cached data available");
-        }
-      })
-    );
-    return;
-  }
-
+  // Not cached here (see above), so there is nothing to add: leaving it alone
+  // is what passing it through means.
   if (requestPath.startsWith("/api/")) {
-    event.respondWith(fetch(request));
     return;
   }
 
@@ -108,11 +95,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // For hashed Vite assets (js/css), always go network-first without caching
-  if (/\/(assets|@fs)\//.test(requestPath)) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  event.respondWith(fetch(request));
+  // Everything else — the hashed Vite assets included — is left to the browser.
+  // `respondWith(fetch(request))` reads as "pass it through", but it moves the
+  // request into the worker to do nothing with it.
 });

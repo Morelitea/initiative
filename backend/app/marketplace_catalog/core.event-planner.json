@@ -8,8 +8,8 @@
   "long_description": "The initiative's events laid out the way an organizer thinks: every scheduled event on a weekly timeline, with the full list underneath for the details a bar can't carry.\n\nNothing here needs setting up — every widget reads the calendars of the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-event-planner.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "Adds what is coming up and how the events split across calendars.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -18,33 +18,66 @@
     },
     "widgets": [
       {
-        "id": "w1",
-        "type": "gantt",
+        "id": "soon",
+        "type": "stat",
         "grid": {
           "x": 0,
           "y": 0,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT count(*) AS events FROM calendar_events WHERE start_at >= now() AND start_at < now() + CAST('30 days' AS interval)"
+        },
+        "title": "In the next 30 days"
+      },
+      {
+        "id": "calendars",
+        "type": "chart",
+        "grid": {
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 4
+        },
+        "binding": {
+          "source": "query",
+          "sql": "SELECT calendar.name AS calendar, count(*) AS events FROM calendar_events GROUP BY calendar.name ORDER BY count(*) DESC"
+        },
+        "title": "Events by calendar",
+        "options": {
+          "mark": "bar",
+          "orientation": "bars"
+        }
+      },
+      {
+        "id": "schedule",
+        "type": "gantt",
+        "grid": {
+          "x": 0,
+          "y": 4,
           "w": 12,
           "h": 5
         },
         "binding": {
-          "source": "calendar_entries"
+          "source": "query",
+          "sql": "SELECT title, start_at, end_at FROM calendar_events ORDER BY start_at"
         },
-        "title": "The schedule",
-        "options": {
-          "scale": "week"
-        }
+        "title": "The schedule"
       },
       {
-        "id": "w2",
+        "id": "all",
         "type": "table",
         "grid": {
           "x": 0,
-          "y": 5,
+          "y": 9,
           "w": 12,
           "h": 4
         },
         "binding": {
-          "source": "calendar_entries"
+          "source": "query",
+          "sql": "SELECT title, start_at, end_at, location FROM calendar_events ORDER BY start_at"
         },
         "title": "Every event"
       }

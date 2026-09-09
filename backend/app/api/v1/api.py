@@ -15,6 +15,7 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    query,
     smart_chips,
     search as guild_search,
     ai_settings,
@@ -54,6 +55,7 @@ from app.api.v1.tenant_endpoints import (
     trash,
 )
 from app.api.v1.platform_endpoints import (
+    field_catalog,
     access_grants,
     admin,
     announcements,
@@ -69,6 +71,7 @@ from app.api.v1.platform_endpoints import (
     guilds,
     marketplace,
     native,
+    notification_prefs,
     notifications,
     push,
     settings,
@@ -85,6 +88,7 @@ api_router = APIRouter()
 # Top-level routes: unauthenticated, user-scoped, admin, and cross-guild.
 # These do NOT take a guild path segment.
 # ---------------------------------------------------------------------------
+api_router.include_router(field_catalog.router, tags=["fields"])
 api_router.include_router(version.router, tags=["version"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
@@ -169,6 +173,7 @@ guild_router.include_router(projects.router, prefix="/projects", tags=["projects
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
+guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
@@ -275,6 +280,7 @@ me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
+me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
 me_router.include_router(dm.me_router, tags=["direct-messages"])
 me_router.include_router(dm_transport.me_router, tags=["direct-messages"])

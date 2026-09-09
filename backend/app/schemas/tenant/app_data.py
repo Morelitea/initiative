@@ -18,9 +18,23 @@ guild chose rather than whatever the catalog says today.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+
 from pydantic import Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.sql_query import QueryColumnDescription
+
+
+class AppDataTable(SanitizedBaseModel):
+    """Rows a statement produced, and what they hold.
+
+    Positional against ``columns`` rather than keyed by name, for the reason
+    every other read of this surface is: a statement may name two outputs the
+    same thing, and a mapping would keep one of the two.
+    """
+
+    columns: List[QueryColumnDescription] = []
+    rows: List[List[Any]] = []
 
 
 class AppDataResponse(SanitizedBaseModel):
@@ -33,6 +47,10 @@ class AppDataResponse(SanitizedBaseModel):
     #: The endpoint's single-valued returns: what the answer says about itself
     #: rather than about any one item in it, and still there when there are no
     #: items at all.
+    #: What a statement made of those rows, where the binding carried one.
+    #: Absent otherwise: an app's own rows are read by the names its manifest
+    #: declared, and its widget module already knows them.
+    table: Optional["AppDataTable"] = None
     values: Dict[str, Any] = {}
     #: When the *upstream* call happened. A cached body keeps the time it was
     #: actually obtained, so a viewer can tell how fresh the answer is rather
@@ -84,6 +102,24 @@ class AppDataParam(SanitizedBaseModel):
     list: bool = False
 
 
+class AppDataReturn(SanitizedBaseModel):
+    """One thing an endpoint hands back, from its ``returns``.
+
+    Declared rather than discovered, because a consumer binds one of these
+    before the endpoint has ever run. The ones marked ``list`` are what become
+    the rows — so they are also the columns a statement over those rows may
+    name.
+    """
+
+    key: str
+    type: str
+    label: Dict[str, str] = {}
+    #: Whether it holds several. The ones that do are read side by side into
+    #: rows; the ones that do not describe the answer rather than any item in
+    #: it, and stay whole beside them.
+    list: bool = False
+
+
 class AppEndpointRead(SanitizedBaseModel):
     """A read endpoint a widget may bind to.
 
@@ -100,6 +136,9 @@ class AppEndpointRead(SanitizedBaseModel):
     #: applies the deployment's own ceiling on top.
     cache_ttl_seconds: int = 0
     params: List[AppDataParam] = []
+    #: What it hands back. A widget binds against this, and a statement over
+    #: its rows is checked against it.
+    returns: List[AppDataReturn] = []
 
 
 class AppWidgetRead(SanitizedBaseModel):

@@ -67,39 +67,22 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
-  noProjects: {
-    en: "No projects match",
-    de: "Keine Projekte passen",
-    es: "Ningún proyecto coincide",
-    fr: "Aucun projet ne correspond",
+  noNumeric: {
+    en: "No numeric column to measure",
+    de: "Keine Zahlenspalte zum Messen",
+    es: "Ninguna columna numérica que medir",
+    fr: "Aucune colonne numérique à mesurer",
   },
-  noCounter: {
-    en: "No counter selected",
-    de: "Kein Zähler ausgewählt",
-    es: "Ningún contador seleccionado",
-    fr: "Aucun compteur sélectionné",
-  },
-  nothingToMeasure: {
-    en: "Nothing to measure",
-    de: "Nichts zu messen",
-    es: "Nada que medir",
-    fr: "Rien à mesurer",
-  },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
-  },
+  row: { en: "Row", de: "Zeile", es: "Fila", fr: "Ligne" },
+  total: { en: "Total", de: "Gesamt", es: "Total", fr: "Total" },
   done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
   of: { en: "of", de: "von", es: "de", fr: "sur" },
-  projects: { en: "projects", de: "Projekte", es: "proyectos", fr: "projets" },
 };
 
 /**
@@ -159,111 +142,63 @@ function render(data, config, context) {
     return late ? "negative" : "accent";
   };
 
-  switch (data.source) {
-    case "counter": {
-      const counter = data.counter;
-      if (!counter) return empty(say("noCounter"));
-      const min = counter.min === null || counter.min === undefined ? 0 : counter.min;
-      const max = counter.max === null || counter.max === undefined ? counter.value : counter.max;
-      const caption =
-        counter.value + " " + say("of") + " " + max + (counter.unit ? " " + counter.unit : "");
-      return {
-        v: 1,
-        scene: meter(counter.name, counter.value, min, max, caption, "accent"),
-      };
-    }
+  // Which columns fill this widget's slots, resolved by the host.
+  const slots = context?.slots || {};
+  const valueAt = (slots.value || [])[0];
+  const totalAt = (slots.total || [])[0];
+  const labelAt = (slots.label || [])[0];
 
-    case "task_counts": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noTasks"));
+  const rows = data.rows || [];
+  if (!rows.length) return empty(say("noRows"));
+  if (valueAt === undefined) return empty(say("noNumeric"));
 
-      let total = 0;
-      for (const row of rows) total += row.count;
+  const number = (row, index) => (typeof row[index] === "number" ? row[index] : 0);
+  const name = (row, fallback) =>
+    labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : fallback;
 
-      if (each) {
-        return column(
-          rows.map((row) =>
-            meter(
-              row.bucket,
-              row.count,
-              0,
-              total,
-              row.count + " " + say("of") + " " + total,
-              "accent"
-            )
-          )
-        );
-      }
+  // With a total column each row is a part of its own whole; without one the
+  // rows are parts of each other, which is what a set of counts is.
+  const wholeOf = (row) => {
+    if (totalAt !== undefined) return number(row, totalAt) || 1;
+    let sum = 0;
+    for (const other of rows) sum += number(other, valueAt);
+    return sum || 1;
+  };
 
-      // The whole binding as one bar: how much of it is finished.
-      let done = 0;
-      for (const row of rows) {
-        if (row.bucket === "done" || row.bucket === "Done") done += row.count;
-      }
-      return {
-        v: 1,
-        scene: meter(
-          say("done"),
-          done,
+  if (each) {
+    return column(
+      rows.map((row, index) => {
+        const value = number(row, valueAt);
+        const whole = wholeOf(row);
+        return meter(
+          name(row, say("row") + " " + (index + 1)),
+          value,
           0,
-          total,
-          done + " " + say("of") + " " + total,
-          shareTone(done, total, false)
-        ),
-      };
-    }
-
-    case "projects": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noProjects"));
-
-      if (each) {
-        return column(
-          rows.map((project) => {
-            const late =
-              project.endDate !== null &&
-              project.endDate < today &&
-              project.doneCount < project.taskCount;
-            return meter(
-              project.name,
-              project.doneCount,
-              0,
-              project.taskCount || 1,
-              project.doneCount + " " + say("of") + " " + project.taskCount,
-              shareTone(project.doneCount, project.taskCount, late)
-            );
-          })
+          whole,
+          value + " " + say("of") + " " + whole,
+          shareTone(value, whole, false)
         );
-      }
-
-      let tasks = 0;
-      let done = 0;
-      let late = false;
-      for (const project of rows) {
-        tasks += project.taskCount;
-        done += project.doneCount;
-        if (
-          project.endDate !== null &&
-          project.endDate < today &&
-          project.doneCount < project.taskCount
-        ) {
-          late = true;
-        }
-      }
-      return {
-        v: 1,
-        scene: meter(
-          rows.length + " " + say("projects"),
-          done,
-          0,
-          tasks || 1,
-          done + " " + say("of") + " " + tasks,
-          shareTone(done, tasks, late)
-        ),
-      };
-    }
-
-    default:
-      return empty(say("cannotDraw") + data.source);
+      })
+    );
   }
+
+  // One bar for everything: the parts summed against the whole they are of.
+  let value = 0;
+  let whole = 0;
+  for (const row of rows) {
+    value += number(row, valueAt);
+    whole += totalAt !== undefined ? number(row, totalAt) : 0;
+  }
+  if (totalAt === undefined) whole = value;
+  return {
+    v: 1,
+    scene: meter(
+      rows.length === 1 ? name(rows[0], say("total")) : say("total"),
+      value,
+      0,
+      whole || 1,
+      value + " " + say("of") + " " + (whole || 1),
+      shareTone(value, whole || 1, false)
+    ),
+  };
 }

@@ -10,7 +10,6 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.role_context import set_guild_shows_member_names
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
@@ -1031,7 +1030,15 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     Uses a bulk DELETE (not ``session.delete``) so the row goes via the DB-level
     ON DELETE CASCADE FKs — ``session.delete`` would walk ORM relationships and
     attempt sync loads in the async context (MissingGreenlet).
+
+    Everyone in the guild is poked first, because the cascade that clears the
+    roster runs in the database: by the time this returns there is no membership
+    row left for anything in Python to read, and every one of those people has
+    an account that now says something different. Signalled here rather than at
+    the three call sites, so deleting a guild announces itself however it is
+    reached.
     """
+    await _signal_members_present(session, guild_id=guild.id, action="membership")
     await session.exec(delete(Guild).where(Guild.id == guild.id))
 
 
@@ -1091,8 +1098,10 @@ async def redeem_invite_for_user(
     return guild
 
 
-async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> None:
-    """Poke this guild's members: listing it changes what their account says.
+async def _signal_members_present(
+    session: AsyncSession, *, guild_id: int, action: str = "community"
+) -> None:
+    """Poke this guild's members: what their account says about it has changed.
 
     Addressed to the whole membership rather than to the sockets this process
     holds. A frame is published on the cross-worker bus, so narrowing to the
@@ -1108,7 +1117,7 @@ async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> No
     rows = await session.exec(
         select(GuildMembership.user_id).where(GuildMembership.guild_id == guild_id)
     )
-    account_stream.queue_for_members(session, rows.all(), "community")
+    account_stream.queue_for_members(session, rows.all(), action)
 
 
 async def assert_community_directory_enabled(session: AsyncSession) -> None:
@@ -1503,16 +1512,17 @@ async def remove_user_from_guild(
         contact_grants_service.queue_stale_grant_sweep(session, user_id)
 
 
-async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:
-    """Render this request the way ``guild_id`` renders its members.
+async def guild_renders_member_names(session: AsyncSession, *, guild_id: int) -> bool:
+    """Whether ``guild_id`` renders its members’ real names.
 
-    The guild path sets this with the rest of the guild context. The two
+    The guild path reads this with the rest of the guild context. The two
     endpoints that route into a guild by hand — the platform and self-service
-    initiative-member pickers — have no guild context to carry it, so they take
-    the setting here instead. Reading a guild's roster and showing names it
-    does not show, or hiding names it does, would both be wrong.
+    initiative-member pickers — have no guild context to carry it, so they ask
+    here and hand the answer to ``set_rls_context``, which is what puts it both
+    on the session and on the request. Ask before routing: this reads a
+    ``public`` table, and the answer is what the routing needs.
     """
     shows = (
         await session.exec(select(Guild.show_member_names).where(Guild.id == guild_id))
     ).one_or_none()
-    set_guild_shows_member_names(bool(shows))
+    return bool(shows)

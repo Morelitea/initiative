@@ -38,6 +38,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete as sa_delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -115,32 +116,55 @@ async def annotate_poll_state(
         object.__setattr__(poll, "_has_votes", bool(voters))
 
 
-async def lock_poll(session: AsyncSession, poll: PostPoll) -> None:
-    """Take this poll's row for the rest of the transaction.
+async def _turnstile(session: AsyncSession, poll: PostPoll, guild_id: int) -> None:
+    """Take this poll's turnstile for the rest of the transaction.
 
-    Held by every path that reads what has been answered and then acts on it,
-    so the reading and the acting are one indivisible step. One row, always the
-    same one, so there is no order for two of these to deadlock over.
+    An advisory lock rather than the poll's row: answering a question is not
+    editing it, so a voter must not have to hold a lock that asks for write
+    access on the notice. Editing and answering take the SAME turnstile, or
+    they would not exclude each other at all.
+
+    Keyed by guild as well as poll, because poll ids repeat across guild
+    schemas. One key, always the same one, so there is no order for two of
+    these to deadlock over.
     """
     await session.exec(
-        select(PostPoll.id).where(PostPoll.id == poll.id).with_for_update()
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"post_poll:{guild_id}:{poll.id}", 0)
+            )
+        )
     )
 
 
-async def lock_open_poll(session: AsyncSession, poll: PostPoll) -> bool:
-    """Take the row, and answer whether the poll still takes votes.
+async def lock_poll(session: AsyncSession, poll: PostPoll, *, guild_id: int) -> None:
+    """Hold this poll for the rest of the transaction.
 
-    One statement, so the close time is read as the row is taken — against the
-    wall clock at that moment (see :func:`poll_is_open`), not the instant this
-    request's transaction began, which is before it loaded the post and before
-    it waited its turn for the row. The ballot is then written inside the
-    transaction still holding it.
+    Held by every path that reads what has been answered and then acts on it,
+    so the reading and the acting are one indivisible step.
     """
+    await _turnstile(session, poll, guild_id)
+
+
+async def lock_open_poll(
+    session: AsyncSession, poll: PostPoll, *, guild_id: int
+) -> bool:
+    """Take the poll's turnstile, and answer whether it still takes votes.
+
+    The close time is read once the lock is held — against the wall clock at
+    that moment (see :func:`poll_is_open`), not the instant this request's
+    transaction began, which is before it loaded the post and before it waited
+    its turn. The ballot is then written inside the transaction still holding
+    the lock, so one voter's ballots are written one after another and each is
+    measured by the deadline in force as it lands.
+
+    The turnstile is shared with the edit path, so a ballot and a rewrite of
+    the deadline cannot both be in flight (see :func:`_turnstile`).
+    """
+    await _turnstile(session, poll, guild_id)
     row = (
         await session.exec(
-            select(PostPoll.id)
-            .where(PostPoll.id == poll.id, poll_is_open())
-            .with_for_update()
+            select(PostPoll.id).where(PostPoll.id == poll.id, poll_is_open())
         )
     ).first()
     return row is not None

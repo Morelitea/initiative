@@ -16,6 +16,7 @@ import { Galaxy } from "@/components/icons/Galaxy";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
+import { OfflineBanner } from "@/components/offline/OfflineBanner";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -279,6 +280,7 @@ function AppLayout() {
                     </div>
                   </div>
                 )}
+                <OfflineBanner />
                 <GuildAccessBanner />
               </div>
               <div className="flex min-h-0 flex-1 justify-between">

@@ -29,7 +29,7 @@
  * shown and can still be removed.
  */
 
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -50,7 +50,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
-import { Input } from "@/components/ui/input";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
 import { renderableBanner } from "@/lib/banner";
@@ -153,19 +153,13 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
     }
   };
 
-  const pickIcon = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  const pickIcon = (file: File) => {
     void run("icon", async () =>
       setGuildIconApiV1GuildsGuildIdIconPut(guild.id, { icon: await renderGuildIcon(file) })
     );
   };
 
-  const pickBanner = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  const pickBanner = (file: File) => {
     void run("banner", async () =>
       setGuildBannerApiV1GuildsGuildIdBannerPut(guild.id, await renderGuildBanner(file))
     );
@@ -207,12 +201,11 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               </Button>
             ) : null}
           </div>
-          <Input
+          <ImagePicker
             id="guild-icon"
-            type="file"
             accept="image/*"
             disabled={busy !== null}
-            onChange={pickIcon}
+            onSelect={pickIcon}
           />
           <p className="text-muted-foreground text-sm">{t("guilds:settings.artwork.iconHint")}</p>
         </div>
@@ -257,12 +250,11 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
           </div>
           {mayUploadBanner ? (
             <>
-              <Input
+              <ImagePicker
                 id="guild-banner"
-                type="file"
                 accept="image/*"
                 disabled={busy !== null}
-                onChange={pickBanner}
+                onSelect={pickBanner}
               />
               <p className="text-muted-foreground text-sm">
                 {t("guilds:settings.artwork.bannerHint")}

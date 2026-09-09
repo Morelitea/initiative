@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { deleteUserApiV1GGuildIdUsersUserIdDelete } from "@/api/generated/users/users";
-import { invalidateGuildMembers } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +52,7 @@ export const RemoveGuildMemberDialog = ({
     setRemoving(true);
     try {
       await deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId);
-      void invalidateGuildMembers();
+      void invalidate(q.guildMembers());
       // The guild entry carries member_count, which the invite surfaces read
       // to tell a full guild from one with a seat free. It is provider state,
       // not a query, so it refreshes rather than invalidates.

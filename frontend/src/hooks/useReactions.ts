@@ -12,7 +12,7 @@ import {
   suggestedReactionsApiV1GGuildIdReactionsSuggestedGet,
   toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut,
 } from "@/api/generated/reactions/reactions";
-import { invalidateAllComments, invalidateAllPosts } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -20,10 +20,10 @@ import type { QueryOpts } from "@/types/query";
 
 /** What each reaction target invalidates once its reactions move. */
 const INVALIDATE_BY_TARGET: Record<ReactionTarget, () => void> = {
-  comment: () => void invalidateAllComments(),
+  comment: () => void invalidate(q.allComments()),
   // A post's chips ride along with the post, so the board and the post's own
   // page both have to hear it — which is what invalidating the whole list does.
-  post: () => void invalidateAllPosts(),
+  post: () => void invalidate(q.allPosts()),
 };
 
 /**

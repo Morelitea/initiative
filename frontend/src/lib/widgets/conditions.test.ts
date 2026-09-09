@@ -6,7 +6,7 @@ import {
   fieldSpec,
   isGroup,
   readConditions,
-  TASK_FILTER_FIELDS,
+  toFilterFieldSpec,
 } from "@/lib/widgets/conditions";
 
 const DAY = 86_400_000;
@@ -130,20 +130,49 @@ describe("expandConditions", () => {
   });
 });
 
-describe("the field catalog", () => {
-  it("does not offer the initiative as a filter", () => {
-    // A dashboard reads its own initiative; a binding cannot say otherwise.
-    expect(TASK_FILTER_FIELDS.some((field) => field.field === "initiative_ids")).toBe(false);
+describe("reading the server's field declarations", () => {
+  // The list itself is the server's now; what is tested here is the mapping
+  // onto the shape the controls read, and the lookup over it.
+  const described = [
+    {
+      name: "assignee_ids",
+      type: "reference",
+      kind: "member",
+      ops: ["in_", "is_null"],
+      multiple: true,
+      sortable: false,
+    },
+    {
+      name: "due_date",
+      type: "date",
+      kind: "date",
+      ops: ["lt", "gte"],
+      multiple: false,
+      sortable: true,
+    },
+  ];
+
+  it("maps a description onto the shape a control reads", () => {
+    const spec = toFilterFieldSpec(described[0]);
+    expect(spec).toEqual({
+      field: "assignee_ids",
+      kind: "member",
+      ops: ["in_", "is_null"],
+      multiple: true,
+    });
   });
 
-  it("gives every field at least one operator", () => {
-    for (const field of TASK_FILTER_FIELDS) {
-      expect(field.ops.length).toBeGreaterThan(0);
-    }
+  it("passes the operators through untouched", () => {
+    // Kinds and operators are the server's own enums, reaching this build
+    // through the generated client — so there is nothing to translate and no
+    // value that could be one this client does not know.
+    const spec = toFilterFieldSpec(described[1]);
+    expect(spec.ops).toBe(described[1].ops);
   });
 
   it("resolves a known field and returns nothing for an unknown one", () => {
-    expect(fieldSpec("assignee_ids")?.kind).toBe("member");
-    expect(fieldSpec("not_a_field")).toBeUndefined();
+    const fields = described.map(toFilterFieldSpec);
+    expect(fieldSpec(fields, "assignee_ids")?.kind).toBe("member");
+    expect(fieldSpec(fields, "not_a_field")).toBeUndefined();
   });
 });

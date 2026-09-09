@@ -15,7 +15,7 @@ import type {
   RecentActivityEntry,
   RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllComments } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -80,7 +80,7 @@ export const useCreateComment = (
   useGuildMutation<CommentRead, Parameters<typeof createCommentApiV1GGuildIdCommentsPost>[1]>(
     {
       mutationFn: (guildId, data) => createCommentApiV1GGuildIdCommentsPost(guildId, data),
-      invalidate: () => invalidateAllComments(),
+      invalidate: () => invalidate(q.allComments()),
       errorKey: "common:error",
     },
     options
@@ -105,7 +105,7 @@ export const useUpdateComment = (
     {
       mutationFn: (guildId, { commentId, data }) =>
         updateCommentApiV1GGuildIdCommentsCommentIdPatch(guildId, commentId, data),
-      invalidate: () => invalidateAllComments(),
+      invalidate: () => invalidate(q.allComments()),
       errorKey: "common:error",
     },
     options
@@ -116,7 +116,7 @@ export const useDeleteComment = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, commentId) =>
         deleteCommentApiV1GGuildIdCommentsCommentIdDelete(guildId, commentId),
-      invalidate: () => invalidateAllComments(),
+      invalidate: () => invalidate(q.allComments()),
       errorKey: "common:error",
     },
     options

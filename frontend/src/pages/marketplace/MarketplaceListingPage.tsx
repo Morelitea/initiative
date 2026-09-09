@@ -18,7 +18,7 @@ import { Download, SearchX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ListingKind } from "@/api/generated/initiativeAPI.schemas";
+import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { InstallAppDialog } from "@/components/marketplace/InstallAppDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
@@ -40,6 +40,7 @@ import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useGuildPath } from "@/lib/guildUrl";
+import { parseCommunityShelf } from "@/lib/marketplace";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
@@ -55,12 +56,13 @@ export function MarketplaceListingPage() {
   const { activeGuild } = useGuilds();
 
   const listing = listingQuery.data;
-  const isApp = listing?.kind === "app";
+  const isApp = listing?.kind === ListingKind.app;
   // Back to the shelf this listing was found on, falling back to the listing's
   // own kind when someone arrived by direct link. Both can be unknown when the
-  // listing failed to load — there is nothing to infer a shelf from then, and
-  // the browse route normalizes an absent kind to dashboards.
-  const backToShelf = { kind: shelf ?? listing?.kind };
+  // listing failed to load, and neither is guaranteed to be a shelf this
+  // marketplace has — so the link is built the same way the browse route reads
+  // it, and lands on the default shelf rather than on nothing.
+  const backToShelf = { kind: parseCommunityShelf(shelf ?? listing?.kind) };
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
   const isGuildAdmin = activeGuild?.role === "admin";

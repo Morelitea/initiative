@@ -7,11 +7,9 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
 from app.models.tenant.project import Project
 from app.models.tenant.task import TaskStatus, TaskStatusCategory
 from app.schemas.tenant.task_status import InitiativeTaskStatusRead
-from app.services import permissions as permissions_service
 
 CATEGORY_DEFAULTS: dict[TaskStatusCategory, tuple[str, str]] = {
     TaskStatusCategory.backlog: ("#94A3B8", "circle-dashed"),
@@ -172,13 +170,6 @@ async def list_initiative_statuses(
         Project.initiative_id == initiative_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
-        permissions_service.dac_scope_clause(
-            Tool.project,
-            Project.id,
-            user_id,
-            guild_id=guild_id,
-            initiative_id=initiative_id,
-        ),
     ]
 
     total_stmt = select(func.count()).select_from(Project).where(*project_conditions)

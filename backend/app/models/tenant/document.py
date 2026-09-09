@@ -45,6 +45,10 @@ class DocumentType(str, Enum):
 
 class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "documents"
+    # A tool row is written before anything has been shared, so it is read
+    # back by no RETURNING clause: the id comes from the sequence first and
+    # the INSERT stands alone. See app/db/initiative_rls.py.
+    __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
@@ -219,12 +223,6 @@ class ProjectDocument(SQLModel, table=True):
 
     project: Optional["Project"] = Relationship(back_populates="document_links")
     document: Optional[Document] = Relationship(back_populates="project_links")
-
-
-class DocumentPermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"
 
 
 class DocumentLink(CreatedByMixin, table=True):

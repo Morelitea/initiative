@@ -98,6 +98,19 @@ The native (Capacitor) app receives web-bundle updates over the air: each Docker
 - The app refuses a bundle whose `minNativeVersion` exceeds the installed native app version and prompts the user to update from the store/APK instead.
 - Edge case the detector can't see: a native-affecting change that lands **only** via `pnpm-lock.yaml` (no `package.json` range change). Force a rebuild by editing `MIN_NATIVE_VERSION` manually that release.
 
+#### `RELEASED_MIGRATION` (the migration freeze line)
+
+The `RELEASED_MIGRATION` file at the project root holds the **Alembic head as of
+the last release** — the newest revision that has run on somebody's database.
+
+- `scripts/promote.sh` stamps it on every release, reading the head from the
+  revision files alone (no database, no running server).
+- Every revision **at or before** it is frozen: editing one in place changes
+  only what a fresh install gets, and no upgrade repairs the deployments that
+  already ran it. Anything after it is unreleased and free to edit.
+- See **Never edit a migration that has shipped** for the check and the
+  fix-forward pattern.
+
 ### Releasing a Version
 
 Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script.
@@ -586,6 +599,40 @@ The path depends on **where the table lives**:
    > **`public` holds no guild content, on any install.** The pre-schema-per-guild copies that legacy deployments carried as a backstop were dropped in `20260811_0163`; guild content exists only in `guild_<id>` schemas, so an unrouted query for it finds no table rather than the wrong rows.
 
 7. **Verify after migration** as `app_user` (not the superuser): for a shared/platform table, confirm each tier hits its ceiling (a missing policy silently returns zero rows; a wrong one leaks). For guild content, `SET ROLE guild_<id>` and confirm only that guild's schema is reachable.
+
+### Never edit a migration that has shipped
+
+A revision runs **once** per database and is then stamped. Editing it in place
+changes what a *fresh* install gets and **nothing else**: every deployment that
+already ran it keeps the old shape forever, and no upgrade will ever repair it.
+CI cannot catch this, because CI always builds from empty — it is green on
+exactly the change that breaks every existing install.
+
+`RELEASED_MIGRATION` at the project root records the Alembic head as of the last
+release, stamped by `scripts/promote.sh`. **Every revision at or before it has
+shipped and is frozen.** Anything after it is unreleased and still yours to edit
+in place — that is the normal way to iterate on a migration you have not released.
+
+```bash
+cat RELEASED_MIGRATION        # the freeze line
+
+# Any revision your branch edits that is at or before it — fix these forward instead.
+git diff --name-only main...HEAD -- backend/alembic/versions \
+  | grep -oE '[0-9]{8}_[0-9]{4}' \
+  | awk -v frozen="$(cat RELEASED_MIGRATION)" '$0 <= frozen'
+```
+
+To change a frozen revision, add a new one that converges **both** histories —
+the deployments that ran the old shape and the fresh installs that got the new
+one. That means the DDL has to be conditional (`ADD COLUMN IF NOT EXISTS`,
+`DROP CONSTRAINT IF EXISTS`), not a bare `ADD COLUMN`.
+[`20260907_0234`](backend/alembic/versions/20260907_0234_restore_dm_send_receipts.py)
+is the reference: `user_dm_settings.send_receipts` was added to an
+already-released revision, so every 0.65 install had the table without the
+column and no upgrade path to it (issue #1420).
+
+Editing a released migration's **docstring or comments** is fine — nothing runs
+from those.
 
 ### Rules for writing frontend code
 

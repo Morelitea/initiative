@@ -61,6 +61,7 @@ from app.schemas.tenant.post import (
     PostListResponse,
     PostPinUpdate,
     PostRead,
+    PostReactionSettings,
     PostUpdate,
     post_body_too_long,
     post_reader,
@@ -779,6 +780,7 @@ async def set_post_pin(
     post.updated_at = now
     session.add(post)
     await session.commit()
+    # Pinning reorders the whole board, not just this row.
 
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -820,6 +822,37 @@ async def delete_post(
 # ---------------------------------------------------------------------------
 
 
+@router.put("/{post_id}/reactions", response_model=PostReactionSettings)
+async def set_post_reaction_settings(
+    post_id: int,
+    settings_in: PostReactionSettings,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostReactionSettings:
+    """Turn reactions on a notice on or off.
+
+    The counterpart to the generic comment switch, and it asks the same level:
+    write access on the post, which is what putting the notice up took. There
+    is no generic route for it because a post is the only thing that takes
+    reactions of its own — everywhere else they hang off a comment, and that
+    thread's own switch already answers.
+
+    Turning it off keeps the reactions already there, the same way turning a
+    thread off keeps its comments: the board stops showing the bar and the API
+    stops serving or adding to it until the switch goes back on.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context, access="write"
+    )
+    post.reactions_enabled = settings_in.reactions_enabled
+    post.updated_at = datetime.now(timezone.utc)
+    session.add(post)
+    await session.commit()
+    # The bar appears or goes on every board showing this notice.
+    return PostReactionSettings(reactions_enabled=post.reactions_enabled)
+
+
 @router.put("/{post_id}/grants", response_model=PostRead)
 async def set_post_grants(
     post_id: int,
@@ -835,6 +868,8 @@ async def set_post_grants(
         session, Tool.post, post_id, current_user, guild_context, grants
     )
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
+    # Sharing decides who has a notice at all, so the room is told and each
+    # window's own refetch settles what it may now see.
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -1014,7 +1049,9 @@ async def set_post_poll(
     data = _validated_poll(poll_in)
     existing = post.poll
     if existing is not None:
-        await post_polls_service.lock_poll(session, existing)
+        await post_polls_service.lock_poll(
+            session, existing, guild_id=guild_context.guild_id
+        )
         if await post_polls_service.has_votes(session, existing):
             if not post_polls_service.options_match(existing, data):
                 raise HTTPException(
@@ -1100,7 +1137,9 @@ async def vote_on_post_poll(
     # statement, against the wall clock at that moment. The row is held until
     # this ballot commits, so one voter's ballots are written one after another
     # and each is measured by the deadline in force as it lands.
-    if not await post_polls_service.lock_open_poll(session, poll):
+    if not await post_polls_service.lock_open_poll(
+        session, poll, guild_id=guild_context.guild_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,
@@ -1120,6 +1159,7 @@ async def vote_on_post_poll(
         session, poll, user_id=current_user.id, option_ids=vote_in.option_ids
     )
     await session.commit()
+    # Everybody watching the poll is watching the tallies.
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -1142,7 +1182,9 @@ async def retract_post_poll_vote(
         session, Tool.post, post_id, current_user, guild_context
     )
     poll = _poll_of(post)
-    if not await post_polls_service.lock_open_poll(session, poll):
+    if not await post_polls_service.lock_open_poll(
+        session, poll, guild_id=guild_context.guild_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,

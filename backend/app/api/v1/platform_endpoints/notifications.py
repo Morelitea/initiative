@@ -22,7 +22,9 @@ from app.models.platform.user import User
 from app.schemas.platform.notification import (
     NotificationCountResponse,
     NotificationListResponse,
+    NotificationPlace,
     NotificationRead,
+    UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
 from app.services.platform import presence, user_stream
@@ -45,30 +47,66 @@ MSG_ACTIVE = 6
 # against a slow network, short against a socket that will never send one.
 AUTH_TIMEOUT_SECONDS = 10.0
 
+#: How long the socket may say nothing before it says so. Silence is otherwise
+#: indistinguishable from a channel that has stopped carrying, and the client
+#: has nothing else to go on: it only speaks when its person does.
+HEARTBEAT_SECONDS = 30.0
+
 
 @router.get("/", response_model=NotificationListResponse)
 async def list_notifications(
     session: UserSessionDep,
     current_user: User = Depends(get_current_active_user),
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+    unread_only: bool = Query(default=False),
+    guild_id: int | None = Query(default=None),
+    personal_only: bool = Query(default=False),
 ) -> NotificationListResponse:
-    notifications, unread_count = await notifications_service.list_notifications(
+    """One page of the inbox, newest first.
+
+    The popover asks with ``unread_only`` and follows the cursor to the end:
+    it shows everything still unread, which is what makes a number on the bell
+    unnecessary. The page takes the same list without the filter, as the
+    record.
+    """
+    (
+        notifications,
+        unread_count,
+        next_cursor,
+    ) = await notifications_service.list_notifications(
         session,
         user_id=current_user.id,
         limit=limit,
+        cursor=cursor,
+        unread_only=unread_only,
+        guild_id=guild_id,
+        personal_only=personal_only,
     )
     return NotificationListResponse(
-        notifications=notifications, unread_count=unread_count
+        notifications=notifications,
+        unread_count=unread_count,
+        next_cursor=next_cursor,
     )
 
 
-@router.get("/unread-count", response_model=NotificationCountResponse)
-async def unread_notifications_count(
+@router.get("/unread", response_model=UnreadPlacesResponse)
+async def unread_notification_places(
     session: UserSessionDep,
     current_user: User = Depends(get_current_active_user),
-) -> NotificationCountResponse:
-    count = await notifications_service.unread_count(session, user_id=current_user.id)
-    return NotificationCountResponse(unread_count=count)
+) -> UnreadPlacesResponse:
+    """Where this account has unread activity, for the dots.
+
+    One distinct scan over the unread index. Nothing is counted: a dot says
+    "look here" and the popover says what.
+    """
+    places = await notifications_service.unread_places(session, user_id=current_user.id)
+    return UnreadPlacesResponse(
+        places=[
+            NotificationPlace(guild_id=guild_id, initiative_id=initiative_id, tool=tool)
+            for guild_id, initiative_id, tool in places
+        ]
+    )
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)
@@ -87,13 +125,46 @@ async def mark_notification_read(
     return NotificationRead.model_validate(notification)
 
 
+@router.post("/{notification_id}/unread", response_model=NotificationRead)
+async def mark_notification_unread(
+    notification_id: int,
+    session: UserSessionDep,
+    current_user: User = Depends(get_current_active_user),
+) -> NotificationRead:
+    notification = await notifications_service.mark_notification_unread(
+        session,
+        user_id=current_user.id,
+        notification_id=notification_id,
+    )
+    if not notification:
+        raise HTTPException(status_code=404, detail=NotificationMessages.NOT_FOUND)
+    return NotificationRead.model_validate(notification)
+
+
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_notification(
+    notification_id: int,
+    session: UserSessionDep,
+    current_user: User = Depends(get_current_active_user),
+) -> None:
+    dismissed = await notifications_service.dismiss_notification(
+        session,
+        user_id=current_user.id,
+        notification_id=notification_id,
+    )
+    if not dismissed:
+        raise HTTPException(status_code=404, detail=NotificationMessages.NOT_FOUND)
+
+
 @router.post("/read-all", response_model=NotificationCountResponse)
 async def mark_all_notifications_read(
     session: UserSessionDep,
     current_user: User = Depends(get_current_active_user),
+    guild_id: int | None = Query(default=None),
 ) -> NotificationCountResponse:
+    """Clear the unread set, or just one community's part of it."""
     await notifications_service.mark_all_notifications_read(
-        session, user_id=current_user.id
+        session, user_id=current_user.id, guild_id=guild_id
     )
     count = await notifications_service.unread_count(session, user_id=current_user.id)
     return NotificationCountResponse(unread_count=count)
@@ -182,11 +253,22 @@ async def websocket_notifications(websocket: WebSocket):
         chosen_presence=chosen_presence,
         presence_known_at=presence_known_at,
     )
+    heartbeat = user_stream.build_frame(user_stream.RESOURCE_HEARTBEAT, "alive")
     try:
         while True:
             # Awaiting keeps the socket open and surfaces the disconnect; the
             # one frame the client does send is its person's activity.
-            frame = await websocket.receive()
+            #
+            # The wait is bounded so the quiet case says something. A client
+            # cannot tell a channel with no news from one that has stopped
+            # carrying — a half-open connection reports itself open and
+            # delivers nothing — so a beat goes out whenever nothing else has,
+            # and the client reads silence past it as the socket being gone.
+            try:
+                frame = await asyncio.wait_for(websocket.receive(), HEARTBEAT_SECONDS)
+            except asyncio.TimeoutError:
+                await websocket.send_json(heartbeat)
+                continue
             if frame.get("type") == "websocket.disconnect":
                 break
             data = frame.get("bytes")

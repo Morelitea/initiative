@@ -47,17 +47,11 @@ const strings = {
     es: "Aún no hay registros",
     fr: "Rien d'enregistré pour l'instant",
   },
-  needDayBucket: {
-    en: "Group this binding by day to plot it on a calendar",
-    de: "Gruppiere diese Datenquelle nach Tag, um sie im Kalender zu zeigen",
-    es: "Agrupa esta fuente por día para verla en un calendario",
-    fr: "Groupez cette source par jour pour l'afficher sur un calendrier",
-  },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
+  needDayColumn: {
+    en: "No date column to place values on",
+    de: "Keine Datumsspalte für die Werte",
+    es: "Ninguna columna de fecha donde situar los valores",
+    fr: "Aucune colonne de date où placer les valeurs",
   },
   months: {
     Jan: { en: "Jan", de: "Jan", es: "Ene", fr: "Janv" },
@@ -204,19 +198,26 @@ function render(data, config, context) {
     };
   };
 
-  switch (data.source) {
-    case "task_counts": {
-      const rows = data.rows || [];
-      // Only a date-bucketed count has a calendar shape; anything else has no
-      // day to place, and a made-up placement would be a lie.
-      const dated = rows.filter((row) => typeof row.date === "number");
-      if (!dated.length) {
-        return empty(say("needDayBucket"));
-      }
-      return grid(dated.map((row) => ({ date: row.date, count: row.count })));
-    }
+  // Which columns fill this widget's slots, resolved by the host.
+  const slots = context?.slots || {};
+  const atColumn = (slots.at || [])[0];
+  const valueAt = (slots.value || [])[0];
 
-    default:
-      return empty(say("cannotDraw") + data.source);
-  }
+  const rows = data.rows || [];
+  // Only a real date has a calendar shape; anything else has no day to place,
+  // and a made-up placement would be a lie.
+  if (atColumn === undefined || valueAt === undefined) return empty(say("needDayColumn"));
+  // Nothing to draw and nothing wrong: a statement that answered with no rows
+  // is a question nobody has done anything about yet, which is a different
+  // thing from one this widget cannot read.
+  if (!rows.length) return empty(say("nothingRecorded"));
+  const dated = rows.filter((row) => typeof row[atColumn] === "number");
+  if (!dated.length) return empty(say("needDayColumn"));
+
+  return grid(
+    dated.map((row) => ({
+      date: row[atColumn],
+      count: typeof row[valueAt] === "number" ? row[valueAt] : 0,
+    }))
+  );
 }

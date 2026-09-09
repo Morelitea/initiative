@@ -44,6 +44,8 @@ The outermost box: one separate space for one group of people. Your business, yo
 
 Communities don't mix. Nothing in one is visible from another — not to other people, and not to you either. You can belong to several and hop between them from the rail down the left, but each one is a sealed world that knows nothing of the others.
 
+The one thing that spans them is **you**. The Initiative logo above the rail opens [your space](../guides/your-space.md), which gathers your own tasks, events and messages out of every community at once — because you belong to all of them. It shows you nothing you couldn't already reach. It just saves you opening four communities to find out what you agreed to.
+
 Inside a community there are exactly two levels of person: **admin** (runs the place) and **member** (is in the place). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
 
 !!! example "A running example"

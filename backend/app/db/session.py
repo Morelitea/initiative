@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.role_context import set_guild_shows_member_names
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
@@ -28,6 +29,18 @@ admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
 provisioning_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+
+#: A pool of its own for reader-written SQL, so what those statements wait for
+#: is each other rather than the requests serving every other page. Same login
+#: as the request path — the difference is the role each statement assumes and
+#: the transaction it runs in, not who connects.
+query_engine = create_async_engine(
+    settings.DATABASE_URL_APP,
+    echo=False,
+    pool_size=settings.QUERY_POOL_SIZE,
+    max_overflow=0,
+    pool_timeout=settings.QUERY_POOL_TIMEOUT_SECONDS,
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -160,6 +173,9 @@ _CONTEXT_SQL = (
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('app.override_initiatives', :ovr, true), "
+    "set_config('app.scope_initiative_id', :sinit, true), "
+    "set_config('app.via_dashboard_id', :vdash, true), "
+    "set_config('app.guild_shows_member_names', :names, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -179,10 +195,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_write = bool(params.get("pam_write"))
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
+    query = bool(params.get("query"))
     billing_guild_id = params.get("billing_guild_id")
     # Initiatives where the request holds "Full access". Rendered as a comma
     # list so the policy reads it with one string_to_array; empty when none.
     override = params.get("override_initiatives") or ()
+    scope_initiative_id = params.get("scope_initiative_id")
+    via_dashboard_id = params.get("via_dashboard_id")
     override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
 
     # Billing-service path (set_billing_context): assumes the
@@ -201,6 +220,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "satp": "",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
+            "sinit": "",
+            "vdash": "",
+            "names": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),
         }
@@ -213,6 +235,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # routes nowhere, so the grantee sees nothing. Lazy import avoids a
     # circular import — schema_provisioning imports this module.
     from app.db.schema_provisioning import (
+        guild_query_role_name,
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
@@ -243,7 +266,11 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - otherwise (real membership, break-glass): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
-        if read_only_grant or read_only:
+        if query:
+            # A query runs as the query role whatever else the request is:
+            # a member's, a read-only member's, or a grantee's.
+            name_fn = guild_query_role_name
+        elif read_only_grant or read_only:
             name_fn = guild_readonly_role_name
         elif support_grant:
             name_fn = guild_support_role_name
@@ -269,6 +296,11 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "bgid": "",
         "ovr": override_csv,
+        "names": "true" if params.get("shows_member_names") else "false",
+        "sinit": str(int(scope_initiative_id))
+        if scope_initiative_id is not None
+        else "",
+        "vdash": str(int(via_dashboard_id)) if via_dashboard_id is not None else "",
         "sp": sp,
         "role": role_target,
     }
@@ -316,8 +348,12 @@ async def set_rls_context(
     pam_write: bool = False,
     platform_role: Optional[str] = None,
     read_only: bool = False,
+    query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     override_initiatives: Optional[Sequence[int]] = None,
+    scope_initiative_id: Optional[int] = None,
+    via_dashboard_id: Optional[int] = None,
+    shows_member_names: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -347,6 +383,20 @@ async def set_rls_context(
     independent of the PAM read-grant routing, which derives the same role
     from ``pam_read``/``pam_write``.
 
+    ``via_dashboard_id`` names the dashboard this request is drawing. A grant
+    whose grantee is that dashboard answers while it is set and at no other
+    time, which is what makes a published view a property of the fetch rather
+    than of the reader. It is written by the one path that runs a placed
+    widget's stored statement, after that dashboard's own gates have admitted
+    the reader — never from anything a request supplies.
+
+    ``scope_initiative_id`` narrows the read to one initiative: rows belonging
+    to another are not part of the answer, whatever else the context allows.
+    It only ever removes rows — an initiative the caller could not reach
+    anyway yields nothing — and it is what lets an initiative-scoped surface
+    ask a guild-scoped question and get its own initiative's answer. Unset
+    means no narrowing, which is every ordinary request.
+
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
     path assumes ``platform_<tier>`` instead of the bare login role, so the request
@@ -354,6 +404,13 @@ async def set_rls_context(
     role's broad standing grants. It is ignored when the request routes into a guild
     schema (the guild role governs there) — pass it anyway, so the tier is on the
     session for the trip back out.
+
+    ``shows_member_names`` says whether the guild being routed into renders its
+    members' real names. It reaches Postgres as ``app.guild_shows_member_names``,
+    which is what ``public.guild_member_profiles`` — the only projection of an
+    account a guild-routed session can read — consults for whether to hand back
+    a ``full_name`` at all. The same argument sets the request-scoped flag the
+    user schemas read, so both describe the same guild.
 
     The tier is remembered **for the request** — in the SQLAlchemy session's
     Python state, not on the connection — and reapplied to any later call that
@@ -397,6 +454,11 @@ async def set_rls_context(
     else:
         platform_role = session.info.get(_RLS_TIER_INFO_KEY)
 
+    # One argument settles both halves of the name rule: the GUC the guild
+    # projection reads, and the request-scoped flag the schemas read. Set from
+    # the same value here rather than by two callers who could disagree.
+    set_guild_shows_member_names(shows_member_names)
+
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the
     # new params. The stamp only refreshes here — i.e. on a call that
@@ -410,8 +472,12 @@ async def set_rls_context(
         "pam_write": pam_write,
         "platform_role": platform_role,
         "read_only": read_only,
+        "query": query,
         "satisfied_providers": satisfied_providers,
         "override_initiatives": tuple(override_initiatives or ()),
+        "scope_initiative_id": scope_initiative_id,
+        "via_dashboard_id": via_dashboard_id,
+        "shows_member_names": bool(shows_member_names),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
@@ -422,6 +488,20 @@ async def set_rls_context(
     # the stored params; applying here too would just do it twice.
     if session.in_transaction():
         await _apply_stored_context(session)
+
+
+def rls_context_params(session: AsyncSession) -> dict[str, Any]:
+    """The context this session established, as ``set_rls_context`` keywords.
+
+    For a caller that needs a second session to see what this one sees — the
+    query surface runs on a pool of its own. Handing over the stored parameters
+    keeps one decision about who the request is, rather than a second reading
+    of the same guild context somewhere else.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if not params:
+        raise RuntimeError("no RLS context has been established on this session")
+    return dict(params)
 
 
 async def set_override_initiatives(

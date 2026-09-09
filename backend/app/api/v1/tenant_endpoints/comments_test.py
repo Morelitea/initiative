@@ -502,3 +502,101 @@ class TestToolCommentSwitch:
             json={"comments_enabled": False},
         )
         assert denied.status_code == 403, denied.text
+
+
+@pytest.mark.integration
+class TestEditingAComment:
+    """The edit reply is the client's read-back: it has to carry the whole
+    comment, author and reactions included, on every surface."""
+
+    @pytest.mark.parametrize("tool", list(Tool))
+    async def test_author_edits_and_gets_the_whole_comment_back(
+        self, client, session, acting_user, tool
+    ):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        entity = await _tool_entity(session, tool, a.initiative, a.user)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Before", _param(tool): entity.id},
+        )
+        assert posted.status_code == 201, posted.text
+        comment_id = posted.json()["id"]
+
+        edited = await client.patch(
+            a.g(f"/comments/{comment_id}"),
+            headers=a.headers,
+            json={"content": "After"},
+        )
+        assert edited.status_code == 200, edited.text
+        body = edited.json()
+        assert body["content"] == "After"
+        assert body["author"] is not None
+        assert body["author"]["id"] == a.user.id
+        assert body[_param(tool)] == entity.id
+        if tool is Tool.project:
+            assert body["project_id"] == entity.id
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
+        )
+        assert [c["content"] for c in listed.json()] == ["After"]
+
+    async def test_an_edit_keeps_the_reactions(self, client, session, acting_user):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        project = await _tool_entity(session, Tool.project, a.initiative, a.user)
+        task = await create_task(session, project)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Before", "task_id": task.id},
+        )
+        assert posted.status_code == 201, posted.text
+        comment_id = posted.json()["id"]
+
+        reacted = await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=a.headers,
+            json={"emoji": "🎉"},
+        )
+        assert reacted.status_code == 200, reacted.text
+
+        edited = await client.patch(
+            a.g(f"/comments/{comment_id}"),
+            headers=a.headers,
+            json={"content": "After"},
+        )
+        assert edited.status_code == 200, edited.text
+        body = edited.json()
+        assert body["author"] is not None
+        # A task comment reports its task's project, same as the list reply.
+        assert body["project_id"] == project.id
+        assert [(g["emoji"], g["count"]) for g in body["reactions"]] == [("🎉", 1)]
+
+    async def test_only_the_author_may_edit(self, client, session, acting_user):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        project = await _tool_entity(session, Tool.project, a.initiative, a.user)
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(session, Tool.project, project, b.user, ResourceAccessLevel.write)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Mine", "project_id": project.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        denied = await client.patch(
+            a.g(f"/comments/{posted.json()['id']}"),
+            headers=b.headers,
+            json={"content": "Yours"},
+        )
+        assert denied.status_code == 403
+        assert denied.json()["detail"] == CommentMessages.AUTHOR_ONLY_EDIT

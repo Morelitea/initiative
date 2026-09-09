@@ -13,6 +13,7 @@ dependencies {
     implementation project(':capacitor-community-safe-area')
     implementation project(':capacitor-app')
     implementation project(':capacitor-browser')
+    implementation project(':capacitor-camera')
     implementation project(':capacitor-device')
     implementation project(':capacitor-haptics')
     implementation project(':capacitor-network')

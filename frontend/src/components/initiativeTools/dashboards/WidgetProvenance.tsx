@@ -21,16 +21,17 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { cn } from "@/lib/utils";
-import { countLeaves, readConditions } from "@/lib/widgets/conditions";
 import type { DataMeta } from "@/lib/widgets/dataShapes";
-import { bindingScope, describeConditions, type EntityLabels } from "@/lib/widgets/provenance";
-import { effectiveBucket, sourceDescriptor } from "@/lib/widgets/sources";
+import { bindingScope, type EntityLabels, queryScope } from "@/lib/widgets/provenance";
+import { sourceDescriptor } from "@/lib/widgets/sources";
 import { localized, type WidgetMeta } from "@/lib/widgets/widgetMeta";
 
 export interface WidgetProvenanceProps {
   binding: WidgetBinding;
   labels: EntityLabels;
   meta?: DataMeta;
+  /** The datasets the statement read, as the server resolved them. */
+  relations?: string[];
   /** The widget's own display options, and the module's `meta` so each one can
    *  be named in the widget's own words rather than by its key. */
   options?: Record<string, string>;
@@ -42,6 +43,7 @@ export interface WidgetProvenanceProps {
 
 export function WidgetProvenance({
   binding,
+  relations,
   labels,
   meta,
   options,
@@ -51,22 +53,21 @@ export function WidgetProvenance({
 }: WidgetProvenanceProps) {
   const { t, i18n } = useTranslation(["dashboards", "tasks", "common"]);
 
-  const formatDate = useMemo(() => {
+  const _formatDate = useMemo(() => {
     const format = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
     return (epoch: number) => format.format(new Date(epoch));
   }, [i18n.language]);
 
-  const conditions = useMemo(() => readConditions(binding.conditions), [binding.conditions]);
-  const filters = useMemo(
-    () => describeConditions(conditions, labels, t, formatDate),
-    [conditions, labels, t, formatDate]
+  // What a statement read, answered by the server rather than parsed here: what
+  // a statement resolves to is the validator's answer, and a second reading of
+  // the same SQL could only disagree with it.
+  const scope = useMemo(
+    () => [...bindingScope(binding, labels), ...queryScope(relations ?? [])],
+    [binding, labels, relations]
   );
-  const scope = useMemo(() => bindingScope(binding, labels), [binding, labels]);
 
   const descriptor = sourceDescriptor(binding.source);
   const sourceLabel = t(`dashboards:bindingSource.${binding.source}` as const);
-  const filterCount = countLeaves(conditions);
-  const bucket = effectiveBucket(binding);
 
   // The compact line: source, then the one or two things that narrow it, then
   // how much came back. Everything else waits in the popover.
@@ -74,7 +75,6 @@ export function WidgetProvenance({
   for (const chip of scope) {
     parts.push(chip.label ?? (chip.restricted ? t("dashboards:provenance.restricted") : "…"));
   }
-  if (filterCount) parts.push(t("dashboards:provenance.filterCount", { count: filterCount }));
   if (typeof meta?.total === "number" && descriptor) {
     parts.push(
       t(`dashboards:provenance.rows_${descriptor.rowNoun}` as const, { count: meta.total })
@@ -111,16 +111,7 @@ export function WidgetProvenance({
       <PopoverContent align="start" className="w-80 space-y-3 text-sm">
         <h4 className="font-semibold">{t("dashboards:provenance.title")}</h4>
 
-        <Row label={t("dashboards:provenance.source")}>
-          {sourceLabel}
-          {bucket && (
-            <span className="block text-muted-foreground text-xs">
-              {t("dashboards:provenance.groupedBy", {
-                bucket: t(`dashboards:config.bucket.${bucket}` as const, { defaultValue: bucket }),
-              })}
-            </span>
-          )}
-        </Row>
+        <Row label={t("dashboards:provenance.source")}>{sourceLabel}</Row>
 
         {scope.length > 0 && (
           <Row label={t("dashboards:provenance.scope")}>
@@ -138,18 +129,6 @@ export function WidgetProvenance({
             </ul>
           </Row>
         )}
-
-        <Row label={t("dashboards:provenance.filters")}>
-          {filters.length ? (
-            <ul className="space-y-0.5">
-              {filters.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : (
-            <span className="text-muted-foreground">{t("dashboards:provenance.everything")}</span>
-          )}
-        </Row>
 
         {typeof meta?.total === "number" && descriptor && (
           <Row label={t("dashboards:provenance.showing")}>

@@ -156,6 +156,12 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
+                # What this guild calls its members. Each guild answers for its
+                # own rows, so a cross-guild list names people the way each of
+                # them does — the same answer as opening that guild and
+                # looking. Carried with the routing so the projection this
+                # guild is read through agrees with the shapes built from it.
+                shows_member_names=bool(shows_names),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.
@@ -165,10 +171,6 @@ async def gather_across_guilds(
             # guild-admin short-circuit in permissions.py (so my_permission_level /
             # require_*_access see the admin as owner when fetch() serializes here).
             set_active_role(guild_id, role_value)
-            # What this guild calls its members. Each guild answers for its own
-            # rows, so a cross-guild list names people the way each of them
-            # does — the same answer as opening that guild and looking.
-            set_guild_shows_member_names(bool(shows_names))
             # And the per-initiative "Full access" override for this guild, so a
             # full-access PM's restricted content surfaces in cross-guild views too.
             from app.services import rls as rls_service

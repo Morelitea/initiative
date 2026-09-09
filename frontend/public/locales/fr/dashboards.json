@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "Les données de ce widget n'ont pas pu être chargées. Réessayez."
   },
   "bindingSource": {
-    "app": "Données de l'app",
-    "tasks": "Tâches",
-    "projects": "Projets",
-    "calendar_entries": "Entrées de calendrier",
-    "task_counts": "Nombre de tâches",
-    "counter": "Compteur",
-    "counter_group": "Groupe de compteurs",
-    "sheet_range": "Plage de feuille"
+    "query": "Requête SQL",
+    "sheet_range": "Plage de feuille",
+    "app": "Données de l'app"
   },
   "gallery": {
     "title": "Galerie de widgets",
@@ -148,12 +143,15 @@
     "all_counter": "Tous les compteurs",
     "all_document": "Toutes les feuilles de calcul",
     "appEndpoint": "Ce qu'il lit",
+    "app": "Application",
+    "appPlaceholder": "Choisir une application",
     "appEndpointPlaceholder": "Choisir une lecture…",
     "appNotInstalled": "Cette application n'est pas installée dans cette communauté.",
     "appParamPlaceholder": "Choisir…",
     "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
     "appParamListHint": "Séparez les valeurs par des virgules.",
-    "all_property": "Aucune propriété"
+    "all_property": "Aucune propriété",
+    "sqlHelp": "Un SELECT en lecture seule sur les données de cette communauté. Il s'exécute en votre nom et ne renvoie donc que ce que vous pouvez déjà voir."
   },
   "picker": {
     "title": "Ajouter un widget",
@@ -228,7 +226,10 @@
     "completed_at": "Terminée",
     "created_at": "Créée",
     "is_archived": "Archivée",
-    "title": "Titre"
+    "title": "Titre",
+    "description": "Description",
+    "updated_at": "Mis à jour",
+    "created_by": "Créé par"
   },
   "filterPhrase": {
     "eq": "{{field}} est {{value}}",
@@ -275,7 +276,9 @@
     "relative": "Relative",
     "absolute": "À une date",
     "relativeDays": "Jours à partir d'aujourd'hui",
-    "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais."
+    "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais.",
+    "loading": "Chargement des filtres…",
+    "noFields": "Rien à filtrer ici pour l'instant."
   },
   "tableView": {
     "caption": "Les mêmes données en tableau",
@@ -294,19 +297,12 @@
     "due": "Échéance"
   },
   "bindingParam": {
-    "project": "Projet",
-    "calendar": "Calendrier",
-    "counter_group": "Groupe de compteurs",
-    "counter": "Compteur",
     "document": "Feuille de calcul",
     "sheet": "Feuille",
     "range": "Plage",
     "app_uid": "Application",
     "source_id": "Source de données de l'application",
-    "bucket": "Grouper les comptages par",
-    "day_field": "Compter chaque tâche à sa",
-    "window_days": "Fenêtre temporelle (jours)",
-    "property": "Propriété"
+    "sql": "Instruction"
   },
   "paramValue": {
     "status_category": "Catégorie de statut",
@@ -318,5 +314,71 @@
     "completed": "Date de fin",
     "created": "Date de création",
     "due": "Date d'échéance"
+  },
+  "slot": {
+    "label": "Libellé",
+    "value": "Valeur",
+    "start": "Début",
+    "end": "Fin",
+    "group": "Groupe",
+    "at": "Date",
+    "card": "Carte",
+    "column": "Colonne",
+    "date": "Date",
+    "total": "Total"
+  },
+  "builder": {
+    "dataset": "Ce qui est lu",
+    "columns": "Colonnes",
+    "addColumn": "Ajouter une colonne",
+    "removeColumn": "Retirer cette colonne",
+    "everyRow": "Chaque ligne",
+    "asItIs": "Tel quel",
+    "exactTime": "Heure exacte",
+    "groupBy": "Une ligne par",
+    "everythingTogether": "Tout ensemble",
+    "groupByHelp": "Regroupe les lignes qui partagent une valeur et compte ou totalise le reste.",
+    "statement": "L'instruction ainsi construite",
+    "tabBuild": "Créer",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Renvoie : {{columns}}",
+    "checking": "Vérification de l'instruction…",
+    "notBuilt": "La requête de ce widget n'a pas été créée ici. En créer une nouvelle la remplace.",
+    "buildNew": "Créer une nouvelle requête",
+    "refused": "Cette combinaison ne peut pas être lue. Essayez une autre colonne."
+  },
+  "aggregate": {
+    "count": "Nombre",
+    "sum": "Total",
+    "avg": "Moyenne",
+    "min": "Minimum",
+    "max": "Maximum"
+  },
+  "bucket": {
+    "day": "Par jour",
+    "week": "Par semaine",
+    "month": "Par mois",
+    "quarter": "Par trimestre",
+    "year": "Par an"
+  },
+  "dataset": {
+    "tasks": "Tâches",
+    "projects": "Projets",
+    "calendar_events": "Événements du calendrier",
+    "counters": "Compteurs",
+    "counter_groups": "Groupes de compteurs",
+    "task_statuses": "Statuts de tâche"
+  },
+  "published": {
+    "title": "Chiffres publiés",
+    "help": "Un tableau de bord montre normalement à chacun ce qu'il peut déjà voir. Ce qui est nommé ici s'affiche de la même façon pour toutes les personnes qui peuvent ouvrir ce tableau de bord : un chiffre qui doit servir de base commune en est un seul, et non plusieurs. Vous ne pouvez publier que ce que vous pouvez ouvrir vous-même, et son propriétaire peut le retirer à tout moment.",
+    "empty": "Rien de publié. Chaque tuile répond selon la personne qui la regarde.",
+    "choose": "Choisissez un projet",
+    "add": "Publier",
+    "stop": "Ne plus publier ceci",
+    "notice_one": "Affiche un chiffre publié — le même pour tout le monde ici",
+    "notice_other": "Affiche {{count}} chiffres publiés — les mêmes pour tout le monde ici",
+    "unnamed": "Élément n° {{id}}"
   }
 }

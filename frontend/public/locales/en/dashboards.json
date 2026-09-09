@@ -66,14 +66,9 @@
     "WIDGET_DATA_UNAVAILABLE": "This widget's data could not be loaded. Try again."
   },
   "bindingSource": {
-    "app": "App data",
-    "tasks": "Tasks",
-    "projects": "Projects",
-    "calendar_entries": "Calendar entries",
-    "task_counts": "Task counts",
-    "counter": "Counter",
-    "counter_group": "Counter group",
-    "sheet_range": "Sheet range"
+    "query": "SQL query",
+    "sheet_range": "Sheet range",
+    "app": "App data"
   },
   "gallery": {
     "title": "Widget gallery",
@@ -148,12 +143,15 @@
     "all_counter": "All counters",
     "all_document": "All spreadsheets",
     "appEndpoint": "What it reads",
+    "app": "App",
+    "appPlaceholder": "Choose an app",
     "appEndpointPlaceholder": "Choose a read…",
     "appNotInstalled": "This app is not installed in this community.",
     "appParamPlaceholder": "Choose…",
     "appParamNeedsSibling": "Choose the value above first.",
     "appParamListHint": "Separate values with commas.",
-    "all_property": "No property"
+    "all_property": "No property",
+    "sqlHelp": "A read-only SELECT over this community's data. It runs as you, so it returns what you can already see."
   },
   "picker": {
     "title": "Add a widget",
@@ -228,7 +226,10 @@
     "completed_at": "Completed",
     "created_at": "Created",
     "is_archived": "Archived",
-    "title": "Title"
+    "title": "Title",
+    "description": "Description",
+    "updated_at": "Updated",
+    "created_by": "Created by"
   },
   "filterPhrase": {
     "eq": "{{field}} is {{value}}",
@@ -265,7 +266,9 @@
     "relative": "Relative",
     "absolute": "On a date",
     "relativeDays": "Days from today",
-    "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale."
+    "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale.",
+    "loading": "Loading filters…",
+    "noFields": "Nothing to filter on here yet."
   },
   "tableView": {
     "caption": "The same data as a table",
@@ -294,19 +297,12 @@
     "is_null": "is empty"
   },
   "bindingParam": {
-    "project": "Project",
-    "calendar": "Calendar",
-    "counter_group": "Counter group",
-    "counter": "Counter",
     "document": "Spreadsheet",
     "sheet": "Sheet",
     "range": "Range",
     "app_uid": "App",
     "source_id": "App data source",
-    "bucket": "Group counts by",
-    "day_field": "Count each task on its",
-    "window_days": "Time window (days)",
-    "property": "Property"
+    "sql": "Statement"
   },
   "paramValue": {
     "status_category": "Status category",
@@ -318,5 +314,71 @@
     "completed": "Completion date",
     "created": "Creation date",
     "due": "Due date"
+  },
+  "slot": {
+    "label": "Label",
+    "value": "Value",
+    "start": "Start",
+    "end": "End",
+    "group": "Group",
+    "at": "Date",
+    "card": "Card",
+    "column": "Column",
+    "date": "Date",
+    "total": "Total"
+  },
+  "builder": {
+    "dataset": "What this reads",
+    "columns": "Columns",
+    "addColumn": "Add a column",
+    "removeColumn": "Remove this column",
+    "everyRow": "Every row",
+    "asItIs": "As it is",
+    "exactTime": "Exact time",
+    "groupBy": "One row per",
+    "everythingTogether": "Everything together",
+    "groupByHelp": "Group rows that share a value, and count or total the rest.",
+    "statement": "The statement this builds",
+    "tabBuild": "Build",
+    "tabSql": "SQL",
+    "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
+    "returns": "Returns: {{columns}}",
+    "checking": "Checking this statement…",
+    "notBuilt": "This widget's query was not built here. Building a new one replaces it.",
+    "buildNew": "Build a new query",
+    "refused": "That combination cannot be read. Try a different column."
+  },
+  "aggregate": {
+    "count": "Count",
+    "sum": "Total",
+    "avg": "Average",
+    "min": "Lowest",
+    "max": "Highest"
+  },
+  "bucket": {
+    "day": "By day",
+    "week": "By week",
+    "month": "By month",
+    "quarter": "By quarter",
+    "year": "By year"
+  },
+  "dataset": {
+    "tasks": "Tasks",
+    "projects": "Projects",
+    "calendar_events": "Calendar events",
+    "counters": "Counters",
+    "counter_groups": "Counter groups",
+    "task_statuses": "Task statuses"
+  },
+  "published": {
+    "title": "Published figures",
+    "help": "A dashboard normally shows each person what they can already see. Anything named here is shown the same way to everyone who can open this dashboard — so a figure that has to be common ground is one number, not several. You can only publish what you can open yourself, and whoever owns it can take it back at any time.",
+    "empty": "Nothing published. Every tile answers from whoever is looking at it.",
+    "choose": "Choose a project",
+    "add": "Publish",
+    "stop": "Stop publishing this",
+    "notice_one": "Shows one published figure — the same for everyone here",
+    "notice_other": "Shows {{count}} published figures — the same for everyone here",
+    "unnamed": "Item #{{id}}"
   }
 }

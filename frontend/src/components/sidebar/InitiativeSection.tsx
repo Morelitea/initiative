@@ -9,6 +9,7 @@ import type {
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ToolCreateButton } from "@/components/tools/ToolCreateButton";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -21,6 +22,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
@@ -74,6 +76,9 @@ export const InitiativeSection = memo(
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
+    // The same signal the community rail carries, one level in and then one
+    // more: a dot on the initiative, and on the tool inside it.
+    const unread = useUnreadTree();
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
     // Pure DAC: check if user has write access to a specific project
@@ -163,8 +168,12 @@ export const InitiativeSection = memo(
               className="min-w-0 flex-1 justify-start px-0 py-1.5 font-medium text-sm hover:bg-accent"
               asChild
             >
-              <Link to={gp(initiativeRoute(initiative.id))} className="flex min-w-0 items-center">
+              <Link
+                to={gp(initiativeRoute(initiative.id))}
+                className="flex min-w-0 items-center gap-2"
+              >
                 <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
+                {unread.hasInitiative(initiative.id) ? <UnreadDot /> : null}
               </Link>
             </Button>
           </div>
@@ -268,6 +277,7 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">
                             {t(toolNavLabelKey(tool))}
                           </span>
+                          {unread.hasTool(initiative.id, tool) ? <UnreadDot /> : null}
                           <span className="text-muted-foreground text-xs">{counts[tool] ?? 0}</span>
                         </Link>
                       </SidebarMenuButton>

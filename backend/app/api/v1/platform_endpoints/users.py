@@ -54,8 +54,6 @@ from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
-from app.models.tenant.reaction_digest import ReactionDigestItem
-from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.guild import (
     CommunityGuildRead,
     GuildBannerRead,
@@ -70,6 +68,7 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserGuildRead,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -93,7 +92,6 @@ from app.schemas.tenant.ownership import (
 )
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.messages import AuthMessages, UserMessages
-from app.services import notifications as notifications_service
 from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import app_connections as app_connections_service
@@ -106,7 +104,7 @@ from app.services.platform import guild_images as images_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.services.platform.guilds import adopt_guild_name_display
+from app.services.platform.guilds import guild_renders_member_names
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
@@ -667,39 +665,6 @@ async def export_users_csv(
     )
 
 
-#: The digest queues a preference update can empty: the two channel fields
-#: that feed each one, and the table it drains. One entry per digest, so a new
-#: digest is cleaned up on opt-out by being listed here.
-_DIGEST_QUEUES: tuple[tuple[str, str, type], ...] = (
-    ("email_task_assignment", "push_task_assignment", TaskAssignmentDigestItem),
-    ("email_comment_reactions", "push_comment_reactions", ReactionDigestItem),
-)
-
-
-def _emptied_digest_queues(user: User, update_data: dict) -> list[type]:
-    """The queue tables this update leaves nobody wanting.
-
-    Email and push share one queue per digest, so it is discarded only on the
-    transition to BOTH being off — never when just one channel is switched off.
-    """
-
-    def _next(field: str) -> bool | None:
-        value = update_data.get(field)
-        return getattr(user, field) if value is None else value
-
-    emptied: list[type] = []
-    for email_field, push_field, model in _DIGEST_QUEUES:
-        was_on = notifications_service.wants_digest(
-            getattr(user, email_field), getattr(user, push_field)
-        )
-        now_on = notifications_service.wants_digest(
-            _next(email_field), _next(push_field)
-        )
-        if was_on and not now_on:
-            emptied.append(model)
-    return emptied
-
-
 @router.patch("/me/username", response_model=UserRead)
 async def claim_my_username(
     payload: UsernameClaim,
@@ -842,22 +807,6 @@ async def update_users_me(
         payload.has_federated_identity = is_sso_account
         return payload
 
-    emptied_queues = _emptied_digest_queues(current_user, update_data)
-    if emptied_queues:
-        # A digest queue is guild-scoped, so it must be cleared inside each
-        # of the user's guild schemas — before any mutation below, because the
-        # fan-out expunges the identity map (per-schema ids collide). Restore
-        # the platform context and re-fetch the user afterwards; the deletes
-        # ride this request's transaction and commit with it.
-        user_id = current_user.id
-        await notifications_service.clear_digest_queue_across_guilds(
-            session, user_id, emptied_queues
-        )
-        await set_rls_context(session, user_id=user_id)
-        current_user = (
-            await session.exec(select(User).where(User.id == user_id))
-        ).one()
-
     new_full_name = update_data.get("full_name")
     if new_full_name is not None:
         current_user.full_name = new_full_name or None
@@ -977,29 +926,6 @@ async def update_users_me(
         current_user.event_reminder_minutes_before = normalize_reminder_minutes(
             update_data["event_reminder_minutes_before"]
         )
-    for field in [
-        "email_initiative_addition",
-        "email_task_assignment",
-        "email_project_added",
-        "email_overdue_tasks",
-        "email_mentions",
-        "email_posts",
-        "email_events",
-        "email_event_reminders",
-        "push_initiative_addition",
-        "push_task_assignment",
-        "push_project_added",
-        "push_overdue_tasks",
-        "push_mentions",
-        "push_posts",
-        "push_events",
-        "push_event_reminders",
-    ]:
-        if field in update_data:
-            # email_task_assignment=False also cleared the guild-scoped digest
-            # queue — done up-front (before any mutation) via the cross-guild
-            # fan-out at the top of this handler.
-            setattr(current_user, field, bool(update_data[field]))
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
     if "task_completion_visual_feedback" in update_data:
@@ -1073,7 +999,7 @@ async def update_users_me(
     return payload
 
 
-@guild_router.post("/{user_id}/approve", response_model=UserRead)
+@guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
 async def approve_user(
     user_id: int,
     session: AdminSessionDep,
@@ -1086,6 +1012,11 @@ async def approve_user(
     not a guild's to write. ``GuildAdminContext`` plus the membership join
     below are the authorization — the guild admin may only reach someone who is
     already a member of the guild they administer.
+
+    Answers with ``UserGuildRead`` — the account as the guild reads it, which
+    is the standing that just changed and the handle it belongs to. The row
+    loaded here is the whole ``User``, because the write needs it; what leaves
+    is the guild's read of it.
     """
     stmt = (
         select(User)
@@ -1164,8 +1095,8 @@ async def get_my_initiative_members(
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id)
-    await adopt_guild_name_display(session, guild_id=guild_id)
+    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
+    await set_rls_context(session, guild_id=guild_id, shows_member_names=shows_names)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

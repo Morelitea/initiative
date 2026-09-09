@@ -73,6 +73,14 @@ export interface RenderRequest {
    *  and formatting a number or a date stays the host's job. A render is
    *  therefore still a pure function of its inputs, now including this one. */
   locale?: string;
+  /** Which of the data's columns fill each of the widget's slots, by column
+   *  ordinal — `{ label: [0], value: [1, 2] }`.
+   *
+   *  Resolved by the host rather than by the widget, because deciding it needs
+   *  the widget's declared shape and the author's overrides, and neither is the
+   *  widget's to read. What arrives is the answer: a widget reads
+   *  `row[slots.label[0]]` and never matches a column name. */
+  slots?: Record<string, number[]>;
 }
 
 /**
@@ -128,7 +136,10 @@ delete globalThis.SharedArrayBuffer;
 const INVOKE = `
 (function () {
   if (typeof render !== "function") return "e:no-render";
-  var out = render(JSON.parse(__data__), JSON.parse(__config__), { locale: __locale__ });
+  var out = render(JSON.parse(__data__), JSON.parse(__config__), {
+    locale: __locale__,
+    slots: JSON.parse(__slots__),
+  });
   try {
     return "v:" + JSON.stringify(out === undefined ? null : out);
   } catch (err) {
@@ -217,6 +228,7 @@ async function evaluateModule(request: RenderRequest, invoke: string): Promise<S
       ["__data__", JSON.stringify(request.data ?? null)],
       ["__config__", JSON.stringify(request.config ?? {})],
       ["__locale__", request.locale ?? "en"],
+      ["__slots__", JSON.stringify(request.slots ?? {})],
     ] as const) {
       const handle = context.newString(value);
       context.setProp(context.global, name, handle);

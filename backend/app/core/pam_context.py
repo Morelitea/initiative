@@ -32,6 +32,15 @@ def set_active_grant(guild_id: Optional[int], access_level: Optional[str]) -> No
         _active_grant.set((guild_id, access_level))
 
 
+def active_grant() -> Optional[Tuple[int, str]]:
+    """The grant this request carries, whichever guild it covers.
+
+    For a caller that has to put it back after standing in somebody else's
+    shoes, where :func:`active_grant_level` answers about one guild.
+    """
+    return _active_grant.get()
+
+
 def active_grant_level(guild_id: int) -> Optional[str]:
     """The grant access level covering ``guild_id`` this request, or None."""
     current = _active_grant.get()

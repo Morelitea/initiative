@@ -101,6 +101,10 @@
     "commentsDescription": "Lass andere dies kommentieren. Wenn du Kommentare deaktivierst, bleibt alles bereits Verfasste erhalten und erscheint wieder, sobald du sie erneut aktivierst.",
     "commentsToggle": "Kommentare aktivieren",
     "commentsError": "Die Kommentareinstellung konnte nicht gespeichert werden.",
+    "reactions": "Reaktionen",
+    "reactionsDescription": "Lass andere auf diese Mitteilung reagieren. Wenn du Reaktionen deaktivierst, bleiben die bereits vorhandenen erhalten und erscheinen wieder, sobald du sie erneut aktivierst.",
+    "reactionsToggle": "Reaktionen aktivieren",
+    "reactionsError": "Die Reaktionseinstellung konnte nicht gespeichert werden.",
     "permissionsUpdated": "Berechtigungen aktualisiert",
     "dangerZone": "Gefahrenzone",
     "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Elemente landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
@@ -145,5 +149,18 @@
     "label": "Zu einem Monat springen",
     "jumpedTo": "Ab {{period}}",
     "backToLatest": "Zurück zu den neuesten"
+  },
+  "offline": {
+    "banner": "Du bist offline — angezeigt wird, was dieses Gerät zuletzt geladen hat.",
+    "lastUpdated": "Zuletzt aktualisiert {{when}}"
+  },
+  "imagePicker": {
+    "chooseImage": "Bild auswählen",
+    "takePhoto": "Foto aufnehmen",
+    "chooseFromLibrary": "Aus der Galerie wählen",
+    "chooseFile": "Datei auswählen",
+    "permission": "Initiative braucht Zugriff auf Kamera und Fotos. Erlaube ihn in den Geräteeinstellungen und versuche es erneut.",
+    "unavailable": "Dieses Gerät hat keine Kamera für ein Foto.",
+    "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
   }
 }

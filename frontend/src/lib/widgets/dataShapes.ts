@@ -7,137 +7,52 @@
  * and never sees a token: by the time it runs, authorization has already
  * happened and it is looking at rows the viewer could have loaded themselves.
  *
- * Normalizing here rather than passing API payloads through has two payoffs:
- * a widget written against `task_counts` keeps working when the endpoint's
- * serializer changes, and every widget — ours or a listing's — reads the same
- * documented shape.
+ * **There are two envelopes, not nine.** A statement and a spreadsheet range
+ * both answer with columns and rows, so both arrive as {@link TabularData} and
+ * a widget never learns which it was given. An installed app's data is its own
+ * shape, declared in its own manifest, and its widget ships alongside — that is
+ * {@link AppRows}, and no built-in widget reads it.
  *
  * **All timestamps are epoch milliseconds, UTC.** The sandbox has a frozen
  * clock and no timezone, deliberately: rendering a timestamp for a human is the
  * renderer's job, not the widget's.
  */
 
-export interface TaskRow {
-  id: number;
-  title: string;
-  status: string;
-  /** Coarse bucket shared by all projects: `todo` | `in_progress` | `done` | … */
-  statusCategory: string;
-  priority: string | null;
-  startDate: number | null;
-  dueDate: number | null;
-  completedAt: number | null;
-  projectId: number | null;
-  projectName: string | null;
-  assignees: string[];
-  /** When the task was opened. Paired with `completedAt` this is what makes
-   *  throughput, cycle time, and a created-vs-completed burn-up expressible —
-   *  the whole flow-metrics family lives or dies on this one field. */
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-  /** Checklist progress. Both zero for a task with no subtasks. */
-  subtaskDone: number;
-  subtaskTotal: number;
-  commentCount: number;
-  /** The initiative's own custom properties, by the property's name, each value
-   *  already resolved to what a person reads — an option's label rather than
-   *  its slug, a person's name rather than their id. Multi-valued properties
-   *  carry several; one nobody has set on this task is simply absent.
-   *
-   *  Labels rather than ids because a widget can only *show* them, and matching
-   *  them across rows is what grouping needs. A property whose value is a date
-   *  or a number arrives as its plain string form: the sandbox has no locale to
-   *  format one with, so anything more would be a lie about the viewer. */
-  properties: Record<string, string[]>;
+/**
+ * What a column holds, in the field registry's own vocabulary.
+ *
+ * Declared here rather than imported from the generated client, because this
+ * file is the sandbox's contract and a widget written against it must not move
+ * when a serializer does. `dataShapes.test.ts` holds it equal to the served
+ * `FieldType`, so the two say the same words without one importing the other.
+ */
+export type ColumnType = "text" | "number" | "date" | "boolean" | "enum" | "reference";
+
+/** One output column: what it is called, and what it holds. */
+export interface DataColumn {
+  name: string;
+  type: ColumnType;
 }
 
-export interface ProjectRow {
-  id: number;
-  name: string;
-  startDate: number | null;
-  endDate: number | null;
-  /** 0..1 across the project's tasks. */
-  progress: number;
-  taskCount: number;
-  doneCount: number;
-  ownerName: string | null;
-  tags: string[];
-}
+/** A cell. Dates are epoch milliseconds, like every other timestamp here. */
+export type CellValue = string | number | boolean | null;
 
 /**
- * The `projects` envelope.
+ * Columns and rows — what a query returned, or what a sheet range held.
  *
- * `tasks` is the same shape the `tasks` source hands over, and it is here
- * because the host already has it: the progress columns above are counted from
- * those very rows, so a widget that draws a project as a foldable group of its
- * work needs no second binding and no second request. Rows carry `projectId`,
- * which is what joins the two halves.
+ * The one envelope whose shape the *binding* decides rather than this file. A
+ * widget bound to a statement knows only what `columns` says, which is why the
+ * columns are described rather than assumed, and why a widget declares the
+ * shape it can draw instead of the source it can read.
+ *
+ * Rows are positional against `columns`, not keyed by name, for the reason
+ * `SELECT t.id, p.id` gives: two output columns may share a name, and a mapping
+ * would keep one value where the statement returned two.
  */
-export interface ProjectsData {
-  source: "projects";
-  rows: ProjectRow[];
-  tasks: TaskRow[];
-}
-
-/** A custom property a binding singled out: its name, and the values it can
- *  take, in the order the initiative defined them.
- *
- *  The domain is here because rows cannot supply it. Grouping read off the rows
- *  alone can only ever show the values somebody has already used — so an option
- *  that exists and is empty silently stops existing, which for a workflow state
- *  is the column you most needed to see. */
-export interface PropertyDomain {
-  name: string;
-  values: string[];
-}
-
-/**
- * The `tasks` envelope.
- *
- * `property` is present only when the binding named one, and says which of the
- * initiative's custom properties it named. A widget that groups by a property
- * needs both halves: the name to read it off a row, and the domain so an
- * unused option still gets a column.
- */
-export interface TasksData {
-  source: "tasks";
-  rows: TaskRow[];
-  property?: PropertyDomain;
-}
-
-export interface CalendarEntryRow {
-  id: number;
-  title: string;
-  start: number;
-  end: number;
-  calendarName: string | null;
-  allDay: boolean;
-  location: string | null;
-  attendees: string[];
-  tags: string[];
-}
-
-/** A pre-aggregated count, whatever the binding grouped by (status category,
- *  assignee, project, priority, day). */
-export interface CountRow {
-  bucket: string;
-  count: number;
-  /** Present when the bucket is a calendar day, for date-shaped renderings. */
-  date?: number;
-}
-
-export interface CounterValue {
-  name: string;
-  value: number;
-  min: number | null;
-  max: number | null;
-  unit: string | null;
-}
-
-export interface SheetRange {
-  columns: string[];
-  rows: (string | number | boolean | null)[][];
+export interface TabularData {
+  source: "rows";
+  columns: DataColumn[];
+  rows: CellValue[][];
 }
 
 /**
@@ -180,18 +95,10 @@ export interface DataMeta {
   truncated?: boolean;
 }
 
-export type WidgetData = (
-  | TasksData
-  | ProjectsData
-  | { source: "calendar_entries"; rows: CalendarEntryRow[] }
-  | { source: "task_counts"; rows: CountRow[] }
-  | { source: "counter"; counter: CounterValue }
-  | { source: "counter_group"; name: string; counters: CounterValue[] }
-  | { source: "sheet_range"; range: SheetRange }
-  | AppRows
-) & { meta?: DataMeta };
+export type WidgetData = (TabularData | AppRows) & { meta?: DataMeta };
 
-export type WidgetSource = WidgetData["source"];
+/** What a *binding* may name — as distinct from the envelope it produces. */
+export type WidgetSource = "query" | "sheet_range" | "app";
 
 /** Widget-level display options, already validated by the backend against the
  *  primitive's allow-list (`WIDGET_SPECS[...].options`). Values are strings —

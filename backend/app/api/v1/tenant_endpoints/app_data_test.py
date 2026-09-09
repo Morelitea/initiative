@@ -211,7 +211,7 @@ def _definition() -> dict:
     }
 
 
-def _dashboard_definition(*endpoint_ids: str) -> dict:
+def _dashboard_definition(*endpoint_ids: str, sql: str | None = None) -> dict:
     return normalize_dashboard_definition(
         {
             "widgets": [
@@ -222,6 +222,7 @@ def _dashboard_definition(*endpoint_ids: str) -> dict:
                         "source": "app",
                         "app_uid": APP_UID,
                         "endpoint_id": endpoint_id,
+                        **({"sql": sql} if sql else {}),
                     },
                 }
                 for index, endpoint_id in enumerate(endpoint_ids)
@@ -318,7 +319,9 @@ async def _install(session: AsyncSession, actor, **overrides):
     )
 
 
-async def _workspace(session: AsyncSession, acting_user, *sources: str):
+async def _workspace(
+    session: AsyncSession, acting_user, *sources: str, sql: str | None = None
+):
     """A guild admin with a dashboards-enabled initiative, an installed app, a
     live registration, and a dashboard binding the given sources."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -332,7 +335,7 @@ async def _workspace(session: AsyncSession, acting_user, *sources: str):
         session,
         a.initiative,
         a.user,
-        definition=_dashboard_definition(*(sources or (ORDERS_SUMMARY,))),
+        definition=_dashboard_definition(*(sources or (ORDERS_SUMMARY,)), sql=sql),
     )
     return a, app, dashboard
 
@@ -1310,3 +1313,88 @@ class TestListParams:
         )
         assert response.status_code == 400
         assert upstream.count == 0
+
+
+class TestAStatementOverTheRows:
+    """A built-in widget pointed at an app.
+
+    The app's own rows are read by its own module, by the names its manifest
+    declared. A statement is what lets a chart or a table be pointed at them
+    instead — evaluated here, over the answer the proxy already fetched, so
+    twenty viewers are still one upstream call.
+    """
+
+    async def test_the_widget_gets_what_its_statement_made_of_the_rows(
+        self, client, session, acting_user, upstream
+    ):
+        upstream.rows = [
+            {"days": "mon", "totals": 3},
+            {"days": "mon", "totals": 4},
+            {"days": "tue", "totals": 5},
+        ]
+        a, app, dashboard = await _workspace(
+            session,
+            acting_user,
+            ORDERS_SUMMARY,
+            sql="SELECT days AS day, sum(totals) AS total FROM rows GROUP BY days",
+        )
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="w1"), headers=a.headers
+        )
+        assert response.status_code == 200, response.json()
+        body = response.json()
+        assert body["table"]["columns"] == [
+            {"name": "day", "type": "text"},
+            {"name": "total", "type": "number"},
+        ]
+        assert body["table"]["rows"] == [["mon", 7.0], ["tue", 5.0]]
+
+    async def test_two_outputs_of_one_name_both_survive(
+        self, client, session, acting_user, upstream
+    ):
+        """Positional, for the reason every read of this surface is: a mapping
+        would keep one of the two."""
+        upstream.rows = [{"days": "mon", "totals": 3}]
+        a, app, dashboard = await _workspace(
+            session,
+            acting_user,
+            ORDERS_SUMMARY,
+            sql="SELECT days, totals AS days FROM rows",
+        )
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="w1"), headers=a.headers
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["table"]["rows"] == [["mon", 3]]
+
+    async def test_a_binding_with_no_statement_is_untouched(
+        self, client, session, acting_user, upstream
+    ):
+        """The app's own widget still reads its own rows, by its own names."""
+        a, app, dashboard = await _workspace(session, acting_user)
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["table"] is None
+        assert body["rows"] == [{"id": 1}]
+
+    async def test_the_statement_that_runs_is_the_stored_one(
+        self, client, session, acting_user, upstream
+    ):
+        """Naming a widget that is not on this dashboard changes nothing —
+        there is nowhere for a request to put a statement of its own."""
+        a, app, dashboard = await _workspace(
+            session,
+            acting_user,
+            ORDERS_SUMMARY,
+            sql="SELECT days AS day FROM rows",
+        )
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="nope"),
+            headers=a.headers,
+        )
+        assert response.status_code == 200
+        # Untransformed, because no widget of that id binds this endpoint.
+        assert response.json()["table"] is None

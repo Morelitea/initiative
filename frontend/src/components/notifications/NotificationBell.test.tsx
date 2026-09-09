@@ -179,6 +179,68 @@ describe("NotificationBell export notifications", () => {
   });
 });
 
+describe("NotificationBell reading", () => {
+  // Nothing to navigate to, so the click is only ever about the read state.
+  const unreadNotice = () => buildNotification({ read_at: null });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("clears the count on the click, not on the answer", async () => {
+    // The server is made to take its time; nothing on screen should wait for
+    // it. Marking read is a statement about the reader, and the notification
+    // is one you are navigating away from anyway.
+    let release: (() => void) | undefined;
+    const answered = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const notice = unreadNotice();
+    server.use(
+      http.get("/api/v1/notifications/", () =>
+        HttpResponse.json({ notifications: [notice], unread_count: 1 })
+      ),
+      http.post("/api/v1/notifications/:id/read", async () => {
+        await answered;
+        return HttpResponse.json(notice);
+      })
+    );
+
+    renderWithProviders(<NotificationBell />);
+    await screen.findByRole("button", { name: /1 unread/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await userEvent.click(await screen.findByText(/was assigned to you/i));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /1 unread/i })).not.toBeInTheDocument()
+    );
+    release?.();
+  });
+
+  it("puts the count back if the server refuses the read", async () => {
+    const notice = unreadNotice();
+    server.use(
+      http.get("/api/v1/notifications/", () =>
+        HttpResponse.json({ notifications: [notice], unread_count: 1 })
+      ),
+      http.post("/api/v1/notifications/:id/read", () => new HttpResponse(null, { status: 500 }))
+    );
+
+    renderWithProviders(<NotificationBell />);
+    await screen.findByRole("button", { name: /1 unread/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await userEvent.click(await screen.findByText(/was assigned to you/i));
+
+    // The optimistic read gives way to what the server says rather than
+    // standing: a refetch follows the refusal.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /1 unread/i })).toBeInTheDocument()
+    );
+  });
+});
+
 describe("NotificationBell polling fallback", () => {
   const countInboxRequests = () => {
     let requests = 0;
@@ -212,17 +274,17 @@ describe("NotificationBell polling fallback", () => {
     expect(requests()).toBe(1);
   });
 
-  it("keeps a slow backstop even while the push channel is open", async () => {
+  it("holds no timer at all while the push channel is open", async () => {
     streamConnected = true;
     const requests = countInboxRequests();
     renderWithProviders(<NotificationBell />);
     await waitFor(() => expect(requests()).toBe(1));
 
-    await vi.advanceTimersByTimeAsync(301_000);
+    await vi.advanceTimersByTimeAsync(601_000);
 
-    // A socket reaches only its own process, so a multi-worker deployment can
-    // commit a notification that signals nothing here. Staleness stays bounded.
-    await waitFor(() => expect(requests()).toBeGreaterThan(1));
+    // The channel reaches every worker, and says so when it has been quiet —
+    // so there is nothing left for a timer to catch that it would not.
+    expect(requests()).toBe(1);
   });
 
   it("keeps polling when the push channel cannot connect", async () => {

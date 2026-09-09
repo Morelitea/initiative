@@ -33,6 +33,10 @@ export interface DefinitionWidget {
   title?: string;
   preset?: string;
   options?: Record<string, string>;
+  /** Which of the statement's columns fill this widget's slots, by column
+   *  ordinal. Absent means every slot is inferred from the described types;
+   *  present means the author corrected one, and their answer wins. */
+  mapping?: Record<string, number[]>;
 }
 
 export interface DashboardDefinition {

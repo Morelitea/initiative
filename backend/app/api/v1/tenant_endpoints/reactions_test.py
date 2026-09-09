@@ -1,8 +1,10 @@
 """Endpoint tests for emoji reactions.
 
 The gate under test is the one the design turns on: a reaction is reached
-through the thing it is on, so read access shows the chips and only write
-access adds one.
+through the thing it is on. Reacting is answering rather than editing, so
+reaching the target is the whole gate — read access shows the chips AND adds
+one. What stops a reaction is a switch: a thread turned off, or a notice not
+taking them.
 """
 
 import pytest
@@ -14,7 +16,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
-from app.testing import create_project, create_task
+from app.testing import create_post, create_project, create_task
 from app.testing.schema_harness import route_session_to_guild
 
 THUMBS = "\N{THUMBS UP SIGN}"
@@ -34,6 +36,14 @@ async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
         )
     )
     await session.commit()
+
+
+async def _posts_enabled(session, initiative) -> None:
+    """Posts are off on a fresh initiative, so a notice test turns them on."""
+    initiative.posts_enabled = True
+    session.add(initiative)
+    await session.commit()
+    await session.refresh(initiative)
 
 
 async def _strip_grants(session, tool: Tool, entity):
@@ -495,6 +505,91 @@ class TestReactionAccess:
             a.g(f"/reactions/comment/{comment_id}"),
             headers=a.headers,
             json={"emoji": THUMBS},
+        )
+        assert refused.status_code == 403
+
+    async def test_a_notice_taking_no_reactions_refuses_them(
+        self, client, session, acting_user
+    ):
+        """The post's own switch, the counterpart to a thread's."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _posts_enabled(session, a.initiative)
+        post = await create_post(session, a.initiative, a.user)
+
+        allowed = await client.put(
+            a.g(f"/reactions/post/{post.id}"),
+            headers=a.headers,
+            json={"emoji": THUMBS},
+        )
+        assert allowed.status_code == 200, allowed.text
+
+        off = await client.put(
+            a.g(f"/posts/{post.id}/reactions"),
+            headers=a.headers,
+            json={"reactions_enabled": False},
+        )
+        assert off.status_code == 200, off.text
+        assert off.json()["reactions_enabled"] is False
+
+        refused = await client.put(
+            a.g(f"/reactions/post/{post.id}"),
+            headers=a.headers,
+            json={"emoji": PARTY},
+        )
+        assert refused.status_code == 409
+        assert refused.json()["detail"] == ReactionMessages.DISABLED
+
+    async def test_the_switch_hides_the_reactions_already_there(
+        self, client, session, acting_user
+    ):
+        """Turning it off keeps the rows and stops serving them, the way a
+        thread turned off keeps its comments."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _posts_enabled(session, a.initiative)
+        post = await create_post(session, a.initiative, a.user)
+        await client.put(
+            a.g(f"/reactions/post/{post.id}"),
+            headers=a.headers,
+            json={"emoji": THUMBS},
+        )
+
+        await client.put(
+            a.g(f"/posts/{post.id}/reactions"),
+            headers=a.headers,
+            json={"reactions_enabled": False},
+        )
+        read = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+        assert read.status_code == 200, read.text
+        assert read.json()["reactions_enabled"] is False
+        assert read.json()["reactions"] == []
+
+        back_on = await client.put(
+            a.g(f"/posts/{post.id}/reactions"),
+            headers=a.headers,
+            json={"reactions_enabled": True},
+        )
+        assert back_on.status_code == 200
+        again = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+        assert [g["emoji"] for g in again.json()["reactions"]] == [THUMBS]
+
+    async def test_a_reader_cannot_flip_the_switch(self, client, session, acting_user):
+        """Turning reactions off is editing the notice, which reacting is not."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _posts_enabled(session, a.initiative)
+        post = await create_post(session, a.initiative, a.user)
+        await _strip_grants(session, Tool.post, post)
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(session, Tool.post, post, b.user, ResourceAccessLevel.read)
+
+        refused = await client.put(
+            a.g(f"/posts/{post.id}/reactions"),
+            headers=b.headers,
+            json={"reactions_enabled": False},
         )
         assert refused.status_code == 403
 

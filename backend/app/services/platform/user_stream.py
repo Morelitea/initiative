@@ -25,6 +25,14 @@ cross-process half is simply absent and everything behaves as it did before it
 existed; nothing waits on it and nothing breaks when it is missing. Each process
 stamps frames with its own ``origin`` and skips its own on the way back in, so
 the two paths never deliver twice.
+
+**A bus that was down is a gap in both directions**, and coming back up is the
+only notice of it. So ``on_bus_connected`` does two things: it sends the frames
+whose cross-process half was refused while the bus was away — content-free, so
+a user with fifty missed frames is one frame — and it tells this process's own
+sockets to re-read everything, because what they missed while nothing was
+listening here is not knowable. That is what lets the client hold no timer of
+its own for the connected case.
 """
 
 import asyncio
@@ -53,6 +61,29 @@ CHANNEL = "user_stream"
 #: Who this process is. Stamped on every frame we publish so our own listener
 #: can tell our echo from somebody else's news and drop it.
 ORIGIN = uuid.uuid4().hex
+
+#: A frame that names no channel: everything this socket follows may have moved.
+#: Sent where the gap is real but its contents are not knowable — the client
+#: answers it with the same catch-up it does on its own reconnect.
+RESOURCE_RESYNC = "resync"
+
+#: Proof the socket is still carrying. A client cannot tell a quiet channel from
+#: a dead one — a half-open connection reports itself open and delivers nothing
+#: — so the server says something on a beat, and silence past it means the
+#: socket is gone rather than that nothing has happened.
+RESOURCE_HEARTBEAT = "heartbeat"
+
+#: Frames whose cross-process half was refused, keyed so that repeats collapse:
+#: the frames carry no content, so "your inbox changed" twice is once. Bounded,
+#: because a bus that stays down must not grow this without limit — past the
+#: bound the far side is brought up to date by its own reconnect instead.
+_pending_remote: Dict[tuple[int, str], Dict[str, Any]] = {}
+MAX_PENDING_REMOTE = 2048
+
+#: Whether the bound above was reached, which is the one case where what was
+#: refused cannot be replayed: the frames past it were never kept, so who to
+#: tell is not knowable. Answered by telling everyone.
+_dropped_remote = False
 
 # ``loop.create_task`` keeps only a weak reference, so a fire-and-forget send
 # can be collected mid-flight. Hold them until they finish.
@@ -169,14 +200,19 @@ async def _publish_remote(user_id: int, frame: Dict[str, Any]) -> None:
     a backstop refetch for exactly this. So it is logged once at debug and the
     request carries on.
     """
-    from app.services.platform import user_stream_bus
+    from app.services.platform import notify_bus
 
     try:
-        await user_stream_bus.notify(
-            json.dumps({"origin": ORIGIN, "user_id": user_id, "frame": frame})
+        await notify_bus.notify(
+            CHANNEL, json.dumps({"origin": ORIGIN, "user_id": user_id, "frame": frame})
         )
     except Exception:
         logger.debug("user_stream: cross-process publish unavailable", exc_info=True)
+        global _dropped_remote
+        if len(_pending_remote) < MAX_PENDING_REMOTE:
+            _pending_remote[(user_id, frame.get("resource", ""))] = frame
+        else:
+            _dropped_remote = True
 
 
 async def deliver_remote(payload: str) -> None:
@@ -188,14 +224,70 @@ async def deliver_remote(payload: str) -> None:
     try:
         message = json.loads(payload)
         origin = message["origin"]
-        user_id = int(message["user_id"])
+        raw_user_id = message["user_id"]
         frame = message["frame"]
     except Exception:
         logger.warning("user_stream: unreadable frame on %s", CHANNEL)
         return
     if origin == ORIGIN:
         return
-    await stream.send(user_id, frame)
+    if raw_user_id is None:
+        # Addressed to nobody in particular, which means everybody: a frame was
+        # owed and whose it was could not be said.
+        for user_id in stream.connected_users():
+            await stream.send(user_id, frame)
+        return
+    await stream.send(int(raw_user_id), frame)
+
+
+async def _publish_to_everyone(frame: Dict[str, Any]) -> bool:
+    """One frame for every socket on every other worker, and whether it went.
+
+    For the case where a frame is owed and whose it was cannot be said. Costs
+    each connected reader one refetch, which is why nothing routine uses it —
+    and why the caller has to know whether it landed.
+    """
+    from app.services.platform import notify_bus
+
+    try:
+        await notify_bus.notify(
+            CHANNEL, json.dumps({"origin": ORIGIN, "user_id": None, "frame": frame})
+        )
+        return True
+    except Exception:
+        logger.debug("user_stream: cross-process publish unavailable", exc_info=True)
+        return False
+
+
+async def on_bus_connected() -> None:
+    """The bus is up, so it was down, and both directions of it were.
+
+    Outward: the frames it refused go now, so a tab on another worker is not
+    left waiting on a signal that was dropped rather than delayed. Where more
+    was refused than could be held, the frames past the bound were never kept —
+    so who is owed one cannot be said, and everybody is told instead.
+
+    Inward: this process heard nothing while it was away and cannot know what,
+    so its own sockets are told to re-read. One frame each — the same catch-up
+    they run when their own socket reconnects.
+    """
+    global _dropped_remote
+
+    pending = list(_pending_remote.items())
+    _pending_remote.clear()
+    for (user_id, _resource), frame in pending:
+        # Through the ordinary path, so one that is refused again is simply
+        # pending again rather than lost on the way to being recovered.
+        await _publish_remote(user_id, frame)
+
+    resync = build_frame(RESOURCE_RESYNC, "changed")
+    # Cleared only once it has gone. A bus that fails again while this is
+    # recovering leaves the mark standing for the next time it comes up —
+    # the same rule the refused frames above follow by re-queueing.
+    if _dropped_remote and await _publish_to_everyone(resync):
+        _dropped_remote = False
+    for user_id in stream.connected_users():
+        await stream.send(user_id, resync)
 
 
 def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> None:

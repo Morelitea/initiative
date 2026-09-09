@@ -261,29 +261,22 @@
     "scheduleError": "No se pudo actualizar la programación de notificaciones",
     "toggleError": "No se pudo actualizar la configuración de notificaciones",
     "categoryHeader": "Categoría",
-    "emailHeader": "Email",
-    "mobileAppHeader": "App móvil",
     "categories": {
-      "initiativeInvites": "Invitaciones a iniciativas",
-      "initiativeInvitesDescription": "Cuando te agregan a una nueva iniciativa.",
-      "taskAssignments": "Asignaciones de tareas",
-      "taskAssignmentsDescription": "Resumen cada hora cuando otros te asignan tareas.",
       "mentions": "Menciones",
-      "mentionsDescription": "Cuando alguien te menciona o comenta en tu trabajo.",
-      "commentReactions": "Reacciones",
-      "commentReactionsDescription": "Un resumen periódico cuando otras personas reaccionan a tus comentarios.",
-      "newProject": "Nuevo proyecto en iniciativa",
-      "newProjectDescription": "Cuando se crean proyectos en tus iniciativas.",
-      "overdueTasks": "Tareas vencidas",
-      "overdueTasksDescription": "Recordatorio diario de tareas vencidas a la hora programada.",
-      "events": "Eventos",
-      "eventsDescription": "Cuando te invitan a un evento o cambia uno al que asistes.",
-      "eventReminders": "Recordatorios de eventos",
-      "eventRemindersDescription": "Un recordatorio antes de que comiencen los eventos a los que asistes.",
-      "directMessages": "Mensajes directos",
-      "directMessagesDescription": "Alguien te envió un mensaje directo. Nunca incluye lo que dice.",
+      "replies": "Respuestas",
+      "comments": "Comentarios en tu trabajo",
+      "reactions": "Reacciones",
+      "assignments": "Tareas asignadas",
+      "due_dates": "Tareas vencidas",
+      "membership": "Nuevas incorporaciones",
+      "approvals": "Esperan por ti",
       "posts": "Publicaciones",
-      "postsDescription": "Cuando se publica un aviso en un tablón que puedes ver."
+      "events": "Eventos",
+      "event_reminders": "Recordatorios de eventos",
+      "direct_messages": "Mensajes directos",
+      "connections": "Contactos",
+      "jobs": "Exportaciones e importaciones",
+      "account": "Tu cuenta"
     },
     "reminderLeadTime": {
       "label": "Recordarme",
@@ -298,7 +291,53 @@
     "scheduleTitle": "Recordatorio diario",
     "scheduleDescription": "Cuándo sale el aviso de tareas vencidas, y con qué reloj.",
     "channelsTitle": "De qué te enteras",
-    "channelsDescription": "Elige un canal para cada tipo de novedad. Las notificaciones de la campana llegan igualmente."
+    "channelsDescription": "Una fila por tipo de novedad, un interruptor por canal. Nada está activo si no lo has dejado activo.",
+    "switchLabel": "{{category}} por {{channel}}",
+    "channels": {
+      "in_app": "Campana",
+      "email": "Correo",
+      "push": "Móvil"
+    },
+    "groups": {
+      "addressed_to_me": "Dirigido a mí",
+      "activity": "Actividad",
+      "community": "Comunidad",
+      "account": "Cuenta"
+    },
+    "categoryDescriptions": {
+      "mentions": "Alguien escribió tu nombre.",
+      "replies": "Alguien respondió a algo que dijiste.",
+      "comments": "Alguien comentó una tarea en la que estás, o algo que creaste. Agrupado por hilo.",
+      "reactions": "Alguien reaccionó a uno de tus comentarios.",
+      "assignments": "Alguien te asignó tareas. Un resumen, no uno por tarea.",
+      "due_dates": "Un aviso diario de lo vencido, a la hora que elijas.",
+      "membership": "Te añadieron a una iniciativa, o apareció un proyecto en una.",
+      "approvals": "Alguien espera tu decisión. Siempre aparece en la campana.",
+      "posts": "Se publicó un aviso en un tablón que puedes ver.",
+      "events": "Te invitaron a algo, o cambió algo a lo que asistes.",
+      "event_reminders": "Poco antes de un evento al que vas.",
+      "direct_messages": "Alguien te escribió. Quién y cuántos, nunca qué dice.",
+      "connections": "Alguien pidió conectar, o aceptó.",
+      "jobs": "Terminó una exportación o importación que pediste.",
+      "account": "Se hizo algo con tu cuenta. Siempre aparece en la campana."
+    },
+    "quietHours": {
+      "title": "Horas de silencio",
+      "description": "Retiene correo y móvil durante la noche. La campana sigue recogiendo, y al terminar sale un resumen.",
+      "from": "Desde",
+      "to": "Hasta"
+    },
+    "communities": {
+      "title": "Por comunidad",
+      "description": "Un control por comunidad. Haz que una hable menos sin cambiar nada más.",
+      "levelLabel": "Cuánto dice {{guild}}",
+      "mutedHelp": "Esta comunidad no dice nada — ni siquiera si alguien te nombra directamente.",
+      "levels": {
+        "everything": "Todo",
+        "personal": "Solo lo que me nombra",
+        "nothing": "Nada"
+      }
+    }
   },
   "dangerZone": {
     "serverConnection": "Conexión al servidor",

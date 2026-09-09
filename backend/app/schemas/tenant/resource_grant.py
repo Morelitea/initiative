@@ -25,14 +25,21 @@ MAX_BULK_GRANT_ITEMS = 200
 
 class ResourceGrantSchema(SanitizedBaseModel):
     """One ``resource_grants`` row — exactly the columns that define a grant: a
-    ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
-    initiative members (``all_initiative_members``). Exactly one grantee is set.
+    ``level`` for a user (``user_id``), an initiative role (``role_id``), all
+    initiative members (``all_initiative_members``), or a dashboard
+    (``dashboard_id``). Exactly one grantee is set.
 
     The identical shape both reports a resource's grants (``grants`` is a list of
     these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
     read-only or write-only. The server always preserves the resource's owner
     grant. Role display names are resolved client-side from the initiative's roles
-    by ``role_id``."""
+    by ``role_id``.
+
+    A **dashboard** grantee is reported here and not taken from here: it is what
+    a published view is made of, the owner sees it in their sharing panel, and
+    the server keeps it whatever this list says. Taking one back is its own act,
+    against the dashboard that published it — so a client that knows nothing
+    about published views cannot remove one by saving the panel."""
 
     # from_attributes so a read model can validate straight off the ORM
     # ResourceGrant row (e.g. ProjectRead.model_validate(project) reading
@@ -43,6 +50,8 @@ class ResourceGrantSchema(SanitizedBaseModel):
     user_id: Optional[int] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False
+    #: The dashboard this resource is readable through. Reported, never taken.
+    dashboard_id: Optional[int] = None
 
     @model_validator(mode="after")
     def exactly_one_grantee(self) -> "ResourceGrantSchema":
@@ -50,10 +59,12 @@ class ResourceGrantSchema(SanitizedBaseModel):
             (self.user_id is not None)
             + (self.role_id is not None)
             + self.all_initiative_members
+            + (self.dashboard_id is not None)
         )
         if count != 1:
             raise ValueError(
-                "Exactly one of user_id, role_id, or all_initiative_members must be set"
+                "Exactly one of user_id, role_id, all_initiative_members "
+                "or dashboard_id must be set"
             )
         return self
 

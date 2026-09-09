@@ -133,9 +133,15 @@ async def get_calendar_for_export(
     )
     calendar = (await session.exec(stmt)).one_or_none()
     if calendar is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CalendarMessages.NOT_FOUND,
+        from app.services import reachability
+
+        raise await reachability.missing_or_denied(
+            "calendars",
+            calendar_id,
+            int(current_user.id or 0),
+            guild_id,
+            not_found=CalendarMessages.NOT_FOUND,
+            denied=CalendarMessages.PERMISSION_REQUIRED,
         )
     if calendar.initiative is not None and not calendar.initiative.calendars_enabled:
         raise HTTPException(
@@ -168,14 +174,9 @@ async def list_calendar_ids_for_export(
     applies in both shapes — the narrowing composes with it rather than
     replacing it, so a disabled initiative exports nothing here just as it
     lists nothing everywhere else."""
-    from app.services import permissions as permissions_service
 
     conditions = [
         tool_enabled_clause(),
-        # The same sharing gate the list endpoint applies.
-        permissions_service.dac_scope_clause(
-            Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
-        ),
     ]
     if initiative_id is not None:
         conditions.append(Calendar.initiative_id == initiative_id)

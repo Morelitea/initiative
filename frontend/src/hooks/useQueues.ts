@@ -46,7 +46,7 @@ import {
   updateQueueApiV1GGuildIdQueuesQueueIdPatch,
   updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
-import { invalidateAllQueues, invalidateQueue } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -94,14 +94,13 @@ export const useQueue = (queueId: number | null, options?: QueryOpts<QueueRead>)
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-const invalidateQueueAndList = (queueId: number) =>
-  Promise.all([invalidateQueue(queueId), invalidateAllQueues()]);
+const invalidateQueueAndList = (queueId: number) => invalidate(q.queue(queueId), q.allQueues());
 
 export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) =>
   useGuildMutation<QueueRead, QueueCreate>(
     {
       mutationFn: (guildId, data) => createQueueApiV1GGuildIdQueuesPost(guildId, data),
-      invalidate: () => invalidateAllQueues(),
+      invalidate: () => invalidate(q.allQueues()),
       errorKey: "queues:error",
     },
     options
@@ -123,7 +122,7 @@ export const useDeleteQueue = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, queueId) =>
         deleteQueueApiV1GGuildIdQueuesQueueIdDelete(guildId, queueId),
-      invalidate: () => invalidateAllQueues(),
+      invalidate: () => invalidate(q.allQueues()),
       errorKey: "queues:error",
     },
     options
@@ -466,8 +465,7 @@ export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -491,8 +489,7 @@ export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRea
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -516,8 +513,7 @@ export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead,
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -541,8 +537,7 @@ export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, 
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -566,8 +561,7 @@ export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead,
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -594,8 +588,7 @@ export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRe
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -619,8 +612,7 @@ export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });
@@ -658,8 +650,7 @@ export const useReleaseHeld = (
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
+      void invalidate(q.queue(queueId), q.allQueues());
       onSettled?.(...args);
     },
   });

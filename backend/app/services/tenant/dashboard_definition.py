@@ -32,19 +32,23 @@ dropped rather than preserved, so a stored definition always has canonical shape
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Optional, Sequence
 
-from app.core.messages import DashboardMessages
+from app.core.messages import DashboardMessages, QueryMessages
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
 from app.services.marketplace.manifest_values import (
     IDENTIFIER_CHARS,
     MAX_IDENTIFIER_LENGTH,
 )
+from app.services.fields.spec import FieldType
 from app.services.marketplace.service_apps import (
     APP_WIDGET_TYPE_PREFIX,
     ENDPOINT_ID_CHARS,
     MAX_ENDPOINT_ID_LENGTH,
 )
+from app.services.query.resolve import QueryError, resolve
+from app.services.query.rows import RowColumn
+from app.services.query.rows import plan as row_plan
 
 SCHEMA_VERSION = 1
 
@@ -55,6 +59,9 @@ MAX_WIDGETS = 50
 MAX_GRID_COLUMNS = 12
 MAX_GRID_ROWS = 500
 MAX_TITLE_LENGTH = 200
+#: A statement's own ceiling, matching what the query endpoint accepts. Stated
+#: here too because a definition is checked before anything is run.
+MAX_SQL_LENGTH = 20_000
 
 
 class DashboardDefinitionError(ValueError):
@@ -101,13 +108,42 @@ def _option(*values: str, default: str | None = None) -> WidgetOptionSpec:
     return WidgetOptionSpec(values=values, default=default if default else values[0])
 
 
+#: What may fill a slot, by what the slot is for. Named sets rather than a set
+#: written at each slot: "a thing with a name" is the same answer for a bar's
+#: category, a card's title and a Gantt row's label, and stating it once is what
+#: keeps them agreeing.
+LABEL_TYPES = frozenset({FieldType.text, FieldType.enum, FieldType.reference})
+NUMBER_TYPES = frozenset({FieldType.number})
+DATE_TYPES = frozenset({FieldType.date})
+
+
+@dataclass(frozen=True)
+class Slot:
+    """One column a widget needs, and what may fill it.
+
+    A widget declares the *shape* it can draw rather than the sources it knows,
+    so any query returning that shape drives it. The slot's name is what the
+    author sees in the picker beside it and what a stored mapping keys on.
+    """
+
+    name: str
+    types: frozenset[FieldType]
+    #: A widget that draws without it — a chart needs a category and a value,
+    #: and colours by a third column only if there is one.
+    required: bool = True
+    #: Several columns may fill it: a chart's measures are one series each.
+    repeatable: bool = False
+
+
 @dataclass(frozen=True)
 class WidgetSpec:
     min_w: int
     min_h: int
     default_w: int
     default_h: int
-    sources: frozenset[str]
+    #: The columns this widget draws, in the order it reads them. Empty means it
+    #: draws whatever it is given, which only a table can honestly claim.
+    shape: tuple[Slot, ...] = ()
     # Widget-level options this primitive accepts, each with its allowed values.
     # A preset's params and a definition's own options are checked against this.
     options: Mapping[str, WidgetOptionSpec] = field(default_factory=dict)
@@ -120,13 +156,18 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=3,
         default_w=12,
         default_h=6,
-        sources=frozenset({"tasks", "projects", "calendar_entries"}),
+        shape=(
+            Slot("label", LABEL_TYPES),
+            Slot("start", DATE_TYPES),
+            Slot("end", DATE_TYPES),
+            Slot("group", LABEL_TYPES, required=False),
+        ),
         options={
             "scale": _option("day", "week", "month", "quarter", default="week"),
-            # How rows are grouped into foldable summaries. What each key means
-            # is the widget's business — a calendar entry has no priority, so it
-            # reads anything but "none" as "the calendar it sits on".
-            "group": _option("project", "status", "priority", "assignee", "none"),
+            # Whether rows fold into summaries at all. What they fold *by*
+            # is the column the author mapped to the group slot, not an option
+            # this build could name in advance.
+            "group": _option("on", "none"),
             # The total row above everything shown.
             "rollup": _option("on", "off"),
             # Whether groups arrive open or folded. A starting state only; which
@@ -140,7 +181,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=2,
         default_w=3,
         default_h=2,
-        sources=frozenset({"counter", "task_counts", "sheet_range"}),
+        shape=(
+            Slot("value", NUMBER_TYPES),
+            Slot("label", LABEL_TYPES, required=False),
+        ),
         options={
             "format": _option("plain", "percent", "currency", "duration"),
             # Which count the number reports when its source is several
@@ -159,7 +203,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=3,
         default_w=6,
         default_h=4,
-        sources=frozenset({"task_counts", "counter_group", "sheet_range", "projects"}),
+        shape=(
+            Slot("label", LABEL_TYPES | DATE_TYPES),
+            Slot("value", NUMBER_TYPES, repeatable=True),
+        ),
         options={
             "mark": _option("bar", "line", "area", "pie"),
             "stacked": _option("false", "true"),
@@ -184,7 +231,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=3,
         default_w=6,
         default_h=5,
-        sources=frozenset({"task_counts", "sheet_range"}),
+        shape=(
+            Slot("label", LABEL_TYPES),
+            Slot("value", NUMBER_TYPES),
+        ),
         options={
             # Stages are usually a workflow, so the order the source gave them
             # is meaningful; sorting is for when it is not.
@@ -197,7 +247,11 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=1,
         default_w=4,
         default_h=2,
-        sources=frozenset({"counter", "task_counts", "projects"}),
+        shape=(
+            Slot("value", NUMBER_TYPES),
+            Slot("total", NUMBER_TYPES, required=False),
+            Slot("label", LABEL_TYPES, required=False),
+        ),
         options={
             # One bar for the whole binding, or one per project/bucket.
             "breakdown": _option("total", "each"),
@@ -211,7 +265,10 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=2,
         default_w=8,
         default_h=3,
-        sources=frozenset({"task_counts"}),
+        shape=(
+            Slot("at", DATE_TYPES),
+            Slot("value", NUMBER_TYPES),
+        ),
         options={"tone": _option("accent", "positive", "warning")},
     ),
     # Tasks in columns. Display only, like every widget: a card cannot be
@@ -222,24 +279,16 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=4,
         default_w=12,
         default_h=6,
-        sources=frozenset({"tasks"}),
+        shape=(
+            Slot("card", LABEL_TYPES),
+            Slot("column", LABEL_TYPES),
+            Slot("date", DATE_TYPES, required=False),
+        ),
         options={
-            # What a column stands for. "property" columns by the custom
-            # property the binding names, which is how a board groups by
-            # something this build has never heard of — a team's own field.
-            "group": _option(
-                "status",
-                "status_category",
-                "assignee",
-                "priority",
-                "project",
-                "tag",
-                "property",
-            ),
             # The order cards sit in within a column. Not the author's manual
             # order: that is a position inside one project's board, and a
-            # binding spanning several has no single one to honour.
-            "sort": _option("due", "priority", "created", "updated", "title"),
+            # statement spanning several has no single one to honour.
+            "sort": _option("label", "date"),
             # How much of a task a card carries.
             "cards": _option("standard", "compact", "detailed"),
             # Mark cards that need attention, in the negative tone.
@@ -255,23 +304,25 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=3,
         default_w=12,
         default_h=5,
-        sources=frozenset({"tasks", "projects", "sheet_range", "calendar_entries"}),
+        shape=(),
         options={
             # How many of a row's fields to show. The envelope carries tags,
             # assignees, checklist progress and comment counts; "standard" is
             # the four columns that fit a half-width tile.
             "columns": _option("standard", "detailed"),
-            # Mark rows that need attention, in the negative tone.
-            "highlight": _option("off", "overdue"),
             "totals": _option("off", "on"),
         },
     ),
 }
 
-# Derived, so a source is named exactly once — on the widgets that render it.
-ALL_SOURCES: frozenset[str] = frozenset().union(
-    *(spec.sources for spec in WIDGET_SPECS.values())
-)
+#: What a binding may name. Three, and only the first is ours to write: a
+#: **query** is a statement over this guild's datasets, a **sheet_range** is a
+#: cell range in a spreadsheet document, and **app** is an installed listing's
+#: own endpoint. The first two both answer with columns and rows, so a widget
+#: draws them by the same path and never learns which it was given.
+QUERY_SOURCE = "query"
+SHEET_SOURCE = "sheet_range"
+TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 
 
 # --- app widgets ------------------------------------------------------------
@@ -302,14 +353,10 @@ ALL_SOURCES: frozenset[str] = frozenset().union(
 APP_BINDING_SOURCE = "app"
 
 #: Size floors for an app widget. Uniform, because this build cannot know what
-#: a vendor's module draws; the floor is simply "big enough to read".
-APP_WIDGET_SPEC = WidgetSpec(
-    min_w=2,
-    min_h=2,
-    default_w=6,
-    default_h=4,
-    sources=frozenset({APP_BINDING_SOURCE}),
-)
+#: a vendor's module draws; the floor is simply "big enough to read". It
+#: declares no shape: an app's rows are its own, described in its manifest, and
+#: the module that draws them ships alongside — there is nothing here to map.
+APP_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
 
 #: What one app binding may carry, mirroring the manifest's per-source cap.
 MAX_APP_BINDING_PARAMS = 12
@@ -378,7 +425,19 @@ def app_widget_parts(declared: str) -> tuple[str, str] | None:
     return listing_uid, widget_id
 
 
-def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[str, Any]:
+#: How a caller looks up what an endpoint hands back: given an app and one of
+#: its endpoints, the columns its rows hold, or ``None`` where this caller
+#: cannot say. A dashboard is saved through a request that can look up the
+#: install; a listing is validated with its own manifest in hand; a factory has
+#: neither and checks the statement's shape alone.
+EndpointColumns = Callable[[str, str], "Optional[Sequence[RowColumn]]"]
+
+
+def _normalize_app_binding(
+    binding: dict[str, Any],
+    listing_uid: str,
+    endpoint_columns: "Optional[EndpointColumns]" = None,
+) -> dict[str, Any]:
     """An ``app`` binding: which installed app, which source, which parameters.
 
     ``app_uid`` has to be the app the widget came from. A widget is one app's
@@ -406,7 +465,45 @@ def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[st
     }
     if params:
         cleaned["params"] = params
+    statement = _checked_row_statement(
+        binding.get("sql"), listing_uid, endpoint_id, endpoint_columns
+    )
+    if statement is not None:
+        cleaned["sql"] = statement
     return cleaned
+
+
+def _checked_row_statement(
+    raw: Any,
+    listing_uid: str,
+    endpoint_id: str,
+    endpoint_columns: "Optional[EndpointColumns]",
+) -> Optional[str]:
+    """A statement over the rows an endpoint returns, read the way it will be.
+
+    Its shape is checked here whatever the caller knows — one ``SELECT``, the
+    allowed nodes and functions, and ``rows`` as its only relation. Its
+    *columns* are checked too wherever the caller can say what the endpoint
+    hands back, which is what keeps a widget naming a column its app does not
+    send from being storable.
+    """
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str):
+        _fail(DashboardMessages.BINDING_SQL_MISSING)
+        raise AssertionError  # unreachable; _fail raises
+    if len(raw) > MAX_SQL_LENGTH:
+        _fail(DashboardMessages.BINDING_SQL_TOO_LONG)
+    declared = endpoint_columns(listing_uid, endpoint_id) if endpoint_columns else None
+    try:
+        row_plan(raw, declared if declared is not None else ())
+    except QueryError as refused:
+        # Nothing was declared, so a name cannot be wrong here — only the shape
+        # can, and this caller cannot see the difference.
+        if declared is None and refused.code == QueryMessages.UNKNOWN_FIELD:
+            return raw
+        raise DashboardDefinitionError(refused.code) from refused
+    return raw
 
 
 def _check_app_param(value: Any) -> Any:
@@ -540,7 +637,11 @@ _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
 
 def _normalize_binding(
-    raw: Any, spec: WidgetSpec, *, app_listing_uid: str | None = None
+    raw: Any,
+    spec: WidgetSpec,
+    *,
+    app_listing_uid: str | None = None,
+    endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
     its parameters as given for the fetcher to interpret."""
@@ -552,18 +653,100 @@ def _normalize_binding(
         # total branch rather than an extra allowed value.
         if source != APP_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        return _normalize_app_binding(binding, app_listing_uid)
+        return _normalize_app_binding(binding, app_listing_uid, endpoint_columns)
 
-    if not isinstance(source, str) or source not in ALL_SOURCES:
+    if source == APP_BINDING_SOURCE:
+        # A widget of this build's own — a chart, a table, a total — reading an
+        # app, which is possible exactly as far as the rows are described. A
+        # statement makes them so: it names the columns it returns, and the
+        # endpoint declared the ones it reads. Without one they are the app's
+        # own shape, which only the app's own module knows how to draw.
+        if not str(binding.get("sql") or "").strip():
+            _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
+        # It has no module of its own to be one app's, so it names the app it
+        # reads rather than inheriting one. What it may see is decided exactly
+        # where an app widget's is: the dashboard's gates, the binding the
+        # definition stores, and the endpoint's own visibility.
+        return _normalize_app_binding(
+            binding,
+            _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),
+            endpoint_columns,
+        )
+
+    if not isinstance(source, str) or source not in TABULAR_SOURCES:
         _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
-    if source not in spec.sources:
-        _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
     params = {
         key: value
         for key, value in binding.items()
         if key != "source" and key not in _CONTEXT_ONLY_PARAMS
     }
+    if source == QUERY_SOURCE:
+        statement = _checked_statement(params.get("sql"))
+        params.pop("sql", None)
+        if statement is not None:
+            params["sql"] = statement
     return {"source": source, **params}
+
+
+def _checked_statement(raw: Any) -> str | None:
+    """The statement, having been read the way the surface will read it.
+
+    Checked here rather than at fetch time because a definition that cannot be
+    fetched should not be storable: the author is looking at the query, and the
+    validator says which word has to change. It is a pure read — no database, no
+    planning — so it costs a parse.
+
+    ``None`` for a widget that has no statement yet. That is a real state and
+    not an error: a widget is placed before it is pointed anywhere, and an
+    installed listing may ship one for its guild to fill in. It draws its own
+    "not configured" panel rather than anything of anybody's, because there is
+    nothing to run.
+    """
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str):
+        _fail(DashboardMessages.BINDING_SQL_MISSING)
+        raise AssertionError  # unreachable; _fail raises
+    if len(raw) > MAX_SQL_LENGTH:
+        _fail(DashboardMessages.BINDING_SQL_TOO_LONG)
+    try:
+        resolve(raw)
+    except QueryError as refused:
+        raise DashboardDefinitionError(refused.code) from refused
+    return raw
+
+
+def _normalize_mapping(raw: Any, spec: WidgetSpec) -> dict[str, list[int]]:
+    """Which of a statement's columns fill this widget's slots.
+
+    Column *ordinals*, not names: ``SELECT t.id, p.id`` names both columns
+    ``id``, so a name is not a key. A widget declaring no shape draws every
+    column and has nothing to map.
+
+    What is not checked here is whether the ordinals exist or hold the right
+    type — that needs the statement described against a database, which a
+    normalizer has no session for. The author's own editor checks it as they
+    write (``/query/describe``), and a mapping that has gone stale draws as a
+    table rather than as an error.
+    """
+    if raw is None or not spec.shape:
+        return {}
+    mapping = _require_mapping(raw, DashboardMessages.WIDGET_MAPPING_INVALID)
+    slots = {slot.name: slot for slot in spec.shape}
+    cleaned: dict[str, list[int]] = {}
+    for name, value in mapping.items():
+        slot = slots.get(name)
+        if slot is None:
+            _fail(DashboardMessages.WIDGET_MAPPING_INVALID)
+            raise AssertionError  # unreachable; _fail raises
+        ordinals = value if isinstance(value, list) else [value]
+        if not ordinals or (len(ordinals) > 1 and not slot.repeatable):
+            _fail(DashboardMessages.WIDGET_MAPPING_INVALID)
+        for ordinal in ordinals:
+            if not isinstance(ordinal, int) or isinstance(ordinal, bool) or ordinal < 0:
+                _fail(DashboardMessages.WIDGET_MAPPING_INVALID)
+        cleaned[name] = list(ordinals)
+    return cleaned
 
 
 def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) -> dict:
@@ -589,7 +772,12 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
     return options
 
 
-def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any]:
+def _normalize_widget(
+    raw: Any,
+    index: int,
+    seen_ids: set[str],
+    endpoint_columns: "Optional[EndpointColumns]" = None,
+) -> dict[str, Any]:
     widget = _require_mapping(raw, DashboardMessages.WIDGET_INVALID)
     declared = widget.get("type")
     if not isinstance(declared, str):
@@ -625,6 +813,7 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
             widget.get("binding"),
             spec,
             app_listing_uid=app_parts[0] if app_parts else None,
+            endpoint_columns=endpoint_columns,
         ),
     }
     if preset is not None:
@@ -636,10 +825,15 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
     options = _normalize_options(widget.get("options"), spec, preset)
     if options:
         cleaned["options"] = options
+    mapping = _normalize_mapping(widget.get("mapping"), spec)
+    if mapping:
+        cleaned["mapping"] = mapping
     return cleaned
 
 
-def normalize_dashboard_definition(payload: Any) -> dict[str, Any]:
+def normalize_dashboard_definition(
+    payload: Any, *, endpoint_columns: "Optional[EndpointColumns]" = None
+) -> dict[str, Any]:
     """Validate and canonicalize a dashboard definition.
 
     Raises ``DashboardDefinitionError`` with a machine code for a widget type or
@@ -659,7 +853,8 @@ def normalize_dashboard_definition(payload: Any) -> dict[str, Any]:
 
     seen_ids: set[str] = set()
     widgets = [
-        _normalize_widget(raw, index, seen_ids) for index, raw in enumerate(raw_widgets)
+        _normalize_widget(raw, index, seen_ids, endpoint_columns)
+        for index, raw in enumerate(raw_widgets)
     ]
 
     raw_layout = definition.get("layout")

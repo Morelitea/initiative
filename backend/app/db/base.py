@@ -71,6 +71,7 @@ from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.user_dm_settings import UserDmSettings
+from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.contact_grant import ContactGrant
 from app.models.platform.user_ignore import UserIgnore
@@ -191,6 +192,7 @@ __all__ = [
     "ProfileFavorite",
     "UserViewPreference",
     "UserDmSettings",
+    "UserNotificationPrefs",
     "UserDmGuildOptout",
     "ContactGrant",
     "UserIgnore",

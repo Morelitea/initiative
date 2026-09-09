@@ -19,7 +19,7 @@ import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { linkableToolTypes } from "@/lib/references";
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
@@ -120,15 +120,15 @@ function useWikilinkSearch(
   // between the two triggers.
   const { data: initiative } = useInitiative(initiativeId);
   const linkable = useMemo(() => linkableToolTypes(initiative), [initiative]);
-  const { data, isFetching } = useGuildSearchSuggest(queryString ?? "", {
+  // A bare `[[ ]]` names nothing yet, so the menu opens on this initiative's
+  // most recent linkable things rather than waiting for a first letter.
+  const { items: results, isFetching: isLoading } = useGuildPickerSuggestions(queryString ?? "", {
     types: linkable,
     initiative_id: initiativeId ?? undefined,
     template: false,
     limit: SUGGESTION_LIST_LENGTH_LIMIT,
-    enabled: Boolean(queryString) && initiativeId !== null,
+    enabled: queryString !== null && initiativeId !== null,
   });
-  const results = useMemo(() => data ?? [], [data]);
-  const isLoading = isFetching;
 
   const options = useMemo(() => {
     const docOptions = results.map(

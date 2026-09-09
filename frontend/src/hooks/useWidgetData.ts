@@ -2,51 +2,30 @@
  * Resolve a widget's binding into the data envelope it renders from.
  *
  * The security shape of this file matters more than its size. A binding names a
- * *source*, never an endpoint — and each source is fetched here through the same
+ * *source*, never an endpoint — and each is fetched here through the same
  * ordinary hook the rest of the app uses, so the request is the viewer's own and
  * the six gates decide what comes back. A dashboard shared with someone who
- * cannot read the bound counter therefore shows them an empty widget, not the
+ * cannot read the bound rows therefore shows them an empty widget, not the
  * author's data. Nothing a definition can say reaches a URL.
  *
- * Every source hook is called on every render with `enabled` gating rather than
- * conditionally, because hooks must be unconditional. Disabled queries cost
- * nothing, and the ones that do run share React Query's cache — two widgets
- * bound to the same tasks issue one request between them, which is what keeps a
- * dense canvas from becoming a request storm.
+ * Three bindings, and two of them answer with the same envelope: a statement
+ * and a spreadsheet range are both columns and rows. Every hook below is called
+ * on every render with `enabled` gating rather than conditionally, because
+ * hooks must be unconditional. Disabled queries cost nothing, and the ones that
+ * do run share React Query's cache — two widgets running the same statement
+ * issue one request between them, which is what keeps a dense canvas from
+ * becoming a request storm.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { resolveAppBinding } from "@/api/appData";
-import type {
-  ListTasksApiV1GGuildIdTasksGetParams,
-  WidgetCatalog,
-} from "@/api/generated/initiativeAPI.schemas";
 import { useAppData, useAppWidgetCatalog } from "@/hooks/useAppData";
-import { useCalendarEntries } from "@/hooks/useCalendarEntries";
-import { useCalendarsList } from "@/hooks/useCalendars";
-import { useCounterGroup } from "@/hooks/useCounters";
 import { useDocument } from "@/hooks/useDocuments";
-import { useProjects } from "@/hooks/useProjects";
-import { useProperties } from "@/hooks/useProperties";
-import { useTasks } from "@/hooks/useTasks";
-import { expandConditions, readConditions } from "@/lib/widgets/conditions";
+import { useSqlQuery, useWidgetQuery } from "@/hooks/useSqlQuery";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
-import {
-  type CountBucket,
-  countTasks,
-  countTasksByProject,
-  type DayField,
-  emptyDataFor,
-  normalizeCalendarEntries,
-  normalizeCounter,
-  normalizeCounterGroup,
-  normalizeProjects,
-  normalizeSheetRange,
-  normalizeTasks,
-  propertyDomain,
-} from "@/lib/widgets/normalize";
+import { emptyDataFor, normalizeQueryRows, normalizeSheetRange } from "@/lib/widgets/normalize";
 
 /** A normalized definition binding. Everything past `source` is the fetcher's
  *  to interpret — the backend deliberately does not re-declare these, so that
@@ -56,25 +35,19 @@ import {
  *  sits on, and the backend normalizer drops it from a stored binding. */
 export interface WidgetBinding {
   source: WidgetSource;
-  conditions?: unknown;
-  project_id?: number | null;
-  counter_group_id?: number | null;
-  counter_id?: number | null;
-  calendar_id?: number | null;
+  /** `query`: the statement to read. Checked and rewritten by the server before
+   *  it runs — what is stored is what the author built, and what reaches
+   *  Postgres is what the validator produced from it. */
+  sql?: string | null;
+  /** What was clicked to produce `sql`, so the builder reopens on it rather
+   *  than leaving somebody to read their own statement back. Absent for a
+   *  statement that did not come from the builder. */
+  spec?: unknown;
   document_id?: number | null;
-  /** Which of the initiative's custom properties a board deals its columns
-   *  from. Read by the `board` widget alone; every other widget bound to the
-   *  same rows ignores it. */
-  property_id?: number | null;
   sheet?: string | null;
   range?: string | null;
-  bucket?: CountBucket | null;
-  /** Which date a `day` bucket counts on. */
-  day_field?: DayField | null;
-  /** Days back from today for time-windowed sources. */
-  window_days?: number | null;
-  /** `app` source: which installed app, which of its sources, and the arguments
-   *  the source declared. The binding names a listing and a source id — never an
+  /** `app`: which installed app, which of its sources, and the arguments the
+   *  source declared. The binding names a listing and a source id — never an
    *  address. Where the app lives comes from the deployment's registration, and
    *  only the server ever reads it. */
   app_uid?: string | null;
@@ -84,145 +57,102 @@ export interface WidgetBinding {
 
 export interface WidgetDataResult {
   data: WidgetData;
-  isLoading: boolean;
-  /** A binding whose ids the instance config has not filled in yet — the widget
-   *  renders its own empty state rather than an error. */
+  /** A binding whose parameters the instance config has not filled in yet — the
+   *  widget renders its own empty state rather than an error. */
   isUnbound: boolean;
+  isLoading: boolean;
   /** The binding names a target, the fetch resolved, and the target is not
    *  there: deleted, or hidden from this viewer by the gates.
    *
-   *  Deliberately distinct from {@link isUnbound}, which these two used to
-   *  share. They are opposite instructions — one asks the author to finish
-   *  configuring a widget, the other says this viewer is not the person who can
-   *  see the answer — and telling a reader to "configure this" invites them to
-   *  repoint a binding that was never wrong. What the tile may *say* about it
-   *  is bounded: absence, never the name or id of the thing that is absent. */
+   *  Deliberately distinct from {@link isUnbound}. They are opposite
+   *  instructions — one asks the author to finish configuring a widget, the
+   *  other says this viewer is not the person who can see the answer — and
+   *  telling a reader to "configure this" invites them to repoint a binding
+   *  that was never wrong. What the tile may *say* about it is bounded:
+   *  absence, never the name or id of the thing that is absent. */
   isRestricted: boolean;
   /** Rows this viewer's own query matched, and whether the rows in `data` are a
    *  leading slice of them. Mirrors `data.meta`, hoisted for the tile chrome. */
   meta?: DataMeta;
   /** Re-run this binding's own queries. Lives here because this is the only
-   *  place that knows which ones a source uses — a caller refetching by query
-   *  key would be maintaining that list twice. */
+   *  place that knows which ones a source uses. */
   refetch: () => void;
-  /** Set when the tile should draw an error instead of running the widget. Only
-   *  the `app` source produces one: our own sources fail closed to empty, but an
-   *  external service being down is worth saying out loud. */
+  /** Set when the tile should draw an error instead of running the widget. */
   errorCode?: WidgetErrorCode;
 }
-
-const DAY = 86_400_000;
-const DEFAULT_WINDOW_DAYS = 90;
-
-/** Sources that need the task list. `task_counts` and the project progress
- *  columns are derived from those same rows rather than fetched again. */
-const TASK_BACKED: WidgetSource[] = ["tasks", "task_counts", "projects"];
 
 /**
  * Resolve one widget's binding.
  *
  * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
  * a binding cannot say otherwise: dashboards are an initiative's tool, so a
- * widget reads that initiative and nothing else, exactly as a project board
- * reads its project. That holds three ways, all fail-closed:
+ * widget reads that initiative and nothing else. Without an initiative nothing
+ * is fetched at all (unbound, not guild-wide), and a document fetched by id is
+ * held against the initiative afterwards, so an id pointing into another one
+ * resolves to absent — the same rendering as a deleted or unshared target.
  *
- * - without an initiative, nothing is fetched at all (unbound, not guild-wide);
- * - list sources carry the initiative in the query itself;
- * - id sources (a counter group, a document) are fetched by id and then held
- *   against the initiative — an id pointing into another one resolves to
- *   absent, the same rendering as a deleted or unshared target.
+ * A statement is held against it the same way, but at the database rather than
+ * afterwards: the initiative goes with the request, and the policies on the
+ * tables the statement reads answer for that initiative alone. So a widget
+ * cannot show another initiative's rows even to a reader who is in both.
+ *
+ * `widgetId` says which widget on that dashboard is asking. Only a binding
+ * carrying a statement needs it, and only to have the *stored* one run: nothing
+ * here says what to run.
  *
  * `dashboardId` is the row the widget sits on, and only the `app` source needs
- * it: an app's data is guild-level, so the proxy is told which initiative-scoped
- * surface is asking and decides the read against *that* row's gates. Without it
- * — a preview, the picker — nothing is requested, exactly as without an
- * initiative.
+ * it: an app's data is guild-level, so the proxy is told which
+ * initiative-scoped surface is asking and decides the read against *that* row's
+ * gates.
  */
 export function useWidgetData(
   binding: WidgetBinding,
   initiativeId: number | undefined,
-  dashboardId?: number
+  dashboardId?: number,
+  widgetId?: string
 ): WidgetDataResult {
   const source = binding.source;
   const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
 
-  /**
-   * The task query, scoped through the filter DSL.
-   *
-   * `conditions` is the only narrowing the tasks endpoint reads — it has no
-   * `initiative_id` or `project_id` query parameter — so the dashboard's
-   * initiative and any bound project go in as conditions, AND-ed with the
-   * binding's own.
-   *
-   * Flat, deliberately: the DSL caps group nesting, and the author's own
-   * conditions may already use it, so adding a wrapper of our own would spend a
-   * level they need. A top-level list is AND-ed anyway.
-   */
-  const taskParams = useMemo<ListTasksApiV1GGuildIdTasksGetParams>(() => {
-    const conditions: unknown[] = [];
-    if (initiativeId) {
-      conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
-    }
-    if (binding.project_id) {
-      conditions.push({ field: "project_id", op: "eq", value: binding.project_id });
-    }
-    // The binding's own, with relative dates resolved against this instant. The
-    // parser owns its limits, and mirroring them here would mean maintaining
-    // them twice; what does happen here is the one translation the endpoint
-    // cannot do, because it never learns the relative form — a definition that
-    // asks for "due within 30 days" must keep asking that as the days pass,
-    // rather than freezing the date it was saved on.
-    conditions.push(...expandConditions(readConditions(binding.conditions), Date.now()));
-
-    const params: Record<string, unknown> = { page_size: 0 };
-    if (conditions.length) params.conditions = JSON.stringify(conditions);
-    return params as ListTasksApiV1GGuildIdTasksGetParams;
-  }, [binding.project_id, initiativeId, binding.conditions]);
-
-  const window = useMemo(() => {
-    const days = binding.window_days ?? DEFAULT_WINDOW_DAYS;
-    const now = Date.now();
-    return {
-      start: new Date(now - days * DAY).toISOString(),
-      end: new Date(now + days * DAY).toISOString(),
-    };
-  }, [binding.window_days]);
-
-  // Every query below is enabled only under `scoped`: with no initiative there
-  // is nothing a dashboard widget may read, so nothing is requested.
-  const tasksQuery = useTasks(taskParams, {
-    enabled: scoped && TASK_BACKED.includes(source),
-  });
-  // The projects list has no initiative filter of its own, so its rows are
-  // narrowed after the fetch — which also keeps the query key shared with every
-  // other projects consumer.
-  const projectsQuery = useProjects(undefined, { enabled: scoped && source === "projects" });
-  const entriesQuery = useCalendarEntries(
-    {
-      start_after: window.start,
-      start_before: window.end,
-      include_events: true,
-      initiative_id: initiativeId,
-    },
-    { enabled: scoped && source === "calendar_entries" }
+  // The statement is the request: no ids to resolve first. What it does not
+  // say is *whose* — a statement names datasets, and the reader belongs to
+  // however many initiatives they belong to — so the dashboard's own
+  // initiative goes with it and the rows come back narrowed to it.
+  // A widget already on a dashboard is read by naming it: the server looks the
+  // statement up rather than being handed one. That is what carries a published
+  // view — the rows a dashboard's own grants reach are shown through the
+  // question somebody published, and there is no way to ask another of them.
+  // A widget that is not placed yet — the config dialog's preview — has no
+  // stored statement to look up, so it sends the one being written.
+  // A widget nobody has pointed anywhere yet has no statement for the server to
+  // look up, and asking for one is a request that can only come back empty
+  // handed. The binding here is the effective one — the definition with the
+  // instance config over it, which is what the server reads too — so this asks
+  // the same question the lookup would.
+  const addressed = typeof dashboardId === "number" && Boolean(widgetId) && Boolean(binding.sql);
+  // Placed once is placed for good. A canvas re-renders with its dashboard
+  // momentarily unknown, and a widget that flipped back to sending its own
+  // statement for those renders would read a hook that has nothing retained —
+  // so the tile would still blink empty, through the other of the two paths.
+  // A widget does not move from a canvas to a dialog while it is mounted, so
+  // remembering which of them it is costs nothing and settles it.
+  const wasPlaced = useRef(false);
+  if (addressed) wasPlaced.current = true;
+  const placed = addressed || wasPlaced.current;
+  const widgetQuery = useWidgetQuery(
+    source === "query" && placed ? (dashboardId ?? null) : null,
+    source === "query" && placed ? (widgetId ?? null) : null,
+    { enabled: scoped && source === "query" && placed }
   );
-  const calendarsQuery = useCalendarsList(
-    { initiative_id: initiativeId },
-    { enabled: scoped && source === "calendar_entries" }
+  const sqlQuery = useSqlQuery(
+    source === "query" && !placed ? (binding.sql ?? null) : null,
+    scoped ? initiativeId : undefined,
+    { enabled: scoped && source === "query" && !placed }
   );
-  const counterGroupQuery = useCounterGroup(binding.counter_group_id ?? null, {
-    enabled: scoped && (source === "counter" || source === "counter_group"),
-  });
+  const answering = placed ? widgetQuery : sqlQuery;
   const documentQuery = useDocument(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
-  // Only the *definitions*, and only when a binding names one: a property's
-  // values ride on the task rows already fetched, so this is here for the name
-  // and for what the property could say that nobody has said yet.
-  const propertiesQuery = useProperties({
-    initiativeId,
-    enabled: scoped && source === "tasks" && binding.property_id != null,
-  });
 
   // The app palette is one request per guild, shared by every app widget on the
   // canvas. It is what turns a binding's `app_uid` into an install id and tells
@@ -235,34 +165,16 @@ export function useWidgetData(
     endpointId: binding.endpoint_id ?? undefined,
     dashboardId,
     params: binding.params ?? undefined,
+    widgetId,
     cacheTtlSeconds: appBinding?.source.cache_ttl_seconds,
     enabled: scoped && isApp,
   });
 
   const refetch = useCallback(() => {
-    if (TASK_BACKED.includes(source)) void tasksQuery.refetch();
-    if (source === "projects") void projectsQuery.refetch();
-    if (source === "calendar_entries") {
-      void entriesQuery.refetch();
-      void calendarsQuery.refetch();
-    }
-    if (source === "counter" || source === "counter_group") void counterGroupQuery.refetch();
+    if (source === "query") void answering.refetch();
     if (source === "sheet_range") void documentQuery.refetch();
-    if (source === "tasks" && binding.property_id != null) void propertiesQuery.refetch();
     if (isApp) void appQuery.refetch();
-  }, [
-    source,
-    isApp,
-    tasksQuery.refetch,
-    projectsQuery.refetch,
-    entriesQuery.refetch,
-    calendarsQuery.refetch,
-    counterGroupQuery.refetch,
-    documentQuery.refetch,
-    propertiesQuery.refetch,
-    binding.property_id,
-    appQuery.refetch,
-  ]);
+  }, [source, isApp, answering.refetch, documentQuery.refetch, appQuery.refetch]);
 
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
@@ -293,147 +205,47 @@ export function useWidgetData(
     // No initiative, no data — fail closed rather than fan out.
     if (!scoped) return unbound();
 
-    // What the viewer's own task query matched, against what it returned. The
-    // list endpoints answer within a fixed window, so a widget on a busy
-    // initiative can be handed a leading slice — which is only honest if the
-    // slice is stated.
-    const taskMeta: DataMeta = {
-      total: tasksQuery.data?.total_count,
-      truncated: Boolean(tasksQuery.data?.has_next),
-    };
-
     switch (source) {
-      case "tasks": {
-        const rows = normalizeTasks(tasksQuery.data?.items ?? []);
-        // A property this viewer cannot resolve is simply absent, exactly like
-        // every other id a binding names: the rows still draw, and the widget
-        // says it has nothing to column by.
-        const definition = binding.property_id
-          ? (propertiesQuery.data ?? []).find((candidate) => candidate.id === binding.property_id)
-          : undefined;
-        return {
-          data: {
-            source,
-            rows,
-            ...(definition ? { property: propertyDomain(definition) } : {}),
-            meta: taskMeta,
-          },
-          isLoading: tasksQuery.isLoading,
-          isUnbound: false,
-          isRestricted: false,
-          refetch,
-          meta: taskMeta,
-        };
-      }
-
-      case "task_counts": {
-        const rows = countTasks(
-          normalizeTasks(tasksQuery.data?.items ?? []),
-          binding.bucket ?? undefined,
-          binding.day_field ?? undefined
-        );
-        return {
-          data: { source, rows, meta: taskMeta },
-          isLoading: tasksQuery.isLoading,
-          isUnbound: false,
-          isRestricted: false,
-          refetch,
-          meta: taskMeta,
-        };
-      }
-
-      case "projects": {
-        const tasks = normalizeTasks(tasksQuery.data?.items ?? []);
-        const counts = countTasksByProject(tasks);
-        const visible = (projectsQuery.data?.items ?? []).filter(
-          (project) => !initiativeId || project.initiative_id === initiativeId
-        );
-        const rows = normalizeProjects(visible, counts);
-        // The tasks ride along rather than being counted and thrown away: they
-        // are already here, already the viewer's own, and a widget that folds a
-        // project open needs exactly them.
-        const meta: DataMeta = {
-          total: visible.length,
-          // The projects themselves are whole; the tasks riding along may be a
-          // slice, and a widget that folds a project open is drawing them.
-          truncated: taskMeta.truncated,
-        };
-        return {
-          data: { source, rows, tasks, meta },
-          isLoading: projectsQuery.isLoading || tasksQuery.isLoading,
-          isUnbound: false,
-          isRestricted: false,
-          refetch,
-          meta,
-        };
-      }
-
-      case "calendar_entries": {
-        const names = new Map<number, string>(
-          (calendarsQuery.data?.items ?? []).map((calendar) => [calendar.id, calendar.name])
-        );
-        const events = (entriesQuery.data?.events ?? []).filter(
-          (event) => !binding.calendar_id || event.calendar_id === binding.calendar_id
-        );
-        const rows = normalizeCalendarEntries(events, names);
-        const meta: DataMeta = { total: rows.length, truncated: false };
-        return {
-          data: { source, rows, meta },
-          isLoading: entriesQuery.isLoading,
-          isUnbound: false,
-          isRestricted: false,
-          refetch,
-          meta,
-        };
-      }
-
-      case "counter": {
-        if (!binding.counter_group_id || !binding.counter_id) return unbound();
-        // A group in another initiative resolves to absent, exactly like a
-        // deleted or unshared one — bindings do not reach across initiatives.
-        const group =
-          counterGroupQuery.data?.initiative_id === initiativeId
-            ? counterGroupQuery.data
-            : undefined;
-        const counter = group?.counters?.find((candidate) => candidate.id === binding.counter_id);
-        // Resolved but absent: the counter was deleted, or the gates hid it.
-        if (!counter) return absent(counterGroupQuery);
-        return {
-          data: { source, counter: normalizeCounter(counter) },
-          isLoading: counterGroupQuery.isLoading,
-          isUnbound: false,
-          isRestricted: false,
-          refetch,
-        };
-      }
-
-      case "counter_group": {
-        if (!binding.counter_group_id) return unbound();
-        if (!counterGroupQuery.data || counterGroupQuery.data.initiative_id !== initiativeId) {
-          return absent(counterGroupQuery);
+      case "query": {
+        if (!binding.sql) return unbound();
+        // A statement the server would not run — a name the registry does not
+        // have, a shape this surface does not accept, a cost ceiling — is the
+        // author's to fix rather than this viewer's, so it reads as an error
+        // and not as absence. Rows this viewer may not see are simply not
+        // returned: the statement runs under their own session.
+        if (answering.isError) {
+          return {
+            data: emptyDataFor(source),
+            isLoading: false,
+            isUnbound: false,
+            isRestricted: false,
+            errorCode: WidgetErrorCode.DATA_UNAVAILABLE,
+            refetch,
+          };
         }
-        const { name, counters } = normalizeCounterGroup(counterGroupQuery.data);
+        const answered = answering.data;
+        const { columns, rows } = normalizeQueryRows(answered?.columns ?? [], answered?.rows ?? []);
+        const meta: DataMeta = { total: rows.length, truncated: Boolean(answered?.truncated) };
         return {
-          data: { source, name, counters, meta: { total: counters.length } },
-          isLoading: counterGroupQuery.isLoading,
+          data: { source: "rows", columns, rows, meta },
+          isLoading: answering.isLoading,
           isUnbound: false,
           isRestricted: false,
           refetch,
-          meta: { total: counters.length },
+          meta,
         };
       }
 
       case "sheet_range": {
         if (!binding.document_id || !binding.range) return unbound();
-        // Same rule as counter groups: a document outside this initiative is
-        // absent, not readable.
+        // A document outside this initiative is absent, not readable.
         const document =
           documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
         const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
         if (!range) return absent(documentQuery);
         const meta: DataMeta = { total: range.rows.length, truncated: false };
         return {
-          data: { source, range, meta },
+          data: { source: "rows", ...range, meta },
           isLoading: false,
           isUnbound: false,
           isRestricted: false,
@@ -507,16 +319,38 @@ export function useWidgetData(
         }
         const rows = appQuery.data?.rows ?? [];
         const values = appQuery.data?.values ?? {};
+        const meta: DataMeta = { total: rows.length };
+        // A binding with a statement asks a question of the app's rows, and the
+        // server answers with a table — the same envelope a query produces. So
+        // a chart can be pointed at an app, while an app's own module keeps
+        // being handed the app's own shape.
+        const table = appQuery.data?.table;
+        if (table) {
+          const described = table.columns ?? [];
+          const answered: DataMeta = { total: table.rows?.length ?? 0 };
+          return {
+            data: {
+              source: "rows",
+              ...normalizeQueryRows(described, table.rows ?? []),
+              meta: answered,
+            },
+            isLoading: appQuery.isLoading,
+            isUnbound: false,
+            isRestricted: false,
+            refetch,
+            meta: answered,
+          };
+        }
         return {
           // Already read through the endpoint's declared returns on the way
           // here. Nothing on this side looks inside either half; the sandbox is
           // handed them as values.
-          data: { source, rows, values, meta: { total: rows.length } },
+          data: { source, rows, values, meta },
           isLoading: appQuery.isLoading,
           isUnbound: false,
           isRestricted: false,
           refetch,
-          meta: { total: rows.length },
+          meta,
         };
       }
 
@@ -526,27 +360,16 @@ export function useWidgetData(
   }, [
     source,
     initiativeId,
-    binding.bucket,
-    binding.day_field,
-    binding.calendar_id,
-    binding.counter_group_id,
-    binding.counter_id,
+    binding.sql,
     binding.document_id,
-    binding.property_id,
     binding.range,
     binding.sheet,
-    propertiesQuery.data,
-    tasksQuery.data,
-    tasksQuery.isLoading,
-    projectsQuery.data,
-    projectsQuery.isLoading,
-    entriesQuery.data,
-    entriesQuery.isLoading,
-    calendarsQuery.data,
-    counterGroupQuery.data,
-    counterGroupQuery.isLoading,
+    answering.data,
+    answering.isLoading,
+    answering.isError,
     documentQuery.data,
     documentQuery.isLoading,
+    documentQuery.isError,
     scoped,
     dashboardId,
     binding.app_uid,
@@ -557,14 +380,8 @@ export function useWidgetData(
     appCatalogQuery.isError,
     appQuery.data,
     appQuery.isLoading,
-    refetch,
     appQuery.isError,
-    counterGroupQuery,
+    refetch,
     documentQuery,
   ]);
 }
-
-/** Sources this build can fetch, for the binding picker. Derived from the
- *  served catalog so it never disagrees with what the backend will accept. */
-export const bindableSources = (catalog: WidgetCatalog | undefined, widgetType: string): string[] =>
-  catalog?.widgets.find((entry) => entry.type === widgetType)?.sources ?? [];

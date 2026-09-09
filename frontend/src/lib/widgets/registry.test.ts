@@ -14,7 +14,8 @@ import { WidgetType } from "@/api/generated/initiativeAPI.schemas";
 
 import { BUILTIN_WIDGET_TYPES, builtinWidgetSource } from "./registry";
 import { renderInSandbox } from "./runtime/sandbox";
-import { ALL_SAMPLES, SOURCES_BY_WIDGET, sampleFor } from "./sampleData";
+import { emptySample, sampleFor } from "./sampleData";
+import { resolveMapping } from "./shape";
 import { validateScene } from "./validateScene";
 
 describe("built-in widget registry", () => {
@@ -28,71 +29,117 @@ describe("built-in widget registry", () => {
 });
 
 describe("built-ins run in the sandbox like any other widget", () => {
-  const cases = Object.entries(SOURCES_BY_WIDGET).flatMap(([type, sources]) =>
-    sources.map((source) => ({ type, source }))
-  );
+  /** The shape each widget declares, mirrored from the backend's WIDGET_SPECS.
+   *  The served catalog is the authority; this copy is what lets the widget
+   *  tests run without a backend, and `dashboards_test.py` is what would catch
+   *  the two drifting. */
+  const SHAPES: Record<
+    string,
+    { name: string; types: string[]; required?: boolean; repeatable?: boolean }[]
+  > = {
+    gantt: [
+      { name: "label", types: ["text", "enum", "reference"] },
+      { name: "start", types: ["date"] },
+      { name: "end", types: ["date"] },
+      { name: "group", types: ["text", "enum", "reference"], required: false },
+    ],
+    stat: [
+      { name: "value", types: ["number"] },
+      { name: "label", types: ["text", "enum", "reference"], required: false },
+    ],
+    chart: [
+      { name: "label", types: ["text", "enum", "reference", "date"] },
+      { name: "value", types: ["number"], repeatable: true },
+    ],
+    funnel: [
+      { name: "label", types: ["text", "enum", "reference"] },
+      { name: "value", types: ["number"] },
+    ],
+    progress: [
+      { name: "value", types: ["number"] },
+      { name: "total", types: ["number"], required: false },
+      { name: "label", types: ["text", "enum", "reference"], required: false },
+    ],
+    heatmap: [
+      { name: "at", types: ["date"] },
+      { name: "value", types: ["number"] },
+    ],
+    board: [
+      { name: "card", types: ["text", "enum", "reference"] },
+      { name: "column", types: ["text", "enum", "reference"] },
+      { name: "date", types: ["date"], required: false },
+    ],
+    table: [],
+  };
 
-  it.each(cases)("$type draws $source", async ({ type, source }) => {
+  const slotsFor = (type: string, data: { columns: { name: string; type: string }[] }) =>
+    resolveMapping(
+      data.columns as never,
+      (SHAPES[type] ?? []).map((slot) => ({
+        required: true,
+        repeatable: false,
+        ...slot,
+      })) as never
+    );
+
+  it.each(BUILTIN_WIDGET_TYPES)("%s draws the shape it declares", async (type) => {
     const widgetSource = builtinWidgetSource(type);
     expect(widgetSource, `no module for ${type}`).toBeDefined();
+    const data = sampleFor(type);
 
     const result = await renderInSandbox({
       source: widgetSource as string,
-      data: sampleFor(source, type),
+      data,
       config: {},
+      slots: slotsFor(type, data),
       now: Date.UTC(2026, 7, 11),
     });
 
-    expect(result.ok, `${type}/${source} failed: ${JSON.stringify(result)}`).toBe(true);
+    expect(result.ok, `${type} failed: ${JSON.stringify(result)}`).toBe(true);
     if (!result.ok) return;
 
     const validation = validateScene(result.value);
-    expect(
-      validation.ok,
-      `${type}/${source} emitted an invalid scene: ${JSON.stringify(validation)}`
-    ).toBe(true);
+    expect(validation.ok, `${type} emitted an invalid scene: ${JSON.stringify(validation)}`).toBe(
+      true
+    );
     if (!validation.ok) return;
 
     // A widget handed data it can draw should draw it, not bail to an empty
     // tile — that would hide a broken binding behind a plausible-looking card.
-    expect(validation.spec.scene.kind, `${type}/${source} fell through to an empty tile`).not.toBe(
-      "empty"
-    );
+    expect(validation.spec.scene.kind, `${type} fell through to an empty tile`).not.toBe("empty");
   });
 
   it.each(BUILTIN_WIDGET_TYPES)(
-    "%s degrades to an empty tile for a source it cannot draw",
+    "%s degrades to an empty tile with nothing mapped",
     async (type) => {
-      const drawable = new Set(SOURCES_BY_WIDGET[type]);
-      const foreign = ALL_SAMPLES.find((f) => !drawable.has(f.source));
-      expect(foreign, `${type} draws every source`).toBeDefined();
-
+      // Every widget but the table needs its slots filled; the table draws
+      // whatever it is given, which is what makes it the fallback.
+      const data = sampleFor(type);
       const result = await renderInSandbox({
         source: builtinWidgetSource(type) as string,
-        data: foreign?.data,
+        data,
         config: {},
+        slots: {},
       });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       const validation = validateScene(result.value);
       expect(validation.ok).toBe(true);
       if (!validation.ok) return;
-      expect(validation.spec.scene.kind).toBe("empty");
+      expect(validation.spec.scene.kind).toBe(type === "table" ? "table" : "empty");
     }
   );
 
   it.each(BUILTIN_WIDGET_TYPES)("%s survives empty data", async (type) => {
-    for (const sample of ALL_SAMPLES) {
-      const result = await renderInSandbox({
-        source: builtinWidgetSource(type) as string,
-        data: sample.empty,
-        config: {},
-      });
-      expect(result.ok, `${type} threw on empty ${sample.source}: ${JSON.stringify(result)}`).toBe(
-        true
-      );
-      if (!result.ok) continue;
-      expect(validateScene(result.value).ok).toBe(true);
-    }
+    const data = emptySample(type);
+    const result = await renderInSandbox({
+      source: builtinWidgetSource(type) as string,
+      data,
+      config: {},
+      slots: slotsFor(type, data),
+    });
+    expect(result.ok, `${type} threw on empty rows: ${JSON.stringify(result)}`).toBe(true);
+    if (!result.ok) return;
+    expect(validateScene(result.value).ok).toBe(true);
   });
 });

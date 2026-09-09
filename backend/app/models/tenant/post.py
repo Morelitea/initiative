@@ -63,6 +63,10 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "posts"
+    # A tool row is written before anything has been shared, so it is read
+    # back by no RETURNING clause: the id comes from the sequence first and
+    # the INSERT stands alone. See app/db/initiative_rls.py.
+    __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
@@ -75,6 +79,14 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         ),
     )
     name: str = Field(nullable=False, max_length=255)
+    # The counterpart to ``comments_enabled``: a notice people read without
+    # reacting to it. On posts rather than in a mixin, because reactions hang
+    # off comments and off posts and off nothing else.
+    reactions_enabled: bool = Field(
+        default=True,
+        nullable=False,
+        sa_column_kwargs={"server_default": "true"},
+    )
     body: dict = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),

@@ -103,6 +103,7 @@ async def announce_post(
                 author_name=author_name,
                 author_id=author.id,
                 guild_id=guild_id,
+                initiative_id=post.initiative_id,
             )
         except Exception:
             logger.exception("Could not tell %s about post %s", recipient.id, post.id)

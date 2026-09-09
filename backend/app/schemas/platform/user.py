@@ -48,7 +48,9 @@ from app.core.config import settings
 #   only on ``UserRead`` (your own account) and the platform admin reads.
 # * A real name is shown only where a guild has asked for it.
 #   ``GuildNameVisibility`` drops ``full_name`` unless the request's guild has
-#   ``show_member_names`` set, which a community-listed guild cannot.
+#   ``show_member_names`` set, which a community-listed guild cannot. Only the
+#   shapes that draw a person carry it; ``UserIdentity`` — what everything else
+#   is built from — has no name field to drop.
 #
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
@@ -110,13 +112,18 @@ class UserCreate(SanitizedBaseModel):
     captcha_token: Optional[str] = None
 
 
-class UserPublic(GuildNameVisibility):
-    """A person, as everyone else sees them.
+class UserIdentity(SanitizedBaseModel):
+    """A person, minus their name.
 
     The handle (``username`` + ``discriminator``) is always here and is what
     renders when there is no name to show. ``status`` comes along so the
     frontend can mark an account that is no longer in use without replacing the
     identifier that keeps an old thread legible.
+
+    Every shape below is this plus something, and the name is never part of the
+    "this": a shape that shows one declares ``full_name`` itself and takes
+    ``GuildNameVisibility`` along with it, so the field and the rule that
+    governs it always arrive together.
     """
 
     model_config = ConfigDict(
@@ -126,29 +133,53 @@ class UserPublic(GuildNameVisibility):
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 
-class UserGuildMember(UserPublic):
-    """A member, for the guild's own member-management surface.
+class UserPublic(UserIdentity, GuildNameVisibility):
+    """A person, as everyone else sees them — the handle, and the name where
+    the guild being read renders one."""
 
-    Carries the membership facts a guild admin manages — guild role, whether
-    the membership is OIDC-managed, when the account joined — and none of the
-    account's own: no address, no platform tier, no word on whether the address
-    was ever confirmed, and a name only where the guild shows names. Two
-    members are told apart by their handle, which is unique.
+    full_name: Optional[str] = None
+
+
+class UserGuildRead(UserIdentity):
+    """One account, as the guild administering its membership reads it back.
+
+    The membership surfaces ask one thing about somebody and this is the
+    answer: the handle, the picture, the standing, when the account started,
+    and where the person sits in the guild's initiatives. None of the account's
+    own business comes with it — no address, no platform tier, no word on
+    whether the address was ever confirmed, no preferences.
+
+    Nor does the name, and it is absent here rather than blanked on the way
+    out. A real name is rendered on the surfaces that draw people — a roster, a
+    picker, a byline — and only in a guild that asked for names; those shapes
+    say so by carrying ``GuildNameVisibility``. Reading back an account is not
+    one of them, so the field is not in the shape at all.
     """
 
-    guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
-    oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
     status: UserStatus
     created_at: datetime
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserSummary(GuildNameVisibility):
+class UserGuildMember(UserGuildRead, GuildNameVisibility):
+    """A member, for the guild's own member-management surface.
+
+    :class:`UserGuildRead` plus the membership facts a guild admin manages —
+    guild role, whether the membership is OIDC-managed — and a name, where the
+    guild shows names. Two members are told apart by their handle, which is
+    unique.
+    """
+
+    full_name: Optional[str] = None
+    guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
+    oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
+
+
+class UserSummary(UserIdentity, GuildNameVisibility):
     """Slim user projection for typeahead and picker surfaces.
 
     What it keeps is what it takes to *draw* a person and say where they stand
@@ -166,16 +197,7 @@ class UserSummary(GuildNameVisibility):
     catalog shape it names is declared further down this file.
     """
 
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    username: str
-    discriminator: int
     full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    status: UserStatus = UserStatus.active
     profile_decorations: Optional["ProfileDecorations"] = None
     #: ``admin`` or ``member`` in the guild this was read under. Absent where
     #: the caller asked outside a guild, which is why it is optional rather
@@ -487,26 +509,6 @@ class UserRead(UserBase):
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
     overdue_notification_time: str = "21:00"
-    email_initiative_addition: bool = True
-    email_task_assignment: bool = True
-    email_project_added: bool = True
-    email_overdue_tasks: bool = True
-    email_mentions: bool = True
-    email_comment_reactions: bool = True
-    push_initiative_addition: bool = True
-    push_task_assignment: bool = True
-    push_project_added: bool = True
-    push_overdue_tasks: bool = True
-    push_mentions: bool = True
-    push_comment_reactions: bool = True
-    email_direct_messages: bool = True
-    push_direct_messages: bool = True
-    email_posts: bool = True
-    push_posts: bool = True
-    email_events: bool = True
-    push_events: bool = True
-    email_event_reminders: bool = True
-    push_event_reminders: bool = True
     event_reminder_minutes_before: Optional[int] = 15
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
@@ -594,26 +596,6 @@ class UserSelfUpdate(SanitizedBaseModel):
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
-    email_initiative_addition: Optional[bool] = None
-    email_task_assignment: Optional[bool] = None
-    email_project_added: Optional[bool] = None
-    email_overdue_tasks: Optional[bool] = None
-    email_mentions: Optional[bool] = None
-    email_comment_reactions: Optional[bool] = None
-    push_initiative_addition: Optional[bool] = None
-    push_task_assignment: Optional[bool] = None
-    push_project_added: Optional[bool] = None
-    push_overdue_tasks: Optional[bool] = None
-    push_mentions: Optional[bool] = None
-    push_comment_reactions: Optional[bool] = None
-    email_direct_messages: Optional[bool] = None
-    push_direct_messages: Optional[bool] = None
-    email_posts: Optional[bool] = None
-    push_posts: Optional[bool] = None
-    email_events: Optional[bool] = None
-    push_events: Optional[bool] = None
-    email_event_reminders: Optional[bool] = None
-    push_event_reminders: Optional[bool] = None
     event_reminder_minutes_before: Optional[int] = None
     color_theme: Optional[str] = None
     task_completion_visual_feedback: Optional[str] = None

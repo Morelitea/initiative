@@ -17,9 +17,8 @@ Postgres, with the sync initiative-scope check beside its SQL counterpart in
 """
 
 from dataclasses import dataclass
-from enum import Enum
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
@@ -35,17 +34,12 @@ from app.services.membership import NO_SCOPE_COLUMN, initiative_scope_ok
 from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
-from app.models.tenant.project import (
-    Project,
-    ProjectPermissionLevel,
-)
-from app.models.tenant.document import (
-    Document,
-    DocumentPermissionLevel,
-)
+from app.models.tenant.project import Project
+from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
+    SharingMessages,
     ProjectMessages,
     DocumentMessages,
     QueueMessages,
@@ -56,54 +50,6 @@ from app.core.messages import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
-
-# ---------------------------------------------------------------------------
-# Generic helpers (work with both project and document permission enums)
-# ---------------------------------------------------------------------------
-
-# Permission-level enum the generic helpers operate on. Bound to Enum so each
-# caller's concrete level type (ProjectPermissionLevel, DocumentPermissionLevel,
-# QueuePermissionLevel) flows through to the return type.
-PermLevel = TypeVar("PermLevel", bound=Enum)
-
-
-def effective_permission_level(
-    user_level: PermLevel | None,
-    role_level: PermLevel | None,
-    level_order: dict[PermLevel, int],
-) -> PermLevel | None:
-    """Return the higher of two permission levels (MAX behaviour).
-
-    Args:
-        user_level: The user-specific permission level (may be None).
-        role_level: The role-based permission level (may be None).
-        level_order: Mapping from permission level enum to numeric rank.
-
-    Returns:
-        The higher of the two levels, or None if both are None.
-    """
-    if user_level is None:
-        return role_level
-    if role_level is None:
-        return user_level
-    if level_order.get(role_level, 0) > level_order.get(user_level, 0):
-        return role_level
-    return user_level
-
-
-# ── Convenience constants ────────────────────────────────────────
-
-PROJECT_LEVEL_ORDER: dict[ProjectPermissionLevel, int] = {
-    ProjectPermissionLevel.read: 0,
-    ProjectPermissionLevel.write: 1,
-    ProjectPermissionLevel.owner: 2,
-}
-
-DOCUMENT_LEVEL_ORDER: dict[DocumentPermissionLevel, int] = {
-    DocumentPermissionLevel.read: 0,
-    DocumentPermissionLevel.write: 1,
-    DocumentPermissionLevel.owner: 2,
-}
 
 # Where a level string sits on the shared read < write < owner ladder.
 _LEVEL_RANK = {"read": 0, "write": 1, "owner": 2}
@@ -424,8 +370,9 @@ def _grant_level(level: Any) -> str:
 
 def serialize_grants(row: Any) -> list:
     """Serialize a resource's eager-loaded ``grants`` into the unified grant list
-    — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role, or
-    all-initiative-members), owner included."""
+    — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role,
+    all-initiative-members, or the dashboard a published view reads it
+    through), owner included."""
     from app.schemas.tenant.resource_grant import ResourceGrantSchema
 
     return [
@@ -434,6 +381,7 @@ def serialize_grants(row: Any) -> list:
             user_id=g.user_id,
             role_id=g.role_id,
             all_initiative_members=bool(getattr(g, "all_initiative_members", False)),
+            dashboard_id=getattr(g, "dashboard_id", None),
         )
         for g in getattr(row, "grants", None) or []
     ]
@@ -606,6 +554,15 @@ async def replace_resource_grants(
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
     for g in grants:
+        if getattr(g, "dashboard_id", None) is not None:
+            # Reported by this shape, never taken by it: a published view is
+            # made against the dashboard that publishes it. Silently dropping
+            # one here would let a caller believe they had made a share that
+            # was never written.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=SharingMessages.DASHBOARD_GRANT_NOT_SET_HERE,
+            )
         level = g.level
         if level not in ("read", "write"):
             continue  # owner is preserved server-side, never set via this list
@@ -664,6 +621,37 @@ async def replace_resource_grants(
             ).all()
         )
 
+    # Sharing reaches somebody only where their role already lets them use the
+    # tool. The picker offers that list; saying so here too means a caller that
+    # does not go through it — the API, an agent — is told the same thing
+    # rather than writing a grant that does nothing. A guild-level resource
+    # belongs to no initiative, so no initiative role speaks for it.
+    if not guild_scoped:
+        # Local: rls imports this module.
+        from app.models.tenant.initiative import PermissionKey
+        from app.services import rls as rls_service
+
+        tool = Tool(resource_type)
+        view_key = PermissionKey(tool.view_permission)
+        permitted_users = await rls_service.members_permitted(
+            session,
+            initiative_id=initiative_id,
+            user_ids=valid_users,
+            permission_key=view_key,
+        )
+        permitted_roles = await rls_service.roles_permitting(
+            session,
+            initiative_id=initiative_id,
+            role_ids=valid_roles,
+            permission_key=view_key,
+        )
+        if valid_users - permitted_users or valid_roles - permitted_roles:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=SharingMessages.grantee_lacks_tool(tool),
+            )
+        valid_users, valid_roles = permitted_users, permitted_roles
+
     existing = (
         await session.exec(
             select(ResourceGrant).where(
@@ -673,8 +661,15 @@ async def replace_resource_grants(
         )
     ).all()
     for g in existing:
-        if _grant_level(g.level) != "owner":
-            await session.delete(g)
+        if _grant_level(g.level) == "owner":
+            continue
+        if g.dashboard_id is not None:
+            # A published view is not in this list, and is not this call's to
+            # rebuild: a client that does not know about one would delete every
+            # one of them by saving the panel. Revoking one is its own act,
+            # made by the owner against the dashboard that published it.
+            continue
+        await session.delete(g)
 
     await session.flush()
 

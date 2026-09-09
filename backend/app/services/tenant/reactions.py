@@ -66,6 +66,10 @@ class ReactionValidationError(ReactionError):
     """The payload is refused."""
 
 
+class ReactionDisabledError(ReactionError):
+    """The target takes no reactions — its own switch is off."""
+
+
 @dataclass(frozen=True)
 class TargetContext:
     """A loaded, authorized reaction target.
@@ -80,6 +84,9 @@ class TargetContext:
     title: str
     target_path: str
     author_id: Optional[int]
+    #: Where a notification about this belongs in the navigation.
+    initiative_id: Optional[int] = None
+    tool: Optional[str] = None
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -117,6 +124,16 @@ async def _resolve_comment(
         title=ctx.title,
         target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
+        initiative_id=ctx.initiative_id,
+        # A tool comment names its own tool; a task comment belongs to the
+        # Projects list the task lives in.
+        tool=(
+            ctx.tool.value
+            if ctx.tool is not None
+            else Tool.project.value
+            if ctx.task is not None
+            else None
+        ),
     )
 
 
@@ -144,6 +161,10 @@ async def _resolve_post(
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     if post.initiative is not None and not post.initiative.posts_enabled:
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
+    # The notice's own switch, the counterpart to a thread's. Off means it
+    # takes none and shows none, keeping the ones already on it.
+    if not post.reactions_enabled:
+        raise ReactionDisabledError(ReactionMessages.DISABLED)
     # A notice that has not gone up has nothing to react to, and saying
     # otherwise would say it exists.
     if permissions_service.hidden_from_reader(Tool.post, post, cast(int, user.id)):
@@ -164,6 +185,8 @@ async def _resolve_post(
         title=post.name,
         target_path=notifications.tool_target_path(Tool.post.value, post.id),
         author_id=post.created_by,
+        initiative_id=post.initiative_id,
+        tool=Tool.post.value,
     )
 
 
@@ -286,7 +309,8 @@ async def toggle_reaction(
         target_id=target_id,
         user=user,
         guild_id=guild_id,
-        access="write",
+        # Reacting is answering, not editing: it takes reaching the target.
+        access="read",
     )
 
     # A toggle is one decision made of three statements — is it there, take it
@@ -421,6 +445,8 @@ async def _queue_reaction_notification(
         context_title=ctx.title,
         target_path=ctx.target_path,
         guild_id=guild_id,
+        initiative_id=ctx.initiative_id,
+        tool=ctx.tool,
     )
 
 

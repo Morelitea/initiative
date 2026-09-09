@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from fastapi import WebSocket
@@ -31,6 +30,11 @@ class ConnectionManager:
     routing mistake cannot leak data: the authoritative gate is the RLS-gated
     refetch the client performs in response to a signal. Routing is therefore a
     performance + existence-hiding optimization, never the trust boundary.
+
+    Nothing calls in here to announce a change. Every frame comes from
+    :mod:`app.services.tenant.room_sink`, reading the change log the capture
+    trigger writes — so a write signals because it happened, not because its
+    endpoint remembered to say so.
 
     A socket may live in several rooms at once (a user reaches several
     initiatives), so we keep a reverse index for O(1) disconnect.
@@ -88,6 +92,31 @@ class ConnectionManager:
                 user_id, chosen_presence, known_at=presence_known_at
             )
 
+    def users_in_guild(self, guild_id: int) -> Set[int]:
+        """The users this process holds a socket for in one guild."""
+        return set(self._present.get(guild_id, {}))
+
+    async def join(self, guild_id: int, user_id: int, initiative_id: int) -> None:
+        """Add one initiative room to every socket this user has open in a guild.
+
+        A socket resolves its rooms once, when it connects. Somebody added to an
+        initiative while their tab is open is in no room for it, and nothing
+        about their own session changes to prompt a reconnect — so the room is
+        opened here instead, from the change log that says the roster moved.
+
+        Only ever additive. A socket sits in a room because ``initiative_access``
+        admitted it at connect, and that has three legs — membership, guild
+        admin, and a live PAM grant — of which only the first is visible in the
+        roster. Closing a room on this signal would evict the other two.
+        """
+        key = (guild_id, initiative_id)
+        async with self._lock:
+            for websocket, identity in self._socket_identity.items():
+                if identity != (guild_id, user_id):
+                    continue
+                self._rooms.setdefault(key, set()).add(websocket)
+                self._socket_rooms.setdefault(websocket, set()).add(key)
+
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a socket from every room it joined, and from its guild's roll."""
         async with self._lock:
@@ -127,6 +156,33 @@ class ConnectionManager:
             except Exception:
                 await self.disconnect(websocket)
 
+    async def broadcast_guild(self, guild_id: int, message: Dict[str, Any]) -> None:
+        """Send to every socket open on this guild, whatever rooms it is in.
+
+        For the changes that belong to no initiative — a tag, an installed app
+        — which every member of the guild can already read. A socket in three
+        rooms still receives one copy: this addresses sockets, not rooms.
+        """
+        async with self._lock:
+            connections = [
+                websocket
+                for websocket, (socket_guild, _user) in self._socket_identity.items()
+                if socket_guild == guild_id
+            ]
+        for websocket in connections:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                await self.disconnect(websocket)
+
+    def guild_ids(self) -> list[int]:
+        """The guilds this process holds a socket for.
+
+        What the room sink reads the change log for: a guild nobody is watching
+        here has nothing to be told, so an idle deployment queries nothing.
+        """
+        return list(self._present)
+
     def room_size(self, guild_id: int, initiative_id: int) -> int:
         return len(self._rooms.get((guild_id, initiative_id), set()))
 
@@ -144,33 +200,3 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-
-
-async def broadcast_event(
-    guild_id: int,
-    initiative_id: int,
-    resource: str,
-    action: str,
-    ids: Dict[str, Any],
-) -> None:
-    """Fan a **content-free** signal out to one initiative's room in one guild.
-
-    ``ids`` carries only the identifiers the client needs to invalidate/refetch
-    (e.g. ``{"task_id": …, "project_id": …}``) — never a serialized model. The
-    client refetches through the RLS-gated REST path, which is the actual
-    authorization gate (see ``history/realtime-authorization-design.md``).
-
-    ``guild_id`` is required and part of the room key — initiative ids are
-    per-guild-schema sequences, so a broadcast must name its guild or it would
-    cross the tenancy boundary.
-    """
-    await manager.broadcast(
-        guild_id,
-        initiative_id,
-        {
-            "resource": resource,
-            "action": action,
-            "ids": ids,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    )

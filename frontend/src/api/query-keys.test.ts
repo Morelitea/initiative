@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  invalidateAllAISettings,
-  invalidateAllInitiatives,
-  invalidateAllTasks,
-  invalidateGuildMembers,
-  invalidateNotifications,
+  invalidate,
   patchCachedPost,
+  q,
   resetGuildScopedQueries,
   setInvalidationGuild,
 } from "@/api/query-keys";
@@ -34,7 +31,7 @@ describe("query-keys guild scoping", () => {
     const otherGuild = seed(["/api/v1/g/7/tasks/"]);
 
     setInvalidationGuild(5);
-    await invalidateAllTasks();
+    await invalidate(q.allTasks());
 
     expect(activeGuild()).toBe(true);
     expect(otherGuild()).toBe(false);
@@ -45,7 +42,7 @@ describe("query-keys guild scoping", () => {
     const meAggregate = seed(["/api/v1/me/tasks"]);
 
     setInvalidationGuild(5);
-    await invalidateAllTasks();
+    await invalidate(q.allTasks());
 
     expect(guildScoped()).toBe(true);
     expect(meAggregate()).toBe(true);
@@ -56,7 +53,7 @@ describe("query-keys guild scoping", () => {
     const guildB = seed(["/api/v1/g/7/tasks/"]);
 
     // No setInvalidationGuild call (personal mode / pre-mount): scoping is skipped.
-    await invalidateAllTasks();
+    await invalidate(q.allTasks());
 
     expect(guildA()).toBe(true);
     expect(guildB()).toBe(true);
@@ -70,7 +67,7 @@ describe("query-keys guild scoping", () => {
       const recents = seed(["/api/v1/recents/"]);
 
       setInvalidationGuild(5);
-      await invalidateAllInitiatives();
+      await invalidate(q.allInitiatives());
 
       expect(guildScoped()).toBe(true);
       expect(meTasks()).toBe(false);
@@ -83,7 +80,7 @@ describe("query-keys guild scoping", () => {
       const guildTasks = seed(["/api/v1/g/5/tasks/"]);
 
       setInvalidationGuild(5);
-      await invalidateNotifications();
+      await invalidate(q.notifications());
 
       expect(notifications()).toBe(true);
       expect(guildTasks()).toBe(false);
@@ -97,7 +94,7 @@ describe("query-keys guild scoping", () => {
       const otherRoster = seed(["/api/v1/g/7/users/"]);
 
       setInvalidationGuild(5);
-      await invalidateGuildMembers();
+      await invalidate(q.guildMembers());
 
       expect(activeRoster()).toBe(true);
       expect(otherRoster()).toBe(false);
@@ -111,7 +108,7 @@ describe("query-keys guild scoping", () => {
       const otherGuildAI = seed(["/api/v1/g/7/settings/ai/resolved"]);
 
       setInvalidationGuild(5);
-      await invalidateAllAISettings();
+      await invalidate(q.allAISettings());
 
       expect(platform()).toBe(true);
       expect(guildAI()).toBe(true);
@@ -142,6 +139,26 @@ describe("query-keys guild scoping", () => {
       expect(currentUser()).toBe(true);
       expect(version()).toBe(true);
       expect(recents()).toBe(true);
+    });
+
+    it("keeps the arriving guild's own data — it is not the departing guild's", async () => {
+      const arriving = survives(["/api/v1/g/5/projects/"]);
+      const arrivingDetail = survives(["/api/v1/g/5/tasks/12"]);
+      const departing = survives(["/api/v1/g/4/projects/"]);
+
+      await resetGuildScopedQueries(5);
+
+      expect(arriving()).toBe(true);
+      expect(arrivingDetail()).toBe(true);
+      expect(departing()).toBe(false);
+    });
+
+    it("still drops everything guild-scoped when no arriving guild is named", async () => {
+      const five = survives(["/api/v1/g/5/projects/"]);
+
+      await resetGuildScopedQueries();
+
+      expect(five()).toBe(false);
     });
   });
 });

@@ -14,7 +14,7 @@ import type {
   AppServiceRegistrationUpdate,
   AppServiceVerifyRequest,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAppServices } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -33,7 +33,7 @@ export const useCreateAppService = (
   useApiMutation<AppServiceRegistrationRead, AppServiceRegistrationCreate>(
     {
       mutationFn: (data) => createAppServiceApiV1AppServicesPost(data),
-      invalidate: () => invalidateAppServices(),
+      invalidate: () => invalidate(q.appServices()),
     },
     options
   );
@@ -50,7 +50,7 @@ export const useUpdateAppService = (
     {
       mutationFn: ({ registrationId, data }) =>
         updateAppServiceApiV1AppServicesRegistrationIdPatch(registrationId, data),
-      invalidate: () => invalidateAppServices(),
+      invalidate: () => invalidate(q.appServices()),
     },
     options
   );
@@ -60,7 +60,7 @@ export const useDeleteAppService = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (registrationId) =>
         deleteAppServiceApiV1AppServicesRegistrationIdDelete(registrationId),
-      invalidate: () => invalidateAppServices(),
+      invalidate: () => invalidate(q.appServices()),
     },
     options
   );
@@ -86,12 +86,12 @@ export const useVerifyAppService = (
     {
       mutationFn: ({ registrationId, data }) =>
         verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost(registrationId, data ?? null),
-      invalidate: () => invalidateAppServices(),
+      invalidate: () => invalidate(q.appServices()),
     },
     {
       ...rest,
       onError: (...args) => {
-        void invalidateAppServices();
+        void invalidate(q.appServices());
         onError?.(...args);
       },
     }

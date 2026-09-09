@@ -19,9 +19,6 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User
-from app.services.permissions import (
-    dac_scope_clause,
-)
 from app.schemas.tenant.comment import (
     CommentAuthor,
     CommentCreate,
@@ -31,42 +28,9 @@ from app.schemas.tenant.comment import (
 )
 from app.services.tenant import comments as comments_service
 from app.services.tenant import reactions as reactions_service
-from app.services.realtime import broadcast_event
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-
-async def _broadcast_comment(session, guild_id: int, comment, action: str) -> None:
-    """Emit a content-free comment signal to the comment's initiative room.
-
-    A comment hangs off a task (→ project → initiative) or a tool entity
-    (→ initiative); the parent is resolved within the guild-routed session, so
-    the ``(guild_id, initiative_id)`` room is guild-safe (initiative ids are
-    per-guild-schema). The automatic context replay keeps the lookup under the
-    guild context after the commit. The client refetches through the RLS + DAC
-    gated REST path — the bus carries ids only. A parent that names no
-    initiative (a guild-level calendar) has no room, so nothing is emitted.
-    """
-    ids: dict = {"comment_id": comment.id}
-    for column in comments_service.COMMENT_PARENT_COLUMNS:
-        ids[column] = getattr(comment, column)
-    if comment.task_id is not None:
-        row = (
-            await session.exec(
-                select(Project.id, Project.initiative_id)
-                .join(Task, Task.project_id == Project.id)
-                .where(Task.id == comment.task_id)
-            )
-        ).one_or_none()
-        if row is None:
-            return
-        ids["project_id"], initiative_id = row
-    else:
-        initiative_id = await comments_service.initiative_of_comment(session, comment)
-    if initiative_id is None:
-        return
-    await broadcast_event(guild_id, initiative_id, "comment", action, ids)
 
 
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
@@ -100,7 +64,6 @@ async def create_comment(
 
     await session.commit()
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
-    await _broadcast_comment(session, guild_context.guild_id, comment, "created")
     return response
 
 
@@ -132,15 +95,7 @@ async def recent_comments(
     legs = [
         and_(
             Comment.task_id.isnot(None),
-            Comment.task_id.in_(
-                select(Task.id)
-                .join(Project, Project.id == Task.project_id)
-                .where(
-                    dac_scope_clause(
-                        Tool.project, Project.id, user_id, guild_id=guild_id
-                    )
-                )
-            ),
+            Comment.task_id.in_(select(Task.id)),
         )
     ]
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
@@ -148,10 +103,7 @@ async def recent_comments(
         fk = getattr(Comment, target.column)
         # The entity's own comment switch gates its thread, so it gates the
         # feed too.
-        parent_ids = select(model.id).where(
-            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id),
-            model.comments_enabled.is_(True),
-        )
+        parent_ids = select(model.id).where(model.comments_enabled.is_(True))
         if target.feature_disabled is not None:
             # The tool's master switch gates the thread, so it gates the feed
             # too. A parent that names no initiative (a guild calendar) has no
@@ -371,10 +323,11 @@ async def update_comment(
     # Note: Content validation (empty string) is handled by Pydantic schema (422).
     # CommentValidationError from service indicates data integrity issues (500).
 
+    # No refresh here: the service already flushed the edit and loaded the
+    # author, and a bare refresh() expires every attribute including that
+    # relationship — serializing would then lazy-load it mid-request.
     await session.commit()
-    await session.refresh(comment)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
-    await _broadcast_comment(session, guild_context.guild_id, comment, "updated")
     return response
 
 
@@ -386,7 +339,7 @@ async def delete_comment(
     guild_context: GuildContextDep,
 ) -> None:
     try:
-        deleted_comment = await comments_service.delete_comment(
+        await comments_service.delete_comment(
             session,
             comment_id=comment_id,
             user=current_user,
@@ -407,6 +360,3 @@ async def delete_comment(
         ) from exc
 
     await session.commit()
-    await _broadcast_comment(
-        session, guild_context.guild_id, deleted_comment, "deleted"
-    )

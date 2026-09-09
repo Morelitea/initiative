@@ -27,7 +27,8 @@
           "h": 3
         },
         "binding": {
-          "source": "counter"
+          "source": "query",
+          "sql": "SELECT name, count FROM counters ORDER BY name"
         },
         "title": "The headline number"
       },
@@ -41,7 +42,8 @@
           "h": 3
         },
         "binding": {
-          "source": "counter"
+          "source": "query",
+          "sql": "SELECT name, count, max FROM counters ORDER BY name"
         },
         "title": "Toward the goal"
       },
@@ -55,7 +57,8 @@
           "h": 4
         },
         "binding": {
-          "source": "counter_group"
+          "source": "query",
+          "sql": "SELECT name, count FROM counters ORDER BY count DESC"
         },
         "title": "The whole group",
         "options": {

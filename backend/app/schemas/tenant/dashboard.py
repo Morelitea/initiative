@@ -9,9 +9,10 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.services.fields.spec import FieldType
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 from app.services.tenant.dashboard_definition import (
-    ALL_SOURCES,
+    TABULAR_SOURCES,
     WIDGET_PRESETS,
     WIDGET_SPECS,
 )
@@ -27,7 +28,7 @@ WidgetType = Enum("WidgetType", {name: name for name in sorted(WIDGET_SPECS)}, t
 WidgetType.__doc__ = "Widget primitives this build has renderers for."
 
 BindingSource = Enum(
-    "BindingSource", {name: name for name in sorted(ALL_SOURCES)}, type=str
+    "BindingSource", {name: name for name in sorted(TABULAR_SOURCES)}, type=str
 )
 BindingSource.__doc__ = "Data sources a widget binding may name."
 
@@ -118,11 +119,52 @@ class DashboardListResponse(SanitizedBaseModel):
     has_next: bool
 
 
+class PublishedOver(SanitizedBaseModel):
+    """One resource this dashboard shows to everybody who can open it."""
+
+    resource_type: str
+    resource_id: int
+    #: What it is called, where the reader of *this* payload may see it named.
+    #: Absent otherwise: a published view discloses that it exists, never what
+    #: it is called to somebody who cannot reach it.
+    name: Optional[str] = None
+
+
 class DashboardRead(DashboardSummary):
     # The canvas body is only sent on the detail read — a list of dashboards
     # doesn't render widgets, and definitions are the largest field here.
     definition: Dict[str, Any] = Field(default_factory=dict)
     config: Dict[str, Any] = Field(default_factory=dict)
+    #: What this dashboard publishes over: the resources its tiles read through
+    #: its own grants rather than through the viewer's. Present so a reader can
+    #: be told the numbers are not their own, which is the disclosure the whole
+    #: mechanism rests on.
+    published_over: List[PublishedOver] = Field(default_factory=list)
+    #: Whether those grants are serving right now. A published view rests on
+    #: its author's standing access, and stops when that stops — so the list
+    #: above says what somebody published and this says whether it is what
+    #: anybody is currently seeing. Telling a reader the figures are shared
+    #: when the dashboard has fallen back to their own would be the disclosure
+    #: saying the opposite of what is happening.
+    published_active: bool = False
+
+
+class PublishRequest(SanitizedBaseModel):
+    """What a dashboard should publish over, in full.
+
+    The whole list each time, like the sharing panel: publishing is an explicit
+    act and what it grants over is what somebody looked at when they did it.
+    """
+
+    resources: List["PublishTarget"] = Field(default_factory=list, max_length=50)
+
+
+class PublishTarget(SanitizedBaseModel):
+    resource_type: str = Field(min_length=1, max_length=32)
+    resource_id: int = Field(gt=0)
+
+
+PublishRequest.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------
@@ -146,6 +188,21 @@ class WidgetOption(SanitizedBaseModel):
     default: str
 
 
+class WidgetSlot(SanitizedBaseModel):
+    """One column a widget needs, and what may fill it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    name: str
+    #: The field types this slot accepts, so a client can offer only the
+    #: columns that fit it.
+    types: List[FieldType]
+    required: bool = True
+    #: Whether several columns may fill it — a chart's measures are a series
+    #: each.
+    repeatable: bool = False
+
+
 class WidgetCatalogEntry(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -154,7 +211,11 @@ class WidgetCatalogEntry(SanitizedBaseModel):
     min_h: int
     default_w: int
     default_h: int
-    sources: List[BindingSource]  # type: ignore[valid-type]
+    #: The columns this widget draws, in the order it reads them. Empty means it
+    #: draws whatever it is given. A client matches a query's described columns
+    #: against these to decide which widgets can render it, and to fill the
+    #: pickers that let an author override the match.
+    shape: List[WidgetSlot] = Field(default_factory=list)
     options: List[WidgetOption] = Field(default_factory=list)
 
 
@@ -186,7 +247,15 @@ def build_widget_catalog() -> WidgetCatalog:
                 min_h=spec.min_h,
                 default_w=spec.default_w,
                 default_h=spec.default_h,
-                sources=sorted(spec.sources),
+                shape=[
+                    WidgetSlot(
+                        name=slot.name,
+                        types=sorted(slot.types, key=lambda kind: kind.value),
+                        required=slot.required,
+                        repeatable=slot.repeatable,
+                    )
+                    for slot in spec.shape
+                ],
                 options=[
                     WidgetOption(
                         key=key, values=list(option.values), default=option.default

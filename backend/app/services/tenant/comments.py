@@ -50,6 +50,7 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
+from app.services import reachability
 from app.services.platform import accounts as accounts_service
 from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
@@ -461,6 +462,15 @@ async def _resolved_parent(
         session, column=column, entity_id=entity_id, guild_id=guild_id
     )
     if ctx is None:
+        # The policies took the parent out before this ran. In the initiative
+        # it is the reader's to know about, so sharing is what refused it.
+        table = (
+            "tasks" if column == "task_id" else _TARGETS_BY_COLUMN[column].tool.plural
+        )
+        if await reachability.reader_is_in_the_initiative(
+            table, entity_id, cast(int, user.id), guild_id
+        ):
+            raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
         raise CommentNotFoundError(_parent_not_found(column))
     await _ensure_parent_access(session, ctx, user=user, access=access)
     return ctx
@@ -498,6 +508,12 @@ async def get_comment_with_parent(
     )
     comment = (await session.exec(stmt)).one_or_none()
     if not comment:
+        # The policies took it out before this ran. In the initiative it is
+        # theirs to know about, so a later gate is what refused it.
+        if await reachability.reader_is_in_the_initiative(
+            "comments", comment_id, cast(int, user.id), guild_id
+        ):
+            raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
 
     column, entity_id = _comment_target(comment)
@@ -624,7 +640,9 @@ async def create_comment(
         entity_id=entity_id,
         guild_id=guild_id,
         user=author,
-        access="write",
+        # Answering a thread is not editing what it hangs off — reaching the
+        # parent is the gate, and its comment switch is the other half.
+        access="read",
     )
     if parent_comment and getattr(parent_comment, column) != ctx.entity_id:
         raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
@@ -710,6 +728,15 @@ async def _process_comment_notifications(
     notified_user_ids: Set[int] = set()
     content = comment.content
     context_title = ctx.title
+    # Which sidebar row this comment belongs under. A tool comment names its
+    # own tool; a task comment belongs to the Projects list the task lives in.
+    comment_tool = (
+        ctx.tool.value
+        if ctx.tool is not None
+        else Tool.project.value
+        if ctx.task is not None
+        else None
+    )
 
     # Tool parents beyond task/document link through the entity reference the
     # resolver understands; the original pair keeps its dedicated fields.
@@ -736,6 +763,8 @@ async def _process_comment_notifications(
                 entity_id=extra_entity_id,
                 context_title=context_title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(parent_comment.created_by)
 
@@ -760,6 +789,8 @@ async def _process_comment_notifications(
             entity_id=extra_entity_id,
             context_title=context_title,
             guild_id=guild_id,
+            initiative_id=ctx.initiative_id,
+            tool=comment_tool,
         )
         notified_user_ids.add(user_id)
 
@@ -791,6 +822,8 @@ async def _process_comment_notifications(
                 context_entity_id=extra_entity_id,
                 context_title=context_title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(assignee.id)
 
@@ -816,6 +849,8 @@ async def _process_comment_notifications(
                     task_title=task.title,
                     project_name=project_name,
                     guild_id=guild_id,
+                    initiative_id=ctx.initiative_id,
+                    tool=comment_tool,
                 )
                 notified_user_ids.add(assignee.id)
 
@@ -832,6 +867,8 @@ async def _process_comment_notifications(
                 entity_id=ctx.entity_id,
                 entity_name=ctx.title,
                 guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
+                tool=comment_tool,
             )
             notified_user_ids.add(cast(int, owner.id))
 

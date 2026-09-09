@@ -10,7 +10,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,11 +46,15 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import type { DialogProps } from "@/types/dialog";
+
+/** What an uploaded document may be. */
+const UPLOAD_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
 
 type CreateDocumentDialogProps = DialogProps & {
   /** If provided, the initiative is locked and cannot be changed */
@@ -92,7 +97,6 @@ export const CreateDocumentDialog = ({
   );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
   // Determine effective initiative ID
@@ -113,8 +117,9 @@ export const CreateDocumentDialog = ({
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
   // Template picker — the shared lookup, asked for blueprints, only while the
-  // dialog is open.
-  const templateDocumentsQuery = useGuildSearchSuggest(templateSearch, {
+  // dialog is open. It opens on the templates most recently worked on, which is
+  // the only way it can say that this community has any.
+  const templates = useGuildPickerSuggestions(templateSearch, {
     types: [SearchEntityType.document],
     template: true,
     enabled: open && !isTemplateDocument,
@@ -122,11 +127,11 @@ export const CreateDocumentDialog = ({
 
   const templateItems = useMemo(
     () =>
-      (templateDocumentsQuery.data ?? []).map((doc) => ({
+      templates.items.map((doc) => ({
         value: String(doc.entity_id),
         label: doc.title,
       })),
-    [templateDocumentsQuery.data]
+    [templates.items]
   );
 
   const clearTemplate = useCallback(() => {
@@ -184,21 +189,16 @@ export const CreateDocumentDialog = ({
     },
   });
 
-  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (maxUploadBytes !== null && file.size > maxUploadBytes) {
-        toast.error(t("create.fileTooLarge"));
-        e.target.value = "";
-        return;
-      }
-      setSelectedFile(file);
-      if (!newTitle.trim()) {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-        setNewTitle(nameWithoutExt);
-      }
+  const handleFileSelect = (file: File) => {
+    if (maxUploadBytes !== null && file.size > maxUploadBytes) {
+      toast.error(t("create.fileTooLarge"));
+      return;
     }
-    e.target.value = "";
+    setSelectedFile(file);
+    if (!newTitle.trim()) {
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+      setNewTitle(nameWithoutExt);
+    }
   };
 
   const isCreating = createDocument.isPending || uploadDocument.isPending;
@@ -328,7 +328,7 @@ export const CreateDocumentDialog = ({
                   );
                 }}
                 onSearchChange={setTemplateSearch}
-                loading={templateDocumentsQuery.isFetching}
+                loading={templates.isFetching}
                 disabled={isTemplateDocument}
                 placeholder={t("create.selectTemplate")}
                 searchPlaceholder={t("create.searchTemplates")}
@@ -354,13 +354,6 @@ export const CreateDocumentDialog = ({
           <TabsContent value="upload" className="mt-4 space-y-4">
             <div className="space-y-2">
               <Label>{t("create.fileLabel")}</Label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
               {selectedFile ? (
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-3">
@@ -398,15 +391,15 @@ export const CreateDocumentDialog = ({
                   </Button>
                 </div>
               ) : (
-                <Button
-                  type="button"
-                  variant="outline"
+                <ImagePicker
+                  variant="button"
                   className="w-full"
-                  onClick={() => fileInputRef.current?.click()}
+                  accept={UPLOAD_ACCEPT}
+                  onSelect={handleFileSelect}
                 >
                   <Upload className="h-4 w-4" />
                   {t("create.chooseFile")}
-                </Button>
+                </ImagePicker>
               )}
               <p className="whitespace-pre-line text-muted-foreground text-xs">
                 {t("create.fileHelp")}
