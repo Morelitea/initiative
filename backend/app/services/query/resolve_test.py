@@ -135,6 +135,16 @@ class TestNamesResolveThroughTheRegistry:
     def test_one_relation_needs_no_qualifier(self):
         assert "title" in resolve("SELECT title FROM tasks").sql
 
+    def test_a_table_joined_to_itself_is_two_relations(self):
+        """Two aliases of one dataset are two relations in scope, so a bare
+        column of it names both and has to say which."""
+        sql = "SELECT title FROM tasks a JOIN tasks b ON a.id = b.id"
+        assert refusal(sql) == QueryMessages.AMBIGUOUS_FIELD
+
+    def test_a_self_join_reads_with_a_qualifier(self):
+        sql = "SELECT a.title FROM tasks a JOIN tasks b ON a.id = b.id"
+        assert "a.title" in resolve(sql).sql
+
     def test_two_relations_may_not_share_an_alias(self):
         sql = "SELECT t.id FROM tasks t JOIN projects t ON true"
         assert refusal(sql) == QueryMessages.DUPLICATE_ALIAS

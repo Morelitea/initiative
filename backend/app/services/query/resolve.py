@@ -478,13 +478,12 @@ def _holder(scope: dict[str, str], field_name: str) -> str | None:
     An unqualified name is resolved the way the server resolves one: against
     whichever relation actually has it. ``None`` where none does or more than
     one does — the caller says which of those it is.
+
+    Counted per relation in scope, not per dataset: the same table joined to
+    itself is two relations, and a bare column of it names both.
     """
-    holders = {
-        name
-        for name in dict.fromkeys(scope.values())
-        if field_name in dataset(name).by_name
-    }
-    return holders.pop() if len(holders) == 1 else None
+    holders = [name for name in scope.values() if field_name in dataset(name).by_name]
+    return holders[0] if len(holders) == 1 else None
 
 
 def _output_types(
@@ -547,8 +546,7 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
                 # Nothing in scope has it, or more than one does. Which of
                 # those it is decides what the reader has to change.
                 known = any(
-                    names[0] in dataset(name).by_name
-                    for name in dict.fromkeys(scope.values())
+                    names[0] in dataset(name).by_name for name in scope.values()
                 )
                 raise QueryError(
                     QueryMessages.AMBIGUOUS_FIELD
