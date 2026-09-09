@@ -30,9 +30,22 @@ WITHDRAWN_UID = marketplace_uid("withdrawn")
 TOO_NEW_UID = marketplace_uid("toonew")
 
 
-def _definition(widget_type: str = "stat", source: str = "task_counts") -> dict:
+def _definition(
+    widget_type: str = "stat", sql: str = "SELECT count(*) AS tasks FROM tasks"
+) -> dict:
+    """A canvas of one widget, bound the only way a binding is bound.
+
+    The statement is checked when a definition is stored, so it has to be one
+    the query surface will run — a listing that ships an unreadable one is not
+    installable, which is a different test from any of these."""
     return {
-        "widgets": [{"id": "w1", "type": widget_type, "binding": {"source": source}}]
+        "widgets": [
+            {
+                "id": "w1",
+                "type": widget_type,
+                "binding": {"source": "query", "sql": sql},
+            }
+        ]
     }
 
 
@@ -94,7 +107,7 @@ class TestInstall:
                 "name": "Sprint health",
                 "initiative_id": a.initiative.id,
                 "listing_uid": INSTALL_UID,
-                "definition": _definition(widget_type="table", source="tasks"),
+                "definition": _definition(widget_type="table"),
             },
         )
 
@@ -244,7 +257,7 @@ class TestUpgrade:
             uid=INSTALL_UID,
             public_id="tests.install",
             version="2.0.0",
-            definition=_definition(widget_type="table", source="tasks"),
+            definition=_definition(widget_type="table"),
         )
 
         # Untouched until someone here asks for it.
@@ -268,7 +281,7 @@ class TestUpgrade:
             uid=INSTALL_UID,
             public_id="tests.install",
             version="2.0.0",
-            definition=_definition(widget_type="table", source="tasks"),
+            definition=_definition(widget_type="table"),
         )
 
         response = await client.post(
@@ -294,7 +307,7 @@ class TestUpgrade:
             uid=INSTALL_UID,
             public_id="tests.install",
             version="2.0.0",
-            definition=_definition(widget_type="table", source="tasks"),
+            definition=_definition(widget_type="table"),
         )
 
         b = await acting_user(
