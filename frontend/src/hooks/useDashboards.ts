@@ -14,6 +14,7 @@ import {
   readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet,
   readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet,
   setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut,
+  setPublishedViewApiV1GGuildIdDashboardsDashboardIdPublishedPut,
   updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch,
   upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost,
 } from "@/api/generated/dashboards/dashboards";
@@ -25,6 +26,7 @@ import type {
   DashboardUpdate,
   InitiativeGroupedCountsResponse,
   ListDashboardsApiV1GGuildIdDashboardsGetParams,
+  PublishTarget,
   ResourceGrantSchema,
   WidgetCatalog,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -196,6 +198,28 @@ export const useDeleteDashboard = (options?: MutationOpts<void, number>) =>
   );
 
 // ── Grants Mutation (unified resource sharing) ──────────────────────────────
+
+/**
+ * What this dashboard shows to everybody who can open it.
+ *
+ * The whole list each time, like sharing: publishing is a deliberate act and
+ * what it grants over is what somebody looked at when they did it.
+ */
+export const useSetPublishedView = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, PublishTarget[]>
+) =>
+  useGuildMutation<DashboardRead, PublishTarget[]>(
+    {
+      mutationFn: (guildId, resources) =>
+        setPublishedViewApiV1GGuildIdDashboardsDashboardIdPublishedPut(guildId, dashboardId, {
+          resources,
+        }),
+      invalidate: () => invalidateDashboardAndList(dashboardId),
+      errorKey: "dashboards:error",
+    },
+    options
+  );
 
 export const useSetDashboardGrants = (
   dashboardId: number,

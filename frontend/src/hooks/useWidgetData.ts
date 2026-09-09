@@ -22,7 +22,7 @@ import { useCallback, useMemo } from "react";
 import { resolveAppBinding } from "@/api/appData";
 import { useAppData, useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useDocument } from "@/hooks/useDocuments";
-import { useSqlQuery } from "@/hooks/useSqlQuery";
+import { useSqlQuery, useWidgetQuery } from "@/hooks/useSqlQuery";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
 import { emptyDataFor, normalizeQueryRows, normalizeSheetRange } from "@/lib/widgets/normalize";
@@ -118,11 +118,24 @@ export function useWidgetData(
   // say is *whose* — a statement names datasets, and the reader belongs to
   // however many initiatives they belong to — so the dashboard's own
   // initiative goes with it and the rows come back narrowed to it.
-  const sqlQuery = useSqlQuery(
-    source === "query" ? (binding.sql ?? null) : null,
-    scoped ? initiativeId : undefined,
-    { enabled: scoped && source === "query" }
+  // A widget already on a dashboard is read by naming it: the server looks the
+  // statement up rather than being handed one. That is what carries a published
+  // view — the rows a dashboard's own grants reach are shown through the
+  // question somebody published, and there is no way to ask another of them.
+  // A widget that is not placed yet — the config dialog's preview — has no
+  // stored statement to look up, so it sends the one being written.
+  const placed = typeof dashboardId === "number" && Boolean(widgetId);
+  const widgetQuery = useWidgetQuery(
+    source === "query" && placed ? (dashboardId ?? null) : null,
+    source === "query" && placed ? (widgetId ?? null) : null,
+    { enabled: scoped && source === "query" && placed }
   );
+  const sqlQuery = useSqlQuery(
+    source === "query" && !placed ? (binding.sql ?? null) : null,
+    scoped ? initiativeId : undefined,
+    { enabled: scoped && source === "query" && !placed }
+  );
+  const answering = placed ? widgetQuery : sqlQuery;
   const documentQuery = useDocument(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
@@ -144,10 +157,10 @@ export function useWidgetData(
   });
 
   const refetch = useCallback(() => {
-    if (source === "query") void sqlQuery.refetch();
+    if (source === "query") void answering.refetch();
     if (source === "sheet_range") void documentQuery.refetch();
     if (isApp) void appQuery.refetch();
-  }, [source, isApp, sqlQuery.refetch, documentQuery.refetch, appQuery.refetch]);
+  }, [source, isApp, answering.refetch, documentQuery.refetch, appQuery.refetch]);
 
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
@@ -186,7 +199,7 @@ export function useWidgetData(
         // author's to fix rather than this viewer's, so it reads as an error
         // and not as absence. Rows this viewer may not see are simply not
         // returned: the statement runs under their own session.
-        if (sqlQuery.isError) {
+        if (answering.isError) {
           return {
             data: emptyDataFor(source),
             isLoading: false,
@@ -196,12 +209,12 @@ export function useWidgetData(
             refetch,
           };
         }
-        const answered = sqlQuery.data;
+        const answered = answering.data;
         const { columns, rows } = normalizeQueryRows(answered?.columns ?? [], answered?.rows ?? []);
         const meta: DataMeta = { total: rows.length, truncated: Boolean(answered?.truncated) };
         return {
           data: { source: "rows", columns, rows, meta },
-          isLoading: sqlQuery.isLoading,
+          isLoading: answering.isLoading,
           isUnbound: false,
           isRestricted: false,
           refetch,
@@ -337,9 +350,9 @@ export function useWidgetData(
     binding.document_id,
     binding.range,
     binding.sheet,
-    sqlQuery.data,
-    sqlQuery.isLoading,
-    sqlQuery.isError,
+    answering.data,
+    answering.isLoading,
+    answering.isError,
     documentQuery.data,
     documentQuery.isLoading,
     documentQuery.isError,

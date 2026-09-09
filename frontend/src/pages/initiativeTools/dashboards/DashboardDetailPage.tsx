@@ -7,6 +7,7 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/DashboardUpdateBadge";
+import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/PublishedViewNotice";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -109,6 +110,7 @@ export function DashboardDetailPage() {
           {dashboard?.description && (
             <p className="text-muted-foreground text-sm">{dashboard.description}</p>
           )}
+          {dashboard && <PublishedViewNotice published={dashboard.published_over} />}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

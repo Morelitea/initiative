@@ -1,6 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PublishedViewCard } from "@/components/initiativeTools/dashboards/PublishedViewCard";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useDashboard,
@@ -28,6 +29,11 @@ export const DashboardSettingsPage = () => {
       update={update}
       setGrants={setGrants}
       remove={remove}
+      // Publishing hands somebody else's readers your own reach. It sits with
+      // the deliberate settings rather than beside renaming.
+      advancedExtra={
+        dashboardQuery.data ? <PublishedViewCard dashboard={dashboardQuery.data} /> : null
+      }
     />
   );
 };

@@ -369,5 +369,15 @@
     "counters": "Contadores",
     "counter_groups": "Grupos de contadores",
     "task_statuses": "Estados de tarea"
+  },
+  "published": {
+    "title": "Cifras publicadas",
+    "help": "Un panel muestra normalmente a cada persona lo que ya puede ver. Lo que se nombre aquí se muestra igual a todas las personas que puedan abrir este panel, de modo que una cifra que debe ser terreno común sea una sola y no varias. Solo puedes publicar lo que tú misma puedes abrir, y quien sea su dueño puede retirarlo cuando quiera.",
+    "empty": "Nada publicado. Cada tarjeta responde según quien la mire.",
+    "choose": "Elige un proyecto",
+    "add": "Publicar",
+    "stop": "Dejar de publicar esto",
+    "notice_one": "Muestra una cifra publicada: la misma para todo el mundo aquí",
+    "notice_other": "Muestra {{count}} cifras publicadas: las mismas para todo el mundo aquí"
   }
 }

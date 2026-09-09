@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet } from "@/api/generated/dashboards/dashboards";
 import type { QueryResponse } from "@/api/generated/initiativeAPI.schemas";
 import { runQueryApiV1GGuildIdQueryPost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -20,6 +21,12 @@ import type { QueryOpts } from "@/types/query";
  */
 export const sqlQueryKey = (guildId: number, sql: string, initiativeId?: number) =>
   ["query", guildId, sql, initiativeId ?? null] as const;
+
+/** A placed widget's own read. Keyed by where it sits rather than by what it
+ *  asks, because the statement is the server's to look up — the whole point of
+ *  the endpoint behind it. */
+export const widgetQueryKey = (guildId: number, dashboardId: number, widgetId: string) =>
+  ["query", "widget", guildId, dashboardId, widgetId] as const;
 
 /**
  * `initiativeId` narrows the answer to one initiative.
@@ -44,5 +51,36 @@ export const useSqlQuery = (
     retry: false,
     ...options,
     enabled: Boolean(sql) && (options?.enabled ?? true),
+  });
+};
+
+/**
+ * The statement stored on one widget of one dashboard.
+ *
+ * The request names the widget and nothing else: what runs is the statement on
+ * it, looked up server-side. That is what lets a dashboard show rows a reader
+ * could not otherwise reach — the question is the one somebody published, and
+ * a reader has no way to ask a different one of the same grants.
+ */
+export const useWidgetQuery = (
+  dashboardId: number | null,
+  widgetId: string | null,
+  options?: QueryOpts<QueryResponse>
+) => {
+  const guildId = useActiveGuildId();
+  const addressed = Boolean(dashboardId && widgetId);
+  return useQuery<QueryResponse>({
+    queryKey: widgetQueryKey(guildId, dashboardId ?? 0, widgetId ?? ""),
+    queryFn: () =>
+      runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
+        guildId,
+        dashboardId as number,
+        widgetId as string
+      ),
+    // Not retried, for the same reason: a statement either resolves against the
+    // registry or it does not.
+    retry: false,
+    ...options,
+    enabled: addressed && (options?.enabled ?? true),
   });
 };
