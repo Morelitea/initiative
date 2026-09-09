@@ -402,6 +402,33 @@ async def test_upload_refuses_what_is_not_a_raster_image(
     assert empty.json()["detail"] == "GALLERY_IMAGE_EMPTY"
 
 
+@pytest.mark.unit
+def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
+    """A failed commit strands the blobs written for it — but only some
+    failures prove the rows are not there. A server that rejected a
+    constraint definitely did not commit; a connection that dropped may
+    have, and deleting then would break a live picture rather than tidy a
+    dead one. So the ambiguous case keeps its bytes."""
+    from sqlalchemy.exc import IntegrityError, OperationalError
+
+    from app.api.v1.tenant_endpoints import galleries as endpoint
+
+    deleted: list[list[str]] = []
+    monkeypatch.setattr(
+        endpoint.attachments_service,
+        "delete_uploads_by_urls",
+        lambda urls: deleted.append(list(urls)),
+    )
+
+    urls = ["/uploads/1/a.png", "/uploads/1/a-thumb.webp"]
+    endpoint._discard_orphans(urls, IntegrityError("stmt", {}, Exception()))
+    assert deleted == [urls]
+
+    deleted.clear()
+    endpoint._discard_orphans(urls, OperationalError("stmt", {}, Exception()))
+    assert deleted == [], "an inconclusive failure must leave the bytes alone"
+
+
 @pytest.mark.integration
 async def test_upload_refuses_what_the_decoder_will_not_read(
     client: AsyncClient, acting_user, session

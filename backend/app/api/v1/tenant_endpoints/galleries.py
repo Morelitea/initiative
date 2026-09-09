@@ -22,6 +22,7 @@ after that does anything decode a pixel — to make the thumbnail, boxed so a
 picture that cannot be thumbnailed is still stored.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
@@ -36,7 +37,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy import delete as sa_delete, func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -92,6 +93,40 @@ from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
+
+logger = logging.getLogger(__name__)
+
+#: Which commit failures prove nothing was written.
+#:
+#: A constraint the server rejected is definitive: the transaction is gone,
+#: and the blobs written for it are bytes nothing will ever reference. A lost
+#: connection is not — Postgres may have committed and failed to say so — and
+#: the two must not be treated alike, because they fail in opposite
+#: directions. A blob left behind is waste somebody can sweep up; a blob
+#: deleted out from under a committed row is a picture that is broken
+#: forever.
+_DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
+
+
+def _discard_orphans(urls: list[str], failure: BaseException) -> None:
+    """Take back blobs a failed commit left behind — but only where the
+    failure proves they are orphans. Anything ambiguous keeps its bytes and
+    says so, so the waste is findable rather than the picture missing."""
+    urls = [url for url in urls if url]
+    if not urls:
+        return
+    if isinstance(failure, _DEFINITIVELY_NOT_COMMITTED):
+        attachments_service.delete_uploads_by_urls(urls)
+        return
+    logger.warning(
+        "Left %d uploaded blob(s) in place after an inconclusive commit "
+        "failure (%s); they are orphaned only if the transaction did not "
+        "land: %s",
+        len(urls),
+        type(failure).__name__,
+        ", ".join(urls),
+    )
+
 
 #: How many pictures one page carries. A picture is a thumbnail and a few
 #: fields, so this is generous — the point is that the grid fetches the next
@@ -900,17 +935,14 @@ async def upload_gallery_image(
     # that.
     gallery.updated_at = now
     session.add(gallery)
-    # The blobs are already in storage, and the rows that account for them are
-    # not committed yet. Anything that stops the commit — a deadlock, a lost
-    # connection — would leave bytes nothing references and no purge can
-    # find, so they go back out before the error does.
+    # The blobs are in storage and the rows that account for them are not
+    # committed yet, so a failure here can strand them — see
+    # :func:`_discard_orphans` for which failures that is true of.
     try:
         await session.commit()
-    except Exception:
+    except Exception as failed:
         await session.rollback()
-        attachments_service.delete_uploads_by_urls(
-            [url for url in (file_url, thumbnail_url) if url]
-        )
+        _discard_orphans([file_url, thumbnail_url], failed)
         raise
 
     hydrated = await _refetch_image(session, gallery.id, image.id)
@@ -1110,12 +1142,8 @@ async def upload_gallery_image_version(
     try:
         await session.commit()
     except Exception as failed:
-        # The blobs are in storage and their rows are not committed, so they
-        # go back out whatever stopped the commit.
         await session.rollback()
-        attachments_service.delete_uploads_by_urls(
-            [url for url in (file_url, thumbnail_url) if url]
-        )
+        _discard_orphans([file_url, thumbnail_url], failed)
         if isinstance(failed, IntegrityError):
             # A concurrent upload claimed the same version number between the
             # MAX() read and this commit. Ask the caller to retry rather than
