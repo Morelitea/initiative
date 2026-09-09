@@ -1989,6 +1989,7 @@ export const ControlKind = {
   initiative: "initiative",
   calendar: "calendar",
   counter_group: "counter_group",
+  reference: "reference",
   property_value: "property_value",
   date: "date",
   boolean: "boolean",
@@ -2293,6 +2294,12 @@ export const DatasetName = {
   task_statuses: "task_statuses",
   task_assignees: "task_assignees",
   members: "members",
+  documents: "documents",
+  queues: "queues",
+  queue_items: "queue_items",
+  calendars: "calendars",
+  dashboards: "dashboards",
+  posts: "posts",
 } as const;
 
 /**
@@ -2993,11 +3000,25 @@ export interface FieldDescription {
 }
 
 /**
+ * Another dataset this one can be read alongside.
+ *
+ * What a client needs to offer a related field is the name to prefix it with
+ * and the dataset to read that field's own description from — the hops in
+ * between are the server's business, and a client that knew them could write
+ * a join the server did not declare.
+ */
+export interface RelationDescription {
+  name: string;
+  dataset: string;
+}
+
+/**
  * Every field a dataset offers, in the order a client lists them.
  */
 export interface FieldCatalogResponse {
   dataset: string;
   fields: FieldDescription[];
+  relations?: RelationDescription[];
 }
 
 export interface PresetPropertyFilter {

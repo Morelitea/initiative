@@ -15,12 +15,13 @@
 import { useMemo } from "react";
 
 import { useReadFieldCatalogApiV1FieldsDatasetGet } from "@/api/generated/fields/fields";
-import type { DatasetName } from "@/api/generated/initiativeAPI.schemas";
+import type { DatasetName, RelationDescription } from "@/api/generated/initiativeAPI.schemas";
 import { type FilterFieldSpec, toFilterFieldSpec } from "@/lib/widgets/conditions";
 
 export type { DatasetName };
 
 const EMPTY: FilterFieldSpec[] = [];
+const NO_RELATIONS: RelationDescription[] = [];
 
 /**
  * The declarations, ready for the controls to read.
@@ -44,6 +45,10 @@ export function useFieldCatalog(dataset: DatasetName) {
     /** Empty until it loads — a filter list with nothing in it renders as
      *  nothing, which is the right thing to show while it is on its way. */
     fields,
+    /** What else this dataset can be read alongside. A related field is named
+     *  `<relation>.<field>`, and what may be named is that dataset's own
+     *  description — so a consumer reads this and then reads that. */
+    relations: query.data?.relations ?? NO_RELATIONS,
     isLoading: query.isLoading,
   };
 }

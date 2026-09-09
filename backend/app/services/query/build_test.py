@@ -165,3 +165,81 @@ class TestWhatItRefuses:
     def test_a_statement_with_nothing_in_it(self):
         with pytest.raises(QueryError):
             build(QuerySpec(dataset="tasks", columns=()))
+
+
+class TestReachingThroughARelation:
+    """A dataset declares what it can be read alongside, and both ways of
+    asking write the same joins from the same declaration."""
+
+    def test_a_related_field_writes_its_joins(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(
+                    Column(field="assignee.display_name", alias="person"),
+                    Column(field="*", aggregate="count", alias="tasks"),
+                ),
+                group_by=("person",),
+            )
+        )
+        assert "JOIN task_assignees" in sql
+        assert "JOIN members AS assignee" in sql
+        assert "assignee.display_name AS person" in sql
+
+    def test_what_it_writes_is_a_statement_the_surface_runs(self):
+        """The point of building the tree rather than the text: the validator
+        reads what comes out, joins and all."""
+        _sql, resolved = build_and_resolve(
+            QuerySpec(
+                dataset="tasks",
+                columns=(
+                    Column(field="assignee.display_name", alias="person"),
+                    Column(field="*", aggregate="count", alias="n"),
+                ),
+                group_by=("person",),
+            )
+        )
+        assert set(resolved.relations) == {"tasks", "task_assignees", "members"}
+
+    def test_a_relation_nobody_declared_is_refused(self):
+        with pytest.raises(QueryError) as refused:
+            build(
+                QuerySpec(
+                    dataset="tasks",
+                    columns=(Column(field="nowhere.name"),),
+                )
+            )
+        assert refused.value.code == QueryMessages.UNKNOWN_RELATION
+
+    def test_a_field_the_relation_does_not_reach_is_refused(self):
+        with pytest.raises(QueryError) as refused:
+            build(
+                QuerySpec(
+                    dataset="tasks",
+                    columns=(Column(field="assignee.nonsense"),),
+                )
+            )
+        assert refused.value.code == QueryMessages.UNKNOWN_FIELD
+
+    def test_a_relation_is_joined_once_however_often_it_is_named(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(
+                    Column(field="assignee.display_name", alias="person"),
+                    Column(field="assignee.username", alias="handle"),
+                ),
+            )
+        )
+        assert sql.count("JOIN members AS assignee") == 1
+
+    def test_a_filter_may_reach_through_one_too(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="title"),),
+                where=(Condition(field="status.category", value="done"),),
+            )
+        )
+        assert "JOIN task_statuses AS status" in sql
+        assert "status.category" in sql
