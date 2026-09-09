@@ -246,3 +246,96 @@ async def test_a_failed_send_is_tried_again(session: AsyncSession):
         await _run_quiet_hours_summary_pass(session, now=_at(9))
 
     assert retried.await_count == 1
+
+
+@pytest.mark.integration
+async def test_a_channel_that_failed_is_retried_while_the_other_is_not(
+    session: AsyncSession,
+):
+    """Each channel is stamped by its own delivery.
+
+    A successful email must not mark the window done for a push that never
+    went, and the retry must not send the email a second time.
+    """
+    user = await create_user(
+        session, email="quiet-per-channel@example.com", timezone="UTC"
+    )
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    with (
+        patch("app.services.email.send_mention_email", new_callable=AsyncMock) as email,
+        patch(
+            "app.services.platform.push_notifications.send_push_to_user",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("no FCM"),
+        ) as push,
+    ):
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+        assert email.await_count == 1
+        assert push.await_count == 1
+
+    with (
+        patch("app.services.email.send_mention_email", new_callable=AsyncMock) as email,
+        patch(
+            "app.services.platform.push_notifications.send_push_to_user",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as push,
+    ):
+        await _run_quiet_hours_summary_pass(session, now=_at(9))
+
+    # The push is tried again; the email that already went is not repeated.
+    assert push.await_count == 1
+    assert email.await_count == 0
+
+
+@pytest.mark.integration
+async def test_a_setting_changed_mid_send_is_not_taken_back(session: AsyncSession):
+    """Stamping re-reads the document, so a change made while the summary was
+    being sent survives it."""
+    user = await create_user(session, email="quiet-raced@example.com", timezone="UTC")
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+
+    async def _change_a_setting_then_send(*args, **kwargs):
+        await notification_prefs.save_prefs(
+            session,
+            user.id,
+            {**NIGHT, "categories": {"reactions": {"push": False}}},
+        )
+        await session.commit()
+
+    with (
+        patch(
+            "app.services.email.send_mention_email",
+            new_callable=AsyncMock,
+            side_effect=_change_a_setting_then_send,
+        ),
+        patch(
+            "app.services.platform.push_notifications.send_push_to_user",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        await _run_quiet_hours_summary_pass(session, now=_at(8))
+
+    settled = await notification_prefs.load_prefs(session, user.id)
+    assert settled["categories"]["reactions"]["push"] is False
+    assert settled["quiet_hours"]["last_summary_at"]["email"]

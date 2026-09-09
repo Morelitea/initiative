@@ -2802,10 +2802,71 @@ def _rows_for_channel(
     ]
 
 
+def _window_stamps(prefs: Mapping[str, Any]) -> dict[str, str]:
+    """When each channel last covered a window.
+
+    Per channel, because email and push can fail independently: one stamp for
+    both would let a successful email mark the window done and strand the push
+    that never went.
+    """
+    raw = _section_of(prefs, "quiet_hours").get("last_summary_at")
+    if isinstance(raw, Mapping):
+        return {k: v for k, v in raw.items() if isinstance(v, str)}
+    # The single-value shape this started as: both channels, one time.
+    if isinstance(raw, str):
+        return {channel.value: raw for channel in notification_prefs.QUIET_CHANNELS}
+    return {}
+
+
+def _section_of(prefs: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = prefs.get(key)
+    return value if isinstance(value, Mapping) else {}
+
+
+def _covered(stamps: Mapping[str, str], channel: Channel, closed: datetime) -> bool:
+    raw = stamps.get(channel.value)
+    if not isinstance(raw, str):
+        return False
+    try:
+        return datetime.fromisoformat(raw) >= closed
+    except ValueError:
+        return False
+
+
+async def _stamp_window(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    closed: datetime,
+    channels: set[Channel],
+) -> None:
+    """Record that these channels have covered this window.
+
+    The document is re-read here rather than reused from the top of the pass:
+    sending is network I/O, the account may have changed a setting while it
+    ran, and saving replaces the whole document — so a copy loaded before the
+    send would carry their change back out.
+    """
+    if not channels:
+        return
+    fresh = await notification_prefs.load_prefs(session, user_id)
+    window = dict(_section_of(fresh, "quiet_hours"))
+    if not window.get("start") or not window.get("end"):
+        # The window was switched off while this ran. Nothing to stamp against.
+        return
+    stamps = _window_stamps(fresh)
+    for channel in channels:
+        stamps[channel.value] = closed.isoformat()
+    window["last_summary_at"] = stamps
+    fresh["quiet_hours"] = window
+    await notification_prefs.save_prefs(session, user_id, fresh)
+    await session.commit()
+
+
 async def _run_quiet_hours_summary_pass(
     session: AsyncSession, *, now: datetime
 ) -> None:
-    """Tell each account what it missed, once, when its window closes."""
+    """Tell each account what it missed, once per channel, when its window closes."""
     users = (await session.exec(select(User))).scalars().all()
     all_prefs = await notification_prefs.load_prefs_for(
         session, [user.id for user in users]
@@ -2820,32 +2881,29 @@ async def _run_quiet_hours_summary_pass(
         if window is None:
             continue
         opened, closed = window
-        stamped = prefs.get("quiet_hours", {}).get("last_summary_at")
-        if isinstance(stamped, str):
-            try:
-                if datetime.fromisoformat(stamped) >= closed:
-                    continue  # this window has already been summarised
-            except ValueError:
-                pass
-
-        async def _stamp(_user_id: int = user.id, _prefs: Mapping = prefs) -> None:
-            document = dict(_prefs)
-            document["quiet_hours"] = {
-                **document.get("quiet_hours", {}),
-                "last_summary_at": closed.isoformat(),
-            }
-            await notification_prefs.save_prefs(session, _user_id, document)
-            await session.commit()
+        stamps = _window_stamps(prefs)
+        outstanding = {
+            channel
+            for channel in notification_prefs.QUIET_CHANNELS
+            if not _covered(stamps, channel, closed)
+        }
+        if not outstanding:
+            continue  # this window is fully summarised
 
         rows = await _quiet_summary_rows(
             session, user_id=user.id, since=opened, until=closed
         )
-        email_rows = _rows_for_channel(rows, prefs=prefs, channel=Channel.email)
-        push_rows = _rows_for_channel(rows, prefs=prefs, channel=Channel.push)
-        if not email_rows and not push_rows:
-            # Nothing either channel may carry. Stamped so a quiet night is not
-            # reconsidered on every poll for the rest of the grace period.
-            await _stamp()
+        per_channel = {
+            channel: _rows_for_channel(rows, prefs=prefs, channel=channel)
+            for channel in outstanding
+        }
+        # A channel with nothing it may carry is covered by having nothing to
+        # say, so a quiet night is not reconsidered on every poll.
+        covered = {channel for channel, rows_ in per_channel.items() if not rows_}
+        if covered == outstanding:
+            await _stamp_window(
+                session, user_id=user.id, closed=closed, channels=covered
+            )
             continue
 
         locale = _recipient_locale(user)
@@ -2864,10 +2922,10 @@ async def _run_quiet_hours_summary_pass(
             guild_names = {guild.id: guild.name for guild in found}
         headline = _nt("quietHours.summary.title", locale)
 
-        # Only stamp once something actually went out, so a channel that is
-        # merely unconfigured (no SMTP, no FCM) is retried on the next poll
-        # rather than burning the account's one summary for the window.
-        delivered = False
+        # Each channel is stamped by its own delivery, so one that is merely
+        # unconfigured (no SMTP, no FCM) is retried on the next poll instead of
+        # riding the other's success.
+        email_rows = per_channel.get(Channel.email) or []
         if email_rows:
             try:
                 await email_service.send_mention_email(
@@ -2884,11 +2942,13 @@ async def _run_quiet_hours_summary_pass(
                     ),
                     link=_build_smart_link(target_path="/notifications", guild_id=None),
                 )
-                delivered = True
+                covered.add(Channel.email)
             except email_service.EmailNotConfiguredError:
                 logger.warning("SMTP not configured; skipping quiet-hours summary")
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send quiet-hours summary: %s", exc)
+
+        push_rows = per_channel.get(Channel.push) or []
         if push_rows:
             try:
                 sent = await push_notifications.send_push_to_user(
@@ -2906,13 +2966,14 @@ async def _run_quiet_hours_summary_pass(
                         "target_path": "/notifications",
                     },
                 )
-                delivered = delivered or bool(sent)
+                if sent:
+                    covered.add(Channel.push)
             except Exception as exc:
                 logger.error(
                     "Failed to push quiet-hours summary: %s", exc, exc_info=True
                 )
-        if delivered:
-            await _stamp()
+
+        await _stamp_window(session, user_id=user.id, closed=closed, channels=covered)
 
 
 async def process_quiet_hours_summaries() -> None:
