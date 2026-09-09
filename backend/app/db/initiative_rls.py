@@ -1136,6 +1136,17 @@ class Emit:
     #: derivable without a second route. Meaningless beside ``reports_as``,
     #: which names its parent instead.
     resource_type: str | None = None
+    #: While this row expression holds, the row is not news: it emits nothing,
+    #: and the moment it stops holding is reported as a create (the moment it
+    #: starts, as a delete). For content that exists before it is anybody
+    #: else's business — a notice still being drafted, which its author can
+    #: reach and nobody else can. The same shape as the soft-delete rule the
+    #: trigger already applies, read from the other end.
+    quiet_when: RowLocator | None = None
+    #: This table's events name no actor. For a gesture whose author is the
+    #: private part of it: an event still says the thing moved, which is what a
+    #: reader needs to re-read it, and says nothing about who moved it.
+    anonymous: bool = False
 
 
 #: table -> how it deviates. Anything absent takes the derived default.
@@ -1147,11 +1158,6 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "recent_views": Silent("one member's own viewing state"),
     "search_entries": Silent("derived index, rebuilt from the content it mirrors"),
     "project_orders": Silent("one member's own ordering state"),
-    # A vote row names the person who cast it, and an event carries the actor
-    # that wrote it. A poll may be anonymous, so it emits nothing at all rather
-    # than emitting only for the polls that are not — one rule, no way to get
-    # the flag wrong. Results reach a reader through the post's own reads.
-    "post_poll_votes": Silent("a vote names its voter; a poll may be anonymous"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),
     "reaction_digest_items": Silent("internal digest bookkeeping"),
@@ -1197,6 +1203,14 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # The trigger is told a NULL is expected here specifically, so an
     # initiative-scoped row whose lookup fails still means "skip".
     "tags": Emit(guild_wide=True),
+    # -- Not news yet -------------------------------------------------------
+    # A draft is reachable by the people who could edit it and nobody else, and
+    # the board it will appear on has not changed. Publication is the event,
+    # from whichever of the two places does it — posted outright, or stamped by
+    # the scheduler.
+    # ``published_at`` is the fact, where ``scheduled_for`` is only the
+    # intention — the same column ``is_published_clause`` reads.
+    "posts": Emit(quiet_when=lambda r: f"{r}.published_at IS NULL"),
     # Installed apps, same reasoning: the install row is guild-wide knowledge
     # (every member's sidebar lists it), so its lifecycle emits guild-wide too.
     # A subscriber hears an install appear, change (``config_state`` moving is
@@ -1215,6 +1229,14 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),
     "post_poll_options": Emit(reports_as=poll_options_report_on_their_post()),
+    # A vote is the one gesture whose author is the private half of it — a poll
+    # may be anonymous. So it reports as the notice being answered, like the
+    # poll and its options do, and names nobody: a reader hears the tallies
+    # moved and re-reads the post, which is where the results live anyway. One
+    # rule for every poll, rather than a flag that can be got wrong per poll.
+    "post_poll_votes": Emit(
+        reports_as=poll_options_report_on_their_post(), anonymous=True
+    ),
     "reactions": Emit(reports_as=reactions_report_on_their_target()),
 }
 

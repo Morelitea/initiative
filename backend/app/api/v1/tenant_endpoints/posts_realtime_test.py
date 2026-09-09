@@ -1,10 +1,9 @@
 """The board's realtime signals — a notice reaches a second window on its own.
 
-Every write that changes what a board shows emits one content-free ``post``
-envelope into that initiative's room, so somebody with the board open sees it
-without reloading. These tests drive the real endpoints through the real
-``manager``, so a broadcast that is missing, mis-scoped or carrying content
-fails here.
+End to end, and deliberately so: a real endpoint writes, the capture trigger
+logs it, the room sink reads the log, and a socket in that initiative's room
+hears about it. Nothing in the endpoints announces anything, so a signal that
+is missing, mis-scoped or carrying content fails here rather than in a mock.
 
 Publication is the case worth stating twice: a draft says nothing, and the
 moment it goes up — posted outright, or stamped later by the scheduler — is the
@@ -22,6 +21,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.post import Post
 from app.services.realtime import manager
 from app.services.realtime_test import FakeWebSocket
+from app.services.tenant import room_sink
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
     create_guild,
@@ -45,7 +45,14 @@ async def _posts_enabled(session: AsyncSession, initiative) -> None:
 
 
 class _Room:
-    """A socket joined to one initiative's room, cleaned up on exit."""
+    """A socket joined to one initiative's room, reading the log as it goes.
+
+    Entering marks where the change log is, the way a freshly connected socket
+    is: whoever just arrived fetched as they mounted, so nothing before that is
+    theirs to hear. ``catch_up`` is the sweep the sink runs on a timer, standing
+    in for the notification the capture raises on commit — both read the same
+    rows, and neither is allowed to be the only one that works.
+    """
 
     def __init__(self, guild_id: int, initiative_id: int) -> None:
         self._guild_id = guild_id
@@ -56,13 +63,26 @@ class _Room:
         await manager.connect(
             self._guild_id, [self._initiative_id], self.socket, user_id=1
         )
+        await room_sink.process_room_sweep()
         return self
 
     async def __aexit__(self, *exc) -> None:
         await manager.disconnect(self.socket)
+        room_sink._delivered.pop(self._guild_id, None)
 
-    def posts(self) -> list[dict]:
-        return [frame for frame in self.socket.sent if frame["resource"] == "post"]
+    async def catch_up(self) -> None:
+        await room_sink.process_room_sweep()
+
+    def changes(self, resource_type: str = "posts") -> list[dict]:
+        return [
+            change
+            for frame in self.socket.sent
+            for change in frame.get("changes", [])
+            if change["resource"]["type"] == resource_type
+        ]
+
+    def actions(self, resource_type: str = "posts") -> list[str]:
+        return [change["action"] for change in self.changes(resource_type)]
 
 
 @pytest.mark.asyncio
@@ -84,14 +104,17 @@ async def test_posting_a_notice_tells_the_room(
         )
         assert response.status_code == 201
         post_id = response.json()["id"]
+        await room.catch_up()
 
-        frames = room.posts()
-        assert len(frames) == 1
-        assert frames[0]["action"] == "created"
-        assert frames[0]["ids"] == {"post_id": post_id}
-        # The bus carries ids, never the notice itself.
-        assert "data" not in frames[0]
-        assert "body" not in frames[0]["ids"]
+        changes = room.changes()
+        # The notice arriving, and the owner's share of it landing beside it —
+        # both name the notice, which is all a board needs to read it again.
+        assert "created" in room.actions()
+        assert all(c["resource"] == {"type": "posts", "id": post_id} for c in changes)
+        # A notice sits directly in its initiative, so it names no parents.
+        assert all(c["parents"] == [] for c in changes)
+        # Identifiers and an action. The notice itself is not on the bus.
+        assert all(set(c) == {"resource", "parents", "action"} for c in changes)
 
 
 @pytest.mark.asyncio
@@ -115,7 +138,8 @@ async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
             },
         )
         assert response.status_code == 201
-        assert room.posts() == []
+        await room.catch_up()
+        assert room.changes() == []
 
 
 @pytest.mark.asyncio
@@ -145,11 +169,14 @@ async def test_publishing_a_draft_now_tells_the_room(
             json={"scheduled_for": None},
         )
         assert response.status_code == 200
+        await room.catch_up()
 
-        frames = room.posts()
-        assert len(frames) == 1
-        assert frames[0]["action"] == "published"
-        assert frames[0]["ids"] == {"post_id": post_id}
+        changes = room.changes()
+        assert len(changes) == 1
+        # Coming out of quiet is the notice arriving, as far as a board is
+        # concerned: it was never told about the draft.
+        assert changes[0]["action"] == "created"
+        assert changes[0]["resource"] == {"type": "posts", "id": post_id}
 
 
 @pytest.mark.asyncio
@@ -165,20 +192,21 @@ async def test_editing_pinning_and_deleting_each_tell_the_room(
             a.g(f"/posts/{post.id}"), headers=a.headers, json={"name": "Renamed"}
         )
         assert edited.status_code == 200
+        await room.catch_up()
 
         pinned = await client.put(
             a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
         )
         assert pinned.status_code == 200
+        await room.catch_up()
 
         removed = await client.delete(a.g(f"/posts/{post.id}"), headers=a.headers)
         assert removed.status_code == 204
+        await room.catch_up()
 
-    assert [frame["action"] for frame in room.posts()] == [
-        "updated",
-        "pinned",
-        "deleted",
-    ]
+    # A soft delete reaches the board as a delete, not as an update carrying a
+    # timestamp a reader would have to interpret.
+    assert room.actions() == ["updated", "updated", "deleted"]
 
 
 @pytest.mark.asyncio
@@ -203,13 +231,17 @@ async def test_answering_a_poll_tells_the_room_the_tallies_moved(
             json={"option_ids": [option_id]},
         )
         assert voted.status_code == 200
+        await room.catch_up()
 
         retracted = await client.delete(
             a.g(f"/posts/{post.id}/poll/vote"), headers=a.headers
         )
         assert retracted.status_code == 200
+        await room.catch_up()
 
-    assert [frame["action"] for frame in room.posts()] == ["voted", "voted"]
+    # Both gestures reach the board as the notice moving, which is what a
+    # reader re-reads to see the tallies. Neither says who answered.
+    assert room.actions() == ["updated", "updated"]
 
 
 @pytest.mark.asyncio
@@ -232,7 +264,8 @@ async def test_a_notice_never_reaches_another_initiatives_room(
             },
         )
         assert response.status_code == 201
-        assert room.posts() == []
+        await room.catch_up()
+        assert room.changes() == []
 
 
 async def test_the_scheduler_tells_the_room_when_a_draft_comes_due(
@@ -260,11 +293,12 @@ async def test_the_scheduler_tells_the_room_when_a_draft_comes_due(
             post_id
         ]
         await session.commit()
+        await room.catch_up()
 
-        frames = room.posts()
-        assert len(frames) == 1
-        assert frames[0]["action"] == "published"
-        assert frames[0]["ids"] == {"post_id": post_id}
+        changes = room.changes()
+        assert len(changes) == 1
+        assert changes[0]["action"] == "created"
+        assert changes[0]["resource"] == {"type": "posts", "id": post_id}
 
     published = (await session.exec(select(Post).where(Post.id == post_id))).one()
     assert published.published_at is not None

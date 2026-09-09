@@ -78,7 +78,6 @@ from app.schemas.ai_generation import (
 )
 from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
@@ -502,50 +501,6 @@ async def _touch_project(
     return now
 
 
-async def _broadcast_task_refresh(
-    session: SessionDep, task_id: int, guild_id: int
-) -> None:
-    task = await _fetch_task(session, task_id, guild_id)
-    if task is None:
-        return
-    await _broadcast_task(
-        session, guild_id, task.project_id, "updated", task_id=task.id
-    )
-
-
-async def _broadcast_task(
-    session: SessionDep,
-    guild_id: int,
-    project_id: int,
-    action: str,
-    *,
-    task_id: int | None = None,
-    extra: dict | None = None,
-) -> None:
-    """Emit a content-free task signal to the task's initiative room.
-
-    The room is ``(guild_id, initiative_id)``; initiative_id is resolved from the
-    project within the guild-routed session (initiative ids are per-guild-schema
-    sequences, so both are required and the lookup is guild-safe).
-    The automatic context replay keeps the lookup under the guild context even
-    when the broadcast fires after a commit. The client refetches through the RLS + DAC
-    gated REST path — the actual content gate; the bus carries ids only.
-    """
-    initiative_id = (
-        await session.exec(
-            select(Project.initiative_id).where(Project.id == project_id)
-        )
-    ).one_or_none()
-    if initiative_id is None:
-        return
-    ids: dict = {"project_id": project_id}
-    if task_id is not None:
-        ids["task_id"] = task_id
-    if extra:
-        ids.update(extra)
-    await broadcast_event(guild_id, initiative_id, "task", action, ids)
-
-
 async def _fetch_task(
     session: SessionDep,
     task_id: int,
@@ -778,9 +733,6 @@ async def _advance_recurrence_if_needed(
         .execution_options(populate_existing=True)
     )
     tags_service.annotate_tags([new_task])
-    await _broadcast_task(
-        session, new_task.guild_id, new_task.project_id, "created", task_id=new_task.id
-    )
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
@@ -1834,9 +1786,6 @@ async def create_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_CREATE,
         )
-    await _broadcast_task(
-        session, guild_context.guild_id, task.project_id, "created", task_id=task.id
-    )
     return task
 
 
@@ -2010,9 +1959,6 @@ async def update_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await _broadcast_task(
-        session, guild_context.guild_id, task.project_id, "updated", task_id=task.id
-    )
     return task
 
 
@@ -2091,13 +2037,6 @@ async def move_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_MOVE,
         )
-    await _broadcast_task(
-        session,
-        guild_context.guild_id,
-        updated_task.project_id,
-        "updated",
-        task_id=updated_task.id,
-    )
     return updated_task
 
 
@@ -2286,9 +2225,6 @@ async def delete_task(
     )
     await _touch_project(session, project_id)
     await session.commit()
-    await _broadcast_task(
-        session, guild_context.guild_id, project_id, "deleted", task_id=task_id
-    )
 
 
 @router.post("/reorder", response_model=List[TaskRead])
@@ -2402,9 +2338,6 @@ async def reorder_tasks(
     tasks = refreshed_result.all()
     await _annotate_tasks(session, tasks)
     _annotate_task_guild(tasks)
-    await _broadcast_task(
-        session, guild_context.guild_id, reorder_in.project_id, "reordered"
-    )
     return tasks
 
 
@@ -2459,13 +2392,6 @@ async def archive_done_tasks(
 
     await _touch_project(session, project_id, timestamp=now)
     await session.commit()
-    await _broadcast_task(
-        session,
-        guild_context.guild_id,
-        project_id,
-        "archived",
-        extra={"count": len(tasks)},
-    )
     return ArchiveDoneResponse(archived_count=len(tasks))
 
 
@@ -2538,7 +2464,6 @@ async def create_subtask(
     session.add(task)
     await session.commit()
     await session.refresh(subtask)
-    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
 
 
@@ -2593,7 +2518,6 @@ async def create_subtasks_batch(
         await session.commit()
         for subtask in created_subtasks:
             await session.refresh(subtask)
-        await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
 
     return created_subtasks
 
@@ -2646,7 +2570,6 @@ async def reorder_subtasks(
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return await _list_subtasks_for_task(session, task.id)
 
 
@@ -2730,7 +2653,6 @@ async def update_subtask(
     session.add(task)
     await session.commit()
     await session.refresh(subtask)
-    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
 
 
@@ -2767,7 +2689,6 @@ async def delete_subtask(
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
 
 
@@ -2897,9 +2818,6 @@ async def set_task_tags(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await _broadcast_task(
-        session, guild_context.guild_id, task.project_id, "updated", task_id=task.id
-    )
     return task
 
 
@@ -2974,11 +2892,4 @@ async def set_task_properties(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await _broadcast_task(
-        session,
-        guild_context.guild_id,
-        refreshed.project_id,
-        "updated",
-        task_id=refreshed.id,
-    )
     return refreshed

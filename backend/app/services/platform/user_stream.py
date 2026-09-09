@@ -169,11 +169,11 @@ async def _publish_remote(user_id: int, frame: Dict[str, Any]) -> None:
     a backstop refetch for exactly this. So it is logged once at debug and the
     request carries on.
     """
-    from app.services.platform import user_stream_bus
+    from app.services.platform import notify_bus
 
     try:
-        await user_stream_bus.notify(
-            json.dumps({"origin": ORIGIN, "user_id": user_id, "frame": frame})
+        await notify_bus.notify(
+            CHANNEL, json.dumps({"origin": ORIGIN, "user_id": user_id, "frame": frame})
         )
     except Exception:
         logger.debug("user_stream: cross-process publish unavailable", exc_info=True)

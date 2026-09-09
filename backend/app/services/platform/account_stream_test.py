@@ -59,12 +59,12 @@ def bus_off(monkeypatch):
     makes it safe to leave out here — the local path is what is under test.
     """
 
-    async def _unavailable(_payload: str) -> None:
+    async def _unavailable(_channel: str, _payload: str) -> None:
         raise RuntimeError("bus not connected")
 
-    from app.services.platform import user_stream_bus
+    from app.services.platform import notify_bus
 
-    monkeypatch.setattr(user_stream_bus, "notify", _unavailable)
+    monkeypatch.setattr(notify_bus, "notify", _unavailable)
 
 
 @pytest.mark.unit
