@@ -607,20 +607,32 @@ def _normalize_binding(
         if key != "source" and key not in _CONTEXT_ONLY_PARAMS
     }
     if source == QUERY_SOURCE:
-        params["sql"] = _checked_statement(params.get("sql"))
+        statement = _checked_statement(params.get("sql"))
+        params.pop("sql", None)
+        if statement is not None:
+            params["sql"] = statement
     return {"source": source, **params}
 
 
-def _checked_statement(raw: Any) -> str:
+def _checked_statement(raw: Any) -> str | None:
     """The statement, having been read the way the surface will read it.
 
     Checked here rather than at fetch time because a definition that cannot be
     fetched should not be storable: the author is looking at the query, and the
     validator says which word has to change. It is a pure read — no database, no
     planning — so it costs a parse.
+
+    ``None`` for a widget that has no statement yet. That is a real state and
+    not an error: a widget is placed before it is pointed anywhere, and an
+    installed listing may ship one for its guild to fill in. It draws its own
+    "not configured" panel rather than anything of anybody's, because there is
+    nothing to run.
     """
-    if not isinstance(raw, str) or not raw.strip():
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str):
         _fail(DashboardMessages.BINDING_SQL_MISSING)
+        raise AssertionError  # unreachable; _fail raises
     if len(raw) > MAX_SQL_LENGTH:
         _fail(DashboardMessages.BINDING_SQL_TOO_LONG)
     try:

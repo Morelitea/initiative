@@ -688,10 +688,21 @@ def test_a_statement_is_read_before_it_is_stored():
 
 
 @pytest.mark.unit
-def test_a_query_binding_needs_a_statement():
+def test_a_query_binding_may_have_no_statement_yet():
+    """A widget is placed before it is pointed anywhere, and an installed
+    listing may ship one for its guild to fill in. Nothing is fetched for it
+    and it draws its own panel asking to be configured."""
+    definition = normalize_dashboard_definition(
+        _definition({"type": "stat", "binding": {"source": "query"}})
+    )
+    assert definition["widgets"][0]["binding"] == {"source": "query"}
+
+
+@pytest.mark.unit
+def test_a_statement_that_is_not_text_is_refused():
     with pytest.raises(DashboardDefinitionError, match="BINDING_SQL_MISSING"):
         normalize_dashboard_definition(
-            _definition({"type": "stat", "binding": {"source": "query"}})
+            _definition({"type": "stat", "binding": {"source": "query", "sql": 7}})
         )
 
 

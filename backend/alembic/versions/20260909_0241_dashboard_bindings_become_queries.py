@@ -17,10 +17,14 @@ normalizer. The generators below run once and go with this revision; a branch
 would be read by everyone who opens ``dashboard_definition.py``, forever, to
 handle rows that no longer exist.
 
-A binding this cannot say in SQL is named in the log rather than approximated.
-Widening a saved question silently is the one outcome worth avoiding, so a
-filter that does not translate leaves the widget listed for an operator to
-re-point instead of quietly answering something broader.
+A binding this cannot say in SQL leaves its widget with no statement — the
+state a widget is in before anybody points it anywhere, which draws a panel
+asking for one — and is named in the log. Widening a saved question silently is
+the one outcome worth avoiding, and a widget that answers something broader
+than it was asked would look exactly like one that works.
+
+Every binding it replaces is kept under ``legacy``, which is what lets the
+downgrade put the definitions back: this is the one moment that record exists.
 
 Dashboards are guild content, so this walks every ``guild_<id>`` schema. It runs
 as the system engine and asserts what it touched: the table forces row-level
@@ -287,9 +291,14 @@ def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]
     The config goes in and comes back out because the two are read together: an
     id it supplied is spent once the statement carries it, and leaving it
     behind would be leaving a value nothing reads.
+
+    What each binding *was* rides along under ``legacy``. A statement carries no
+    record of what it was written from, and this is the one moment that record
+    exists — keeping it is what makes ``downgrade`` able to put the definitions
+    back rather than leave a version stamp disagreeing with the rows.
     """
     changed = 0
-    skipped: list[str] = []
+    unbound: list[str] = []
     widgets = config.get("widgets")
     per_widget = dict(widgets) if isinstance(widgets, dict) else {}
 
@@ -305,15 +314,21 @@ def _rewrite(definition: dict, config: dict) -> tuple[dict, dict, int, list[str]
         if effective.get("source") in (None, "query", "sheet_range", "app"):
             continue
         statement = _statement(effective, widget.get("type") or "")
+        rewritten = {"source": "query", "legacy": effective}
         if statement is None:
-            skipped.append(str(widget_id))
-            continue
-        widget["binding"] = {"source": "query", "sql": statement}
+            # Nothing this can say in SQL says what the widget was asking, so
+            # it is left with no statement — the state a widget is in before
+            # anybody points it anywhere, which draws its own panel asking for
+            # one. Answering something broader instead would look like working.
+            unbound.append(str(widget_id))
+        else:
+            rewritten["sql"] = statement
+            changed += 1
+        widget["binding"] = rewritten
         widget.pop("mapping", None)
         per_widget.pop(widget_id, None)
-        changed += 1
 
-    return definition, {**config, "widgets": per_widget}, changed, skipped
+    return definition, {**config, "widgets": per_widget}, changed, unbound
 
 
 def upgrade() -> None:
@@ -347,20 +362,20 @@ def upgrade() -> None:
             for dashboard_id, definition, config in stored:
                 if not isinstance(definition, dict):
                     continue
-                rewritten, pruned, changed, skipped = _rewrite(
+                rewritten, pruned, changed, unbound = _rewrite(
                     definition, config if isinstance(config, dict) else {}
                 )
-                for widget_id in skipped:
+                for widget_id in unbound:
                     left += 1
                     logger.warning(
-                        "dashboard binding not rewritten: %s.dashboards id=%s "
+                        "dashboard widget left unconfigured: %s.dashboards id=%s "
                         "widget=%s — its stored filter has no statement form; "
-                        "re-point the widget to keep the question it asked",
+                        "build it a query to ask what it was asking",
                         schema,
                         dashboard_id,
                         widget_id,
                     )
-                if not changed:
+                if not changed and not unbound:
                     continue
                 connection.execute(
                     sa.text(
@@ -383,7 +398,7 @@ def upgrade() -> None:
     connection.execute(sa.text("SET LOCAL search_path = public"))
     logger.info(
         "dashboard bindings rewritten: %s widget(s) across %s dashboard(s) in "
-        "%s schema(s); %s left for an operator",
+        "%s schema(s); %s left unconfigured",
         widgets,
         rows,
         len(schemas),
@@ -391,8 +406,65 @@ def upgrade() -> None:
     )
 
 
+def _restore(definition: dict) -> tuple[dict, int]:
+    """Every binding this revision rewrote, put back as it was."""
+    restored = 0
+    for widget in definition.get("widgets") or []:
+        binding = widget.get("binding")
+        if not isinstance(binding, dict):
+            continue
+        legacy = binding.get("legacy")
+        if isinstance(legacy, dict):
+            widget["binding"] = legacy
+            restored += 1
+    return definition, restored
+
+
 def downgrade() -> None:
-    """A statement carries no record of the binding it was written from, so the
-    old shape cannot be recovered. Deployments that need it restore from a
-    backup taken before the upgrade."""
-    pass
+    """Put back what each rewritten binding was.
+
+    A statement carries no record of what it was written from, so the upgrade
+    kept one on the binding it replaced. A widget whose binding has none was
+    written after this revision ran and is left alone — there is no older shape
+    for it to go back to.
+    """
+    connection = op.get_bind()
+    schemas = [
+        row[0]
+        for row in connection.execute(
+            sa.text(
+                "SELECT nspname FROM pg_namespace WHERE nspname LIKE 'guild\\_%' "
+                "AND nspname !~ '_(template|ro|q)$' ORDER BY nspname"
+            )
+        )
+    ]
+    widgets = 0
+    for schema in schemas:
+        connection.execute(sa.text(f'SET LOCAL search_path = "{schema}", public'))
+        connection.execute(
+            sa.text(f'ALTER TABLE "{schema}".dashboards NO FORCE ROW LEVEL SECURITY')
+        )
+        try:
+            stored = connection.execute(
+                sa.text(f'SELECT id, definition FROM "{schema}".dashboards')  # noqa: S608
+            ).fetchall()
+            for dashboard_id, definition in stored:
+                if not isinstance(definition, dict):
+                    continue
+                restored, count = _restore(definition)
+                if not count:
+                    continue
+                connection.execute(
+                    sa.text(
+                        f'UPDATE "{schema}".dashboards '  # noqa: S608
+                        "SET definition = CAST(:body AS jsonb) WHERE id = :id"
+                    ),
+                    {"body": json.dumps(restored), "id": dashboard_id},
+                )
+                widgets += count
+        finally:
+            connection.execute(
+                sa.text(f'ALTER TABLE "{schema}".dashboards FORCE ROW LEVEL SECURITY')
+            )
+    connection.execute(sa.text("SET LOCAL search_path = public"))
+    logger.info("dashboard bindings restored: %s widget(s)", widgets)

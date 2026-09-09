@@ -5,10 +5,10 @@ nothing, so the whole generator is dead code to every test that builds from
 empty. What it produces is pure, though, and that is what these check — every
 binding the old shape could hold, against the validator the new one has to pass.
 
-The rule worth reading first is the last: a filter this cannot say in SQL leaves
-its widget alone. A rewritten widget that quietly dropped somebody's filter
-would answer a broader question than the one they saved, and look right doing
-it.
+The rule worth reading first is the last: a filter this cannot say in SQL
+leaves its widget with no statement rather than a broader one. A widget that
+quietly dropped somebody's filter would answer a question they never asked and
+look right doing it; one with no statement asks to be pointed somewhere.
 """
 
 import importlib.util
@@ -17,7 +17,10 @@ from pathlib import Path
 import pytest
 
 from app.services.query.resolve import QueryError, resolve
-from app.services.tenant.dashboard_definition import WIDGET_SPECS
+from app.services.tenant.dashboard_definition import (
+    WIDGET_SPECS,
+    normalize_dashboard_definition,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -147,32 +150,51 @@ class TestEveryLegacyBindingBecomesAStatementTheSurfaceRuns:
         assert resolve(sql)
 
 
-class TestAFilterThatDoesNotTranslateLeavesItsWidgetAlone:
+class TestAFilterThatDoesNotTranslateLeavesItsWidgetUnbound:
     @pytest.mark.parametrize("conditions", UNTRANSLATABLE)
     @pytest.mark.parametrize("widget_type", ["stat", "chart", "table"])
     def test_nothing_is_generated(self, conditions, widget_type):
         binding = {"source": "tasks", "conditions": conditions}
         assert cutover._statement(binding, widget_type) is None
 
-    def test_the_widget_keeps_its_binding_and_is_reported(self):
+    def test_the_widget_is_left_with_no_statement_and_is_reported(self):
+        """A source nothing fetches any more would take the whole dashboard
+        with it — the definition would stop validating on the next save. The
+        widget goes to the unconfigured state instead, which is storable and
+        says what it needs."""
+        legacy = {"source": "tasks", "conditions": UNTRANSLATABLE[0]}
         definition = {
             "widgets": [
                 {"id": "w1", "type": "stat", "binding": {"source": "tasks"}},
-                {
-                    "id": "w2",
-                    "type": "chart",
-                    "binding": {"source": "tasks", "conditions": UNTRANSLATABLE[0]},
-                },
+                {"id": "w2", "type": "chart", "binding": dict(legacy)},
             ]
         }
-        rewritten, _config, changed, skipped = cutover._rewrite(definition, {})
+        rewritten, _config, changed, unbound = cutover._rewrite(definition, {})
         assert changed == 1
-        assert skipped == ["w2"]
+        assert unbound == ["w2"]
         assert rewritten["widgets"][0]["binding"]["source"] == "query"
         assert rewritten["widgets"][1]["binding"] == {
-            "source": "tasks",
-            "conditions": UNTRANSLATABLE[0],
+            "source": "query",
+            "legacy": legacy,
         }
+
+    def test_what_it_could_not_say_still_normalizes(self):
+        """The whole point of the unconfigured state: the dashboard is still
+        storable afterwards."""
+        definition = {
+            "widgets": [
+                {
+                    "id": "w1",
+                    "type": "chart",
+                    "grid": {"x": 0, "y": 0, "w": 6, "h": 4},
+                    "binding": {"source": "tasks", "conditions": UNTRANSLATABLE[0]},
+                }
+            ]
+        }
+        rewritten, _config, _changed, _unbound = cutover._rewrite(definition, {})
+        normalized = normalize_dashboard_definition(rewritten)
+        assert normalized["widgets"][0]["binding"]["source"] == "query"
+        assert "sql" not in normalized["widgets"][0]["binding"]
 
 
 class TestTheIdsAnInstallSupplied:
@@ -186,7 +208,7 @@ class TestTheIdsAnInstallSupplied:
             ]
         }
         config = {"widgets": {"w1": {"counter_group_id": 12}}}
-        rewritten, pruned, changed, _skipped = cutover._rewrite(definition, config)
+        rewritten, pruned, changed, _unbound = cutover._rewrite(definition, config)
         assert changed == 1
         assert "counter_group_id = 12" in rewritten["widgets"][0]["binding"]["sql"]
         # Spent: the statement carries it now, so nothing reads it any more.
@@ -197,17 +219,54 @@ class TestTheIdsAnInstallSupplied:
             "widgets": [{"id": "w1", "type": "chart", "binding": {"source": "app"}}]
         }
         config = {"widgets": {"w1": {"endpoint_id": "app.x.y"}}}
-        _rewritten, pruned, changed, _skipped = cutover._rewrite(definition, config)
+        _rewritten, pruned, changed, _unbound = cutover._rewrite(definition, config)
         assert changed == 0
         assert pruned["widgets"] == {"w1": {"endpoint_id": "app.x.y"}}
+
+
+class TestTheDowngradePutsThemBack:
+    """A statement carries no record of what it was written from, so the
+    upgrade keeps one. That is the whole of what makes this reversible."""
+
+    def test_a_rewritten_binding_goes_back_as_it_was(self):
+        legacy = {"source": "task_counts", "bucket": "priority", "project_id": 4}
+        definition = {
+            "widgets": [{"id": "w1", "type": "chart", "binding": dict(legacy)}]
+        }
+        rewritten, _config, _changed, _unbound = cutover._rewrite(definition, {})
+        assert rewritten["widgets"][0]["binding"]["legacy"] == legacy
+
+        restored, count = cutover._restore(rewritten)
+        assert count == 1
+        assert restored["widgets"][0]["binding"] == legacy
+
+    def test_one_that_could_not_be_rewritten_goes_back_too(self):
+        legacy = {"source": "tasks", "conditions": UNTRANSLATABLE[0]}
+        definition = {
+            "widgets": [{"id": "w1", "type": "chart", "binding": dict(legacy)}]
+        }
+        rewritten, _config, _changed, _unbound = cutover._rewrite(definition, {})
+        restored, count = cutover._restore(rewritten)
+        assert count == 1
+        assert restored["widgets"][0]["binding"] == legacy
+
+    def test_a_widget_written_afterwards_is_left_alone(self):
+        """It has no older shape to go back to."""
+        binding = {"source": "query", "sql": "SELECT count(*) AS n FROM tasks"}
+        definition = {
+            "widgets": [{"id": "w1", "type": "stat", "binding": dict(binding)}]
+        }
+        restored, count = cutover._restore(definition)
+        assert count == 0
+        assert restored["widgets"][0]["binding"] == binding
 
 
 @pytest.mark.parametrize("source", ["query", "sheet_range", "app"])
 def test_a_binding_already_in_the_new_shape_is_untouched(source):
     binding = {"source": source, "sql": "SELECT count(*) AS n FROM tasks"}
     definition = {"widgets": [{"id": "w1", "type": "stat", "binding": dict(binding)}]}
-    rewritten, _config, changed, skipped = cutover._rewrite(definition, {})
-    assert (changed, skipped) == (0, [])
+    rewritten, _config, changed, unbound = cutover._rewrite(definition, {})
+    assert (changed, unbound) == (0, [])
     assert rewritten["widgets"][0]["binding"] == binding
 
 
