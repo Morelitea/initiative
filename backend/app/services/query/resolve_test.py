@@ -137,10 +137,32 @@ class TestNamesResolveThroughTheRegistry:
         sql = "SELECT t.id FROM tasks t JOIN projects t ON true"
         assert refusal(sql) == QueryMessages.DUPLICATE_ALIAS
 
-    def test_an_output_alias_is_not_looked_up_as_a_column(self):
-        """``ORDER BY n`` names the count, which no table has a column for."""
+    def test_a_wildcard_is_not_a_column_list(self):
+        """``*`` means whatever the table happens to hold, which is not
+        something a saved tile can rely on."""
+        assert refusal("SELECT * FROM tasks") == QueryMessages.STAR_NOT_ALLOWED
+        assert refusal("SELECT t.* FROM tasks t") == QueryMessages.STAR_NOT_ALLOWED
+
+    def test_count_of_everything_names_no_column(self):
+        assert resolve("SELECT count(*) AS n FROM tasks").sql
+
+    def test_an_output_alias_is_a_name_where_the_output_exists(self):
+        """``ORDER BY n`` and ``GROUP BY n`` are resolved against the select
+        list, so the alias is not looked up as a column."""
         resolved = resolve("SELECT count(*) AS n FROM tasks GROUP BY title ORDER BY n")
         assert "ORDER BY n" in resolved.sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT title AS n FROM tasks WHERE n = 'x'",
+            "SELECT count(*) AS n FROM tasks GROUP BY title HAVING n > 1",
+        ],
+    )
+    def test_an_output_alias_is_a_column_everywhere_else(self, sql):
+        """WHERE and HAVING are evaluated before the output exists, so a name
+        there has to be a column and this one is not."""
+        assert refusal(sql) == QueryMessages.UNKNOWN_FIELD
 
     def test_the_relations_read_are_reported(self):
         """The caller decides whether this reader may read them, so it has to
@@ -174,6 +196,33 @@ class TestStructuralCost:
     def test_a_condition_naming_only_one_side_is_not_a_join(self):
         sql = "SELECT tasks.id FROM tasks JOIN projects ON tasks.id > 0"
         assert refusal(sql) == QueryMessages.JOIN_WITHOUT_CONDITION
+
+    def test_naming_both_sides_without_relating_them_is_not_a_join(self):
+        """Two predicates that each filter one relation still pair every
+        surviving row with every other."""
+        sql = "SELECT t.id FROM tasks t JOIN projects p ON t.id > 0 AND p.id > 0"
+        assert refusal(sql) == QueryMessages.JOIN_WITHOUT_CONDITION
+
+    def test_a_relating_predicate_alongside_a_filter_is_a_join(self):
+        sql = (
+            "SELECT t.id FROM tasks t JOIN projects p "
+            "ON t.project_id = p.id AND p.is_archived = false"
+        )
+        assert resolve(sql).relations == ("projects", "tasks")
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT a.title FROM tasks a JOIN tasks b USING (id)",
+            "SELECT a.title FROM tasks a JOIN tasks b USING (nope)",
+            "SELECT a.title FROM tasks a JOIN tasks b USING (status_category)",
+        ],
+    )
+    def test_using_is_not_accepted(self, sql):
+        """It names columns positionally rather than as column references, so
+        the resolving pass never sees them. ON says the same thing in a form
+        that resolves."""
+        assert refusal(sql) == QueryMessages.UNSUPPORTED_SYNTAX
 
     def test_a_join_that_pairs_rows_is_accepted(self):
         sql = "SELECT p.name FROM projects p JOIN tasks k ON k.project_id = p.id"

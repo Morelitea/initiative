@@ -88,7 +88,6 @@ _ALLOWED_NODES: frozenset[type] = frozenset(
         ast.SortBy,
         # names and values
         ast.ColumnRef,
-        ast.A_Star,
         ast.A_Const,
         ast.ParamRef,
         ast.String,
@@ -214,6 +213,11 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
 
     def visit(node: Any) -> None:
         if isinstance(node, ast.JoinExpr):
+            if node.usingClause:
+                # ``USING`` names columns positionally rather than as column
+                # references, so the resolving pass below never sees them.
+                # ``ON`` says the same thing in a form that resolves.
+                raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "USING")
             joins.append(node)
             visit(node.larg)
             visit(node.rarg)
@@ -243,28 +247,44 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
     return scope
 
 
+def _relations_named(node: Any) -> set[str]:
+    """The relations one side of a comparison reads from."""
+    named: set[str] = set()
+
+    class Qualifiers(Visitor):
+        def visit_ColumnRef(self, ancestors: Any, inner: ast.ColumnRef) -> None:
+            parts = _name_parts(inner.fields)
+            if len(parts) > 1:
+                named.add(parts[0])
+
+    if node is not None:
+        Qualifiers()(node)
+    return named
+
+
 def _join_is_bound(join: ast.JoinExpr) -> bool:
     """Whether a join's condition actually pairs its rows with something.
 
-    ``USING`` names the columns outright. An ``ON`` has to mention two
-    different relations, which is what separates a join from a condition that
-    happens to sit in a join's place — ``ON true`` reads as a join and pairs
-    every row with every row, and so does ``ON tasks.id > 0``.
+    The test is one comparison whose two sides read from *different*
+    relations — which is what relates a row to a row. Mentioning two relations
+    somewhere in the condition is not enough: ``ON tasks.id > 0 AND
+    projects.id > 0`` names both and still pairs every row with every row, and
+    so do ``ON true`` and ``ON tasks.id > 0``.
     """
-    if join.usingClause:
-        return True
     if join.quals is None:
         return False
-    qualifiers: set[str] = set()
+    relating = False
 
-    class Qualifiers(Visitor):
-        def visit_ColumnRef(self, ancestors: Any, node: ast.ColumnRef) -> None:
-            names = _name_parts(node.fields)
-            if len(names) > 1:
-                qualifiers.add(names[0])
+    class Relating(Visitor):
+        def visit_A_Expr(self, ancestors: Any, node: ast.A_Expr) -> None:
+            nonlocal relating
+            left = _relations_named(node.lexpr)
+            right = _relations_named(node.rexpr)
+            if left and right and left.isdisjoint(right):
+                relating = True
 
-    Qualifiers()(join.quals)
-    return len(qualifiers) >= 2
+    Relating()(join.quals)
+    return relating
 
 
 def _check_nodes(select: ast.SelectStmt) -> None:
@@ -300,8 +320,28 @@ def _output_aliases(select: ast.SelectStmt) -> frozenset[str]:
     )
 
 
+def _alias_positions(select: ast.SelectStmt) -> set[int]:
+    """Where an output alias is a name a column reference may use.
+
+    Postgres resolves ``ORDER BY n`` and ``GROUP BY n`` against the select
+    list. ``WHERE`` and ``HAVING`` are evaluated before the output exists, so a
+    name there is a column and has to resolve as one.
+    """
+    marked: set[int] = set()
+
+    class Mark(Visitor):
+        def visit_ColumnRef(self, ancestors: Any, node: ast.ColumnRef) -> None:
+            marked.add(id(node))
+
+    for clause in (select.sortClause or (), select.groupClause or ()):
+        for entry in clause:
+            Mark()(entry)
+    return marked
+
+
 def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
     aliases = _output_aliases(select)
+    alias_positions = _alias_positions(select)
     only = next(iter(scope.values())) if len(scope) == 1 else None
 
     class Resolve(Visitor):
@@ -318,7 +358,7 @@ def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:
                 column = _physical_column(dataset_name, names[1])
                 node.fields = (ast.String(sval=names[0]), ast.String(sval=column))
                 return
-            if names[0] in aliases:
+            if names[0] in aliases and id(node) in alias_positions:
                 # An output alias: ``ORDER BY n`` names the count, and no table
                 # has a column for it.
                 return
