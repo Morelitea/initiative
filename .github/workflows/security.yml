@@ -1,0 +1,89 @@
+name: Security
+
+# Initiative had Dependabot but no scanning. That left the most exposed
+# repository in the estate — public, internet-facing, and the one third parties
+# self-host — as the least scanned, while the private companion services
+# (initiative-auto, initiative-billing) each ran this workflow. This closes that
+# inversion by adopting their pattern here.
+#
+# Two Trivy jobs, on PR/push to main and dev plus a weekly cron (so CVEs newly
+# disclosed against unchanged inputs surface without a code change):
+#
+#   trivy-fs    — the source tree: vulnerable dependencies (backend/uv.lock,
+#                 frontend/pnpm-lock.yaml), Dockerfile / IaC misconfig, and
+#                 committed secrets.
+#   trivy-image — the built runtime image: base-image OS packages (the Debian in
+#                 python:3.12-slim, its OpenSSL, etc.) plus anything baked into a
+#                 layer. The fs scan cannot see these — they only exist in the
+#                 assembled image. Built here for scanning only, never pushed.
+#
+# Running on pull_request means base-image CVEs are caught BEFORE merge, not just
+# after a push — hence living here rather than in docker-publish.yml.
+#
+# Secret scanning is deliberately left ON for env files: they are gitignored and
+# never reach this checkout, so a hit means someone force-added one.
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+  schedule:
+    - cron: "0 6 * * 2" # Tuesdays 06:00 UTC — a day off the companions' Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-fs:
+    name: Trivy (deps, config, secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          # Only fail on issues we can actually act on (a fix/patch exists).
+          # Misconfig and secret findings are always "fixable" and unaffected.
+          ignore-unfixed: true
+          skip-dirs: frontend/node_modules,backend/.venv,frontend/android,frontend/ios
+          exit-code: "1"
+
+  trivy-image:
+    name: Trivy (image / base OS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build image for scanning
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          # Load the built image into the local daemon so Trivy can scan it —
+          # single-platform (amd64) is a requirement of `load`, and arm64's slim
+          # base carries the same OS CVEs anyway.
+          load: true
+          platforms: linux/amd64
+          tags: initiative:scan
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: initiative:scan
+          # Base-image OS packages plus anything baked into a layer.
+          # ignore-unfixed keeps this actionable: only CVEs a newer base image or
+          # package would fix can fail it.
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

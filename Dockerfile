@@ -36,7 +36,14 @@ WORKDIR /app
 # Install dependencies first as a cached layer keyed on the lockfile (no app source needed —
 # this is a package=false project). --no-dev keeps test/lint tooling out of the runtime image.
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
-RUN uv sync --frozen --no-dev
+# uv is a build-time tool. It syncs the venv here and is never invoked again —
+# entrypoint.sh and start.sh run everything out of /app/.venv/bin. Removing both
+# binaries in the SAME layer keeps them out of the image entirely, rather than
+# leaving them recoverable in an earlier one. That drops a package manager, and
+# its own dependencies, out of the runtime attack surface: the image scan flags
+# GHSA-4w2j-m93h-cj5j in the quinn-proto bundled inside these binaries, which
+# has nothing to do with this application and no reason to ship with it.
+RUN uv sync --frozen --no-dev && rm -f /bin/uv /bin/uvx
 COPY backend/ .
 # Put the synced venv on PATH so uvicorn/alembic/python resolve to it
 ENV PATH="/app/.venv/bin:$PATH"
