@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { resolveMapping } from "@/lib/widgets/shape";
+import { shapeFor } from "@/lib/widgets/shapes";
 
 export interface DashboardWidgetProps {
   widget: DefinitionWidget;
@@ -114,7 +115,7 @@ export function DashboardWidget({
   // sandbox: it needs the widget's declared shape and the author's overrides,
   // and neither is the widget's to read.
   const catalogQuery = useWidgetCatalog();
-  const shape = catalogQuery.data?.widgets.find((entry) => entry.type === widget.type)?.shape ?? [];
+  const shape = shapeFor(widget.type, catalogQuery.data);
   const slots =
     data.source === "rows" ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
   const isLoading = sampleData ? false : live.isLoading;

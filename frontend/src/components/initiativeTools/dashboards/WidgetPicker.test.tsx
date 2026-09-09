@@ -25,9 +25,15 @@ const catalog = {
       min_h: 3,
       default_w: 6,
       default_h: 4,
-      // Alphabetical, as the backend serves them — and deliberately led by a
-      // source that needs an id, so the default-source choice is exercised.
-      sources: ["counter_group", "task_counts"],
+      shape: [
+        {
+          name: "label",
+          types: ["text", "enum", "reference", "date"],
+          required: true,
+          repeatable: false,
+        },
+        { name: "value", types: ["number"], required: true, repeatable: true },
+      ],
       options: [
         { key: "mark", values: ["area", "bar", "line", "pie"] },
         { key: "stacked", values: ["false", "true"] },
@@ -39,7 +45,10 @@ const catalog = {
       min_h: 2,
       default_w: 3,
       default_h: 2,
-      sources: ["counter", "task_counts"],
+      shape: [
+        { name: "value", types: ["number"], required: true, repeatable: false },
+        { name: "label", types: ["text", "enum", "reference"], required: false, repeatable: false },
+      ],
       options: [{ key: "format", values: ["currency", "duration", "percent", "plain"] }],
     },
   ],
@@ -91,14 +100,14 @@ describe("WidgetPicker", () => {
     expect(await screen.findByText(/no widget matches/i)).toBeInTheDocument();
   });
 
-  it("adds the selected widget bound to a source that needs no setup", async () => {
+  it("adds the selected widget bound to a statement, which is what a widget draws", async () => {
     const { user, onAdd } = await open();
     await user.click(within(list()).getByRole("button", { name: /^Chart/ }));
     await user.click(screen.getByRole("button", { name: /^Add Chart$/ }));
 
     // Not `counter_group`, which comes first alphabetically but would land the
     // widget on "choose what this shows".
-    expect(onAdd).toHaveBeenCalledWith("chart", "task_counts", undefined);
+    expect(onAdd).toHaveBeenCalledWith("chart", "query", undefined);
   });
 
   it("carries the display options chosen on the card", async () => {
@@ -107,7 +116,7 @@ describe("WidgetPicker", () => {
     await user.click(screen.getByRole("button", { name: "Pie" }));
     await user.click(screen.getByRole("button", { name: /^Add Chart$/ }));
 
-    expect(onAdd).toHaveBeenCalledWith("chart", "task_counts", { mark: "pie" });
+    expect(onAdd).toHaveBeenCalledWith("chart", "query", { mark: "pie" });
   });
 
   it("lets a chosen option be cleared back to the widget's own default", async () => {
@@ -117,7 +126,7 @@ describe("WidgetPicker", () => {
     await user.click(screen.getByRole("button", { name: "Pie" }));
     await user.click(screen.getByRole("button", { name: /^Add Chart$/ }));
 
-    expect(onAdd).toHaveBeenCalledWith("chart", "task_counts", undefined);
+    expect(onAdd).toHaveBeenCalledWith("chart", "query", undefined);
   });
 
   it("will not open at the widget cap", () => {

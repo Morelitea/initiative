@@ -25,6 +25,7 @@ import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { BUILTIN_WIDGET_TYPES } from "@/lib/widgets/registry";
 import { ALL_SAMPLES, sampleFor } from "@/lib/widgets/sampleData";
 import { resolveMapping } from "@/lib/widgets/shape";
+import { shapeFor } from "@/lib/widgets/shapes";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** Widget modules that misbehave in each way the runtime bounds, so the error
@@ -121,7 +122,7 @@ export function WidgetGalleryPage() {
 function GalleryTile({ type, markOverride }: { type: string; markOverride: string | null }) {
   const { name } = useWidgetMeta(type);
   const catalog = useWidgetCatalog();
-  const shape = catalog.data?.widgets.find((entry) => entry.type === type)?.shape ?? [];
+  const shape = shapeFor(type, catalog.data);
   const data = sampleFor(type);
 
   return (

@@ -13,11 +13,16 @@ import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
 
 import type { CellValue, ColumnType, DataColumn, WidgetData, WidgetSource } from "./dataShapes";
 
-/** A cell, in the three shapes a JSON value can usefully be. */
+/** A cell, in the three shapes a JSON value can usefully be.
+ *
+ *  Anything else is nothing: a widget can draw a string, a number or a yes/no,
+ *  and writing an object out would put "[object Object]" in a table rather than
+ *  showing that the cell held nothing it could render. */
 const cell = (value: unknown): CellValue => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number" || typeof value === "boolean") return value;
-  return String(value);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  return null;
 };
 
 /**

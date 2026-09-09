@@ -2,97 +2,115 @@
  * How a binding becomes a request.
  *
  * The load-bearing case is scope. A dashboard reads the initiative it lives on,
- * and the tasks endpoint narrows on exactly one thing — the filter DSL. Scope
- * expressed any other way is accepted by the type checker and ignored by the
- * server, and the difference is invisible on a canvas (a chart with
- * plausible-looking numbers), so it is pinned here on the request itself rather
- * than on what gets drawn.
+ * and without one nothing is fetched at all — a widget on no initiative must
+ * fail closed rather than fan out guild-wide. That difference is invisible on a
+ * canvas (a chart with plausible-looking numbers), so it is pinned here on the
+ * request itself rather than on what gets drawn.
  */
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 
-const idle = { data: undefined, isLoading: false };
-const useTasks = vi.fn(() => idle);
+const idle = { data: undefined, isLoading: false, isError: false };
+const useSqlQuery = vi.fn(() => idle);
+const useDocument = vi.fn(() => idle);
 
-vi.mock("@/hooks/useTasks", () => ({ useTasks: (...args: unknown[]) => useTasks(...args) }));
-vi.mock("@/hooks/useProjects", () => ({ useProjects: () => idle }));
-vi.mock("@/hooks/useCalendarEntries", () => ({ useCalendarEntries: () => idle }));
-vi.mock("@/hooks/useCalendars", () => ({ useCalendarsList: () => idle }));
-vi.mock("@/hooks/useCounters", () => ({ useCounterGroup: () => idle }));
-vi.mock("@/hooks/useDocuments", () => ({ useDocument: () => idle }));
-vi.mock("@/hooks/useProperties", () => ({ useProperties: () => idle }));
-// Mocked like every other sibling: this file is about how a task binding
-// becomes a request, and the app hooks reach for guild context a bare
-// renderHook has no provider for.
+vi.mock("@/hooks/useSqlQuery", () => ({
+  useSqlQuery: (...args: unknown[]) => useSqlQuery(...args),
+}));
+vi.mock("@/hooks/useDocuments", () => ({
+  useDocument: (...args: unknown[]) => useDocument(...args),
+}));
+// Mocked like every other sibling: this file is about how a binding becomes a
+// request, and the app hooks reach for guild context a bare renderHook has no
+// provider for.
 vi.mock("@/hooks/useAppData", () => ({
   useAppData: () => idle,
   useAppWidgetCatalog: () => idle,
 }));
 
-/** The conditions the tasks query was actually issued with. */
-const conditions = (): unknown[] => {
-  const params = useTasks.mock.calls.at(-1)?.[0] as { conditions?: string } | undefined;
-  return params?.conditions ? JSON.parse(params.conditions) : [];
-};
+/** The statement the query hook was actually asked for. */
+const asked = (): unknown => useSqlQuery.mock.calls.at(-1)?.[0];
+const enabled = (): boolean =>
+  Boolean((useSqlQuery.mock.calls.at(-1)?.[1] as { enabled?: boolean } | undefined)?.enabled);
 
 const run = (binding: WidgetBinding, initiativeId: number | undefined) =>
   renderHook(() => useWidgetData(binding, initiativeId));
 
-beforeEach(() => useTasks.mockClear());
+beforeEach(() => {
+  useSqlQuery.mockClear();
+  useDocument.mockClear();
+});
 
-describe("useWidgetData task scoping", () => {
-  it("narrows to the dashboard's initiative", () => {
-    run({ source: "tasks" }, 4);
-    expect(conditions()).toContainEqual({
-      field: "initiative_ids",
-      op: "in_",
-      value: [4],
+describe("a query binding", () => {
+  it("asks for the statement it was given", () => {
+    run({ source: "query", sql: "SELECT title FROM tasks" }, 4);
+    expect(asked()).toBe("SELECT title FROM tasks");
+    expect(enabled()).toBe(true);
+  });
+
+  it("asks for nothing without an initiative", () => {
+    // Fail closed: a widget with no initiative behind it is unbound, not
+    // guild-wide.
+    run({ source: "query", sql: "SELECT title FROM tasks" }, undefined);
+    expect(enabled()).toBe(false);
+  });
+
+  it("asks for nothing when the binding has no statement yet", () => {
+    const { result } = run({ source: "query" }, 4);
+    expect(asked()).toBeNull();
+    expect(result.current.isUnbound).toBe(true);
+  });
+
+  it("reads a refused statement as the author's problem, not the viewer's", () => {
+    // A name the registry does not have is the author's to fix; it is not an
+    // access outcome, so it must not render as one.
+    useSqlQuery.mockReturnValue({ ...idle, isError: true });
+    const { result } = run({ source: "query", sql: "SELECT nope FROM tasks" }, 4);
+    expect(result.current.isRestricted).toBe(false);
+    expect(result.current.errorCode).toBeDefined();
+    useSqlQuery.mockReturnValue(idle);
+  });
+
+  it("reports what came back as columns and rows", () => {
+    useSqlQuery.mockReturnValue({
+      ...idle,
+      data: {
+        columns: [
+          { name: "title", type: "text" },
+          { name: "n", type: "number" },
+        ],
+        rows: [["Ship it", 3]],
+        truncated: true,
+      },
     });
+    const { result } = run({ source: "query", sql: "SELECT title, count(*) FROM tasks" }, 4);
+    expect(result.current.data).toMatchObject({
+      source: "rows",
+      columns: [
+        { name: "title", type: "text" },
+        { name: "n", type: "number" },
+      ],
+      rows: [["Ship it", 3]],
+    });
+    expect(result.current.meta?.truncated).toBe(true);
+    useSqlQuery.mockReturnValue(idle);
+  });
+});
+
+describe("a sheet-range binding", () => {
+  it("asks for nothing until it has both a document and a range", () => {
+    const { result } = run({ source: "sheet_range", document_id: 3 }, 4);
+    expect(result.current.isUnbound).toBe(true);
   });
 
-  it("sends no scope as a bare query parameter", () => {
-    // The endpoint would ignore it, and ignoring it means guild-wide data.
-    run({ source: "tasks", project_id: 9 }, 4);
-    const params = useTasks.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(params.initiative_id).toBeUndefined();
-    expect(params.project_id).toBeUndefined();
-  });
-
-  it("narrows to a bound project as well as the initiative", () => {
-    run({ source: "tasks", project_id: 9 }, 4);
-    expect(conditions()).toContainEqual({ field: "project_id", op: "eq", value: 9 });
-    expect(conditions()).toHaveLength(2);
-  });
-
-  it("keeps the author's own filters alongside the scope", () => {
-    const own = [{ field: "priority", op: "in_", value: ["high"] }];
-    run({ source: "tasks", conditions: own }, 4);
-    expect(conditions()).toEqual([{ field: "initiative_ids", op: "in_", value: [4] }, ...own]);
-  });
-
-  it("sends a single stored group as the list the endpoint expects", () => {
-    // A definition may carry one group rather than a list; posting the group
-    // itself would fail to parse and take the whole query with it.
-    const group = { logic: "or", conditions: [{ field: "priority", op: "eq", value: "high" }] };
-    run({ source: "tasks", conditions: group }, 4);
-    const parsed = conditions();
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toContainEqual(group);
-  });
-
-  it("does not add a group level the author may still need", () => {
-    // The DSL caps nesting; wrapping the author's conditions in a group of ours
-    // would spend a level on an AND the top-level list already implies.
-    run({ source: "tasks", conditions: [{ field: "priority", op: "eq", value: "high" }] }, 4);
-    for (const condition of conditions()) {
-      expect(condition).not.toHaveProperty("logic");
-    }
-  });
-
-  it("asks for nothing extra when the dashboard has no initiative yet", () => {
-    run({ source: "tasks" }, undefined);
-    expect(conditions()).toEqual([]);
+  it("treats a document in another initiative as absent, not readable", () => {
+    // Bindings do not reach across initiatives; an id pointing elsewhere
+    // resolves the same way a deleted or unshared one does.
+    useDocument.mockReturnValue({ ...idle, data: { initiative_id: 99, content: null } });
+    const { result } = run({ source: "sheet_range", document_id: 3, range: "A1:B2" }, 4);
+    expect(result.current.isRestricted).toBe(true);
+    useDocument.mockReturnValue(idle);
   });
 });

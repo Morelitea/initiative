@@ -18,19 +18,23 @@ import { emptyDataFor } from "@/lib/widgets/normalize";
 
 const useWidgetData = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useWidgetData", () => ({ useWidgetData }));
+// The served catalog is a guild-scoped fetch this bare render has no handler
+// for; the shapes it would carry are mirrored in `shapes.ts` for exactly the
+// case below — a preview of a listing nobody has installed.
+vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
 
 import { DashboardWidget } from "./DashboardWidget";
 
 const widget = { id: "w1", type: "stat", grid: { x: 0, y: 0, w: 3, h: 2 } };
-const binding: WidgetBinding = { source: "counter" };
+const binding: WidgetBinding = { source: "query" };
 
 const render = (sampleData: boolean) => {
   useWidgetData.mockReturnValue({
-    data: emptyDataFor("counter"),
+    data: emptyDataFor("query"),
     isLoading: false,
     isUnbound: true,
   });
-  renderWithProviders(
+  return renderWithProviders(
     <DashboardWidget
       widget={widget}
       binding={binding}
@@ -61,9 +65,13 @@ describe("DashboardWidget", () => {
   it("draws the sample library rather than the resolved binding", async () => {
     // The hook is returning an *unbound* envelope, which on a real dashboard
     // renders the "configure me" notice. In sample mode the tile draws the
-    // sample instead, so the counter's name proves where the rows came from.
-    render(true);
-    expect(await screen.findByText("Beds made")).toBeInTheDocument();
+    // sample instead, so a value off the sample rows proves where they came
+    // from.
+    const { container } = render(true);
+    // The sample's four stages total a hundred tasks. Asserted on the tile's
+    // text rather than one node, because the number and its label are laid out
+    // separately and the point is only that the sample's rows got here.
+    await vi.waitFor(() => expect(container.textContent).toContain("100"), { timeout: 8000 });
     expect(screen.queryByText(/choose what this widget shows/i)).toBeNull();
   });
 });

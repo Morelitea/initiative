@@ -17,7 +17,7 @@ fresh install has nothing to carry — so a silent zero here would look exactly
 like success.
 
 Revision ID: 20260909_0241
-Revises: 20260909_0239
+Revises: 20260909_0240
 Create Date: 2026-09-09
 """
 
@@ -28,7 +28,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "20260909_0241"
-down_revision = "20260909_0239"
+down_revision = "20260909_0240"
 branch_labels = None
 depends_on = None
 

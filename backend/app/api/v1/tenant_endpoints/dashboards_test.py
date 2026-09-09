@@ -198,7 +198,7 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
                         "type": "stat",
                         "binding": {
                             "source": "query",
-                            "sql": "SELECT count(*) AS n FROM tasks",
+                            "sql": "SELECT secret FROM pg_shadow",
                         },
                     }
                 ]
@@ -206,7 +206,7 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
         },
     )
     assert bad.status_code == 422
-    assert bad.json()["detail"] == "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
+    assert bad.json()["detail"] == "QUERY_UNKNOWN_RELATION"
 
 
 @pytest.mark.integration
