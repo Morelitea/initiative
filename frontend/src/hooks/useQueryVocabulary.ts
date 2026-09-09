@@ -72,6 +72,12 @@ export const useFieldCatalogs = (datasets: string[], enabled = true): DatasetFie
           (data): DatasetFields => ({
             dataset: data.dataset,
             fields: data.fields.map((field) => ({ name: field.name, type: field.type })),
+            // What each dataset can be read alongside, so a name written under
+            // a relation completes against what that relation reaches.
+            relations: (data.relations ?? []).map((relation) => ({
+              name: relation.name,
+              dataset: relation.dataset,
+            })),
           })
         );
       return answered.length ? answered : NO_FIELDS;

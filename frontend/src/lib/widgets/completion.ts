@@ -21,7 +21,7 @@
 const WORD = /[A-Za-z0-9_]+$/;
 
 /** What kind of thing a suggestion is, for the icon and the grouping. */
-export type CompletionKind = "dataset" | "field" | "function" | "token";
+export type CompletionKind = "dataset" | "field" | "function" | "token" | "relation";
 
 export interface Completion {
   /** The text inserted, and what is matched against. */
@@ -31,19 +31,43 @@ export interface Completion {
   detail?: string;
 }
 
-/** The dataset a field belongs to, and its fields. */
+/** The dataset a field belongs to, its fields, and what it can be read
+ *  alongside. */
 export interface DatasetFields {
   dataset: string;
   fields: { name: string; type: string }[];
+  /** What this dataset declares a way to reach. A field of one is named
+   *  `<relation>.<field>`, and the join is the server's to write. */
+  relations?: { name: string; dataset: string }[];
 }
 
-/** The word being typed at *caret*, or `null` where a completion would make no
- *  sense — mid-word from the right, or with nothing typed yet. */
-export const wordAt = (text: string, caret: number): { word: string; start: number } | null => {
+/** A name that qualifies the one being typed: `assignee.disp`. */
+const QUALIFIED = /([A-Za-z0-9_]+)\.([A-Za-z0-9_]*)$/;
+
+/** What is being completed at *caret*: the word, where it starts, and the name
+ *  it is written under if it has one.
+ *
+ *  `null` where a completion would make no sense — mid-word from the right, or
+ *  with nothing typed and nothing to write it under. After a dot there is
+ *  something to offer with no word at all, because what may follow one is a
+ *  short and closed list. */
+export const wordAt = (
+  text: string,
+  caret: number
+): { word: string; start: number; qualifier?: string } | null => {
   // Completing from inside a word would replace only its left half.
   const next = text[caret];
   if (next && WORD.test(next)) return null;
-  const match = WORD.exec(text.slice(0, caret));
+  const before = text.slice(0, caret);
+  const qualified = QUALIFIED.exec(before);
+  if (qualified) {
+    return {
+      word: qualified[2],
+      start: caret - qualified[2].length,
+      qualifier: qualified[1],
+    };
+  }
+  const match = WORD.exec(before);
   if (!match) return null;
   return { word: match[0], start: caret - match[0].length };
 };
@@ -69,25 +93,51 @@ export const completionsFor = (
     functions,
     fields,
     tokens = [],
+    named = [],
+    qualifier,
   }: {
     datasets: string[];
     functions: string[];
     fields: DatasetFields[];
     /** Names resolved from who is asking rather than from the statement. */
     tokens?: string[];
+    /** The datasets this statement already names. What may be written bare is
+     *  theirs; everything else is reached through one of them. */
+    named?: string[];
+    /** The name this word is written under, where it has one. */
+    qualifier?: string;
   }
 ): Completion[] => {
   const needle = word.toLowerCase();
+  const inScope = named.length ? fields.filter((entry) => named.includes(entry.dataset)) : fields;
+
+  // After a dot there is one kind of answer: a column of whatever the name in
+  // front resolves to. A dataset resolves to itself; a relation resolves to
+  // what it reaches. Nothing else may follow one, so nothing else is offered —
+  // and an empty word is enough, because the list is already short.
+  if (qualifier !== undefined) {
+    return fieldsUnder(qualifier, fields, inScope).filter((entry) => matches(entry.name, needle));
+  }
+
   if (!needle) return [];
 
   const all: Completion[] = [
     ...datasets.map((name): Completion => ({ name, kind: "dataset" })),
-    ...fields.flatMap((entry) =>
+    ...inScope.flatMap((entry) =>
       entry.fields.map(
         (field): Completion => ({
           name: field.name,
           kind: "field",
           detail: `${entry.dataset} · ${field.type}`,
+        })
+      )
+    ),
+    ...inScope.flatMap((entry) =>
+      (entry.relations ?? []).map(
+        (relation): Completion => ({
+          name: relation.name,
+          kind: "relation",
+          detail: `${entry.dataset} · ${relation.dataset}`,
         })
       )
     ),
@@ -110,6 +160,35 @@ export const completionsFor = (
   return [...starts, ...contains];
 };
 
+/** Whether a name is worth offering for what has been typed so far. */
+const matches = (name: string, needle: string): boolean =>
+  !needle || name.toLowerCase().includes(needle);
+
+/** The columns a qualifier stands for: a dataset's own, or those of whatever
+ *  one of the statement's datasets declares a way to reach under that name.
+ *
+ *  An alias somebody wrote resolves to neither, and is answered with nothing
+ *  rather than with a guess — reading a `FROM` clause properly is the
+ *  validator's job, and a second reading of it here is a second thing to keep
+ *  right. */
+const fieldsUnder = (
+  qualifier: string,
+  fields: DatasetFields[],
+  inScope: DatasetFields[]
+): Completion[] => {
+  const behind = qualifier.toLowerCase();
+  const reached =
+    inScope
+      .flatMap((entry) => entry.relations ?? [])
+      .find((relation) => relation.name.toLowerCase() === behind)?.dataset ?? behind;
+  const entry = fields.find((held) => held.dataset.toLowerCase() === reached.toLowerCase());
+  return (entry?.fields ?? []).map((field) => ({
+    name: field.name,
+    kind: "field",
+    detail: `${entry?.dataset} · ${field.type}`,
+  }));
+};
+
 /** The text with *completion* put in place of the word at *start*, and where
  *  the caret lands afterwards. */
 export const applyCompletion = (
@@ -118,7 +197,14 @@ export const applyCompletion = (
   end: number,
   completion: Completion
 ): { text: string; caret: number } => {
-  const inserted = completion.kind === "function" ? `${completion.name}(` : completion.name;
+  // A relation is never the end of a name: choosing one leaves the caret past
+  // the dot, where the next thing offered is one of its columns.
+  const inserted =
+    completion.kind === "function"
+      ? `${completion.name}(`
+      : completion.kind === "relation"
+        ? `${completion.name}.`
+        : completion.name;
   return {
     text: text.slice(0, start) + inserted + text.slice(end),
     caret: start + inserted.length,

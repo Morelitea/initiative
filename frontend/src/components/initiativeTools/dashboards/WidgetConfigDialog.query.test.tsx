@@ -56,6 +56,7 @@ const serve = () => {
                 FIELD("created_by", "reference", "member"),
               ]
             : [FIELD("name", "text")],
+        relations: params.dataset === "tasks" ? [{ name: "project", dataset: "projects" }] : [],
       })
     ),
     guildHttp.post("/query/build", async ({ request }) => {
@@ -260,6 +261,28 @@ describe("completion", () => {
     await user.click(await screen.findByRole("button", { name: /title/i }));
 
     await waitFor(() => expect(sqlBox()).toHaveValue("SELECT title"));
+  });
+
+  it("offers what the statement's dataset can be read alongside", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query", sql: "SELECT title FROM tasks WHERE " }));
+
+    await user.click(sqlBox());
+    await user.type(sqlBox(), "proj");
+    // The relation, which says what it reaches — beside the `projects` dataset,
+    // which matches the same letters and is a different thing to offer.
+    expect(await screen.findByRole("button", { name: /tasks · projects/ })).toBeInTheDocument();
+  });
+
+  it("offers a related dataset's columns under the relation's name", async () => {
+    const user = userEvent.setup();
+    mount(widget({ source: "query", sql: "SELECT title FROM tasks WHERE " }));
+
+    await user.click(sqlBox());
+    // `name` belongs to projects, which this statement never names — it is
+    // reachable only through the relation in front of it.
+    await user.type(sqlBox(), "project.");
+    expect(await screen.findByRole("button", { name: /^name/i })).toBeInTheDocument();
   });
 
   it("offers nothing once a name is written in full", async () => {

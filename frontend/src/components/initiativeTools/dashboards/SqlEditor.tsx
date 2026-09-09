@@ -12,7 +12,7 @@
  * reason rather than run.
  */
 
-import { Braces, Columns3, Table2, UserRound } from "lucide-react";
+import { Braces, Columns3, Spline, Table2, UserRound } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -37,6 +37,7 @@ const ICONS: Record<CompletionKind, typeof Table2> = {
   field: Columns3,
   function: Braces,
   token: UserRound,
+  relation: Spline,
 };
 
 export interface SqlEditorProps {
@@ -67,26 +68,32 @@ export function SqlEditor({
 }: SqlEditorProps) {
   const { t } = useTranslation("dashboards");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [active, setActive] = useState<{ word: string; start: number; caret: number } | null>(null);
+  const [active, setActive] = useState<{
+    word: string;
+    start: number;
+    caret: number;
+    qualifier?: string;
+  } | null>(null);
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
   const [highlighted, setHighlighted] = useState(0);
 
-  // Only the datasets this statement already names, so a query about tasks does
-  // not offer a calendar's columns. Everything, until it names one.
-  const scoped = useMemo(() => {
-    const named = datasetsNamed(value, datasets);
-    return named.length ? fields.filter((entry) => named.includes(entry.dataset)) : fields;
-  }, [value, datasets, fields]);
+  // Which datasets this statement already names. What may be written bare is
+  // theirs, and what one of them declares a way to reach is written under that
+  // relation's name — both decided in the completion module, which is where
+  // the rest of the deciding already happens.
+  const named = useMemo(() => datasetsNamed(value, datasets), [value, datasets]);
 
   const offered = useMemo(() => {
     if (!active) return [];
     return completionsFor(active.word, {
       datasets,
       functions,
-      fields: scoped,
+      fields,
       tokens,
+      named,
+      qualifier: active.qualifier,
     }).slice(0, LIMIT);
-  }, [active, datasets, functions, scoped, tokens]);
+  }, [active, datasets, functions, fields, tokens, named]);
 
   const close = useCallback(() => {
     setActive(null);
