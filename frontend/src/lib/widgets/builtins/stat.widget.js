@@ -139,39 +139,21 @@ const meta = {
  * job — the sandbox has no locale data and no timezone.
  */
 const strings = {
-  noTasks: {
-    en: "No tasks match",
-    de: "Keine Aufgaben passen",
-    es: "Ninguna tarea coincide",
-    fr: "Aucune tâche ne correspond",
-  },
-  noCounter: {
-    en: "No counter selected",
-    de: "Kein Zähler ausgewählt",
-    es: "Ningún contador seleccionado",
-    fr: "Aucun compteur sélectionné",
-  },
-  rangeEmpty: {
-    en: "Range is empty",
-    de: "Bereich ist leer",
-    es: "El rango está vacío",
-    fr: "La plage est vide",
+  noRows: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
   },
   noNumeric: {
-    en: "No numeric values in range",
-    de: "Keine Zahlenwerte im Bereich",
-    es: "No hay valores numéricos en el rango",
-    fr: "Aucune valeur numérique dans la plage",
-  },
-  cannotDraw: {
-    en: "This widget cannot draw ",
-    de: "Dieses Widget kann das nicht zeichnen: ",
-    es: "Este widget no puede dibujar ",
-    fr: "Ce widget ne peut pas dessiner ",
+    en: "No numeric column to report",
+    de: "Keine Zahlenspalte zum Anzeigen",
+    es: "Ninguna columna numérica que mostrar",
+    fr: "Aucune colonne numérique à afficher",
   },
   total: { en: "Total", de: "Gesamt", es: "Total", fr: "Total" },
   of: { en: "of", de: "von", es: "de", fr: "sur" },
-  days: { en: "days", de: "Tage", es: "días", fr: "jours" },
+  points: { en: "points", de: "Punkte", es: "puntos", fr: "points" },
 };
 
 /**
@@ -258,80 +240,52 @@ function render(data, config, context) {
     return (later - earlier) / earlier;
   };
 
-  switch (data.source) {
-    case "counter": {
-      const counter = data.counter;
-      if (!counter) return empty(say("noCounter"));
-      const caption =
-        counter.max !== null && counter.max !== undefined
-          ? say("of") + " " + counter.max + (counter.unit ? " " + counter.unit : "")
-          : counter.unit || undefined;
-      // A counter is a current value with no history, so there is nothing
-      // honest to draw a trend from.
-      return scene(metric(counter.value, counter.name, caption));
-    }
+  // Which columns fill this widget's slots, resolved by the host.
+  const slots = context?.slots || {};
+  const valueAt = (slots.value || [])[0];
+  const labelAt = (slots.label || [])[0];
 
-    case "task_counts": {
-      const rows = data.rows || [];
-      if (!rows.length) return empty(say("noTasks"));
+  const rows = data.rows || [];
+  if (!rows.length) return empty(say("noRows"));
+  if (valueAt === undefined) return empty(say("noNumeric"));
 
-      const total = rows.reduce((sum, row) => sum + row.count, 0);
-      const dated = rows.filter((row) => typeof row.date === "number");
+  const number = (row) => (typeof row[valueAt] === "number" ? row[valueAt] : 0);
+  const name = (row) =>
+    labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : undefined;
+  const values = rows.map(number);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const heading = data.columns && data.columns[valueAt] ? data.columns[valueAt].name : undefined;
 
-      // A day-bucketed binding is a time series: report the total, say how it
-      // moved, and draw the shape underneath.
-      if (dated.length) {
-        const ordered = dated.slice().sort((a, b) => a.date - b.date);
-        const change = changeOver(ordered.map((row) => row.count));
-        const node = metric(
-          total,
-          undefined,
-          ordered.length + " " + say("days"),
-          change === null ? undefined : { delta: change, deltaGood: deltaGood }
-        );
-        return withSparkline(
-          node,
-          ordered.map((row) => ({ x: row.bucket, y: row.count }))
-        );
-      }
+  // A label that orders — a date — makes this a time series: report the total,
+  // say how it moved, and draw the shape underneath. A label that does not
+  // order has no sequence to read a change from, so none is claimed.
+  const overTime =
+    labelAt !== undefined && data.columns && data.columns[labelAt]
+      ? data.columns[labelAt].type === "date"
+      : false;
 
-      if (pick === "largest") {
-        let best = rows[0];
-        for (const row of rows) if (row.count > best.count) best = row;
-        return scene(metric(best.count, best.bucket, say("of") + " " + total));
-      }
-      if (pick === "first") {
-        return scene(metric(rows[0].count, rows[0].bucket, say("of") + " " + total));
-      }
-      return scene(metric(total, say("total")));
-    }
-
-    case "sheet_range": {
-      const range = data.range;
-      if (!range?.rows.length) return empty(say("rangeEmpty"));
-      // Sum the first column that holds numbers, so a range like A1:B6 reads
-      // as its values rather than its headers.
-      const columnIndex = range.rows[0].findIndex((cell) => typeof cell === "number");
-      if (columnIndex < 0) return empty(say("noNumeric"));
-      const values = [];
-      for (const row of range.rows) {
-        if (typeof row[columnIndex] === "number") values.push(row[columnIndex]);
-      }
-      const total = values.reduce((sum, value) => sum + value, 0);
-      const change = changeOver(values);
-      const node = metric(
-        pick === "largest" ? Math.max.apply(null, values) : total,
-        range.columns[columnIndex] || undefined,
-        undefined,
-        change === null ? undefined : { delta: change, deltaGood: deltaGood }
-      );
-      return withSparkline(
-        node,
-        values.map((value, index) => ({ x: index + 1, y: value }))
-      );
-    }
-
-    default:
-      return empty(say("cannotDraw") + data.source);
+  if (overTime) {
+    const ordered = rows.slice().sort((a, b) => (a[labelAt] || 0) - (b[labelAt] || 0));
+    const change = changeOver(ordered.map(number));
+    const node = metric(
+      total,
+      heading,
+      ordered.length + " " + say("points"),
+      change === null ? undefined : { delta: change, deltaGood: deltaGood }
+    );
+    return withSparkline(
+      node,
+      ordered.map((row, index) => ({ x: index + 1, y: number(row) }))
+    );
   }
+
+  if (pick === "largest") {
+    let best = rows[0];
+    for (const row of rows) if (number(row) > number(best)) best = row;
+    return scene(metric(number(best), name(best) || heading, say("of") + " " + total));
+  }
+  if (pick === "first") {
+    return scene(metric(number(rows[0]), name(rows[0]) || heading, say("of") + " " + total));
+  }
+  return scene(metric(total, heading || say("total")));
 }
