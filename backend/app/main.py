@@ -297,8 +297,14 @@ async def lifespan(app: FastAPI):
     from app.services.platform import notify_bus, user_stream
     from app.services.tenant import room_sink
 
-    notify_bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
-    notify_bus.register(room_sink.CHANNEL, room_sink.deliver)
+    notify_bus.register(
+        user_stream.CHANNEL,
+        user_stream.deliver_remote,
+        on_connect=user_stream.on_bus_connected,
+    )
+    notify_bus.register(
+        room_sink.CHANNEL, room_sink.deliver, on_connect=room_sink.on_bus_connected
+    )
     await notify_bus.start()
 
     try:

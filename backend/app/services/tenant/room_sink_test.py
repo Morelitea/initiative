@@ -31,12 +31,10 @@ class _Watcher:
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Watcher":
+        room_sink._missed_hints = False
         await manager.connect(
             self._guild_id, list(self._initiative_ids), self.socket, user_id=1
         )
-        # Two passes: the first settles where the log and the bus stand, the
-        # second is the one a test's own writes are measured against.
-        await room_sink.process_room_sweep()
         await room_sink.process_room_sweep()
         return self
 
@@ -262,22 +260,17 @@ async def test_a_hint_names_the_transaction_it_is_raised_for(session, acting_use
 
 
 async def test_a_gap_in_the_hints_tells_the_room_to_read_the_guild(
-    session, acting_user, monkeypatch
+    session, acting_user
 ):
     """Hints reach only whoever is listening, and a transaction older than the
     window cannot be found by reading it. When the bus has come up again since
     the last pass, the room is told that much rather than a list of ids."""
-    from app.services.platform import notify_bus
-
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         await create_task(session, a.project)
-        monkeypatch.setattr(
-            type(notify_bus.bus),
-            "generation",
-            property(lambda _self: 99),
-        )
+        # The bus coming up is the notice that it was down.
+        await room_sink.on_bus_connected()
 
         await watcher.catch_up()
 

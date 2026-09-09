@@ -164,6 +164,16 @@ export const useNotificationStream = () => {
     void invalidateDmSettings();
   }, []);
 
+  // Everything this socket follows, re-read at once. Used where the gap is
+  // real but its contents are not knowable: our own reconnect, and the
+  // server's.
+  const resync = useCallback(() => {
+    void invalidateNotifications();
+    refreshAccount();
+    refreshContacts();
+    void invalidateDirectMessages();
+  }, [refreshAccount, refreshContacts]);
+
   useEffect(
     () => () => {
       if (accountRetryTimerRef.current !== null) {
@@ -212,12 +222,8 @@ export const useNotificationStream = () => {
         authFailureCountRef.current = 0;
         setConnected(true);
         // The socket was down for some interval — anything that happened in it
-        // was never signalled, so catch up once on the way back up. Every
-        // channel, since any of them could have moved while we were away.
-        void invalidateNotifications();
-        refreshAccount();
-        refreshContacts();
-        void invalidateDirectMessages();
+        // was never signalled, so catch up once on the way back up.
+        resync();
       };
 
       websocket.onmessage = (event) => {
@@ -226,7 +232,12 @@ export const useNotificationStream = () => {
           // Two channels over one socket. A frame carries nothing but which
           // one it is; what it means is a refetch, and the refetch is where
           // anything is actually decided.
-          if (payload.resource === "notification") {
+          if (payload.resource === "resync") {
+            // The server's own bus was down for a while, so frames went past
+            // with nobody listening for them. It cannot say which, so this
+            // says the same thing a reconnect does: read everything again.
+            resync();
+          } else if (payload.resource === "notification") {
             void invalidateNotifications();
           } else if (payload.resource === "account") {
             refreshAccount();
@@ -311,5 +322,5 @@ export const useNotificationStream = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, userId, refreshAccount]);
+  }, [token, userId, resync, refreshAccount, refreshContacts]);
 };

@@ -7,6 +7,7 @@ import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
@@ -20,9 +21,8 @@ import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
 
-// How often the bell asks on its own. The first applies when the push channel
-// is carrying the updates, the second when there is no channel at all.
-const NOTIFICATION_BACKSTOP_INTERVAL_MS = 300_000;
+// How often the bell asks on its own, which is only ever when there is no
+// channel to ask for it.
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 // Build guild-scoped URL directly. Notification rows persist their
@@ -398,16 +398,16 @@ export const NotificationBell = () => {
   const streamConnected = useNotificationStreamConnected();
 
   const notificationsQuery = useNotifications({
-    // The push channel refetches this query the moment the inbox moves, so a
-    // connected tab needs no timer for the common case. It keeps a slow one
-    // anyway: a socket reaches only the process that holds it, so where the API
-    // runs as more than one worker or replica a notification committed
-    // elsewhere signals nothing here, and the backstop bounds how long the
-    // inbox can sit stale. With no socket at all (a proxy that drops upgrades,
-    // an offline tab) it falls back to the original interval.
-    refetchInterval: streamConnected
-      ? NOTIFICATION_BACKSTOP_INTERVAL_MS
-      : NOTIFICATION_POLL_INTERVAL_MS,
+    // A connected tab holds no timer at all. The channel refetches this the
+    // moment the inbox moves, and it reaches every worker rather than the one
+    // that happened to write the row — so there is nothing for a timer to
+    // catch. What a timer used to cover was the channel itself going quiet,
+    // and the server now says so when that has happened, which is the one
+    // thing a timer could never tell the difference from silence.
+    //
+    // With no socket at all (a proxy that drops upgrades, an offline tab)
+    // there is nothing to say it, so the poll stands.
+    refetchInterval: streamConnected ? false : NOTIFICATION_POLL_INTERVAL_MS,
     enabled: isEnabled,
   });
 
@@ -424,12 +424,12 @@ export const NotificationBell = () => {
   const hasNotifications = notifications.length > 0;
 
   const handleNotificationClick = async (notification: NotificationRead) => {
+    // Not awaited: the read is applied to the cache as it is sent, so the dot
+    // and the badge have already moved, and nothing below depends on the
+    // server having answered. Waiting for it only ever showed as a stall
+    // between the click and the page it opens.
     if (!notification.read_at) {
-      try {
-        await markReadMutation.mutateAsync(notification.id);
-      } catch {
-        // ignore errors
-      }
+      markReadMutation.mutate(notification.id);
     }
     // A finished export is fetched, not navigated to: the artifact lives
     // behind the job-gated download endpoint, so the click IS the download.
@@ -485,9 +485,10 @@ export const NotificationBell = () => {
                       t as (key: string, options?: Record<string, unknown>) => string
                     )}
                   </p>
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    {new Date(notification.created_at).toLocaleString()}
-                  </p>
+                  <RelativeTime
+                    date={notification.created_at}
+                    className="mt-1 block text-muted-foreground text-xs"
+                  />
                 </div>
                 {notification.read_at ? null : (
                   <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />

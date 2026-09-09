@@ -190,6 +190,25 @@ describe("useNotificationStream", () => {
     expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
   });
 
+  it("re-reads everything when the server says its own bus was down", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latest();
+    socket.open();
+    invalidateNotifications.mockClear();
+    invalidateContactGrants.mockClear();
+    refreshUser.mockClear();
+
+    // The socket never dropped, so nothing here noticed. The gap was on the
+    // server's side of it, and it cannot say what went past — only that
+    // something did.
+    socket.receive({ resource: "resync", action: "changed", ids: {} });
+
+    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+  });
+
   it("tries the account again when the re-read fails", async () => {
     vi.useFakeTimers();
     try {

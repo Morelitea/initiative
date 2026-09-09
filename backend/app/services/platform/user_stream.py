@@ -25,6 +25,14 @@ cross-process half is simply absent and everything behaves as it did before it
 existed; nothing waits on it and nothing breaks when it is missing. Each process
 stamps frames with its own ``origin`` and skips its own on the way back in, so
 the two paths never deliver twice.
+
+**A bus that was down is a gap in both directions**, and coming back up is the
+only notice of it. So ``on_bus_connected`` does two things: it sends the frames
+whose cross-process half was refused while the bus was away — content-free, so
+a user with fifty missed frames is one frame — and it tells this process's own
+sockets to re-read everything, because what they missed while nothing was
+listening here is not knowable. That is what lets the client hold no timer of
+its own for the connected case.
 """
 
 import asyncio
@@ -53,6 +61,18 @@ CHANNEL = "user_stream"
 #: Who this process is. Stamped on every frame we publish so our own listener
 #: can tell our echo from somebody else's news and drop it.
 ORIGIN = uuid.uuid4().hex
+
+#: A frame that names no channel: everything this socket follows may have moved.
+#: Sent where the gap is real but its contents are not knowable — the client
+#: answers it with the same catch-up it does on its own reconnect.
+RESOURCE_RESYNC = "resync"
+
+#: Frames whose cross-process half was refused, keyed so that repeats collapse:
+#: the frames carry no content, so "your inbox changed" twice is once. Bounded,
+#: because a bus that stays down must not grow this without limit — past the
+#: bound the far side is brought up to date by its own reconnect instead.
+_pending_remote: Dict[tuple[int, str], Dict[str, Any]] = {}
+MAX_PENDING_REMOTE = 2048
 
 # ``loop.create_task`` keeps only a weak reference, so a fire-and-forget send
 # can be collected mid-flight. Hold them until they finish.
@@ -177,6 +197,8 @@ async def _publish_remote(user_id: int, frame: Dict[str, Any]) -> None:
         )
     except Exception:
         logger.debug("user_stream: cross-process publish unavailable", exc_info=True)
+        if len(_pending_remote) < MAX_PENDING_REMOTE:
+            _pending_remote[(user_id, frame.get("resource", ""))] = frame
 
 
 async def deliver_remote(payload: str) -> None:
@@ -196,6 +218,28 @@ async def deliver_remote(payload: str) -> None:
     if origin == ORIGIN:
         return
     await stream.send(user_id, frame)
+
+
+async def on_bus_connected() -> None:
+    """The bus is up, so it was down, and both directions of it were.
+
+    Outward: the frames it refused go now, so a tab on another worker is not
+    left waiting on a signal that was dropped rather than delayed.
+
+    Inward: this process heard nothing while it was away and cannot know what,
+    so its own sockets are told to re-read. One frame each — the same catch-up
+    they run when their own socket reconnects.
+    """
+    pending = list(_pending_remote.items())
+    _pending_remote.clear()
+    for (user_id, _resource), frame in pending:
+        # Through the ordinary path, so one that is refused again is simply
+        # pending again rather than lost on the way to being recovered.
+        await _publish_remote(user_id, frame)
+
+    resync = build_frame(RESOURCE_RESYNC, "changed")
+    for user_id in stream.connected_users():
+        await stream.send(user_id, resync)
 
 
 def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> None:
