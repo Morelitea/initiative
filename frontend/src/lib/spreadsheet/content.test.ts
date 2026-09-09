@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_COLS, DEFAULT_ROWS } from "@/lib/spreadsheet/bounds";
 import {
-  DEFAULT_COLS,
-  DEFAULT_ROWS,
   emptySpreadsheetContent,
   parseSpreadsheetContent,
   SPREADSHEET_SCHEMA_VERSION,
 } from "@/lib/spreadsheet/content";
+import fixture from "@/lib/spreadsheet/sheet-schema.fixture.json";
 
 describe("parseSpreadsheetContent — upcast", () => {
   it("reads a v1 document as the workbook's single sheet", () => {
@@ -119,5 +119,35 @@ describe("emptySpreadsheetContent", () => {
     expect(out.sheets).toHaveLength(1);
     expect(out.sheets[0].name).toBe("Sheet1");
     expect(out.sheets[0].cells).toEqual({});
+  });
+});
+
+describe("schema fixture — nothing the model defines is dropped", () => {
+  /** Every leaf in a value, as a dotted path, with data-keyed maps
+   *  generalised so ``columns.0.width`` and ``columns.7.width`` are one
+   *  path rather than two. */
+  const leafPaths = (value: unknown, prefix = "", out = new Set<string>()): Set<string> => {
+    if (value === null || typeof value !== "object") {
+      if (prefix) out.add(prefix);
+      return out;
+    }
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const segment = /^\d+(:\d+)?$/.test(key) ? "*" : key;
+      leafPaths(child, prefix ? `${prefix}.${segment}` : segment, out);
+    }
+    return out;
+  };
+
+  it("round-trips every field in sheet-schema.fixture.json", () => {
+    const out = parseSpreadsheetContent({
+      schema_version: 3,
+      kind: "spreadsheet",
+      // The fixture sheet is hidden, and a workbook with nothing on show
+      // has its first sheet revealed — so it needs a companion to stay
+      // hidden and prove the flag survives.
+      sheets: [{ id: "visible", name: "Visible" }, fixture.sheet],
+    });
+    const kept = leafPaths(out.sheets[1]);
+    expect([...leafPaths(fixture.sheet)].filter((path) => !kept.has(path))).toEqual([]);
   });
 });

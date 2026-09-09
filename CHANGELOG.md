@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.1] - 2026-09-09
+
+### Added
+
+- **Sheets: find and replace, hidden rows, columns and tabs, and getting around a big one** — Ctrl+F searches the sheet and replaces one match or all of them; a right-click on a row or column header hides it, and a sheet's tab menu hides the whole tab, with a count beside the tabs to bring any of them back. A hidden line is still there — its cells hold their values and formulas still read them — it is simply out of the way, which is what a workbook wants when the working-out and the thing you hand someone are the same file. Ctrl+Arrow jumps to the edge of the data and Ctrl+End to its far corner.
+- **Sheets: fifteen more functions** — MEDIAN, LARGE, SMALL, RANK, STDEV, STDEVP, VAR, VARP, COUNTBLANK, MATCH, CHOOSE, SWITCH, UPPER, SUBSTITUTE, TEXTJOIN and VALUE all work now, where they used to come back as `#NAME?`.
+- **An assistant can read the rest of your work, not just the tasks** — the MCP server covered projects, tasks and initiatives, so anything asked of it was answered from tasks alone. It now reads documents, queues, counters, calendars and their events, notices and dashboards — including what a dashboard tile currently says, which is usually the fastest answer to "how is this going". It can also author and edit each of them now — a document, a queue and its items, a counter and its count, a calendar event, a notice, a dashboard — where it could previously only create a task, edit one, move one and add a comment. Every write still asks you first, and every call goes through the same permission checks you do, so it sees what you see and nothing else. Deleting, archiving, resetting, bulk edits, sharing and AI generation stay out. File downloads, who voted in a poll and who has read a notice are deliberately left out.
+
+### Changed
+
+- **Sheets: copying keeps the formula** — a copied block used to paste the numbers it happened to be showing. It now pastes what you copied — formulas, with their references moved by however far the block moved, and the bold, fills and number formats that went with them. Cut still moves a formula unchanged, and moving one to another tab now spells out the sheet it came from so it keeps meaning what it meant.
+- **Sheets: copy and paste between tabs** — clicking a tab moved the keyboard off the grid and nothing gave it back, so pasting onto another sheet could not work and Ctrl+C stopped responding after any toolbar click. The grid keeps the keyboard now.
+- **Sheets: typing into a cell you have scrolled past** — a selected cell that had scrolled out of view opened an edit with no box to type in, and swallowed everything after. It scrolls back into view and takes the text. Arrow keys can no longer walk the cursor off the edge of the sheet either, and pasting more than fits now says how much did not, rather than dropping it silently.
+
+### Fixed
+
+- **Sheets: a formula that reads another formula** — `=IF(B9<0,0,B9)`, `=SUM(A2:A9)` and anything else pointing at a cell that is itself a formula could come back `#ERROR!`, and whether it did depended on where you had scrolled. It doesn't any more. `=INDEX(Data!A2:A9, …)` also read from the wrong sheet, and now reads from the one it names.
+- **A dashboard tile that joins text together, or reads a part out of a date, draws again** — a widget whose query used `concat` or `extract` was refused by the database instead of answered. That is what broke *Who is carrying what* on the *Project health* and *Team activity* dashboards, and any tile of your own written the same way. Both draw again, and nothing needs re-saving.
+
 ## [0.67.0] - 2026-09-09
 
 ### Added

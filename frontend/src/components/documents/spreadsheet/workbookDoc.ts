@@ -47,6 +47,7 @@ export const META_ROWS = "rows";
 export const META_COLS = "cols";
 export const META_FROZEN_ROWS = "frozenRows";
 export const META_FROZEN_COLS = "frozenCols";
+export const META_HIDDEN = "hidden";
 
 /** The structural maps every sheet container carries, in creation order. */
 const SHEET_PARTS = [SHEET_META, SHEET_CELLS, SHEET_COLUMNS, SHEET_ROWS, SHEET_CELLSTYLES] as const;
@@ -106,6 +107,8 @@ export const seedSheet = (doc: Y.Doc, sheet: SpreadsheetSheetContent, order: num
   meta.set(META_COLS, sheet.dimensions.cols);
   meta.set(META_FROZEN_ROWS, sheet.frozen.rows);
   meta.set(META_FROZEN_COLS, sheet.frozen.cols);
+  // Absent rather than false for a shown sheet, matching how it is read.
+  if (sheet.hidden) meta.set(META_HIDDEN, true);
   for (const [k, v] of Object.entries(sheet.cells)) cells.set(k, v);
   for (const [k, v] of Object.entries(sheet.columns)) columns.set(k, v);
   for (const [k, v] of Object.entries(sheet.rows)) rows.set(k, v);
@@ -125,11 +128,14 @@ export const readSheetOrder = (doc: Y.Doc | null): SheetMeta[] => {
     out.push({
       id,
       name: typeof name === "string" && name ? name : id,
+      hidden: meta?.get(META_HIDDEN) === true,
       order: typeof order === "number" && Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER,
     });
   });
   out.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return out.map(({ id, name }) => ({ id, name }));
+  // ``hidden`` is absent rather than false when a sheet is shown, so a
+  // sheet's identity stays the two fields it has always been.
+  return out.map(({ id, name, hidden }) => (hidden ? { id, name, hidden } : { id, name }));
 };
 
 /** The top-level map names a pre-multi-sheet document used. */

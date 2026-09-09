@@ -6,15 +6,20 @@ authentication and the six RLS gates apply by reuse — never re-implemented.
 
 The surface is curated and default-deny, so a newly added route can't silently
 become a tool:
-  * **Reads** — every ``GET`` route for projects, tasks, and initiatives, plus
-    the two comment reads that pair with the comment write (a parent's thread
-    and a single comment by id).
-  * **Writes** — a small, explicit allow-list of safe mutations (create a task,
-    edit a task, move a task, add a comment), each gated client-side by Claude
-    Code's per-write permission prompt. Destructive (delete), bulk (archive-all,
-    reorder), AI-generation, and property/tag routes are deliberately excluded.
-
-See ``history/mcp-server-design.md``.
+  * **Reads** — every ``GET`` route for initiatives and for the tools they hold
+    (projects and tasks, documents, queues, counters, calendars and their
+    events, notices, dashboards), plus the two comment reads that pair with the
+    comment write (a parent's thread and a single comment by id). A handful are
+    carved back out: file downloads, who voted and who has read, and the
+    dashboard editor's own palette.
+  * **Writes** — an explicit allow-list, matched by path shape: create and edit
+    every tool (projects, documents, queues, counters, calendars, notices,
+    dashboards) and the things they hold (tasks, queue items, counters,
+    calendar events, comments), plus the two writes that shape alone doesn't
+    reach — moving a task, and moving a counter's count. Each is gated
+    client-side by Claude Code's per-write permission prompt. Destructive
+    (delete, archive, reset), bulk (reorder, batch, archive-all), AI-generation,
+    sharing (grants), and property/tag routes are deliberately excluded.
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
 from app.core.config import PROJECT_NAME
+from app.core.tools import Tool
 
 if TYPE_CHECKING:
     import mcp.types as mt
@@ -40,21 +46,102 @@ if TYPE_CHECKING:
 # ``task-statuses`` exposes only its GET (list a project's statuses) — its
 # POST/PATCH/reorder routes aren't in the write allow-list, so they stay
 # excluded — giving a caller the status ids needed to place or move a task.
-READ_TAGS = ("projects", "tasks", "initiatives", "task-statuses")
+#
+# Every tool an initiative holds is readable, not only the two it starts with.
+# An agent asked "how is this going" was previously answering from tasks alone,
+# which is the shape of the question rather than the shape of the work: the
+# rota is a queue, the write-up is a document, the numbers are counters, and
+# what somebody would actually look at first is a dashboard. The write surface
+# in ``_WRITE_ROUTE_MAPS`` covers the same set, so what an agent can read it can
+# also author and edit.
+READ_TAGS = (
+    "projects",
+    "tasks",
+    "initiatives",
+    "task-statuses",
+    "documents",
+    "queues",
+    "counters",
+    "calendars",
+    "calendar-events",
+    "posts",
+    "dashboards",
+)
 
-# Curated safe writes: an explicit allow-list matched by exact path *shape* so
-# only these four mutations are exposed — create a task (``POST /tasks/``), edit a
-# task (``PATCH /tasks/{id}``), move a task (``POST /tasks/{id}/move``), and add a
-# comment (``POST /comments/``). Everything else (delete, archive-all, reorder,
-# duplicate, AI-generation, properties/tags, subtasks) falls through to the
-# default-deny catch-all below.
-_WRITE_ROUTE_MAPS = [
-    RouteMap(methods=["POST"], pattern=r".*/tasks/$", mcp_type=MCPType.TOOL),
-    RouteMap(methods=["PATCH"], pattern=r".*/tasks/\{[^}]+\}$", mcp_type=MCPType.TOOL),
+# Curated writes: author and edit, across every tool.
+#
+# Matched by exact path *shape*, so only the pairs named here are exposed and
+# everything else falls through to the default-deny catch-all below — delete,
+# archive, reorder, duplicate, batch, AI generation, grants, properties/tags,
+# uploads and imports are all outside it.
+#
+# The tool half is derived from the ``Tool`` enum rather than listed, for the
+# same reason the read surface is: an eighth tool should arrive writable rather
+# than wait for somebody to remember this list. ``counter_group`` is the only
+# member whose path segment isn't already its plural spelling.
+_ID = r"\{[^}]+\}"
+
+
+def _create_and_edit(segment: str) -> list[RouteMap]:
+    """The two route shapes that author and edit one kind of thing.
+
+    ``POST /<segment>`` creates and ``PATCH /<segment>/{id}`` edits. Both are
+    anchored at the end, so a suffixed route on the same collection — an
+    ``/archive``, a ``/grants``, a ``/properties``, a ``/reorder`` — matches
+    neither and stays excluded.
+    """
+    return [
+        RouteMap(
+            methods=["POST"], pattern=r".*/" + segment + r"/?$", mcp_type=MCPType.TOOL
+        ),
+        RouteMap(
+            methods=["PATCH"],
+            pattern=r".*/" + segment + "/" + _ID + "$",
+            mcp_type=MCPType.TOOL,
+        ),
+    ]
+
+
+_WRITABLE_SEGMENTS = (
+    # Every tool an initiative holds, addressed by its own path segment.
+    *(tool.plural.replace("_", "-") for tool in Tool),
+    # And what those tools hold in turn: a project's tasks, a calendar's
+    # events, a queue's items, a counter group's counters. Not derivable from
+    # the enum — each names its parent differently — so each is spelled out.
+    "tasks",
+    "calendar-events",
+    "queues/" + _ID + "/items",
+    "counter-groups/" + _ID + "/counters",
+    # The comment surface every tool shares.
+    "comments",
+)
+
+# Two writes that ``create``/``edit`` doesn't reach, added by hand:
+#
+#   * Moving a task to another status or project is its own route because it is
+#     its own action, taking a destination rather than a field.
+#   * A counter's count is the one thing about it ``PATCH`` cannot set — the
+#     update schema shapes the counter (name, bounds, step, initial count) and
+#     the count itself moves through these three. Without them, writing a
+#     counter would mean renaming it. ``reset`` and ``reset-all`` are not here:
+#     they discard counts rather than record one.
+_EXTRA_WRITE_ROUTE_MAPS = [
     RouteMap(
-        methods=["POST"], pattern=r".*/tasks/\{[^}]+\}/move$", mcp_type=MCPType.TOOL
+        methods=["POST"], pattern=r".*/tasks/" + _ID + "/move$", mcp_type=MCPType.TOOL
     ),
-    RouteMap(methods=["POST"], pattern=r".*/comments/$", mcp_type=MCPType.TOOL),
+    *(
+        RouteMap(
+            methods=["POST"],
+            pattern=r".*/counters/" + _ID + "/" + verb + "$",
+            mcp_type=MCPType.TOOL,
+        )
+        for verb in ("set", "increment", "decrement")
+    ),
+]
+
+_WRITE_ROUTE_MAPS = [
+    *(m for segment in _WRITABLE_SEGMENTS for m in _create_and_edit(segment)),
+    *_EXTRA_WRITE_ROUTE_MAPS,
 ]
 
 # Comment reads, matched by exact path shape rather than by adding ``comments``
@@ -76,9 +163,33 @@ _COMMENT_READ_ROUTE_MAPS = [
     RouteMap(methods=["GET"], pattern=r".*/comments/\{[^}]+\}$", mcp_type=MCPType.TOOL),
 ]
 
+# Carved out of the tag rules below, each for a reason the tag itself cannot
+# express. Ordered ahead of them so the exclusion wins.
+_TOOL_READ_EXCLUSIONS = [
+    # Bytes rather than an answer. A download hands back a file — a document's
+    # contents, or one of its versions — and an export hands back a calendar
+    # file. Neither is something a tool result can carry usefully, and a large
+    # one would fill a caller's context with an attachment it cannot open.
+    RouteMap(pattern=r".*/download$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/export\.ics$", mcp_type=MCPType.EXCLUDE),
+    # Who voted which way, and who has read a notice. Both are about people
+    # rather than about the work, and neither is answerable from the thing an
+    # agent was asked to do — the same reason join requests are carved out of
+    # the initiatives tag.
+    RouteMap(pattern=r".*/poll/voters$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/reads$", mcp_type=MCPType.EXCLUDE),
+    # The editor's own vocabulary. ``widget-catalog`` is the palette a person
+    # arranges a dashboard from and ``installed-listings`` is what the
+    # marketplace has put in this guild; both describe the authoring surface
+    # rather than anything a dashboard is showing.
+    RouteMap(pattern=r".*/widget-catalog$", mcp_type=MCPType.EXCLUDE),
+    RouteMap(pattern=r".*/installed-listings$", mcp_type=MCPType.EXCLUDE),
+]
+
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
     *_COMMENT_READ_ROUTE_MAPS,
+    *_TOOL_READ_EXCLUSIONS,
     # Carved out of the ``initiatives`` read surface below: a join request names
     # who asked to be let in and carries their free-text note, which is
     # membership administration for a manager to answer rather than part of the
