@@ -147,14 +147,27 @@ export function WidgetConfigDialog({
    * namespaced type means — so the list does not need looking up at all.
    */
   const isApp = isAppWidgetType(widget?.type ?? "");
-  const appCatalog = useAppWidgetCatalog(open && isApp);
-  const app = useMemo(
-    () => appWidgetEntry(appCatalog.data, widget?.type ?? ""),
-    [appCatalog.data, widget?.type]
-  );
+  //: An app's *data*, whoever draws it — its own widget, or one of ours
+  //: pointed at it with a statement.
+  const readsApp = isApp || binding.source === "app";
+  const appCatalog = useAppWidgetCatalog(open && readsApp);
+  // An app widget resolves its app from its own namespaced type. One of ours
+  // has no such type, so it resolves the app it *named* — which is the only
+  // difference between the two, and why the picker below exists at all.
+  const app = useMemo(() => {
+    const byType = appWidgetEntry(appCatalog.data, widget?.type ?? "");
+    if (byType) return byType;
+    const named = (appCatalog.data?.items ?? []).find((item) => item.app_uid === binding.app_uid);
+    return named ? { entry: named, widget: undefined } : undefined;
+  }, [appCatalog.data, widget?.type, binding.app_uid]);
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range"];
+  // A built-in widget reads an app too, as far as the rows are described: a
+  // statement names what it returns, over columns the endpoint declared it
+  // hands back. Without one they are the app's own shape, which only the app's
+  // own module knows how to draw — so the source is offered and the statement
+  // is what makes it usable.
+  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range", "app"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 
@@ -167,7 +180,7 @@ export function WidgetConfigDialog({
    */
   const appEndpoints = useMemo((): AppEndpointRead[] => {
     const all = app?.entry.endpoints ?? [];
-    const named = app?.widget.endpoints ?? [];
+    const named = app?.widget?.endpoints ?? [];
     if (!named.length) return all;
     return all.filter((candidate) => named.includes(candidate.id));
   }, [app]);
@@ -276,7 +289,9 @@ export function WidgetConfigDialog({
    * place to find out. The control that fills it is right there, so the answer
    * is to not offer the save rather than to explain the failure afterwards.
    */
-  const incomplete = isApp && !binding.endpoint_id;
+  // An app binding without a read is one the server refuses, whichever kind of
+  // widget carries it — and one of ours has an app to name as well.
+  const incomplete = readsApp && (!binding.endpoint_id || !binding.app_uid);
 
   /**
    * The same, for a statement the server would refuse.
@@ -366,7 +381,7 @@ export function WidgetConfigDialog({
                 slots for it are `app_uid` and `endpoint_id`, and neither is a
                 thing to type: one comes from the widget's type, the other is a
                 choice among the reads the app declares. */}
-            {(isApp ? [] : params).map((param) => (
+            {(readsApp ? [] : params).map((param) => (
               <ParamControl
                 key={param.key as string}
                 param={param}
@@ -378,8 +393,35 @@ export function WidgetConfigDialog({
               />
             ))}
 
-            {isApp && (
+            {readsApp && (
               <section className="space-y-4">
+                {!isApp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="app-uid">{t("dashboards:config.app")}</Label>
+                    <Select
+                      value={binding.app_uid ?? ""}
+                      onValueChange={(next) =>
+                        setBindingValue({
+                          app_uid: next,
+                          // A different app's reads are not this one's.
+                          endpoint_id: undefined,
+                          params: undefined,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="app-uid">
+                        <SelectValue placeholder={t("dashboards:config.appPlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(appCatalog.data?.items ?? []).map((item) => (
+                          <SelectItem key={item.app_uid} value={item.app_uid}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="app-endpoint">{t("dashboards:config.appEndpoint")}</Label>
                   <Select value={binding.endpoint_id ?? ""} onValueChange={setAppEndpoint}>

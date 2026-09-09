@@ -54,9 +54,19 @@ export interface AppDataRequest {
    *  decide this read. */
   dashboardId: number;
   params?: Record<string, unknown>;
+  /** Which widget on that dashboard is asking. The server runs the statement
+   *  stored on it, if it has one; nothing here says what to run. */
+  widgetId?: string;
 }
 
-export const getAppData = ({ guildId, appId, endpointId, dashboardId, params }: AppDataRequest) =>
+export const getAppData = ({
+  guildId,
+  appId,
+  endpointId,
+  dashboardId,
+  params,
+  widgetId,
+}: AppDataRequest) =>
   apiClient
     .get<AppDataResponse>(
       `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
@@ -66,6 +76,7 @@ export const getAppData = ({ guildId, appId, endpointId, dashboardId, params }: 
           // Sent as one encoded object so the server validates it against the
           // endpoint's own `params` rather than reading loose query keys.
           ...(params && Object.keys(params).length ? { params: JSON.stringify(params) } : {}),
+          ...(widgetId ? { widget_id: widgetId } : {}),
         },
       }
     )

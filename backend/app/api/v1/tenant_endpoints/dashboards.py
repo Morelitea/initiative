@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
 from app.api.deps import (
@@ -71,6 +72,8 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
+from app.models.tenant.guild_app import GuildApp
+from app.services.marketplace.app_data import row_columns
 from app.services.tenant.dashboard_definition import (
     DashboardDefinitionError,
     normalize_dashboard_config,
@@ -89,11 +92,38 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 # ---------------------------------------------------------------------------
 
 
-def _normalize_body(definition: dict, config: dict) -> tuple[dict, dict]:
+async def _endpoint_columns(session: AsyncSession):
+    """What each installed app says its read endpoints hand back.
+
+    Read once per save rather than per widget: a canvas of app tiles is a
+    handful of installs, and this is what lets a statement over an endpoint's
+    rows be refused while its author is looking at it.
+    """
+    installed = (await session.exec(select(GuildApp))).all()
+    declared: dict[tuple[str, str], tuple] = {}
+    for app in installed:
+        for endpoint in (app.definition or {}).get("endpoints") or []:
+            if not isinstance(endpoint, dict) or endpoint.get("direction") != "read":
+                continue
+            endpoint_id = endpoint.get("id")
+            if isinstance(endpoint_id, str):
+                declared[(app.listing_uid, endpoint_id)] = row_columns(endpoint)
+
+    def columns(app_uid: str, endpoint_id: str):
+        return declared.get((app_uid, endpoint_id))
+
+    return columns
+
+
+def _normalize_body(
+    definition: dict, config: dict, endpoint_columns=None
+) -> tuple[dict, dict]:
     """Validate a definition + its config together. Raises 422 with the
     validator's machine code so the client can localize it."""
     try:
-        clean_definition = normalize_dashboard_definition(definition or {})
+        clean_definition = normalize_dashboard_definition(
+            definition or {}, endpoint_columns=endpoint_columns
+        )
         clean_config = normalize_dashboard_config(config or {}, clean_definition)
     except DashboardDefinitionError as exc:
         raise HTTPException(
@@ -432,11 +462,15 @@ async def create_dashboard(
         # Validated again on the way in: the catalog validated it at publish
         # time, but this build decides what it can render *now*.
         definition, config = _normalize_body(
-            dict(version.definition), dashboard_in.config
+            dict(version.definition),
+            dashboard_in.config,
+            await _endpoint_columns(session),
         )
     else:
         definition, config = _normalize_body(
-            dashboard_in.definition, dashboard_in.config
+            dashboard_in.definition,
+            dashboard_in.config,
+            await _endpoint_columns(session),
         )
 
     dashboard = Dashboard(
@@ -527,7 +561,9 @@ async def update_dashboard(
     if "definition" in update_data or "config" in update_data:
         definition = update_data.get("definition", dashboard.definition)
         config = update_data.get("config", dashboard.config)
-        dashboard.definition, dashboard.config = _normalize_body(definition, config)
+        dashboard.definition, dashboard.config = _normalize_body(
+            definition, config, await _endpoint_columns(session)
+        )
         updated = True
 
     if updated:
@@ -579,7 +615,9 @@ async def upgrade_dashboard(
             detail=MarketplaceMessages.ALREADY_LATEST_VERSION,
         )
 
-    definition, config = _normalize_body(dict(version.definition), dashboard.config)
+    definition, config = _normalize_body(
+        dict(version.definition), dashboard.config, await _endpoint_columns(session)
+    )
     dashboard.definition = definition
     dashboard.config = config
     dashboard.listing_version = version.version

@@ -32,9 +32,9 @@ dropped rather than preserved, so a stored definition always has canonical shape
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Optional, Sequence
 
-from app.core.messages import DashboardMessages
+from app.core.messages import DashboardMessages, QueryMessages
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
 from app.services.marketplace.manifest_values import (
     IDENTIFIER_CHARS,
@@ -47,6 +47,8 @@ from app.services.marketplace.service_apps import (
     MAX_ENDPOINT_ID_LENGTH,
 )
 from app.services.query.resolve import QueryError, resolve
+from app.services.query.rows import RowColumn
+from app.services.query.rows import plan as row_plan
 
 SCHEMA_VERSION = 1
 
@@ -423,7 +425,19 @@ def app_widget_parts(declared: str) -> tuple[str, str] | None:
     return listing_uid, widget_id
 
 
-def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[str, Any]:
+#: How a caller looks up what an endpoint hands back: given an app and one of
+#: its endpoints, the columns its rows hold, or ``None`` where this caller
+#: cannot say. A dashboard is saved through a request that can look up the
+#: install; a listing is validated with its own manifest in hand; a factory has
+#: neither and checks the statement's shape alone.
+EndpointColumns = Callable[[str, str], "Optional[Sequence[RowColumn]]"]
+
+
+def _normalize_app_binding(
+    binding: dict[str, Any],
+    listing_uid: str,
+    endpoint_columns: "Optional[EndpointColumns]" = None,
+) -> dict[str, Any]:
     """An ``app`` binding: which installed app, which source, which parameters.
 
     ``app_uid`` has to be the app the widget came from. A widget is one app's
@@ -451,7 +465,45 @@ def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[st
     }
     if params:
         cleaned["params"] = params
+    statement = _checked_row_statement(
+        binding.get("sql"), listing_uid, endpoint_id, endpoint_columns
+    )
+    if statement is not None:
+        cleaned["sql"] = statement
     return cleaned
+
+
+def _checked_row_statement(
+    raw: Any,
+    listing_uid: str,
+    endpoint_id: str,
+    endpoint_columns: "Optional[EndpointColumns]",
+) -> Optional[str]:
+    """A statement over the rows an endpoint returns, read the way it will be.
+
+    Its shape is checked here whatever the caller knows — one ``SELECT``, the
+    allowed nodes and functions, and ``rows`` as its only relation. Its
+    *columns* are checked too wherever the caller can say what the endpoint
+    hands back, which is what keeps a widget naming a column its app does not
+    send from being storable.
+    """
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str):
+        _fail(DashboardMessages.BINDING_SQL_MISSING)
+        raise AssertionError  # unreachable; _fail raises
+    if len(raw) > MAX_SQL_LENGTH:
+        _fail(DashboardMessages.BINDING_SQL_TOO_LONG)
+    declared = endpoint_columns(listing_uid, endpoint_id) if endpoint_columns else None
+    try:
+        row_plan(raw, declared if declared is not None else ())
+    except QueryError as refused:
+        # Nothing was declared, so a name cannot be wrong here — only the shape
+        # can, and this caller cannot see the difference.
+        if declared is None and refused.code == QueryMessages.UNKNOWN_FIELD:
+            return raw
+        raise DashboardDefinitionError(refused.code) from refused
+    return raw
 
 
 def _check_app_param(value: Any) -> Any:
@@ -585,7 +637,11 @@ _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
 
 def _normalize_binding(
-    raw: Any, spec: WidgetSpec, *, app_listing_uid: str | None = None
+    raw: Any,
+    spec: WidgetSpec,
+    *,
+    app_listing_uid: str | None = None,
+    endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
     its parameters as given for the fetcher to interpret."""
@@ -597,7 +653,25 @@ def _normalize_binding(
         # total branch rather than an extra allowed value.
         if source != APP_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        return _normalize_app_binding(binding, app_listing_uid)
+        return _normalize_app_binding(binding, app_listing_uid, endpoint_columns)
+
+    if source == APP_BINDING_SOURCE:
+        # A widget of this build's own — a chart, a table, a total — reading an
+        # app, which is possible exactly as far as the rows are described. A
+        # statement makes them so: it names the columns it returns, and the
+        # endpoint declared the ones it reads. Without one they are the app's
+        # own shape, which only the app's own module knows how to draw.
+        if not str(binding.get("sql") or "").strip():
+            _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
+        # It has no module of its own to be one app's, so it names the app it
+        # reads rather than inheriting one. What it may see is decided exactly
+        # where an app widget's is: the dashboard's gates, the binding the
+        # definition stores, and the endpoint's own visibility.
+        return _normalize_app_binding(
+            binding,
+            _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),
+            endpoint_columns,
+        )
 
     if not isinstance(source, str) or source not in TABULAR_SOURCES:
         _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
@@ -698,7 +772,12 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
     return options
 
 
-def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any]:
+def _normalize_widget(
+    raw: Any,
+    index: int,
+    seen_ids: set[str],
+    endpoint_columns: "Optional[EndpointColumns]" = None,
+) -> dict[str, Any]:
     widget = _require_mapping(raw, DashboardMessages.WIDGET_INVALID)
     declared = widget.get("type")
     if not isinstance(declared, str):
@@ -734,6 +813,7 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
             widget.get("binding"),
             spec,
             app_listing_uid=app_parts[0] if app_parts else None,
+            endpoint_columns=endpoint_columns,
         ),
     }
     if preset is not None:
@@ -751,7 +831,9 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
     return cleaned
 
 
-def normalize_dashboard_definition(payload: Any) -> dict[str, Any]:
+def normalize_dashboard_definition(
+    payload: Any, *, endpoint_columns: "Optional[EndpointColumns]" = None
+) -> dict[str, Any]:
     """Validate and canonicalize a dashboard definition.
 
     Raises ``DashboardDefinitionError`` with a machine code for a widget type or
@@ -771,7 +853,8 @@ def normalize_dashboard_definition(payload: Any) -> dict[str, Any]:
 
     seen_ids: set[str] = set()
     widgets = [
-        _normalize_widget(raw, index, seen_ids) for index, raw in enumerate(raw_widgets)
+        _normalize_widget(raw, index, seen_ids, endpoint_columns)
+        for index, raw in enumerate(raw_widgets)
     ]
 
     raw_layout = definition.get("layout")

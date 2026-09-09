@@ -143,6 +143,8 @@
     "all_counter": "Todos los contadores",
     "all_document": "Todas las hojas de cálculo",
     "appEndpoint": "Qué lee",
+    "app": "Aplicación",
+    "appPlaceholder": "Elige una aplicación",
     "appEndpointPlaceholder": "Elige una lectura…",
     "appNotInstalled": "Esta aplicación no está instalada en esta comunidad.",
     "appParamPlaceholder": "Elige…",
