@@ -37,7 +37,34 @@ def upgrade() -> None:
         """
     )
     op.execute(f"GRANT USAGE ON SCHEMA public TO {ROLE}")
-    op.execute(f"GRANT SELECT ON ALL TABLES IN SCHEMA public TO {ROLE}")
+    # The read half of app_guild_base, table by table, rather than everything
+    # in the schema. Several shared tables are deliberately withheld from the
+    # request-path roles — see SHARED_TABLE_APP_USER_GRANTS — and a blanket
+    # grant here would hand them to a role meant to hold less, not more.
+    #
+    # Derived from what app_guild_base can already read, so this role's reach
+    # is that role's reach with the writes removed. guild_base_ro_parity_test
+    # holds the two together as tables come and go.
+    op.execute(
+        f"""
+        DO $$
+        DECLARE
+            readable record;
+        BEGIN
+            FOR readable IN
+                SELECT c.oid::regclass AS rel
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                  AND has_table_privilege('app_guild_base', c.oid, 'SELECT')
+            LOOP
+                EXECUTE format('GRANT SELECT ON %s TO {ROLE}', readable.rel);
+            END LOOP;
+        END
+        $$;
+        """
+    )
     # SELECT, not USAGE: reading a sequence's value is a read; advancing it is
     # what an insert does.
     op.execute(f"GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO {ROLE}")
