@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deleting a community now clears it for everyone who was in it.** Members with the app open kept the deleted community in their sidebar — it was gone, but their tab had no way to find that out, so it sat there failing to open until the page was reloaded. Everyone in a community is now told as it goes.
+
 - **Being added to something now takes effect in tabs that are already open.** When somebody added you to an initiative, the tab you had open had already worked out which initiatives it was watching — at the moment it connected — so nothing from the new one reached it. The initiative would appear, and then sit there not updating, until you reloaded or the connection happened to drop and come back. Tabs now pick up the new initiative as you are added, without either.
 
 - **A screen left open no longer quietly goes stale.** The live connection behind a community's pages could stop carrying without ever reporting itself closed — a laptop that slept, a proxy that drops connections it thinks are idle — and the tab went on showing what it had. The server now says something every thirty seconds even when nothing has happened, so a tab can tell a quiet community from a dead connection and rebuild the one it lost. A connection that comes back asks whether anything moved while it was away and re-reads the community only if something did, so a board left up on a second monitor catches up on its own.
