@@ -41,8 +41,26 @@ class FieldDescription(SanitizedBaseModel):
     options: List[str] = []
 
 
+class RelationDescription(SanitizedBaseModel):
+    """Another dataset this one can be read alongside.
+
+    What a client needs to offer a related field is the name to prefix it with
+    and the dataset to read that field's own description from — the hops in
+    between are the server's business, and a client that knew them could write
+    a join the server did not declare.
+    """
+
+    #: What a column of it is prefixed with: ``assignee.display_name``.
+    name: str
+    #: The dataset it arrives at, whose fields describe what may be named.
+    dataset: str
+
+
 class FieldCatalogResponse(SanitizedBaseModel):
     """Every field a dataset offers, in the order a client lists them."""
 
     dataset: str
     fields: List[FieldDescription]
+    #: What else it can be read alongside. A client offering a related field
+    #: reads that dataset's own description for what may be named.
+    relations: List[RelationDescription] = []

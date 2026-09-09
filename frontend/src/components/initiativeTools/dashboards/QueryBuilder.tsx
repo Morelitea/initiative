@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFieldCatalog } from "@/hooks/useFieldCatalog";
-import type { FilterFieldSpec } from "@/lib/widgets/conditions";
+import { useFieldCatalogs } from "@/hooks/useQueryVocabulary";
 
 /** The datasets a query may name. Read from the generated enum, which is the
  *  backend's own registry — so a dataset declared there is offered here on the
@@ -52,7 +52,11 @@ export interface QueryBuilderProps {
 
 export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { fields } = useFieldCatalog(spec.dataset as DatasetName);
+  const { fields, relations } = useFieldCatalog(spec.dataset as DatasetName);
+  // What each related dataset holds. A relation says only its name and where
+  // it arrives; what may be named there is that dataset's own description, so
+  // it is read the same way this one is.
+  const related = useFieldCatalogs(relations.map((relation) => relation.dataset));
 
   // Only what a statement can actually select: a computed field has no column
   // for a SELECT to read, and offering one would produce a query the server
@@ -61,9 +65,31 @@ export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
     () => fields.filter((field) => !field.field.endsWith("_ids")),
     [fields]
   );
+
+  /** What a related dataset offers, prefixed with the relation that reaches
+   *  it — which is exactly how a statement names one. */
+  const reachable = useMemo(
+    () =>
+      relations.flatMap((relation) => {
+        const holder = related.find((entry) => entry.dataset === relation.dataset);
+        return (holder?.fields ?? [])
+          .filter((field) => !field.name.endsWith("_ids"))
+          .map((field) => ({
+            name: `${relation.name}.${field.name}`,
+            type: field.type,
+            relation: relation.name,
+          }));
+      }),
+    [relations, related]
+  );
+
   const byName = useMemo(
-    () => new Map(selectable.map((field) => [field.field, field])),
-    [selectable]
+    () =>
+      new Map<string, { kind?: string }>([
+        ...selectable.map((field) => [field.field, field] as const),
+        ...reachable.map((field) => [field.name, { kind: field.type }] as const),
+      ]),
+    [selectable, reachable]
   );
 
   const patch = (next: Partial<QueryBuildRequest>) => onChange({ ...spec, ...next });
@@ -71,7 +97,7 @@ export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
   const setColumn = (index: number, column: QueryColumnSpec) =>
     patch({ columns: spec.columns.map((held, at) => (at === index ? column : held)) });
 
-  const isDate = (field?: FilterFieldSpec) => field?.kind === "date";
+  const isDate = (field?: { kind?: string }) => field?.kind === "date";
 
   return (
     <div className="space-y-4">
@@ -126,6 +152,11 @@ export function QueryBuilder({ spec, onChange }: QueryBuilderProps) {
                 {selectable.map((field) => (
                   <SelectItem key={field.field} value={field.field}>
                     {field.field}
+                  </SelectItem>
+                ))}
+                {reachable.map((field) => (
+                  <SelectItem key={field.name} value={field.name}>
+                    {field.name}
                   </SelectItem>
                 ))}
               </SelectContent>

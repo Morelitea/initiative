@@ -66,6 +66,10 @@ class ControlKind(str, Enum):
     initiative = "initiative"
     calendar = "calendar"
     counter_group = "counter_group"
+    #: An id pointing at something the UI has not been taught to browse. It
+    #: reads and it compares, so a query may name it; there is simply no picker,
+    #: which is why a field of this kind is never offered as a control.
+    reference = "reference"
     #: Values only a lookup can enumerate (a custom property's options).
     property_value = "property_value"
     date = "date"
@@ -108,6 +112,7 @@ CONTROLS: dict[ControlKind, tuple[FieldType, frozenset[FilterOp]]] = {
     ControlKind.initiative: (FieldType.reference, _IN),
     ControlKind.calendar: (FieldType.reference, _IN),
     ControlKind.counter_group: (FieldType.reference, _IN),
+    ControlKind.reference: (FieldType.reference, _IN),
     ControlKind.property_value: (FieldType.text, _EQ),
     ControlKind.date: (FieldType.date, _RANGE),
     ControlKind.boolean: (FieldType.boolean, _EQ),
@@ -264,6 +269,44 @@ _KIND_ORDER: dict[ControlKind, int] = {kind: i for i, kind in enumerate(ControlK
 
 
 @dataclass(frozen=True)
+class Hop:
+    """One join on the way to a related dataset.
+
+    ``left`` is a field of whatever came before — the dataset itself for the
+    first hop, the previous hop's dataset after that — and ``right`` is the
+    field of this one it is matched against.
+    """
+
+    dataset: str
+    left: str
+    right: str
+
+
+@dataclass(frozen=True)
+class Relation:
+    """Another dataset this one can be read alongside, and how to get there.
+
+    Declared rather than written out, so somebody building a query by clicking
+    can ask for "tasks, by the person doing them" without writing a join — and
+    so the join that is written is one the surface will run, because it is
+    built from the same declarations the columns are.
+
+    A relation may pass through a dataset nobody wants to see: a task reaches a
+    person through the table that assigns them, which is a hop and not a
+    destination.
+    """
+
+    #: What a reader calls it, and what a column of it is prefixed with.
+    name: str
+    hops: tuple[Hop, ...]
+
+    @property
+    def dataset(self) -> str:
+        """The dataset it arrives at — the last hop's."""
+        return self.hops[-1].dataset
+
+
+@dataclass(frozen=True)
 class Dataset:
     """A queryable thing, and the fields it offers.
 
@@ -283,6 +326,13 @@ class Dataset:
     tool: Optional[Tool] = None
     #: Overrides the name derived from ``tool``. Required when there is no tool.
     name_override: Optional[str] = None
+    #: The datasets this one can be read alongside, by the name a reader uses
+    #: for each. Empty means a query about it names it and nothing else.
+    relations: tuple[Relation, ...] = ()
+
+    @property
+    def by_relation(self) -> dict[str, Relation]:
+        return {relation.name: relation for relation in self.relations}
 
     @property
     def name(self) -> str:

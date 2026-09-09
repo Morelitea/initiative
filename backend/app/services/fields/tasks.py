@@ -22,6 +22,8 @@ from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.schemas.query import FilterOp
 from app.services.fields.derive import derive_fields, options_for
 from app.services.fields.spec import (
+    Hop,
+    Relation,
     EQUALITY,
     MEMBERSHIP,
     ORDERED,
@@ -213,6 +215,32 @@ def _computed() -> tuple[FieldSpec, ...]:
     )
 
 
+#: What a task can be read alongside.
+#:
+#: ``assignee`` is the one worth reading. Who is doing something is a table of
+#: its own, so naming a person beside a task is two joins — and asking for a
+#: board per person, or a count per person, is the question that made this
+#: whole declaration worth having. The table between them is a hop rather than
+#: a destination: nobody wants to see a row of two ids.
+_RELATIONS: tuple[Relation, ...] = (
+    Relation(
+        name="assignee",
+        hops=(
+            Hop(dataset="task_assignees", left="id", right="task_id"),
+            Hop(dataset="members", left="user_id", right="id"),
+        ),
+    ),
+    Relation(
+        name="status",
+        hops=(Hop(dataset="task_statuses", left="task_status_id", right="id"),),
+    ),
+    Relation(
+        name="project",
+        hops=(Hop(dataset="projects", left="project_id", right="id"),),
+    ),
+)
+
+
 def build() -> Dataset:
     """The dataset, with its columns read off the model.
 
@@ -224,4 +252,5 @@ def build() -> Dataset:
         tool=Tool.project,
         name_override="tasks",
         fields=derive_fields(Task, internal=_INTERNAL) + _computed(),
+        relations=_RELATIONS,
     )

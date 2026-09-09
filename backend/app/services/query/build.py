@@ -93,8 +93,22 @@ class QuerySpec:
     limit: Optional[int] = None
 
 
+def _split(name: str) -> tuple[Optional[str], str]:
+    """A field name, and the relation it is read through if it names one."""
+    relation, _, field_name = name.rpartition(".")
+    return (relation or None), field_name
+
+
 def _column_ref(name: str) -> ast.ColumnRef:
-    return ast.ColumnRef(fields=(ast.String(sval=name),))
+    """One column, qualified by the relation it belongs to where it names one.
+
+    A related field is written ``assignee.display_name``, and reaches the tree
+    as the relation's own name qualifying the column — which is the alias the
+    join below gives it.
+    """
+    relation, field_name = _split(name)
+    parts = (relation, field_name) if relation else (field_name,)
+    return ast.ColumnRef(fields=tuple(ast.String(sval=part) for part in parts))
 
 
 def _literal(value: Any) -> ast.Node:
@@ -184,6 +198,86 @@ def _where(conditions: Sequence[Condition]) -> Optional[ast.Node]:
     return ast.BoolExpr(boolop=BoolExprType.AND_EXPR, args=predicates)
 
 
+def _check_field(name: str, field_name: str) -> None:
+    """That a field exists, on this dataset or on one it declares a way to.
+
+    A dotted name is read through the relation it prefixes, so a name that is
+    not a field of what that relation reaches is refused here rather than
+    becoming a statement the validator would refuse afterwards.
+    """
+    relation_name, plain = _split(field_name)
+    if relation_name is None:
+        if plain not in dataset(name).by_name:
+            raise QueryError(QueryMessages.UNKNOWN_FIELD, f"{name}.{plain}")
+        return
+    relation = dataset(name).by_relation.get(relation_name)
+    if relation is None:
+        raise QueryError(QueryMessages.UNKNOWN_RELATION, f"{name}.{relation_name}")
+    if plain not in dataset(relation.dataset).by_name:
+        raise QueryError(QueryMessages.UNKNOWN_FIELD, f"{relation_name}.{plain}")
+
+
+def _relations_named(spec: QuerySpec) -> list[str]:
+    """The relations this description reads through, in the order first met."""
+    named: list[str] = []
+    for name in (
+        [column.field for column in spec.columns]
+        + [condition.field for condition in spec.where]
+        + ([spec.order_by.field] if spec.order_by else [])
+        + list(spec.group_by)
+    ):
+        relation, _ = _split(name)
+        if relation and relation not in named:
+            named.append(relation)
+    return named
+
+
+def _from(spec: QuerySpec, relations: Sequence[str]) -> ast.Node:
+    """The dataset, joined to everything the description reached through.
+
+    Each hop is written as an ordinary inner join with a condition relating the
+    two sides, which is what the validator asks of a join — so a statement the
+    builder produces is checked the same way as one somebody wrote.
+
+    The last hop of a relation is aliased to the relation's own name, so a
+    reader's ``assignee.display_name`` is what the statement says.
+    """
+    declared = dataset(spec.dataset).by_relation
+    node: ast.Node = ast.RangeVar(relname=spec.dataset, inh=True)
+    for name in relations:
+        relation = declared.get(name)
+        if relation is None:
+            raise QueryError(QueryMessages.UNKNOWN_RELATION, f"{spec.dataset}.{name}")
+        left_handle = spec.dataset
+        for index, hop in enumerate(relation.hops):
+            last = index == len(relation.hops) - 1
+            handle = name if last else f"{name}__{hop.dataset}"
+            node = ast.JoinExpr(
+                jointype=0,
+                larg=node,
+                rarg=ast.RangeVar(
+                    relname=hop.dataset,
+                    inh=True,
+                    alias=ast.Alias(aliasname=handle),
+                ),
+                quals=ast.A_Expr(
+                    kind=A_Expr_Kind.AEXPR_OP,
+                    name=(ast.String(sval="="),),
+                    lexpr=ast.ColumnRef(
+                        fields=(
+                            ast.String(sval=left_handle),
+                            ast.String(sval=hop.left),
+                        )
+                    ),
+                    rexpr=ast.ColumnRef(
+                        fields=(ast.String(sval=handle), ast.String(sval=hop.right))
+                    ),
+                ),
+            )
+            left_handle = handle
+    return node
+
+
 def build(spec: QuerySpec) -> str:
     """The statement *spec* describes.
 
@@ -195,12 +289,11 @@ def build(spec: QuerySpec) -> str:
         raise QueryError(QueryMessages.UNKNOWN_RELATION, spec.dataset)
     if not spec.columns:
         raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "no columns")
-    known = dataset(spec.dataset).by_name
     for column in spec.columns:
-        if column.field != "*" and column.field not in known:
-            raise QueryError(
-                QueryMessages.UNKNOWN_FIELD, f"{spec.dataset}.{column.field}"
-            )
+        if column.field != "*":
+            _check_field(spec.dataset, column.field)
+    for condition in spec.where:
+        _check_field(spec.dataset, condition.field)
 
     # A bare column is already named after itself, so an alias there would read
     # as "priority AS priority". Anything computed needs one, because Postgres
@@ -220,7 +313,7 @@ def build(spec: QuerySpec) -> str:
 
     select = ast.SelectStmt(
         targetList=targets,
-        fromClause=(ast.RangeVar(relname=spec.dataset, inh=True),),
+        fromClause=(_from(spec, _relations_named(spec)),),
         whereClause=_where(spec.where),
         op=0,
     )

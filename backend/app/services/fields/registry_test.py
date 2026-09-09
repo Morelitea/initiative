@@ -14,6 +14,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.core.tools import Tool
 from app.models.tenant.task import Task, TaskAssignee
 from app.schemas.query import FilterOp
 from app.services.fields.derive import derive_fields
@@ -25,6 +26,15 @@ from app.services.fields import (
     describe,
     sort_fields,
 )
+from app.services.fields.registry import dataset_names
+from app.services.query.resolve import resolve
+
+
+def _names() -> list[str]:
+    """The datasets, for parametrising. Read at collection so a new one is
+    covered by the checks below without an edit here."""
+    return sorted(dataset_names())
+
 
 pytestmark = pytest.mark.unit
 
@@ -392,3 +402,53 @@ class TestDeclaration:
         from app.core.tools import Tool
 
         assert dataset("tasks").tool is Tool.project
+
+
+@pytest.mark.unit
+class TestEveryToolIsQueryable:
+    """A tool nobody can ask about is a tool a dashboard cannot draw.
+
+    Derived from the ``Tool`` enum rather than from a list here, so an eighth
+    tool shows up as a failure the day its enum entry exists.
+    """
+
+    def test_every_tool_has_a_dataset(self):
+        governed = {
+            dataset(name).tool for name in dataset_names() if dataset(name).tool
+        }
+        assert governed == set(Tool), f"no dataset for {set(Tool) - governed}"
+
+    @pytest.mark.parametrize("name", sorted(_names()))
+    def test_a_dataset_can_be_read(self, name):
+        """Named with a field it declares, because a join table has no id."""
+        field = next(
+            spec.name for spec in dataset(name).fields if spec.column is not None
+        )
+        resolve(f"SELECT {field} FROM {name}")
+
+    @pytest.mark.parametrize("name", sorted(_names()))
+    def test_every_relation_it_declares_can_be_reached(self, name):
+        """A relation names a dataset that exists, and a field on each side of
+        every hop — so a declaration cannot point at nothing."""
+        for relation in dataset(name).relations:
+            previous = name
+            for hop in relation.hops:
+                assert hop.dataset in dataset_names(), f"{name}.{relation.name}"
+                assert hop.left in dataset(previous).by_name, (
+                    f"{name}.{relation.name}: {previous} has no {hop.left}"
+                )
+                assert hop.right in dataset(hop.dataset).by_name, (
+                    f"{name}.{relation.name}: {hop.dataset} has no {hop.right}"
+                )
+                previous = hop.dataset
+
+    @pytest.mark.parametrize("name", sorted(_names()))
+    def test_reaching_through_a_relation_reads(self, name):
+        """The join the declaration produces is one the validator accepts."""
+        for relation in dataset(name).relations:
+            field = next(
+                spec.name
+                for spec in dataset(relation.dataset).fields
+                if spec.column is not None
+            )
+            resolve(f"SELECT {relation.name}.{field} AS v FROM {name}")

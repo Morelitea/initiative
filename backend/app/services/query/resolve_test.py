@@ -135,6 +135,16 @@ class TestNamesResolveThroughTheRegistry:
     def test_one_relation_needs_no_qualifier(self):
         assert "title" in resolve("SELECT title FROM tasks").sql
 
+    def test_a_table_joined_to_itself_is_two_relations(self):
+        """Two aliases of one dataset are two relations in scope, so a bare
+        column of it names both and has to say which."""
+        sql = "SELECT title FROM tasks a JOIN tasks b ON a.id = b.id"
+        assert refusal(sql) == QueryMessages.AMBIGUOUS_FIELD
+
+    def test_a_self_join_reads_with_a_qualifier(self):
+        sql = "SELECT a.title FROM tasks a JOIN tasks b ON a.id = b.id"
+        assert "a.title" in resolve(sql).sql
+
     def test_two_relations_may_not_share_an_alias(self):
         sql = "SELECT t.id FROM tasks t JOIN projects t ON true"
         assert refusal(sql) == QueryMessages.DUPLICATE_ALIAS
@@ -406,6 +416,49 @@ class TestAGroupedExpressionKeepsItsShape:
         )
         assert resolved.parameters == ("month",)
         assert "GROUP BY 1" in resolved.sql
+
+
+class TestReachingThroughADeclaredRelation:
+    """A dataset says what it can be read alongside, so a name qualified by a
+    relation is a join nobody had to write."""
+
+    def test_a_person_is_two_joins_nobody_wrote(self):
+        resolved = resolve(
+            "SELECT assignee.display_name AS person, count(*) AS n "
+            "FROM tasks GROUP BY 1"
+        )
+        assert set(resolved.relations) == {"tasks", "task_assignees", "members"}
+        assert "INNER JOIN" in resolved.sql
+
+    def test_the_joins_it_writes_are_bound(self):
+        """Which is what the check on a join asks. Written from the declaration
+        rather than by a reader, but held to the same rule."""
+        assert (
+            resolve("SELECT status.name AS s FROM tasks").sql.count("INNER JOIN") == 1
+        )
+
+    def test_an_unqualified_column_still_reads(self):
+        """Reaching through a relation puts a second relation in scope, and a
+        column of the first must not become ambiguous for it."""
+        resolved = resolve("SELECT title, status.name AS stage FROM tasks")
+        assert "title" in resolved.sql
+
+    def test_a_name_two_relations_share_is_ambiguous(self):
+        with pytest.raises(QueryError) as refused:
+            resolve(
+                "SELECT id FROM tasks JOIN projects ON projects.id = tasks.project_id"
+            )
+        assert refused.value.code == QueryMessages.AMBIGUOUS_FIELD
+
+    def test_a_name_nothing_has_is_unknown_rather_than_ambiguous(self):
+        with pytest.raises(QueryError) as refused:
+            resolve("SELECT nowhere FROM tasks")
+        assert refused.value.code == QueryMessages.UNKNOWN_FIELD
+
+    def test_a_relation_nobody_declared_is_still_unknown(self):
+        with pytest.raises(QueryError) as refused:
+            resolve("SELECT nowhere.x FROM tasks")
+        assert refused.value.code == QueryMessages.UNKNOWN_RELATION
 
 
 class TestSubqueriesAreNotAcceptedYet:
