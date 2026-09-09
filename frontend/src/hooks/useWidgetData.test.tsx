@@ -157,6 +157,23 @@ describe("a widget already on a dashboard", () => {
     expect(Boolean((asked?.[2] as { enabled?: boolean } | undefined)?.enabled)).toBe(false);
   });
 
+  it("stays placed when its dashboard goes momentarily unknown", () => {
+    // The retained answer lives on the widget read. Falling back to sending
+    // the statement for those renders would read a hook holding nothing, and
+    // the tile would blink empty through the other path.
+    const binding = { source: "query" as const, sql: "SELECT 1 AS n FROM tasks" };
+    const { rerender } = renderHook(
+      ({ id }: { id?: number }) => useWidgetData(binding, 7, id, "w1"),
+      { initialProps: { id: 11 as number | undefined } }
+    );
+    rerender({ id: undefined });
+
+    // Still the widget read that is asking, disabled rather than replaced.
+    expect(
+      Boolean((useSqlQuery.mock.calls.at(-1)?.[2] as { enabled?: boolean } | undefined)?.enabled)
+    ).toBe(false);
+  });
+
   it("sends the statement while it is still being written", () => {
     // No dashboard and no widget: the config dialog's preview, which has
     // nothing stored yet for the server to look up.

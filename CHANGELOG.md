@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bursts of change stop stuttering** — a batch is worked out once rather than per item: a third of a second of unresponsive page becomes under a millisecond.
 
 ### Fixed
+- **Dashboard tiles stop blinking empty** — a tile briefly showed nothing while the dashboard around it reloaded, then showed its figures again.
 - **A funnel's bars stay inside their tile** — a funnel measured every stage against the first one rather than the largest, so a set of stages that does not narrow drew the bigger ones past the edge of the panel. Dashboard tiles also clip what they hold, so no visual can spill across the one beside it.
 - **A dashboard tile nobody has pointed anywhere stops reporting a failure** — a widget placed but not yet given anything to show asked the server for a statement it does not have, and drew that refusal as data it could not load.
 - **An empty heatmap says it is empty** — a daily-activity tile with nothing to show yet reported that it had no date column to place values on, sending its author to fix a query that was never wrong.

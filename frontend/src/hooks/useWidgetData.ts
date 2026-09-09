@@ -17,7 +17,7 @@
  * becoming a request storm.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { resolveAppBinding } from "@/api/appData";
 import { useAppData, useAppWidgetCatalog } from "@/hooks/useAppData";
@@ -129,7 +129,16 @@ export function useWidgetData(
   // handed. The binding here is the effective one — the definition with the
   // instance config over it, which is what the server reads too — so this asks
   // the same question the lookup would.
-  const placed = typeof dashboardId === "number" && Boolean(widgetId) && Boolean(binding.sql);
+  const addressed = typeof dashboardId === "number" && Boolean(widgetId) && Boolean(binding.sql);
+  // Placed once is placed for good. A canvas re-renders with its dashboard
+  // momentarily unknown, and a widget that flipped back to sending its own
+  // statement for those renders would read a hook that has nothing retained —
+  // so the tile would still blink empty, through the other of the two paths.
+  // A widget does not move from a canvas to a dialog while it is mounted, so
+  // remembering which of them it is costs nothing and settles it.
+  const wasPlaced = useRef(false);
+  if (addressed) wasPlaced.current = true;
+  const placed = addressed || wasPlaced.current;
   const widgetQuery = useWidgetQuery(
     source === "query" && placed ? (dashboardId ?? null) : null,
     source === "query" && placed ? (widgetId ?? null) : null,
