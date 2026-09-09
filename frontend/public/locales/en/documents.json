@@ -568,6 +568,28 @@
       "deleteLastBlocked": "Can't delete the only sheet.",
       "maxReached": "This spreadsheet is already at its maximum number of sheets.",
       "editSheetRemoved": "The sheet you were editing was removed, so that edit was discarded."
+    },
+    "pasteClipped_one": "{{count}} cell didn't fit on the sheet and wasn't pasted.",
+    "pasteClipped_other": "{{count}} cells didn't fit on the sheet and weren't pasted.",
+    "hideRows_one": "Hide row",
+    "hideRows_other": "Hide {{count}} rows",
+    "hideColumns_one": "Hide column",
+    "hideColumns_other": "Hide {{count}} columns",
+    "unhideRows": "Unhide all rows",
+    "unhideColumns": "Unhide all columns",
+    "find": {
+      "searchPlaceholder": "Find",
+      "replacePlaceholder": "Replace with",
+      "next": "Next match",
+      "previous": "Previous match",
+      "replace": "Replace",
+      "replaceAll": "Replace all",
+      "matchCase": "Match case",
+      "wholeCell": "Whole cell",
+      "noMatches": "No matches",
+      "position": "{{index}} of {{count}}",
+      "replaced_one": "{{count}} cell replaced",
+      "replaced_other": "{{count}} cells replaced"
     }
   },
   "status": {

@@ -568,6 +568,28 @@
       "deleteLastBlocked": "Das einzige Blatt kann nicht gelöscht werden.",
       "maxReached": "Diese Tabelle hat bereits die maximale Anzahl an Blättern.",
       "editSheetRemoved": "Das Blatt, das Sie bearbeitet haben, wurde entfernt — die Änderung wurde verworfen."
+    },
+    "pasteClipped_one": "{{count}} Zelle passte nicht auf das Blatt und wurde nicht eingefügt.",
+    "pasteClipped_other": "{{count}} Zellen passten nicht auf das Blatt und wurden nicht eingefügt.",
+    "hideRows_one": "Zeile ausblenden",
+    "hideRows_other": "{{count}} Zeilen ausblenden",
+    "hideColumns_one": "Spalte ausblenden",
+    "hideColumns_other": "{{count}} Spalten ausblenden",
+    "unhideRows": "Alle Zeilen einblenden",
+    "unhideColumns": "Alle Spalten einblenden",
+    "find": {
+      "searchPlaceholder": "Suchen",
+      "replacePlaceholder": "Ersetzen durch",
+      "next": "Nächster Treffer",
+      "previous": "Vorheriger Treffer",
+      "replace": "Ersetzen",
+      "replaceAll": "Alle ersetzen",
+      "matchCase": "Groß-/Kleinschreibung",
+      "wholeCell": "Ganze Zelle",
+      "noMatches": "Keine Treffer",
+      "position": "{{index}} von {{count}}",
+      "replaced_one": "{{count}} Zelle ersetzt",
+      "replaced_other": "{{count}} Zellen ersetzt"
     }
   },
   "status": {

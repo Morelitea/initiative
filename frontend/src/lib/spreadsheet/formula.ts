@@ -36,32 +36,255 @@ import { DEFAULT_SHEET_ID, type SheetId, sheetNameKey } from "@/lib/spreadsheet/
 
 export { isFormula };
 
-// fast-formula-parser ships ~280 of Excel's functions, but a few of the
-// most common aggregates (MIN, MAX, COUNTA) are unimplemented stubs. We
-// register them via the same FormulaHelpers.flattenParams plumbing the
-// built-ins use, so they accept literals, cell refs, and ranges alike.
+/** Collect the numbers a variadic argument list flattens to — literals,
+ *  cell references and ranges alike, which is what makes ``MEDIAN(A1:A9)``
+ *  and ``MEDIAN(1,2,3)`` the same call. */
+const numbersOf = (params: unknown[]): number[] => {
+  const out: number[] = [];
+  FormulaHelpers.flattenParams(params, Types.NUMBER, true, (item) => {
+    if (typeof item === "number" && Number.isFinite(item)) out.push(item);
+  });
+  return out;
+};
+
+/** Everything an argument list flattens to, types intact — for the
+ *  functions that count or compare rather than add. */
+const valuesOf = (params: unknown[]): unknown[] => {
+  const out: unknown[] = [];
+  FormulaHelpers.flattenParams(params, null, true, (item) => out.push(item));
+  return out;
+};
+
+/** The parser hands functions on its context list itself as the first
+ *  argument. Only the two members our overrides use are named here. */
+interface FunctionContext {
+  /** Resolve an unretrieved reference argument to its value(s). */
+  retrieveRef: (valueOrRef: unknown) => unknown;
+  utils: { extractRefValue: (param: unknown) => { val: unknown; isArray: boolean } };
+}
+
+const str = (param: unknown, fallback?: string): string =>
+  String(FormulaHelpers.accept(param, Types.STRING, fallback));
+const num = (param: unknown, fallback?: number): number =>
+  Number(FormulaHelpers.accept(param, Types.NUMBER, fallback));
+
+/** Sum of squared deviations — the shared half of VAR and STDEV. */
+const sumSquaredDeviations = (values: number[]): number => {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  return values.reduce((acc, v) => acc + (v - mean) ** 2, 0);
+};
+
+const variance = (values: number[], sample: boolean): number | FormulaError => {
+  const n = values.length;
+  if (sample ? n < 2 : n < 1) return FormulaError.DIV0;
+  return sumSquaredDeviations(values) / (sample ? n - 1 : n);
+};
+
+// fast-formula-parser ships ~280 of Excel's functions, but a number of
+// everyday ones are unimplemented stubs or absent altogether. They're
+// registered here through the same FormulaHelpers plumbing the built-ins
+// use, so they accept literals, cell references and ranges alike.
 const CUSTOM_FUNCTIONS = {
+  // --- aggregates --------------------------------------------------------
   MIN: (...numbers: unknown[]): number => {
-    let min: number | null = null;
-    FormulaHelpers.flattenParams(numbers, Types.NUMBER, true, (item) => {
-      if (typeof item === "number" && (min === null || item < min)) min = item;
-    });
-    return min ?? 0; // Excel: MIN of no numbers is 0
+    const values = numbersOf(numbers);
+    return values.length === 0 ? 0 : Math.min(...values); // Excel: MIN of nothing is 0
   },
   MAX: (...numbers: unknown[]): number => {
-    let max: number | null = null;
-    FormulaHelpers.flattenParams(numbers, Types.NUMBER, true, (item) => {
-      if (typeof item === "number" && (max === null || item > max)) max = item;
-    });
-    return max ?? 0; // Excel: MAX of no numbers is 0
+    const values = numbersOf(numbers);
+    return values.length === 0 ? 0 : Math.max(...values);
   },
-  COUNTA: (...ranges: unknown[]): number => {
-    let count = 0;
-    FormulaHelpers.flattenParams(ranges, null, true, (item) => {
-      if (item !== null && item !== undefined && item !== "") count++;
-    });
-    return count;
+  COUNTA: (...ranges: unknown[]): number =>
+    valuesOf(ranges).filter((item) => item !== null && item !== undefined && item !== "").length,
+  COUNTBLANK: (...ranges: unknown[]): number =>
+    valuesOf(ranges).filter((item) => item === null || item === undefined || item === "").length,
+  MEDIAN: (...numbers: unknown[]): number | FormulaError => {
+    const values = numbersOf(numbers).sort((a, b) => a - b);
+    if (values.length === 0) return FormulaError.NUM;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 === 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
   },
+  // ``k`` counts from the largest for LARGE and the smallest for SMALL, and
+  // is 1-based in both.
+  LARGE: (array: unknown, k: unknown): number | FormulaError => {
+    const values = numbersOf([array]).sort((a, b) => b - a);
+    const at = Math.trunc(num(k));
+    return at >= 1 && at <= values.length ? values[at - 1] : FormulaError.NUM;
+  },
+  SMALL: (array: unknown, k: unknown): number | FormulaError => {
+    const values = numbersOf([array]).sort((a, b) => a - b);
+    const at = Math.trunc(num(k));
+    return at >= 1 && at <= values.length ? values[at - 1] : FormulaError.NUM;
+  },
+  /** Position in the sorted order, ties sharing the best rank. ``order``
+   *  0 (or omitted) ranks largest first, anything else smallest first. */
+  RANK: (value: unknown, array: unknown, order?: unknown): number | FormulaError => {
+    const target = num(value);
+    const descending = num(order, 0) === 0;
+    const values = numbersOf([array]);
+    if (!values.includes(target)) return FormulaError.NA;
+    const ahead = values.filter((v) => (descending ? v > target : v < target)).length;
+    return ahead + 1;
+  },
+  STDEV: (...numbers: unknown[]): number | FormulaError => {
+    const result = variance(numbersOf(numbers), true);
+    return result instanceof FormulaError ? result : Math.sqrt(result);
+  },
+  STDEVP: (...numbers: unknown[]): number | FormulaError => {
+    const result = variance(numbersOf(numbers), false);
+    return result instanceof FormulaError ? result : Math.sqrt(result);
+  },
+  VAR: (...numbers: unknown[]): number | FormulaError => variance(numbersOf(numbers), true),
+  VARP: (...numbers: unknown[]): number | FormulaError => variance(numbersOf(numbers), false),
+
+  // --- text --------------------------------------------------------------
+  UPPER: (text: unknown): string => str(text).toUpperCase(),
+  /** Replace occurrences of ``oldText``; with ``instance`` given, only that
+   *  one (1-based). Case-sensitive, like Excel's. */
+  SUBSTITUTE: (
+    text: unknown,
+    oldText: unknown,
+    newText: unknown,
+    instance?: unknown
+  ): string | FormulaError => {
+    const haystack = str(text);
+    const needle = str(oldText);
+    const replacement = str(newText);
+    if (needle === "") return haystack;
+    const which = instance === undefined ? null : Math.trunc(num(instance));
+    if (which !== null && which < 1) return FormulaError.VALUE;
+    let out = "";
+    let at = 0;
+    let seen = 0;
+    for (;;) {
+      const hit = haystack.indexOf(needle, at);
+      if (hit < 0) break;
+      seen++;
+      const take = which === null || seen === which;
+      out += haystack.slice(at, hit) + (take ? replacement : needle);
+      at = hit + needle.length;
+    }
+    return out + haystack.slice(at);
+  },
+  /** Join with a delimiter, optionally dropping the empties. */
+  TEXTJOIN: (delimiter: unknown, ignoreEmpty: unknown, ...texts: unknown[]): string => {
+    const separator = str(delimiter, "");
+    const skipEmpty = FormulaHelpers.accept(ignoreEmpty, Types.BOOLEAN, true) !== false;
+    const parts = valuesOf(texts)
+      .map((item) => (item === null || item === undefined ? "" : String(item)))
+      .filter((part) => !skipEmpty || part !== "");
+    return parts.join(separator);
+  },
+  /** Text that reads as a number, as a number. */
+  VALUE: (text: unknown): number | FormulaError => {
+    const raw = FormulaHelpers.accept(text, null);
+    if (typeof raw === "number") return raw;
+    const trimmed = String(raw ?? "").trim();
+    if (trimmed === "") return FormulaError.VALUE;
+    const parsed = Number(trimmed.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : FormulaError.VALUE;
+  },
+  /** Case-*insensitive* position of one string inside another — the
+   *  difference from FIND, which the shipped implementation loses. */
+  SEARCH: (findText: unknown, withinText: unknown, startNum?: unknown): number | FormulaError => {
+    const needle = str(findText).toLowerCase();
+    const haystack = str(withinText);
+    const from = Math.trunc(num(startNum, 1));
+    if (from < 1 || from > haystack.length) return FormulaError.VALUE;
+    const at = haystack.toLowerCase().indexOf(needle, from - 1);
+    return at < 0 ? FormulaError.VALUE : at + 1;
+  },
+
+  // --- lookup & logic ----------------------------------------------------
+  /** Position of a value in a one-dimensional range. ``matchType`` 0 is an
+   *  exact match; 1 (the default) and -1 want sorted data and take the
+   *  closest value not past the target. */
+  MATCH: (lookup: unknown, array: unknown, matchType?: unknown): number | FormulaError => {
+    const target = FormulaHelpers.accept(lookup, null);
+    const values = valuesOf([array]);
+    const mode = Math.trunc(num(matchType, 1));
+    const same = (a: unknown, b: unknown) =>
+      typeof a === "string" && typeof b === "string"
+        ? a.toLowerCase() === b.toLowerCase()
+        : a === b;
+    if (mode === 0) {
+      const at = values.findIndex((v) => same(v, target));
+      return at < 0 ? FormulaError.NA : at + 1;
+    }
+    let best = -1;
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      if (typeof v !== "number" || typeof target !== "number") continue;
+      if (mode > 0 ? v <= target : v >= target) best = i;
+      else break;
+    }
+    return best < 0 ? FormulaError.NA : best + 1;
+  },
+  /**
+   * Value at a position in a range.
+   *
+   * The shipped implementation answers with a freshly built cell reference
+   * that carries no sheet, so the result is read from whichever sheet the
+   * *formula* lives on — ``=INDEX(Data!A2:A9,4)`` written on another tab
+   * returns that tab's A5. This one resolves the range to its values first,
+   * which keeps the sheet the reference named.
+   *
+   * INDEX is on the library's fixed list of functions that receive their
+   * arguments unretrieved, hence the context and the manual unwrapping.
+   * Excel's rarely-used reference form (an INDEX as a range endpoint) is
+   * not supported: this always yields a value.
+   */
+  INDEX: (context: unknown, ranges: unknown, rowNum: unknown, colNum: unknown): unknown => {
+    const ctx = context as FunctionContext;
+    const asIndex = (param: unknown, fallback: number): number => {
+      if (param === null || param === undefined) return fallback;
+      const { val, isArray } = ctx.utils.extractRefValue(param);
+      return Math.trunc(
+        Number(FormulaHelpers.accept({ value: val, isArray }, Types.NUMBER, fallback))
+      );
+    };
+    const row = asIndex(rowNum, 1);
+    // 0 means "not given" — Excel's own ``column_num`` is 1-based.
+    const col = asIndex(colNum, 0);
+    const data = ctx.retrieveRef(ranges);
+    const grid: unknown[][] = Array.isArray(data)
+      ? (data as unknown[][]).map((line) => (Array.isArray(line) ? line : [line]))
+      : [[data]];
+    if (grid.length === 0) return FormulaError.REF;
+
+    // A single row takes its one index along the columns, matching Excel's
+    // shorthand for a horizontal range.
+    const [r, c] = col === 0 && grid.length === 1 ? [1, row] : col === 0 ? [row, 1] : [row, col];
+    const line = grid[r - 1];
+    if (!line || c < 1 || c > line.length) return FormulaError.REF;
+    return line[c - 1];
+  },
+  /** Pick the ``index``-th of the following arguments, 1-based.
+   *
+   *  CHOOSE is on the library's fixed list of context-taking functions, so
+   *  it is handed the parser context ahead of its own arguments however it
+   *  was registered — hence the leading parameter we don't use. */
+  CHOOSE: (_context: unknown, index: unknown, ...choices: unknown[]): unknown => {
+    const at = Math.trunc(num(index));
+    if (at < 1 || at > choices.length) return FormulaError.VALUE;
+    return FormulaHelpers.accept(choices[at - 1], null);
+  },
+  /** Compare one value against condition/result pairs, with an optional
+   *  trailing default. */
+  SWITCH: (value: unknown, ...rest: unknown[]): unknown => {
+    const target = FormulaHelpers.accept(value, null);
+    const pairs = Math.floor(rest.length / 2);
+    for (let i = 0; i < pairs; i++) {
+      if (FormulaHelpers.accept(rest[i * 2], null) === target) {
+        return FormulaHelpers.accept(rest[i * 2 + 1], null);
+      }
+    }
+    // An odd argument left over is the default.
+    return rest.length % 2 === 1
+      ? FormulaHelpers.accept(rest[rest.length - 1], null)
+      : FormulaError.NA;
+  },
+
   // A formula reads the workbook and nothing else. The library ships two
   // functions that reach outside it; both are answered as unknown names, the
   // same as any function we don't implement.

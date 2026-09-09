@@ -458,6 +458,10 @@ def _normalize_index_map(value: Any, *, cap: int, allow_width: bool) -> dict[str
         style = _normalize_style(entry.get("style"))
         if style is not None:
             norm["style"] = style
+        # A hidden line is drawn at zero size; only the flag being set is
+        # meaningful, so ``false`` is stored as absence.
+        if entry.get("hidden") is True:
+            norm["hidden"] = True
         if norm:
             # Canonical index key collapses "007" → "7".
             out[str(idx)] = norm

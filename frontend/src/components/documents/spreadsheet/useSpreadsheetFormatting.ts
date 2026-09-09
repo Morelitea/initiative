@@ -73,10 +73,12 @@ export interface ColumnPatch {
   width?: number;
   format?: NumberFormat | null;
   style?: Partial<CellStyle>;
+  hidden?: boolean;
 }
 export interface RowPatch {
   height?: number;
   style?: Partial<CellStyle>;
+  hidden?: boolean;
 }
 export interface CellPatch {
   format?: NumberFormat | null;
@@ -129,6 +131,12 @@ const applyColumnPatch = (
     else draft.format = patch.format;
   }
   if ("style" in patch) draft.style = mergeStyle(prev?.style, patch.style);
+  // ``hidden: false`` removes the flag rather than storing it, so an
+  // unhidden line leaves nothing behind in the saved workbook.
+  if ("hidden" in patch) {
+    if (patch.hidden) draft.hidden = true;
+    else delete draft.hidden;
+  }
   return sanitizeColumnFmt(draft);
 };
 
@@ -136,6 +144,10 @@ const applyRowPatch = (prev: RowFmt | undefined, patch: RowPatch): RowFmt | unde
   const draft: Record<string, unknown> = { ...(prev ?? {}) };
   if ("height" in patch) draft.height = patch.height;
   if ("style" in patch) draft.style = mergeStyle(prev?.style, patch.style);
+  if ("hidden" in patch) {
+    if (patch.hidden) draft.hidden = true;
+    else delete draft.hidden;
+  }
   return sanitizeRowFmt(draft);
 };
 

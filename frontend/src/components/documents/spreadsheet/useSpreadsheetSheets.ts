@@ -21,9 +21,8 @@ import {
   sheetPart,
   sheetsRoot,
 } from "@/components/documents/spreadsheet/workbookDoc";
+import { MAX_COLS, MAX_ROWS } from "@/lib/spreadsheet/bounds";
 import {
-  MAX_COLS,
-  MAX_ROWS,
   SPREADSHEET_SCHEMA_VERSION,
   type SpreadsheetContent,
   type SpreadsheetSheetContent,

@@ -150,14 +150,23 @@ def _render_sheet(sheet: Worksheet, content: dict) -> None:
                 _apply_style(cell, style)
 
     for key, entry in columns.items():
-        width = entry.get("width") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        letter = get_column_letter(int(key) + 1)
+        width = entry.get("width")
         if isinstance(width, (int, float)):
-            letter = get_column_letter(int(key) + 1)
             sheet.column_dimensions[letter].width = width / _PX_PER_WIDTH_UNIT
+        if entry.get("hidden") is True:
+            sheet.column_dimensions[letter].hidden = True
     for key, entry in row_fmts.items():
-        height = entry.get("height") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        number = int(key) + 1
+        height = entry.get("height")
         if isinstance(height, (int, float)):
-            sheet.row_dimensions[int(key) + 1].height = height * _PX_TO_POINTS
+            sheet.row_dimensions[number].height = height * _PX_TO_POINTS
+        if entry.get("hidden") is True:
+            sheet.row_dimensions[number].hidden = True
 
     frozen = content.get("frozen") or {}
     frozen_rows = int(frozen.get("rows") or 0)

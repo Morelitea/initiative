@@ -130,9 +130,14 @@ const LOCAL_ONLY: SheetFilter = (sheet) => sheet === null;
  * probes at identifier boundaries so a function name (``LOG10``) or a name
  * like ``FOO_A1`` isn't rewritten. Non-formula input is returned unchanged.
  */
+/** Which part of a token an endpoint is. A range writes its sheet
+ *  qualifier once, on the left endpoint (``Sheet1!A1:B3``), so a mapper that
+ *  adds or removes one has to know which end it is looking at. */
+type RefRole = "single" | "start" | "end";
+
 const scanReferences = (
   formula: string,
-  mapSingle: (endpoint: RefEndpoint) => string | null
+  mapSingle: (endpoint: RefEndpoint, role: RefRole) => string | null
 ): string => {
   if (!isFormula(formula)) return formula;
   const body = formula.slice(1);
@@ -167,9 +172,9 @@ const scanReferences = (
 
     const match = matchReferenceAt(body, i);
     if (match) {
-      const start = mapSingle(match.start);
+      const start = mapSingle(match.start, match.end ? "start" : "single");
       if (match.end) {
-        const end = mapSingle(match.end);
+        const end = mapSingle(match.end, "end");
         // A deleted/off-grid endpoint collapses the whole range (Excel).
         out += start === null || end === null ? "#REF!" : `${start}:${end}`;
       } else {
@@ -281,6 +286,30 @@ export const ownSheetFilter = (name: string): SheetFilter => {
 export const otherSheetFilter = (name: string): SheetFilter => {
   const key = sheetNameKey(name);
   return (sheet) => sheet !== null && sheetNameKey(sheet) === key;
+};
+
+/**
+ * Name ``sheetName`` on every reference that named no sheet.
+ *
+ * An unqualified reference means "the sheet this formula lives on", so a
+ * formula that *moves* to another sheet — a cut and paste across tabs —
+ * would silently start reading the target sheet's cells. Spelling the
+ * source sheet out keeps it pointing at the data it was pointing at, which
+ * is what a move means.
+ *
+ * The qualifier goes on a range's left endpoint only (``Sheet1!A1:B3``),
+ * matching how a range is written everywhere else. References that already
+ * name a sheet are left exactly as they were.
+ */
+export const qualifyLocalReferences = (formula: string, sheetName: string): string => {
+  const prefix = formatSheetPrefix(sheetName);
+  return scanReferences(formula, (endpoint, role) =>
+    emitRef(
+      endpoint,
+      endpoint.a1[0],
+      endpoint.sheet === null && role !== "end" ? prefix : undefined
+    )
+  );
 };
 
 /**

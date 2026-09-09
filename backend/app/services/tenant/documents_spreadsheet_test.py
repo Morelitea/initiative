@@ -1,0 +1,107 @@
+"""Unit tests for the spreadsheet-content normalizer.
+
+The normalizer decides what a saved workbook contains: it builds its output
+from an allow-list of known keys, so anything it doesn't name is discarded.
+That makes it the place a schema addition is most easily forgotten, and the
+failure is quiet — the live collaborative document keeps carrying the new
+field, so the feature works for a whole session and is gone on reload.
+"""
+
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from app.services.tenant.documents_spreadsheet import normalize_spreadsheet_content
+
+FIXTURE = (
+    Path(__file__).parents[4]
+    / "frontend"
+    / "src"
+    / "lib"
+    / "spreadsheet"
+    / "sheet-schema.fixture.json"
+)
+
+
+def _leaf_paths(value: Any, prefix: str = "") -> set[str]:
+    """Every leaf in a value, as a dotted path.
+
+    Map keys that are data rather than schema — cell keys, row and column
+    indexes — collapse to ``*``, so ``columns.0.width`` and
+    ``columns.7.width`` are one path rather than two.
+    """
+    if not isinstance(value, dict):
+        return {prefix} if prefix else set()
+    out: set[str] = set()
+    for key, child in value.items():
+        segment = "*" if re.fullmatch(r"\d+(:\d+)?", str(key)) else str(key)
+        out |= _leaf_paths(child, f"{prefix}.{segment}" if prefix else segment)
+    return out
+
+
+def test_schema_fixture_survives_normalization() -> None:
+    """Every field the shared fixture defines comes back out.
+
+    The fixture is one maximal sheet, shared with the client parser, which
+    asserts the same thing in ``frontend/src/lib/spreadsheet/content.test.ts``.
+    Add a field to the schema and both sides fail until they carry it.
+    """
+    if not FIXTURE.exists():  # a backend-only checkout has no frontend tree
+        pytest.skip("frontend tree not present")
+
+    sheet = json.loads(FIXTURE.read_text())["sheet"]
+    normalized = normalize_spreadsheet_content(
+        {"schema_version": 3, "kind": "spreadsheet", "sheets": [sheet]}
+    )
+    kept = _leaf_paths(normalized["sheets"][0])
+    assert sorted(path for path in _leaf_paths(sheet) if path not in kept) == []
+
+
+def test_hidden_lines_survive() -> None:
+    """A hidden row or column is formatting, and persists like any other."""
+    normalized = normalize_spreadsheet_content(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {
+                    "id": "s1",
+                    "name": "S",
+                    "cells": {},
+                    "columns": {"4": {"hidden": True}},
+                    "rows": {"9": {"hidden": True, "height": 30}},
+                }
+            ],
+        }
+    )
+    sheet = normalized["sheets"][0]
+    assert sheet["columns"]["4"]["hidden"] is True
+    assert sheet["rows"]["9"] == {"hidden": True, "height": 30}
+
+
+def test_hidden_false_is_not_stored() -> None:
+    """Only the flag being set means anything, so ``false`` leaves nothing
+    behind rather than filling every saved workbook with noise."""
+    normalized = normalize_spreadsheet_content(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {
+                    "id": "s1",
+                    "name": "S",
+                    "cells": {},
+                    "columns": {
+                        "0": {"hidden": False},
+                        "1": {"hidden": False, "width": 90},
+                    },
+                }
+            ],
+        }
+    )
+    columns = normalized["sheets"][0]["columns"]
+    assert "0" not in columns
+    assert columns["1"] == {"width": 90}

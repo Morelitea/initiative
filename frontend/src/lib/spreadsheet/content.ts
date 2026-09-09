@@ -23,6 +23,7 @@
  * with no migration step.
  */
 
+import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS } from "@/lib/spreadsheet/bounds";
 import type { CellValue } from "@/lib/spreadsheet/coords";
 import {
   DEFAULT_SHEET_ID,
@@ -41,11 +42,6 @@ import {
 } from "@/lib/spreadsheet/styles";
 
 export const SPREADSHEET_SCHEMA_VERSION = 3;
-
-export const DEFAULT_ROWS = 100;
-export const DEFAULT_COLS = 26;
-export const MAX_ROWS = 100_000;
-export const MAX_COLS = 1_000;
 
 /** One sheet's persisted content: identity, canvas size, and the same
  *  sparse structures a v2 document stored at its top level. */

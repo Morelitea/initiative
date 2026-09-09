@@ -568,6 +568,28 @@
       "deleteLastBlocked": "Impossible de supprimer la seule feuille.",
       "maxReached": "Cette feuille de calcul a déjà atteint le nombre maximal de feuilles.",
       "editSheetRemoved": "La feuille que vous modifiiez a été supprimée : la modification a été abandonnée."
+    },
+    "pasteClipped_one": "{{count}} cellule ne tenait pas sur la feuille et n'a pas été collée.",
+    "pasteClipped_other": "{{count}} cellules ne tenaient pas sur la feuille et n'ont pas été collées.",
+    "hideRows_one": "Masquer la ligne",
+    "hideRows_other": "Masquer {{count}} lignes",
+    "hideColumns_one": "Masquer la colonne",
+    "hideColumns_other": "Masquer {{count}} colonnes",
+    "unhideRows": "Afficher toutes les lignes",
+    "unhideColumns": "Afficher toutes les colonnes",
+    "find": {
+      "searchPlaceholder": "Rechercher",
+      "replacePlaceholder": "Remplacer par",
+      "next": "Occurrence suivante",
+      "previous": "Occurrence précédente",
+      "replace": "Remplacer",
+      "replaceAll": "Tout remplacer",
+      "matchCase": "Respecter la casse",
+      "wholeCell": "Cellule entière",
+      "noMatches": "Aucune occurrence",
+      "position": "{{index}} sur {{count}}",
+      "replaced_one": "{{count}} cellule remplacée",
+      "replaced_other": "{{count}} cellules remplacées"
     }
   },
   "status": {

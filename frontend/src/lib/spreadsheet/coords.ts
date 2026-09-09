@@ -50,13 +50,43 @@ export const letterToColIndex = (letters: string): number => {
   return total - 1;
 };
 
-/** A normalized 0-based cell box (top-left .. bottom-right, inclusive). */
+/** A normalized 0-based cell box (top-left .. bottom-right, inclusive).
+ *  The one rectangle type — selections, fills, clipboard blocks and
+ *  parsed A1 ranges are all this. */
 export interface CellRange {
   r1: number;
   c1: number;
   r2: number;
   c2: number;
 }
+
+/** The rectangle spanned by two corners, in any order. */
+export const normalizeRange = (
+  a: { row: number; col: number },
+  b: { row: number; col: number }
+): CellRange => ({
+  r1: Math.min(a.row, b.row),
+  c1: Math.min(a.col, b.col),
+  r2: Math.max(a.row, b.row),
+  c2: Math.max(a.col, b.col),
+});
+
+/** A one-cell range. */
+export const cellRange = (row: number, col: number): CellRange => ({
+  r1: row,
+  c1: col,
+  r2: row,
+  c2: col,
+});
+
+export const rangeContains = (range: CellRange, row: number, col: number): boolean =>
+  row >= range.r1 && row <= range.r2 && col >= range.c1 && col <= range.c2;
+
+/** Rows × columns covered, for a size the caller wants to check or report. */
+export const rangeSize = (range: CellRange): { rows: number; cols: number } => ({
+  rows: range.r2 - range.r1 + 1,
+  cols: range.c2 - range.c1 + 1,
+});
 
 // A1 cell ref or ``ref:ref`` range, ``$`` anchors allowed and ignored.
 const A1_RANGE = /^\s*\$?([A-Za-z]+)\$?(\d+)(?:\s*:\s*\$?([A-Za-z]+)\$?(\d+))?\s*$/;
