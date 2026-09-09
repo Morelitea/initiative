@@ -242,26 +242,42 @@ export const GuildAvatar = ({
   icon,
   active,
   size = "md",
+  unread = false,
 }: {
   name: string;
   /** ``GuildRead.icon_url`` — a path this server serves, not the bytes. */
   icon?: string | null;
   active: boolean;
   size?: "sm" | "md";
+  /** Something in this community is unread. A dot, never a number. */
+  unread?: boolean;
 }) => {
   const initials = useMemo(() => getInitials(name, "G"), [name]);
   // Same-origin on web; on native it needs the API origin and a scoped token,
   // which is what an <img> can carry.
   const src = icon ? resolveHeaderlessApiUrl(icon) : null;
   return (
-    <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
-      {src ? <AvatarImage src={src} alt={name} /> : null}
-      <AvatarFallback
-        className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
-      >
-        {initials}
-      </AvatarFallback>
-    </Avatar>
+    <span className="relative block">
+      <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
+        {src ? <AvatarImage src={src} alt={name} /> : null}
+        <AvatarFallback
+          className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
+        >
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+      {unread ? (
+        // Where a presence badge sits, and ringed the same way: on the corner
+        // of the round avatar rather than the square button behind it.
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute right-0 bottom-0 rounded-full bg-primary ring-2 ring-background",
+            size === "sm" ? "size-2" : "size-3"
+          )}
+        />
+      ) : null}
+    </span>
   );
 };
 
@@ -336,13 +352,12 @@ const SortableGuildButton = ({
                 aria-hidden="true"
               />
             ) : null}
-            <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
-            {hasUnread ? (
-              <span
-                aria-hidden="true"
-                className="absolute -left-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-foreground"
-              />
-            ) : null}
+            <GuildAvatar
+              name={guild.name}
+              icon={guild.icon_url}
+              active={isActive}
+              unread={hasUnread}
+            />
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
@@ -373,6 +388,7 @@ const GrantGuildButton = ({
 }) => {
   const { t } = useTranslation("guilds");
   const left = grantMinutesLeft(guild.grantExpiresAt);
+  const unread = useUnreadTree();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -387,7 +403,12 @@ const GrantGuildButton = ({
           )}
           aria-label={t("switchTo", { name: guild.name })}
         >
-          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
+          <GuildAvatar
+            name={guild.name}
+            icon={guild.icon_url}
+            active={isActive}
+            unread={unread.hasGuild(guild.id)}
+          />
           <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
             <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
           </span>
@@ -435,6 +456,7 @@ const GuildRow = ({
   const { t } = useTranslation("guilds");
   const isGrant = guild.accessType === "grant";
   const left = isGrant ? grantMinutesLeft(guild.grantExpiresAt) : null;
+  const rowUnread = useUnreadTree();
   return (
     <GuildContextMenu guild={guild} onReorder={onStartReorder}>
       <button
@@ -458,7 +480,12 @@ const GuildRow = ({
         {...dragProps}
       >
         <span className="relative shrink-0">
-          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
+          <GuildAvatar
+            name={guild.name}
+            icon={guild.icon_url}
+            active={isActive}
+            unread={rowUnread.hasGuild(guild.id)}
+          />
           {isGrant ? (
             <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
               <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
