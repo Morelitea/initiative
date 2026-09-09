@@ -194,3 +194,29 @@ async def test_every_comment_notifier_records_its_tool(
     line = await _only(session, recipient.id)
     assert line.initiative_id == 3
     assert line.tool == tool
+
+
+@pytest.mark.integration
+async def test_an_event_notification_names_its_calendar_initiative(
+    session: AsyncSession,
+):
+    """The one that was actually missing: an inbox full of event reminders lit
+    its community and nothing under it."""
+    from app.testing import create_calendar, create_calendar_event, create_initiative
+
+    organizer = await create_user(session, email="place-event@example.com")
+    guild = await create_guild(session, creator=organizer)
+    initiative = await create_initiative(session, guild, organizer)
+    calendar = await create_calendar(session, initiative, organizer)
+    event = await create_calendar_event(session, calendar, organizer)
+    attendee = await create_user(session, email="place-attendee@example.com")
+
+    await notifications_service.notify_event_reminder(
+        session, recipient=attendee, event=event, guild_id=guild.id
+    )
+    await session.commit()
+
+    line = await _only(session, attendee.id)
+    assert line.guild_id == guild.id
+    assert line.initiative_id == initiative.id
+    assert line.tool == Tool.calendar.value
