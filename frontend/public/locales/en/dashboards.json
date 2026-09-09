@@ -323,5 +323,41 @@
     "column": "Column",
     "date": "Date",
     "total": "Total"
+  },
+  "builder": {
+    "dataset": "What this reads",
+    "columns": "Columns",
+    "addColumn": "Add a column",
+    "removeColumn": "Remove this column",
+    "everyRow": "Every row",
+    "asItIs": "As it is",
+    "exactTime": "Exact time",
+    "groupBy": "One row per",
+    "everythingTogether": "Everything together",
+    "groupByHelp": "Group rows that share a value, and count or total the rest.",
+    "statement": "The statement this builds",
+    "refused": "That combination cannot be read. Try a different column."
+  },
+  "aggregate": {
+    "count": "Count",
+    "sum": "Total",
+    "avg": "Average",
+    "min": "Lowest",
+    "max": "Highest"
+  },
+  "bucket": {
+    "day": "By day",
+    "week": "By week",
+    "month": "By month",
+    "quarter": "By quarter",
+    "year": "By year"
+  },
+  "dataset": {
+    "tasks": "Tasks",
+    "projects": "Projects",
+    "calendar_events": "Calendar events",
+    "counters": "Counters",
+    "counter_groups": "Counter groups",
+    "task_statuses": "Task statuses"
   }
 }

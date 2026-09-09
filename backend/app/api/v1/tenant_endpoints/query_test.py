@@ -184,3 +184,61 @@ async def test_a_query_returns_what_its_author_reaches_and_no_more(
     assert theirs.status_code == 200
     assert mine.json()["rows"] == [[1]]
     assert theirs.json()["rows"] == [[0]]
+
+
+async def test_a_built_query_answers_with_its_sql_and_its_shape(client, acting_user):
+    """The builder describes and the server writes the SQL, so what comes back
+    is both halves the builder needs: the statement to store, and the columns
+    its slot pickers offer."""
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/build"),
+        json={
+            "dataset": "tasks",
+            "columns": [
+                {"field": "priority"},
+                {"field": "*", "aggregate": "count", "alias": "tasks"},
+            ],
+            "group_by": ["priority"],
+            "order_by": {"field": "tasks", "descending": True},
+            "limit": 10,
+        },
+        headers=actor.headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sql"].startswith("SELECT priority, count(*) AS tasks FROM tasks")
+    assert body["columns"] == [
+        {"name": "priority", "type": "enum"},
+        {"name": "tasks", "type": "number"},
+    ]
+    assert body["relations"] == ["tasks"]
+
+
+async def test_a_built_query_can_be_run_as_it_came_back(client, session, acting_user):
+    """The whole point of building server-side: a statement somebody clicked
+    together is one this surface will run."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await create_project(session, actor.initiative, actor.user)
+    built = await client.post(
+        actor.g("/query/build"),
+        json={"dataset": "projects", "columns": [{"field": "*", "aggregate": "count"}]},
+        headers=actor.headers,
+    )
+    assert built.status_code == 200
+    ran = await client.post(
+        actor.g("/query"), json={"sql": built.json()["sql"]}, headers=actor.headers
+    )
+    assert ran.status_code == 200
+    assert ran.json()["rows"] == [[1]]
+
+
+async def test_a_builder_cannot_describe_a_dataset_nobody_declared(client, acting_user):
+    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.post(
+        actor.g("/query/build"),
+        json={"dataset": "pg_shadow", "columns": [{"field": "usename"}]},
+        headers=actor.headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == QueryMessages.UNKNOWN_RELATION

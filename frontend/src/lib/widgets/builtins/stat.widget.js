@@ -254,13 +254,13 @@ function render(data, config, context) {
     labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : undefined;
   const values = rows.map(number);
   const total = values.reduce((sum, value) => sum + value, 0);
-  const heading = data.columns && data.columns[valueAt] ? data.columns[valueAt].name : undefined;
+  const heading = data.columns?.[valueAt] ? data.columns[valueAt].name : undefined;
 
   // A label that orders — a date — makes this a time series: report the total,
   // say how it moved, and draw the shape underneath. A label that does not
   // order has no sequence to read a change from, so none is claimed.
   const overTime =
-    labelAt !== undefined && data.columns && data.columns[labelAt]
+    labelAt !== undefined && data.columns?.[labelAt]
       ? data.columns[labelAt].type === "date"
       : false;
 

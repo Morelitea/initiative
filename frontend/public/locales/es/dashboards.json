@@ -323,5 +323,41 @@
     "column": "Columna",
     "date": "Fecha",
     "total": "Total"
+  },
+  "builder": {
+    "dataset": "Qué se lee",
+    "columns": "Columnas",
+    "addColumn": "Añadir columna",
+    "removeColumn": "Quitar esta columna",
+    "everyRow": "Cada fila",
+    "asItIs": "Tal cual",
+    "exactTime": "Hora exacta",
+    "groupBy": "Una fila por",
+    "everythingTogether": "Todo junto",
+    "groupByHelp": "Agrupa las filas que comparten un valor y cuenta o suma el resto.",
+    "statement": "La sentencia que esto construye",
+    "refused": "Esa combinación no se puede leer. Prueba con otra columna."
+  },
+  "aggregate": {
+    "count": "Recuento",
+    "sum": "Total",
+    "avg": "Media",
+    "min": "Mínimo",
+    "max": "Máximo"
+  },
+  "bucket": {
+    "day": "Por día",
+    "week": "Por semana",
+    "month": "Por mes",
+    "quarter": "Por trimestre",
+    "year": "Por año"
+  },
+  "dataset": {
+    "tasks": "Tareas",
+    "projects": "Proyectos",
+    "calendar_events": "Eventos del calendario",
+    "counters": "Contadores",
+    "counter_groups": "Grupos de contadores",
+    "task_statuses": "Estados de tarea"
   }
 }

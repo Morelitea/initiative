@@ -39,6 +39,10 @@ export interface WidgetBinding {
    *  it runs — what is stored is what the author built, and what reaches
    *  Postgres is what the validator produced from it. */
   sql?: string | null;
+  /** What was clicked to produce `sql`, so the builder reopens on it rather
+   *  than leaving somebody to read their own statement back. Absent for a
+   *  statement that did not come from the builder. */
+  spec?: unknown;
   document_id?: number | null;
   sheet?: string | null;
   range?: string | null;

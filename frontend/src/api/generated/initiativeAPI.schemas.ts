@@ -2236,6 +2236,7 @@ export const DatasetName = {
   calendar_events: "calendar_events",
   counter_groups: "counter_groups",
   counters: "counters",
+  task_statuses: "task_statuses",
 } as const;
 
 /**
@@ -4928,11 +4929,82 @@ export interface PushTokenUnregisterRequest {
 }
 
 /**
+ * One thing a built query returns.
+ */
+export interface QueryColumnSpec {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  field: string;
+  aggregate?: string | null;
+  bucket?: string | null;
+  alias?: string | null;
+}
+
+/**
+ * One comparison, in the vocabulary the filter DSL already uses.
+ */
+export interface QueryConditionSpec {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  field: string;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+export interface QuerySortSpec {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  field: string;
+  descending?: boolean;
+}
+
+/**
+ * What somebody clicked, before it is a statement.
+ *
+ * The builder describes; the server writes the SQL. A statement built by
+ * clicking is therefore always one this surface will run, because it is built
+ * in the parse tree rather than assembled as text.
+ */
+export interface QueryBuildRequest {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  dataset: string;
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  columns: QueryColumnSpec[];
+  /** @maxItems 20 */
+  where?: QueryConditionSpec[];
+  /** @maxItems 10 */
+  group_by?: string[];
+  order_by?: QuerySortSpec | null;
+  limit?: number | null;
+}
+
+/**
  * One output column, as the database describes it before running.
  */
 export interface QueryColumnDescription {
   name: string;
   type: FieldType;
+}
+
+/**
+ * The statement, and what it would return.
+ */
+export interface QueryBuildResponse {
+  sql: string;
+  columns: QueryColumnDescription[];
+  relations: string[];
 }
 
 /**

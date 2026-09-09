@@ -323,5 +323,41 @@
     "column": "Spalte",
     "date": "Datum",
     "total": "Gesamt"
+  },
+  "builder": {
+    "dataset": "Was gelesen wird",
+    "columns": "Spalten",
+    "addColumn": "Spalte hinzufügen",
+    "removeColumn": "Spalte entfernen",
+    "everyRow": "Jede Zeile",
+    "asItIs": "Unverändert",
+    "exactTime": "Genaue Zeit",
+    "groupBy": "Eine Zeile je",
+    "everythingTogether": "Alles zusammen",
+    "groupByHelp": "Zeilen mit gleichem Wert zusammenfassen und den Rest zählen oder summieren.",
+    "statement": "Die erzeugte Anweisung",
+    "refused": "Diese Kombination kann nicht gelesen werden. Versuche eine andere Spalte."
+  },
+  "aggregate": {
+    "count": "Anzahl",
+    "sum": "Summe",
+    "avg": "Durchschnitt",
+    "min": "Niedrigster",
+    "max": "Höchster"
+  },
+  "bucket": {
+    "day": "Nach Tag",
+    "week": "Nach Woche",
+    "month": "Nach Monat",
+    "quarter": "Nach Quartal",
+    "year": "Nach Jahr"
+  },
+  "dataset": {
+    "tasks": "Aufgaben",
+    "projects": "Projekte",
+    "calendar_events": "Kalendertermine",
+    "counters": "Zähler",
+    "counter_groups": "Zählergruppen",
+    "task_statuses": "Aufgabenstatus"
   }
 }

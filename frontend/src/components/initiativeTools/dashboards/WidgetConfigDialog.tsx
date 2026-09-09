@@ -25,7 +25,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type AppDataParam, type AppEndpointRead, appWidgetEntry } from "@/api/appData";
-import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
+import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
+import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,6 +49,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useDocumentsList } from "@/hooks/useDocuments";
+import { useQueryBuilder } from "@/hooks/useQueryBuilder";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
@@ -508,22 +510,11 @@ function ParamControl({
 
     case "sql":
       return (
-        <section className="space-y-2">
-          <Label htmlFor={`param-${key}`}>
-            {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
-          </Label>
-          <Textarea
-            id={`param-${key}`}
-            rows={8}
-            spellCheck={false}
-            className="font-mono text-xs"
-            value={(binding[param.key] as string) ?? ""}
-            onChange={(event) =>
-              onChange({ [param.key]: event.target.value } as Partial<WidgetBinding>)
-            }
-          />
-          <p className="text-muted-foreground text-xs">{t("dashboards:config.sqlHelp")}</p>
-        </section>
+        <QueryParam
+          binding={binding}
+          onChange={onChange}
+          paramKey={param.key as keyof WidgetBinding}
+        />
       );
 
     default:
@@ -830,5 +821,72 @@ function BindingPreview({
       </div>
       <p className="text-muted-foreground text-xs">{t("config.previewHint")}</p>
     </aside>
+  );
+}
+
+/**
+ * How a widget is pointed at data: by clicking, with the statement shown.
+ *
+ * The builder is the surface, not the fallback. Somebody who does not write SQL
+ * has to be able to build a dashboard, so what they choose is a description and
+ * the server writes the statement from it — which is also what guarantees the
+ * statement is one the surface will run.
+ *
+ * The SQL is read-only here. A statement typed by hand is the next thing to
+ * build (it needs the builder to go read-only behind it, with the text
+ * authoritative); until then, showing what the clicking produced is what makes
+ * the builder legible rather than magic.
+ */
+function QueryParam({
+  binding,
+  paramKey,
+  onChange,
+}: {
+  binding: WidgetBinding;
+  paramKey: keyof WidgetBinding;
+  onChange: (patch: Partial<WidgetBinding>) => void;
+}) {
+  const { t } = useTranslation(["dashboards", "common"]);
+  const [spec, setSpec] = useState<QueryBuildRequest>(
+    () =>
+      (binding.spec as QueryBuildRequest | undefined) ?? {
+        dataset: "tasks",
+        columns: [{ field: "*", aggregate: "count", alias: "count" }],
+        where: [],
+        group_by: [],
+      }
+  );
+  const built = useQueryBuilder(spec);
+
+  // The statement and the description are stored together: the description is
+  // what reopens the builder on what somebody built, rather than leaving them
+  // to read back their own SQL.
+  useEffect(() => {
+    if (built.data?.sql && built.data.sql !== binding[paramKey]) {
+      onChange({ [paramKey]: built.data.sql, spec } as Partial<WidgetBinding>);
+    }
+  }, [built.data?.sql, binding, paramKey, onChange, spec]);
+
+  return (
+    <section className="space-y-3">
+      <QueryBuilder spec={spec} onChange={setSpec} />
+
+      <div className="space-y-1.5">
+        <Label htmlFor="built-sql">{t("dashboards:builder.statement")}</Label>
+        <Textarea
+          id="built-sql"
+          readOnly
+          rows={4}
+          spellCheck={false}
+          className="bg-muted font-mono text-xs"
+          value={built.data?.sql ?? (binding[paramKey] as string) ?? ""}
+        />
+        {built.isError ? (
+          <p className="text-destructive text-xs">{t("dashboards:builder.refused")}</p>
+        ) : (
+          <p className="text-muted-foreground text-xs">{t("dashboards:config.sqlHelp")}</p>
+        )}
+      </div>
+    </section>
   );
 }
