@@ -46,6 +46,7 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
@@ -281,6 +282,10 @@ const SortableGuildButton = ({
   onStartReorder?: () => void;
 }) => {
   const { t } = useTranslation("guilds");
+  // A dot, never a number: it says "something happened here", which is the
+  // only question the rail is being asked.
+  const unread = useUnreadTree();
+  const hasUnread = unread.hasGuild(guild.id);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: guild.id,
   });
@@ -332,10 +337,17 @@ const SortableGuildButton = ({
               />
             ) : null}
             <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
+            {hasUnread ? (
+              <span
+                aria-hidden="true"
+                className="absolute -left-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-foreground"
+              />
+            ) : null}
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
           {guild.name}
+          {hasUnread ? ` — ${t("unreadHere")}` : ""}
         </TooltipContent>
       </Tooltip>
     </GuildContextMenu>

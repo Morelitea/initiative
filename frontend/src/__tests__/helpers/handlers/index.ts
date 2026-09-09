@@ -5,6 +5,7 @@ import { documentHandlers } from "./document.handlers";
 import { filterPresetHandlers } from "./filterPreset.handlers";
 import { guildHandlers } from "./guild.handlers";
 import { initiativeHandlers } from "./initiative.handlers";
+import { notificationHandlers } from "./notification.handlers";
 import { projectHandlers } from "./project.handlers";
 import { propertyHandlers } from "./property.handlers";
 import { settingsHandlers } from "./settings.handlers";
@@ -28,4 +29,5 @@ export const handlers = [
   ...propertyHandlers,
   ...dmHandlers,
   ...toolCountHandlers,
+  ...notificationHandlers,
 ];

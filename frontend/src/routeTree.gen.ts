@@ -30,6 +30,7 @@ import { Route as ServerRequiredAuthenticatedMessagesRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
 import { Route as ServerRequiredAuthenticatedMyToolsRouteImport } from './routes/_serverRequired/_authenticated/my-tools'
 import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './routes/_serverRequired/_authenticated/navigate'
+import { Route as ServerRequiredAuthenticatedNotificationsRouteImport } from './routes/_serverRequired/_authenticated/notifications'
 import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes/_serverRequired/_authenticated/profile'
 import { Route as ServerRequiredAuthenticatedProjectsRouteImport } from './routes/_serverRequired/_authenticated/projects'
 import { Route as ServerRequiredAuthenticatedSettingsRouteImport } from './routes/_serverRequired/_authenticated/settings'
@@ -270,6 +271,12 @@ const ServerRequiredAuthenticatedNavigateRoute =
   ServerRequiredAuthenticatedNavigateRouteImport.update({
     id: '/navigate',
     path: '/navigate',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedNotificationsRoute =
+  ServerRequiredAuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileRoute =
@@ -1210,6 +1217,7 @@ export interface FileRoutesByFullPath {
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
+  '/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
   '/settings': typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
@@ -1354,6 +1362,7 @@ export interface FileRoutesByTo {
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
+  '/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
   '/settings': typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
   '/tasks': typeof ServerRequiredAuthenticatedTasksRoute
@@ -1485,6 +1494,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/_serverRequired/_authenticated/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/_serverRequired/_authenticated/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
+  '/_serverRequired/_authenticated/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/_serverRequired/_authenticated/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/_serverRequired/_authenticated/projects': typeof ServerRequiredAuthenticatedProjectsRoute
   '/_serverRequired/_authenticated/settings': typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
@@ -1632,6 +1642,7 @@ export interface FileRouteTypes {
     | '/my-calendar'
     | '/my-tools'
     | '/navigate'
+    | '/notifications'
     | '/profile'
     | '/projects'
     | '/settings'
@@ -1776,6 +1787,7 @@ export interface FileRouteTypes {
     | '/my-calendar'
     | '/my-tools'
     | '/navigate'
+    | '/notifications'
     | '/projects'
     | '/settings'
     | '/tasks'
@@ -1906,6 +1918,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/my-calendar'
     | '/_serverRequired/_authenticated/my-tools'
     | '/_serverRequired/_authenticated/navigate'
+    | '/_serverRequired/_authenticated/notifications'
     | '/_serverRequired/_authenticated/profile'
     | '/_serverRequired/_authenticated/projects'
     | '/_serverRequired/_authenticated/settings'
@@ -2185,6 +2198,13 @@ declare module '@tanstack/react-router' {
       path: '/navigate'
       fullPath: '/navigate'
       preLoaderRoute: typeof ServerRequiredAuthenticatedNavigateRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/notifications': {
+      id: '/_serverRequired/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedNotificationsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/profile': {
@@ -3593,6 +3613,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
   ServerRequiredAuthenticatedMyToolsRoute: typeof ServerRequiredAuthenticatedMyToolsRoute
   ServerRequiredAuthenticatedNavigateRoute: typeof ServerRequiredAuthenticatedNavigateRoute
+  ServerRequiredAuthenticatedNotificationsRoute: typeof ServerRequiredAuthenticatedNotificationsRoute
   ServerRequiredAuthenticatedProfileRoute: typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   ServerRequiredAuthenticatedProjectsRoute: typeof ServerRequiredAuthenticatedProjectsRoute
   ServerRequiredAuthenticatedSettingsRoute: typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
@@ -3625,6 +3646,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedMyToolsRoute,
     ServerRequiredAuthenticatedNavigateRoute:
       ServerRequiredAuthenticatedNavigateRoute,
+    ServerRequiredAuthenticatedNotificationsRoute:
+      ServerRequiredAuthenticatedNotificationsRoute,
     ServerRequiredAuthenticatedProfileRoute:
       ServerRequiredAuthenticatedProfileRouteWithChildren,
     ServerRequiredAuthenticatedProjectsRoute:

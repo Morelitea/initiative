@@ -261,29 +261,22 @@
     "scheduleError": "Impossible de mettre à jour le calendrier de notifications",
     "toggleError": "Impossible de mettre à jour les paramètres de notifications",
     "categoryHeader": "Catégorie",
-    "emailHeader": "E-mail",
-    "mobileAppHeader": "Application mobile",
     "categories": {
-      "initiativeInvites": "Invitations aux initiatives",
-      "initiativeInvitesDescription": "Lorsque vous êtes ajouté à une nouvelle initiative.",
-      "taskAssignments": "Assignations de tâches",
-      "taskAssignmentsDescription": "Récapitulatif horaire lorsque d'autres vous assignent des tâches.",
       "mentions": "Mentions",
-      "mentionsDescription": "Lorsque quelqu'un vous mentionne ou commente votre travail.",
-      "commentReactions": "Réactions",
-      "commentReactionsDescription": "Un résumé périodique lorsque d'autres réagissent à vos commentaires.",
-      "newProject": "Nouveau projet dans l'initiative",
-      "newProjectDescription": "Lorsque des projets sont créés dans vos initiatives.",
-      "overdueTasks": "Tâches en retard",
-      "overdueTasksDescription": "Rappel quotidien pour les tâches en retard à l'heure programmée.",
+      "replies": "Réponses",
+      "comments": "Commentaires sur votre travail",
+      "reactions": "Réactions",
+      "assignments": "Tâches assignées",
+      "due_dates": "Tâches en retard",
+      "membership": "Nouvelles arrivées",
+      "approvals": "En attente de vous",
+      "posts": "Annonces",
       "events": "Événements",
-      "eventsDescription": "Quand on vous invite à un événement ou qu'un événement auquel vous participez change.",
-      "eventReminders": "Rappels d'événements",
-      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez.",
-      "directMessages": "Messages directs",
-      "directMessagesDescription": "Quelqu'un t'a envoyé un message direct. N'inclut jamais son contenu.",
-      "posts": "Publications",
-      "postsDescription": "Quand une annonce paraît sur un tableau que vous pouvez voir."
+      "event_reminders": "Rappels d'événements",
+      "direct_messages": "Messages directs",
+      "connections": "Contacts",
+      "jobs": "Exports et imports",
+      "account": "Votre compte"
     },
     "reminderLeadTime": {
       "label": "Me rappeler",
@@ -298,7 +291,53 @@
     "scheduleTitle": "Rappel quotidien",
     "scheduleDescription": "Quand part le rappel des retards, et à quelle horloge.",
     "channelsTitle": "Ce dont on vous informe",
-    "channelsDescription": "Choisissez un canal par type de nouvelle. Les notifications de la cloche arrivent de toute façon."
+    "channelsDescription": "Une ligne par type de nouvelle, un interrupteur par canal. Rien n'est actif que vous n'ayez laissé actif.",
+    "switchLabel": "{{category}} par {{channel}}",
+    "channels": {
+      "in_app": "Cloche",
+      "email": "E-mail",
+      "push": "Mobile"
+    },
+    "groups": {
+      "addressed_to_me": "Qui m'est adressé",
+      "activity": "Activité",
+      "community": "Communauté",
+      "account": "Compte"
+    },
+    "categoryDescriptions": {
+      "mentions": "Quelqu'un a écrit votre nom.",
+      "replies": "Quelqu'un a répondu à ce que vous avez dit.",
+      "comments": "Quelqu'un a commenté une tâche dont vous faites partie, ou quelque chose que vous avez créé. Regroupé par fil.",
+      "reactions": "Quelqu'un a réagi à l'un de vos commentaires.",
+      "assignments": "Quelqu'un vous a assigné des tâches. Un résumé, pas un par tâche.",
+      "due_dates": "Un rappel quotidien de ce qui est en retard, à l'heure de votre choix.",
+      "membership": "Vous avez été ajouté à une initiative, ou un projet y est apparu.",
+      "approvals": "Quelqu'un attend votre décision. Toujours visible dans la cloche.",
+      "posts": "Une annonce a été publiée sur un tableau que vous pouvez voir.",
+      "events": "Vous avez été invité, ou quelque chose auquel vous participez a changé.",
+      "event_reminders": "Peu avant un événement où vous vous rendez.",
+      "direct_messages": "Quelqu'un vous a écrit. Qui et combien, jamais le contenu.",
+      "connections": "Quelqu'un a demandé à se connecter, ou a accepté.",
+      "jobs": "Un export ou import que vous avez demandé est terminé.",
+      "account": "Quelque chose a été fait sur votre compte. Toujours visible dans la cloche."
+    },
+    "quietHours": {
+      "title": "Heures calmes",
+      "description": "Retient e-mail et mobile la nuit. La cloche continue de collecter, et un résumé part à la fin.",
+      "from": "De",
+      "to": "Jusqu'à"
+    },
+    "communities": {
+      "title": "Par communauté",
+      "description": "Un réglage par communauté. Faites-en parler une moins sans rien changer ailleurs.",
+      "levelLabel": "Ce que dit {{guild}}",
+      "mutedHelp": "Cette communauté ne dit rien du tout — même si quelqu'un vous nomme directement.",
+      "levels": {
+        "everything": "Tout",
+        "personal": "Seulement ce qui me nomme",
+        "nothing": "Rien"
+      }
+    }
   },
   "dangerZone": {
     "serverConnection": "Connexion au serveur",
