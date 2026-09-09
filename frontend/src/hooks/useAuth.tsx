@@ -172,16 +172,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   /** Sign-in / sign-out: a new person, so every read in flight is stale. */
+  /** Sign-in / sign-out: a new person, so every read in flight is stale.
+   *
+   *  `ended` says the session is definitively over — the server refused it, or
+   *  the user signed out — as opposed to merely unverifiable. Content the
+   *  session was holding goes only in the first case, and the parameter
+   *  defaults to the safe answer: a caller that has not thought about it
+   *  destroys nothing. */
   const replaceIdentity = useCallback(
-    (nextUser: UserRead | null) => {
+    (nextUser: UserRead | null, ended = false) => {
       identityEpochRef.current += 1;
-      if (!nextUser) {
-        // Every way a session ends comes through here — signing out, and a
-        // bootstrap the server rejected because the token or cookie is already
-        // gone. Whiteboard scenes are document content held on the device, so
-        // they end with the session whichever way it ended, not only the tidy
-        // way. Outside the offline cache's reach on purpose: this matters most
-        // on the web, where that cache is not enabled.
+      if (!nextUser && ended) {
+        // Whiteboard scenes are document content held on the device, so they
+        // end with the session however it ended — not only the tidy way.
+        // Deliberately outside the offline cache's platform check: this matters
+        // most on the web, where that cache is not enabled at all.
         clearAllWhiteboardSceneCaches();
       }
       setUser(nextUser);
@@ -238,10 +243,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // answering only means the account could not be read, which is what
         // used to make offline reading impossible — fall back to the stored
         // snapshot, marked unverified until a request succeeds.
+        // Whether the server said anything decides two separate things: which
+        // identity we end up with, and whether the session's content is over.
+        // They come apart on the web, where there is no snapshot to fall back
+        // to — a blip still signs you out there, but it must not be read as the
+        // server refusing the session and take unsaved work with it.
+        const noAnswer = isNoAnswerError(error);
         const snapshot =
-          isOfflineCacheEnabled() && isNoAnswerError(error)
-            ? readOfflineSession(currentServerKey())
-            : null;
+          isOfflineCacheEnabled() && noAnswer ? readOfflineSession(currentServerKey()) : null;
         if (snapshot) {
           // Deliberately not through setUser: that would re-save the snapshot
           // and push its expiry out, so an app opened offline every day would
@@ -251,7 +260,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSessionUnverified(true);
           return;
         }
-        replaceIdentity(null);
+        replaceIdentity(null, !noAnswer);
         if (isNative) {
           // Clear stale native token
           setTokenState(null);
@@ -389,7 +398,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Ignore errors — proceed with local cleanup regardless.
     }
-    replaceIdentity(null);
+    replaceIdentity(null, true);
     setTokenState(null);
     setIsDeviceToken(false);
     setAuthToken(null);

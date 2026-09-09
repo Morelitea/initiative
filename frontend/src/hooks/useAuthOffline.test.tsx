@@ -41,8 +41,12 @@ vi.mock("@/components/documents/whiteboardSceneCache", () => ({
 const purgeOfflineCache = vi.fn();
 const setOfflineWritesAllowed = vi.fn();
 
+/** Flipped per test: the offline cache is native-only, and the web path is
+ *  where a transient failure has nowhere to fall back to. */
+let offlineEnabled = true;
+
 vi.mock("@/lib/offlineCache", () => ({
-  isOfflineCacheEnabled: () => true,
+  isOfflineCacheEnabled: () => offlineEnabled,
   purgeOfflineCache: () => purgeOfflineCache(),
   restoredIdentityMismatch: () => false,
   setOfflineWritesAllowed: (allowed: boolean) => setOfflineWritesAllowed(allowed),
@@ -82,6 +86,7 @@ const renderAuth = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   snapshot = null;
+  offlineEnabled = true;
   get.mockReset();
 });
 
@@ -150,6 +155,32 @@ describe("bootstrapping when the server does answer", () => {
     // No signal is not the end of a session, and the unsaved work is the whole
     // reason those scenes are held.
     expect(clearWhiteboards).not.toHaveBeenCalled();
+  });
+
+  it("keeps whiteboards through a blip on the web, where there is no fallback", async () => {
+    // No offline cache here, so the snapshot path is unavailable and the
+    // bootstrap does sign the user out. That is not the server refusing the
+    // session, and a moment of bad network must not cost somebody their
+    // unsaved drawing.
+    offlineEnabled = false;
+    snapshot = buildUser();
+    get.mockRejectedValue({ request: {} });
+
+    renderAuth();
+
+    await waitFor(() => expect(auth.loading).toBe(false));
+    expect(auth.user).toBeNull();
+    expect(clearWhiteboards).not.toHaveBeenCalled();
+  });
+
+  it("clears whiteboards on the web when the server does refuse the session", async () => {
+    offlineEnabled = false;
+    get.mockRejectedValue({ request: {}, response: { status: 401 } });
+
+    renderAuth();
+
+    await waitFor(() => expect(auth.loading).toBe(false));
+    expect(clearWhiteboards).toHaveBeenCalled();
   });
 
   it("records the confirmed identity and opens the cache for writing", async () => {
