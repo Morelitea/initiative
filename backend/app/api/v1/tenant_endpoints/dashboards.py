@@ -15,7 +15,7 @@ a viewer who cannot read a bound counter simply sees an empty widget.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
@@ -46,6 +46,8 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.dashboard import (
+    PublishedOver,
+    PublishRequest,
     DashboardInstalledListings,
     DashboardCreate,
     DashboardListResponse,
@@ -59,7 +61,11 @@ from app.schemas.tenant.dashboard import (
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db import session as db_session
+from app.db.session import rls_context_params
+from app.schemas.sql_query import QueryColumnDescription, QueryResponse
+from app.services import query as query_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
@@ -68,6 +74,7 @@ from app.services.marketplace.installs import (
     resolve_listing_install,
 )
 from app.services.tenant import dashboards as dashboards_service
+from app.services.tenant import published_views
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import search as search_service
@@ -430,7 +437,9 @@ async def read_dashboard(
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    return serialize_dashboard(dashboard, user_id=current_user.id)
+    # With what it publishes over: a reader has to be able to tell that some of
+    # these numbers are not their own.
+    return await _serialized_with_published(session, dashboard, current_user)
 
 
 @router.post("/", response_model=DashboardRead, status_code=status.HTTP_201_CREATED)
@@ -561,9 +570,28 @@ async def update_dashboard(
     if "definition" in update_data or "config" in update_data:
         definition = update_data.get("definition", dashboard.definition)
         config = update_data.get("config", dashboard.config)
-        dashboard.definition, dashboard.config = _normalize_body(
+        normalized, normalized_config = _normalize_body(
             definition, config, await _endpoint_columns(session)
         )
+        if await published_views.published_by(session, dashboard_id):
+            # What this dashboard publishes is read through the questions on
+            # it, so changing one is the act of writing it — and it may only be
+            # written by somebody who reaches those resources themselves.
+            if not await published_views.editor_reaches_what_is_published(
+                session, dashboard_id, current_user, guild_context
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=DashboardMessages.EDIT_NEEDS_THE_PUBLISHED_ACCESS,
+                )
+            # And it stays one set of numbers: `me` is what makes a statement
+            # answer differently for each reader.
+            if published_views.names_the_reader(normalized):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+                )
+        dashboard.definition, dashboard.config = normalized, normalized_config
         updated = True
 
     if updated:
@@ -658,6 +686,271 @@ async def delete_dashboard(
         retention_days=retention_days,
     )
     await session.commit()
+
+
+def _stored_binding(
+    definition: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    widget_id: str,
+) -> Optional[dict[str, Any]]:
+    """One widget's binding as the canvas resolves it.
+
+    The instance config layers over the definition exactly as it does when the
+    dashboard is drawn, so a slot a listing left open and the guild filled in
+    counts the same as one the definition named outright.
+    """
+    widgets = (definition or {}).get("widgets")
+    if not isinstance(widgets, list):
+        return None
+    overrides = (config or {}).get("widgets") or {}
+    for widget in widgets:
+        if not isinstance(widget, dict) or str(widget.get("id")) != widget_id:
+            continue
+        binding = widget.get("binding")
+        if not isinstance(binding, dict):
+            return None
+        override = overrides.get(widget_id)
+        return {**binding, **(override if isinstance(override, dict) else {})}
+    return None
+
+
+@router.get("/{dashboard_id}/widgets/{widget_id}/query", response_model=QueryResponse)
+async def run_widget_query(
+    dashboard_id: int,
+    widget_id: str,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> QueryResponse:
+    """Run the statement stored on one of this dashboard's widgets.
+
+    What runs is the widget's own, never one the request supplies. That is what
+    makes a published view safe to serve: the rows a dashboard's grants reach
+    are shown through the question somebody published, and a reader cannot ask
+    a different one of them.
+
+    The dashboard's own four gates decide whether this caller sees anything at
+    all, and they run first.
+    """
+    dashboard = await resource_access.load_authorized(
+        session, Tool.dashboard, dashboard_id, current_user, guild_context
+    )
+    binding = _stored_binding(dashboard.definition, dashboard.config, widget_id)
+    if not isinstance(binding, dict) or binding.get("source") != "query":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
+        )
+    sql = binding.get("sql")
+    if not isinstance(sql, str) or not sql.strip():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
+        )
+    # Only here, and only after the gates above: a grant made to this dashboard
+    # answers while this is set and at no other time.
+    through = await published_views.serves_through(
+        session, dashboard_id, guild_context.guild_id
+    )
+    try:
+        result = await query_service.run(
+            sql,
+            context=rls_context_params(session),
+            initiative_id=dashboard.initiative_id,
+            via_dashboard_id=through,
+        )
+    except query_service.QueryError as refused:
+        raise HTTPException(
+            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            detail=refused.code,
+        ) from refused
+    return QueryResponse(
+        columns=[
+            QueryColumnDescription(name=column.name, type=column.type)
+            for column in result.columns
+        ],
+        rows=[list(row) for row in result.rows],
+        truncated=result.truncated,
+        relations=list(result.relations),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Published views — what a dashboard shows that is not the reader's own
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{dashboard_id}/published", response_model=DashboardRead)
+async def set_published_view(
+    dashboard_id: int,
+    payload: PublishRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DashboardRead:
+    """Say what this dashboard shows to everybody who can open it.
+
+    The whole list each time. Every resource named here becomes readable
+    *through* this dashboard: its tiles stop answering from each viewer's own
+    access for those rows and answer the same way for all of them.
+
+    Three things this refuses, and each is one of the rules the feature rests
+    on. It reaches no further than the author, so a resource they cannot read
+    themselves cannot be published. It stays fixed, so a dashboard whose
+    statements ask about the reader cannot become one. And it is authoring, so
+    it takes write access to the dashboard like any other change to it.
+    """
+    dashboard = await resource_access.load_authorized(
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    if payload.resources and published_views.names_the_reader(dashboard.definition):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+        )
+
+    wanted: list[tuple[Tool, int]] = []
+    for entry in payload.resources:
+        try:
+            kind = Tool(entry.resource_type)
+        except ValueError as unknown:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=DashboardMessages.BINDING_INVALID,
+            ) from unknown
+        # Read as the person publishing, through the ordinary path: what they
+        # hand on is their own reach and never more than it.
+        try:
+            await resource_access.load_authorized(
+                session, kind, entry.resource_id, current_user, guild_context
+            )
+        except HTTPException as refused:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=DashboardMessages.PUBLISH_BEYOND_YOUR_REACH,
+            ) from refused
+        wanted.append((kind, entry.resource_id))
+
+    held = {
+        published_views.target(grant): grant
+        for grant in await published_views.published_by(session, dashboard_id)
+    }
+    for key, grant in held.items():
+        if key not in wanted:
+            await session.delete(grant)
+    for kind, resource_id in wanted:
+        if (kind, resource_id) in held:
+            continue
+        session.add(
+            published_views.read_grant(
+                dashboard_id,
+                kind,
+                resource_id,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+                created_by=current_user.id,
+            )
+        )
+    await session.commit()
+
+    hydrated = await _refetch_dashboard(session, dashboard_id)
+    return await _serialized_with_published(session, hydrated, current_user)
+
+
+@router.delete(
+    "/{dashboard_id}/published/{resource_type}/{resource_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def revoke_published_view(
+    dashboard_id: int,
+    resource_type: str,
+    resource_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Stop a dashboard reading one resource through its own grant.
+
+    Either side may do this: whoever authors the dashboard, and whoever owns
+    the resource. The owner's answer to a dashboard publishing over their work
+    is to take it back, and it is theirs to give at any time.
+    """
+    try:
+        kind = Tool(resource_type)
+    except ValueError as unknown:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DashboardMessages.NOT_FOUND,
+        ) from unknown
+
+    grant = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.dashboard_id == dashboard_id,
+                ResourceGrant.resource_type == kind,
+                ResourceGrant.resource_id == resource_id,
+            )
+        )
+    ).first()
+    if grant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=DashboardMessages.NOT_FOUND
+        )
+
+    if not await _may_revoke(
+        session, dashboard_id, kind, resource_id, current_user, guild_context
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DashboardMessages.PERMISSION_REQUIRED,
+        )
+    await session.delete(grant)
+    await session.commit()
+
+
+async def _may_revoke(
+    session: Any,
+    dashboard_id: int,
+    kind: Tool,
+    resource_id: int,
+    user: User,
+    guild_context: Any,
+) -> bool:
+    """Whether this caller may take a published grant back — either end of it."""
+    for check in (
+        lambda: resource_access.load_authorized(
+            session, Tool.dashboard, dashboard_id, user, guild_context, access="write"
+        ),
+        lambda: resource_access.load_authorized(
+            session, kind, resource_id, user, guild_context, manage_access=True
+        ),
+    ):
+        try:
+            await check()
+            return True
+        except HTTPException:
+            continue
+    return False
+
+
+async def _serialized_with_published(
+    session: Any, dashboard: Dashboard, user: User
+) -> DashboardRead:
+    """A dashboard read, saying what it publishes over."""
+    read = serialize_dashboard(dashboard, user_id=user.id)
+    read.published_over = [
+        PublishedOver(
+            resource_type=str(grant.resource_type),
+            resource_id=grant.resource_id,
+        )
+        for grant in await published_views.published_by(session, dashboard.id)
+    ]
+    return read
 
 
 # ---------------------------------------------------------------------------

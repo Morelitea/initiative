@@ -87,6 +87,15 @@ def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -
     )
 
 
+def override_sharing_initiatives() -> FrozenSet[int]:
+    """The initiatives this request holds "Full access" in.
+
+    Read whole rather than asked about one at a time, for a caller that has to
+    put the set back after standing in somebody else's shoes.
+    """
+    return _override_initiatives.get()
+
+
 def request_overrides_sharing(initiative_id: Optional[int]) -> bool:
     """Whether the request holds "Full access" in ``initiative_id`` — the
     initiative-scoped sibling of ``is_request_guild_admin``. Reads the per-request

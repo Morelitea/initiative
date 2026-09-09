@@ -370,8 +370,9 @@ def _grant_level(level: Any) -> str:
 
 def serialize_grants(row: Any) -> list:
     """Serialize a resource's eager-loaded ``grants`` into the unified grant list
-    — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role, or
-    all-initiative-members), owner included."""
+    — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role,
+    all-initiative-members, or the dashboard a published view reads it
+    through), owner included."""
     from app.schemas.tenant.resource_grant import ResourceGrantSchema
 
     return [
@@ -380,6 +381,7 @@ def serialize_grants(row: Any) -> list:
             user_id=g.user_id,
             role_id=g.role_id,
             all_initiative_members=bool(getattr(g, "all_initiative_members", False)),
+            dashboard_id=getattr(g, "dashboard_id", None),
         )
         for g in getattr(row, "grants", None) or []
     ]
@@ -650,8 +652,15 @@ async def replace_resource_grants(
         )
     ).all()
     for g in existing:
-        if _grant_level(g.level) != "owner":
-            await session.delete(g)
+        if _grant_level(g.level) == "owner":
+            continue
+        if g.dashboard_id is not None:
+            # A published view is not in this list, and is not this call's to
+            # rebuild: a client that does not know about one would delete every
+            # one of them by saving the panel. Revoking one is its own act,
+            # made by the owner against the dashboard that published it.
+            continue
+        await session.delete(g)
 
     await session.flush()
 

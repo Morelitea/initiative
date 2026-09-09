@@ -262,16 +262,25 @@ def _routed_guild(context: Mapping[str, Any]) -> int:
     return int(guild_id)
 
 
-def _scoped(context: Mapping[str, Any], initiative_id: int | None) -> dict[str, Any]:
+def _scoped(
+    context: Mapping[str, Any],
+    initiative_id: int | None,
+    via_dashboard_id: int | None = None,
+) -> dict[str, Any]:
     """The request's own context, as the query role, narrowed to one initiative.
 
     Both entry points below establish the same thing, so they say it once: the
     reader is whoever the request admitted, the role is the query role, and the
     scope is the surface's if it named one.
+
+    *via_dashboard_id* names a dashboard whose own grants this read may answer
+    through. It is only ever passed by the path that runs a placed widget's
+    stored statement, and never for a statement a request supplied.
     """
     routed = dict(context)
     routed["query"] = True
     routed["scope_initiative_id"] = initiative_id
+    routed["via_dashboard_id"] = via_dashboard_id
     return routed
 
 
@@ -280,6 +289,7 @@ async def execute(
     *,
     context: Mapping[str, Any],
     initiative_id: int | None = None,
+    via_dashboard_id: int | None = None,
 ) -> QueryResult:
     """Run an already-resolved statement under *context*.
 
@@ -296,7 +306,7 @@ async def execute(
     one. It removes rows and never adds any, so a caller may always pass it.
     """
     guild_id = _routed_guild(context)
-    routed = _scoped(context, initiative_id)
+    routed = _scoped(context, initiative_id, via_dashboard_id)
     async with _translated_failures():
         async with AsyncSession(db_session.query_engine) as session:
             # Opened before anything else touches the connection. The bounds
@@ -339,10 +349,19 @@ async def execute(
 
 
 async def run(
-    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
+    sql: str,
+    *,
+    context: Mapping[str, Any],
+    initiative_id: int | None = None,
+    via_dashboard_id: int | None = None,
 ) -> QueryResult:
     """Read *sql* and run what it resolves to."""
-    return await execute(resolve(sql), context=context, initiative_id=initiative_id)
+    return await execute(
+        resolve(sql),
+        context=context,
+        initiative_id=initiative_id,
+        via_dashboard_id=via_dashboard_id,
+    )
 
 
 async def describe(
