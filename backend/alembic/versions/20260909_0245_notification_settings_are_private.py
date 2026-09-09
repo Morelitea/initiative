@@ -58,6 +58,13 @@ def _base_roles() -> tuple[str, ...]:
     return (f"{settings.PLATFORM_ROLE_PREFIX}platform_base", "app_guild_base")
 
 
+#: The read half of ``app_guild_base``, which the query role and ``guild_<id>_ro``
+#: inherit. It takes no default privileges, so the table is granted and policed
+#: for it here rather than arriving with the schema (0239); it reads the same one
+#: row and writes nothing. ``guild_base_ro_parity_test`` is what asks for this.
+_READ_FLOOR = "app_guild_base_ro"
+
+
 #: Old column -> the categories it gated. ``email_mentions`` gated five
 #: notification types that are now three categories, so it seeds all three:
 #: somebody who switched it off wanted all of it off.
@@ -217,6 +224,14 @@ def upgrade() -> None:
                 f"CREATE POLICY {name} ON public.user_notification_prefs "
                 f'AS PERMISSIVE FOR {command} TO "{base}" {clause}'
             )
+    op.execute(
+        f'GRANT SELECT ON TABLE public.user_notification_prefs TO "{_READ_FLOOR}"'
+    )
+    op.execute(
+        f"CREATE POLICY user_notification_prefs_self_select_{_READ_FLOOR} "
+        "ON public.user_notification_prefs AS PERMISSIVE FOR SELECT "
+        f'TO "{_READ_FLOOR}" USING (user_id = {_USER_ID})'
+    )
     # The system engine seeds a new account's row and reads it while delivering.
     op.execute(
         "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_notification_prefs "
@@ -365,6 +380,10 @@ def downgrade() -> None:
                 f"DROP POLICY IF EXISTS user_notification_prefs_self_{command}_{base} "
                 "ON public.user_notification_prefs"
             )
+    op.execute(
+        f"DROP POLICY IF EXISTS user_notification_prefs_self_select_{_READ_FLOOR} "
+        "ON public.user_notification_prefs"
+    )
     op.execute("ALTER TABLE public.user_notification_prefs NO FORCE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE public.user_notification_prefs DISABLE ROW LEVEL SECURITY")
     op.drop_table("user_notification_prefs")

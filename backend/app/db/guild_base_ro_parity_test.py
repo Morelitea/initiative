@@ -14,6 +14,19 @@ pytestmark = pytest.mark.database
 WRITABLE_FLOOR = "app_guild_base"
 READ_FLOOR = "app_guild_base_ro"
 
+
+@pytest.fixture(autouse=True)
+async def _materialize_lazy_shared_tables():
+    """``storage_backfill_state`` is created lazily at runtime, not by a
+    migration, so whether it is in the catalog here depends on whether a
+    storage test happened to run first in this worker. Created up front, the
+    way ``security_invariants_test`` does it, so the floors are compared over
+    the same set of tables every run."""
+    from app.services.storage_backfill import _ensure_table
+
+    await _ensure_table()
+
+
 _TABLES = """
 SELECT c.oid::regclass::text AS name,
        has_table_privilege(:writable, c.oid, 'SELECT') AS writable_reads,

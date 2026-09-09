@@ -35,6 +35,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
 from app.db import session as db_session
 from app.db.session import AdminSessionLocal
@@ -79,6 +80,12 @@ if _ADMIN_GRANT is None:
         "SELECT/INSERT/UPDATE"
     )
 
+
+def _platform_floor() -> str:
+    """The platform ladder's floor, which carries the platform prefix."""
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+
+
 _table_lock = asyncio.Lock()
 _table_ready = False
 
@@ -120,6 +127,18 @@ async def _ensure_table() -> None:
             )
             await conn.execute(
                 text(f"GRANT {_ADMIN_GRANT} ON storage_backfill_state TO app_admin")
+            )
+            # The schema's default privileges hand every new relation in
+            # ``public`` full DML to the two request-path floors, and this
+            # table is the system engine's alone. A migration adding an
+            # admin-only shared table says the same thing on its own line
+            # (0132, 0133, 0134); this one is created at runtime, so it says
+            # it here.
+            await conn.execute(
+                text(
+                    "REVOKE ALL ON storage_backfill_state "
+                    f'FROM app_guild_base, "{_platform_floor()}"'
+                )
             )
         _table_ready = True
 
