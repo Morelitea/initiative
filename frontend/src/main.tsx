@@ -20,6 +20,7 @@ import { useRouteGuardSync } from "@/hooks/useRouteGuardSync";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { prepareOfflineCache } from "@/lib/offlineBoot";
+import { bindOnlineManagerToDevice } from "@/lib/onlineStatus";
 import { queryClient } from "@/lib/queryClient";
 import { getStoredServerUrl } from "@/lib/serverStorage";
 import { initStorage } from "@/lib/storage";
@@ -92,6 +93,11 @@ async function bootstrap() {
     if (storedUrl) {
       setApiBaseUrl(storedUrl);
     }
+
+    // Before the first query runs: a restored cache is only worth having if
+    // React Query leaves it on screen instead of refetching over it while
+    // there is no network to refetch from.
+    bindOnlineManagerToDevice();
   }
 
   const withQueryClient = (children: React.ReactNode) =>
