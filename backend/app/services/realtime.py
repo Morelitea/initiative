@@ -92,6 +92,31 @@ class ConnectionManager:
                 user_id, chosen_presence, known_at=presence_known_at
             )
 
+    def users_in_guild(self, guild_id: int) -> Set[int]:
+        """The users this process holds a socket for in one guild."""
+        return set(self._present.get(guild_id, {}))
+
+    async def join(self, guild_id: int, user_id: int, initiative_id: int) -> None:
+        """Add one initiative room to every socket this user has open in a guild.
+
+        A socket resolves its rooms once, when it connects. Somebody added to an
+        initiative while their tab is open is in no room for it, and nothing
+        about their own session changes to prompt a reconnect — so the room is
+        opened here instead, from the change log that says the roster moved.
+
+        Only ever additive. A socket sits in a room because ``initiative_access``
+        admitted it at connect, and that has three legs — membership, guild
+        admin, and a live PAM grant — of which only the first is visible in the
+        roster. Closing a room on this signal would evict the other two.
+        """
+        key = (guild_id, initiative_id)
+        async with self._lock:
+            for websocket, identity in self._socket_identity.items():
+                if identity != (guild_id, user_id):
+                    continue
+                self._rooms.setdefault(key, set()).add(websocket)
+                self._socket_rooms.setdefault(websocket, set()).add(key)
+
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a socket from every room it joined, and from its guild's roll."""
         async with self._lock:

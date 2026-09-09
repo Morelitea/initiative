@@ -18,23 +18,41 @@ from app.models.tenant.event_outbox import EventOutbox
 from app.services.realtime import manager
 from app.services.realtime_test import FakeWebSocket
 from app.services.tenant import room_sink
-from app.testing import create_comment, create_document, create_tag, create_task
+from app.testing import (
+    create_comment,
+    create_document,
+    create_initiative_member,
+    create_tag,
+    create_task,
+)
 
 pytestmark = pytest.mark.integration
+
+
+#: A socket belonging to nobody in particular. Rooms are otherwise re-derived
+#: from the roster for whoever holds the socket, so a test that means "only the
+#: rooms I was constructed with" has to hold a socket no roster names.
+NOBODY = 0
 
 
 class _Watcher:
     """A socket in one room, brought up to the log on entry."""
 
-    def __init__(self, guild_id: int, *initiative_ids: int) -> None:
+    def __init__(
+        self, guild_id: int, *initiative_ids: int, user_id: int = NOBODY
+    ) -> None:
         self._guild_id = guild_id
         self._initiative_ids = initiative_ids
+        self._user_id = user_id
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Watcher":
         room_sink._missed_hints = False
         await manager.connect(
-            self._guild_id, list(self._initiative_ids), self.socket, user_id=1
+            self._guild_id,
+            list(self._initiative_ids),
+            self.socket,
+            user_id=self._user_id,
         )
         await room_sink.process_room_sweep()
         return self
@@ -392,3 +410,45 @@ async def test_a_long_enough_gap_is_answered_without_reading(session, acting_use
         await room_sink.missed_while_away(session, room_sink.CATCHUP_MAX_SECONDS + 1)
         is True
     )
+
+
+async def test_a_new_member_hears_the_initiative_without_reconnecting(
+    session, acting_user
+):
+    """A socket resolves its rooms once, at connect.
+
+    Being added to an initiative is the one thing that changes what those
+    rooms should be without anything about the session itself moving — so
+    nothing would prompt the reconnect that fixes it.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    # In the guild with a tab open, and in no initiative: no rooms at all.
+    async with _Watcher(a.guild.id, user_id=b.user.id) as watcher:
+        await create_task(session, a.project)
+        await watcher.catch_up()
+        assert not watcher.named("tasks"), "heard an initiative it is not in"
+
+        await create_initiative_member(session, a.initiative, b.user)
+        await watcher.catch_up()
+
+        await create_task(session, a.project)
+        await watcher.catch_up()
+        assert watcher.named("tasks"), f"heard nothing after joining; {watcher.changes}"
+
+
+async def test_a_roster_change_does_not_evict_a_watcher(session, acting_user):
+    """A socket can be in a room for a reason the roster does not show."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    # A guild admin reaches every initiative without being on any roster.
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+
+    async with _Watcher(a.guild.id, a.initiative.id, user_id=admin.user.id) as watcher:
+        await create_initiative_member(session, a.initiative, b.user)
+        await watcher.catch_up()
+
+        await create_task(session, a.project)
+        await watcher.catch_up()
+        assert watcher.named("tasks"), "the roster moving closed a room it did not open"

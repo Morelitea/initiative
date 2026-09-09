@@ -65,6 +65,7 @@ from app.db import session as db_session
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.initiative import InitiativeMember
 from app.services.realtime import manager
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,12 @@ CATCHUP_SLACK_SECONDS = 10
 CATCHUP_MAX_SECONDS = 3600
 
 _SCHEMA_PREFIX = "guild_"
+
+#: What an initiative's roster reports as. A membership row has no id of its
+#: own — its primary key is (initiative, user) — so the capture reports it as
+#: the initiative it is a facet of, which is where the rule below reads it.
+_INITIATIVES = "initiatives"
+_MEMBERS_FACET = "members"
 
 #: Set when the bus comes up, cleared by the sweep that acts on it. True means
 #: hints went missing for some unknown stretch before it.
@@ -154,6 +161,41 @@ def _frame(rows: list[EventOutbox]) -> dict[str, Any]:
     if len(changes) > MAX_CHANGES:
         return dict(EVERYTHING)
     return {"changes": [_change(row) for row in changes]}
+
+
+async def _open_new_rooms(
+    session: AsyncSession, guild_id: int, rows: list[EventOutbox]
+) -> None:
+    """Put anybody newly in an initiative into its room, without a reconnect.
+
+    Rooms are resolved once, when a socket connects, so a tab that was already
+    open when its person joined an initiative hears nothing from it. Nothing
+    about that person's own session changed, so nothing prompts the reconnect
+    that would fix it — but the roster moving is in the log like everything
+    else, and every worker reads the log.
+
+    Additive only, for the reason on ``manager.join``.
+    """
+    moved = {
+        row.resource_id
+        for row in rows
+        if row.resource_type == _INITIATIVES and _MEMBERS_FACET in row.changed
+    }
+    if not moved:
+        return
+    watching = manager.users_in_guild(guild_id)
+    if not watching:
+        return
+    for initiative_id in moved:
+        members = set(
+            await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative_id
+                )
+            )
+        )
+        for user_id in watching & members:
+            await manager.join(guild_id, user_id, initiative_id)
 
 
 async def _fan_out(guild_id: int, rows: list[EventOutbox]) -> None:
@@ -245,6 +287,7 @@ async def deliver(payload: str) -> None:
                 # as they mounted — so that is marked seen rather than sent,
                 # and this transaction, which is news, is not.
                 _delivered[guild_id] = _ids(await _rows_in_window(session)) - _ids(rows)
+            await _open_new_rooms(session, guild_id, rows)
             await _fan_out(guild_id, rows)
     except Exception:
         logger.exception("room sink: fan-out failed for guild %s", guild_id)
@@ -275,6 +318,7 @@ async def process_room_sweep() -> None:
             try:
                 await set_rls_context(session, guild_id=guild_id, guild_role="admin")
                 rows = await _rows_in_window(session)
+                await _open_new_rooms(session, guild_id, rows)
                 sent = _delivered.get(guild_id)
                 if sent is None:
                     # First sight of this guild. Mark what is there and send

@@ -1031,7 +1031,15 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     Uses a bulk DELETE (not ``session.delete``) so the row goes via the DB-level
     ON DELETE CASCADE FKs — ``session.delete`` would walk ORM relationships and
     attempt sync loads in the async context (MissingGreenlet).
+
+    Everyone in the guild is poked first, because the cascade that clears the
+    roster runs in the database: by the time this returns there is no membership
+    row left for anything in Python to read, and every one of those people has
+    an account that now says something different. Signalled here rather than at
+    the three call sites, so deleting a guild announces itself however it is
+    reached.
     """
+    await _signal_members_present(session, guild_id=guild.id, action="membership")
     await session.exec(delete(Guild).where(Guild.id == guild.id))
 
 
@@ -1091,8 +1099,10 @@ async def redeem_invite_for_user(
     return guild
 
 
-async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> None:
-    """Poke this guild's members: listing it changes what their account says.
+async def _signal_members_present(
+    session: AsyncSession, *, guild_id: int, action: str = "community"
+) -> None:
+    """Poke this guild's members: what their account says about it has changed.
 
     Addressed to the whole membership rather than to the sockets this process
     holds. A frame is published on the cross-worker bus, so narrowing to the
@@ -1108,7 +1118,7 @@ async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> No
     rows = await session.exec(
         select(GuildMembership.user_id).where(GuildMembership.guild_id == guild_id)
     )
-    account_stream.queue_for_members(session, rows.all(), "community")
+    account_stream.queue_for_members(session, rows.all(), action)
 
 
 async def assert_community_directory_enabled(session: AsyncSession) -> None:
