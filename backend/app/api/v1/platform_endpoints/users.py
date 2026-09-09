@@ -70,6 +70,7 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserGuildRead,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -1065,7 +1066,7 @@ async def update_users_me(
     return payload
 
 
-@guild_router.post("/{user_id}/approve", response_model=UserRead)
+@guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
 async def approve_user(
     user_id: int,
     session: AdminSessionDep,
@@ -1078,6 +1079,11 @@ async def approve_user(
     not a guild's to write. ``GuildAdminContext`` plus the membership join
     below are the authorization — the guild admin may only reach someone who is
     already a member of the guild they administer.
+
+    Answers with ``UserGuildRead`` — the account as the guild reads it, which
+    is the standing that just changed and the handle it belongs to. The row
+    loaded here is the whole ``User``, because the write needs it; what leaves
+    is the guild's read of it.
     """
     stmt = (
         select(User)

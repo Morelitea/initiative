@@ -7,6 +7,7 @@ import type {
   ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
   GuildRole,
   UserGuildMember,
+  UserGuildRead,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -355,8 +356,8 @@ export const useDeleteOwnAccount = (
     options
   );
 
-export const useApproveUser = (options?: MutationOpts<UserRead, number>) =>
-  useGuildMutation<UserRead, number>(
+export const useApproveUser = (options?: MutationOpts<UserGuildRead, number>) =>
+  useGuildMutation<UserGuildRead, number>(
     {
       mutationFn: (guildId, userId) =>
         approveUserApiV1GGuildIdUsersUserIdApprovePost(guildId, userId),
