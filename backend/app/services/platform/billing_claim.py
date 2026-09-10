@@ -31,6 +31,7 @@ from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
 )
+from app.services.platform.identity_refs import billing_refs
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,13 @@ def billing_claim_enabled() -> bool:
 async def _send_claim(user_id: int, guild_id: int) -> None:
     """One attempt, no retry; never raises."""
     try:
+        user_ref, guild_ref = await billing_refs(user_id=user_id, guild_id=guild_id)
         token, _ = create_billing_portal_handoff_token(
-            user_id=user_id, guild_id=guild_id, guild_role="admin"
+            user_id=user_id,
+            guild_id=guild_id,
+            guild_role="admin",
+            user_ref=user_ref,
+            guild_ref=guild_ref,
         )
         url = settings.BILLING_SERVICE_URL.rstrip("/") + CLAIM_PATH
         async with httpx.AsyncClient(timeout=_CLAIM_TIMEOUT) as client:

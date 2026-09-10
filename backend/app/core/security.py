@@ -361,9 +361,16 @@ def create_billing_portal_handoff_token(
     user_id: int,
     guild_id: int,
     guild_role: str,
+    user_ref: str,
+    guild_ref: str,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
-    """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
+    """Mint the billing-portal handoff token (RS256; raises if unconfigured).
+
+    ``user_ref`` / ``guild_ref`` are what the receiver names the pair by — see
+    ``services.platform.identity_refs.billing_refs``. The row ids travel
+    alongside them until the receiver reads the references instead.
+    """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
@@ -374,6 +381,8 @@ def create_billing_portal_handoff_token(
         "exp": now + expires_in,
         "guild_id": guild_id,
         "guild_role": guild_role,
+        "user_ref": user_ref,
+        "guild_ref": guild_ref,
     }
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
@@ -438,13 +447,17 @@ def create_billing_support_handoff_token(
     user_id: int,
     guild_id: int,
     grant_id: int | str,
+    user_ref: str,
+    guild_ref: str,
     approver_id: int | str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-support handoff token.
 
     ``grant_id`` names the ``access_grants`` row that authorises the visit, so
-    both sides log the same grant.
+    both sides log the same grant. ``user_ref`` / ``guild_ref`` are what the
+    receiver names the pair by — see
+    ``services.platform.identity_refs.billing_refs``.
     """
     if not billing_support_handoff_enabled():
         raise BillingSupportHandoffNotConfiguredError(
@@ -462,6 +475,8 @@ def create_billing_support_handoff_token(
         "exp": int((now + lifetime).timestamp()),
         "guild_id": int(guild_id),
         "grant_id": str(grant_id),
+        "user_ref": user_ref,
+        "guild_ref": guild_ref,
     }
     if approver_id is not None:
         payload["approver"] = str(approver_id)

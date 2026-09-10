@@ -367,3 +367,21 @@ async def drop_live_ref(session, *, entity_id: int) -> None:
             IdentityRef.retired_at.is_(None),
         )
     )
+
+
+class TestTheBillingPair:
+    @pytest.mark.integration
+    async def test_it_names_the_user_and_the_guild_differently(self, session):
+        from app.services.platform.identity_refs import billing_refs
+
+        user_ref, guild_ref = await billing_refs(user_id=1, guild_id=1)
+        assert user_ref.startswith("ubil_")
+        assert guild_ref.startswith("gbil_")
+        assert user_ref != guild_ref
+
+    @pytest.mark.integration
+    async def test_asking_twice_gives_the_same_pair(self, session):
+        from app.services.platform.identity_refs import billing_refs
+
+        first = await billing_refs(user_id=3, guild_id=4)
+        assert await billing_refs(user_id=3, guild_id=4) == first
