@@ -77,11 +77,11 @@ from app.schemas.tenant.recent_view import RecentViewWrite
 
 router = APIRouter()
 
-#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
-#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
-#: to be addressable by its own id — a nested path would need a parent the
-#: envelope never carries. Writes stay nested under their group, where the
-#: caller is already working inside one.
+#: Flat read-back route, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the resource has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Writes stay nested under their group, where the caller is
+#: already working inside one.
 counters_router = APIRouter()
 logger = logging.getLogger(__name__)
 

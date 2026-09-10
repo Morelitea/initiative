@@ -8,7 +8,7 @@ Tests the task API endpoints at /api/v1/tasks including:
 - Deleting tasks
 - Moving tasks
 - Duplicating tasks
-- Managing subtasks
+- Managing a task's checklist
 - Task reordering
 """
 
@@ -682,85 +682,233 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
 
 
 @pytest.mark.integration
-async def test_create_subtask(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test creating a subtask."""
+async def test_create_task_with_checklist(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A task can be created with its checklist already on it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project)
-
-    payload = {"content": "Subtask content"}
 
     response = await client.post(
-        a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers, json=payload
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Ship the redesign",
+            "project_id": a.project.id,
+            "checklist": [
+                {"id": "aaa111", "text": "Draft the copy", "done": True},
+                {"text": "Get it reviewed"},
+            ],
+        },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data["content"] == "Subtask content"
-    assert data["task_id"] == task.id
-    assert data["is_completed"] is False
+    assert [item["text"] for item in data["checklist"]] == [
+        "Draft the copy",
+        "Get it reviewed",
+    ]
+    # An item that arrived without an id is given one, so it is addressable.
+    assert data["checklist"][0]["id"] == "aaa111"
+    assert data["checklist"][1]["id"]
+    assert data["checklist_progress"] == {"completed": 1, "total": 2}
 
 
 @pytest.mark.integration
-async def test_list_subtasks(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test listing subtasks."""
-    from app.models.tenant.task import Subtask
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project)
-
-    # Create some subtasks
-    subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
-    subtask2 = Subtask(task_id=task.id, content="Subtask 2", position=1)
-    session.add(subtask1)
-    session.add(subtask2)
-    await session.commit()
-
-    response = await client.get(a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    contents = {s["content"] for s in data}
-    assert "Subtask 1" in contents
-    assert "Subtask 2" in contents
-
-
-@pytest.mark.integration
-async def test_reorder_subtasks(
+async def test_checklist_replaced_by_task_patch(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test reordering subtasks."""
-    from app.models.tenant.task import Subtask
-
+    """Adding, renaming, reordering and deleting all arrive as the whole list."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     task = await _create_task(session, a.project)
 
-    # Create subtasks
-    subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
-    subtask2 = Subtask(task_id=task.id, content="Subtask 2", position=1)
-    session.add(subtask1)
-    session.add(subtask2)
-    await session.commit()
-    await session.refresh(subtask1)
-    await session.refresh(subtask2)
-
-    payload = {
-        "items": [
-            {"id": subtask2.id, "position": 0},
-            {"id": subtask1.id, "position": 1},
-        ]
-    }
-
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/subtasks/order"),
+    first = await client.patch(
+        a.g(f"/tasks/{task.id}"),
         headers=a.headers,
-        json=payload,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+    assert first.status_code == 200
+
+    # Reordered, one renamed, one dropped, one added.
+    second = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "two", "text": "Second, renamed"},
+                {"id": "three", "text": "Third"},
+            ]
+        },
+    )
+    assert second.status_code == 200
+    assert [(i["id"], i["text"]) for i in second.json()["checklist"]] == [
+        ("two", "Second, renamed"),
+        ("three", "Third"),
+    ]
+
+
+@pytest.mark.integration
+async def test_checklist_patch_omitted_leaves_it_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """PATCH semantics: an absent checklist means "leave unchanged"."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "one", "text": "First"}]},
+    )
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "Renamed"}
     )
 
     assert response.status_code == 200
-    data = response.json()
-    ordered_ids = [s["id"] for s in data]
-    assert ordered_ids == [subtask2.id, subtask1.id]
+    assert [i["id"] for i in response.json()["checklist"]] == ["one"]
+
+
+@pytest.mark.integration
+async def test_toggle_checklist_item(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A tick names one item and leaves the rest of the list as it was."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+                {"id": "three", "text": "Third"},
+            ]
+        },
+    )
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    assert response.status_code == 200
+    assert [(i["id"], i["done"]) for i in response.json()] == [
+        ("one", False),
+        ("two", True),
+        ("three", False),
+    ]
+
+    untick = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": False}
+    )
+    assert untick.status_code == 200
+    assert untick.json()[1]["done"] is False
+
+
+@pytest.mark.integration
+async def test_toggling_two_items_keeps_both(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Ticks of different items accumulate rather than replacing each other."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/one"), headers=a.headers, json={"done": True}
+    )
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    assert response.status_code == 200
+    assert all(item["done"] for item in response.json())
+
+
+@pytest.mark.integration
+async def test_toggle_unknown_checklist_item(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An id the task does not hold is a 404."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/nosuchitem"),
+        headers=a.headers,
+        json={"done": True},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "CHECKLIST_ITEM_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_checklist_progress_on_task_list(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The list payload carries the count the cards and table rows draw."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First", "done": True},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    listed = next(item for item in response.json()["items"] if item["id"] == task.id)
+    assert listed["checklist_progress"] == {"completed": 1, "total": 2}
+
+
+@pytest.mark.integration
+async def test_duplicate_task_copies_checklist_unticked(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The copy carries the same lines with nothing done."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "one", "text": "First", "done": True}]},
+    )
+
+    response = await client.post(
+        a.g(f"/tasks/{task.id}/duplicate"), headers=a.headers, json={}
+    )
+
+    assert response.status_code == 201
+    copied = response.json()["checklist"]
+    assert [item["text"] for item in copied] == ["First"]
+    assert copied[0]["done"] is False
+    # Fresh ids: the copy's lines are its own.
+    assert copied[0]["id"] != "one"
 
 
 @pytest.mark.integration

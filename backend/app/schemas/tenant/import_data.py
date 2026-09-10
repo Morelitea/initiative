@@ -23,8 +23,8 @@ class ImportResult(SanitizedBaseModel):
     tasks_created: int = Field(
         default=0, description="Number of tasks successfully created"
     )
-    subtasks_created: int = Field(
-        default=0, description="Number of subtasks successfully created"
+    checklist_items_created: int = Field(
+        default=0, description="Number of checklist lines successfully created"
     )
     tasks_failed: int = Field(
         default=0, description="Number of tasks that failed to import"
@@ -48,8 +48,8 @@ class TodoistParseResult(SanitizedBaseModel):
         default_factory=list, description="Sections found in the CSV"
     )
     task_count: int = Field(default=0, description="Total number of tasks found")
-    has_subtasks: bool = Field(
-        default=False, description="Whether any tasks have subtasks"
+    has_checklist_items: bool = Field(
+        default=False, description="Whether any tasks carry checklist lines"
     )
 
 

@@ -1205,12 +1205,12 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     client: AsyncClient, acting_user, session
 ):
     """layout=detailed renders a one-task-per-page PDF carrying each task's
-    description, subtasks and comments — not the tabular line-per-task list."""
+    description, checklist and comments — not the tabular line-per-task list."""
     import io
 
     from pypdf import PdfReader
 
-    from app.testing.factories import create_comment, create_subtask
+    from app.testing.factories import checklist_items, create_comment
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     t1 = await create_task(
@@ -1220,9 +1220,11 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
         # Markdown, as the app treats descriptions: formatting must RENDER
         # (no literal ** in the PDF), paragraphs stay separate.
         description="Balance the **encounter**.\n\n- Check the second phase",
+        checklist=[
+            *checklist_items("Tune the HP", done=True),
+            *checklist_items("Write the dialogue"),
+        ],
     )
-    await create_subtask(session, t1, content="Tune the HP", is_completed=True)
-    await create_subtask(session, t1, content="Write the dialogue")
     root = await create_comment(session, a.user, task=t1, content="Started already.")
     # A reply must render nested under its parent, not appended chronologically
     # — even though it was created after the later root comment below.
@@ -1257,7 +1259,7 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     assert _pdf_has(text, "Balance the encounter")
     assert _pdf_has(text, "Check the second phase")  # the list item
     assert "**" not in text  # bold markers consumed, not printed
-    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # subtasks
+    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # checklist
     assert _pdf_has(text, "Started already")  # comment body
     # Threaded order: a reply renders directly under its parent, before the
     # later root comment — not in flat creation order. (Compare on the
@@ -1269,7 +1271,7 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
         < packed.index("Separatethreadhere")
     )
     # Localized section labels (en locale).
-    for label in ("Description", "Subtasks", "Comments"):
+    for label in ("Description", "Checklist", "Comments"):
         assert _pdf_has(text, label)
 
 

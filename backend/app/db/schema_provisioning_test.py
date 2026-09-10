@@ -360,29 +360,32 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
             # Simulate a table that didn't exist when the schema was first made.
-            await conn.exec_driver_sql(f'DROP TABLE "{schema}".subtasks CASCADE')
+            await conn.exec_driver_sql(f'DROP TABLE "{schema}".task_assignees CASCADE')
 
         async with engine.connect() as conn:
-            gone = await conn.scalar(text(f"SELECT to_regclass('{schema}.subtasks')"))
-        assert gone is None, "precondition: subtasks dropped"
+            gone = await conn.scalar(
+                text(f"SELECT to_regclass('{schema}.task_assignees')")
+            )
+        assert gone is None, "precondition: task_assignees dropped"
 
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)  # back-fill
 
         async with engine.connect() as conn:
             recreated = await conn.scalar(
-                text(f"SELECT to_regclass('{schema}.subtasks')")
+                text(f"SELECT to_regclass('{schema}.task_assignees')")
             )
             # and the role's grant reaches the back-filled table. Route the
-            # search_path into the guild schema first: subtasks' initiative-member
-            # RLS policy references tasks/projects/initiative_members unqualified,
-            # and those live only in the guild schema.
+            # search_path into the guild schema first: the table's
+            # initiative-member RLS policy references
+            # tasks/projects/initiative_members unqualified, and those live only
+            # in the guild schema.
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.exec_driver_sql(f'SET ROLE "{role}"')
-            readable = await conn.scalar(text("SELECT count(*) FROM subtasks"))
+            readable = await conn.scalar(text("SELECT count(*) FROM task_assignees"))
             await conn.exec_driver_sql("RESET ROLE")
             await conn.exec_driver_sql("SET search_path TO public")
-        assert recreated is not None, "subtasks should be back-filled"
+        assert recreated is not None, "task_assignees should be back-filled"
         assert readable == 0, "role should be able to read the back-filled table"
     finally:
         async with engine.begin() as conn:
@@ -643,14 +646,16 @@ async def test_backfill_repairs_a_dropped_table(engine):
             await provision_guild_schema(conn, gid)
             # Simulate a table that didn't exist when the schema was provisioned:
             # the table is absent AND the stamp names the older artifact version.
-            await conn.exec_driver_sql(f'DROP TABLE "{schema}".subtasks CASCADE')
+            await conn.exec_driver_sql(f'DROP TABLE "{schema}".task_assignees CASCADE')
             await conn.exec_driver_sql(
-                f"COMMENT ON SCHEMA \"{schema}\" IS 'provisioned:pre-subtasks'"
+                f"COMMENT ON SCHEMA \"{schema}\" IS 'provisioned:pre-task_assignees'"
             )
 
         async with engine.connect() as conn:
-            gone = await conn.scalar(text(f"SELECT to_regclass('{schema}.subtasks')"))
-        assert gone is None, "precondition: subtasks dropped"
+            gone = await conn.scalar(
+                text(f"SELECT to_regclass('{schema}.task_assignees')")
+            )
+        assert gone is None, "precondition: task_assignees dropped"
 
         summary = await backfill_guild_schemas()
         # Scoped to our guild — unrelated broken guilds in the shared test DB
@@ -660,7 +665,7 @@ async def test_backfill_repairs_a_dropped_table(engine):
 
         async with engine.connect() as conn:
             recreated = await conn.scalar(
-                text(f"SELECT to_regclass('{schema}.subtasks')")
+                text(f"SELECT to_regclass('{schema}.task_assignees')")
             )
         assert recreated is not None, "back-fill should recreate the dropped table"
     finally:

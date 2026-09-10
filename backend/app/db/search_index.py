@@ -181,6 +181,19 @@ def _document_text(row: str) -> str:
     )
 
 
+def _task_text(row: str) -> str:
+    """A task's searchable text: its description, and its checklist lines.
+
+    The lines are content someone wrote on the task, so a phrase typed onto one
+    finds the task it belongs to. There is no separate row to find instead.
+    """
+    lines = (
+        "coalesce((SELECT string_agg(entry->>'text', ' ') "
+        f"FROM jsonb_array_elements({row}.checklist) AS entry), '')"
+    )
+    return f"coalesce({row}.description, '') || ' ' || {lines}"
+
+
 def _comment_preview(row: str) -> str:
     """The opening of a comment, as the line a result is shown by.
 
@@ -284,7 +297,8 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
     "tasks": SearchSource(
         SearchEntityType.task,
         title="title",
-        body=("description",),
+        body=("description", "checklist"),
+        body_sql=_task_text,
         dac_tool=Tool.project,
         dac_id="project_id",
     ),
@@ -358,7 +372,6 @@ NOT_SEARCHABLE: dict[str, str] = {
     "document_file_versions": "history of a document already indexed",
     "gallery_image_versions": "history of a picture already indexed",
     "document_links": "derived wikilink graph",
-    "subtasks": "checklist lines, reached from the task",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",

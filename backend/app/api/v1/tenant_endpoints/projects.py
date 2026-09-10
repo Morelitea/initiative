@@ -31,7 +31,6 @@ from app.models.tenant.task import (
     TaskAssignee,
     TaskStatus,
     TaskStatusCategory,
-    Subtask,
 )
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import (
@@ -62,6 +61,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
@@ -394,7 +394,6 @@ async def _duplicate_template_tasks(
         .options(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
-            selectinload(Task.subtasks),
             selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
@@ -437,6 +436,7 @@ async def _duplicate_template_tasks(
             start_date=start_date,
             due_date=due_date,
             position=template_task.position,
+            checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
         )
         task_completion.sync_completed_at(
             new_task, categories.get(mapped_status_id), now=now
@@ -448,18 +448,6 @@ async def _duplicate_template_tasks(
                 [
                     TaskAssignee(task_id=new_task.id, user_id=assignee.id)
                     for assignee in template_task.assignees
-                ]
-            )
-        if template_task.subtasks:
-            session.add_all(
-                [
-                    Subtask(
-                        task_id=new_task.id,
-                        content=subtask.content,
-                        is_completed=subtask.is_completed,
-                        position=subtask.position,
-                    )
-                    for subtask in template_task.subtasks
                 ]
             )
         await tags_service.copy_entity_tags(

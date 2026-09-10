@@ -11,7 +11,6 @@
       "asana": "Importer des projets et tâches depuis l'export CSV d'Asana"
     }
   },
-
   "common": {
     "stepUpload": "Télécharger",
     "stepConfigure": "Configurer",
@@ -48,8 +47,9 @@
     "tasksFailed_other": "{{count}} tâches ont échoué à l'importation",
     "tasksCreated_one": "{{count}} tâche créée",
     "tasksCreated_other": "{{count}} tâches créées",
-    "subtasksCount_one": "{{count}} sous-tâche",
-    "subtasksCount_other": "{{count}} sous-tâches",
+    "checklistItemsCount_one": "{{count}} élément de checklist",
+    "checklistItemsCount_other": "{{count}} éléments de checklist",
+    "includesChecklistItems": "Inclut les checklists",
     "failedCount_one": "{{count}} échoué",
     "failedCount_other": "{{count}} échoués",
     "noTasksImported": "Aucune tâche n'a été importée",
@@ -57,10 +57,8 @@
     "importFailed": "Importation échouée",
     "parseError": "Impossible d'analyser le fichier",
     "errors": "Erreurs :",
-    "includesSubtasks": "Inclut les sous-tâches",
     "done": "Terminé"
   },
-
   "todoist": {
     "title": "Importer depuis Todoist",
     "description": "Importez des tâches depuis un export CSV de Todoist.",
@@ -93,7 +91,6 @@
     "mapSectionsLabel": "Associer les sections aux statuts",
     "mapSectionsDescription": "Choisissez quel statut de projet chaque section Todoist doit utiliser."
   },
-
   "ticktick": {
     "title": "Importer depuis TickTick",
     "description": "Importez des tâches depuis un export CSV de TickTick.",
@@ -131,7 +128,6 @@
     "mapColumnsLabel": "Associer les colonnes aux statuts",
     "mapColumnsDescription": "Choisissez quel statut de projet chaque colonne TickTick doit utiliser."
   },
-
   "vikunja": {
     "title": "Importer depuis Vikunja",
     "description": "Importez des tâches depuis un export JSON de Vikunja.",

@@ -717,7 +717,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
           ) : null}
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
-        <TaskChecklistProgress progress={task.subtask_progress} className="mt-2 max-w-[200px]" />
+        <TaskChecklistProgress progress={task.checklist_progress} className="mt-2 max-w-[200px]" />
       </button>
       <TaskDescriptionHoverCard task={task} />
     </div>

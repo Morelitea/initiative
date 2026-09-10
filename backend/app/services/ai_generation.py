@@ -1,6 +1,6 @@
 """AI Generation service for task-related AI features.
 
-This service provides AI-powered generation of subtasks and descriptions
+This service provides AI-powered generation of checklist steps and descriptions
 using the configured AI provider (OpenAI, Anthropic, Ollama, or custom).
 """
 
@@ -23,7 +23,7 @@ from app.services.webhook_target_url import (
 )
 
 # Maximum output lengths to prevent excessive LLM responses
-_MAX_SUBTASK_LENGTH = 200
+_MAX_CHECKLIST_ITEM_LENGTH = 200
 _MAX_DESCRIPTION_LENGTH = 2000
 _MAX_SUMMARY_LENGTH = 5000
 
@@ -34,7 +34,7 @@ class AIGenerationError(Exception):
     pass
 
 
-async def generate_subtasks(
+async def generate_checklist(
     session: AsyncSession,
     user: User,
     guild_id: int | None,
@@ -43,7 +43,7 @@ async def generate_subtasks(
     initiative_name: str | None = None,
     project_name: str | None = None,
 ) -> list[str]:
-    """Generate subtask suggestions using configured AI provider."""
+    """Suggest checklist steps using the configured AI provider."""
     resolved = await resolve_ai_settings(session, user, guild_id)
 
     if not resolved.enabled:
@@ -56,19 +56,19 @@ async def generate_subtasks(
         raise AIGenerationError("No AI provider configured")
 
     locale = getattr(user, "locale", None) or "en"
-    system_prompt, user_content = _build_subtasks_prompt(
+    system_prompt, user_content = _build_checklist_prompt(
         task, initiative_name, project_name, locale=locale
     )
 
     if resolved.provider == AIProvider.openai:
-        return await _generate_openai_subtasks(
+        return await _generate_openai_checklist(
             api_key=resolved.api_key,
             model=resolved.model or "gpt-4o-mini",
             system_prompt=system_prompt,
             user_content=user_content,
         )
     elif resolved.provider == AIProvider.anthropic:
-        return await _generate_anthropic_subtasks(
+        return await _generate_anthropic_checklist(
             api_key=resolved.api_key,
             model=resolved.model or "claude-3-5-haiku-20241022",
             system_prompt=system_prompt,
@@ -83,9 +83,9 @@ async def generate_subtasks(
             timeout=60.0,
             allow_private=resolved.allow_private,
         )
-        return _parse_subtasks_response(content)
+        return _parse_checklist_response(content)
     elif resolved.provider == AIProvider.custom:
-        return await _generate_custom_subtasks(
+        return await _generate_custom_checklist(
             api_key=resolved.api_key,
             base_url=resolved.base_url,
             model=resolved.model,
@@ -284,21 +284,21 @@ def _build_summary_prompt(
     return system_prompt, user_content
 
 
-def _build_subtasks_prompt(
+def _build_checklist_prompt(
     task: Task,
     initiative_name: str | None = None,
     project_name: str | None = None,
     *,
     locale: str = "en",
 ) -> tuple[str, str]:
-    """Build system/user prompt pair for subtask generation."""
+    """Build system/user prompt pair for checklist generation."""
     lang_instruction = _locale_instruction(locale)
     system_prompt = (
-        "Generate actionable subtasks for the task provided by the user.\n"
-        "Return 3-7 specific, actionable subtasks as a JSON array of strings.\n"
-        "Each subtask should be a clear action item that contributes to completing the main task.\n"
-        "Keep each subtask concise (under 100 characters).\n"
-        "Do not include numbering or bullet points in the subtask text.\n"
+        "Break the task provided by the user into checklist steps.\n"
+        "Return 3-7 specific, actionable steps as a JSON array of strings.\n"
+        "Each step should be a clear action that contributes to completing the task.\n"
+        "Keep each step concise (under 100 characters).\n"
+        "Do not include numbering or bullet points in the step text.\n"
         f"{lang_instruction}"
         "Return ONLY the JSON array, no other text."
     )
@@ -373,8 +373,8 @@ def _build_description_prompt(
     return system_prompt, user_content
 
 
-def _parse_subtasks_response(text: str) -> list[str]:
-    """Parse AI response to extract subtask list."""
+def _parse_checklist_response(text: str) -> list[str]:
+    """Parse AI response to extract the list of steps."""
     text = text.strip()
 
     # Try to find JSON array in response
@@ -384,11 +384,11 @@ def _parse_subtasks_response(text: str) -> list[str]:
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
         json_text = text[start_idx : end_idx + 1]
         try:
-            subtasks = json.loads(json_text)
-            if isinstance(subtasks, list):
+            parsed = json.loads(json_text)
+            if isinstance(parsed, list):
                 return [
-                    _truncate_output(str(s).strip(), _MAX_SUBTASK_LENGTH)
-                    for s in subtasks
+                    _truncate_output(str(s).strip(), _MAX_CHECKLIST_ITEM_LENGTH)
+                    for s in parsed
                     if s and str(s).strip()
                 ]
         except json.JSONDecodeError:
@@ -396,7 +396,7 @@ def _parse_subtasks_response(text: str) -> list[str]:
 
     # Fallback: split by newlines if JSON parsing fails
     lines = text.split("\n")
-    subtasks = []
+    items: list[str] = []
     for line in lines:
         line = line.strip()
         # Remove common list prefixes
@@ -411,9 +411,9 @@ def _parse_subtasks_response(text: str) -> list[str]:
                     line = line.split(sep, 1)[-1]
                     break
         if line:
-            subtasks.append(_truncate_output(line, _MAX_SUBTASK_LENGTH))
+            items.append(_truncate_output(line, _MAX_CHECKLIST_ITEM_LENGTH))
 
-    return subtasks[:7]  # Limit to 7 subtasks
+    return items[:7]
 
 
 def _is_openai_new_api_model(model: str) -> bool:
@@ -441,13 +441,13 @@ def _openai_messages(system_prompt: str, user_content: str) -> list[dict[str, st
 # ---------------------------------------------------------------------------
 
 
-async def _generate_openai_subtasks(
+async def _generate_openai_checklist(
     api_key: str | None,
     model: str,
     system_prompt: str,
     user_content: str,
 ) -> list[str]:
-    """Generate subtasks using OpenAI API."""
+    """Generate checklist steps using OpenAI API."""
     if not api_key:
         raise AIGenerationError("API key is required for OpenAI")
 
@@ -488,7 +488,7 @@ async def _generate_openai_subtasks(
 
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return _parse_subtasks_response(content)
+            return _parse_checklist_response(content)
     except httpx.TimeoutException:
         raise AIGenerationError("OpenAI request timed out")
     except AIGenerationError:
@@ -612,13 +612,13 @@ async def _generate_openai_summary(
 # ---------------------------------------------------------------------------
 
 
-async def _generate_anthropic_subtasks(
+async def _generate_anthropic_checklist(
     api_key: str | None,
     model: str,
     system_prompt: str,
     user_content: str,
 ) -> list[str]:
-    """Generate subtasks using Anthropic API."""
+    """Generate checklist steps using Anthropic API."""
     if not api_key:
         raise AIGenerationError("API key is required for Anthropic")
 
@@ -646,7 +646,7 @@ async def _generate_anthropic_subtasks(
 
             data = response.json()
             content = data["content"][0]["text"]
-            return _parse_subtasks_response(content)
+            return _parse_checklist_response(content)
     except httpx.TimeoutException:
         raise AIGenerationError("Anthropic request timed out")
     except AIGenerationError:
@@ -859,7 +859,7 @@ async def _custom_chat_completion(
         raise AIGenerationError(f"Request failed: {str(e)}")
 
 
-async def _generate_custom_subtasks(
+async def _generate_custom_checklist(
     api_key: str | None,
     base_url: str | None,
     model: str | None,
@@ -868,7 +868,7 @@ async def _generate_custom_subtasks(
     *,
     allow_private: bool = False,
 ) -> list[str]:
-    """Generate subtasks using a custom OpenAI-compatible API."""
+    """Generate checklist steps using a custom OpenAI-compatible API."""
     content = await _custom_chat_completion(
         api_key=api_key,
         base_url=base_url,
@@ -880,7 +880,7 @@ async def _generate_custom_subtasks(
         timeout=30.0,
         allow_private=allow_private,
     )
-    return _parse_subtasks_response(content)
+    return _parse_checklist_response(content)
 
 
 async def _generate_custom_description(

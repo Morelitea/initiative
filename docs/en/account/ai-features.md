@@ -4,7 +4,7 @@ icon: lucide/sparkles
 
 # AI features
 
-Initiative has optional AI help for the boring parts — drafting a task description, suggesting subtasks, summarising a document.
+Initiative has optional AI help for the boring parts — drafting a task description, breaking a task into a checklist, summarising a document.
 
 Optional, off unless somebody deliberately switches it on, and never quietly running in the background while you weren't looking.
 
@@ -13,7 +13,7 @@ Optional, off unless somebody deliberately switches it on, and never quietly run
 When AI is switched on, you'll see **Generate** options in a few places:
 
 - Drafting or improving a **task description**.
-- Suggesting **subtasks** to break something down.
+- Suggesting a **checklist** to break something down.
 - Producing a **summary** of a document.
 
 You ask each time. Nothing writes itself while you're making tea.

@@ -144,7 +144,6 @@ from app.services.tenant import galleries as galleries_service  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
 from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
-    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
@@ -152,6 +151,7 @@ from app.models.tenant.task import (  # noqa: E402
     TaskStatusCategory,
 )
 from app.models.platform.user import User, UserRole, UserStatus  # noqa: E402
+from app.schemas.tenant.task import mint_checklist_item_id  # noqa: E402
 from app.services.platform.app_settings import (  # noqa: E402
     get_app_settings,
     get_or_create_guild_settings,
@@ -533,9 +533,9 @@ def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
         if _rng.random() < 0.08:
             td["start_days"] = _rng.randint(-10, 5)
 
-        # ~5% have subtasks
+        # ~5% carry a checklist
         if _rng.random() < 0.05:
-            td["subtasks"] = [
+            td["checklist"] = [
                 f"Check {area} entrance",
                 f"Search {area} for treasure",
                 f"Neutralize {area} hazards",
@@ -617,7 +617,6 @@ class IDTracker:
             "task_statuses": [],
             "project_filter_presets": [],
             "tasks": [],
-            "subtasks": [],
             "task_assignees": [],
             "documents": [],
             "document_permissions": [],
@@ -1256,7 +1255,7 @@ async def _create_tasks(
     task_defs: list[dict],
     all_users: dict[str, User],
 ) -> dict[str, Task]:
-    """Create tasks, subtasks, and assignees from definitions."""
+    """Create tasks, their checklists, and assignees from definitions."""
     created: dict[str, Task] = {}
     for i, td in enumerate(task_defs):
         status = status_map[td["category"]]
@@ -1273,23 +1272,19 @@ async def _create_tasks(
             due_date=(NOW + timedelta(days=due)) if due is not None else None,
             start_date=(NOW + timedelta(days=start)) if start is not None else None,
             is_archived=td.get("archived", False),
+            checklist=[
+                {
+                    "id": mint_checklist_item_id(),
+                    "text": text,
+                    "done": td.get("checklist_done", False),
+                }
+                for text in td.get("checklist", [])
+            ],
         )
         session.add(task)
         await session.flush()
         ids.add("tasks", task.id)
         created[td["title"]] = task
-
-        for pos, content in enumerate(td.get("subtasks", [])):
-            sub = Subtask(
-                guild_id=guild.id,
-                task_id=task.id,
-                content=content,
-                position=pos,
-                is_completed=td.get("subtasks_done", False),
-            )
-            session.add(sub)
-            await session.flush()
-            ids.add("subtasks", sub.id)
 
         for assignee_name in td.get("assignees", []):
             user = all_users.get(assignee_name)
@@ -3397,7 +3392,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Explore the basement",
                     "Find the hidden altar",
                     "Escape before the house collapses",
@@ -3443,7 +3438,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.done,
                 "assignees": ["Seraphina Dawnlight", "Thorn Ironforge"],
-                "subtasks": [
+                "checklist": [
                     "Pack supplies for the journey",
                     "Guard Ireena through the Svalich Woods",
                     "Arrive at Vallaki gates",
@@ -3457,7 +3452,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Map the main floor",
                     "Map the crypts",
                     "Map the towers",
@@ -3511,12 +3506,12 @@ async def seed() -> None:
                 "description": "A tribe of goblins ambushed the party. Their hideout must be cleared.",
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.done,
-                "subtasks": [
+                "checklist": [
                     "Find the Cragmaw Hideout",
                     "Defeat Klarg the bugbear",
                     "Free Sildar Hallwinter",
                 ],
-                "subtasks_done": True,
+                "checklist_done": True,
             },
             {
                 "project_id": g1_phandalin.id,
@@ -3540,7 +3535,7 @@ async def seed() -> None:
                 "description": "Nezznar the Black Spider seeks the Forge of Spells.",
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.backlog,
-                "subtasks": [
+                "checklist": [
                     "Find the entrance to Wave Echo Cave",
                     "Navigate the mine tunnels",
                     "Confront Nezznar",
@@ -3611,7 +3606,7 @@ async def seed() -> None:
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Slashing crits",
                     "Piercing crits",
                     "Bludgeoning crits",
@@ -3682,7 +3677,7 @@ async def seed() -> None:
                 "description": "Investigation, complication, confrontation.",
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.todo,
-                "subtasks": ["Investigation", "Complication", "Confrontation"],
+                "checklist": ["Investigation", "Complication", "Confrontation"],
             },
             {
                 "project_id": g1_oneshot_tpl.id,
@@ -5733,7 +5728,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Diagnose the plasma leak",
                     "Source replacement crystals",
                     "Recalibrate the nav array",
@@ -5788,7 +5783,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Admin User"],
-                "subtasks": [
+                "checklist": [
                     "Deploy orbital probes",
                     "Analyze atmospheric data",
                     "Check for hostile fauna",
@@ -5827,7 +5822,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Vex Shadowstep", "Finley Goldtongue"],
-                "subtasks": [
+                "checklist": [
                     "Forge ID badges",
                     "Disable security cameras on Level 3",
                     "Create a distraction",
@@ -7219,7 +7214,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Thorn Ironforge", "Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Patch the port breach",
                     "Reinforce the keel",
                     "Replace the damaged mast",
@@ -7256,7 +7251,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Finley Goldtongue", "Admin User"],
-                "subtasks": [
+                "checklist": [
                     "Find a translator in Port Havoc",
                     "Cross-reference with known charts",
                     "Identify the three key landmarks",
@@ -7268,7 +7263,7 @@ async def seed() -> None:
                 "description": "Legend says three enchanted stones unlock the Leviathan's vault.",
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.backlog,
-                "subtasks": [
+                "checklist": [
                     "Tidestone of Storms (Tempest Isle)",
                     "Tidestone of Depths (Abyssal Trench)",
                     "Tidestone of Calm (Sanctuary Reef)",
@@ -7306,7 +7301,7 @@ async def seed() -> None:
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Chart the coastline",
                     "Find the source of the whispers",
                     "Locate the ruined temple",
