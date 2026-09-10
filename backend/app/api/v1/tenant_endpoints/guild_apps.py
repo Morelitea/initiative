@@ -79,6 +79,7 @@ from app.schemas.tenant.guild_app import (
     serialize_member_delegation,
 )
 from app.services import rls as rls_service
+from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 from app.services.marketplace import registrations as registrations_service
@@ -578,8 +579,13 @@ async def uninstall_guild_app(
         deleted_by_user_id=current_user.id,
         retention_days=retention_days,
     )
+    install_id = app.id
+    guild_id = app.guild_id
     await session.delete(app)
     await session.commit()
+    # What this install called each member. Removed explicitly: the reference
+    # lives in a platform-wide table, so no foreign key reaches it from here.
+    await app_refs.drop_install_refs(guild_id=guild_id, app_install_id=install_id)
     await _flush_revocations(session)
 
 

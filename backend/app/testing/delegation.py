@@ -199,14 +199,13 @@ async def delegate_subject(session: AsyncSession, guild, user) -> str:
     Installs the app if the guild has not, because the subject's sector is the
     install — there is no subject for an app that is not there.
     """
-    from app.services.marketplace.app_subjects import ensure_subject
+    from app.services.marketplace.app_refs import ensure_app_ref
 
     app = await install_delegate(session, guild)
-    subject = await ensure_subject(
-        session, app_install_id=app.id, guild_id=guild.id, user_id=user.id
-    )
     await session.commit()
-    return subject
+    return await ensure_app_ref(
+        guild_id=guild.id, app_install_id=app.id, user_id=user.id
+    )
 
 
 async def authorize_delegate(

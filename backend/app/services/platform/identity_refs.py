@@ -17,7 +17,7 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,6 +35,7 @@ __all__ = [
     "REF_GRACE_PERIOD",
     "billing_refs",
     "drop_entity_refs",
+    "drop_sector_refs",
     "ensure_ref",
     "mint_ref",
     "purge_retired_refs",
@@ -48,7 +49,7 @@ __all__ = [
 REF_GRACE_PERIOD = timedelta(days=30)
 
 
-def mint_ref(entity_type: IdentityEntity, purpose: str) -> str:
+def mint_ref(entity_type: IdentityEntity, purpose: IdentityPurpose) -> str:
     """A fresh reference. Random, and unrelated to the row it will name."""
     return (
         f"{ref_prefix(entity_type, purpose)}_{secrets.token_urlsafe(REF_ENTROPY_BYTES)}"
@@ -60,16 +61,23 @@ async def ensure_ref(
     *,
     entity_type: IdentityEntity,
     entity_id: int,
-    purpose: str,
+    purpose: IdentityPurpose,
+    sector_guild_id: int | None = None,
+    sector_id: int | None = None,
 ) -> str:
-    """This entity's live reference for this purpose, minting one on first use.
+    """This entity's live reference for this sector, minting one on first use.
 
     Idempotent under concurrency: two callers racing the same first mint both
     insert, one loses on the partial unique index, and both read back the same
     row.
     """
+    sector = (sector_guild_id, sector_id)
     existing = await _live_ref(
-        session, entity_type=entity_type, entity_id=entity_id, purpose=purpose
+        session,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        purpose=purpose,
+        sector=sector,
     )
     if existing is not None:
         return existing.ref
@@ -80,13 +88,22 @@ async def ensure_ref(
             ref=mint_ref(entity_type, purpose),
             entity_type=entity_type.value,
             entity_id=entity_id,
-            purpose=purpose,
+            purpose=purpose.value,
+            sector_guild_id=sector_guild_id,
+            sector_id=sector_id,
             created_at=datetime.now(timezone.utc),
         )
         # A core-level insert, so the model's default factories do not run and
-        # the conflict target must name the partial index's predicate.
+        # the conflict target must name the partial index's columns and
+        # predicate.
         .on_conflict_do_nothing(
-            index_elements=["entity_type", "entity_id", "purpose"],
+            index_elements=[
+                "entity_type",
+                "entity_id",
+                "purpose",
+                "sector_guild_id",
+                "sector_id",
+            ],
             index_where=IdentityRef.retired_at.is_(None),
         )
     )
@@ -94,7 +111,11 @@ async def ensure_ref(
     # Read back rather than returning what was offered: on a lost race the
     # stored value is the winner's, and that is the one the caller must use.
     stored = await _live_ref(
-        session, entity_type=entity_type, entity_id=entity_id, purpose=purpose
+        session,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        purpose=purpose,
+        sector=sector,
     )
     if stored is None:  # pragma: no cover - the insert either landed or lost
         raise RuntimeError("identity ref was neither inserted nor found")
@@ -111,7 +132,7 @@ async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
     """
     from app.db.session import AdminSessionLocal
 
-    purpose = IdentityPurpose.billing.value
+    purpose = IdentityPurpose.billing
     async with AdminSessionLocal() as session:
         user_ref = await ensure_ref(
             session,
@@ -153,20 +174,36 @@ async def resolve_ref(
     ).first()
 
 
+def _sector_clause(sector: tuple[int | None, int | None]):
+    """Match one sector, treating an unset one as a value rather than unknown."""
+    guild_id, sector_id = sector
+    return and_(
+        IdentityRef.sector_guild_id.is_(None)
+        if guild_id is None
+        else IdentityRef.sector_guild_id == guild_id,
+        IdentityRef.sector_id.is_(None)
+        if sector_id is None
+        else IdentityRef.sector_id == sector_id,
+    )
+
+
 async def reissue_ref(
     session: AsyncSession,
     *,
     entity_type: IdentityEntity,
     entity_id: int,
-    purpose: str,
+    purpose: IdentityPurpose,
+    sector_guild_id: int | None = None,
+    sector_id: int | None = None,
     now: datetime | None = None,
 ) -> str:
-    """Replace one entity's reference for one purpose, and return the new one.
+    """Replace one entity's reference for one sector, and return the new one.
 
     The old value keeps resolving for ``REF_GRACE_PERIOD``. Nothing else about
     the entity moves, and no other entity is touched.
     """
     moment = now or datetime.now(timezone.utc)
+    sector = (sector_guild_id, sector_id)
     await session.exec(
         update(IdentityRef)
         .where(
@@ -174,11 +211,17 @@ async def reissue_ref(
             IdentityRef.entity_id == entity_id,
             IdentityRef.purpose == purpose,
             IdentityRef.retired_at.is_(None),
+            _sector_clause(sector),
         )
         .values(retired_at=moment)
     )
     return await ensure_ref(
-        session, entity_type=entity_type, entity_id=entity_id, purpose=purpose
+        session,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        purpose=purpose,
+        sector_guild_id=sector_guild_id,
+        sector_id=sector_id,
     )
 
 
@@ -186,24 +229,28 @@ async def reissue_all_refs(
     session: AsyncSession,
     *,
     entity_type: IdentityEntity,
-    purpose: str,
+    purpose: IdentityPurpose,
+    sector_guild_id: int | None = None,
+    sector_id: int | None = None,
     now: datetime | None = None,
 ) -> int:
-    """Replace every entity's reference for one purpose. Returns the count.
+    """Replace every entity's reference for one sector. Returns the count.
 
-    The coarse lever, for a purpose whose references have to move together
-    rather than one holder at a time. Resumable: retiring and re-minting are
-    separate steps, so a run interrupted between them is completed by the next
-    one — an entity left with no live reference gets a fresh one, and an entity
-    already re-minted is skipped.
+    The coarse lever, for references that have to move together rather than one
+    holder at a time. Resumable: retiring and re-minting are separate steps, so
+    a run interrupted between them is completed by the next one — an entity left
+    with no live reference gets a fresh one, and an entity already re-minted is
+    skipped.
     """
     moment = now or datetime.now(timezone.utc)
+    sector = (sector_guild_id, sector_id)
     retired = await session.exec(
         update(IdentityRef)
         .where(
             IdentityRef.entity_type == entity_type,
             IdentityRef.purpose == purpose,
             IdentityRef.retired_at.is_(None),
+            _sector_clause(sector),
         )
         .values(retired_at=moment)
         .returning(IdentityRef.entity_id)
@@ -216,6 +263,7 @@ async def reissue_all_refs(
         .where(
             IdentityRef.entity_type == entity_type,
             IdentityRef.purpose == purpose,
+            _sector_clause(sector),
         )
         .group_by(IdentityRef.entity_id)
         .having(func.count().filter(IdentityRef.retired_at.is_(None)) == 0)
@@ -224,7 +272,12 @@ async def reissue_all_refs(
 
     for entity_id in sorted(entity_ids):
         await ensure_ref(
-            session, entity_type=entity_type, entity_id=entity_id, purpose=purpose
+            session,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            purpose=purpose,
+            sector_guild_id=sector_guild_id,
+            sector_id=sector_id,
         )
     return len(entity_ids)
 
@@ -243,6 +296,23 @@ async def drop_entity_refs(
             IdentityRef.entity_id == entity_id,
         )
     )
+    return result.rowcount or 0
+
+
+async def drop_sector_refs(
+    session: AsyncSession, *, sector_guild_id: int, sector_id: int | None = None
+) -> int:
+    """Remove every reference minted for one sector. Returns the count.
+
+    ``sector_id`` omitted takes the whole guild's sectors, which is what guild
+    deletion needs. Neither column is a foreign key — the thing a sector names
+    lives in a guild schema and this table does not — so this stands in for the
+    cascade.
+    """
+    clause = IdentityRef.sector_guild_id == sector_guild_id
+    if sector_id is not None:
+        clause = and_(clause, IdentityRef.sector_id == sector_id)
+    result = await session.exec(delete(IdentityRef).where(clause))
     return result.rowcount or 0
 
 
@@ -265,7 +335,8 @@ async def _live_ref(
     *,
     entity_type: IdentityEntity,
     entity_id: int,
-    purpose: str,
+    purpose: IdentityPurpose,
+    sector: tuple[int | None, int | None],
 ) -> IdentityRef | None:
     return (
         await session.exec(
@@ -274,6 +345,7 @@ async def _live_ref(
                 IdentityRef.entity_id == entity_id,
                 IdentityRef.purpose == purpose,
                 IdentityRef.retired_at.is_(None),
+                _sector_clause(sector),
             )
         )
     ).first()

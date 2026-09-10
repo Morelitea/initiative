@@ -10,12 +10,16 @@ app, the next — minted at random and stored here. Two references to the same
 guild are unrelated values, and the party holding one learns nothing about the
 other from it.
 
-Random rather than derived from a key, following
-``services.marketplace.app_subjects``: a derived value is only stable while its
+Random rather than derived from a key: a derived value is only stable while its
 key is, and this deployment rotates ``SECRET_KEY``
 (``app.db.secret_key_rotation``). A reference has to outlast that. The full
 reasoning, and the alternatives weighed against it, are in
 ``history/opaque-identity-design.md``.
+
+This is the pairwise pseudonymous identifier of OpenID Connect Core §8.1,
+generalised: ``purpose`` is the sector. A sector that lives inside one guild —
+an installed app — also carries ``sector_guild_id`` + ``sector_id``; see
+``services.marketplace.app_refs``.
 
 Reached only on the system engine — the request-path roles hold nothing on this
 table.
@@ -59,9 +63,10 @@ class IdentityPurpose(str, Enum):
     The sector, in the OpenID Connect §8.1 sense: one entity has one reference
     per purpose, and the purposes are unrelated to each other.
 
-    ``app`` is parametric — an installed app is a sector per install, so its
-    stored purpose is ``app:<install_id>`` rather than the bare member. Build
-    it with ``app_purpose`` rather than by hand.
+    ``billing``'s sector is the deployment's billing service, one for the whole
+    platform. ``app``'s sector is a single **install**, so its rows carry one in
+    ``sector_guild_id`` + ``sector_id``: an app installed in two guilds sees an
+    unrelated reference for the same person in each.
     """
 
     billing = "billing"
@@ -73,27 +78,17 @@ class IdentityPurpose(str, Enum):
         return self.value[:3]
 
 
-def app_purpose(install_id: int) -> str:
-    """The stored purpose naming one installed app."""
-    return f"{IdentityPurpose.app.value}:{install_id}"
-
-
-def purpose_root(purpose: str) -> IdentityPurpose:
-    """The purpose a stored value belongs to, with any parameter dropped."""
-    return IdentityPurpose(purpose.split(":", 1)[0])
-
-
-def ref_prefix(entity_type: IdentityEntity, purpose: str) -> str:
+def ref_prefix(entity_type: IdentityEntity, purpose: IdentityPurpose) -> str:
     """The prefix a reference for this entity and purpose is rendered with.
 
     Derived from the two enums rather than listed, so a new purpose gets a
     prefix by existing.
     """
-    return f"{entity_type.code}{purpose_root(purpose).code}"
+    return f"{entity_type.code}{purpose.code}"
 
 
 #: Characters of base64url in the random half — ``token_urlsafe(24)`` renders
-#: as 32, matching ``GuildAppSubject.SUBJECT_LENGTH``.
+#: as 32. Wide enough to sit in a JWT claim and a URL.
 REF_ENTROPY_BYTES = 24
 REF_RANDOM_LENGTH = 32
 
@@ -108,17 +103,29 @@ class IdentityRef(SQLModel, table=True):
     __tablename__ = "identity_refs"
     __table_args__ = (
         UniqueConstraint("ref", name="identity_refs_unique_ref"),
-        # One live reference per entity per purpose. Retired rows are excluded
+        # One live reference per entity per sector. Retired rows are excluded
         # so a re-issue can sit beside the value it replaces for its grace
         # window.
+        #
+        # NULLS NOT DISTINCT so an unset sector compares equal to another
+        # unset one: a platform-wide purpose leaves both columns NULL, and
+        # Postgres's default reads NULLs as distinct, which is not the
+        # uniqueness this index is for.
         Index(
             "ix_identity_refs_live",
             "entity_type",
             "entity_id",
             "purpose",
+            "sector_guild_id",
+            "sector_id",
             unique=True,
             postgresql_where=text("retired_at IS NULL"),
+            postgresql_nulls_not_distinct=True,
         ),
+        # Removing an install's references, and a guild's. Neither can be a
+        # foreign key: ``guild_apps`` lives in a guild schema and this table
+        # does not, so both are deleted explicitly.
+        Index("ix_identity_refs_sector", "sector_guild_id", "sector_id"),
         # Sweeping the rows a re-issue left behind.
         Index("ix_identity_refs_retired_at", "retired_at"),
     )
@@ -136,8 +143,20 @@ class IdentityRef(SQLModel, table=True):
     #: and this row is dropped by the same path.
     entity_id: int = Field(sa_column=Column(Integer, nullable=False))
 
-    #: ``billing``, ``app:<install_id>``, … — see ``IdentityPurpose``.
-    purpose: str = Field(sa_column=Column(String(64), nullable=False))
+    #: Which sector this reference is for — see ``IdentityPurpose``.
+    purpose: IdentityPurpose = Field(sa_column=Column(String(64), nullable=False))
+
+    #: Which guild the sector belongs to, for a purpose that has one. NULL for
+    #: a platform-wide sector such as ``billing``.
+    sector_guild_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    #: Which thing inside that guild is the sector — an install, for ``app``.
+    #: Paired with ``sector_guild_id`` because these ids are per-guild-schema
+    #: and so are not unique on their own.
+    sector_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
