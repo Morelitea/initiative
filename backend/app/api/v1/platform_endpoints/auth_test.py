@@ -13,6 +13,8 @@ from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
+import logging
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -39,6 +41,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
+from app.core.config import settings
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
@@ -435,6 +438,158 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
 
     assert response.status_code == 400
     assert "incorrect" in response.json()["detail"].lower()
+
+
+async def test_login_failure_is_recorded_against_the_account(
+    client: AsyncClient, session: AsyncSession, caplog
+):
+    """A failed attempt names the account in the log, and nothing in the response.
+
+    Repeated failures carrying the same user id are one account under attack;
+    the per-IP rate limit cannot see that shape. The HTTP response stays
+    byte-identical to the unknown-account case, so nothing readable off the
+    response changes. This does not make the endpoint enumeration-proof — the
+    miss path short-circuits before verify_password and so returns much faster.
+    That oracle predates this change; see the comment in auth.py.
+    """
+    password = "correct_password"
+    user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
+        email_hash=hash_email("recorded@example.com"),
+        email_encrypted=encrypt_field("recorded@example.com", SALT_EMAIL),
+        full_name="Test User",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "recorded@example.com", "password": "wrong_password"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    assert f"user_id={user.id}" in logged[-1]
+    # The submitted address never reaches the log: it is attacker-chosen and
+    # unverified, and every reader downstream would inherit it.
+    assert "recorded@example.com" not in logged[-1]
+
+
+async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
+    client: AsyncClient, session: AsyncSession, caplog, monkeypatch
+):
+    """A client-supplied X-Forwarded-For cannot inject fields into the log line.
+
+    Under BEHIND_PROXY the client IP is read from the leftmost X-Forwarded-For
+    entry, which the client controls. If that value reached the log unparsed, an
+    attacker could append " user_id=1 ip=10.0.0.1" and have any parser splitting
+    on key=value attribute a failure to an account of their choosing — which is
+    exactly the detection this log line exists to support.
+    """
+    monkeypatch.setattr(settings, "BEHIND_PROXY", True)
+    password = "correct_password"
+    user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
+        email_hash=hash_email("forge@example.com"),
+        email_encrypted=encrypt_field("forge@example.com", SALT_EMAIL),
+        full_name="Test User",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "forge@example.com", "password": "wrong_password"},
+            headers={"X-Forwarded-For": "1.2.3.4 user_id=1 ip=10.0.0.1"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    line = logged[-1]
+    # Exactly one user_id field, and it is the real account.
+    assert line.count("user_id=") == 1
+    assert f"user_id={user.id}" in line
+    # The forged payload is dropped whole, not partially escaped.
+    assert "10.0.0.1" not in line
+    assert "1.2.3.4" not in line
+    # Exactly one ip field, holding the sentinel: the unparseable header value
+    # was discarded rather than trimmed down to something that still parses.
+    assert line.count("ip=") == 1
+    assert "ip=- " in line or line.endswith("ip=-")
+
+
+async def test_login_failure_is_recorded_for_a_correct_password_on_a_blocked_account(
+    client: AsyncClient, session: AsyncSession, caplog
+):
+    """A correct password against an unusable account is still recorded.
+
+    This is the case worth waking up for: the credential is valid. Logging only
+    the wrong-password branch would make a live credential against a disabled
+    account the one failed sign-in that produces no signal at all.
+    """
+    password = "correct_password"
+    user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
+        email_hash=hash_email("blocked@example.com"),
+        email_encrypted=encrypt_field("blocked@example.com", SALT_EMAIL),
+        full_name="Test User",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.deactivated,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "blocked@example.com", "password": password},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a correct password on a deactivated account was not recorded"
+    assert f"user_id={user.id}" in logged[-1]
+    assert "reason=account_not_active" in logged[-1]
+    assert "blocked@example.com" not in logged[-1]
+
+
+async def test_login_failure_for_unknown_account_names_no_user(
+    client: AsyncClient, caplog
+):
+    """No account, no id — and the same 400 the caller gets when one exists."""
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "nobody@example.com", "password": "whatever"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    assert "user_id=-" in logged[-1]
+    assert "nobody@example.com" not in logged[-1]
 
 
 async def test_login_refused_for_account_without_password(

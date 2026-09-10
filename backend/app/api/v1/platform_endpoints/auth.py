@@ -409,16 +409,65 @@ async def login_access_token(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
+        # Nothing recorded a failed sign-in, so nothing could tell that one
+        # account was being attacked from many addresses. The per-IP limit above
+        # bounds one client and says nothing about that shape.
+        #
+        # The user id is logged when the account exists and omitted when it does
+        # not, which is what makes this useful to alert on — repeated failures
+        # carrying the same id are one account under attack, rather than a
+        # spray. The HTTP response is byte-identical either way, so this adds
+        # nothing a caller can read off the response.
+        #
+        # It does NOT make the endpoint enumeration-proof, and this line should
+        # not be read as claiming that. The condition above short-circuits, so
+        # verify_password never runs for an unknown address: the hit path pays
+        # ~88 ms of password hashing (measured on this branch) and the miss path
+        # pays none, which is observable over a network. That timing oracle
+        # predates this change and is untouched by it; closing it means a
+        # dummy-hash verify on the miss path, which is its own change.
+        #
+        # Never the submitted address: it would put an unverified,
+        # attacker-chosen string into the log, and every log reader downstream
+        # would inherit it. get_inet_client_ip applies the same rule to the
+        # address — under BEHIND_PROXY the raw value is the leftmost
+        # X-Forwarded-For entry, which the client supplies and can pack with
+        # spaces and "key=value" text to forge a different account's id into a
+        # parsed log line. get_inet_client_ip returns it only if it parses as an
+        # IP address, and None if it does not.
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id if user else "-",
+            get_inet_client_ip(request) or "-",
+            "bad_password" if user else "no_such_account",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
+    # The two branches below are also failed sign-ins, and they are the ones
+    # worth waking up for: the password was CORRECT. A hit here means someone
+    # holds a live credential for an account that cannot currently be used, so
+    # a disabled account is not the end of the story — that password is valid
+    # and may be valid elsewhere.
     if user.status != UserStatus.active:
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id,
+            get_inet_client_ip(request) or "-",
+            "account_not_active",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     if not user.email_verified:
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id,
+            get_inet_client_ip(request) or "-",
+            "email_unverified",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
