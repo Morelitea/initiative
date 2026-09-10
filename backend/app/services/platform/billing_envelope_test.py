@@ -29,12 +29,18 @@ def envelope(monkeypatch: pytest.MonkeyPatch) -> tuple[dict[str, str], str]:
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
-    public_pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", public_pem)
-    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "current-secret-value")
+    monkeypatch.setattr(
+        config_module.settings, "BILLING_HMAC_SECRET", "current-secret-value"
+    )
     monkeypatch.setattr(
         config_module.settings,
         "BILLING_HMAC_SECRET_PREVIOUS",
