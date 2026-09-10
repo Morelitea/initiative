@@ -405,15 +405,14 @@ export interface UserInitiativeRole {
  *
  * Everything a platform admin does to an account — reset its password, rename
  * it, change its tier, suspend it, delete it — is addressed by id, and the
- * roster is read and searched by handle. None of it needs the address itself,
- * so none of it is served one. What the mask leaves is enough to match a row
- * against an address somebody has quoted at you, which is the only thing the
- * column was ever read for.
+ * roster is read and searched by handle, so none of it needs the address
+ * itself. What the mask leaves is enough to match a row against an address
+ * somebody has quoted at you, which is what the column is read for.
  *
- * The masking is on the shape rather than in each admin route: subclassing is
- * what keeps ``/users/me`` — the one reader entitled to the whole address —
- * on plain ``UserRead`` while every admin route that returns an account is
- * masked by construction.
+ * Masking lives on the shape rather than in each admin route: subclassing
+ * keeps ``/users/me`` — where the reader is the address's owner — on plain
+ * ``UserRead``, while every admin route that returns an account gets the
+ * masked form without opting in.
  */
 export interface AdminUserRead {
   email: string;
