@@ -6,14 +6,11 @@ pictures as child rows. What is genuinely this tool's own is in two places:
 
 * **What a picture is allowed to be.** Two gates, cheapest first.
   :func:`validate_image` reads the file's header — the format, the pixel size
-  — so an obviously wrong body costs a few bounds-checked slices rather than a
-  decoder. Raster only, and no SVG: a picture in a gallery is drawn in an
-  ``<img>``, where an SVG is a document that can run. Then
-  :func:`render_thumbnail` decodes it, and a body the decoder will not read is
-  refused: a header says what a file *claims*, and a truncated or hostile one
-  claims the same things a real picture does. Storing it would put something
-  no browser can draw on the wall, and hand every viewer the full-size
-  original because there was no thumbnail to show instead.
+  — which is a few bounds-checked slices rather than a decoder. Raster only,
+  and no SVG: a picture here is drawn in an ``<img>``, and an SVG is a
+  document rather than a picture. Then :func:`render_thumbnail` decodes it,
+  and only a body the decoder reads is stored. A header says what a file
+  claims; the decode is what confirms it.
 * **The order.** Newest first, always. A gallery is a record of what arrived,
   and a design round is read in the order it happened; the timeline view
   groups the same order by day.
@@ -115,15 +112,13 @@ def render_thumbnail(contents: bytes) -> Thumbnail | None:
     still.
 
     Raises :class:`InvalidImageError` for a body the decoder will not read —
-    truncated, corrupt, or more pixels than :data:`MAX_IMAGE_PIXELS`. That is
-    the second half of the gate rather than a warning to log: the caller
-    refuses the upload, because a picture nothing can decode is a picture
-    nothing can draw, and it would be served at full size to every viewer for
-    want of a thumbnail to show instead.
+    truncated, corrupt, or more pixels than :data:`MAX_IMAGE_PIXELS`. The
+    caller refuses the upload on that: a picture nothing can decode is a
+    picture nothing can draw.
 
     Decoding is the one thing in the request path that touches pixels, so it
-    is boxed: the bomb warning is raised as an error rather than printed, and
-    every failure mode leaves by the same door.
+    is boxed — the decompression-bomb warning is raised as an error, and
+    everything the decoder can object to leaves by the same door.
     """
     from PIL import Image, ImageOps, UnidentifiedImageError
 

@@ -39,13 +39,12 @@ from app.services import background_tasks as background_tasks_service
 
 logger = logging.getLogger(__name__)
 
-#: How long a browser may reuse a served upload without asking again.
+#: How long a browser may reuse a served upload before asking again.
 #:
-#: A stored blob is immutable, so this is not about staleness — it is the
-#: window in which a reader who has lost access can still draw what they
-#: already fetched. Five minutes: long enough that scrolling a gallery up and
-#: down is not a request per picture per pass, short enough that revocation
-#: takes effect while somebody is still looking.
+#: A stored blob is immutable, so this is not about staleness — it is how
+#: often access is re-checked. Five minutes: long enough that scrolling a
+#: gallery up and down is not a request per picture per pass, short enough to
+#: stay close to the current answer.
 UPLOAD_CACHE_SECONDS = 300
 
 uploads_path = Path(settings.UPLOADS_DIR)
@@ -586,16 +585,12 @@ async def serve_upload_file(
 
     # A stored file never changes under its name — every write, including a
     # new version of a picture, gets a fresh UUID — so the bytes behind a URL
-    # are safe to keep. What is NOT safe to keep is the decision above it:
-    # membership and access grants are read per request, and a long-lived
-    # entry would let a browser go on drawing a picture after the reader
-    # stopped being allowed to see it.
-    #
-    # So the window is short rather than a year. It is long enough for the
-    # repeat requests one session of scrolling a gallery makes, and it bounds
-    # how long a revoked reader's own cache can outlive the revocation.
-    # ``private`` keeps a shared cache out of it entirely, and
-    # ``must-revalidate`` stops anything serving the entry once it is stale.
+    # are safe to reuse. The decision above them is re-made per request, so
+    # the window is short rather than a year: long enough for the repeat
+    # requests one session of scrolling a gallery makes, and short enough that
+    # access is re-checked while somebody is still reading. ``private`` keeps
+    # shared caches out of it, and ``must-revalidate`` bounds the entry to
+    # that window.
     headers: dict[str, str] = {
         "Cache-Control": f"private, max-age={UPLOAD_CACHE_SECONDS}, must-revalidate",
     }

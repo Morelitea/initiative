@@ -427,11 +427,8 @@ def downgrade() -> None:
     op.execute(_recent_views_trigger_fn(_RECENT_TABLES_BEFORE))
 
 
-#: Tables the downgrade has to clear gallery rows out of. Each carries FORCE
-#: ROW LEVEL SECURITY, which binds the table's owner — the role a migration
-#: runs as — and the policies key on request GUCs a migration has no value
-#: for. Without lifting it the DELETEs below match nothing and the CHECK
-#: narrowing that follows fails on the rows they were meant to remove.
+#: Tables the downgrade clears gallery rows out of. Row-level security is
+#: lifted for the length of those deletes and restored immediately after.
 _CLEANUP_TABLES = (
     "comments",
     "recent_views",
@@ -441,10 +438,9 @@ _CLEANUP_TABLES = (
 
 
 #: Drops every rendered policy that mentions a gallery, wherever it lives.
-#: Discovered from the catalog rather than listed, because a list is the
-#: thing that drifts. The next boot re-renders every policy from the
-#: registry; until then those tables are deny-all, which is the right way for
-#: a half-applied downgrade to fail.
+#: Read out of the catalog rather than listed here, so a policy this revision
+#: did not name is still removed. The next boot re-renders them from the
+#: registry.
 _DROP_GALLERY_POLICIES = """
 DO $$
 DECLARE r record;
