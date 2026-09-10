@@ -1,13 +1,13 @@
 """The name one installed app knows one member by.
 
-Derived rather than random (see ``services.marketplace.app_subjects``), so this
-table is an index into a computation rather than the only copy of it: losing a
-row and re-deriving gives the same subject back, and no app believes it has met
-a new person.
+Random rather than derived (see ``services.marketplace.app_subjects``), so this
+row is the only copy of the value: minted once on first handoff, and never
+recomputed. A derived value is stable only while the key it came from is, and
+this deployment rotates ``SECRET_KEY`` (``app.db.secret_key_rotation``) — an app
+stores its ``sub`` and expects to meet the same person under it next time.
 
-What the row buys is the *reverse* direction. The derivation is one-way, so a
-delegation token naming a subject can only be resolved to a member by finding
-the value we minted — which is this.
+The row is also what answers the *reverse* direction: a delegation token naming
+a subject is resolved to a member by finding the row holding that value.
 
 Guild-level: an install is guild-wide and this has no initiative. Own-row like
 its neighbours (owner, or a guild admin) — the link *is* the value, so a row

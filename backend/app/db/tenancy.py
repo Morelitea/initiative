@@ -99,6 +99,11 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
         "audit_events",
+        # What outside parties — a payment processor, an installed app —
+        # call a user or a guild. One per purpose, so no two parties hold
+        # the same value for the same entity. Cross-guild and pre-routing,
+        # like the accounts and guilds it names.
+        "identity_refs",
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
         # The operator-set half of a guild (caps / plan label / sign-in
