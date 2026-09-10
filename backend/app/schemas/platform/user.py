@@ -13,6 +13,7 @@ from pydantic import (
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
 from app.core.profile_decorations import (
     DATED_DECORATIONS,
@@ -45,7 +46,11 @@ from app.core.config import settings
 #
 # * An address never reaches a guild. ``email`` is absent from every
 #   guild-scoped shape — roster, picker and member management alike — and kept
-#   only on ``UserRead`` (your own account) and the platform admin reads.
+#   in full only on ``UserRead``, which is served for your own account.
+# * An address is never read back in full by somebody else. The platform admin
+#   reads use ``AdminUserRead``, which is ``UserRead`` with the address masked
+#   (``app.core.email_masking``) — enough to recognise one you already have,
+#   not enough to collect the roster's.
 # * A real name is shown only where a guild has asked for it.
 #   ``GuildNameVisibility`` drops ``full_name`` unless the request's guild has
 #   ``show_member_names`` set, which a community-listed guild cannot. Only the
@@ -541,6 +546,34 @@ class UserRead(UserBase):
         see ``app.core.capabilities``.
         """
         return sorted(c.value for c in capabilities_for(self.role))
+
+
+class AdminUserRead(UserRead):
+    """A platform admin's view of somebody else's account: the address masked.
+
+    Everything a platform admin does to an account — reset its password, rename
+    it, change its tier, suspend it, delete it — is addressed by id, and the
+    roster is read and searched by handle. None of it needs the address itself,
+    so none of it is served one. What the mask leaves is enough to match a row
+    against an address somebody has quoted at you, which is the only thing the
+    column was ever read for.
+
+    The masking is on the shape rather than in each admin route: subclassing is
+    what keeps ``/users/me`` — the one reader entitled to the whole address —
+    on plain ``UserRead`` while every admin route that returns an account is
+    masked by construction.
+    """
+
+    #: Re-declared as a plain ``str``, widening ``UserBase.email``: a masked
+    #: address is not a deliverable one, and typing it ``EmailStr`` would both
+    #: advertise it as one in the OpenAPI schema and make this shape fail to
+    #: re-validate its own output.
+    email: str
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def _mask_email(cls, value: str) -> str:
+        return mask_email(value) or value
 
 
 class UsernameClaim(SanitizedBaseModel):

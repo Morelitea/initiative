@@ -3180,7 +3180,7 @@ async def queue_avatar_removed(session: AsyncSession, *, user: User) -> None:
         session,
         user_id=user.id,
         notification_type=NotificationType.avatar_removed,
-        data={"target_path": "/settings/profile"},
+        data={"target_path": "/profile"},
     )
 
 
@@ -3202,7 +3202,7 @@ async def queue_username_changed(
         notification_type=NotificationType.username_changed,
         data={
             "previous_handle": previous_handle,
-            "target_path": "/settings/profile",
+            "target_path": "/profile/account",
         },
     )
 
@@ -3219,7 +3219,7 @@ async def queue_account_suspended(
         session,
         user_id=user.id,
         notification_type=NotificationType.account_suspended,
-        data={"reason": reason, "target_path": "/settings/profile"},
+        data={"reason": reason, "target_path": "/profile/account"},
     )
 
 

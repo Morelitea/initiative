@@ -556,3 +556,45 @@ async def test_grant_read_carries_guild_status(
     assert resp.status_code == 200, resp.text
     mine = [g for g in resp.json() if g["guild_id"] == guild.id]
     assert mine and mine[0]["guild_status"] == "suspended"
+
+
+@pytest.mark.integration
+async def test_approval_queue_masks_addresses(
+    client: AsyncClient, session: AsyncSession
+):
+    """The queue names who is asking, without handing over their address.
+
+    Both enrichment fields are filled in after the row is validated, so this
+    is also what proves the masking survives that assignment rather than only
+    applying on the way in.
+    """
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    support = await create_user(
+        session, email="support@example.com", role=UserRole.support
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.post(
+        "/api/v1/access-grants/",
+        json={"guild_id": guild.id, "access_level": "read", "reason": "a ticket"},
+        headers=get_auth_headers(support),
+    )
+    assert resp.status_code == 201, resp.text
+    grant_id = resp.json()["id"]
+
+    resp = await client.get(
+        "/api/v1/access-grants/?mine=false&status=pending",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 200
+    row = next(g for g in resp.json() if g["id"] == grant_id)
+    assert row["user_email"] == "s***t@e***m"
+
+    resp = await client.post(
+        f"/api/v1/access-grants/{grant_id}/approve",
+        json={},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["approved_by_email"] == "o***r@e***m"
+    assert "@example.com" not in resp.text

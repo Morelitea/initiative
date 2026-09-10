@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import ConfigDict, Field, computed_field
+from pydantic import ConfigDict, Field, computed_field, field_validator
 
+from app.core.email_masking import mask_email
 from app.models.platform.access_grant import AccessGrantStatus, AccessLevel
 from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
@@ -44,8 +45,14 @@ class AccessGrantApprove(SanitizedBaseModel):
 
 
 class AccessGrantRead(SanitizedBaseModel):
+    # ``validate_assignment`` is load-bearing, not a default: the enrichment
+    # fields below are filled in by ``access_grants`` *after* the row has been
+    # validated, and without it those assignments would skip the masking
+    # validator and write the addresses through in full.
     model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
+        from_attributes=True,
+        json_schema_serialization_defaults_required=True,
+        validate_assignment=True,
     )
 
     id: int
@@ -66,6 +73,10 @@ class AccessGrantRead(SanitizedBaseModel):
     # Enrichment populated by the service for display (avoids the client
     # re-fetching users/guilds). Optional so ``model_validate`` over a bare
     # ORM row still works.
+    #: Masked (``u***1@e***m``). The approval queue is a list of people asking
+    #: to enter a guild they are not in; naming them is the point, but an
+    #: approver reads the row to decide, not to learn an address. The full
+    #: name and the user id beside it are what identify the requester.
     user_email: Optional[str] = None
     user_full_name: Optional[str] = None
     guild_name: Optional[str] = None
@@ -73,7 +84,13 @@ class AccessGrantRead(SanitizedBaseModel):
     # a suspended / read-only guild they're acting in (surfaced in the access
     # banner). Operators get this context — unlike a plain guild member.
     guild_status: Optional[GuildStatus] = None
+    #: Masked, as ``user_email`` is.
     approved_by_email: Optional[str] = None
+
+    @field_validator("user_email", "approved_by_email", mode="after")
+    @classmethod
+    def _mask_emails(cls, value: Optional[str]) -> Optional[str]:
+        return mask_email(value)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
