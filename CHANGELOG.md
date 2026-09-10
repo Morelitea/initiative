@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Galleries: a home for the pictures** — a new tool beside Documents and Posts for the visual half of the work: mockups, screenshots, app icons, the four logos that lost. A gallery is a named wall of pictures with its own sharing, comments and tags, browsed as a masonry, a grid, or a timeline of what arrived when — and grouped by tag, so "everything still awaiting a decision" is one click. Drop a folder onto the page to add them, tag or remove a selection together, and replace a picture with a new version while keeping the rounds it went through. Off by default per initiative, like every non-core tool.
 
+### Fixed
+
+- **Failed sign-ins no longer reveal whether an email has an account through password-check timing** — an unknown email now performs the same password verification as an existing password account. Failed-login records also use the client identity selected by the server's trusted-proxy configuration instead of re-reading forwarding headers inside the application.
+
 ## [0.67.1] - 2026-09-09
 
 ### Added

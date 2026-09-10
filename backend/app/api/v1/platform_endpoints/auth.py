@@ -140,6 +140,10 @@ async def _upgrade_password_hash(
 
 logger = logging.getLogger(__name__)
 
+# Keep the password-verification path uniform when an address does not resolve
+# to a password account. This value never belongs to a user.
+_DUMMY_PASSWORD_HASH = get_password_hash("initiative-login-dummy-password")
+
 # Shared across requests so provider discovery + JWKS caching work; the
 # per-request OidcProvider is just configuration composed around them.
 _oidc_discovery = OidcDiscovery()
@@ -408,35 +412,13 @@ async def login_access_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        # Nothing recorded a failed sign-in, so nothing could tell that one
-        # account was being attacked from many addresses. The per-IP limit above
-        # bounds one client and says nothing about that shape.
-        #
-        # The user id is logged when the account exists and omitted when it does
-        # not, which is what makes this useful to alert on — repeated failures
-        # carrying the same id are one account under attack, rather than a
-        # spray. The HTTP response is byte-identical either way, so this adds
-        # nothing a caller can read off the response.
-        #
-        # It does NOT make the endpoint enumeration-proof, and this line should
-        # not be read as claiming that. The condition above short-circuits, so
-        # verify_password never runs for an unknown address: the hit path pays
-        # ~88 ms of password hashing (measured on this branch) and the miss path
-        # pays none, which is observable over a network. That timing oracle
-        # predates this change and is untouched by it; closing it means a
-        # dummy-hash verify on the miss path, which is its own change.
-        #
-        # Never the submitted address: it would put an unverified,
-        # attacker-chosen string into the log, and every log reader downstream
-        # would inherit it. get_inet_client_ip applies the same rule to the
-        # address — under BEHIND_PROXY the raw value is the leftmost
-        # X-Forwarded-For entry, which the client supplies and can pack with
-        # spaces and "key=value" text to forge a different account's id into a
-        # parsed log line. It returns the NORMALIZED address or None, never the
-        # raw header text: validating a string is not the same as sanitizing it,
-        # and ipaddress.ip_address() accepts an IPv6 zone identifier containing
-        # spaces.
+    password_hash = (
+        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    )
+    password_matches = verify_password(form_data.password, password_hash)
+    if not user or not password_matches:
+        # Record the target account when available while keeping the submitted
+        # address out of logs and preserving the generic failure response.
         logger.warning(
             "auth.login_failed user_id=%s ip=%s reason=%s",
             user.id if user else "-",
@@ -448,11 +430,7 @@ async def login_access_token(
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
-    # The two branches below are also failed sign-ins, and they are the ones
-    # worth waking up for: the password was CORRECT. A hit here means someone
-    # holds a live credential for an account that cannot currently be used, so
-    # a disabled account is not the end of the story — that password is valid
-    # and may be valid elsewhere.
+    # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
         logger.warning(
             "auth.login_failed user_id=%s ip=%s reason=%s",

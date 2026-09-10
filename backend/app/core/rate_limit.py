@@ -10,23 +10,12 @@ from app.core.config import settings
 
 
 def get_real_client_ip(request: Request) -> str:
+    """Return the client selected by the configured ASGI proxy trust boundary.
+
+    Uvicorn validates the immediate peer against ``FORWARDED_ALLOW_IPS`` and
+    updates ``request.client`` before the application receives the request.
+    Reading forwarding headers again here would bypass that decision.
     """
-    Get the real client IP address, accounting for proxies.
-
-    Only trusts X-Forwarded-For/X-Real-IP headers when BEHIND_PROXY=True,
-    preventing header spoofing when directly exposed to the internet.
-    """
-    if settings.BEHIND_PROXY:
-        # X-Forwarded-For may contain multiple IPs: client, proxy1, proxy2, ...
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
-
-    # Direct connection IP (or BEHIND_PROXY not set)
     return get_remote_address(request)
 
 
@@ -35,26 +24,11 @@ def get_inet_client_ip(request: Request) -> str | None:
     isn't a parseable address (e.g. the ``testclient`` peer). Guards session
     bookkeeping writes from faulting on a non-IP host string.
 
-    Returns the NORMALIZED address, never the raw header text. Under
-    ``BEHIND_PROXY`` the raw value is the leftmost ``X-Forwarded-For`` entry,
-    which the client supplies, and validating it is not the same as sanitizing
-    it. ``ipaddress.ip_address`` accepts an IPv6 zone identifier and barely
-    checks it, so::
-
-        ipaddress.ip_address("fe80::1% user_id=1 ip=10.0.0.1")
-
-    parses. An earlier version validated the raw string and then returned that
-    same string, so spaces and ``=`` reached the caller: enough to forge fields
-    into a ``key=value`` log line, and enough for Postgres to reject the write
-    this function exists to protect, since ``inet`` does not accept a zone id
-    at all.
-
-    The zone is dropped before parsing, and the parsed object is rendered back
-    out, so the result contains only hex digits, dots and colons.
+    The address is normalized and any IPv6 zone identifier is dropped because
+    Postgres ``inet`` stores network addresses without an interface scope.
     """
     raw = get_real_client_ip(request)
-    # Drop any IPv6 zone identifier: meaningless off-host, rejected by inet,
-    # and the part of the grammar that is not validated.
+    # A zone identifies a local interface and is not meaningful in stored data.
     candidate = raw.split("%", 1)[0]
     try:
         parsed = ipaddress.ip_address(candidate)
