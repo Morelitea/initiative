@@ -2597,7 +2597,7 @@ async def _create_galleries(
                 )
                 file_url = f"/uploads/{guild.id}/{filename}"
                 thumbnail_url = None
-                thumbnail = galleries_service.make_thumbnail(png)
+                thumbnail = galleries_service.render_thumbnail(png)
                 if thumbnail is not None:
                     thumb_name = f"{uuid.uuid4().hex}{thumbnail.extension}"
                     get_guild_storage(guild.id).write(
