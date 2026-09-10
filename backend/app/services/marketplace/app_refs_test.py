@@ -1,9 +1,8 @@
-"""What an installed app is allowed to work out about a member, as properties.
+"""The properties an app reference has to hold.
 
-An app has to be able to name somebody. What it must not be able to do is
-compare notes with another app, or with itself in another guild, and find the
-same person on both sides. The sector is the install, so each of those is a
-separate reference.
+The sector is the install, so a member has one reference per install, and
+another again for the same app installed in a second guild. These hold that
+each of those values is distinct, and that one stays put once minted.
 
 The guild check has its own group. The value lives in a platform-wide table
 now, so the guild is a predicate the resolver applies rather than the schema
@@ -41,7 +40,7 @@ async def _install(
     )
 
 
-class TestWhatAnAppCanWorkOut:
+class TestOneReferencePerSector:
     @pytest.mark.integration
     async def test_two_installs_name_one_person_differently(self, session):
         user = await create_user(session)

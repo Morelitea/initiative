@@ -1,17 +1,13 @@
 """What one installed app calls one member.
 
-An app has to be able to name a member: to store their preferences, to say
-"this is you" across two visits, and to act as them. Handing it the row id does
-that and two other things nobody asked for — two apps can compare notes and
-discover they are talking to the same human, and one app installed in two
-guilds can link those guilds to one person. Neither is visible to the member or
-the operator.
+An app needs a stable name for a member: to store their preferences, to
+recognise them across two visits, and to act as them.
 
-The specified answer is **OpenID Connect Core §8.1 pairwise pseudonymous
-identifiers**: a value stable for one *sector* and unrelated across them. Here
-the sector is the **install**, matching ``connection_ref``'s precedent of being
-minted per (install, connection, member) and matching the fact that apps are
-guild-pinned everywhere else.
+That name is a **pairwise pseudonymous identifier** (OpenID Connect Core §8.1):
+a value stable for one *sector*, and unrelated to the value any other sector
+holds for the same person. Here the sector is the **install**, matching
+``connection_ref``'s precedent of being minted per (install, connection,
+member) and matching the fact that apps are guild-pinned everywhere else.
 
 That is the same thing ``services.platform.identity_refs`` provides for every
 other sector, so this module is a thin scoping layer over it rather than a
@@ -81,9 +77,9 @@ async def resolve_app_ref(
 ) -> IdentityRef | None:
     """Which member a reference names inside this guild, or None.
 
-    Returns the row rather than the member id so the caller can also check the
-    install it was minted for — a reference minted for one app must not resolve
-    for another, and the guild alone does not say which app it was.
+    Returns the row rather than the member id so the caller can also check
+    which install it was minted for: the guild narrows the value to this
+    deployment's copy, and the install is the sector it actually belongs to.
     """
     row = await identity_refs.resolve_ref(session, ref=ref)
     if row is None:
