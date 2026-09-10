@@ -26,12 +26,14 @@ from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
     REF_MAX_LENGTH,
     IdentityEntity,
+    IdentityPurpose,
     IdentityRef,
     ref_prefix,
 )
 
 __all__ = [
     "REF_GRACE_PERIOD",
+    "billing_refs",
     "drop_entity_refs",
     "ensure_ref",
     "mint_ref",
@@ -97,6 +99,34 @@ async def ensure_ref(
     if stored is None:  # pragma: no cover - the insert either landed or lost
         raise RuntimeError("identity ref was neither inserted nor found")
     return stored.ref
+
+
+async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
+    """The references billing knows one user and one guild by.
+
+    Opens a system-engine session of its own: the table is reachable only
+    there (``app.db.system_grants``), while the callers are request handlers
+    routed to other roles and one background task holding no session at all.
+    The same pattern ``services.platform.user_tokens`` uses for its sweep.
+    """
+    from app.db.session import AdminSessionLocal
+
+    purpose = IdentityPurpose.billing.value
+    async with AdminSessionLocal() as session:
+        user_ref = await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=user_id,
+            purpose=purpose,
+        )
+        guild_ref = await ensure_ref(
+            session,
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=purpose,
+        )
+        await session.commit()
+    return user_ref, guild_ref
 
 
 async def resolve_ref(

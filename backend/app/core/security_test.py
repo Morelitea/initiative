@@ -58,7 +58,11 @@ def _b64url_encode(raw: bytes) -> str:
 def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
-        user_id=42, guild_id=7, guild_role="admin"
+        user_id=42,
+        guild_id=7,
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
     )
     assert seconds == int(BILLING_PORTAL_HANDOFF_LIFETIME.total_seconds())
     assert jwt.get_unverified_header(token)["alg"] == "RS256"
@@ -70,6 +74,9 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     assert payload["guild_id"] == 7
     assert payload["guild_role"] == "admin"
     assert payload["jti"] and isinstance(payload["jti"], str)
+    # What the receiver names the pair by, beside the row ids.
+    assert payload["user_ref"] == "ubil_test42"
+    assert payload["guild_ref"] == "gbil_test7"
 
 
 @pytest.mark.unit
@@ -78,7 +85,11 @@ def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch)
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
     with pytest.raises(HandoffSigningNotConfiguredError):
         security.create_billing_portal_handoff_token(
-            user_id=1, guild_id=2, guild_role="admin"
+            user_id=1,
+            guild_id=2,
+            guild_role="admin",
+            user_ref="ubil_test1",
+            guild_ref="gbil_test2",
         )
 
 
@@ -173,7 +184,11 @@ def test_verify_upload_token_rejects_wrong_audience():
     """A token signed with our secret but carrying a foreign audience (e.g. a
     handoff into another service) must not be honored as an upload token."""
     handoff, _ = security.create_billing_portal_handoff_token(
-        user_id=1, guild_id=2, guild_role="admin"
+        user_id=1,
+        guild_id=2,
+        guild_role="admin",
+        user_ref="ubil_test1",
+        guild_ref="gbil_test2",
     )
     with pytest.raises(UploadTokenError):
         verify_upload_token(handoff)
@@ -291,7 +306,11 @@ def test_decode_session_token_rejects_scoped_upload_token():
 @pytest.mark.unit
 def test_decode_session_token_rejects_handoff_token():
     handoff, _ = security.create_billing_portal_handoff_token(
-        user_id=7, guild_id=1, guild_role="admin"
+        user_id=7,
+        guild_id=1,
+        guild_role="admin",
+        user_ref="ubil_test7",
+        guild_ref="gbil_test1",
     )
     with pytest.raises(jwt.PyJWTError):
         decode_session_token(handoff)
