@@ -140,6 +140,10 @@ async def _upgrade_password_hash(
 
 logger = logging.getLogger(__name__)
 
+# Keep the password-verification path uniform when an address does not resolve
+# to a password account. This value never belongs to a user.
+_DUMMY_PASSWORD_HASH = get_password_hash("initiative-login-dummy-password")
+
 # Shared across requests so provider discovery + JWKS caching work; the
 # per-request OidcProvider is just configuration composed around them.
 _oidc_discovery = OidcDiscovery()
@@ -408,17 +412,42 @@ async def login_access_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    password_hash = (
+        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    )
+    password_matches = verify_password(form_data.password, password_hash)
+    if not user or not password_matches:
+        # Record the target account when available while keeping the submitted
+        # address out of logs and preserving the generic failure response.
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id if user else "-",
+            get_inet_client_ip(request) or "-",
+            "bad_password" if user else "no_such_account",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
+    # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id,
+            get_inet_client_ip(request) or "-",
+            "account_not_active",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     if not user.email_verified:
+        logger.warning(
+            "auth.login_failed user_id=%s ip=%s reason=%s",
+            user.id,
+            get_inet_client_ip(request) or "-",
+            "email_unverified",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,

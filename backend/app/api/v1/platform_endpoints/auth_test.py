@@ -9,6 +9,7 @@ Tests the auth API endpoints including:
 - Password reset
 """
 
+import logging
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -435,6 +436,142 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
 
     assert response.status_code == 400
     assert "incorrect" in response.json()["detail"].lower()
+
+
+async def test_login_failure_is_recorded_against_the_account(
+    client: AsyncClient, session: AsyncSession, caplog
+):
+    """A failed attempt names a known account only in the server-side log."""
+    user = await create_user(
+        session,
+        email="recorded@example.com",
+        hashed_password=get_password_hash("correct_password"),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "recorded@example.com", "password": "wrong_password"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    assert f"user_id={user.id}" in logged[-1]
+    assert "recorded@example.com" not in logged[-1]
+
+    unknown_response = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "unknown@example.com", "password": "wrong_password"},
+    )
+    assert unknown_response.status_code == response.status_code
+    assert unknown_response.json() == response.json()
+    assert unknown_response.headers["content-type"] == response.headers["content-type"]
+
+
+async def test_unknown_account_still_runs_password_verification(
+    client: AsyncClient, monkeypatch
+):
+    """An unknown address must pay the same password-check cost as a known one."""
+    checked: list[tuple[str, str | None]] = []
+
+    def record_verification(password: str, stored_hash: str | None) -> bool:
+        checked.append((password, stored_hash))
+        return False
+
+    monkeypatch.setattr(
+        "app.api.v1.platform_endpoints.auth.verify_password", record_verification
+    )
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "unknown@example.com", "password": "offered-password"},
+    )
+
+    assert response.status_code == 400
+    assert len(checked) == 1
+    assert checked[0][0] == "offered-password"
+    assert checked[0][1]
+
+
+async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
+    client: AsyncClient, session: AsyncSession, caplog
+):
+    """The log uses the client selected by the ASGI proxy trust boundary."""
+    user = await create_user(
+        session,
+        email="forge@example.com",
+        hashed_password=get_password_hash("correct_password"),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "forge@example.com", "password": "wrong_password"},
+            headers={"X-Forwarded-For": "fe80::1% user_id=1 ip=10.0.0.1"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    line = logged[-1]
+    assert line.count("user_id=") == 1
+    assert f"user_id={user.id}" in line
+    assert line.count("ip=") == 1
+    assert "ip=127.0.0.1 " in line
+    assert "10.0.0.1" not in line
+    assert "%" not in line
+    assert "forge@example.com" not in line
+
+
+async def test_login_failure_is_recorded_for_a_correct_password_on_a_blocked_account(
+    client: AsyncClient, session: AsyncSession, caplog
+):
+    """A matching password against an unusable account is still recorded."""
+    password = "correct_password"
+    user = await create_user(
+        session,
+        email="blocked@example.com",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.deactivated,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "blocked@example.com", "password": password},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a correct password on a deactivated account was not recorded"
+    assert f"user_id={user.id}" in logged[-1]
+    assert "reason=account_not_active" in logged[-1]
+    assert "blocked@example.com" not in logged[-1]
+
+
+async def test_login_failure_for_unknown_account_names_no_user(
+    client: AsyncClient, caplog
+):
+    """No account, no id — and the same 400 the caller gets when one exists."""
+    with caplog.at_level(logging.WARNING):
+        response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "nobody@example.com", "password": "whatever"},
+        )
+
+    assert response.status_code == 400
+    logged = [
+        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
+    ]
+    assert logged, "a failed sign-in was not recorded"
+    assert "user_id=-" in logged[-1]
+    assert "nobody@example.com" not in logged[-1]
 
 
 async def test_login_refused_for_account_without_password(

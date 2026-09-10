@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Galleries: a home for the pictures** — a new tool beside Documents and Posts for the visual half of the work: mockups, screenshots, app icons, the four logos that lost. A gallery is a named wall of pictures with its own sharing, comments and tags, browsed as a masonry, a grid, or a timeline of what arrived when — and grouped by tag, so "everything still awaiting a decision" is one click. Drop a folder onto the page to add them, tag or remove a selection together, and replace a picture with a new version while keeping the rounds it went through. Off by default per initiative, like every non-core tool.
 
+### Fixed
+
+- **Sign-in hardening** — internal changes to how failed sign-ins are handled and recorded. No change to how signing in works. Tracked as T20; details are held privately until the work is complete across the estate.
+
 ## [0.67.1] - 2026-09-09
 
 ### Added

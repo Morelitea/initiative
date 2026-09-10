@@ -13,10 +13,16 @@ from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.datastructures import Headers
 
 from app.core import rate_limit
 from app.core.config import settings
-from app.core.rate_limit import _default_limits, get_real_client_ip, limiter
+from app.core.rate_limit import (
+    _default_limits,
+    get_inet_client_ip,
+    get_real_client_ip,
+    limiter,
+)
 from app.main import app
 
 
@@ -119,3 +125,50 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             statuses = [(await c.get("/undecorated")).status_code for _ in range(10)]
         assert all(code == 200 for code in statuses)
+
+
+class TestInetClientIp:
+    """``get_inet_client_ip`` returns a value suitable for Postgres ``inet``."""
+
+    @staticmethod
+    def _request(address: str):
+        class _Client:
+            host = address
+
+        class _Req:
+            headers = {}
+            client = _Client()
+
+        return _Req()
+
+    def test_an_ipv6_zone_identifier_is_removed(self):
+        req = self._request("fe80::1%eth0")
+        result = get_inet_client_ip(req)
+        assert result == "fe80::1"
+        assert "%" not in result
+
+    def test_addresses_come_back_normalized(self):
+        assert get_inet_client_ip(self._request("2001:DB8::1")) == "2001:db8::1"
+        assert get_inet_client_ip(self._request("203.0.113.9")) == "203.0.113.9"
+
+    def test_a_non_address_is_refused(self):
+        assert get_inet_client_ip(self._request("not-an-ip")) is None
+
+
+class TestRealClientIp:
+    def test_forwarded_headers_do_not_bypass_the_asgi_trust_boundary(self):
+        """The ASGI server, not application code, decides which proxy to trust."""
+
+        class _Client:
+            host = "198.51.100.7"
+
+        class _Request:
+            headers = Headers(
+                {
+                    "X-Forwarded-For": "203.0.113.9",
+                    "X-Real-IP": "203.0.113.10",
+                }
+            )
+            client = _Client()
+
+        assert get_real_client_ip(_Request()) == "198.51.100.7"
