@@ -45,6 +45,7 @@ dependencies = [
     # it on the line matching the server we run, so what the validator reads is
     # what the server will parse.
     "pglast>=7.18,<8",
+    "pillow>=12.3.0",
 ]
 
 [dependency-groups]

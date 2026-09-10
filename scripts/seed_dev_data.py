@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import uuid
 import zlib
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -130,6 +131,16 @@ from app.models.tenant.post_poll import (  # noqa: E402
     PostPollVote,
 )
 from app.models.tenant.post_read import PostRead  # noqa: E402
+from app.models.tenant.gallery import (  # noqa: E402
+    Gallery,
+    GalleryImage,
+    GalleryImageTag,
+    GalleryImageVersion,
+    GalleryTag,
+)
+from app.models.tenant.upload import Upload  # noqa: E402
+from app.services.storage import get_guild_storage  # noqa: E402
+from app.services.tenant import galleries as galleries_service  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
 from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
@@ -161,6 +172,13 @@ STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids
 
 # Consistent "now" for seeding
 NOW = datetime.now(timezone.utc)
+
+
+def _round(days: int) -> datetime:
+    """``days`` ago — how a seeded picture or notice is dated, so a wall has
+    months for the timeline rail to scrub through rather than everything
+    arriving the moment somebody ran the seed."""
+    return NOW - timedelta(days=days)
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +653,11 @@ class IDTracker:
             "post_poll_options": [],
             "post_poll_votes": [],
             "post_reads": [],
+            "galleries": [],
+            "gallery_tags": [],
+            "gallery_images": [],
+            "gallery_image_tags": [],
+            "gallery_image_versions": [],
         }
 
     def add(self, key: str, value) -> None:
@@ -804,6 +827,7 @@ async def _create_initiative(
     calendars_enabled: bool = False,
     dashboards_enabled: bool = False,
     posts_enabled: bool = False,
+    galleries_enabled: bool = False,
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private,
     auto_join: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
@@ -824,6 +848,7 @@ async def _create_initiative(
         calendars_enabled=calendars_enabled,
         dashboards_enabled=dashboards_enabled,
         posts_enabled=posts_enabled,
+        galleries_enabled=galleries_enabled,
         join_policy=join_policy.value,
         auto_join=auto_join,
     )
@@ -1990,7 +2015,7 @@ async def _create_counter_groups(
 def _widget(
     widget_id: str,
     widget_type: str,
-    source: str,
+    sql: str,
     *,
     x: int,
     y: int,
@@ -1998,21 +2023,30 @@ def _widget(
     h: int,
     title: str | None = None,
     options: dict | None = None,
-    **params,
+    counter_group: str | None = None,
+    counter: str | None = None,
 ) -> dict:
     """One widget in a dashboard definition.
 
-    ``params`` are the binding's own — a project id, a filter-DSL ``conditions``
-    block, a counter to point at. There is deliberately no initiative here: a
-    dashboard reads within the initiative it lives on, and the normalizer drops
-    the key if one is supplied.
+    ``sql`` is the statement the widget draws — the whole of what a binding
+    says. A statement reading a counter is the one that cannot be written out
+    here: a seed knows its counters by name and only the inserted row knows the
+    id, so it writes ``{counter_id}``/``{counter_group_id}``, names the counter
+    alongside, and ``_create_dashboards`` fills them in once the rows exist.
+
+    There is deliberately no initiative in any of these: a dashboard reads
+    within the initiative it lives on.
     """
     widget: dict = {
         "id": widget_id,
         "type": widget_type,
         "grid": {"x": x, "y": y, "w": w, "h": h},
-        "binding": {"source": source, **params},
+        "binding": {"source": "query", "sql": sql},
     }
+    if counter_group:
+        widget["_counter_group"] = counter_group
+    if counter:
+        widget["_counter"] = counter
     if title:
         widget["title"] = title
     if options:
@@ -2036,10 +2070,12 @@ async def _create_dashboards(
         role_grants: list of {role_id, level},
         general_access: ResourceAccessLevel for an all-initiative-members grant.
 
-    A widget binding may name ``counter_group``/``counter`` by *name*; both are
-    resolved to ids here, the way ``created_by`` names a user. Every definition
-    goes through the real normalizer before it is stored, so a seed that drifts
-    from the widget vocabulary fails here rather than rendering as an error tile.
+    A widget may name a ``counter_group``/``counter`` by *name*, the way
+    ``created_by`` names a user; both are resolved to ids here and formatted
+    into the widget's own statement. Every definition goes through the real
+    normalizer before it is stored, so a seed that drifts from the widget
+    vocabulary — or writes a statement the query surface refuses — fails here
+    rather than rendering as an error tile.
     """
 
     def _grant(**fields) -> ResourceGrant:
@@ -2068,13 +2104,13 @@ async def _create_dashboards(
         creator = all_users[dd["created_by"]]
 
         widgets = []
-        for widget in dd.get("widgets", []):
-            binding = dict(widget["binding"])
-            group_name = binding.pop("counter_group", None)
-            counter_name = binding.pop("counter", None)
+        for raw_widget in dd.get("widgets", []):
+            widget = dict(raw_widget)
+            group_name = widget.pop("_counter_group", None)
+            counter_name = widget.pop("_counter", None)
             if group_name:
                 group = groups[group_name]
-                binding["counter_group_id"] = group.id
+                ids_for_sql = {"counter_group_id": group.id}
                 if counter_name:
                     found = (
                         await session.exec(
@@ -2088,8 +2124,11 @@ async def _create_dashboards(
                         raise RuntimeError(
                             f"dashboard {dd['name']!r} names unknown counter {counter_name!r}"
                         )
-                    binding["counter_id"] = found.id
-            widgets.append({**widget, "binding": binding})
+                    ids_for_sql["counter_id"] = found.id
+                binding = dict(widget["binding"])
+                binding["sql"] = binding["sql"].format(**ids_for_sql)
+                widget["binding"] = binding
+            widgets.append(widget)
 
         definition = normalize_dashboard_definition(
             {
@@ -2451,6 +2490,199 @@ async def _create_posts(
 
     await session.flush()
     return posts
+
+
+async def _create_galleries(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    tags: dict[str, Tag],
+    gallery_defs: list[dict],
+) -> dict[str, Gallery]:
+    """Create galleries with their pictures, through the storage path itself.
+
+    Each ``gallery_def`` has:
+        initiative_id, name, description, created_by (user name),
+        general_access (default read; ``None`` shares with named people only),
+        tags: list of tag names, cover: title of the picture to use as cover,
+        images: list of image defs.
+
+    Each image def has:
+        title, caption, created_by, created_at, width, height,
+        colours ((top rgb), (bottom rgb)), tags, versions (how many renditions
+        to record; each earlier one is a slightly different gradient).
+
+    Every picture is a real PNG written to the guild's storage with an
+    ``uploads`` row behind it, and its thumbnail is made the way an upload's
+    is — so the wall, the lightbox and the quota all read what they would for
+    a picture somebody dropped in. Dates are spread back across months on
+    purpose: a wall with everything uploaded today gives the timeline rail
+    nothing to scrub through.
+    """
+    galleries: dict[str, Gallery] = {}
+    for gd in gallery_defs:
+        creator = all_users[gd["created_by"]]
+        gallery = Gallery(
+            guild_id=guild.id,
+            initiative_id=gd["initiative_id"],
+            name=gd["name"],
+            description=gd.get("description"),
+            created_by=creator.id,
+        )
+        session.add(gallery)
+        await session.flush()
+        ids.add("galleries", gallery.id)
+        galleries[gd["name"]] = gallery
+
+        session.add(
+            ResourceGrant(
+                resource_type="gallery",
+                resource_id=gallery.id,
+                user_id=creator.id,
+                guild_id=guild.id,
+                initiative_id=gallery.initiative_id,
+                level=ResourceAccessLevel.owner,
+            )
+        )
+        general = gd.get("general_access", ResourceAccessLevel.read)
+        if general is not None:
+            session.add(
+                ResourceGrant(
+                    resource_type="gallery",
+                    resource_id=gallery.id,
+                    guild_id=guild.id,
+                    initiative_id=gallery.initiative_id,
+                    level=general,
+                    all_initiative_members=True,
+                )
+            )
+        for tag_name in gd.get("tags", []):
+            tag = tags.get(tag_name)
+            if tag is not None:
+                session.add(GalleryTag(gallery_id=gallery.id, tag_id=tag.id))
+                ids.add("gallery_tags", (gallery.id, tag.id))
+
+        cover_title = gd.get("cover")
+        newest_at = gallery.created_at
+        for im in gd["images"]:
+            uploader = all_users[im["created_by"]]
+            created_at = im.get("created_at") or NOW
+            top, bottom = im["colours"]
+            width, height = im["width"], im["height"]
+            versions = max(1, im.get("versions", 1))
+            image: GalleryImage | None = None
+            for number in range(1, versions + 1):
+                # Earlier renditions lean darker, so the history reads as a
+                # picture that was worked on rather than uploaded twice.
+                shade = versions - number
+                png = _gradient_png(
+                    width,
+                    height,
+                    tuple(max(0, c - 25 * shade) for c in top),
+                    tuple(max(0, c - 25 * shade) for c in bottom),
+                )
+                filename = f"{uuid.uuid4().hex}.png"
+                get_guild_storage(guild.id).write(
+                    filename, png, content_type="image/png"
+                )
+                session.add(
+                    Upload(
+                        filename=filename,
+                        guild_id=guild.id,
+                        created_by=uploader.id,
+                        size_bytes=len(png),
+                        content_type="image/png",
+                    )
+                )
+                file_url = f"/uploads/{guild.id}/{filename}"
+                thumbnail_url = None
+                thumbnail = galleries_service.make_thumbnail(png)
+                if thumbnail is not None:
+                    thumb_name = f"{uuid.uuid4().hex}{thumbnail.extension}"
+                    get_guild_storage(guild.id).write(
+                        thumb_name, thumbnail.data, content_type=thumbnail.content_type
+                    )
+                    session.add(
+                        Upload(
+                            filename=thumb_name,
+                            guild_id=guild.id,
+                            created_by=uploader.id,
+                            size_bytes=len(thumbnail.data),
+                            content_type=thumbnail.content_type,
+                        )
+                    )
+                    thumbnail_url = f"/uploads/{guild.id}/{thumb_name}"
+                version_at = created_at + timedelta(days=3 * (number - 1))
+                if image is None:
+                    image = GalleryImage(
+                        guild_id=guild.id,
+                        gallery_id=gallery.id,
+                        title=im.get("title"),
+                        caption=im.get("caption"),
+                        file_url=file_url,
+                        thumbnail_url=thumbnail_url,
+                        file_content_type="image/png",
+                        file_size=len(png),
+                        original_filename=im.get("filename")
+                        or f"{(im.get('title') or 'picture').lower().replace(' ', '-')}.png",
+                        width=width,
+                        height=height,
+                        created_by=uploader.id,
+                        created_at=created_at,
+                        updated_at=version_at,
+                    )
+                    session.add(image)
+                    await session.flush()
+                    ids.add("gallery_images", image.id)
+                else:
+                    image.file_url = file_url
+                    image.thumbnail_url = thumbnail_url
+                    image.file_size = len(png)
+                    image.updated_at = version_at
+                    session.add(image)
+                session.add(
+                    GalleryImageVersion(
+                        gallery_image_id=image.id,
+                        guild_id=guild.id,
+                        version_number=number,
+                        file_url=file_url,
+                        thumbnail_url=thumbnail_url,
+                        file_content_type="image/png",
+                        file_size=len(png),
+                        original_filename=image.original_filename,
+                        width=width,
+                        height=height,
+                        created_by=uploader.id,
+                        created_at=version_at,
+                    )
+                )
+            assert image is not None
+            await session.flush()
+            for version in (
+                await session.exec(
+                    select(GalleryImageVersion.id).where(
+                        GalleryImageVersion.gallery_image_id == image.id
+                    )
+                )
+            ).all():
+                ids.add("gallery_image_versions", version)
+            for tag_name in im.get("tags", []):
+                tag = tags.get(tag_name)
+                if tag is not None:
+                    session.add(
+                        GalleryImageTag(gallery_image_id=image.id, tag_id=tag.id)
+                    )
+                    ids.add("gallery_image_tags", (image.id, tag.id))
+            if cover_title and im.get("title") == cover_title:
+                gallery.cover_image_id = image.id
+            newest_at = max(newest_at, image.updated_at)
+
+        gallery.updated_at = newest_at
+        session.add(gallery)
+
+    await session.flush()
+    return galleries
 
 
 async def _create_property_definitions(
@@ -2893,6 +3125,7 @@ async def seed() -> None:
             calendars_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
+            galleries_enabled=True,
         )
 
         # --- Initiative: Lost Mine of Phandelver ---
@@ -2911,6 +3144,7 @@ async def seed() -> None:
             calendars_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
+            galleries_enabled=True,
         )
 
         # -- Projects --
@@ -4322,7 +4556,8 @@ async def seed() -> None:
                         _widget(
                             "w1",
                             "stat",
-                            "counter",
+                            "SELECT count AS hit_points FROM counters "
+                            "WHERE id = {counter_id}",
                             x=0,
                             y=0,
                             w=3,
@@ -4334,7 +4569,8 @@ async def seed() -> None:
                         _widget(
                             "w2",
                             "stat",
-                            "task_counts",
+                            "SELECT count(*) AS open FROM tasks "
+                            "WHERE completed_at IS NULL",
                             x=3,
                             y=0,
                             w=3,
@@ -4344,7 +4580,9 @@ async def seed() -> None:
                         _widget(
                             "w3",
                             "chart",
-                            "task_counts",
+                            "SELECT s.category AS stage, count(*) AS tasks "
+                            "FROM tasks t JOIN task_statuses s "
+                            "ON t.task_status_id = s.id GROUP BY s.category",
                             x=6,
                             y=0,
                             w=6,
@@ -4355,7 +4593,8 @@ async def seed() -> None:
                         _widget(
                             "w4",
                             "progress",
-                            "projects",
+                            "SELECT count(completed_at) AS finished, "
+                            "count(*) AS total FROM tasks",
                             x=0,
                             y=2,
                             w=6,
@@ -4365,7 +4604,8 @@ async def seed() -> None:
                         _widget(
                             "w5",
                             "gantt",
-                            "tasks",
+                            "SELECT title, start_date, due_date FROM tasks "
+                            "WHERE start_date IS NOT NULL ORDER BY start_date",
                             x=0,
                             y=4,
                             w=12,
@@ -4384,24 +4624,28 @@ async def seed() -> None:
                         _widget(
                             "w1",
                             "table",
-                            "tasks",
+                            "SELECT title, priority, due_date FROM tasks "
+                            f"WHERE project_id = {g1_barovia.id} "
+                            "AND completed_at IS NULL ORDER BY due_date",
                             x=0,
                             y=0,
                             w=12,
                             h=5,
                             title="Everything still open",
-                            project_id=g1_barovia.id,
                         ),
                         _widget(
                             "w2",
                             "heatmap",
-                            "task_counts",
+                            "SELECT date_trunc('day', completed_at) AS day, "
+                            "count(*) AS finished FROM tasks "
+                            "WHERE completed_at IS NOT NULL "
+                            "GROUP BY date_trunc('day', completed_at) "
+                            "ORDER BY date_trunc('day', completed_at)",
                             x=0,
                             y=5,
                             w=8,
                             h=3,
                             title="Prep activity",
-                            bucket="day",
                         ),
                     ],
                 },
@@ -4417,7 +4661,8 @@ async def seed() -> None:
                         _widget(
                             "w1",
                             "stat",
-                            "task_counts",
+                            "SELECT count(*) AS open FROM tasks "
+                            "WHERE completed_at IS NULL",
                             x=0,
                             y=0,
                             w=3,
@@ -4427,7 +4672,9 @@ async def seed() -> None:
                         _widget(
                             "w2",
                             "funnel",
-                            "task_counts",
+                            "SELECT s.category AS stage, count(*) AS tasks "
+                            "FROM tasks t JOIN task_statuses s "
+                            "ON t.task_status_id = s.id GROUP BY s.category",
                             x=3,
                             y=0,
                             w=6,
@@ -4437,7 +4684,11 @@ async def seed() -> None:
                         _widget(
                             "w3",
                             "table",
-                            "projects",
+                            "SELECT p.name AS project, "
+                            "count(*) - count(t.completed_at) AS open, "
+                            "count(*) AS total FROM projects p "
+                            "JOIN tasks t ON t.project_id = p.id "
+                            "GROUP BY p.name ORDER BY p.name",
                             x=0,
                             y=5,
                             w=12,
@@ -4987,6 +5238,211 @@ async def seed() -> None:
         await _enable_role_feature(
             session, [g1_strahd_mem, g1_lmop_mem], "posts_enabled"
         )
+        await _enable_role_feature(
+            session, [g1_strahd_mem, g1_lmop_mem], "galleries_enabled"
+        )
+
+        # -- Galleries --
+        print("  Creating Community 1 galleries...")
+        await _create_galleries(
+            session,
+            ids,
+            g1,
+            all_users,
+            g1_tags,
+            [
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Barovia maps and handouts",
+                    "description": "Every map, letter and prop the table has seen. Tagged by what it was for.",
+                    "created_by": "Dungeon Master",
+                    "tags": ["lore"],
+                    "cover": "Castle Ravenloft, ground floor",
+                    "images": [
+                        # A design round: the same map, three times, with the
+                        # earlier renditions kept as history.
+                        {
+                            "title": "Castle Ravenloft, ground floor",
+                            "caption": "The one the players have. Do not show them the crypts.",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(160),
+                            "width": 1600,
+                            "height": 1100,
+                            "colours": ((72, 52, 104), (26, 18, 40)),
+                            "tags": ["exploration"],
+                            "versions": 3,
+                        },
+                        {
+                            "title": "Castle Ravenloft, crypts",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(158),
+                            "width": 1400,
+                            "height": 1400,
+                            "colours": ((40, 40, 60), (12, 12, 20)),
+                            "tags": ["exploration", "boss fight"],
+                            "versions": 2,
+                        },
+                        {
+                            "title": "Strahd's letter",
+                            "caption": "Read aloud at the gates. Sera cried. Everyone pretended not to notice.",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(150),
+                            "width": 900,
+                            "height": 1300,
+                            "colours": ((214, 190, 140), (150, 120, 70)),
+                            "tags": ["roleplay", "lore"],
+                        },
+                        {
+                            "title": "Village of Barovia",
+                            "created_by": "Thorn Ironforge",
+                            "created_at": _round(120),
+                            "width": 1800,
+                            "height": 1000,
+                            "colours": ((60, 90, 70), (20, 40, 30)),
+                            "tags": ["exploration"],
+                        },
+                        {
+                            "title": "Death House, floor 1",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(118),
+                            "width": 1200,
+                            "height": 1600,
+                            "colours": ((100, 60, 60), (40, 20, 20)),
+                            "tags": ["exploration", "combat"],
+                        },
+                        {
+                            "title": "Death House, floor 2",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(118),
+                            "width": 1200,
+                            "height": 1600,
+                            "colours": ((110, 70, 60), (44, 22, 20)),
+                            "tags": ["exploration", "combat"],
+                        },
+                        {
+                            "title": "Death House, basement",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(118),
+                            "width": 1200,
+                            "height": 1400,
+                            "colours": ((60, 40, 50), (18, 10, 14)),
+                            "tags": ["exploration", "combat", "boss fight"],
+                            "versions": 2,
+                        },
+                        {
+                            "title": "Tarokka reading",
+                            "caption": "The spread as dealt. Photographed before Vex could touch it.",
+                            "created_by": "Elara Moonwhisper",
+                            "created_at": _round(90),
+                            "width": 1500,
+                            "height": 1000,
+                            "colours": ((160, 90, 40), (60, 30, 10)),
+                            "tags": ["lore"],
+                        },
+                        {
+                            "title": "Vallaki",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(61),
+                            "width": 2000,
+                            "height": 1200,
+                            "colours": ((80, 110, 130), (30, 45, 60)),
+                            "tags": ["exploration"],
+                        },
+                        {
+                            "title": "The Blue Water Inn",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(61),
+                            "width": 1000,
+                            "height": 1000,
+                            "colours": ((60, 100, 140), (20, 40, 70)),
+                            "tags": ["roleplay"],
+                        },
+                        {
+                            "title": "Wizard of Wines",
+                            "created_by": "Thorn Ironforge",
+                            "created_at": _round(30),
+                            "width": 1600,
+                            "height": 900,
+                            "colours": ((120, 40, 80), (50, 10, 30)),
+                            "tags": ["quest", "combat"],
+                        },
+                        {
+                            "title": "Amber Temple, entrance",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(4),
+                            "width": 1400,
+                            "height": 1800,
+                            "colours": ((200, 150, 40), (90, 60, 10)),
+                            "tags": ["quest", "puzzle"],
+                        },
+                        {
+                            "title": "Amber Temple, vaults",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(4),
+                            "width": 1400,
+                            "height": 1800,
+                            "colours": ((180, 130, 30), (70, 45, 5)),
+                            "tags": ["quest", "puzzle", "items/loot"],
+                        },
+                        {
+                            "title": None,
+                            "filename": "IMG_4471.png",
+                            "caption": "The table, mid-session. Not sure who took this.",
+                            "created_by": "Vex Shadowstep",
+                            "created_at": _round(1),
+                            "width": 1600,
+                            "height": 1200,
+                            "colours": ((90, 90, 90), (30, 30, 30)),
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "Phandelver props",
+                    "description": "Handouts for the table. Print at A4.",
+                    "created_by": "Dungeon Master",
+                    "images": [
+                        {
+                            "title": "Cragmaw Hideout",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(75),
+                            "width": 1600,
+                            "height": 1100,
+                            "colours": ((70, 80, 60), (25, 30, 20)),
+                            "tags": ["exploration"],
+                        },
+                        {
+                            "title": "Gundren's map",
+                            "caption": "Water-stained on purpose. Took three tea bags.",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(74),
+                            "width": 1200,
+                            "height": 900,
+                            "colours": ((200, 170, 120), (140, 110, 60)),
+                            "tags": ["quest", "lore"],
+                        },
+                        {
+                            "title": "Wave Echo Cave",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(20),
+                            "width": 2000,
+                            "height": 1400,
+                            "colours": ((50, 70, 90), (15, 25, 35)),
+                            "tags": ["exploration", "boss fight"],
+                            "versions": 2,
+                        },
+                        {
+                            "title": "Phandalin",
+                            "created_by": "Thorn Ironforge",
+                            "created_at": _round(20),
+                            "width": 1500,
+                            "height": 1500,
+                            "colours": ((100, 120, 80), (40, 50, 30)),
+                        },
+                    ],
+                },
+            ],
+        )
 
         # ==============================================================
         # GUILD 2: "Starforge Collective" — Sci-Fi Campaign
@@ -5101,6 +5557,7 @@ async def seed() -> None:
             counter_groups_enabled=True,
             calendars_enabled=True,
             dashboards_enabled=True,
+            galleries_enabled=True,
         )
 
         g2_side, g2_side_pm, g2_side_mem = await _create_initiative(
@@ -5749,6 +6206,104 @@ async def seed() -> None:
             all_users,
         )
 
+        # -- Galleries --
+        print("  Creating Community 2 galleries...")
+        await _create_galleries(
+            session,
+            ids,
+            g2,
+            all_users,
+            g2_tags,
+            [
+                {
+                    # No cover chosen on purpose: the card falls back to the
+                    # newest four as a grid, which is the common case.
+                    "initiative_id": g2_main.id,
+                    "name": "Fleet concept art",
+                    "description": "Hull studies, bridge layouts and the one ship nobody liked.",
+                    "created_by": "Finley Goldtongue",
+                    "tags": ["engineering"],
+                    "images": [
+                        {
+                            "title": "Exodus, hull study",
+                            "created_by": "Finley Goldtongue",
+                            "created_at": _round(140),
+                            "width": 2200,
+                            "height": 900,
+                            "colours": ((30, 60, 110), (8, 16, 34)),
+                            "tags": ["engineering"],
+                            "versions": 4,
+                        },
+                        {
+                            "title": "Exodus, bridge",
+                            "caption": "Third pass. The viewscreen finally reads as a window.",
+                            "created_by": "Aurelia Brightshield",
+                            "created_at": _round(96),
+                            "width": 1600,
+                            "height": 1000,
+                            "colours": ((40, 90, 130), (10, 24, 44)),
+                            "tags": ["engineering"],
+                            "versions": 2,
+                        },
+                        {
+                            "title": "Drop shuttle",
+                            "created_by": "Finley Goldtongue",
+                            "created_at": _round(95),
+                            "width": 1400,
+                            "height": 1400,
+                            "colours": ((70, 80, 95), (20, 24, 30)),
+                        },
+                        {
+                            "title": "Frontier station",
+                            "created_by": "Kael Windrunner",
+                            "created_at": _round(52),
+                            "width": 2400,
+                            "height": 800,
+                            "colours": ((90, 60, 130), (24, 14, 40)),
+                            "tags": ["exploration"],
+                        },
+                        {
+                            "title": "Reactor deck",
+                            "created_by": "Aurelia Brightshield",
+                            "created_at": _round(51),
+                            "width": 1200,
+                            "height": 1600,
+                            "colours": ((150, 90, 30), (50, 26, 6)),
+                            "tags": ["engineering", "survival"],
+                        },
+                        {
+                            "title": "Salvage hauler",
+                            "created_by": "Vex Shadowstep",
+                            "created_at": _round(12),
+                            "width": 1800,
+                            "height": 1100,
+                            "colours": ((60, 70, 60), (18, 22, 18)),
+                            "tags": ["loot"],
+                        },
+                        {
+                            "title": None,
+                            "filename": "bridge-wip-final-2.png",
+                            "caption": "Whatever this was, it did not survive the review.",
+                            "created_by": "Finley Goldtongue",
+                            "created_at": _round(3),
+                            "width": 1000,
+                            "height": 1200,
+                            "colours": ((120, 40, 40), (40, 12, 12)),
+                        },
+                    ],
+                },
+                {
+                    # Empty on purpose: the card shows the tool's icon and the
+                    # wall shows what to do about it.
+                    "initiative_id": g2_main.id,
+                    "name": "Crew portraits",
+                    "description": "One per member of the fleet. Nobody has started.",
+                    "created_by": "Aurelia Brightshield",
+                    "images": [],
+                },
+            ],
+        )
+
         # -- Community 2 Settings --
         print("  Creating Community 2 settings...")
         await _create_guild_settings(session, ids, g2, ai_enabled=True)
@@ -6028,7 +6583,8 @@ async def seed() -> None:
                         _widget(
                             "w1",
                             "progress",
-                            "counter",
+                            "SELECT count AS reading, max AS capacity "
+                            "FROM counters WHERE id = {counter_id}",
                             x=0,
                             y=0,
                             w=4,
@@ -6040,7 +6596,8 @@ async def seed() -> None:
                         _widget(
                             "w2",
                             "stat",
-                            "counter",
+                            "SELECT count AS days FROM counters "
+                            "WHERE id = {counter_id}",
                             x=4,
                             y=0,
                             w=3,
@@ -6052,7 +6609,9 @@ async def seed() -> None:
                         _widget(
                             "w3",
                             "chart",
-                            "counter_group",
+                            "SELECT name, count AS reading FROM counters "
+                            "WHERE counter_group_id = {counter_group_id} "
+                            "ORDER BY name",
                             x=7,
                             y=0,
                             w=5,
@@ -6063,7 +6622,9 @@ async def seed() -> None:
                         _widget(
                             "w4",
                             "chart",
-                            "task_counts",
+                            "SELECT s.category AS stage, count(*) AS tasks "
+                            "FROM tasks t JOIN task_statuses s "
+                            "ON t.task_status_id = s.id GROUP BY s.category",
                             x=0,
                             y=2,
                             w=7,
@@ -6074,7 +6635,8 @@ async def seed() -> None:
                         _widget(
                             "w5",
                             "table",
-                            "tasks",
+                            "SELECT title, priority, due_date FROM tasks "
+                            "WHERE completed_at IS NULL ORDER BY due_date",
                             x=0,
                             y=6,
                             w=12,
@@ -6086,6 +6648,7 @@ async def seed() -> None:
             ],
         )
         await _enable_role_feature(session, [g2_main_mem], "dashboards_enabled")
+        await _enable_role_feature(session, [g2_main_mem], "galleries_enabled")
 
         # -- Calendar events --
         print("  Creating Community 2 calendar events...")
@@ -6472,6 +7035,7 @@ async def seed() -> None:
             counter_groups_enabled=True,
             calendars_enabled=True,
             dashboards_enabled=True,
+            galleries_enabled=True,
         )
 
         g3_navy, g3_navy_pm, g3_navy_mem = await _create_initiative(
@@ -7151,6 +7715,67 @@ async def seed() -> None:
             all_users,
         )
 
+        # -- Galleries --
+        print("  Creating Community 3 galleries...")
+        await _create_galleries(
+            session,
+            ids,
+            g3,
+            all_users,
+            g3_tags,
+            [
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "Charts of the Shattered Seas",
+                    "description": "Every chart the crew has bought, stolen or drawn themselves.",
+                    "created_by": "Finley Goldtongue",
+                    "tags": ["exploration"],
+                    "cover": "The Shattered Seas",
+                    "images": [
+                        {
+                            "title": "The Shattered Seas",
+                            "caption": "The whole map. Torn along the eastern edge, which is where we are going.",
+                            "created_by": "Finley Goldtongue",
+                            "created_at": _round(200),
+                            "width": 2400,
+                            "height": 1600,
+                            "colours": ((30, 90, 120), (8, 30, 48)),
+                            "tags": ["exploration"],
+                            "versions": 2,
+                        },
+                        {
+                            "title": "Port Blackwater",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(150),
+                            "width": 1400,
+                            "height": 1000,
+                            "colours": ((100, 80, 50), (36, 28, 16)),
+                            "tags": ["NPC"],
+                        },
+                        {
+                            "title": "The Leviathan's reach",
+                            "created_by": "Dungeon Master",
+                            "created_at": _round(44),
+                            "width": 1600,
+                            "height": 1600,
+                            "colours": ((20, 60, 70), (6, 18, 22)),
+                            "tags": ["boss fight"],
+                        },
+                        {
+                            "title": "Imperial patrol routes",
+                            "caption": "Do not leave this one on the table.",
+                            "created_by": "Thorn Ironforge",
+                            "created_at": _round(9),
+                            "width": 2000,
+                            "height": 1200,
+                            "colours": ((40, 50, 110), (12, 16, 40)),
+                            "tags": ["naval combat", "stealth"],
+                        },
+                    ],
+                },
+            ],
+        )
+
         # -- Community 3 Settings --
         print("  Creating Community 3 settings...")
         await _create_guild_settings(session, ids, g3, ai_enabled=False)
@@ -7522,7 +8147,8 @@ async def seed() -> None:
                         _widget(
                             "w1",
                             "progress",
-                            "counter",
+                            "SELECT count AS reading, max AS capacity "
+                            "FROM counters WHERE id = {counter_id}",
                             x=0,
                             y=0,
                             w=4,
@@ -7534,7 +8160,8 @@ async def seed() -> None:
                         _widget(
                             "w2",
                             "progress",
-                            "counter",
+                            "SELECT count AS reading, max AS capacity "
+                            "FROM counters WHERE id = {counter_id}",
                             x=4,
                             y=0,
                             w=4,
@@ -7546,7 +8173,8 @@ async def seed() -> None:
                         _widget(
                             "w3",
                             "stat",
-                            "counter",
+                            "SELECT count AS days FROM counters "
+                            "WHERE id = {counter_id}",
                             x=8,
                             y=0,
                             w=4,
@@ -7558,7 +8186,11 @@ async def seed() -> None:
                         _widget(
                             "w4",
                             "chart",
-                            "task_counts",
+                            "SELECT date_trunc('day', completed_at) AS day, "
+                            "count(*) AS finished FROM tasks "
+                            "WHERE completed_at IS NOT NULL "
+                            "GROUP BY date_trunc('day', completed_at) "
+                            "ORDER BY date_trunc('day', completed_at)",
                             x=0,
                             y=2,
                             w=6,
@@ -7569,18 +8201,24 @@ async def seed() -> None:
                         _widget(
                             "w5",
                             "progress",
-                            "projects",
+                            "SELECT p.name AS project, "
+                            "count(t.completed_at) AS finished, "
+                            "count(*) AS total FROM projects p "
+                            "JOIN tasks t ON t.project_id = p.id "
+                            "GROUP BY p.name ORDER BY p.name",
                             x=6,
                             y=2,
                             w=6,
                             h=4,
                             title="Voyage legs",
+                            options={"breakdown": "each"},
                         ),
                     ],
                 },
             ],
         )
         await _enable_role_feature(session, [g3_main_mem], "dashboards_enabled")
+        await _enable_role_feature(session, [g3_main_mem], "galleries_enabled")
 
         # -- Calendar events --
         print("  Creating Community 3 calendar events...")
@@ -8252,6 +8890,11 @@ async def seed() -> None:
     print(
         f"  {len(ids.data['calendar_events'])} calendar events, "
         f"{len(ids.data['calendar_event_attendees'])} attendees"
+    )
+    print(
+        f"  {len(ids.data['galleries'])} galleries, "
+        f"{len(ids.data['gallery_images'])} pictures "
+        f"({len(ids.data['gallery_image_versions'])} versions)"
     )
     print(
         f"  {len(ids.data['posts'])} posts "

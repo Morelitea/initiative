@@ -583,5 +583,21 @@
   "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "Du kannst Zähler nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
   "GRANTEE_LACKS_CALENDAR_ACCESS": "Du kannst Kalender nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
   "GRANTEE_LACKS_DASHBOARD_ACCESS": "Du kannst Dashboards nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
-  "GRANTEE_LACKS_POST_ACCESS": "Du kannst Beiträge nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut."
+  "GRANTEE_LACKS_POST_ACCESS": "Du kannst Beiträge nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GRANTEE_LACKS_GALLERY_ACCESS": "Du kannst Galerien nur mit Personen teilen, deren Rolle das umfasst. Passe die Rolle in den Einstellungen der Initiative an und teile dann erneut.",
+  "GALLERY_NOT_FOUND": "Galerie nicht gefunden",
+  "GALLERY_CREATE_PERMISSION_REQUIRED": "Du hast keine Berechtigung, hier Galerien zu erstellen",
+  "GALLERIES_NOT_ENABLED": "Galerien sind für diese Initiative nicht aktiviert",
+  "GALLERY_PERMISSION_REQUIRED": "Du hast keinen Zugriff auf diese Galerie",
+  "GALLERY_OWNER_REQUIRED": "Das kann nur die Besitzerin oder der Besitzer der Galerie",
+  "GALLERY_WRITE_ACCESS_REQUIRED": "Du brauchst Schreibzugriff auf diese Galerie",
+  "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS": "Geteilter Zugriff kann nicht verwalten, wer diese Galerie sonst noch sehen darf",
+  "GALLERY_IMAGE_NOT_FOUND": "Dieses Bild ist nicht in dieser Galerie",
+  "GALLERY_INVALID_IMAGE": "Diese Datei ist kein Bild, das diese Galerie anzeigen kann – verwende PNG, JPEG, WebP oder GIF",
+  "GALLERY_IMAGE_TOO_LARGE": "Dieses Bild ist zu groß – die Grenze liegt bei 25 MB",
+  "GALLERY_IMAGE_EMPTY": "Diese Datei ist leer",
+  "GALLERY_VERSION_NOT_FOUND": "Diese Version gibt es nicht mehr",
+  "GALLERY_CANNOT_DELETE_LAST_VERSION": "Ein Bild behält mindestens eine Version – entferne stattdessen das Bild",
+  "GALLERY_VERSION_CONFLICT": "Jemand anderes hat im selben Moment eine Version hochgeladen – versuche es erneut",
+  "GALLERY_COVER_NOT_IN_GALLERY": "Das Titelbild muss eines der Bilder dieser Galerie sein"
 }

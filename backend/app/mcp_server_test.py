@@ -67,6 +67,11 @@ _SAFE_WRITES = {
     "update_dashboard",
     "create_post",
     "update_post",
+    # A gallery is authored and renamed here, and filled elsewhere: putting a
+    # picture in one is a multipart upload, which no RouteMap matches, so the
+    # write surface stops at the wall itself.
+    "create_gallery",
+    "update_gallery",
     # And what those tools hold: a project's tasks, a queue's items, a counter
     # group's counters, a calendar's events, and the comments on any of them.
     "create_task",

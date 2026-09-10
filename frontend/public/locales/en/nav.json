@@ -81,5 +81,7 @@
   "requestsWaiting_one": "{{count}} waiting",
   "requestsWaiting_other": "{{count}} waiting",
   "posts": "Posts",
-  "createPost": "New Post"
+  "createPost": "New Post",
+  "galleries": "Galleries",
+  "createGallery": "New Gallery"
 }

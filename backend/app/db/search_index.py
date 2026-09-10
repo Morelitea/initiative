@@ -141,6 +141,13 @@ def _post_text(row: str) -> str:
     return _json_text(row, "strict $.**.text", column="body")
 
 
+def _gallery_image_text(row: str) -> str:
+    """A picture's searchable text: its caption, and the filename split into
+    words so ``round-4-detail.png`` is found by ``detail``."""
+    filename = f"coalesce({row}.original_filename, '')"
+    return f"coalesce({row}.caption, '') || ' ' || {_with_words(filename)}"
+
+
 def _document_text(row: str) -> str:
     """A document's searchable text, by what kind of document it is.
 
@@ -301,6 +308,19 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         dac_tool=Tool.calendar,
         dac_id="calendar_id",
     ),
+    # A picture is found by what somebody called it, or failing that by the
+    # name of the file they uploaded — which is often the only name it has.
+    "gallery_images": SearchSource(
+        SearchEntityType.gallery_image,
+        title="title",
+        title_sql=lambda row: (
+            f"coalesce(nullif({row}.title, ''), {row}.original_filename, '')"
+        ),
+        body=("caption", "original_filename"),
+        body_sql=_gallery_image_text,
+        dac_tool=Tool.gallery,
+        dac_id="gallery_id",
+    ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.
     "tags": SearchSource(SearchEntityType.tag, title="name"),
@@ -336,6 +356,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "project_filter_presets": "one member's saved filters",
     "task_statuses": "column names, reached from the project",
     "document_file_versions": "history of a document already indexed",
+    "gallery_image_versions": "history of a picture already indexed",
     "document_links": "derived wikilink graph",
     "subtasks": "checklist lines, reached from the task",
     "post_polls": "the question a notice asks, reached from the notice",

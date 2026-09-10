@@ -145,6 +145,11 @@
     "perPage": "Per page:",
     "rangeOf": "{{start}}–{{end}} of {{total}}"
   },
+  "lightbox": {
+    "title": "Picture",
+    "description": "Use the arrow keys or swipe to move between pictures.",
+    "position": "{{current}} / {{total}}"
+  },
   "timeline": {
     "label": "Jump to a month",
     "jumpedTo": "Showing from {{period}}",

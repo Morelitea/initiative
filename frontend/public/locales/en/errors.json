@@ -583,5 +583,21 @@
   "GRANTEE_LACKS_COUNTER_GROUP_ACCESS": "You can only share Counters with people whose role includes it. Update the role under the initiative's settings, then share again.",
   "GRANTEE_LACKS_CALENDAR_ACCESS": "You can only share Calendar with people whose role includes it. Update the role under the initiative's settings, then share again.",
   "GRANTEE_LACKS_DASHBOARD_ACCESS": "You can only share Dashboards with people whose role includes it. Update the role under the initiative's settings, then share again.",
-  "GRANTEE_LACKS_POST_ACCESS": "You can only share Posts with people whose role includes it. Update the role under the initiative's settings, then share again."
+  "GRANTEE_LACKS_POST_ACCESS": "You can only share Posts with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GRANTEE_LACKS_GALLERY_ACCESS": "You can only share Galleries with people whose role includes it. Update the role under the initiative's settings, then share again.",
+  "GALLERY_NOT_FOUND": "Gallery not found",
+  "GALLERY_CREATE_PERMISSION_REQUIRED": "You do not have permission to create galleries here",
+  "GALLERIES_NOT_ENABLED": "Galleries are not enabled for this initiative",
+  "GALLERY_PERMISSION_REQUIRED": "You do not have access to this gallery",
+  "GALLERY_OWNER_REQUIRED": "Only the gallery's owner can do that",
+  "GALLERY_WRITE_ACCESS_REQUIRED": "You need write access to this gallery",
+  "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS": "Shared access cannot manage who else can see this gallery",
+  "GALLERY_IMAGE_NOT_FOUND": "That picture is not in this gallery",
+  "GALLERY_INVALID_IMAGE": "That file is not a picture this gallery can show — use PNG, JPEG, WebP or GIF",
+  "GALLERY_IMAGE_TOO_LARGE": "That picture is too large — the limit is 25 MB",
+  "GALLERY_IMAGE_EMPTY": "That file is empty",
+  "GALLERY_VERSION_NOT_FOUND": "That version no longer exists",
+  "GALLERY_CANNOT_DELETE_LAST_VERSION": "A picture keeps at least one version — remove the picture instead",
+  "GALLERY_VERSION_CONFLICT": "Someone else uploaded a version at the same moment — try again",
+  "GALLERY_COVER_NOT_IN_GALLERY": "The cover has to be one of this gallery's own pictures"
 }

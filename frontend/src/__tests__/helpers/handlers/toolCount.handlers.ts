@@ -14,6 +14,8 @@ const COUNT_PATHS = [
   "/counter-groups",
   "/calendars",
   "/dashboards",
+  "/posts",
+  "/galleries",
 ];
 
 export const toolCountHandlers = COUNT_PATHS.map((path) =>

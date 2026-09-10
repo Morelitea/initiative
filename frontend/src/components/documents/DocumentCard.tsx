@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { type DocumentSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
+import { LazyImage } from "@/components/shared/LazyImage";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -68,12 +69,11 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
           the usual document, one centred icon. Shorter below `sm`. */}
       <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {document.featured_image_url ? (
-          <img
-            src={resolveUploadUrl(document.featured_image_url) ?? undefined}
+          <LazyImage
+            src={resolveUploadUrl(document.featured_image_url)}
             alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full"
+            imgClassName="transition duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center">

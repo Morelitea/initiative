@@ -34,7 +34,9 @@
     "dashboard": "Dashboard",
     "tag": "Tag",
     "comment": "Comment",
-    "post": "Post"
+    "post": "Post",
+    "gallery": "Gallery",
+    "gallery_image": "Picture"
   },
   "switchHint": "Tab to switch",
   "closeMatches": "Nothing matches “{{query}}” exactly. These are the closest.",

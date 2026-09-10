@@ -81,5 +81,7 @@
   "requestsWaiting_one": "{{count}} ausstehend",
   "requestsWaiting_other": "{{count}} ausstehend",
   "posts": "Beiträge",
-  "createPost": "Neuer Beitrag"
+  "createPost": "Neuer Beitrag",
+  "galleries": "Galerien",
+  "createGallery": "Neue Galerie"
 }

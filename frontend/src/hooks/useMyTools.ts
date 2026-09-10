@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import type {
   CounterGroupListResponse,
   DashboardListResponse,
+  GalleryListResponse,
   MyToolCountsResponse,
   PostListResponse,
   QueueListResponse,
@@ -24,11 +25,13 @@ import {
   getGetMyToolCountsApiV1MeToolsCountsGetQueryKey,
   getListMyCounterGroupsApiV1MeCounterGroupsGetQueryKey,
   getListMyDashboardsApiV1MeDashboardsGetQueryKey,
+  getListMyGalleriesApiV1MeGalleriesGetQueryKey,
   getListMyPostsApiV1MePostsGetQueryKey,
   getListMyQueuesApiV1MeQueuesGetQueryKey,
   getMyToolCountsApiV1MeToolsCountsGet,
   listMyCounterGroupsApiV1MeCounterGroupsGet,
   listMyDashboardsApiV1MeDashboardsGet,
+  listMyGalleriesApiV1MeGalleriesGet,
   listMyPostsApiV1MePostsGet,
   listMyQueuesApiV1MeQueuesGet,
 } from "@/api/generated/my-tools/my-tools";
@@ -101,6 +104,16 @@ export const useMyPosts = (params?: MyToolListParams, options?: QueryOpts<PostLi
     ...options,
   });
 
+export const useMyGalleries = (
+  params?: MyToolListParams,
+  options?: QueryOpts<GalleryListResponse>
+) =>
+  useQuery<GalleryListResponse>({
+    queryKey: getListMyGalleriesApiV1MeGalleriesGetQueryKey(params),
+    queryFn: () => listMyGalleriesApiV1MeGalleriesGet(params),
+    ...options,
+  });
+
 /** How the My Tools table is narrowed and ordered. */
 export interface MyToolQuery {
   /** Communities to keep, or none for all of them. */
@@ -143,6 +156,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
   const calendars = useMyCalendars(params, only(Tool.calendar));
   const dashboards = useMyDashboards(params, only(Tool.dashboard));
   const posts = useMyPosts(params, only(Tool.post));
+  const galleries = useMyGalleries(params, only(Tool.gallery));
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the cross-guild query that lists it.
@@ -154,6 +168,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     [Tool.calendar]: calendars,
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
+    [Tool.gallery]: galleries,
   }[tool];
 
   const rows = useMemo<ToolRow[]>(() => {
@@ -165,6 +180,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
       [Tool.calendar]: calendars.data,
       [Tool.dashboard]: dashboards.data,
       [Tool.post]: posts.data,
+      [Tool.gallery]: galleries.data,
     };
     // Every row across communities carries its own guild id, so there is no
     // community for a fallback to stand in for.
@@ -179,6 +195,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     calendars.data,
     dashboards.data,
     posts.data,
+    galleries.data,
   ]);
 
   return {

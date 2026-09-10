@@ -20,10 +20,12 @@ import type {
 import type {
   CounterGroupListResponse,
   DashboardListResponse,
+  GalleryListResponse,
   GetMyToolCountsApiV1MeToolsCountsGetParams,
   HTTPValidationError,
   ListMyCounterGroupsApiV1MeCounterGroupsGetParams,
   ListMyDashboardsApiV1MeDashboardsGetParams,
+  ListMyGalleriesApiV1MeGalleriesGetParams,
   ListMyPostsApiV1MePostsGetParams,
   ListMyQueuesApiV1MeQueuesGetParams,
   MyToolCountsResponse,
@@ -627,6 +629,145 @@ export function useListMyPostsApiV1MePostsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListMyPostsApiV1MePostsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Galleries that reach the caller across every guild they belong to.
+ *
+ * Counts and covers are not carried here: a cross-guild list is merged in
+ * Python from one query per guild, and those annotations are per-guild
+ * grouped queries the merge has no session for. The card falls back to no
+ * picture, which is what a gallery looks like from outside its community.
+ * @summary List My Galleries
+ */
+export const listMyGalleriesApiV1MeGalleriesGet = (
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GalleryListResponse>(
+    { url: `/api/v1/me/galleries`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListMyGalleriesApiV1MeGalleriesGetQueryKey = (
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams
+) => {
+  return [`/api/v1/me/galleries`, ...(params ? [params] : [])] as const;
+};
+
+export const getListMyGalleriesApiV1MeGalleriesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyGalleriesApiV1MeGalleriesGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>> = ({
+    signal,
+  }) => listMyGalleriesApiV1MeGalleriesGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyGalleriesApiV1MeGalleriesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>
+>;
+export type ListMyGalleriesApiV1MeGalleriesGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyGalleriesApiV1MeGalleriesGet<
+  TData = Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListMyGalleriesApiV1MeGalleriesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyGalleriesApiV1MeGalleriesGet<
+  TData = Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyGalleriesApiV1MeGalleriesGet<
+  TData = Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Galleries
+ */
+
+export function useListMyGalleriesApiV1MeGalleriesGet<
+  TData = Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyGalleriesApiV1MeGalleriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyGalleriesApiV1MeGalleriesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyGalleriesApiV1MeGalleriesGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

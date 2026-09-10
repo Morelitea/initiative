@@ -15,7 +15,7 @@ graph TD
   I2["Initiative"]
   P1["Project<br/>(a task board)"]
   D1["Document"]
-  T1["Calendar · Queue · Counter<br/>Dashboard · Posts"]
+  T1["Calendar · Queue · Counter<br/>Dashboard · Posts · Gallery"]
   TASK["Tasks"]
 
   G --> I1
@@ -30,7 +30,7 @@ Biggest to smallest:
 
 1. **Community** — the whole workspace for one group of people.
 2. **Initiative** — a folder inside it for one big effort.
-3. **Tools** — the seven kinds of thing that hold the work, kept inside an initiative.
+3. **Tools** — the eight kinds of thing that hold the work, kept inside an initiative.
 4. **Tasks** — the individual to-dos on a project's board.
 
 !!! tip "You do not have to build all of this"
@@ -68,7 +68,7 @@ People are added as **members**, each with a **role** — "Director", "Cast" —
 
 ## Tools — the things that hold the work
 
-Everything inside an initiative is a **tool**. There are seven kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
+Everything inside an initiative is a **tool**. There are eight kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
 
 Learn how one works and you've learned how the next one works. That's the whole idea.
 
@@ -87,11 +87,12 @@ A **task** carries a description, a status, a priority, dates, the people doing 
 - **Counters** — numbers that move.
 - **Dashboards** — one screen that answers "how are we doing?"
 - **Posts** — a noticeboard, for the things that need saying rather than doing.
+- **Galleries** — a wall of pictures, for the things that need looking at rather than reading.
 
 Use none of these and nothing is missing. They aren't sitting there judging you. See [Tools](../guides/tools.md).
 
-!!! info "Seven today"
-    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Posts is the most recent. When an eighth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
+!!! info "Eight today"
+    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Galleries is the most recent. When a ninth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
 
 ## Apps — what other groups already built
 

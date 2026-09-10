@@ -27,6 +27,7 @@ from app.core.messages import (
     CounterMessages,
     DashboardMessages,
     DocumentMessages,
+    GalleryMessages,
     PostMessages,
     ProjectMessages,
     QueueMessages,
@@ -43,6 +44,7 @@ from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
+from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
@@ -122,6 +124,15 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         loader=posts_service.get_post,
         path_param="post_id",
         not_found_msg=PostMessages.NOT_FOUND,
+    ),
+    Tool.gallery: ResourceAccessConfig(
+        dac_kind=Tool.gallery,
+        feature_attr=Tool.gallery.view_permission,
+        feature_disabled_msg=GalleryMessages.FEATURE_DISABLED,
+        grant_cannot_manage_msg=GalleryMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=galleries_service.get_gallery,
+        path_param="gallery_id",
+        not_found_msg=GalleryMessages.NOT_FOUND,
     ),
 }
 

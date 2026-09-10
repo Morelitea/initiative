@@ -18,6 +18,7 @@ import type {
   CounterGroupListResponse,
   DashboardListResponse,
   DocumentListResponse,
+  GalleryListResponse,
   PostListResponse,
   ProjectListResponse,
   QueueListResponse,
@@ -67,6 +68,7 @@ export type ToolResponses = {
   [Tool.calendar]: CalendarListResponse | undefined;
   [Tool.dashboard]: DashboardListResponse | undefined;
   [Tool.post]: PostListResponse | undefined;
+  [Tool.gallery]: GalleryListResponse | undefined;
 };
 
 const ColourDot = ({ colour }: { colour: string }) => (
@@ -203,6 +205,21 @@ export function buildToolRows(
         // of them — the server derives this from the body for exactly here.
         detail: post.excerpt,
         detailSort: post.excerpt,
+      }));
+    case Tool.gallery:
+      return (data[Tool.gallery]?.items ?? []).map((gallery) => ({
+        id: gallery.id,
+        guildId: gallery.guild_id ?? fallbackGuildId,
+        name: gallery.name,
+        href: href(gallery.id, gallery.initiative_id),
+        glyph: null,
+        initiativeId: gallery.initiative_id,
+        tags: gallery.tags,
+        updatedAt: gallery.updated_at,
+        // How many pictures it holds — the one figure that says what kind
+        // of gallery this is before it is opened.
+        detail: gallery.image_count,
+        detailSort: gallery.image_count,
       }));
   }
 }

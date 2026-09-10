@@ -46,7 +46,7 @@
  */
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
-import { toolIdParam } from "@/lib/tools";
+import { singularOf, toolIdParam } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -314,7 +314,7 @@ const toolComments = (which: Tool, id: number): Spec => commentsByParent(toolIdP
  * and every tool without a branch per parent.
  */
 const commentsOnResource = (resourceType: string, id: number): Spec =>
-  commentsByParent(`${resourceType.replace(/s$/, "")}_id`, id);
+  commentsByParent(`${singularOf(resourceType)}_id`, id);
 
 const recentComments = (): Spec => ({ guildPrefix: ["/api/v1/comments/recent"] });
 
@@ -545,6 +545,20 @@ const post = (postId: number): Spec => ({ guildExact: [`/api/v1/posts/${postId}`
  */
 const postTimeline = (): Spec => ({ guildPrefix: ["/api/v1/posts/timeline"] });
 
+// ── Galleries (guild) ────────────────────────────────────────────────────────
+
+const allGalleries = (): Spec => ({ guildPrefix: ["/api/v1/galleries"] });
+
+const gallery = (galleryId: number): Spec => ({
+  guildExact: [`/api/v1/galleries/${galleryId}`],
+});
+
+/** A gallery's pictures — every page of the list, the timeline rail, and
+ *  each picture's own reads and versions — without the gallery row itself. */
+const galleryImages = (galleryId: number): Spec => ({
+  guildPrefix: [`/api/v1/galleries/${galleryId}/images`],
+});
+
 // ── Subtasks (guild) ─────────────────────────────────────────────────────────
 
 const subtask = (subtaskId: number): Spec => ({ guildExact: [`/api/v1/subtasks/${subtaskId}`] });
@@ -576,6 +590,7 @@ const TOOL_SPECS: Record<Tool, (id: number) => Spec> = {
   [Tool.calendar]: (id) => compose(calendar(id), allCalendars()),
   [Tool.dashboard]: (id) => compose(dashboard(id), allDashboards()),
   [Tool.post]: (id) => compose(post(id), allPosts()),
+  [Tool.gallery]: (id) => compose(gallery(id), allGalleries()),
 };
 
 const tool = (which: Tool, id: number): Spec => TOOL_SPECS[which](id);
@@ -597,6 +612,7 @@ const guildContent = (): Spec =>
     allCalendars(),
     allDashboards(),
     allPosts(),
+    allGalleries(),
     allTasks(),
     allComments()
   );
@@ -612,6 +628,7 @@ export const q = {
   allCounterGroups,
   allDashboards,
   allDocuments,
+  allGalleries,
   allGuilds,
   allInitiatives,
   allPosts,
@@ -664,6 +681,8 @@ export const q = {
   platformAIConnections,
   platformAIMode,
   platformGuilds,
+  gallery,
+  galleryImages,
   post,
   postTimeline,
   project,

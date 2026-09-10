@@ -108,7 +108,8 @@
     "calendars": "Calendario",
     "dashboards": "Paneles",
     "counterGroups": "Contadores",
-    "posts": "Publicaciones"
+    "posts": "Publicaciones",
+    "galleries": "Galerías"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -237,7 +238,8 @@
       "calendars": "Eventos",
       "dashboards": "Paneles",
       "counterGroups": "Contadores",
-      "posts": "Publicaciones"
+      "posts": "Publicaciones",
+      "galleries": "Galerías"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -253,7 +255,9 @@
       "viewCounterGroups": "Ver contadores",
       "createCounterGroups": "Crear contadores",
       "viewPosts": "Ver publicaciones",
-      "createPosts": "Crear publicaciones"
+      "createPosts": "Crear publicaciones",
+      "viewGalleries": "Ver galerías",
+      "createGalleries": "Crear galerías"
     },
     "handleColumn": "Identificador",
     "toolAudience": {
@@ -286,5 +290,7 @@
   "counterGroupsFeature": "Contadores",
   "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales.",
   "postsFeature": "Publicaciones",
-  "postsFeatureDescription": "Un tablón de anuncios para la iniciativa: avisos que todos pueden leer, comentar y reaccionar, con los más importantes fijados arriba."
+  "postsFeatureDescription": "Un tablón de anuncios para la iniciativa: avisos que todos pueden leer, comentar y reaccionar, con los más importantes fijados arriba.",
+  "galleriesFeature": "Galerías",
+  "galleriesFeatureDescription": "Colecciones de imágenes (maquetas, capturas, diseños exportados) que se recorren como un mural en lugar de leerse una a una, con etiquetas e historial de versiones en cada imagen."
 }

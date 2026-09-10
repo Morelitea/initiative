@@ -40,6 +40,8 @@
     "counter_group": "Zählergruppe",
     "counter": "Zähler",
     "dashboard": "Dashboard",
-    "post": "Beitrag"
+    "post": "Beitrag",
+    "gallery": "Galerie",
+    "gallery_image": "Bild"
   }
 }

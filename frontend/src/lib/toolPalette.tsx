@@ -22,6 +22,7 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
+import { useGalleriesList } from "@/hooks/useGalleries";
 import { usePostsList } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
@@ -166,6 +167,19 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         keywords: [post.excerpt],
         icon: null,
         path: toolDetailRoute(Tool.post, post.initiative_id, post.id),
+      }));
+    },
+  },
+  [Tool.gallery]: {
+    useHeading: () => useGroupHeading(Tool.gallery),
+    useItems: ({ enabled }) => {
+      const query = useGalleriesList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+      return (query.data?.items ?? []).map((gallery) => ({
+        id: gallery.id,
+        label: gallery.name,
+        keywords: [gallery.description ?? ""],
+        icon: null,
+        path: toolDetailRoute(Tool.gallery, gallery.initiative_id, gallery.id),
       }));
     },
   },

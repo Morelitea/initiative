@@ -17,6 +17,7 @@ from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
 from app.services.fields.derive import derive_fields
@@ -76,4 +77,27 @@ def build_posts() -> Dataset:
         model=Post,
         tool=Tool.post,
         fields=derive_fields(Post, internal=frozenset({"body"})),
+    )
+
+
+def build_galleries() -> Dataset:
+    return Dataset(model=Gallery, tool=Tool.gallery, fields=derive_fields(Gallery))
+
+
+def build_gallery_images() -> Dataset:
+    """One picture in a gallery. Its own dataset for the reason queue items
+    have one: the question worth asking — how many arrived this month, which
+    are still untitled — is about the pictures, and the gallery is what they
+    are grouped by."""
+    return Dataset(
+        model=GalleryImage,
+        tool=Tool.gallery,
+        name_override="gallery_images",
+        fields=derive_fields(GalleryImage),
+        relations=(
+            Relation(
+                name="gallery",
+                hops=(Hop(dataset="galleries", left="gallery_id", right="id"),),
+            ),
+        ),
     )
