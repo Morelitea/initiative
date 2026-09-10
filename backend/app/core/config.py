@@ -735,10 +735,14 @@ class Settings(BaseSettings):
     # The public key accepts more than one key, as concatenated PEM blocks, so
     # billing can rotate its signing key without downtime: append the new key,
     # let billing start signing with it, then drop the old block. A token is
-    # accepted if any block verifies it. (The shared secret takes one value —
-    # rotating it is a separate change on both sides.)
+    # accepted if any block verifies it. The HMAC has a second accepted value
+    # for the same staged rotation protocol.
     BILLING_PUBLIC_KEY_PEM: str | None = None
     BILLING_HMAC_SECRET: str | None = None
+    # Second accepted HMAC value during a staged rotation. It may hold the next
+    # value before the cutover or the old value afterwards; clear it only once
+    # every billing instance signs with BILLING_HMAC_SECRET.
+    BILLING_HMAC_SECRET_PREVIOUS: str | None = None
     BILLING_AUDIENCE: str = "initiative:billing"
     BILLING_ISSUER: str = "initiative-billing"
     # Max |now - signed timestamp| accepted, in seconds. Never 0.

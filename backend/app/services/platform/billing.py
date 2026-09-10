@@ -130,11 +130,24 @@ def verify_billing_envelope(
     message = "\n".join(
         [method.upper(), path, ts_header, hashlib.sha256(body).hexdigest()]
     ).encode()
-    expected = hmac.new(
-        settings.BILLING_HMAC_SECRET.encode(), message, hashlib.sha256
-    ).hexdigest()
-    if not hmac.compare_digest(expected, signature.lower()):
+    offered = signature.lower()
+    matched_index = -1
+    for index, secret in enumerate(
+        (settings.BILLING_HMAC_SECRET, settings.BILLING_HMAC_SECRET_PREVIOUS)
+    ):
+        if not secret:
+            continue
+        expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, offered):
+            matched_index = index
+    if matched_index < 0:
         raise BillingEnvelopeError(BillingMessages.INVALID_SIGNATURE)
+    if matched_index > 0:
+        logger.warning(
+            "billing.envelope_verified_with_previous_secret "
+            "rotation is still in progress; clear BILLING_HMAC_SECRET_PREVIOUS "
+            "once this stops appearing"
+        )
 
     try:
         keys = load_verification_keys(settings.BILLING_PUBLIC_KEY_PEM)

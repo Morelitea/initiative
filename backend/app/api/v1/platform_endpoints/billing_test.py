@@ -77,12 +77,14 @@ _OTHER_PUBLIC_PEM = (
 )
 
 _HMAC_SECRET = "test-billing-hmac-secret"
+_PREVIOUS_HMAC_SECRET = "previous-test-billing-hmac-secret"
 
 
 @pytest.fixture(autouse=True)
 def _configure_billing(monkeypatch):
     monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", _PUBLIC_PEM)
     monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", _HMAC_SECRET)
+    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET_PREVIOUS", None)
 
 
 def _mint_token(
@@ -187,6 +189,24 @@ async def test_wrong_hmac_secret_rejected(client: AsyncClient, session: AsyncSes
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_SIGNATURE"
+
+
+async def test_previous_hmac_secret_is_accepted_during_rotation(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    monkeypatch.setattr(
+        config_module.settings,
+        "BILLING_HMAC_SECRET_PREVIOUS",
+        _PREVIOUS_HMAC_SECRET,
+    )
+    guild = await create_guild(session)
+    response = await _post(
+        client,
+        "guild-tier",
+        _tier_payload(guild.id, storage_cap_bytes=4096),
+        secret=_PREVIOUS_HMAC_SECRET,
+    )
+    assert response.status_code == 200
 
 
 async def test_tampered_body_rejected(client: AsyncClient, session: AsyncSession):
