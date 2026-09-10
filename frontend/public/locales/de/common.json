@@ -31,6 +31,7 @@
   "required": "Erforderlich",
   "optional": "Optional",
   "actions": "Aktionen",
+  "rowActionsFor": "Aktionen für {{subject}}",
   "more": "Mehr",
   "less": "Weniger",
   "noResults": "Keine Ergebnisse gefunden",

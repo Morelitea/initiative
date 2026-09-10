@@ -630,8 +630,9 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, session: AsyncS
     assert data["max_uses"] == 5
     # Read back masked: whoever typed the address already has it, and a
     # guild's other admins never did. Redemption still matches the whole
-    # address, from the ciphertext.
-    assert data["invitee_email"] == "i•••@example.com"
+    # address, from the ciphertext. The domain is elided too — a bare domain
+    # narrows an address to one organisation.
+    assert data["invitee_email"] == "i***e@e***m"
     assert data["uses"] == 0
     assert len(data["code"]) == 22
 

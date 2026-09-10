@@ -11,9 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Galleries: a home for the pictures** — a new tool beside Documents and Posts for the visual half of the work: mockups, screenshots, app icons, the four logos that lost. A gallery is a named wall of pictures with its own sharing, comments and tags, browsed as a masonry, a grid, or a timeline of what arrived when — and grouped by tag, so "everything still awaiting a decision" is one click. Drop a folder onto the page to add them, tag or remove a selection together, and replace a picture with a new version while keeping the rounds it went through. Off by default per initiative, like every non-core tool.
 
+### Changed
+
+- **Email addresses are no longer readable in the admin screens** — the platform user list, its CSV export, the access-request queue and every admin action that returned an account used to carry the whole address. They now carry a masked one (`u***1@e***m`), reduced on the server rather than in the page — a browser that was sent the real address has already given it away, whatever the screen shows. Enough survives to match a row against an address somebody has quoted at you; not enough to collect the roster's. Your own address is untouched: you still see it in full on your account screen. The list is searched by handle now, which is what identifies an account here, and the platform list gained a Handle column to match the community one.
+- **A row of actions is one menu** — the platform user list could put seven buttons in its Actions column and a community's user list four, wrapping onto two lines on a laptop and putting *Remove* under the finger reaching for *Export*. Each row now has a single menu, with the destructive action set apart below a rule.
+- **The admin user list sorts by any of its columns** — only the email column could be ordered. User ID, handle, name, role and status can now be too, each with the same control. Role sorts by privilege rather than by name, so members lead and owners bring up the rear instead of "owner" landing between "operator" and "support"; status sorts by how restricted an account is, bringing the ones needing attention together.
+
 ### Fixed
 
 - **Sign-in hardening** — internal changes to how failed sign-ins are handled and recorded. No change to how signing in works. Tracked as T20; details are held privately until the work is complete across the estate.
+- **The community user list's search box works** — it was pointed at an email column that a community roster has never had, so typing in it quietly did nothing. It searches handles.
+- **Notices about your own account say what happened, and lead somewhere** — being renamed by a moderator, having a profile picture taken down, being suspended or unsuspended all arrived as "You have a new notification", clicking through to nothing. Each now says what changed — naming the handle you lost, or the reason for a suspension where one was given — and opens your account screen. These notices belong to you rather than to any one community, and the web app was discarding the destination of anything that did not name a community; the phone app had always followed it. The destination itself was also wrong — `/settings/profile` has never been a page — so notices already sent are redirected to the account screen rather than left broken.
 
 ## [0.67.1] - 2026-09-09
 

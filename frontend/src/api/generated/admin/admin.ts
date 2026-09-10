@@ -31,6 +31,7 @@ import type {
   AdminSuspensionUpdate,
   AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchParams,
   AdminUserDeleteRequest,
+  AdminUserRead,
   AdminUsernameUpdate,
   AuditEventListResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
@@ -39,7 +40,6 @@ import type {
   PlatformAdminCountResponse,
   PlatformRoleUpdate,
   UserPublic,
-  UserRead,
   VerificationSendResponse,
 } from "../initiativeAPI.schemas";
 
@@ -76,7 +76,10 @@ export const listAllUsersApiV1AdminUsersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead[]>({ url: `/api/v1/admin/users`, method: "GET", signal }, options);
+  return apiMutator<AdminUserRead[]>(
+    { url: `/api/v1/admin/users`, method: "GET", signal },
+    options
+  );
 };
 
 export const getListAllUsersApiV1AdminUsersGetQueryKey = () => {
@@ -446,7 +449,7 @@ export const reactivateUserApiV1AdminUsersUserIdReactivatePost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead>(
+  return apiMutator<AdminUserRead>(
     { url: `/api/v1/admin/users/${userId}/reactivate`, method: "POST", signal },
     options
   );
@@ -803,7 +806,7 @@ export const setUserUsernameApiV1AdminUsersUserIdUsernamePatch = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead>(
+  return apiMutator<AdminUserRead>(
     {
       url: `/api/v1/admin/users/${userId}/username`,
       method: "PATCH",
@@ -907,7 +910,7 @@ export const setUserSuspensionApiV1AdminUsersUserIdSuspensionPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead>(
+  return apiMutator<AdminUserRead>(
     {
       url: `/api/v1/admin/users/${userId}/suspension`,
       method: "POST",
@@ -1158,7 +1161,7 @@ export const clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead>(
+  return apiMutator<AdminUserRead>(
     { url: `/api/v1/admin/users/${userId}/age-block`, method: "DELETE", signal },
     options
   );
@@ -1249,7 +1252,7 @@ export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserRead>(
+  return apiMutator<AdminUserRead>(
     {
       url: `/api/v1/admin/users/${userId}/platform-role`,
       method: "PATCH",
