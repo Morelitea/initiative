@@ -137,6 +137,12 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
     for index, entry in enumerate(entries):
         sheets_out.append(_normalize_sheet(entry, index, used_ids, used_names))
 
+    # A workbook with every sheet hidden has nothing to render and cannot be
+    # written as xlsx, so the first one is shown regardless of what the
+    # payload asked for. The client applies the same rule on read.
+    if sheets_out and all(sheet.get("hidden") for sheet in sheets_out):
+        sheets_out[0].pop("hidden", None)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": "spreadsheet",
@@ -217,7 +223,7 @@ def _normalize_sheet(
     cell_styles = _normalize_cellstyles(payload.get("cellStyles", {}))
     frozen = _normalize_frozen(payload.get("frozen", {}), rows_dim=rows, cols_dim=cols)
 
-    return {
+    out: dict[str, Any] = {
         "id": _unique_sheet_id(payload.get("id"), index, used_ids),
         "name": _unique_sheet_name(payload.get("name"), index, used_names),
         "dimensions": {"rows": rows, "cols": cols},
@@ -227,6 +233,11 @@ def _normalize_sheet(
         "cellStyles": cell_styles,
         "frozen": frozen,
     }
+    # A hidden sheet is kept out of the tab strip; only the flag being set
+    # is meaningful, so a shown sheet stores nothing.
+    if payload.get("hidden") is True:
+        out["hidden"] = True
+    return out
 
 
 def _empty_snapshot() -> dict[str, Any]:
@@ -458,6 +469,10 @@ def _normalize_index_map(value: Any, *, cap: int, allow_width: bool) -> dict[str
         style = _normalize_style(entry.get("style"))
         if style is not None:
             norm["style"] = style
+        # A hidden line is drawn at zero size; only the flag being set is
+        # meaningful, so ``false`` is stored as absence.
+        if entry.get("hidden") is True:
+            norm["hidden"] = True
         if norm:
             # Canonical index key collapses "007" → "7".
             out[str(idx)] = norm

@@ -82,6 +82,7 @@ from app.models.tenant.dashboard import Dashboard  # noqa: E402
 from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
+    DocumentType,
     ProjectDocument,
 )
 from app.models.platform.access_grant import (  # noqa: E402
@@ -196,6 +197,198 @@ def _doc(paragraphs: list[str]) -> dict:
             }
         )
     return {"root": {"children": children, "type": "root"}}
+
+
+# --- spreadsheets -----------------------------------------------------------
+
+# The seeded workbook is the shape people actually build: a working sheet
+# nobody else should have to read, a clean order form that pulls from it by
+# cross-sheet reference, and a summary of aggregates. It exercises the bits
+# that are easy to break — formulas reading other formula cells, references
+# across tabs, hidden helper columns, frozen headers, currency and percent
+# formats — so a dev environment has something real to open.
+
+_MONEY = {"type": "currency", "currency": "USD", "decimals": 2, "grouping": True}
+_PERCENT = {"type": "percent", "decimals": 1}
+_HEAD = {"style": {"bold": True, "fill": "#e8eaf0"}}
+
+
+def _sheet(
+    sheet_id: str,
+    name: str,
+    *,
+    cells: dict,
+    columns: dict | None = None,
+    rows: dict | None = None,
+    cell_styles: dict | None = None,
+    frozen: dict | None = None,
+    dimensions: dict | None = None,
+) -> dict:
+    return {
+        "id": sheet_id,
+        "name": name,
+        "dimensions": dimensions or {"rows": 100, "cols": 26},
+        "cells": cells,
+        "columns": columns or {},
+        "rows": rows or {},
+        "cellStyles": cell_styles or {},
+        "frozen": frozen or {"rows": 0, "cols": 0},
+    }
+
+
+def _spreadsheet_workbook(
+    *,
+    order_title: str,
+    unit_label: str,
+    items: list[tuple[str, int, float]],
+    tax_rate: float,
+) -> dict:
+    """A three-sheet workbook: Order form, Working, Summary.
+
+    ``items`` is ``(name, quantity, unit price)``; prices carry fractions on
+    purpose so ``=(C2-INT(C2))`` has something to show.
+    """
+    first_row = 1  # row index of the first item (A1 row 2)
+    last_row = first_row + len(items) - 1
+    total_row = last_row + 2
+
+    # --- Working: the sheet the orderer never has to look at ---------------
+    work: dict = {
+        "0:0": unit_label,
+        "0:1": "Qty",
+        "0:2": "Unit price",
+        "0:3": "Line total",
+        "0:4": "Tax",
+        "0:5": "Part of a unit",
+    }
+    for offset, (label, qty, price) in enumerate(items):
+        r = first_row + offset
+        n = r + 1  # the A1 row number
+        work[f"{r}:0"] = label
+        work[f"{r}:1"] = qty
+        work[f"{r}:2"] = price
+        work[f"{r}:3"] = f"=B{n}*C{n}"
+        # Reads D, which is itself a formula — the shape that used to fail.
+        work[f"{r}:4"] = f"=D{n}*{tax_rate}"
+        work[f"{r}:5"] = f"=(C{n}-INT(C{n}))"
+    work[f"{total_row}:0"] = "Total"
+    work[f"{total_row}:3"] = f"=SUM(D{first_row + 1}:D{last_row + 1})"
+    work[f"{total_row}:4"] = f"=SUM(E{first_row + 1}:E{last_row + 1})"
+    work[f"{total_row}:5"] = f"=D{total_row + 1}+E{total_row + 1}"
+    # A note that belongs to whoever maintains the sheet, not to a reader.
+    work[f"{total_row + 2}:0"] = "Working notes — hidden from the order form."
+
+    work_columns = {
+        "0": {"width": 220},
+        "2": {"format": _MONEY},
+        "3": {"format": _MONEY},
+        # The tax column is the working-out; the order form quotes the total.
+        "4": {"format": _MONEY, "hidden": True},
+        "5": {"format": {"type": "fixed", "decimals": 2}},
+    }
+    work_rows = {"0": {"style": _HEAD["style"]}, str(total_row + 2): {"hidden": True}}
+    work_styles = {f"{total_row}:0": {"style": {"bold": True}}}
+    for col in (3, 4, 5):
+        work_styles[f"{total_row}:{col}"] = {"style": {"bold": True}}
+
+    # --- Order form: everything by reference, nothing to scroll past -------
+    order: dict = {
+        "0:0": order_title,
+        "2:0": unit_label,
+        "2:1": "Qty",
+        "2:2": "Cost",
+    }
+    for offset in range(len(items)):
+        r = 3 + offset
+        source = first_row + offset + 1  # A1 row on Working
+        order[f"{r}:0"] = f"=Working!A{source}"
+        order[f"{r}:1"] = f"=Working!B{source}"
+        order[f"{r}:2"] = f"=Working!D{source}"
+    sub_row = 3 + len(items) + 1
+    order[f"{sub_row}:0"] = "Subtotal"
+    order[f"{sub_row}:2"] = f"=SUM(C4:C{3 + len(items)})"
+    order[f"{sub_row + 1}:0"] = "Tax"
+    order[f"{sub_row + 1}:2"] = f"=Working!E{total_row + 1}"
+    order[f"{sub_row + 2}:0"] = "Due"
+    order[f"{sub_row + 2}:2"] = f"=Working!F{total_row + 1}"
+    order[f"{sub_row + 4}:0"] = "Tax rate applied"
+    order[f"{sub_row + 4}:2"] = tax_rate
+
+    order_columns = {"0": {"width": 240}, "2": {"format": _MONEY}}
+    order_styles = {
+        "0:0": {"style": {"bold": True, "fontSize": 18}},
+        "2:0": _HEAD,
+        "2:1": _HEAD,
+        "2:2": _HEAD,
+        f"{sub_row + 2}:0": {"style": {"bold": True}},
+        f"{sub_row + 2}:2": {"style": {"bold": True}, "format": _MONEY},
+        f"{sub_row + 4}:2": {"format": _PERCENT},
+    }
+
+    # --- Summary: the aggregates, several of them newly available ----------
+    span = f"Working!D{first_row + 1}:D{last_row + 1}"
+    names = f"Working!A{first_row + 1}:A{last_row + 1}"
+    summary = {
+        "0:0": "Measure",
+        "0:1": "Value",
+        "1:0": "Lines",
+        "1:1": f"=COUNTA({names})",
+        "2:0": "Median line",
+        "2:1": f"=MEDIAN({span})",
+        "3:0": "Largest line",
+        "3:1": f"=LARGE({span},1)",
+        "4:0": "Smallest line",
+        "4:1": f"=SMALL({span},1)",
+        "5:0": "Spread",
+        "5:1": f"=STDEV({span})",
+        "6:0": "Biggest line is",
+        "6:1": f"=INDEX({names},MATCH(LARGE({span},1),{span},0))",
+        "7:0": "Everything, listed",
+        "7:1": f'=UPPER(TEXTJOIN(", ",TRUE,{names}))',
+        "8:0": "First price, fractional part",
+        "8:1": f"=(Working!C{first_row + 1}-INT(Working!C{first_row + 1}))",
+    }
+    summary_columns = {"0": {"width": 220}, "1": {"width": 260}}
+    summary_styles = {
+        "0:0": _HEAD,
+        "0:1": _HEAD,
+        "2:1": {"format": _MONEY},
+        "3:1": {"format": _MONEY},
+        "4:1": {"format": _MONEY},
+        "5:1": {"format": _MONEY},
+    }
+
+    return {
+        "schema_version": 3,
+        "kind": "spreadsheet",
+        "sheets": [
+            _sheet(
+                "s1",
+                "Order form",
+                cells=order,
+                columns=order_columns,
+                cell_styles=order_styles,
+                frozen={"rows": 3, "cols": 0},
+            ),
+            _sheet(
+                "s2",
+                "Working",
+                cells=work,
+                columns=work_columns,
+                rows=work_rows,
+                cell_styles=work_styles,
+                frozen={"rows": 1, "cols": 1},
+            ),
+            _sheet(
+                "s3",
+                "Summary",
+                cells=summary,
+                columns=summary_columns,
+                cell_styles=summary_styles,
+                frozen={"rows": 1, "cols": 0},
+            ),
+        ],
+    }
 
 
 def _chip(entity_type: str, entity_id: int, text: str) -> dict:
@@ -1183,11 +1376,15 @@ async def _create_documents(
     docs: dict[str, Document] = {}
     for dd in doc_defs:
         creator = all_users[dd["creator"]]
+        # A doc_def carries either ``paragraphs`` (a native Lexical doc, the
+        # common case) or a ready-made ``content`` blob with the
+        # ``document_type`` that goes with it.
         doc = Document(
             guild_id=guild.id,
             initiative_id=dd["initiative_id"],
             name=dd["title"],
-            content=_doc(dd["paragraphs"]),
+            content=dd.get("content") or _doc(dd["paragraphs"]),
+            document_type=dd.get("document_type", DocumentType.native),
             created_by=creator.id,
         )
         session.add(doc)
@@ -3673,6 +3870,28 @@ async def seed() -> None:
             doc_defs=[
                 {
                     "initiative_id": g1_strahd.id,
+                    "title": "Party Provisioning Ledger",
+                    "creator": "Dungeon Master",
+                    "document_type": DocumentType.spreadsheet,
+                    "general_access": ResourceAccessLevel.read,
+                    "content": _spreadsheet_workbook(
+                        order_title="Vallaki Market — Party Order",
+                        unit_label="Supply",
+                        items=[
+                            ("Rations (1 day)", 40, 0.55),
+                            ("Torches", 25, 0.12),
+                            ("Holy water flask", 6, 24.75),
+                            ("Silvered arrows (20)", 4, 61.40),
+                            ("Wolfsbane sprig", 12, 9.25),
+                            ("Healer's kit", 3, 5.80),
+                            ("Riding horse", 2, 74.50),
+                            ("Cart repairs", 1, 18.35),
+                        ],
+                        tax_rate=0.08,
+                    ),
+                },
+                {
+                    "initiative_id": g1_strahd.id,
                     "title": "Campaign Setting: The Land of Barovia",
                     "creator": "Dungeon Master",
                     "writers": ["Admin User"],
@@ -5827,6 +6046,28 @@ async def seed() -> None:
             doc_defs=[
                 {
                     "initiative_id": g2_main.id,
+                    "title": "Fleet Requisition Sheet",
+                    "creator": "Admin User",
+                    "document_type": DocumentType.spreadsheet,
+                    "general_access": ResourceAccessLevel.read,
+                    "content": _spreadsheet_workbook(
+                        order_title="Exodus Fleet — Quartermaster Requisition",
+                        unit_label="Component",
+                        items=[
+                            ("Hull plating (m²)", 180, 42.30),
+                            ("Coolant cell", 24, 118.75),
+                            ("Cryopod servicing", 60, 33.60),
+                            ("Nav-computer core", 2, 2450.90),
+                            ("Ration paste (crate)", 95, 7.45),
+                            ("Atmo scrubber filter", 40, 21.15),
+                            ("Jump drive capacitor", 3, 880.25),
+                            ("Hydroponics seed tray", 18, 14.70),
+                        ],
+                        tax_rate=0.05,
+                    ),
+                },
+                {
+                    "initiative_id": g2_main.id,
                     "title": "Setting Bible: The Exodus Protocol",
                     "creator": "Admin User",
                     "writers": ["Finley Goldtongue"],
@@ -7280,6 +7521,28 @@ async def seed() -> None:
             guild=g3,
             all_users=all_users,
             doc_defs=[
+                {
+                    "initiative_id": g3_main.id,
+                    "title": "Crimson Maiden Cargo Manifest",
+                    "creator": "Finley Goldtongue",
+                    "document_type": DocumentType.spreadsheet,
+                    "general_access": ResourceAccessLevel.read,
+                    "content": _spreadsheet_workbook(
+                        order_title="Port of Saltmere — Cargo Order",
+                        unit_label="Cargo",
+                        items=[
+                            ("Salt pork (barrel)", 30, 11.65),
+                            ("Fresh water (cask)", 45, 3.40),
+                            ("Sailcloth (bolt)", 12, 27.85),
+                            ("Hemp rope (coil)", 20, 8.95),
+                            ("Powder keg", 8, 96.20),
+                            ("Lime (crate)", 15, 5.75),
+                            ("Chart of the Shoals", 2, 145.50),
+                            ("Carpenter's stores", 1, 63.10),
+                        ],
+                        tax_rate=0.12,
+                    ),
+                },
                 {
                     "initiative_id": g3_main.id,
                     "title": "The Shattered Seas: World Guide",

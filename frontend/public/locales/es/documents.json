@@ -567,7 +567,34 @@
       "deleted": "Hoja eliminada: deshaz para recuperarla.",
       "deleteLastBlocked": "No se puede eliminar la única hoja.",
       "maxReached": "Esta hoja de cálculo ya tiene el número máximo de hojas.",
-      "editSheetRemoved": "La hoja que estabas editando se eliminó, así que se descartó esa edición."
+      "editSheetRemoved": "La hoja que estabas editando se eliminó, así que se descartó esa edición.",
+      "hide": "Ocultar hoja",
+      "hideLastBlocked": "Una hoja de cálculo necesita al menos una hoja visible.",
+      "hiddenCount_one": "{{count}} hoja oculta",
+      "hiddenCount_other": "{{count}} hojas ocultas",
+      "unhideNamed": "Mostrar «{{name}}»"
+    },
+    "pasteClipped_one": "{{count}} celda no cabía en la hoja y no se pegó.",
+    "pasteClipped_other": "{{count}} celdas no cabían en la hoja y no se pegaron.",
+    "hideRows_one": "Ocultar fila",
+    "hideRows_other": "Ocultar {{count}} filas",
+    "hideColumns_one": "Ocultar columna",
+    "hideColumns_other": "Ocultar {{count}} columnas",
+    "unhideRows": "Mostrar todas las filas",
+    "unhideColumns": "Mostrar todas las columnas",
+    "find": {
+      "searchPlaceholder": "Buscar",
+      "replacePlaceholder": "Reemplazar con",
+      "next": "Coincidencia siguiente",
+      "previous": "Coincidencia anterior",
+      "replace": "Reemplazar",
+      "replaceAll": "Reemplazar todo",
+      "matchCase": "Coincidir mayúsculas",
+      "wholeCell": "Celda completa",
+      "noMatches": "Sin coincidencias",
+      "position": "{{index}} de {{count}}",
+      "replaced_one": "{{count}} celda reemplazada",
+      "replaced_other": "{{count}} celdas reemplazadas"
     }
   },
   "status": {

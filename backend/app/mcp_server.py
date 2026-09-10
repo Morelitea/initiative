@@ -12,10 +12,14 @@ become a tool:
     comment write (a parent's thread and a single comment by id). A handful are
     carved back out: file downloads, who voted and who has read, and the
     dashboard editor's own palette.
-  * **Writes** — a small, explicit allow-list of safe mutations (create a task,
-    edit a task, move a task, add a comment), each gated client-side by Claude
-    Code's per-write permission prompt. Destructive (delete), bulk (archive-all,
-    reorder), AI-generation, and property/tag routes are deliberately excluded.
+  * **Writes** — an explicit allow-list, matched by path shape: create and edit
+    every tool (projects, documents, queues, counters, calendars, notices,
+    dashboards) and the things they hold (tasks, queue items, counters,
+    calendar events, comments), plus the two writes that shape alone doesn't
+    reach — moving a task, and moving a counter's count. Each is gated
+    client-side by Claude Code's per-write permission prompt. Destructive
+    (delete, archive, reset), bulk (reorder, batch, archive-all), AI-generation,
+    sharing (grants), and property/tag routes are deliberately excluded.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
 from app.core.config import PROJECT_NAME
+from app.core.tools import Tool
 
 if TYPE_CHECKING:
     import mcp.types as mt
@@ -46,9 +51,9 @@ if TYPE_CHECKING:
 # An agent asked "how is this going" was previously answering from tasks alone,
 # which is the shape of the question rather than the shape of the work: the
 # rota is a queue, the write-up is a document, the numbers are counters, and
-# what somebody would actually look at first is a dashboard. Writes stay where
-# they were — the four in ``_WRITE_ROUTE_MAPS`` — so this widens what can be
-# read and nothing else.
+# what somebody would actually look at first is a dashboard. The write surface
+# in ``_WRITE_ROUTE_MAPS`` covers the same set, so what an agent can read it can
+# also author and edit.
 READ_TAGS = (
     "projects",
     "tasks",
@@ -64,19 +69,80 @@ READ_TAGS = (
     "dashboards",
 )
 
-# Curated safe writes: an explicit allow-list matched by exact path *shape* so
-# only these four mutations are exposed — create a task (``POST /tasks/``), edit a
-# task (``PATCH /tasks/{id}``), move a task (``POST /tasks/{id}/move``), and add a
-# comment (``POST /comments/``). Everything else (delete, archive-all, reorder,
-# duplicate, AI-generation, properties/tags, subtasks) falls through to the
-# default-deny catch-all below.
-_WRITE_ROUTE_MAPS = [
-    RouteMap(methods=["POST"], pattern=r".*/tasks/$", mcp_type=MCPType.TOOL),
-    RouteMap(methods=["PATCH"], pattern=r".*/tasks/\{[^}]+\}$", mcp_type=MCPType.TOOL),
+# Curated writes: author and edit, across every tool.
+#
+# Matched by exact path *shape*, so only the pairs named here are exposed and
+# everything else falls through to the default-deny catch-all below — delete,
+# archive, reorder, duplicate, batch, AI generation, grants, properties/tags,
+# uploads and imports are all outside it.
+#
+# The tool half is derived from the ``Tool`` enum rather than listed, for the
+# same reason the read surface is: an eighth tool should arrive writable rather
+# than wait for somebody to remember this list. ``counter_group`` is the only
+# member whose path segment isn't already its plural spelling.
+_ID = r"\{[^}]+\}"
+
+
+def _create_and_edit(segment: str) -> list[RouteMap]:
+    """The two route shapes that author and edit one kind of thing.
+
+    ``POST /<segment>`` creates and ``PATCH /<segment>/{id}`` edits. Both are
+    anchored at the end, so a suffixed route on the same collection — an
+    ``/archive``, a ``/grants``, a ``/properties``, a ``/reorder`` — matches
+    neither and stays excluded.
+    """
+    return [
+        RouteMap(
+            methods=["POST"], pattern=r".*/" + segment + r"/?$", mcp_type=MCPType.TOOL
+        ),
+        RouteMap(
+            methods=["PATCH"],
+            pattern=r".*/" + segment + "/" + _ID + "$",
+            mcp_type=MCPType.TOOL,
+        ),
+    ]
+
+
+_WRITABLE_SEGMENTS = (
+    # Every tool an initiative holds, addressed by its own path segment.
+    *(tool.plural.replace("_", "-") for tool in Tool),
+    # And what those tools hold in turn: a project's tasks, a calendar's
+    # events, a queue's items, a counter group's counters. Not derivable from
+    # the enum — each names its parent differently — so each is spelled out.
+    "tasks",
+    "calendar-events",
+    "queues/" + _ID + "/items",
+    "counter-groups/" + _ID + "/counters",
+    # The comment surface every tool shares.
+    "comments",
+)
+
+# Two writes that ``create``/``edit`` doesn't reach, added by hand:
+#
+#   * Moving a task to another status or project is its own route because it is
+#     its own action, taking a destination rather than a field.
+#   * A counter's count is the one thing about it ``PATCH`` cannot set — the
+#     update schema shapes the counter (name, bounds, step, initial count) and
+#     the count itself moves through these three. Without them, writing a
+#     counter would mean renaming it. ``reset`` and ``reset-all`` are not here:
+#     they discard counts rather than record one.
+_EXTRA_WRITE_ROUTE_MAPS = [
     RouteMap(
-        methods=["POST"], pattern=r".*/tasks/\{[^}]+\}/move$", mcp_type=MCPType.TOOL
+        methods=["POST"], pattern=r".*/tasks/" + _ID + "/move$", mcp_type=MCPType.TOOL
     ),
-    RouteMap(methods=["POST"], pattern=r".*/comments/$", mcp_type=MCPType.TOOL),
+    *(
+        RouteMap(
+            methods=["POST"],
+            pattern=r".*/counters/" + _ID + "/" + verb + "$",
+            mcp_type=MCPType.TOOL,
+        )
+        for verb in ("set", "increment", "decrement")
+    ),
+]
+
+_WRITE_ROUTE_MAPS = [
+    *(m for segment in _WRITABLE_SEGMENTS for m in _create_and_edit(segment)),
+    *_EXTRA_WRITE_ROUTE_MAPS,
 ]
 
 # Comment reads, matched by exact path shape rather than by adding ``comments``

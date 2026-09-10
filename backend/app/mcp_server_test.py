@@ -1,10 +1,10 @@
 """The in-app MCP server exposes only a curated surface.
 
 Builds the route-backed server from the real app (no DB/network needed) and
-asserts the RouteMap curation holds: tools cover only projects/tasks/initiatives
-(+ reading and adding comments), and the *write* surface is exactly the safe
-allow-list — no destructive, bulk, AI-generation, or property/tag mutations leak
-through.
+asserts the RouteMap curation holds: tools cover initiatives and the tools they
+hold (+ the shared comment surface), and the *write* surface is exactly the
+allow-list — create and edit each of those, and nothing destructive, bulk,
+AI-generating, sharing, or property/tag.
 """
 
 import json
@@ -33,10 +33,63 @@ _WRITE_PREFIXES = (
     "patch_",
     "post_",
     "remove_",
+    "add_",
+    "increment_",
+    "decrement_",
+    "reset_",
+    "upload_",
+    "import_",
+    "copy_",
+    "vote_",
+    "start_",
+    "stop_",
+    "sort_",
+    "advance_",
+    "hold_",
+    "release_",
+    "upgrade_",
 )
 
-# The only mutations the MCP server is allowed to expose (operationId prefixes).
-_SAFE_WRITES = {"create_task", "update_task", "move_task", "create_comment"}
+# The only mutations the MCP server is allowed to expose (handler names).
+_SAFE_WRITES = {
+    # Every tool an initiative holds: author it and edit it.
+    "create_project",
+    "update_project",
+    "create_document",
+    "update_document",
+    "create_queue",
+    "update_queue",
+    "create_counter_group",
+    "update_counter_group",
+    "create_calendar",
+    "update_calendar",
+    "create_dashboard",
+    "update_dashboard",
+    "create_post",
+    "update_post",
+    # A gallery is authored and renamed here, and filled elsewhere: putting a
+    # picture in one is a multipart upload, which no RouteMap matches, so the
+    # write surface stops at the wall itself.
+    "create_gallery",
+    "update_gallery",
+    # And what those tools hold: a project's tasks, a queue's items, a counter
+    # group's counters, a calendar's events, and the comments on any of them.
+    "create_task",
+    "update_task",
+    "move_task",
+    "add_queue_item",
+    "update_queue_item",
+    "add_counter",
+    "update_counter",
+    "create_calendar_event",
+    "update_calendar_event",
+    "create_comment",
+    "update_comment",
+    # A counter's count, which its update schema doesn't carry.
+    "set_counter_count",
+    "increment_counter",
+    "decrement_counter",
+}
 
 
 def _operation(name: str) -> str:
@@ -140,9 +193,52 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
     names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
 
     writes = {_operation(n) for n in names if n.startswith(_WRITE_PREFIXES)}
-    # Exactly the safe set — no delete/archive-all/reorder/duplicate/AI/property
-    # mutation may appear.
+    # Exactly the allow-list — no delete/archive/reset/reorder/duplicate/batch,
+    # no AI generation, no grants, no property or tag mutation.
     assert writes == _SAFE_WRITES, f"write surface changed: {sorted(writes)}"
+
+    # Every tool is writable, derived from the enum rather than read back off
+    # the set above, so an eighth tool arrives here as a failure rather than as
+    # a tool nobody remembered to make writable.
+    for tool in Tool:
+        assert f"create_{tool.value}" in writes, f"no MCP tool creates {tool.value}"
+        assert f"update_{tool.value}" in writes, f"no MCP tool edits {tool.value}"
+
+
+@pytest.mark.unit
+async def test_the_tool_writes_stop_short_of_these():
+    """What create-and-edit deliberately doesn't reach.
+
+    Named here so removing one is a decision somebody makes rather than a line
+    that quietly stops matching. The equality assertion above covers all of it;
+    these spell out the categories that were weighed.
+    """
+    names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
+    writes = {_operation(n) for n in names if n.startswith(_WRITE_PREFIXES)}
+
+    # Nothing that removes or empties: delete, trash, archive, reset a counter
+    # or a queue, discard the done column.
+    assert not [w for w in writes if w.startswith(("delete_", "archive_", "reset_"))]
+    # Nothing that acts on a whole collection at once.
+    assert not [
+        w for w in writes if w.startswith(("reorder_", "batch_", "sort_", "duplicate_"))
+    ]
+    # Sharing is a decision about people, made in the app: no grants, no
+    # publishing a dashboard figure, no pinning a notice guild-wide.
+    assert not [w for w in writes if w.endswith("_grants")]
+    assert "set_published_view" not in writes
+    assert "set_post_pin" not in writes
+    # Speaking for somebody: voting in a poll, marking a notice read, RSVPing.
+    assert not [w for w in writes if w.startswith("vote_") or w.endswith("_rsvp")]
+    assert "mark_posts_read" not in writes
+    assert "set_attendees" not in writes
+    # Whole-set replacements and generated prose stay out, as they were.
+    assert not [w for w in writes if w.endswith(("_tags", "_properties"))]
+    assert not [w for w in writes if w.startswith("generate_")]
+    # A project's status columns are its shape, set up in the app; a task is
+    # placed into one by reading them.
+    assert "create_task_status" not in writes
+    assert "update_task_status" not in writes
 
 
 @pytest.mark.unit

@@ -82,11 +82,17 @@ export interface ColumnFmt {
   width?: number;
   format?: NumberFormat;
   style?: CellStyle;
+  /** Drawn at zero width. The cells still exist, still hold values and are
+   *  still read by formulas — the column is simply not shown, and the
+   *  cursor steps over it. */
+  hidden?: boolean;
 }
 
 export interface RowFmt {
   height?: number;
   style?: CellStyle;
+  /** Drawn at zero height — see {@link ColumnFmt.hidden}. */
+  hidden?: boolean;
 }
 
 export interface CellFmt {
@@ -242,6 +248,7 @@ export const sanitizeColumnFmt = (value: unknown): ColumnFmt | undefined => {
   if (format) out.format = format;
   const style = sanitizeStyle(value.style);
   if (style) out.style = style;
+  if (value.hidden === true) out.hidden = true;
   return Object.keys(out).length > 0 ? out : undefined;
 };
 
@@ -252,6 +259,7 @@ export const sanitizeRowFmt = (value: unknown): RowFmt | undefined => {
   if (height !== undefined) out.height = height;
   const style = sanitizeStyle(value.style);
   if (style) out.style = style;
+  if (value.hidden === true) out.hidden = true;
   return Object.keys(out).length > 0 ? out : undefined;
 };
 

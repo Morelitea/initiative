@@ -114,3 +114,52 @@ def test_csv_still_renders_a_legacy_snapshot():
         "cells": {"0:0": "a", "0:1": "b"},
     }
     assert "a,b" in render_csv(legacy).decode("utf-8")
+
+
+def test_all_hidden_workbook_still_renders() -> None:
+    """xlsx cannot express a workbook with nothing on show — openpyxl
+    refuses to write one — so the renderer shows the first sheet rather
+    than failing the export of a snapshot stored before the normalizer
+    enforced it."""
+    content = {
+        "schema_version": 3,
+        "kind": "spreadsheet",
+        "sheets": [
+            _sheet("One", {"0:0": 1}, hidden=True),
+            _sheet("Two", {"0:0": 2}, hidden=True),
+        ],
+    }
+    book = load_workbook(io.BytesIO(render_xlsx(content, title="doc")))
+    assert [ws.sheet_state for ws in book.worksheets] == ["visible", "hidden"]
+
+
+def test_a_hidden_sheet_exports_hidden() -> None:
+    content = {
+        "schema_version": 3,
+        "kind": "spreadsheet",
+        "sheets": [
+            _sheet("Shown", {"0:0": 1}),
+            _sheet("Working", {"0:0": 2}, hidden=True),
+        ],
+    }
+    book = load_workbook(io.BytesIO(render_xlsx(content, title="doc")))
+    assert [ws.sheet_state for ws in book.worksheets] == ["visible", "hidden"]
+
+
+def test_hidden_rows_and_columns_export_hidden() -> None:
+    content = {
+        "schema_version": 3,
+        "kind": "spreadsheet",
+        "sheets": [
+            _sheet(
+                "S",
+                {"0:0": 1},
+                columns={"2": {"hidden": True}},
+                rows={"4": {"hidden": True}},
+            )
+        ],
+    }
+    book = load_workbook(io.BytesIO(render_xlsx(content, title="doc")))
+    sheet = book.worksheets[0]
+    assert sheet.column_dimensions["C"].hidden is True
+    assert sheet.row_dimensions[5].hidden is True

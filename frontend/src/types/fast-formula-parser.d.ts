@@ -13,6 +13,14 @@ declare module "fast-formula-parser" {
     constructor(error: string, msg?: string, details?: unknown);
     readonly error: string;
     readonly name: string;
+    /** Singletons for the standard error values, thrown or returned by a
+     *  function to produce that error in the cell. */
+    static readonly NAME: FormulaError;
+    static readonly VALUE: FormulaError;
+    static readonly NUM: FormulaError;
+    static readonly NA: FormulaError;
+    static readonly DIV0: FormulaError;
+    static readonly REF: FormulaError;
   }
 
   export interface CellRef {
@@ -55,6 +63,10 @@ declare module "fast-formula-parser" {
       defValue?: unknown,
       minSize?: number
     ): void;
+    /** Unwrap one argument to ``type``, applying Excel's coercion rules.
+     *  Throws a {@link FormulaError} when the value can't be coerced.
+     *  ``defValue`` makes the argument optional. */
+    accept(param: unknown, type?: number | null, defValue?: unknown): unknown;
   }
 
   /** Argument-type enum (NUMBER, ARRAY, BOOLEAN, …). */

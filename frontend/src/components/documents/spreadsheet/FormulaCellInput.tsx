@@ -1,4 +1,4 @@
-import { type FocusEvent, type KeyboardEvent, type RefObject, useMemo, useRef } from "react";
+import { type FocusEvent, type KeyboardEvent, type Ref, useMemo, useRef } from "react";
 
 import { FORMULA_REF_COLORS, type FormulaRefToken } from "@/lib/spreadsheet/formula-refs";
 
@@ -6,7 +6,10 @@ interface FormulaCellInputProps {
   value: string;
   /** References found in ``value`` — drive the colored text segments. */
   tokens: FormulaRefToken[];
-  inputRef: RefObject<HTMLInputElement | null> | null;
+  /** Accepts a callback ref as readily as an object one: the in-cell
+   *  editor focuses itself the moment it attaches, which is not the same
+   *  moment the edit began. */
+  inputRef: Ref<HTMLInputElement> | null;
   onChange: (value: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   /** Receives the blur event so the caller can inspect ``relatedTarget`` (a

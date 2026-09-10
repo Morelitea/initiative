@@ -1,0 +1,136 @@
+{
+  "$comment": "One maximal sheet, carrying every field the persisted v3 workbook schema defines. Two tests read it and assert that nothing in it is dropped: frontend/src/lib/spreadsheet/content.test.ts (the client parser) and backend/app/services/tenant/documents_spreadsheet_test.py (the normalizer, which is the authority on writes and builds its output from an allow-list of known keys). Add a field here when you add one to the schema, and both sides fail until they carry it. Without that, a field the client invents is silently dropped on save — and because the live Yjs document still carries it, the feature works for a whole session and vanishes on reload.",
+  "sheet": {
+    "id": "s1",
+    "name": "Fixture",
+    "hidden": true,
+    "dimensions": {
+      "rows": 120,
+      "cols": 30
+    },
+    "cells": {
+      "0:0": "text",
+      "0:1": 42,
+      "0:2": true,
+      "1:0": "=SUM(B1:C1)"
+    },
+    "columns": {
+      "0": {
+        "width": 180,
+        "hidden": true,
+        "format": {
+          "type": "currency",
+          "currency": "USD",
+          "decimals": 2,
+          "grouping": true,
+          "negatives": "red"
+        },
+        "style": {
+          "bold": true,
+          "italic": true,
+          "underline": true,
+          "strike": true,
+          "color": "#112233",
+          "fill": "#445566",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 18,
+          "border": {
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
+          }
+        }
+      }
+    },
+    "rows": {
+      "0": {
+        "height": 44,
+        "hidden": true,
+        "style": {
+          "bold": true,
+          "italic": true,
+          "underline": true,
+          "strike": true,
+          "color": "#112233",
+          "fill": "#445566",
+          "align": "right",
+          "valign": "top",
+          "fontSize": 12,
+          "border": {
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
+          }
+        }
+      }
+    },
+    "cellStyles": {
+      "0:0": {
+        "format": {
+          "type": "percent",
+          "decimals": 1
+        },
+        "style": {
+          "bold": true,
+          "italic": true,
+          "underline": true,
+          "strike": true,
+          "color": "#112233",
+          "fill": "#445566",
+          "align": "left",
+          "valign": "bottom",
+          "fontSize": 9,
+          "border": {
+            "top": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "right": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "bottom": {
+              "style": "thin",
+              "color": "#000000"
+            },
+            "left": {
+              "style": "thin",
+              "color": "#000000"
+            }
+          }
+        }
+      }
+    },
+    "frozen": {
+      "rows": 1,
+      "cols": 1
+    }
+  }
+}
