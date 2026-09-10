@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import type {
   AdminDeletionEligibilityResponse,
+  AdminUserRead,
   GuildBlockerInfo,
-  UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -90,7 +90,7 @@ const ACTION_META = {
 } as const satisfies Record<AdminAction, unknown>;
 
 interface AdminDeleteUserDialogProps extends DialogWithSuccessProps {
-  targetUser: UserRead;
+  targetUser: AdminUserRead;
 }
 
 export function AdminDeleteUserDialog({
@@ -235,7 +235,11 @@ export function AdminDeleteUserDialog({
   // Validation
   const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
-  const confirmationRequired = targetUser.email.split("@")[0].toUpperCase();
+  // Typed back to confirm. The handle, not the address: an admin is never
+  // served the whole address any more, and the masked form is full of
+  // asterisks — an unusable thing to ask somebody to copy out. The handle is
+  // also what the row and this dialog's own title identify the account by.
+  const confirmationRequired = targetUser.username.toUpperCase();
   const canConfirm =
     confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
 

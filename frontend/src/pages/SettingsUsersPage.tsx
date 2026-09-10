@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Download, HandCoins, RefreshCcw, Trash2 } from "lucide-react";
+import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserCheck, UserMinus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,8 +26,10 @@ import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import {
   Select,
   SelectContent,
@@ -48,7 +50,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
-import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
+import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -227,7 +229,9 @@ export const SettingsUsersPage = () => {
       ),
     },
     {
-      accessorKey: "username",
+      id: "username",
+      // The whole handle, as the cell draws it — see the platform roster.
+      accessorFn: (row: UserGuildMember) => getUserHandle(row),
       header: t("users.handleColumn"),
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
@@ -302,44 +306,36 @@ export const SettingsUsersPage = () => {
         const guildMember = row.original;
         const isSelf = guildMember.id === user?.id;
         return (
-          <div className="flex flex-wrap gap-2">
+          <RowActionsMenu subject={getUserDisplayName(guildMember)}>
             {guildMember.status === "deactivated" ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => approveUser.mutate(guildMember.id)}
+              <DropdownMenuItem
+                onSelect={() => approveUser.mutate(guildMember.id)}
                 disabled={approveUser.isPending}
               >
+                <UserCheck className="h-4 w-4" />
                 {t("users.reactivate")}
-              </Button>
+              </DropdownMenuItem>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => exportUserCsv(guildMember)}
-            >
+            <DropdownMenuItem onSelect={() => exportUserCsv(guildMember)}>
               <Download className="h-4 w-4" />
               {t("users.exportUser")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setTransferTarget({ member: guildMember })}
-            >
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setTransferTarget({ member: guildMember })}>
               <HandCoins className="h-4 w-4" />
               {t("transferOwnership.action")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => handleDeleteUser(guildMember.id, getUserDisplayName(guildMember))}
+            </DropdownMenuItem>
+            {/* Removing somebody from the guild is the destructive one, and
+                the only one you cannot aim at yourself. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => handleDeleteUser(guildMember.id, getUserDisplayName(guildMember))}
               disabled={isSelf}
             >
+              <UserMinus className="h-4 w-4" />
               {t("users.removeFromGuild")}
-            </Button>
-          </div>
+            </DropdownMenuItem>
+          </RowActionsMenu>
         );
       },
     },
@@ -521,8 +517,8 @@ export const SettingsUsersPage = () => {
             columns={userColumns}
             data={usersQuery.data}
             enableFilterInput
-            filterInputColumnKey="email"
-            filterInputPlaceholder={t("users.filterByEmail")}
+            filterInputColumnKey="username"
+            filterInputPlaceholder={t("users.filterByHandle")}
             enableResetSorting
             enablePagination
           />

@@ -171,7 +171,7 @@ class GuildInviteRead(SanitizedBaseModel):
     expires_at: Optional[datetime]
     max_uses: Optional[int]
     uses: int
-    # Masked (``j•••@example.com``). Whoever typed the address already has it,
+    # Masked (``j***n@e***m``). Whoever typed the address already has it,
     # and a guild's other admins never did — the invite still matches the whole
     # address on redemption, from the ciphertext.
     invitee_email: Optional[str]

@@ -11,6 +11,7 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
+from app.core.email_masking import mask_email
 from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
@@ -21,7 +22,7 @@ from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
-from app.schemas.platform.user import UserRead, AccountDeletionResponse, UserPublic
+from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse, UserPublic
 from app.schemas.platform.audit import (
     AuditActor,
     AuditEventListResponse,
@@ -86,7 +87,7 @@ ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_M
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
-@router.get("/users", response_model=List[UserRead])
+@router.get("/users", response_model=List[AdminUserRead])
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
@@ -103,6 +104,9 @@ async def list_all_users(
     return result.all()
 
 
+#: ``email`` is masked here exactly as it is in the roster this exports, so
+#: the two agree. The column stays because matching a row to an address you
+#: were given is what it is read for.
 _PLATFORM_CSV_HEADERS = [
     "user_id",
     "email",
@@ -142,7 +146,7 @@ async def export_platform_users_csv(
         rows.append(
             [
                 user.id,
-                user.email,
+                mask_email(user.email),
                 user.full_name or "",
                 user.role.value if hasattr(user.role, "value") else user.role,
                 user.status.value if hasattr(user.status, "value") else user.status,
@@ -158,7 +162,12 @@ async def export_platform_users_csv(
 
     if len(users) == 1 and user_id:
         single_user = users[0]
-        filename = f"user-{single_user.id}-{csv_export.safe_filename_component(single_user.email)}.csv"
+        # Named by handle rather than address: a filename outlives the
+        # download, appearing in directory listings and wherever it is sent on.
+        filename = (
+            f"user-{single_user.id}-"
+            f"{csv_export.safe_filename_component(single_user.username)}.csv"
+        )
     else:
         datestamp = datetime.now(timezone.utc).date().isoformat()
         filename = f"platform-users-{datestamp}.csv"
@@ -211,7 +220,7 @@ async def trigger_password_reset(
     return VerificationSendResponse(status="sent")
 
 
-@router.post("/users/{user_id}/reactivate", response_model=UserRead)
+@router.post("/users/{user_id}/reactivate", response_model=AdminUserRead)
 async def reactivate_user(
     user_id: int,
     session: AdminSessionDep,
@@ -387,7 +396,7 @@ async def list_audit_events(
     )
 
 
-@router.patch("/users/{user_id}/username", response_model=UserRead)
+@router.patch("/users/{user_id}/username", response_model=AdminUserRead)
 async def set_user_username(
     user_id: int,
     payload: AdminUsernameUpdate,
@@ -443,7 +452,7 @@ async def set_user_username(
     return user
 
 
-@router.post("/users/{user_id}/suspension", response_model=UserRead)
+@router.post("/users/{user_id}/suspension", response_model=AdminUserRead)
 async def set_user_suspension(
     user_id: int,
     payload: AdminSuspensionUpdate,
@@ -535,7 +544,7 @@ async def get_platform_admin_count(
     return PlatformAdminCountResponse(count=count)
 
 
-@router.delete("/users/{user_id}/age-block", response_model=UserRead)
+@router.delete("/users/{user_id}/age-block", response_model=AdminUserRead)
 async def clear_age_block(
     user_id: int,
     session: AdminSessionDep,
@@ -587,7 +596,7 @@ async def clear_age_block(
     return user
 
 
-@router.patch("/users/{user_id}/platform-role", response_model=UserRead)
+@router.patch("/users/{user_id}/platform-role", response_model=AdminUserRead)
 async def update_platform_role(
     user_id: int,
     payload: PlatformRoleUpdate,
@@ -809,7 +818,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
-            message=f"User {user.email} has been deactivated",
+            message=f"User {mask_email(user.email)} has been deactivated",
         )
 
     if payload.action == "soft_delete":
@@ -817,7 +826,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
-            message=f"User {user.email} has been anonymized",
+            message=f"User {mask_email(user.email)} has been anonymized",
         )
 
     # hard_delete: ownership is released as the memberships go, and the
@@ -827,7 +836,7 @@ async def delete_user(
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
-        message=f"User {user.email} has been permanently deleted",
+        message=f"User {mask_email(user.email)} has been permanently deleted",
     )
 
 

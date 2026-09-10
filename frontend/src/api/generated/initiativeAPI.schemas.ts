@@ -312,6 +312,152 @@ export interface AdminUserDeleteRequest {
 }
 
 /**
+ * Platform-level (app-wide) user role.
+ *
+ * Ordered from least to most privileged. Authorization checks should
+ * generally go through the capability model (``app.core.capabilities``)
+ * rather than comparing roles directly, so that the privilege ladder can
+ * evolve without touching every call site.
+ */
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const UserRole = {
+  member: "member",
+  support: "support",
+  moderator: "moderator",
+  operator: "operator",
+  owner: "owner",
+} as const;
+
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusOutput {
+  emoji: string | null;
+  text: string | null;
+}
+
+/**
+ * How a person appears to everyone else.
+ *
+ * Both halves of one idea, which is why it is one enum: what a person picks
+ * for themselves, and what a reader of their name is shown. The picked value
+ * is a standing preference on the account; the shown value is that preference
+ * narrowed by what the process can see — whether they have Initiative open at
+ * all, and whether anyone has touched it lately — which is decided in one
+ * place (``app.services.platform.presence``).
+ *
+ * ``idle`` is the one a person may either pick or be given: left on
+ * ``online``, an account that goes quiet is shown it anyway, and picking it
+ * outright is how someone says they would rather look that way regardless.
+ *
+ * Not to be confused with ``UserStatus`` (the account's standing, which is not
+ * the account holder's to write) or ``custom_status`` (the line they wrote).
+ */
+export type Presence = (typeof Presence)[keyof typeof Presence];
+
+export const Presence = {
+  online: "online",
+  idle: "idle",
+  busy: "busy",
+  offline: "offline",
+} as const;
+
+/**
+ * How a profile is dressed: a banner, a frame, trophies under it.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsOutput {
+  banner: string | null;
+  frame: string | null;
+  /** @maxItems 2 */
+  frame_tint: string[];
+  /** @maxItems 6 */
+  trophies: string[];
+  grad_year: number | null;
+}
+
+export interface UserInitiativeRole {
+  initiative_id: number;
+  initiative_name: string;
+  role?: string | null;
+}
+
+/**
+ * A platform admin's view of somebody else's account: the address masked.
+ *
+ * Everything a platform admin does to an account — reset its password, rename
+ * it, change its tier, suspend it, delete it — is addressed by id, and the
+ * roster is read and searched by handle, so none of it needs the address
+ * itself. What the mask leaves is enough to match a row against an address
+ * somebody has quoted at you, which is what the column is read for.
+ *
+ * Masking lives on the shape rather than in each admin route: subclassing
+ * keeps ``/users/me`` — where the reader is the address's owner — on plain
+ * ``UserRead``, while every admin route that returns an account gets the
+ * masked form without opting in.
+ */
+export interface AdminUserRead {
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  id: number;
+  username: string;
+  discriminator: number;
+  username_chosen: boolean;
+  age_confirmed_at: string | null;
+  age_below_minimum_at: string | null;
+  age_confirmation_required: boolean;
+  status: UserStatus;
+  email_verified: boolean;
+  created_at: string;
+  updated_at: string;
+  avatar_url: string | null;
+  custom_status: CustomStatusOutput;
+  presence: Presence;
+  profile_decorations: ProfileDecorationsOutput;
+  week_starts_on: number;
+  recent_tabs_limit: number;
+  timezone: string;
+  overdue_notification_time: string;
+  event_reminder_minutes_before: number | null;
+  last_overdue_notification_at: string | null;
+  last_task_assignment_digest_at: string | null;
+  color_theme: string;
+  task_completion_visual_feedback: string;
+  task_completion_audio_feedback: boolean;
+  task_completion_haptic_feedback: boolean;
+  locale: string;
+  has_federated_identity: boolean;
+  initiative_roles: UserInitiativeRole[];
+  readonly can_create_guilds: boolean;
+  /**
+   * Platform capabilities granted by this user's standing role.
+   *
+   * The frontend gates UI on these strings (single source of truth);
+   * see ``app.core.capabilities``.
+   */
+  readonly capabilities: readonly string[];
+}
+
+/**
  * The name part a moderator sets on someone else's account.
  *
  * The number is not here and never will be: it is drawn, not chosen, by
@@ -367,24 +513,6 @@ export interface AnnouncementSection {
   image_url?: string | null;
   image_alt?: string | null;
 }
-
-/**
- * Platform-level (app-wide) user role.
- *
- * Ordered from least to most privileged. Authorization checks should
- * generally go through the capability model (``app.core.capabilities``)
- * rather than comparing roles directly, so that the privilege ladder can
- * evolve without touching every call site.
- */
-export type UserRole = (typeof UserRole)[keyof typeof UserRole];
-
-export const UserRole = {
-  member: "member",
-  support: "support",
-  moderator: "moderator",
-  operator: "operator",
-  owner: "owner",
-} as const;
 
 /**
  * Which accounts a notice is for, measured against its publication.
@@ -1656,55 +1784,6 @@ export const Channel = {
 } as const;
 
 /**
- * How a profile is dressed: a banner, a frame, trophies under it.
- *
- * Every value is an **id naming a catalog entry**, never an image. The client
- * resolves an id to artwork it already ships, so a decorated profile takes up
- * none of a guild's upload allowance. An id this deployment's catalog doesn't
- * know simply renders nothing, which is what lets a profile keep wearing
- * something the store stopped offering.
- *
- * ``extra="forbid"``: the set of things a profile can wear is this list, and
- * a client sending a key that isn't here is told so rather than having it
- * quietly stored and never rendered.
- */
-export interface ProfileDecorationsOutput {
-  banner: string | null;
-  frame: string | null;
-  /** @maxItems 2 */
-  frame_tint: string[];
-  /** @maxItems 6 */
-  trophies: string[];
-  grad_year: number | null;
-}
-
-/**
- * How a person appears to everyone else.
- *
- * Both halves of one idea, which is why it is one enum: what a person picks
- * for themselves, and what a reader of their name is shown. The picked value
- * is a standing preference on the account; the shown value is that preference
- * narrowed by what the process can see — whether they have Initiative open at
- * all, and whether anyone has touched it lately — which is decided in one
- * place (``app.services.platform.presence``).
- *
- * ``idle`` is the one a person may either pick or be given: left on
- * ``online``, an account that goes quiet is shown it anyway, and picking it
- * outright is how someone says they would rather look that way regardless.
- *
- * Not to be confused with ``UserStatus`` (the account's standing, which is not
- * the account holder's to write) or ``custom_status`` (the line they wrote).
- */
-export type Presence = (typeof Presence)[keyof typeof Presence];
-
-export const Presence = {
-  online: "online",
-  idle: "idle",
-  busy: "busy",
-  offline: "offline",
-} as const;
-
-/**
  * Who wrote a comment.
  *
  * An address never reaches a guild, so there is none here; the handle names
@@ -2205,22 +2284,6 @@ export interface CounterUpdate {
 export interface CustomStatusInput {
   emoji?: string | null;
   text?: string | null;
-}
-
-/**
- * What a person is up to, in their own words.
- *
- * One object, stored in one column, because it is one thing a person sets
- * and one thing every surface that names them renders: splitting it in two
- * would mean two reads and two writes for a single line of text.
- *
- * Not to be confused with ``UserStatus`` (``users.status``), which is the
- * account's standing — suspended, deactivated — and is not the person's to
- * write.
- */
-export interface CustomStatusOutput {
-  emoji: string | null;
-  text: string | null;
 }
 
 export type DashboardCreateDefinition = { [key: string]: unknown };
@@ -6565,12 +6628,6 @@ export interface UserCreate {
   password: string;
   timezone?: string | null;
   captcha_token?: string | null;
-}
-
-export interface UserInitiativeRole {
-  initiative_id: number;
-  initiative_name: string;
-  role?: string | null;
 }
 
 /**
