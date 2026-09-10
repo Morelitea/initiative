@@ -156,7 +156,7 @@ class TestInetClientIp:
 
 
 class TestRealClientIp:
-    def test_forwarded_headers_do_not_bypass_the_asgi_trust_boundary(self):
+    def test_the_address_comes_from_the_asgi_server(self):
         """The ASGI server, not application code, decides which proxy to trust."""
 
         class _Client:

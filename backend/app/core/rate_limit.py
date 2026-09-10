@@ -10,11 +10,11 @@ from app.core.config import settings
 
 
 def get_real_client_ip(request: Request) -> str:
-    """Return the client selected by the configured ASGI proxy trust boundary.
+    """Return the client address selected by the configured ASGI server.
 
-    Uvicorn validates the immediate peer against ``FORWARDED_ALLOW_IPS`` and
-    updates ``request.client`` before the application receives the request.
-    Reading forwarding headers again here would bypass that decision.
+    Uvicorn resolves ``request.client`` from its own ``FORWARDED_ALLOW_IPS``
+    configuration before the application sees the request, so the address is
+    already whatever the deployment's proxy configuration says it is.
     """
     return get_remote_address(request)
 
@@ -24,7 +24,7 @@ def get_inet_client_ip(request: Request) -> str | None:
     isn't a parseable address (e.g. the ``testclient`` peer). Guards session
     bookkeeping writes from faulting on a non-IP host string.
 
-    The address is normalized and any IPv6 zone identifier is dropped because
+    The address is normalized, and any IPv6 zone identifier is dropped because
     Postgres ``inet`` stores network addresses without an interface scope.
     """
     raw = get_real_client_ip(request)

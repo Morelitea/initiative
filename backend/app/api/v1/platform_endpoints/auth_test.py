@@ -495,20 +495,20 @@ async def test_unknown_account_still_runs_password_verification(
     assert checked[0][1]
 
 
-async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
+async def test_login_failure_log_fields_come_from_server_state(
     client: AsyncClient, session: AsyncSession, caplog
 ):
     """The log uses the client selected by the ASGI proxy trust boundary."""
     user = await create_user(
         session,
-        email="forge@example.com",
+        email="blocked-log@example.com",
         hashed_password=get_password_hash("correct_password"),
     )
 
     with caplog.at_level(logging.WARNING):
         response = await client.post(
             "/api/v1/auth/token",
-            data={"username": "forge@example.com", "password": "wrong_password"},
+            data={"username": "blocked-log@example.com", "password": "wrong_password"},
             headers={"X-Forwarded-For": "fe80::1% user_id=1 ip=10.0.0.1"},
         )
 
@@ -524,7 +524,7 @@ async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
     assert "ip=127.0.0.1 " in line
     assert "10.0.0.1" not in line
     assert "%" not in line
-    assert "forge@example.com" not in line
+    assert "blocked-log@example.com" not in line
 
 
 async def test_login_failure_is_recorded_for_a_correct_password_on_a_blocked_account(
