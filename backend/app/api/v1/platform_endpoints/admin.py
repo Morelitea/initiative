@@ -104,10 +104,9 @@ async def list_all_users(
     return result.all()
 
 
-#: ``email`` is masked, exactly as it is in the roster this exports. A CSV is
-#: the cheapest way to walk off with every address on the platform, so it is
-#: the last place to serve them in full; the column stays because matching a
-#: row to an address you were given is what it is read for.
+#: ``email`` is masked here exactly as it is in the roster this exports, so
+#: the two agree. The column stays because matching a row to an address you
+#: were given is what it is read for.
 _PLATFORM_CSV_HEADERS = [
     "user_id",
     "email",
@@ -164,7 +163,7 @@ async def export_platform_users_csv(
     if len(users) == 1 and user_id:
         single_user = users[0]
         # Named by handle rather than address: a filename outlives the
-        # download, in a directory listing and in whatever it is mailed to.
+        # download, appearing in directory listings and wherever it is sent on.
         filename = (
             f"user-{single_user.id}-"
             f"{csv_export.safe_filename_component(single_user.username)}.csv"

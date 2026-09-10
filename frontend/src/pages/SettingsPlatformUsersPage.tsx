@@ -312,12 +312,15 @@ export const SettingsPlatformUsersPage = () => {
       enableSorting: true,
     },
     {
-      accessorKey: "username",
+      id: "username",
+      // The whole handle, number included — what the cell draws and what
+      // somebody pastes in from a ticket. Accessing the bare name would leave
+      // the filter box unable to match the thing it is labelled for.
+      accessorFn: (row) => getUserHandle(row),
       header: sortableHeader(t("platformUsers.columnHandle")),
       // The handle leads identification here the way it does on a guild
-      // roster: it is unique, it is what the person is addressed by, and —
-      // now that the address is masked — it is the only thing on the row you
-      // can search for and expect to find.
+      // roster: it is unique, it is what the person is addressed by, and it
+      // is what the filter box below matches.
       cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
       enableSorting: true,
       sortFn: "alphanumeric",
@@ -341,9 +344,8 @@ export const SettingsPlatformUsersPage = () => {
     {
       accessorKey: "email",
       header: sortableHeader(t("platformUsers.columnEmail")),
-      // Masked before it leaves the server (``AdminUserRead``), so this
-      // renders whatever arrived rather than masking it here — a client-side
-      // mask would still ship the address to the browser.
+      // Shortened by the server (``AdminUserRead``), so this renders what
+      // arrived rather than shortening it here.
       cell: ({ row }) => (
         <p className="font-mono text-muted-foreground text-sm">{row.original.email}</p>
       ),

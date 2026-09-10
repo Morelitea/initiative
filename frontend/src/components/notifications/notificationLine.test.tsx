@@ -3,11 +3,10 @@
  *
  * The account notices — a moderator renamed you, took your picture down,
  * suspended you — did neither. They fell past every `case` to the generic
- * "You have a new notification", and their destination was dropped on the
- * floor because the resolver only honoured a `target_path` that came with a
- * `guild_id`. These notices belong to the person, not to any community, so
- * the server sends no guild with them — which made the one arriving at the
- * worst possible moment the one that explained itself least.
+ * "You have a new notification", and their destination was dropped because
+ * the resolver only honoured a `target_path` that came with a `guild_id`.
+ * These notices belong to the person rather than to any community, so the
+ * server sends no guild with them.
  */
 import { describe, expect, it } from "vitest";
 

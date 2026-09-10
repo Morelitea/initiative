@@ -45,10 +45,10 @@ class AccessGrantApprove(SanitizedBaseModel):
 
 
 class AccessGrantRead(SanitizedBaseModel):
-    # ``validate_assignment`` is load-bearing, not a default: the enrichment
-    # fields below are filled in by ``access_grants`` *after* the row has been
-    # validated, and without it those assignments would skip the masking
-    # validator and write the addresses through in full.
+    # ``validate_assignment`` is deliberate, not a default: the enrichment
+    # fields below are assigned by ``access_grants`` *after* the row has been
+    # validated, and field validators run on assignment only when it is set.
+    # It is what applies the masking below to those two fields.
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_serialization_defaults_required=True,
@@ -73,10 +73,8 @@ class AccessGrantRead(SanitizedBaseModel):
     # Enrichment populated by the service for display (avoids the client
     # re-fetching users/guilds). Optional so ``model_validate`` over a bare
     # ORM row still works.
-    #: Masked (``u***1@e***m``). The approval queue is a list of people asking
-    #: to enter a guild they are not in; naming them is the point, but an
-    #: approver reads the row to decide, not to learn an address. The full
-    #: name and the user id beside it are what identify the requester.
+    #: Masked (``u***1@e***m``). An approver reads this row to decide on a
+    #: request; the full name and user id beside it identify the requester.
     user_email: Optional[str] = None
     user_full_name: Optional[str] = None
     guild_name: Optional[str] = None

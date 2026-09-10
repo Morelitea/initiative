@@ -58,9 +58,7 @@ async def test_export_platform_users_csv_as_admin(
         "timezone",
         "locale",
     ]
-    # Masked, like the roster this exports. A bulk download is the cheapest
-    # way to walk off with every address on the platform, so it carries none
-    # of them in full.
+    # Masked, like the roster this exports, so the two agree.
     emails = {row[1] for row in data_rows}
     assert emails == {"a***n@e***m", "u***1@e***m", "u***2@e***m"}
     assert not any("@example.com" in row[1] for row in data_rows)
@@ -450,12 +448,10 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
 async def test_platform_roster_masks_addresses(
     client: AsyncClient, session: AsyncSession
 ):
-    """The roster never serves an address in full — not even to an owner.
+    """The roster serves the masked address, not the stored one.
 
-    Masking client-side would be theatre: whoever holds the account can read
-    the response straight out of the network tab. So the address is reduced
-    before it leaves the server, and this asserts on the payload rather than
-    on anything the SPA does with it.
+    Asserted on the payload rather than on what the SPA renders, because the
+    payload is where the shortening happens.
     """
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
     await create_user(session, email="user1@example.com")
@@ -474,8 +470,8 @@ async def test_admin_mutations_return_masked_addresses(
 ):
     """The single-account admin routes mask too, not just the list.
 
-    They return the account they just changed, so each one is its own way to
-    read an address back a row at a time.
+    Each returns the account it just changed, so each is its own read of an
+    address and needs the same shape.
     """
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
     target = await create_user(session, email="target@example.com")

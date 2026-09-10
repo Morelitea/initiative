@@ -50,7 +50,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
-import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
+import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -229,7 +229,9 @@ export const SettingsUsersPage = () => {
       ),
     },
     {
-      accessorKey: "username",
+      id: "username",
+      // The whole handle, as the cell draws it — see the platform roster.
+      accessorFn: (row: UserGuildMember) => getUserHandle(row),
       header: t("users.handleColumn"),
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (

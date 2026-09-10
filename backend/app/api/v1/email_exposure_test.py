@@ -1,18 +1,18 @@
-"""No response hands somebody else's address back in full.
+"""Which response shapes may carry an address, and which may not.
 
-An address is the one identifier here that also reaches a person off the
-platform, and the one worth most to whoever compromises a staff account.
-Masking it in the SPA would be theatre — the response is a keystroke away in
-the network tab — so it is reduced server-side, by the response *shapes*
-(``app.core.email_masking``), and this is the test that keeps it that way.
+``UserRead`` carries a stored address in full and is served on the ``/users/me``
+routes, where the reader is the address's owner. Every other route that returns
+an account returns ``AdminUserRead``, which masks it. The shapes that carry an
+address field alongside other data — the guild invite, the access grant — mask
+it too.
 
-The rule is not "no address anywhere": you are entitled to your own, and
-``/users/me`` is where the account screen reads it. So the invariant is about
-*whose* address a route can return, and it is enforced by which schema the
-route declares.
+These tests read the OpenAPI schema and hold the app to that split, so a new
+route or a new shape has to be a deliberate addition to the lists below rather
+than something nobody noticed.
 """
 
 import json
+from typing import Any, Iterable
 
 import pytest
 
@@ -20,8 +20,8 @@ from app.main import app
 
 pytestmark = pytest.mark.unit
 
-#: The only schema allowed to carry a full address, and the only routes allowed
-#: to return it — every one of them serves the caller their own account.
+#: The shape that carries a stored address in full, and the routes that serve
+#: it — each of them returning the caller their own account.
 SELF_SCHEMA = "UserRead"
 SELF_ROUTES = {
     "/api/v1/auth/register",
@@ -31,12 +31,13 @@ SELF_ROUTES = {
     "/api/v1/users/me/avatar",
 }
 
+#: Shapes that carry an address field and mask it. Each has a validator
+#: applying ``app.core.email_masking.mask_email``; adding a name here means
+#: having added that validator.
+MASKED_SHAPES = {"AdminUserRead", "AccessGrantRead", "GuildInviteRead"}
 
-def _response_schemas(operation: dict) -> str:
-    return json.dumps(operation.get("responses") or {})
 
-
-def _operations():
+def _operations() -> Iterable[tuple[str, str, dict]]:
     spec = app.openapi()
     for path, methods in spec["paths"].items():
         for method, operation in methods.items():
@@ -44,45 +45,83 @@ def _operations():
                 yield path, method, operation
 
 
-def test_full_addresses_are_confined_to_self_routes() -> None:
-    """``UserRead`` is the unmasked shape; only your own account is served it.
+def _referenced_names(node: Any) -> Iterable[str]:
+    """Every ``#/components/schemas/<name>`` appearing anywhere under ``node``."""
+    text = json.dumps(node)
+    prefix = '"#/components/schemas/'
+    start = 0
+    while (found := text.find(prefix, start)) != -1:
+        end = text.find('"', found + len(prefix))
+        yield text[found + len(prefix) : end]
+        start = end
 
-    A new endpoint that returns ``UserRead`` for anybody but the caller shows
-    up here rather than in production. If one belongs on the list, adding it
-    is a deliberate act — which is the point.
+
+def _reachable(node: Any, schemas: dict[str, Any]) -> set[str]:
+    """Schemas reachable from ``node``, following references transitively.
+
+    A response usually names one shape, but that shape can hold others — a
+    paged envelope whose ``items`` are accounts names only the envelope at the
+    top level. Walking the whole graph is what makes the two tests below cover
+    those as well as the direct case.
     """
+    seen: set[str] = set()
+    queue = list(_referenced_names(node))
+    while queue:
+        name = queue.pop()
+        if name in seen or name not in schemas:
+            continue
+        seen.add(name)
+        queue.extend(_referenced_names(schemas[name]))
+    return seen
+
+
+def test_the_walk_reaches_a_nested_shape() -> None:
+    """The reachability walk is what the two tests below rest on.
+
+    Without this, a walk that silently found nothing would make both of them
+    pass by vacuum rather than by being satisfied.
+    """
+    schemas = {
+        "Envelope": {"properties": {"items": {"$ref": "#/components/schemas/Inner"}}},
+        "Inner": {"properties": {"email": {"type": "string"}}},
+    }
+    node = {"200": {"schema": {"$ref": "#/components/schemas/Envelope"}}}
+    assert _reachable(node, schemas) == {"Envelope", "Inner"}
+
+
+def test_the_unmasked_shape_is_served_only_on_the_self_routes() -> None:
+    """``UserRead`` reaches a response only where the caller owns the account.
+
+    A route serving somebody else's account uses ``AdminUserRead`` instead; one
+    that genuinely belongs on the list is added to it explicitly.
+    """
+    spec = app.openapi()
+    schemas = spec["components"]["schemas"]
+
     leaked = {
         path
         for path, _method, operation in _operations()
-        if f'"#/components/schemas/{SELF_SCHEMA}"' in _response_schemas(operation)
+        if SELF_SCHEMA in _reachable(operation.get("responses") or {}, schemas)
         and path not in SELF_ROUTES
     }
     assert not leaked, (
-        f"{sorted(leaked)} return the unmasked {SELF_SCHEMA}. Serve somebody "
-        "else's account as AdminUserRead, which masks the address."
+        f"{sorted(leaked)} return {SELF_SCHEMA}, which carries the stored "
+        "address. Serve somebody else's account as AdminUserRead."
     )
 
 
-def test_every_other_address_field_is_declared_on_a_masking_shape() -> None:
-    """Any *other* address-shaped response field must come from a masked shape.
+def test_every_other_address_field_comes_from_a_masking_shape() -> None:
+    """Any other address-shaped response field belongs to a shape that masks.
 
-    Catches the case the route-level check can't: a brand-new schema with an
-    ``…_email`` field on it, which would sail through unmasked.
+    Covers what the route check cannot: a new shape with an ``…_email`` field,
+    reached directly or nested inside another.
     """
     spec = app.openapi()
     schemas = spec["components"]["schemas"]
 
     returned: set[str] = set()
     for _path, _method, operation in _operations():
-        body = _response_schemas(operation)
-        returned.update(
-            name for name in schemas if f'"#/components/schemas/{name}"' in body
-        )
-
-    # Shapes that mask every address they carry, each with a validator that
-    # runs ``mask_email``. Adding a name here means having added that
-    # validator.
-    masked_shapes = {"AdminUserRead", "AccessGrantRead", "GuildInviteRead"}
+        returned |= _reachable(operation.get("responses") or {}, schemas)
 
     carrying = {
         name
@@ -91,7 +130,8 @@ def test_every_other_address_field_is_declared_on_a_masking_shape() -> None:
         if "email" in field.lower() and field != "email_verified"
     }
 
-    assert carrying <= masked_shapes | {SELF_SCHEMA}, (
-        f"{sorted(carrying - masked_shapes - {SELF_SCHEMA})} carry an address "
-        "field in a response without masking it."
+    unaccounted = carrying - MASKED_SHAPES - {SELF_SCHEMA}
+    assert not unaccounted, (
+        f"{sorted(unaccounted)} carry an address field in a response without "
+        "masking it."
     )

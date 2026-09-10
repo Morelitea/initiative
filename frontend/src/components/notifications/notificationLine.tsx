@@ -55,11 +55,10 @@ export const resolveSmartLink = (notification: NotificationRead): string | null 
   const targetPath = typeof targetValue === "string" ? targetValue : null;
   if (targetPath) {
     // A `target_path` with a guild belongs inside it. One without belongs to
-    // the app: an account notice (`/profile/account`) or the cross-guild
-    // task list is about the person, not any one community, and the server
-    // deliberately sends no `guild_id` with those. Requiring one here is why
-    // they arrived with nowhere to go — the mobile tap handler has always
-    // treated a bare `target_path` as an app-level route.
+    // the app: an account notice (`/profile/account`) or the cross-guild task
+    // list is about the person rather than any one community, so the server
+    // sends no `guild_id` with those. The mobile tap handler has always
+    // treated a bare `target_path` as an app-level route; this matches it.
     return guildId !== null ? buildGuildPath(guildId, targetPath) : normalizeAppTarget(targetPath);
   }
 

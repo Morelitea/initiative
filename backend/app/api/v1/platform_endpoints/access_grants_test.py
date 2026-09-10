@@ -562,11 +562,11 @@ async def test_grant_read_carries_guild_status(
 async def test_approval_queue_masks_addresses(
     client: AsyncClient, session: AsyncSession
 ):
-    """The queue names who is asking, without handing over their address.
+    """The queue names who is asking, and masks their address.
 
-    Both enrichment fields are filled in after the row is validated, so this
-    is also what proves the masking survives that assignment rather than only
-    applying on the way in.
+    Both enrichment fields are assigned after the row is validated, so this
+    also covers the masking applying on assignment rather than only on the way
+    in.
     """
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
     support = await create_user(

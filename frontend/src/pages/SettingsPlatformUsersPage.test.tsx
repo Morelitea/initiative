@@ -1,12 +1,10 @@
 /**
- * The platform roster, after the address stopped being readable.
+ * The platform roster, and the two things about it that are not styling.
  *
- * Two things this asserts are security properties rather than styling. The
- * roster renders whatever address the API sent and never reconstructs one —
- * masking is the server's job, because a page that received the real address
- * has already lost it to the network tab. And the row's actions live behind a
- * menu, so the destructive one is not sitting under the finger that was
- * reaching for Export.
+ * The roster renders the address exactly as the API sent it and never
+ * reassembles one — shortening is the server's job, and this page's job is to
+ * not undo it. And the row's actions live behind a menu, so the destructive
+ * one is not sitting under the finger reaching for Export.
  */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -86,6 +84,21 @@ describe("SettingsPlatformUsersPage", () => {
 
     expect(await screen.findByText("owner")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/filter by handle/i)).toBeInTheDocument();
+  });
+
+  it("matches a whole handle pasted in, not just the name part", async () => {
+    const rows = masked();
+    renderRoster(rows);
+
+    const box = await screen.findByPlaceholderText(/filter by handle/i);
+    const whole = `owner#${String(rows[0].discriminator).padStart(4, "0")}`;
+
+    // What somebody pastes out of a ticket. Filtering the bare name would
+    // match nothing here, while still looking right for a typed prefix.
+    await userEvent.type(box, whole);
+
+    expect(screen.getByText("o***r@e***m")).toBeInTheDocument();
+    expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
   });
 
   it("puts the row's actions behind one menu instead of a run of buttons", async () => {
