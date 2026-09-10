@@ -513,7 +513,13 @@ async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
         response = await client.post(
             "/api/v1/auth/token",
             data={"username": "forge@example.com", "password": "wrong_password"},
-            headers={"X-Forwarded-For": "1.2.3.4 user_id=1 ip=10.0.0.1"},
+            # An IPv6 zone identifier, not an IPv4-shaped payload. This is the
+            # one that matters: ipaddress.ip_address() ACCEPTS
+            # "fe80::1% user_id=1 ip=10.0.0.1" and barely checks the zone, so a
+            # validate-then-return-the-raw-string implementation lets the whole
+            # payload through. An IPv4-shaped attempt fails parsing and would
+            # pass this test without proving anything.
+            headers={"X-Forwarded-For": "fe80::1% user_id=1 ip=10.0.0.1"},
         )
 
     assert response.status_code == 400
@@ -525,13 +531,14 @@ async def test_login_failure_log_cannot_be_forged_through_x_forwarded_for(
     # Exactly one user_id field, and it is the real account.
     assert line.count("user_id=") == 1
     assert f"user_id={user.id}" in line
-    # The forged payload is dropped whole, not partially escaped.
-    assert "10.0.0.1" not in line
-    assert "1.2.3.4" not in line
-    # Exactly one ip field, holding the sentinel: the unparseable header value
-    # was discarded rather than trimmed down to something that still parses.
+    # Exactly one ip field. The zone identifier carrying the payload is dropped,
+    # leaving the normalized address.
     assert line.count("ip=") == 1
-    assert "ip=- " in line or line.endswith("ip=-")
+    assert "ip=fe80::1 " in line
+    # No fragment of the payload survives anywhere in the line.
+    assert "10.0.0.1" not in line
+    assert "%" not in line
+    assert "forge@example.com" not in line
 
 
 async def test_login_failure_is_recorded_for_a_correct_password_on_a_blocked_account(

@@ -33,12 +33,34 @@ def get_real_client_ip(request: Request) -> str:
 def get_inet_client_ip(request: Request) -> str | None:
     """The client IP as a value an INET column accepts, or ``None`` when it
     isn't a parseable address (e.g. the ``testclient`` peer). Guards session
-    bookkeeping writes from faulting on a non-IP host string."""
+    bookkeeping writes from faulting on a non-IP host string.
+
+    Returns the NORMALIZED address, never the raw header text. Under
+    ``BEHIND_PROXY`` the raw value is the leftmost ``X-Forwarded-For`` entry,
+    which the client supplies, and validating it is not the same as sanitizing
+    it. ``ipaddress.ip_address`` accepts an IPv6 zone identifier and barely
+    checks it, so::
+
+        ipaddress.ip_address("fe80::1% user_id=1 ip=10.0.0.1")
+
+    parses. An earlier version validated the raw string and then returned that
+    same string, so spaces and ``=`` reached the caller: enough to forge fields
+    into a ``key=value`` log line, and enough for Postgres to reject the write
+    this function exists to protect, since ``inet`` does not accept a zone id
+    at all.
+
+    The zone is dropped before parsing, and the parsed object is rendered back
+    out, so the result contains only hex digits, dots and colons.
+    """
+    raw = get_real_client_ip(request)
+    # Drop any IPv6 zone identifier: meaningless off-host, rejected by inet,
+    # and the part of the grammar that is not validated.
+    candidate = raw.split("%", 1)[0]
     try:
-        ipaddress.ip_address(get_real_client_ip(request))
+        parsed = ipaddress.ip_address(candidate)
     except ValueError:
         return None
-    return get_real_client_ip(request)
+    return str(parsed)
 
 
 def _default_limits() -> list[str]:

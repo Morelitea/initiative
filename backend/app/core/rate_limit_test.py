@@ -16,7 +16,12 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core import rate_limit
 from app.core.config import settings
-from app.core.rate_limit import _default_limits, get_real_client_ip, limiter
+from app.core.rate_limit import (
+    _default_limits,
+    get_inet_client_ip,
+    get_real_client_ip,
+    limiter,
+)
 from app.main import app
 
 
@@ -119,3 +124,59 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             statuses = [(await c.get("/undecorated")).status_code for _ in range(10)]
         assert all(code == 200 for code in statuses)
+
+
+class TestInetClientIp:
+    """``get_inet_client_ip`` must SANITIZE, not merely validate.
+
+    Under ``BEHIND_PROXY`` the raw value is the leftmost ``X-Forwarded-For``
+    entry, which the client supplies. Callers write it to an ``inet`` column and
+    into log lines assembled as ``key=value``, so anything that survives here
+    reaches both.
+    """
+
+    @staticmethod
+    def _request(monkeypatch, forwarded: str):
+        monkeypatch.setattr(settings, "BEHIND_PROXY", True)
+
+        class _Req:
+            headers = {"X-Forwarded-For": forwarded}
+            client = None
+
+        return _Req()
+
+    def test_an_ipv6_zone_identifier_cannot_smuggle_a_payload(self, monkeypatch):
+        """The zone id is the part of the grammar that is barely validated.
+
+        ``ipaddress.ip_address("fe80::1% user_id=1 ip=10.0.0.1")`` PARSES. A
+        validate-then-return-the-raw-string implementation therefore passes
+        spaces and ``=`` straight through to the caller.
+        """
+        req = self._request(monkeypatch, "fe80::1% user_id=1 ip=10.0.0.1")
+        result = get_inet_client_ip(req)
+        assert result == "fe80::1"
+        assert "%" not in result
+        assert " " not in result
+        assert "=" not in result
+
+    def test_a_plain_zone_identifier_is_dropped(self, monkeypatch):
+        """``inet`` does not accept a zone id, and it is meaningless off-host."""
+        assert (
+            get_inet_client_ip(self._request(monkeypatch, "fe80::1%eth0")) == "fe80::1"
+        )
+
+    def test_addresses_come_back_normalized(self, monkeypatch):
+        assert (
+            get_inet_client_ip(self._request(monkeypatch, "2001:DB8::1"))
+            == "2001:db8::1"
+        )
+        assert (
+            get_inet_client_ip(self._request(monkeypatch, "203.0.113.9"))
+            == "203.0.113.9"
+        )
+
+    def test_a_non_address_is_refused(self, monkeypatch):
+        assert (
+            get_inet_client_ip(self._request(monkeypatch, "1.2.3.4 user_id=1")) is None
+        )
+        assert get_inet_client_ip(self._request(monkeypatch, "not-an-ip")) is None

@@ -433,8 +433,10 @@ async def login_access_token(
         # address — under BEHIND_PROXY the raw value is the leftmost
         # X-Forwarded-For entry, which the client supplies and can pack with
         # spaces and "key=value" text to forge a different account's id into a
-        # parsed log line. get_inet_client_ip returns it only if it parses as an
-        # IP address, and None if it does not.
+        # parsed log line. It returns the NORMALIZED address or None, never the
+        # raw header text: validating a string is not the same as sanitizing it,
+        # and ipaddress.ip_address() accepts an IPv6 zone identifier containing
+        # spaces.
         logger.warning(
             "auth.login_failed user_id=%s ip=%s reason=%s",
             user.id if user else "-",
