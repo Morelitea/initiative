@@ -95,6 +95,7 @@ from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
+from app.models.platform.identity_ref import IdentityRef
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
@@ -133,6 +134,7 @@ __all__ = [
     "AuthSession",
     "FederatedIdentity",
     "FederatedIdentitySecret",
+    "IdentityRef",
     "GuildAuthPolicy",
     "ResourceGrant",
     "ExportJob",

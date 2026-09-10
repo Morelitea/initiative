@@ -1,0 +1,150 @@
+"""What a party outside this deployment calls a user or a guild.
+
+An integer primary key is the right thing to join on and the right thing to
+show a person who has to tell two rows apart. It is the wrong thing to hand to
+a payment processor or an installed app: it is sequential, it is the same value
+everywhere, and every party holding one holds the same one.
+
+So each entity gets a separate reference per *purpose* — billing, one installed
+app, the next — minted at random and stored here. Two references to the same
+guild are unrelated values, and the party holding one learns nothing about the
+other from it.
+
+Random rather than derived from a key, following
+``services.marketplace.app_subjects``: a derived value is only stable while its
+key is, and this deployment rotates ``SECRET_KEY``
+(``app.db.secret_key_rotation``). A reference has to outlast that. The full
+reasoning, and the alternatives weighed against it, are in
+``history/opaque-identity-design.md``.
+
+Reached only on the system engine — the request-path roles hold nothing on this
+table.
+"""
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
+from sqlmodel import Field, SQLModel
+
+
+class IdentityEntity(str, Enum):
+    """What kind of row a reference names.
+
+    Carried in the reference's own prefix, so a value minted for a user is
+    rejected where a guild is expected rather than silently looked up.
+    """
+
+    user = "user"
+    guild = "guild"
+
+    @property
+    def code(self) -> str:
+        """This entity's letter in a rendered reference."""
+        return self.value[0]
+
+
+class IdentityPurpose(str, Enum):
+    """Which party a reference was minted for.
+
+    The sector, in the OpenID Connect §8.1 sense: one entity has one reference
+    per purpose, and the purposes are unrelated to each other.
+
+    ``app`` is parametric — an installed app is a sector per install, so its
+    stored purpose is ``app:<install_id>`` rather than the bare member. Build
+    it with ``app_purpose`` rather than by hand.
+    """
+
+    billing = "billing"
+    app = "app"
+
+    @property
+    def code(self) -> str:
+        """This purpose's three letters in a rendered reference."""
+        return self.value[:3]
+
+
+def app_purpose(install_id: int) -> str:
+    """The stored purpose naming one installed app."""
+    return f"{IdentityPurpose.app.value}:{install_id}"
+
+
+def purpose_root(purpose: str) -> IdentityPurpose:
+    """The purpose a stored value belongs to, with any parameter dropped."""
+    return IdentityPurpose(purpose.split(":", 1)[0])
+
+
+def ref_prefix(entity_type: IdentityEntity, purpose: str) -> str:
+    """The prefix a reference for this entity and purpose is rendered with.
+
+    Derived from the two enums rather than listed, so a new purpose gets a
+    prefix by existing.
+    """
+    return f"{entity_type.code}{purpose_root(purpose).code}"
+
+
+#: Characters of base64url in the random half — ``token_urlsafe(24)`` renders
+#: as 32, matching ``GuildAppSubject.SUBJECT_LENGTH``.
+REF_ENTROPY_BYTES = 24
+REF_RANDOM_LENGTH = 32
+
+#: Width the column holds: prefix, separator, and the random half, with room
+#: for a longer prefix than any purpose uses today.
+REF_MAX_LENGTH = 64
+
+
+class IdentityRef(SQLModel, table=True):
+    """One reference: what one purpose calls one entity."""
+
+    __tablename__ = "identity_refs"
+    __table_args__ = (
+        UniqueConstraint("ref", name="identity_refs_unique_ref"),
+        # One live reference per entity per purpose. Retired rows are excluded
+        # so a re-issue can sit beside the value it replaces for its grace
+        # window.
+        Index(
+            "ix_identity_refs_live",
+            "entity_type",
+            "entity_id",
+            "purpose",
+            unique=True,
+            postgresql_where=text("retired_at IS NULL"),
+        ),
+        # Sweeping the rows a re-issue left behind.
+        Index("ix_identity_refs_retired_at", "retired_at"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    #: The value the other party holds, prefix and all.
+    ref: str = Field(sa_column=Column(String(REF_MAX_LENGTH), nullable=False))
+
+    entity_type: IdentityEntity = Field(
+        sa_column=Column(String(16), nullable=False),
+    )
+    #: Plain integer, no foreign key. Erasure husks the row it names
+    #: (``services.platform.users.anonymize_user``) rather than removing it,
+    #: and this row is dropped by the same path.
+    entity_id: int = Field(sa_column=Column(Integer, nullable=False))
+
+    #: ``billing``, ``app:<install_id>``, … — see ``IdentityPurpose``.
+    purpose: str = Field(sa_column=Column(String(64), nullable=False))
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    #: When this value was replaced. NULL while it is the live one; set by a
+    #: re-issue, after which the row stays resolvable for the grace window.
+    retired_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
