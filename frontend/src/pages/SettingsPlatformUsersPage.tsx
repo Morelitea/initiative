@@ -16,11 +16,12 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { AdminUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
+import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,8 +35,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -54,7 +57,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
-import type { AppColumnDef } from "@/lib/table";
+import type { AppColumn, AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -70,6 +73,36 @@ const platformRoleLabel = (role: UserRole, t: TranslateFn): string =>
 
 const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
   t(`platformUsers.roleDescriptions.${role}`);
+
+/**
+ * The header of a sortable column: the label, and the arrow that says which
+ * way it is pointing. Every sortable column on this table uses it, so they
+ * click alike and none of them is the odd one out that looks like plain text.
+ */
+const sortableHeader =
+  (label: string) =>
+  ({ column }: { column: AppColumn<AdminUserRead> }) => {
+    const isSorted = column.getIsSorted();
+    return (
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+          {label}
+          <SortIcon isSorted={isSorted} />
+        </Button>
+      </div>
+    );
+  };
+
+// Accounts ordered by how much of the app is left to them, rather than
+// alphabetically — "anonymized, active, deactivated, suspended" is an order
+// no one is looking for. Sorting brings the accounts needing attention
+// together at one end.
+const STATUS_ORDER: Record<string, number> = {
+  active: 0,
+  suspended: 1,
+  deactivated: 2,
+  anonymized: 3,
+};
 
 const ROLE_BADGE: Record<
   UserRole,
@@ -120,7 +153,7 @@ export const SettingsPlatformUsersPage = () => {
     currentRole: UserRole;
     newRole: UserRole;
   } | null>(null);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<UserRead | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
 
   // Viewing the roster needs ``users.read`` (support+); changing roles needs
   // ``roles.assign`` (operator+). The actor can only assign roles at or below
@@ -151,9 +184,9 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const [renameTarget, setRenameTarget] = useState<UserRead | null>(null);
+  const [renameTarget, setRenameTarget] = useState<AdminUserRead | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [suspendTarget, setSuspendTarget] = useState<UserRead | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<AdminUserRead | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
 
   const setUsername = useAdminSetUsername({
@@ -232,11 +265,14 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const exportUserCsv = (platformUser: UserRead) => {
-    const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const exportUserCsv = (platformUser: AdminUserRead) => {
+    // Named by handle. The address never arrives here in full any more, and a
+    // filename outlives the download — in a directory listing, in whatever it
+    // gets mailed on to.
+    const safeHandle = platformUser.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
     exportPlatformUsers.mutate({
       params: { user_id: [platformUser.id] },
-      filename: `user-${platformUser.id}-${safeEmail}.csv`,
+      filename: `user-${platformUser.id}-${safeHandle}.csv`,
     });
   };
 
@@ -264,17 +300,34 @@ export const SettingsPlatformUsersPage = () => {
     return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
-  const userColumns: AppColumnDef<UserRead>[] = [
+  const userColumns: AppColumnDef<AdminUserRead>[] = [
     {
       accessorKey: "id",
-      header: t("platformUsers.columnId"),
+      header: sortableHeader(t("platformUsers.columnId")),
       cell: ({ row }) => (
         <p className="font-mono text-muted-foreground text-sm">{row.original.id}</p>
       ),
+      // The id counts up as accounts are made, so sorting it is sorting by
+      // when somebody joined — which is why there is no separate date column.
+      enableSorting: true,
+    },
+    {
+      accessorKey: "username",
+      header: sortableHeader(t("platformUsers.columnHandle")),
+      // The handle leads identification here the way it does on a guild
+      // roster: it is unique, it is what the person is addressed by, and —
+      // now that the address is masked — it is the only thing on the row you
+      // can search for and expect to find.
+      cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
+      enableSorting: true,
+      sortFn: "alphanumeric",
     },
     {
       id: "name",
-      header: t("platformUsers.columnName"),
+      accessorFn: (row) => row.full_name?.trim() ?? "",
+      header: sortableHeader(t("platformUsers.columnName")),
+      enableSorting: true,
+      sortFn: "alphanumeric",
       cell: ({ row }) => {
         const platformUser = row.original;
         const displayName = platformUser.full_name?.trim() || "—";
@@ -287,26 +340,25 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       accessorKey: "email",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("platformUsers.columnEmail")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
-      cell: ({ row }) => {
-        const platformUser = row.original;
-        return <p className="text-sm">{platformUser.email}</p>;
-      },
+      header: sortableHeader(t("platformUsers.columnEmail")),
+      // Masked before it leaves the server (``AdminUserRead``), so this
+      // renders whatever arrived rather than masking it here — a client-side
+      // mask would still ship the address to the browser.
+      cell: ({ row }) => (
+        <p className="font-mono text-muted-foreground text-sm">{row.original.email}</p>
+      ),
       enableSorting: true,
     },
     {
       id: "platform_role",
-      header: t("platformUsers.columnRole"),
+      accessorFn: (row) => row.role,
+      header: sortableHeader(t("platformUsers.columnRole")),
+      enableSorting: true,
+      // By privilege, not by name: alphabetically "owner" lands between
+      // "operator" and "support", which is the one ordering nobody wants.
+      // Ascending puts members first and owners last.
+      sortFn: (rowA, rowB) =>
+        platformRoleRank(rowA.original.role) - platformRoleRank(rowB.original.role),
       cell: ({ row }) => {
         const platformUser = row.original;
         const isSelf = platformUser.id === user?.id;
@@ -372,7 +424,11 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       id: "status",
-      header: t("platformUsers.columnStatus"),
+      accessorFn: (row) => row.status,
+      header: sortableHeader(t("platformUsers.columnStatus")),
+      enableSorting: true,
+      sortFn: (rowA, rowB) =>
+        (STATUS_ORDER[rowA.original.status] ?? 99) - (STATUS_ORDER[rowB.original.status] ?? 99),
       cell: ({ row }) => {
         const platformUser = row.original;
         const labelKey =
@@ -391,6 +447,7 @@ export const SettingsPlatformUsersPage = () => {
     {
       id: "actions",
       header: t("platformUsers.columnActions"),
+      enableSorting: false,
       cell: ({ row }) => {
         const platformUser = row.original;
         const isResetting = resettingUserId === platformUser.id;
@@ -399,62 +456,42 @@ export const SettingsPlatformUsersPage = () => {
         // rejects it with ADMIN_CANNOT_RESET_INACTIVE), so hide it here too.
 
         return (
-          <div className="flex flex-wrap gap-2">
+          <RowActionsMenu subject={getUserHandle(platformUser)}>
             {canManageUsers && platformUser.status === "deactivated" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => reactivateUser.mutate(platformUser.id)}
-                disabled={reactivateUser.isPending}
-              >
+              <DropdownMenuItem onSelect={() => reactivateUser.mutate(platformUser.id)}>
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
-              </Button>
+              </DropdownMenuItem>
             )}
             {canManageUsers && platformUser.status === "active" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleResetPassword(platformUser.id, platformUser.email)}
+              <DropdownMenuItem
+                onSelect={() => handleResetPassword(platformUser.id, platformUser.email)}
                 disabled={isResetting || resetPassword.isPending}
               >
                 <Mail className="h-4 w-4" />
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
-              </Button>
+              </DropdownMenuItem>
             )}
             {canModerateContent && !isSelf && platformUser.status !== "anonymized" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setRenameTarget(platformUser)}
-              >
+              <DropdownMenuItem onSelect={() => setRenameTarget(platformUser)}>
                 <PenLine className="h-4 w-4" />
                 {t("platformUsers.changeUsername")}
-              </Button>
+              </DropdownMenuItem>
             )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => clearAgeBlock.mutate(platformUser.id)}
+              <DropdownMenuItem
+                onSelect={() => clearAgeBlock.mutate(platformUser.id)}
                 disabled={clearAgeBlock.isPending}
               >
                 <CalendarClock className="h-4 w-4" />
                 {t("platformUsers.clearAgeBlock")}
-              </Button>
+              </DropdownMenuItem>
             )}
             {canManageUsers &&
               !isSelf &&
               (platformUser.status === "active" || platformUser.status === "suspended") && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
+                <DropdownMenuItem
+                  onSelect={() =>
                     platformUser.status === "suspended"
                       ? setSuspension.mutate({ userId: platformUser.id, suspended: false })
                       : setSuspendTarget(platformUser)
@@ -472,31 +509,27 @@ export const SettingsPlatformUsersPage = () => {
                       {t("platformUsers.suspend")}
                     </>
                   )}
-                </Button>
+                </DropdownMenuItem>
               )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => exportUserCsv(platformUser)}
-              title={t("platformUsers.exportUser")}
-            >
+            <DropdownMenuItem onSelect={() => exportUserCsv(platformUser)}>
               <Download className="h-4 w-4" />
               {t("platformUsers.exportUser")}
-            </Button>
+            </DropdownMenuItem>
             {canDeleteUsers && !isSelf && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteUserTarget(platformUser)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("platformUsers.deleteUser")}
-              </Button>
+              <>
+                {/* Deleting an account is the one thing here that cannot be
+                    undone, so it sits below a rule rather than in the run. */}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={() => setDeleteUserTarget(platformUser)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("platformUsers.deleteUser")}
+                </DropdownMenuItem>
+              </>
             )}
-          </div>
+          </RowActionsMenu>
         );
       },
     },
@@ -526,7 +559,7 @@ export const SettingsPlatformUsersPage = () => {
             columns={userColumns}
             data={usersQuery.data}
             enableFilterInput
-            filterInputColumnKey="email"
+            filterInputColumnKey="username"
             filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
             enableResetSorting
             enablePagination

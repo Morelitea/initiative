@@ -22,7 +22,7 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/hooks/useNotifications";
-import { normalizeLegacyTarget } from "@/lib/entityResolver";
+import { normalizeAppTarget, normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
@@ -53,8 +53,14 @@ export const resolveSmartLink = (notification: NotificationRead): string | null 
   }
 
   const targetPath = typeof targetValue === "string" ? targetValue : null;
-  if (guildId !== null && targetPath) {
-    return buildGuildPath(guildId, targetPath);
+  if (targetPath) {
+    // A `target_path` with a guild belongs inside it. One without belongs to
+    // the app: an account notice (`/profile/account`) or the cross-guild
+    // task list is about the person, not any one community, and the server
+    // deliberately sends no `guild_id` with those. Requiring one here is why
+    // they arrived with nowhere to go — the mobile tap handler has always
+    // treated a bare `target_path` as an app-level route.
+    return guildId !== null ? buildGuildPath(guildId, targetPath) : normalizeAppTarget(targetPath);
   }
 
   if (typeof data.smart_link === "string" && data.smart_link) {
@@ -399,6 +405,21 @@ export const notificationText = (
       return t("notifications.importReady");
     case "import_failed":
       return t("notifications.importFailed");
+    // What a moderator did to your account. Each says what changed, because
+    // the alternative — the generic line — reads as a bug at exactly the
+    // moment somebody needs to know what happened to them.
+    case "username_changed":
+      return t("notifications.usernameChanged", {
+        previousHandle: data.previous_handle ?? t("notifications.yourPreviousHandle"),
+      });
+    case "avatar_removed":
+      return t("notifications.avatarRemoved");
+    case "account_suspended":
+      return typeof data.reason === "string" && data.reason.trim()
+        ? t("notifications.accountSuspendedWithReason", { reason: data.reason.trim() })
+        : t("notifications.accountSuspended");
+    case "account_unsuspended":
+      return t("notifications.accountUnsuspended");
     default:
       return t("notifications.defaultNotification");
   }

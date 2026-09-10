@@ -26,12 +26,12 @@ import type {
   AccountDeletionResponse,
   AdminDeletionEligibilityResponse,
   AdminUserDeleteRequest,
+  AdminUserRead,
   AuditEventListResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   ListAuditEventsApiV1AdminAuditEventsGetParams,
   PlatformAdminCountResponse,
-  UserRead,
   UserRole,
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -48,8 +48,8 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /** Fetch all platform users (admin only). */
-export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
-  return useQuery<UserRead[]>({
+export const usePlatformUsers = (options?: QueryOpts<AdminUserRead[]>) => {
+  return useQuery<AdminUserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     queryFn: () => listAllUsersApiV1AdminUsersGet(),
     ...options,
@@ -202,8 +202,8 @@ export const useAdminTriggerPasswordReset = (
   );
 
 /** Reactivate a deactivated user (admin only). */
-export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>) =>
-  useApiMutation<UserRead, number>(
+export const useAdminReactivateUser = (options?: MutationOpts<AdminUserRead, number>) =>
+  useApiMutation<AdminUserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
       invalidate: () => invalidate(q.adminUsers()),
@@ -215,8 +215,8 @@ type SetUsernameVars = { userId: number; username: string };
 
 /** Change someone's username (``content.moderate``). The number is not the
  *  moderator's to choose; the server keeps the one they have. */
-export const useAdminSetUsername = (options?: MutationOpts<UserRead, SetUsernameVars>) =>
-  useApiMutation<UserRead, SetUsernameVars>(
+export const useAdminSetUsername = (options?: MutationOpts<AdminUserRead, SetUsernameVars>) =>
+  useApiMutation<AdminUserRead, SetUsernameVars>(
     {
       mutationFn: ({ userId, username }) =>
         setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, { username }),
@@ -229,8 +229,8 @@ type SetSuspensionVars = { userId: number; suspended: boolean; reason?: string }
 
 /** Freeze an account, or let it go (``users.manage``). Takes nothing away —
  *  memberships, grants and content are all still there when it is lifted. */
-export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspensionVars>) =>
-  useApiMutation<UserRead, SetSuspensionVars>(
+export const useAdminSetSuspension = (options?: MutationOpts<AdminUserRead, SetSuspensionVars>) =>
+  useApiMutation<AdminUserRead, SetSuspensionVars>(
     {
       mutationFn: ({ userId, suspended, reason }) =>
         setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, {
@@ -246,8 +246,8 @@ export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspen
  *  For the case that is nearly all of them: a mistyped year. It clears the
  *  record that the question was answered and nothing else — the date was never
  *  kept, so there is nothing else to clear. */
-export const useAdminClearAgeBlock = (options?: MutationOpts<UserRead, number>) =>
-  useApiMutation<UserRead, number>(
+export const useAdminClearAgeBlock = (options?: MutationOpts<AdminUserRead, number>) =>
+  useApiMutation<AdminUserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId),
       invalidate: () => invalidate(q.adminUsers()),
@@ -278,9 +278,9 @@ export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPla
 
 /** Update a user's platform role (admin only). */
 export const useAdminUpdatePlatformRole = (
-  options?: MutationOpts<UserRead, { userId: number; role: UserRole }>
+  options?: MutationOpts<AdminUserRead, { userId: number; role: UserRole }>
 ) =>
-  useApiMutation<UserRead, { userId: number; role: UserRole }>(
+  useApiMutation<AdminUserRead, { userId: number; role: UserRole }>(
     {
       mutationFn: ({ userId, role }) =>
         updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, {

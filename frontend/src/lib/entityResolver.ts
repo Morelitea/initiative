@@ -243,6 +243,25 @@ const LEGACY_LISTS = new Set([
   "/calendar",
 ]);
 
+/**
+ * App-level (guild-less) paths that a notification may still name.
+ *
+ * `/settings/profile` never existed as a route — your account lives under
+ * `/profile`. Notification rows persist the path they were written with, so
+ * the ones already sent have to be rewritten on the way out; the server no
+ * longer mints it.
+ */
+const LEGACY_APP_TARGETS = new Map([
+  ["/settings/profile", "/profile/account"],
+  ["/settings/account", "/profile/account"],
+]);
+
+/** As {@link normalizeLegacyTarget}, for a path that names no guild. */
+export function normalizeAppTarget(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return LEGACY_APP_TARGETS.get(normalized) ?? normalized;
+}
+
 export function normalizeLegacyTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   for (const [pattern, build] of LEGACY_TARGETS) {
