@@ -138,7 +138,7 @@ def verify_billing_envelope(
         if not secret:
             continue
         expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
-        if hmac.compare_digest(expected, offered):
+        if hmac.compare_digest(expected, offered) and matched_index < 0:
             matched_index = index
     if matched_index < 0:
         raise BillingEnvelopeError(BillingMessages.INVALID_SIGNATURE)

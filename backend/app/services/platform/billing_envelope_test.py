@@ -18,6 +18,7 @@ NOW = 2_000_000_000
 METHOD = "POST"
 PATH = "/api/v1/billing/guild-tier"
 BODY = b'{"guild_id":1}'
+CURRENT_SIGNATURE = "4fedc9943a673e2f49696595ff0d6dfb666afeb5f1bd8ae0470aab3a501d4857"
 PREVIOUS_SIGNATURE = "20c9eb333669a3bccbce217bd922d8701c14cb0122914e856e45f2c8be8b2fa9"
 
 
@@ -90,3 +91,20 @@ def test_previous_hmac_secret_is_rejected_after_overlap(envelope, monkeypatch) -
             body=BODY,
         )
     assert exc_info.value.code == BillingMessages.INVALID_SIGNATURE
+
+
+def test_duplicate_current_value_does_not_log_old_key_traffic(
+    envelope, monkeypatch, caplog
+) -> None:
+    headers, _ = envelope
+    headers["X-Billing-Signature"] = CURRENT_SIGNATURE
+    monkeypatch.setattr(
+        config_module.settings,
+        "BILLING_HMAC_SECRET_PREVIOUS",
+        "current-secret-value",
+    )
+    verify_billing_envelope(method=METHOD, path=PATH, headers=headers, body=BODY)
+    assert not any(
+        "verified_with_previous_secret" in record.getMessage()
+        for record in caplog.records
+    )
