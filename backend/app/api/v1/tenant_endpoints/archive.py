@@ -8,13 +8,13 @@ tool becomes archivable by joining the ``Tool`` enum.
 Which is why this is one polymorphic pair and not ten near-identical routes on
 ten routers, the same shape the trash can already uses for restore and purge.
 
-What archiving *does* is one column: ``archived_at``, stamped or cleared. The
-consequence is the database's — an archived row and everything under it stops
-taking writes (``app.db.frozen``) — so these handlers decide who may ask, and
-the rule itself lives in one place rather than in each of them.
+What archiving *does* is one column, ``archived_at``, on the thing named and on
+everything inside it — see ``services.tenant.archive`` for the cascade. The
+consequence is the database's: an archived row and everything under it stops
+taking writes (``app.db.frozen``). So these handlers decide who may ask, and
+both rules live in one place rather than in each of them.
 """
 
-from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -38,6 +38,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
 from app.services import rls as rls_service
+from app.services.tenant import archive as archive_service
 
 router = APIRouter()
 
@@ -142,19 +143,16 @@ async def archive_entity(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ArchiveResponse:
-    """Mark a thing finished with. Idempotent: an already-archived row keeps
-    the stamp it has, so the date means when it was archived, not when it was
-    last asked about."""
+    """Mark a thing finished with, and everything inside it. Idempotent: an
+    already-archived row keeps the stamp it has, so the date means when it was
+    archived, not when it was last asked about."""
     row = await _load(session, entity_type.value, entity_id)
     _authorize(entity_type.value, row, current_user, guild_context)
-    # Read before the commit: committing expires the instance, and reaching for
-    # the column afterwards would be a lazy load with no async context to run in.
-    stamp = row.archived_at
-    if stamp is None:
-        stamp = datetime.now(timezone.utc)
-        row.archived_at = stamp
-        session.add(row)
-        await session.commit()
+    # Read the stamp back from the service, not off the row: committing expires
+    # the instance, and reaching for the column afterwards would be a lazy load
+    # with no async context to run in.
+    stamp = await archive_service.archive_entity(session, row)
+    await session.commit()
     return ArchiveResponse(
         entity_type=entity_type, entity_id=entity_id, archived_at=stamp
     )
@@ -168,13 +166,13 @@ async def unarchive_entity(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ArchiveResponse:
-    """Take it back out. Idempotent on a live row."""
+    """Take it back out, and with it everything that archiving took. Anything
+    inside that was archived on its own occasion stays archived. Idempotent on a
+    live row."""
     row = await _load(session, entity_type.value, entity_id)
     _authorize(entity_type.value, row, current_user, guild_context)
-    if row.archived_at is not None:
-        row.archived_at = None
-        session.add(row)
-        await session.commit()
+    await archive_service.unarchive_entity(session, row)
+    await session.commit()
     return ArchiveResponse(
         entity_type=entity_type, entity_id=entity_id, archived_at=None
     )
