@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 
 import asyncpg
 from sqlalchemy import delete as sql_delete
-from sqlmodel import select
 
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
@@ -20,6 +19,7 @@ from app.db.schema_provisioning import (
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
+from app.services.auth import addresses
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import guilds as guilds_service
@@ -35,12 +35,10 @@ async def init_owner() -> None:
         return
 
     async with AdminSessionLocal() as session:
-        existing = await session.exec(
-            select(User).where(
-                User.email_hash == hash_email(settings.FIRST_OWNER_EMAIL)
-            )
+        existing = await addresses.find_user_by_address(
+            session, settings.FIRST_OWNER_EMAIL
         )
-        if existing.one_or_none() is not None:
+        if existing is not None:
             return  # already seeded
 
         # Create the first superuser (the platform owner)...
@@ -58,6 +56,13 @@ async def init_owner() -> None:
         )
         session.add(user)
         await session.flush()
+        addresses.record_address(
+            session,
+            user_id=user.id,
+            email=settings.FIRST_OWNER_EMAIL,
+            source=addresses.SOURCE_SIGNUP,
+            verified=True,
+        )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         await session.commit()
 

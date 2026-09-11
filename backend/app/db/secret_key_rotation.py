@@ -334,16 +334,24 @@ async def _rotate_user_emails(
     old_key: str,
     new_key: str,
     dry_run: bool,
+    table: str = "users",
 ) -> ColumnResult:
-    """Re-encrypt users.email_encrypted AND recompute users.email_hash from the same
+    """Re-encrypt ``email_encrypted`` AND recompute ``email_hash`` from the same
     plaintext, in one UPDATE so the two never disagree. email_hash is a deterministic
     HMAC, so the new hashes stay unique (one per unique email) and disjoint from the
     old ones — no unique-constraint conflict. Streamed read / separate write like
-    ``_rotate_fernet_column``."""
-    result = ColumnResult("public", "users", "email_encrypted+email_hash")
+    ``_rotate_fernet_column``.
+
+    Both tables carrying an address have that pair of columns, and both are swept:
+    ``users`` holds the one an account was created with, ``user_emails`` holds every
+    address it has. A row missed here would still decrypt, but its hash would no
+    longer match what a lookup computes."""
+    result = ColumnResult("public", table, "email_encrypted+email_hash")
     stream = await read_conn.stream(
         text(
-            "SELECT email_encrypted FROM public.users WHERE email_encrypted IS NOT NULL"
+            # Identifier from this module's own call sites, never user input.
+            f"SELECT email_encrypted FROM public.{table} "  # noqa: S608
+            "WHERE email_encrypted IS NOT NULL"
         )
     )
     async for (enc,) in stream:
@@ -367,7 +375,7 @@ async def _rotate_user_emails(
             continue
         res = await write_conn.execute(
             text(
-                "UPDATE public.users "
+                f"UPDATE public.{table} "  # noqa: S608
                 "SET email_encrypted = :new_enc, email_hash = :new_hash "
                 "WHERE email_encrypted = :old_enc"
             ),
@@ -414,6 +422,11 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
             await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
+        )
+        summary.columns.append(
+            await _rotate_user_emails(
+                read_conn, write_conn, old_key, new_key, dry_run, table="user_emails"
+            )
         )
         for table, column, salt in _PUBLIC_FERNET_COLUMNS:
             summary.columns.append(
