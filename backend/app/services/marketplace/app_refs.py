@@ -40,6 +40,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 __all__ = [
     "REF_MAX_LENGTH",
+    "ensure_app_guild_ref",
+    "resolve_app_guild_ref",
     "drop_guild_app_refs",
     "drop_install_refs",
     "ensure_app_ref",
@@ -69,6 +71,41 @@ async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) ->
         )
         await session.commit()
     return ref
+
+
+async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
+    """What this install calls the guild it is installed in.
+
+    The guild's own reference at the same sector the member's uses, so an app
+    installed in two guilds holds two unrelated values for them — the same
+    property the member reference has, applied to the tenant.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        ref = await identity_refs.ensure_ref(
+            session,
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=_PURPOSE,
+            sector_guild_id=guild_id,
+            sector_id=app_install_id,
+        )
+        await session.commit()
+    return ref
+
+
+async def resolve_app_guild_ref(*, ref: str) -> int | None:
+    """Which guild a guild reference names, or None.
+
+    The inverse of ``ensure_app_guild_ref``, for a token that names its guild by
+    reference. Opens its own session: the caller at this point holds none.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        row = await identity_refs.resolve_ref(session, ref=ref)
+    if row is None:
+        return None
+    if row.purpose != _PURPOSE or row.entity_type != IdentityEntity.guild:
+        return None
+    return row.entity_id
 
 
 async def resolve_app_ref(
