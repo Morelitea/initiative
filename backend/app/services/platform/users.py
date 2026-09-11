@@ -16,6 +16,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
 from app.services.platform import identity_refs
@@ -469,6 +470,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     )
     user.email_hash = hash_email(sentinel_email)
     user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
+    # Every address the account held goes with it, not just the one on ``users``.
+    await addresses.replace_all(
+        session,
+        user_id=user_id,
+        email=sentinel_email,
+        source=addresses.SOURCE_SYNTHETIC,
+    )
 
     # No password: a NULL hash never verifies, so the husk cannot authenticate.
     user.hashed_password = None

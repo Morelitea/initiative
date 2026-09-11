@@ -79,6 +79,7 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth.assurance import (
     read_assurance,
@@ -282,6 +283,13 @@ async def register_user(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
+        addresses.record_address(
+            session,
+            user_id=user.id,
+            email=normalized_email,
+            source=addresses.SOURCE_SIGNUP,
+            verified=user.email_verified,
+        )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
         if normalized_invite:
@@ -469,9 +477,9 @@ async def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
     normalized_email = form_data.username.lower().strip()
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    # Any of the account's addresses signs it in, resolved on the system engine
+    # because there is nobody to scope a policy to until it returns.
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
     if not user or not verify_password(form_data.password, user.hashed_password):
         # Only a refusal that resolved to an account is recorded: an address
         # nobody holds is not an action on anybody, and the log is no place to
@@ -509,10 +517,14 @@ async def login_access_token(
     # Fallback: a transient session-store failure must not block sign-in — issue
     # a legacy long-lived token instead (the dual-verify window accepts both);
     # that session just can't renew silently.
+    # ``user`` is attached to ``admin_session``, so the rollback below expires
+    # its attributes; the plain values are captured up front so the failure
+    # path never touches the ORM object again.
+    user_id, token_version = user.id, user.token_version
     try:
         issued = await session_service.create_session(
             admin_session,
-            user_id=user.id,
+            user_id=user_id,
             amr=["pwd"],
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
@@ -521,7 +533,7 @@ async def login_access_token(
         await audit_service.record(
             admin_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user.id,
+            actor_user_id=user_id,
             detail={"method": "password"},
         )
         await admin_session.commit()
@@ -530,13 +542,13 @@ async def login_access_token(
         logger.exception(
             "Failed to establish refresh session for user %s; "
             "falling back to a legacy access token",
-            user.id,
+            user_id,
         )
         await _record_sign_in_fallback(
-            admin_session, user_id=user.id, detail={"method": "password"}
+            admin_session, user_id=user_id, detail={"method": "password"}
         )
         access_token = create_access_token(
-            subject=str(user.id), token_version=user.token_version
+            subject=str(user_id), token_version=token_version
         )
         set_session_cookie(
             response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -548,8 +560,8 @@ async def login_access_token(
         return Token(access_token=access_token)
 
     access_token, access_max_age = mint_access_token(
-        user_id=user.id,
-        token_version=user.token_version,
+        user_id=user_id,
+        token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,

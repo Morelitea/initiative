@@ -184,6 +184,8 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # session/refresh store — validated pre-auth by refresh-token hash (user
     # unknown), so all session ops run on the system engine; request path revoked
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # resolving an address to an account is a pre-auth lookup, like a session
+    "user_emails": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     # UPDATE joined the set for the rolled-up direct-message line: the system
@@ -332,6 +334,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_auth_policies": frozenset({"SELECT"}),
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
+    "user_emails": None,
     "notifications": None,
     # An announcement is shown to a signed-in account, so nothing about it is
     # read before routing.

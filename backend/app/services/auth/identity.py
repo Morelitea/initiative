@@ -34,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
+from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
@@ -375,6 +376,13 @@ async def _provision(
             await session.flush()
             if user.id is None:  # populated by flush; guard also narrows the type
                 raise RuntimeError("user id not assigned after flush")
+            addresses.record_address(
+                session,
+                user_id=user.id,
+                email=normalized,
+                source=(addresses.SOURCE_OIDC if email else addresses.SOURCE_SYNTHETIC),
+                verified=verified,
+            )
             identity = FederatedIdentity(
                 user_id=user.id,
                 provider_id=provider.id,

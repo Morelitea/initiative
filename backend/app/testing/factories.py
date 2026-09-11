@@ -154,10 +154,19 @@ async def create_user(
     await session.flush()
 
     # Every production path that makes an account seeds its direct-message
-    # policy row, so the factory does too — otherwise a test would be exercising
-    # the "no row at all" fallback rather than what a real account looks like.
+    # policy row and records its address, so the factory does too — otherwise a
+    # test would be exercising the "no row at all" fallback rather than what a
+    # real account looks like.
+    from app.services.auth import addresses
     from app.services.platform import dm_settings as dm_settings_service
 
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email=email_raw,
+        source=addresses.SOURCE_SIGNUP,
+        verified=bool(user_data.get("email_verified")),
+    )
     await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
     if commit:
