@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Cell colours and bold survive an Excel export** — a spreadsheet exported to `.xlsx` kept the number formats it was given but quietly lost the look of individual cells: bold, fill, text colour, alignment and borders set on a cell arrived plain. Column and row formatting was always carried over, and now per-cell formatting is too.
 
+- **A document nobody is editing stops writing to itself** — a document open with live editing on saved itself every ten seconds whether or not anything had changed, so one left open in a tab kept moving its own "updated" time and appearing at the top of anything sorted by it. It saves when there is something to save.
+
 ## [0.67.1] - 2026-09-09
 
 ### Added

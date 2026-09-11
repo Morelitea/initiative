@@ -255,6 +255,9 @@ export const DocumentDetailPage = () => {
   );
   const title = titleField.values.title;
   const setTitle = (next: string) => titleField.set({ title: next });
+  // Whether the name field is being typed in right now. Autosave waits it out
+  // so the Save button beside the field stays put for as long as it is wanted.
+  const [titleHasFocus, setTitleHasFocus] = useState(false);
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -611,6 +614,19 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
+    // Nothing to write. The collaborating branch below checks this too: the
+    // room owns the content column while it is live, but an open document
+    // nobody is editing has no rendering to report and no name to send.
+    if (!isDirty) {
+      return;
+    }
+    // A rename in progress belongs to the person typing it. Saving it out from
+    // under them retires the Save button beside the field mid-reach, so the
+    // debounce waits for the field to be let go — leaving the page still
+    // flushes it (see the unmount/unload flush below).
+    if (titleHasFocus) {
+      return;
+    }
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
@@ -634,9 +650,6 @@ export const DocumentDetailPage = () => {
       }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
-      if (!isDirty) {
-        return;
-      }
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
@@ -660,6 +673,7 @@ export const DocumentDetailPage = () => {
     collaboration.sendContent,
     isOnline,
     document?.document_type,
+    titleHasFocus,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -1080,8 +1094,10 @@ export const DocumentDetailPage = () => {
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            onFocus={() => setTitleHasFocus(true)}
+            onBlur={() => setTitleHasFocus(false)}
             placeholder={t("detail.titlePlaceholder")}
-            className="font-semibold text-2xl"
+            className="min-w-0 font-semibold text-2xl"
             disabled={!canEditDocument}
           />
           {titleIsDirty ? (
