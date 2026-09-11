@@ -6,12 +6,10 @@ a keyed HMAC for the equality lookup and a Fernet ciphertext for reading the
 address back.
 
 ``users.email_hash`` / ``email_encrypted`` still hold the one address an
-account was created with, and a lookup falls back to them. That fallback is
-the migration's seatbelt: ``user_emails`` was filled by a backfill reading a
-table the migration is policy-bound against, and a fresh install has nothing
-to carry — so a backfill that moved nothing leaves a green CI run behind it.
-Every fallback hit is logged with the account it resolved, and the columns on
-``users`` come off once that log has stayed quiet.
+account was created with, and a lookup falls back to them so an account whose
+row did not come across still signs in. Every fallback is logged with the
+account it resolved; the columns on ``users`` come off once that log has
+stayed quiet under real traffic.
 
 Runs on the system engine. ``user_emails`` carries no request-path grants for
 the same reason ``auth_sessions`` carries none: resolving an address happens
@@ -23,7 +21,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -48,8 +46,7 @@ def normalize(email: str) -> str:
 async def find_user_by_address(session: AsyncSession, email: str) -> User | None:
     """The account that signs in with ``email``, or ``None``.
 
-    Reads ``user_emails`` first and falls back to the address ``users`` carries,
-    so an account whose row did not survive the backfill still signs in.
+    Reads ``user_emails`` first and falls back to the address ``users`` carries.
     """
     digest = hash_email(normalize(email))
     found = (
@@ -72,6 +69,22 @@ async def find_user_by_address(session: AsyncSession, email: str) -> User | None
             carried.id,
         )
     return carried
+
+
+async def note_sign_in(
+    session: AsyncSession, *, email: str, now: datetime | None = None
+) -> None:
+    """Stamp the address a sign-in resolved through.
+
+    Staged in the caller's transaction, beside the session the sign-in opens.
+    An address that resolved through the fallback has no row to stamp, and the
+    statement matches nothing — which is the same thing the fallback log says.
+    """
+    await session.exec(
+        update(UserEmail)
+        .where(UserEmail.email_hash == hash_email(normalize(email)))
+        .values(last_login_at=now or datetime.now(timezone.utc))
+    )
 
 
 def record_address(

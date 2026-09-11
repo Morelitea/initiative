@@ -12,13 +12,9 @@ Nothing reads it yet — the lookup that does lands with it and falls back to
 ``users.email_hash``. The columns on ``users`` stay until that fallback has
 been silent.
 
-**The backfill is the whole risk of this migration.** ``public.users`` is
-FORCE ROW LEVEL SECURITY and a migration runs as the table's owner, so a plain
-``SELECT`` over it is policy-bound and reads nothing — on a fresh install there
-is nothing to carry either, so the statement succeeds and CI is green while
-every existing deployment migrates zero addresses. FORCE is therefore lifted
-for the read and restored in a ``finally``, and the row count is compared
-against ``users`` rather than trusted.
+The backfill reads ``public.users`` with FORCE ROW LEVEL SECURITY lifted for
+the statement and restored in a ``finally``, and compares the number of rows it
+carried against the number of accounts, refusing to continue if the two differ.
 
 Revision ID: 20260911_0261
 Revises: 20260911_0260
@@ -41,9 +37,8 @@ depends_on = None
 _SEQUENCE = "public.user_emails_id_seq"
 
 # Every account's current address becomes its primary. ``verified_at`` carries
-# the flag it had; the timestamp is unknown for anything verified before this
-# table existed, so it stands in as the account's creation time rather than
-# claiming a moment nobody recorded.
+# the flag it had; no timestamp was recorded before this table existed, so the
+# account's creation time stands in rather than a moment nobody wrote down.
 _BACKFILL = """
 INSERT INTO public.user_emails
     (user_id, email_hash, email_encrypted, verified_at, is_primary, source, created_at)
@@ -118,7 +113,7 @@ def upgrade() -> None:
 
 
 def _backfill() -> None:
-    """Carry every account's address across, and prove it happened."""
+    """Carry every account's address across, and check the count."""
     bind = op.get_bind()
     bind.execute(text("ALTER TABLE public.users NO FORCE ROW LEVEL SECURITY"))
     try:

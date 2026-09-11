@@ -121,11 +121,7 @@ async def resolve_oidc_identity(
     # existing account (an unverified match is refused outright).
     if email:
         normalized = email.lower().strip()
-        existing = (
-            await session.exec(
-                select(User).where(User.email_hash == hash_email(normalized))
-            )
-        ).one_or_none()
+        existing = await addresses.find_user_by_address(session, normalized)
         if existing is not None:
             if not email_verified:
                 logger.warning(
@@ -427,13 +423,7 @@ async def _provision(
         #     the synthetic {subject}@oidc.local address is subject-unique, so its
         #     only race is (a).
         if email:
-            matched = (
-                await session.exec(
-                    select(User).where(
-                        User.email_hash == hash_email(email.lower().strip())
-                    )
-                )
-            ).one_or_none()
+            matched = await addresses.find_user_by_address(session, email)
             if matched is not None:
                 outcome = (
                     ResolutionOutcome.EMAIL_MATCH

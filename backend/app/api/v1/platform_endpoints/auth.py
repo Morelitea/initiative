@@ -190,9 +190,9 @@ async def register_user(
         )
 
         normalized_email = user_in.email.lower().strip()
-        statement = select(User).where(User.email_hash == hash_email(normalized_email))
-        existing = await session.exec(statement)
-        if existing.one_or_none():
+        # Address-aware: the address is taken if it reaches ANY account, not
+        # only if it is the one that account was created with.
+        if await addresses.find_user_by_address(session, normalized_email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
@@ -508,6 +508,10 @@ async def login_access_token(
             admin_session, user=user, password=form_data.password
         )
 
+    # Which of the account's addresses was used, for the account page and for
+    # telling an address in use from one nobody has signed in with.
+    await addresses.note_sign_in(admin_session, email=normalized_email)
+
     # The new login model end-to-end (history/auth-detailed-design.md §3): the
     # server-side session is load-bearing — the access token carries sid/amr/sat
     # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
@@ -768,9 +772,7 @@ async def create_device_token(
     Device tokens do not expire and can be used instead of JWT tokens.
     """
     normalized_email = payload.email.lower().strip()
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1662,12 +1664,13 @@ async def confirm_verification(
 @router.post("/password/forgot", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def request_password_reset(
-    request: Request, payload: PasswordResetRequest, session: SessionDep
+    request: Request,
+    payload: PasswordResetRequest,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
-    stmt = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(stmt)
-    user = result.one_or_none()
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
     if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:

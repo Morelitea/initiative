@@ -89,9 +89,9 @@ async def test_an_address_nobody_holds_resolves_to_nobody(session: AsyncSession)
 async def test_an_account_with_no_address_row_still_resolves_and_says_so(
     session: AsyncSession, caplog
 ):
-    """The seatbelt: an account the backfill did not reach signs in on what
-    ``users`` carries, and the log names it so the columns are not dropped
-    while anybody still needs them."""
+    """An account with no row in the address set signs in on what ``users``
+    carries, and the log names it — which is what says whether the columns are
+    still needed."""
     user = await create_user(session, email="stranded@example.com")
     user_id = user.id
     for row in await _addresses(session, user_id):
@@ -209,9 +209,9 @@ async def test_registering_records_the_address(
 async def test_the_backfill_carries_every_account(session: AsyncSession):
     """The statement the migration runs, against rows.
 
-    It has never executed with data anywhere it could be watched: a fresh
-    install has no accounts to carry, which is the whole reason the migration
-    counts what it moved instead of trusting that it ran.
+    A fresh install has no accounts to carry, so this is the only place the
+    statement meets data: what it selects, what it casts, and what each account
+    ends up holding.
     """
     import importlib.util
 
@@ -259,3 +259,82 @@ async def test_the_backfill_carries_every_account(session: AsyncSession):
     # And the addresses resolve through the new table afterwards.
     for address in ("carry-verified@example.com", "carry-unverified@example.com"):
         assert await addresses.find_user_by_address(session, address) is not None
+
+
+@pytest.mark.integration
+async def test_signing_in_stamps_the_address_it_resolved_through(
+    client: AsyncClient, session: AsyncSession
+):
+    """Which address somebody actually uses is the point of keeping several."""
+    user = await create_user(session, email="stamped@example.com")
+    user_id = user.id
+    assert (await _addresses(session, user_id))[0].last_login_at is None
+
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "stamped@example.com", "password": "testpassword123"},
+    )
+    assert response.status_code == 200, response.text
+
+    assert (await _addresses(session, user_id))[0].last_login_at is not None
+
+
+@pytest.mark.integration
+async def test_an_address_is_taken_whichever_account_holds_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Registering against a secondary address of somebody else's account is
+    refused by the duplicate check rather than by the unique constraint."""
+    user = await create_user(session, email="holder@example.com")
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email="also-theirs@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "also-theirs@example.com",
+            "password": "testpassword123",
+            "full_name": "Someone Else",
+            "username": "someoneelse",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "EMAIL_ALREADY_REGISTERED"
+
+
+@pytest.mark.integration
+async def test_a_password_reset_finds_any_of_an_accounts_addresses(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session, email="reset-primary@example.com")
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email="reset-second@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+
+    async def _forgot(email: str) -> int:
+        return (
+            await client.post("/api/v1/auth/password/forgot", json={"email": email})
+        ).status_code
+
+    # An address nobody holds is answered as if it had been sent; one that
+    # reaches an account goes on to actually send. The secondary address has to
+    # land on the same side of that as the primary.
+    assert await _forgot("reset-second@example.com") == await _forgot(
+        "reset-primary@example.com"
+    )
+    assert await _forgot("nobody@example.com") != await _forgot(
+        "reset-primary@example.com"
+    )
