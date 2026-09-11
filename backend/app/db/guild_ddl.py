@@ -42,7 +42,7 @@ from app.db.frozen import (
     freeze_leg,
     frozen_write_triggers,
     frozen_guard_trigger,
-    render_frozen_refuse_fn,
+    render_frozen_ancestor_fn,
     render_frozen_guard_fn,
     render_resource_frozen_fn,
 )
@@ -329,7 +329,7 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + render_frozen_guard_fn()
         + "\n"
-        + render_frozen_refuse_fn()
+        + render_frozen_ancestor_fn()
         + "\n"
         + "\n\n".join(blocks)
     )

@@ -24,9 +24,9 @@ import type { ErrorType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Mark a thing finished with. Idempotent: an already-archived row keeps
- * the stamp it has, so the date means when it was archived, not when it was
- * last asked about.
+ * Mark a thing finished with, and everything inside it. Idempotent: an
+ * already-archived row keeps the stamp it has, so the date means when it was
+ * archived, not when it was last asked about.
  * @summary Archive Entity
  */
 export const archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = (
@@ -119,7 +119,9 @@ export const useArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = <
   );
 };
 /**
- * Take it back out. Idempotent on a live row.
+ * Take it back out, and with it everything that archiving took. Anything
+ * inside that was archived on its own occasion stays archived. Idempotent on a
+ * live row.
  * @summary Unarchive Entity
  */
 export const unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost = (

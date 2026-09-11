@@ -24,9 +24,10 @@ recorded. It is the closest honest answer: nothing wrote down when those rows
 were archived, and inventing ``now()`` would date every one of them to the
 upgrade.
 
-The row guards naming ``is_archived`` in their WHEN clause are dropped so the
-column can go. Provisioning re-renders them from the registry on the next boot,
-which is the ordinary path for a registry change and runs in this same start-up.
+The freeze guards are switched off around the work and back on after it, so a
+guild is never left without them; only the three whose WHEN clause names the
+column being dropped cannot survive it, and those are written again here against
+the new one.
 
 Revision ID: 20260911_0255
 Revises: 20260911_0254
@@ -40,7 +41,7 @@ from typing import Any
 import sqlalchemy as sa
 from alembic import op
 from pglast import ast, parse_sql
-from pglast.enums import NullTestType
+from pglast.enums import A_Expr_Kind, NullTestType
 from pglast.stream import RawStream
 from pglast.visitors import Visitor
 
@@ -85,14 +86,19 @@ _SAVED_FILTERS: tuple[tuple[str, str], ...] = (
     ("dashboards", "config"),
 )
 
-#: Every freeze trigger in a guild schema. They are dropped before this
-#: migration writes anything: they name ``is_archived`` in their WHEN clause or
-#: reach it through ``public.resource_frozen``, and they refuse an ordinary edit
-#: to a row whose initiative is archived — which the saved-filter carry below
-#: would otherwise be. Provisioning re-renders them from the registry on the
-#: next boot, which is the ordinary path for a registry change and runs in this
-#: same start-up.
-_DROP_FREEZE_TRIGGERS = """
+#: Every freeze trigger in a guild schema, switched off and back on around the
+#: work. They refuse an ordinary edit to a row under an archived parent — which
+#: the saved-filter carry below would otherwise be — and they reach
+#: ``is_archived`` through ``public.resource_frozen``, which this migration is
+#: in the middle of invalidating.
+#:
+#: Switched off rather than removed: provisioning re-renders them on the next
+#: boot, but a guild whose re-provisioning failed would be left with no guards
+#: at all, and a guard that is missing is worse than one that is briefly
+#: disabled. Per trigger by name, never ``DISABLE TRIGGER USER`` — the same
+#: tables carry the guild-id, authorship and capture triggers, and those must
+#: keep running.
+_SET_FREEZE_TRIGGERS = """
 DO $$
 DECLARE row record;
 BEGIN
@@ -105,9 +111,19 @@ BEGIN
            AND NOT tg.tgisinternal
            AND tg.tgname LIKE '%_frozen_%'
     LOOP
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', row.trg, row.tbl);
+        EXECUTE format('ALTER TABLE %I {action} TRIGGER %I', row.tbl, row.trg);
     END LOOP;
 END $$;
+"""
+
+#: The row guard, for the three whose WHEN clause names the column being
+#: dropped: they cannot outlive it, so they are dropped and written again here
+#: against the new one. Spelled out rather than rendered from the registry — a
+#: revision has to keep saying the same thing after the renderer moves on.
+_ROW_GUARD = """
+CREATE OR REPLACE TRIGGER tr_{table}_frozen_guard BEFORE UPDATE ON {table}
+    FOR EACH ROW WHEN (OLD.archived_at IS NOT NULL OR OLD.deleted_at IS NOT NULL)
+    EXECUTE FUNCTION public.fn_frozen_row_guard()
 """
 
 
@@ -139,7 +155,15 @@ class _CarryFlagInSql(Visitor):
     """
 
     def visit_A_Expr(self, ancestors: Any, node: Any) -> Any:
-        if node.name and len(node.name) == 1 and node.name[0].sval == "=":
+        # A plain `=` only. `IS DISTINCT FROM` carries the same operator name
+        # and the opposite meaning, and is left to the column rewrite below,
+        # which keeps whatever the author wrote around it.
+        if (
+            node.kind == A_Expr_Kind.AEXPR_OP
+            and node.name
+            and len(node.name) == 1
+            and node.name[0].sval == "="
+        ):
             for side, other in ((node.lexpr, node.rexpr), (node.rexpr, node.lexpr)):
                 if (
                     _names_flag(side)
@@ -233,7 +257,9 @@ def upgrade() -> None:
 
     for schema in guild_schema_names(connection):
         _route(connection, schema)
-        op.execute(_DROP_FREEZE_TRIGGERS)
+        op.execute(_SET_FREEZE_TRIGGERS.format(action="DISABLE"))
+        for table in _CARRYING:
+            op.execute(f"DROP TRIGGER IF EXISTS tr_{table}_frozen_guard ON {table}")
 
         for table in _GAINING_COLUMN:
             op.execute(f"ALTER TABLE {table} ADD COLUMN archived_at timestamptz")
@@ -275,10 +301,11 @@ def upgrade() -> None:
 
         filters_carried += _carry_saved_filters(connection, schema)
 
+        for table in _CARRYING:
+            op.execute(_ROW_GUARD.format(table=table))
+        op.execute(_SET_FREEZE_TRIGGERS.format(action="ENABLE"))
+
     connection.execute(sa.text("SET LOCAL search_path = public"))
-    # Renamed: it refuses a delete on a row's own state now as well as on its
-    # ancestry. Nothing calls the old name once the triggers above are gone.
-    op.execute("DROP FUNCTION IF EXISTS public.fn_frozen_ancestor_guard()")
     logger.info(
         "archive flags carried onto archived_at: %s row(s); "
         "saved filters rewritten: %s",
@@ -293,7 +320,7 @@ def downgrade() -> None:
     for schema in guild_schema_names(connection):
         _route(connection, schema)
 
-        op.execute(_DROP_FREEZE_TRIGGERS)
+        op.execute(_SET_FREEZE_TRIGGERS.format(action="DISABLE"))
 
         for table in _CARRYING:
             op.execute(
@@ -319,5 +346,6 @@ def downgrade() -> None:
             "CREATE INDEX IF NOT EXISTS idx_tasks_project_archived "
             "ON tasks (project_id, is_archived)"
         )
+        op.execute(_SET_FREEZE_TRIGGERS.format(action="ENABLE"))
 
     connection.execute(sa.text("SET LOCAL search_path = public"))

@@ -298,21 +298,23 @@ def render_resource_frozen_fn() -> str:
     return _RESOURCE_FROZEN_TEMPLATE.format(arms="\n".join(arms), purging=_PURGING)
 
 
-def render_frozen_refuse_fn() -> str:
-    """``public.fn_frozen_refuse()`` — says no, and nothing else.
+def render_frozen_ancestor_fn() -> str:
+    """``public.fn_frozen_ancestor_guard()`` — says no, and nothing else.
 
     The decision is in each trigger's ``WHEN`` clause, rendered per table from
     the same declaration the policies use, so this stays one function for every
-    table and every reason.
+    table and both reasons — a frozen ancestry, and a row's own frozen state on
+    a delete. It keeps the name it was created under: the triggers that call it
+    depend on it, so renaming it would mean dropping and rebuilding every one.
     """
     return f"""
-CREATE OR REPLACE FUNCTION public.fn_frozen_refuse() RETURNS trigger
-    LANGUAGE plpgsql AS $frozen_refuse$
+CREATE OR REPLACE FUNCTION public.fn_frozen_ancestor_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $frozen_ancestor$
 BEGIN
     RAISE EXCEPTION 'archived or trashed content is read-only'
         USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
 END;
-$frozen_refuse$;
+$frozen_ancestor$;
 """
 
 
@@ -345,7 +347,7 @@ def frozen_write_triggers(table: str) -> list[str]:
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_delete "
             f"BEFORE DELETE ON {table} FOR EACH ROW "
             f"WHEN (({own}) AND NOT ({trashed})) "
-            f"EXECUTE FUNCTION public.fn_frozen_refuse()"
+            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
         )
         moving_into = freeze_leg(table, "UPDATE", alias="NEW")
         if moving_into is not None:
@@ -370,7 +372,7 @@ def frozen_write_triggers(table: str) -> list[str]:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
             f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({doomed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_refuse()"
+            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
         )
     return out
 
