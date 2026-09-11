@@ -32,6 +32,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
+from app.db import bootstrap
 from app.db import session as db_session
 
 logger = logging.getLogger(__name__)
@@ -675,7 +676,8 @@ async def warn_if_privileged_database_url() -> None:
 
 
 SEARCH_OPCLASS = "tsvector_search_ops"
-SEARCH_MATCH_FUNCTION = "search_tsmatch"
+#: Re-exported from the module that installs it, so the name has one home.
+SEARCH_MATCH_FUNCTION = bootstrap.SEARCH_MATCH_FUNCTION
 
 _SEARCH_OPERATOR_SQL = text(
     "SELECT "
