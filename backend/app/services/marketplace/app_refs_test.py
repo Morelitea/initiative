@@ -263,13 +263,13 @@ class TestRemoval:
         assert await resolve_app_ref(session, ref=kept, guild_id=there.id) is not None
 
     @pytest.mark.integration
-    async def test_deleting_a_guild_through_the_service_removes_them(self, session):
-        """Through ``delete_guild``, not the helper it calls.
+    async def test_the_deletion_sequence_its_callers_follow(self, session):
+        """Delete, commit, then drop — the order `delete_guild` documents.
 
-        Guild deletion reaches this from three call sites holding three
-        different sessions — one of them routed into the guild role being
-        deleted, which holds nothing on ``identity_refs``. The cleanup opens
-        its own session so it does not depend on which one it was handed.
+        The references are on a different connection and cannot join the
+        deletion's transaction, so they go after the commit that made it real.
+        A guild whose deletion then failed still holds the identities its apps
+        know its members by.
         """
         from app.services.platform import guilds as guilds_service
 
@@ -278,15 +278,19 @@ class TestRemoval:
         app = await _install(session, guild, user)
         await session.commit()
 
+        guild_id = guild.id
         ref = await ensure_app_ref(
-            guild_id=guild.id, app_install_id=app.id, user_id=user.id
+            guild_id=guild_id, app_install_id=app.id, user_id=user.id
         )
-        assert await resolve_app_ref(session, ref=ref, guild_id=guild.id) is not None
-
         await guilds_service.delete_guild(session, guild)
-        await session.commit()
 
-        assert await resolve_app_ref(session, ref=ref, guild_id=guild.id) is None
+        # Still resolvable until the deletion is committed.
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild_id) is not None
+
+        await session.commit()
+        await drop_guild_app_refs(guild_id=guild_id)
+
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild_id) is None
 
     @pytest.mark.unit
     def test_the_grace_window_is_the_shared_one(self):

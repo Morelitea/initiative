@@ -1,9 +1,11 @@
 import logging
+from contextlib import suppress
 from typing import Annotated, List, Optional, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
@@ -48,6 +50,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -898,6 +901,10 @@ async def admin_delete_guild(
     # Mirrors the member-facing DELETE /guilds/{id} endpoint.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    # See delete_guild: these live on another connection, so they go after the
+    # commit that made the deletion real.
+    with suppress(SQLAlchemyError):
+        await app_refs.drop_guild_app_refs(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:
