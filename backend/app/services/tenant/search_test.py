@@ -76,7 +76,7 @@ async def test_the_owner_does_get_the_hit(session, acting_user):
 
 async def test_a_guild_admin_is_not_narrowed_by_sharing(session, acting_user):
     """A guild admin reaches every aspect of their guild, so the clause is the
-    one ``dac_scope_clause`` already collapses to true."""
+    one the sharing gate already collapses to true."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(
         guild_role=GuildRole.admin,

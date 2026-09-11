@@ -2,11 +2,15 @@
 
 Initiative scoping has **one** definition: the ``public.initiative_access`` SQL
 function (initiative member OR guild admin OR PAM grant, read from the request
-GUCs). The guild-schema RLS policies call it as the fail-closed DB backstop, and
-``initiative_scope_clause`` here calls the *same* function so app-built queries
-use the identical rule — no parallel re-implementation. This module also provides
-the guild/initiative-membership batch lookups (resolve membership for many users
-or initiatives in one round trip instead of a per-user loop).
+GUCs). The guild-schema RLS policies call it, and ``initiative_scope_clause``
+here calls the *same* function — for the tables the policies deliberately do
+not cover, which is the structural initiative set (``initiatives`` itself and
+its roster): those are guild-scoped by the schema boundary, so this clause is
+their only scope gate rather than a second opinion on one.
+
+This module also provides the guild/initiative-membership batch lookups
+(resolve membership for many users or initiatives in one round trip instead of
+a per-user loop).
 
 Routing contract:
   - ``guild_memberships`` is a shared/public table — the guild helpers work on
@@ -17,15 +21,12 @@ Routing contract:
     query.
 """
 
-from typing import Any, Collection, Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import has_active_grant
-from app.core.role_context import is_request_guild_admin
 from app.models.platform.guild import GuildMembership, GuildRole
-from app.models.platform.user import User
 from app.models.tenant.initiative import InitiativeMember
 
 
@@ -92,35 +93,6 @@ def initiative_scope_clause(
 #: Distinguishes "this row has no initiative_id column" from "its initiative_id
 #: is NULL". Only the second means guild scope.
 NO_SCOPE_COLUMN = object()
-
-
-def initiative_scope_ok(
-    entity: Any,
-    user: User,
-    *,
-    guild_role: GuildRole | str | None = None,
-) -> bool:
-    """Sync counterpart of :func:`initiative_scope_clause` for single entities
-    whose ``initiative.memberships`` are already eagerly loaded — gate 2, not
-    the per-resource sharing gate, which is ``permissions.dac_scope_clause``.
-
-    Resolves the same legs as ``public.initiative_access``, in the same order, so
-    the app-layer answer and the policy's agree.
-    """
-    # A row that names no initiative is guild-level, and this check has nothing
-    # to decide about it — the branch `public.initiative_access` takes too.
-    if getattr(entity, "initiative_id", NO_SCOPE_COLUMN) is None:
-        return True
-    initiative = getattr(entity, "initiative", None)
-    memberships = (
-        getattr(initiative, "memberships", None) if initiative is not None else None
-    ) or []
-    if any(m.user_id == user.id for m in memberships):
-        return True
-    guild_id = getattr(entity, "guild_id", None)
-    if guild_id is not None and has_active_grant(guild_id):
-        return True
-    return is_request_guild_admin(guild_id, guild_role=guild_role)
 
 
 def member_initiative_ids_select(user_id: int):

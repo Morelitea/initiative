@@ -42,7 +42,6 @@ from app.models.tenant.queue import (
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.initiative import (
     Initiative,
-    PermissionKey,
 )
 from app.models.platform.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
@@ -71,7 +70,6 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.schemas.tenant.tag import TagSetRequest
-from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -144,30 +142,6 @@ async def _get_initiative_for_queue(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_initiative_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-    permission_key: PermissionKey,
-) -> None:
-    """Check initiative role permission, raise 403 if denied."""
-    # Guild admins bypass initiative permissions
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=permission_key,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 async def _get_queue_with_access(
@@ -428,12 +402,8 @@ async def create_queue(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=QueueMessages.FEATURE_DISABLED,
         )
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_queues,
+    await resource_access.require_create(
+        session, Tool.queue, initiative, current_user, guild_context
     )
 
     queue = Queue(

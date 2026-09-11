@@ -508,9 +508,10 @@ def _visible_project_conditions(
 
     ``archived``/``template``/``search``/``initiative_id`` are pushed into SQL
     (mirroring the old ``_matches_filters``: ``None`` means "exclude" for the
-    boolean flags, and "every initiative" for the initiative). ``dac_scope_clause``
-    supplies the sharing gate — it resolves to a no-op for a request that reaches
-    the whole guild, so there is nothing to branch on here.
+    boolean flags, and "every initiative" for the initiative). The projects
+    table carries its own sharing gate, so ``listing_scope_clause`` adds only
+    what a list spanning initiatives needs and there is nothing to branch on
+    here.
     """
     conditions = [
         Initiative.guild_id == guild_id,

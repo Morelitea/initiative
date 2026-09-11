@@ -2,12 +2,18 @@
 
 The authorization decision is a query, not a check. For every subscription the
 poller routes a session **as that subscription's owner** and reads the outbox
-through it — so ``event_outbox``'s own initiative-member RLS returns exactly the
-events that owner may currently see, and nothing here re-implements the six
-gates. A guild-wide subscription therefore means "everything in this guild I can
-reach", and it stays true as membership changes: leaving an initiative, losing a
-PAM grant, or being deactivated all stop the matching deliveries on the next
-pass with no subscription edit and no cache to invalidate.
+through it, so ``event_outbox``'s own RLS decides the batch and nothing here
+re-implements it. A guild-wide subscription therefore means "everything in this
+guild I belong to", and it stays true as membership changes: leaving an
+initiative, losing a PAM grant, or being deactivated all stop the matching
+deliveries on the next pass with no subscription edit and no cache to
+invalidate.
+
+What the log is scoped by is the initiative, not per-resource sharing: the
+change log is no tool's own table, so it carries the membership gate and not
+the sharing one. An envelope is identifiers and changed column names, and a
+consumer reads current state back through the REST path, where sharing decides
+the read.
 
 ``initiative_id`` on the subscription is a narrowing filter on top of that, never
 a widening one.
@@ -267,10 +273,11 @@ async def _drain_subscription(
     """Deliver one subscription's pending transactions, as its owner.
 
     The session is routed to the subscription's guild with the OWNER's user id,
-    so every outbox read is gated by that owner's access. ``satisfied_providers``
-    is the system sentinel: a background pass has no login to satisfy a guild's
-    auth policy with, and that leg is about how a person authenticated, not about
-    what this owner may reach. Every other gate applies unchanged.
+    so the outbox read is gated by that owner's membership (see the module
+    docstring for what that covers). ``satisfied_providers`` is the system
+    sentinel: a background pass has no login to satisfy a guild's auth policy
+    with, and that leg is about how a person authenticated, not about what this
+    owner may reach.
     """
     await set_rls_context(
         session,

@@ -317,26 +317,26 @@ async def _load_parent(
 
 async def _shares_resource(
     session: AsyncSession,
-    tool: Tool,
     id_col: ColumnElement[int],
     *,
     resource_id: int,
-    user_id: int,
-    guild_id: int,
-    access: str,
 ) -> bool:
-    """Whether the sharing gate lets this request reach one resource by id.
+    """Whether this request can reach one resource by id.
 
-    The id is already known, so this asks the gate directly rather than loading
-    the row and its grants to run the engine over them.
+    Selecting the id IS the question. The resource's own table carries the
+    sharing gate, so a row the request may not reach does not come back, and
+    the id is already known — loading the row with its grants to run the engine
+    over them would ask what the lookup has just answered.
+
+    Asked at read whatever the caller is doing, which is what the comment
+    tables themselves ask: ``DAC_WRITE_COMMANDS`` puts ``comments`` in the
+    responding set, so every command on a thread is gated by whether the
+    parent is reachable, not by whether it is editable. You may answer a notice
+    you cannot rewrite.
     """
-    stmt = select(id_col).where(
-        id_col == resource_id,
-        permissions_service.dac_scope_clause(
-            tool, id_col, user_id, guild_id=guild_id, access=access
-        ),
-    )
-    return (await session.exec(stmt)).first() is not None
+    return (
+        await session.exec(select(id_col).where(id_col == resource_id))
+    ).first() is not None
 
 
 async def _ensure_parent_access(
@@ -358,7 +358,7 @@ async def _ensure_parent_access(
     belongs to the task, so a project with comments off still has task threads.
     """
     if ctx.task is not None:
-        anchor_tool, anchor_model, anchor_row = Tool.project, Project, ctx.project
+        anchor_model, anchor_row = Project, ctx.project
     else:
         target = TOOL_COMMENT_TARGETS[cast(Tool, ctx.tool)]
         initiative = getattr(ctx.resource, "initiative", None)
@@ -370,7 +370,7 @@ async def _ensure_parent_access(
             raise CommentPermissionError(target.feature_disabled)
         if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
-        anchor_tool, anchor_model, anchor_row = target.tool, target.model, ctx.resource
+        anchor_model, anchor_row = target.model, ctx.resource
         # A parent that has not gone up yet has no thread to join: a scheduled
         # post is a draft, and reading or writing its comments would say it
         # exists. Asked before the sharing decision below, because the answer
@@ -385,12 +385,8 @@ async def _ensure_parent_access(
         return
     if await _shares_resource(
         session,
-        anchor_tool,
         anchor_model.id,  # type: ignore[attr-defined]
         resource_id=cast(int, anchor_row.id),
-        user_id=cast(int, user.id),
-        guild_id=guild_id,
-        access=access,
     ):
         return
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
