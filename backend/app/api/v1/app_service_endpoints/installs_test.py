@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
@@ -379,6 +379,44 @@ class TestConfigChannel:
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
         assert GUILD_TOKEN not in response.text
+
+    async def test_a_reference_outliving_its_install_does_not_reach_the_next_one(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A guild that removes this app and adds it again holds a new install.
+
+        The reference the app was given names the first one, and the sector is
+        what makes it name an install rather than a guild — so it stops
+        resolving to anything when that install is replaced, even though the
+        app, the guild and the listing are all the same.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, user, app = await _install(session, with_values=True)
+        stale = await _ref(guild, app)
+
+        # Removed and installed again: the same app, in the same guild, at a
+        # new install.
+        await route_session_to_guild(session, guild.id)
+        await session.exec(delete(GuildApp).where(GuildApp.id == app.id))
+        await session.commit()
+        replacement = await create_guild_app(
+            session,
+            guild,
+            user,
+            definition=_definition(),
+            listing_uid=SHOP_UID,
+        )
+        assert replacement.id != app.id
+
+        refused = await _get(client, f"{BASE}/installs/{stale}/config")
+        assert refused.status_code == 404
+        assert refused.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
+
+        # And the replacement answers to its own reference.
+        current = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, replacement)}/config"
+        )
+        assert current.status_code == 200, current.text
 
     async def test_a_guild_that_never_installed_is_the_same_answer(
         self, client: AsyncClient, session: AsyncSession

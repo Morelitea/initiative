@@ -220,14 +220,22 @@ async def load_install(
     registration: AppServiceRegistration,
     guild_id: int,
     *,
+    app_install_id: int,
     for_write: bool = False,
 ) -> GuildApp:
     """The calling app's install in one guild, with the session routed to it.
 
+    ``app_install_id`` is the install the caller's reference named, and the one
+    found here has to be it. A guild that removed this app and added it again
+    holds a different install, and a reference minted against the first names
+    only the first — so the check is what keeps the reference specific rather
+    than standing for whatever this app's install in that guild happens to be.
+
     Everything that is not this app's install answers the same way — a guild
     that does not exist, one that is suspended, one that never installed the
-    app, and one that installed a different app are one refusal, because the
-    caller is entitled to distinguish none of them.
+    app, one that installed a different app, and one whose install has been
+    replaced are one refusal, because the caller is entitled to distinguish
+    none of them.
 
     ``for_write`` refuses a guild the operator has frozen, so a write is turned
     away with a reason rather than failing against a read-only database role.
@@ -250,6 +258,8 @@ async def load_install(
         )
     ).first()
     if app is None or not owns_install(app, registration):
+        raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
+    if app.id != app_install_id:
         raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
     if not app.enabled:
         # The guild's own kill switch, beside the operator's: the install stays

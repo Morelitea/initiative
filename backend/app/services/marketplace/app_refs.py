@@ -100,11 +100,16 @@ async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
     return ref
 
 
-async def resolve_app_guild_ref(*, ref: str) -> int | None:
-    """Which guild a guild reference names, or None.
+async def resolve_app_guild_ref(*, ref: str) -> tuple[int, int] | None:
+    """Which guild **and which install** a guild reference names, or None.
 
     The inverse of ``ensure_app_guild_ref``, for a token that names its guild by
     reference. Opens its own session: the caller at this point holds none.
+
+    Both halves are returned because the sector is the install, so both are part
+    of what the reference says. A value minted for one install names that
+    install and no later one in the same guild — the sector is what makes the
+    reference specific, and dropping it would widen it to the guild.
     """
     async with db_session.AdminSessionLocal() as session:
         row = await identity_refs.resolve_ref(session, ref=ref)
@@ -112,7 +117,9 @@ async def resolve_app_guild_ref(*, ref: str) -> int | None:
         return None
     if row.purpose != _PURPOSE or row.entity_type != IdentityEntity.guild:
         return None
-    return row.entity_id
+    if row.sector_guild_id != row.entity_id or row.sector_id is None:
+        return None
+    return row.entity_id, row.sector_id
 
 
 async def resolve_app_ref(

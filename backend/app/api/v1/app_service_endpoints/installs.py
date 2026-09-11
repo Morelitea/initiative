@@ -93,9 +93,9 @@ async def read_install_config(
     access ended stops being able to pull at that moment.
     """
     try:
-        guild_id = await _resolve_guild(guild_ref)
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         payload = await channels_service.config_payload(session, app)
     except AppChannelError as exc:
@@ -114,9 +114,9 @@ async def list_install_connections(
     value to do it, and this route has none to give.
     """
     try:
-        guild_id = await _resolve_guild(guild_ref)
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         rows = await channels_service.connection_payload(session, app)
     except AppChannelError as exc:
@@ -133,20 +133,21 @@ SubjectParam = Annotated[str, Query(min_length=1, max_length=REF_MAX_LENGTH)]
 ConnectionParam = Annotated[Optional[str], Query(max_length=CONNECTION_ID_LENGTH)]
 
 
-async def _resolve_guild(guild_ref: str) -> int:
-    """The guild this install's reference names.
+async def _resolve_install(guild_ref: str) -> tuple[int, int]:
+    """The guild and the install this reference names.
 
     An app knows the guild by the reference minted for its own install, so
-    every route below crosses this edge first and works on the id after it. A
-    reference that is not this install's own answers the same 404 as one that
-    names nothing.
+    every route below crosses this edge first and works on the ids after it.
+    Both halves travel on, because a reference names one install rather than a
+    guild: the install it names is checked against the one that is loaded, so a
+    value minted before a reinstall does not address what replaced it.
     """
-    guild_id = await app_refs.resolve_app_guild_ref(ref=guild_ref)
-    if guild_id is None:
+    resolved = await app_refs.resolve_app_guild_ref(ref=guild_ref)
+    if resolved is None:
         raise to_http(
             AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
         )
-    return guild_id
+    return resolved
 
 
 async def _delegated_member(guild_id: int, delegate: str, subject: str) -> int:
@@ -208,9 +209,9 @@ async def resolve_delegated_connection(
     asking after.
     """
     try:
-        guild_id = await _resolve_guild(guild_ref)
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         user_id = await _delegated_member(guild_id, delegate, subject)
         row = await channels_service.connection_for_member(
@@ -244,9 +245,13 @@ async def write_install_connection(
     """
     payload = parse_body(request, AppConnectionWrite)
     try:
-        guild_id = await _resolve_guild(guild_ref)
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id, for_write=True
+            session,
+            caller.registration,
+            guild_id,
+            app_install_id=install_id,
+            for_write=True,
         )
         row = await channels_service.write_connection_values(
             session,
@@ -278,9 +283,13 @@ async def report_install_status(
     """
     payload = parse_body(request, AppStatusReport)
     try:
-        guild_id = await _resolve_guild(guild_ref)
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id, for_write=True
+            session,
+            caller.registration,
+            guild_id,
+            app_install_id=install_id,
+            for_write=True,
         )
         result = await channels_service.report_config_state(
             session, app, state=payload.state, detail=payload.detail
