@@ -329,3 +329,24 @@ async def test_an_edge_a_body_makes_is_marked_as_nobody_s_assertion(
     assert row.created_by == a.user.id, (
         "whoever saved the content is the honest attributor for what it says"
     )
+
+
+@pytest.mark.integration
+async def test_saving_the_same_body_twice_changes_nothing(session, acting_user):
+    """Two saves racing on the same new mention each read no edge and each go
+    on to write it, and the second arriving is the answer being already
+    correct."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_document(session, a.initiative, a.user)
+    anchor = Endpoint(DOCUMENT, doc.id)
+    body = _doc(_wikilink(other.id))
+
+    await content_references.sync_for_entity(
+        session, anchor, body=body, author_id=a.user.id
+    )
+    await content_references.sync_for_entity(
+        session, anchor, body=body, author_id=a.user.id
+    )
+
+    assert await _references(session, anchor) == {("document", other.id)}

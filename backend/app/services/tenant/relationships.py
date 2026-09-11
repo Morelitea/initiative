@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Literal, Sequence
 
 from sqlalchemy import text, union_all
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -126,6 +127,63 @@ async def create(
     session.add(row)
     await session.flush()
     return row
+
+
+async def create_many(
+    session: AsyncSession,
+    *,
+    source: Endpoint,
+    relationship_type: RelationshipType,
+    targets: Sequence[Endpoint],
+    provenance: Provenance,
+    created_by: int | None = None,
+) -> None:
+    """Record several edges from one thing, skipping any already there.
+
+    One statement, and the database decides what is new: two people saving at
+    the same moment can each read no edge and each go on to write it, and the
+    second one arriving is the answer being already correct rather than a
+    failure. :func:`create` answers one at a time and reports the clash, which
+    is what a person making a link by hand needs to be told.
+
+    Self-loops are dropped rather than refused, for the same reason: a body
+    naming its own page is ordinary.
+    """
+    rows = [
+        {
+            "source_type": source.kind.value,
+            "source_id": source.id,
+            "relationship_type": relationship_type.value,
+            "target_type": target.kind.value,
+            "target_id": target.id,
+            "provenance": provenance.value,
+            "created_at": datetime.now(timezone.utc),
+            "created_by": created_by,
+        }
+        for target in _ordered_many(source, relationship_type, targets)
+    ]
+    if not rows:
+        return
+    await session.exec(
+        pg_insert(EntityRelationship).values(rows).on_conflict_do_nothing()
+    )
+    await session.flush()
+
+
+def _ordered_many(
+    source: Endpoint, relationship_type: RelationshipType, targets: Sequence[Endpoint]
+) -> list[Endpoint]:
+    """The far ends worth writing — everything but the source itself.
+
+    A symmetric relation has no source to keep, so this is only for the
+    directional ones; :func:`create` is the door a symmetric edge comes through.
+    """
+    if is_symmetric(relationship_type):
+        raise ValueError(
+            f"{relationship_type.value} is stored in node-id order, so a batch "
+            "from one source is not how it is written"
+        )
+    return [target for target in targets if target.node != source.node]
 
 
 async def find(
@@ -503,6 +561,7 @@ __all__ = [
     "SelfLoop",
     "Related",
     "create",
+    "create_many",
     "find",
     "list_for_entity",
     "purge_for_entities",

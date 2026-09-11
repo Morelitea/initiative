@@ -162,6 +162,9 @@ def _rebuild_links() -> None:
     if restore_destination:
         op.execute("ALTER TABLE relationships NO FORCE ROW LEVEL SECURITY")
     try:
+        # The author stamp comes from the same shared function every other
+        # guild-content table's does, so a rebuilt junction records who saved
+        # the content the way the revision being returned to expects.
         op.execute("""
             CREATE TABLE IF NOT EXISTS document_links (
                 source_document_id integer NOT NULL REFERENCES documents(id),
@@ -172,6 +175,11 @@ def _rebuild_links() -> None:
                 PRIMARY KEY (source_document_id, target_document_id)
             )
         """)
+        op.execute(
+            "CREATE OR REPLACE TRIGGER tr_document_links_set_created_by "
+            "BEFORE INSERT ON document_links "
+            "FOR EACH ROW EXECUTE FUNCTION public.fn_set_created_by()"
+        )
         op.execute("""
             INSERT INTO document_links (
                 source_document_id, target_document_id,

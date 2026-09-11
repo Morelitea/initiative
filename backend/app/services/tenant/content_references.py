@@ -230,14 +230,16 @@ async def _reconcile(
                 session, row, removed_by=author_id, tombstone=False
             )
 
-    for kind, entity_id in sorted(
-        wanted - set(have), key=lambda pair: (pair[0].value, pair[1])
-    ):
-        await relationships_service.create(
-            session,
-            source=entity,
-            relationship_type=RelationshipType.references,
-            target=Endpoint(kind, entity_id),
-            provenance=Provenance.content,
-            created_by=author_id,
-        )
+    await relationships_service.create_many(
+        session,
+        source=entity,
+        relationship_type=RelationshipType.references,
+        targets=[
+            Endpoint(kind, entity_id)
+            for kind, entity_id in sorted(
+                wanted - set(have), key=lambda pair: (pair[0].value, pair[1])
+            )
+        ],
+        provenance=Provenance.content,
+        created_by=author_id,
+    )

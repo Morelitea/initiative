@@ -445,7 +445,9 @@ export const useUpdateDocument = (
         getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
         updated
       );
-      void invalidate(q.allDocuments());
+      // A save rewrites what the body refers to, which is what the other end's
+      // "linked from" panel is reading.
+      void invalidate(q.allDocuments(), q.relationships());
       onSuccess?.(...args);
     },
     onError: (...args) => {
