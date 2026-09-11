@@ -585,6 +585,22 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
             ),
             "an endpoint namespaced under another app",
         ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
+                guild_summary="app.acme.tracker.absent",
+            ),
+            "a guild summary naming an endpoint that does not exist",
+        ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.acme.tracker.told", "direction": "emit"}],
+                guild_summary="app.acme.tracker.told",
+            ),
+            "a guild summary naming an endpoint that is not a read",
+        ),
     ],
 )
 def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):

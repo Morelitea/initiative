@@ -24,6 +24,8 @@ from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
 from app.db.session import get_admin_session, set_billing_context
 from app.schemas.platform.billing import (
+    BillingGuildNameRead,
+    BillingGuildNameRequest,
     BillingGuildTierApply,
     BillingGuildTierRead,
     BillingUsageRead,
@@ -153,6 +155,32 @@ async def apply_guild_tier(
         ) from exc
     await session.commit()
     return result
+
+
+@router.post("/guild-name", response_model=BillingGuildNameRead)
+async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameRead:
+    """Signed read: what one guild calls itself.
+
+    For rendering. A reference is unreadable on purpose, so a page about
+    somebody's own community would otherwise have nothing to title itself with.
+
+    Envelope-verified and jti-burned like the other reads. A guild that has been
+    deleted 404s with the jti unredeemed, so the call stays retryable while it
+    is the caller's timing rather than their credential that is wrong.
+    """
+    claims, payload = await _verify_and_parse(request, BillingGuildNameRequest)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_billing_context(session, guild_id=guild_id)
+    await _burn_jti(session, claims)
+
+    name = await billing_service.guild_display_name(session, guild_id)
+    if name is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        )
+    await session.commit()  # persist the one-shot jti redemption
+    return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
 
 
 @router.post("/usage", response_model=BillingUsageRead)

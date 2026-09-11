@@ -40,6 +40,7 @@ __all__ = [
     "drop_entity_refs",
     "drop_sector_refs",
     "ensure_ref",
+    "existing_ref",
     "mint_ref",
     "purge_orphaned_sector_refs",
     "purge_retired_refs",
@@ -163,6 +164,34 @@ async def billing_guild_ref(*, guild_id: int) -> str:
         )
         await session.commit()
     return ref
+
+
+async def existing_ref(
+    *,
+    entity_type: IdentityEntity,
+    entity_id: int,
+    purpose: IdentityPurpose,
+    sector_guild_id: int | None = None,
+    sector_id: int | None = None,
+) -> str | None:
+    """This entity's live reference for one sector, or None if it has none.
+
+    :func:`ensure_ref` for a caller that must not mint. Reporting which entity
+    a sector already names is one thing; letting a party outside that sector
+    create a row in it is another, and a reference that does not exist is an
+    answer rather than a gap to fill.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        row = await _live_ref(
+            session,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            purpose=purpose,
+            sector=(sector_guild_id, sector_id),
+        )
+    return None if row is None else row.ref
 
 
 async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
