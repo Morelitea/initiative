@@ -124,6 +124,9 @@ async def exchange_for_app(
         "exp": int((now + DELEGATION_EXCHANGE_LIFETIME).timestamp()),
         "sub": subject,
         "guild_ref": guild_ref,
+        # The target's own install, the same claim a context token carries, so
+        # an app reads a delegated call and a platform call the same way.
+        "app_install_id": install.id,
         # Who is acting, as RFC 8693 records it. The target decides what it
         # offers this delegate; this says only who asked.
         "act": {"public_id": delegate_public_id},

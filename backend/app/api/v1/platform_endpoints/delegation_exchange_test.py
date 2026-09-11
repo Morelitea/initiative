@@ -113,6 +113,7 @@ async def test_the_token_names_the_pair_in_the_targets_terms(
     assert claims["guild_ref"] == await ensure_app_guild_ref(
         guild_id=guild.id, app_install_id=target.id
     )
+    assert claims["app_install_id"] == target.id
     # Who asked, as RFC 8693 records it.
     assert claims["act"] == {"public_id": DELEGATE_PUBLIC_ID}
     assert claims["jti"]
@@ -131,7 +132,7 @@ async def test_nothing_the_delegate_holds_travels_on(
     assert claims["guild_ref"] != delegates_guild_ref
     assert claims["sub"] != subject
     # And no row id of ours is in there at all.
-    assert "guild_id" not in claims and "app_install_id" not in claims
+    assert "guild_id" not in claims
 
 
 async def test_an_audience_this_deployment_does_not_run_is_refused(
