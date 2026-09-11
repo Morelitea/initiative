@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.2] - 2026-09-11
+
 ### Added
 
 - **A document has a contents list** — a long page is easier to move around than to scroll, so every document now offers one: a panel listing its headings, nested the way they are written, that scrolls the page to a heading when you pick one and marks the one you are reading as you go. Sections with headings under them fold away, and a document that starts at a second-level heading is laid out from there rather than from an indent nobody wrote. It is closed until you open it, and then it stays open. Beside the document on a desktop; on a phone it takes the page over while it is open, because a column that narrow would be worse than no list at all.
