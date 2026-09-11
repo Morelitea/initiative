@@ -17,6 +17,7 @@ from app.services.tenant.collaboration import (
     CollaborationManager,
     DocumentRoom,
     room_roster,
+    user_has_connection,
 )
 
 
@@ -362,3 +363,96 @@ def _an_update() -> bytes:
     doc["cells"] = Map()
     doc["cells"]["A1"] = "value"
     return bytes(doc.get_update())
+
+
+@pytest.mark.unit
+async def test_a_person_is_still_here_while_one_of_their_tabs_remains(
+    authority,
+) -> None:
+    authority.add(1, 5, member(7))
+
+    assert user_has_connection(1, 5, 7) is True
+    assert user_has_connection(1, 5, 9) is False
+
+
+@pytest.mark.unit
+async def test_a_room_being_joined_is_not_retired(authority) -> None:
+    """A connection is handed its room before it reaches the register.
+
+    The room is held across that gap, so the last connection leaving during it
+    retires nothing.
+    """
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.hold()
+
+    await manager.remove_room(1, 5)
+    assert manager.get_room(1, 5) is room
+    assert await manager.invalidate_room_if_empty(1, 5) is False
+
+    room.release()
+    await manager.remove_room(1, 5)
+    assert manager.get_room(1, 5) is None
+
+
+@pytest.mark.unit
+async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> None:
+    """External invalidation holds the same line as retirement."""
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+
+    assert await manager.invalidate_room_if_empty(1, 5) is False
+    assert manager.get_room(1, 5) is room
+
+
+@pytest.mark.unit
+async def test_only_the_tab_that_last_moved_the_document_sets_its_content() -> None:
+    """A rendering is current only if it came from the tab that last typed."""
+    room = loaded_room(1, 5)
+    tab_a, tab_b = object(), object()
+    room.apply_update(_an_update(), connection=tab_a)
+
+    assert room.offer_content({"root": "as tab b saw it"}, connection=tab_b) is False
+    assert room.offer_content({"root": "as tab a saw it"}, connection=tab_a) is True
+    assert room.snapshot()[2] == {"root": "as tab a saw it"}
+
+
+@pytest.mark.unit
+async def test_two_writes_of_one_room_do_not_interleave() -> None:
+    """A sweep and a disconnect can reach one room together.
+
+    They take the room's write lock in turn, so the row ends up holding the
+    later snapshot rather than whichever commit returns last.
+    """
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+
+    concurrent: list[int] = []
+    active = {"n": 0}
+
+    class SlowWriteSession:
+        async def exec(self, _statement):
+            active["n"] += 1
+            concurrent.append(active["n"])
+            await asyncio.sleep(0.02)
+            active["n"] -= 1
+            return FakeExecResult(1)
+
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+    await asyncio.gather(
+        manager.persist_room(1, 5, SlowWriteSession()),
+        manager.persist_room(1, 5, SlowWriteSession()),
+    )
+
+    assert max(concurrent) == 1
+    assert room.is_dirty is False

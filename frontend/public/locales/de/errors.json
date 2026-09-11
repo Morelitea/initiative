@@ -600,5 +600,6 @@
   "GALLERY_VERSION_NOT_FOUND": "Diese Version gibt es nicht mehr",
   "GALLERY_CANNOT_DELETE_LAST_VERSION": "Ein Bild behält mindestens eine Version – entferne stattdessen das Bild",
   "GALLERY_VERSION_CONFLICT": "Jemand anderes hat im selben Moment eine Version hochgeladen – versuche es erneut",
-  "GALLERY_COVER_NOT_IN_GALLERY": "Das Titelbild muss eines der Bilder dieser Galerie sein"
+  "GALLERY_COVER_NOT_IN_GALLERY": "Das Titelbild muss eines der Bilder dieser Galerie sein",
+  "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Dieses Dokument wird gerade gemeinsam bearbeitet. Stelle die Verbindung zur Bearbeitungssitzung wieder her, um deine Änderungen zu speichern."
 }

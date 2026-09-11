@@ -99,7 +99,10 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import (
+    collaboration_manager,
+    user_has_connection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1479,14 +1482,24 @@ async def update_document(
     content_updated = False
     # A document with a live collaboration room has that room as the writer of
     # both its views — it saves ``content`` and ``yjs_state`` from one snapshot,
-    # on an interval and at teardown. A content field arriving here beside it is
-    # one editor's idea of the document, which is what the room is there to
-    # reconcile, so it is left to the room. Everything else in the patch (the
-    # name, the featured image) is unrelated to that and still applies.
+    # on an interval and at teardown. Everything else in the patch (the name,
+    # the featured image) is unrelated to that and still applies.
     if "content" in update_data and collaboration_manager.has_active_collaborators(
         guild_context.guild_id, document.id
     ):
-        update_data.pop("content")
+        if user_has_connection(guild_context.guild_id, document.id, current_user.id):
+            # This caller is in the session, and is reporting the same content
+            # to it over the socket. Dropping the duplicate leaves the room's
+            # copy, which carries every editor's work rather than one tab's.
+            update_data.pop("content")
+        else:
+            # This caller is editing outside the session. Its content is of the
+            # document as it stood before the session, so it is refused rather
+            # than taken and reported as saved.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
+            )
     if "content" in update_data:
         try:
             document.content = documents_service.normalize_document_content(

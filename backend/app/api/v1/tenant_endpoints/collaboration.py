@@ -36,6 +36,7 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
+from app.core.messages import DocumentMessages
 from app.core.security import SESSION_COOKIE_NAME
 from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.tenant.document import Document
@@ -47,6 +48,7 @@ from app.services.tenant.collaboration import (
     broadcast_awareness,
     collaboration_manager,
     room_roster,
+    user_has_connection,
 )
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
@@ -221,6 +223,9 @@ async def websocket_collaborate(
         room = await collaboration_manager.get_or_create_room(
             guild_id, document_id, session
         )
+        # Held from here until this socket is in the register, so the room is
+        # not read as idle and retired in the gap between the two.
+        room.hold()
 
     logger.info(
         f"Collaboration: user {user.id} authenticated for document {document_id}"
@@ -251,21 +256,24 @@ async def websocket_collaborate(
         # reconnect read-only — same rule as a lost DAC write level.
         return not needs_write or current in ("write", "owner")
 
-    await stream_authority.join(
-        websocket,
-        user,
-        guild_id=guild_id,
-        initiative_id=document.initiative_id,
-        resource_type="document",
-        resource_id=document_id,
-        authorize=_authorize,
-        satisfied_providers=satisfied_provider_ids(),
-        meta={
-            "name": collaborator_name,
-            "can_write": can_write,
-            "avatar_url": user.avatar_url,
-        },
-    )
+    try:
+        await stream_authority.join(
+            websocket,
+            user,
+            guild_id=guild_id,
+            initiative_id=document.initiative_id,
+            resource_type="document",
+            resource_id=document_id,
+            authorize=_authorize,
+            satisfied_providers=satisfied_provider_ids(),
+            meta={
+                "name": collaborator_name,
+                "can_write": can_write,
+                "avatar_url": user.avatar_url,
+            },
+        )
+    finally:
+        room.release()
 
     try:
         # Ask what this connection has that the room does not. A client that
@@ -335,7 +343,7 @@ async def websocket_collaborate(
                     continue
 
                 try:
-                    room.apply_update(payload, origin=user.id)
+                    room.apply_update(payload, connection=websocket)
                     # Relayed under MSG_UPDATE whichever it arrived as: to every
                     # other connection this is simply state they do not have.
                     await stream_authority.emit_bytes(
@@ -359,7 +367,8 @@ async def websocket_collaborate(
                         documents_service.normalize_document_content(
                             json.loads(payload.decode()),
                             document_type=document.document_type,
-                        )
+                        ),
+                        connection=websocket,
                     )
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     logger.warning(
@@ -406,15 +415,16 @@ async def websocket_collaborate(
         # Stop governing this socket (idempotent if the spine already closed it).
         await stream_authority.leave(websocket)
 
-        # Tell the rest of the room this connection is gone. ``leave`` above
-        # has already taken it out of the register, so the roster the others
-        # rebuild from it is right.
-        await broadcast_awareness(
-            guild_id,
-            document_id,
-            {"type": "leave", "user_id": user.id},
-            exclude=websocket,
-        )
+        # Tell the rest of the room only when this was the account's last
+        # connection: the others keep a roster of people, and one of somebody's
+        # two tabs closing does not take them out of the document.
+        if not user_has_connection(guild_id, document_id, user.id):
+            await broadcast_awareness(
+                guild_id,
+                document_id,
+                {"type": "leave", "user_id": user.id},
+                exclude=websocket,
+            )
 
         # Save what this session added. The room is only retired afterwards,
         # and only once nothing is connected to it — another tab of the same
@@ -497,11 +507,20 @@ async def sync_document_content(
     # come from a tab that has been disconnected for some time, and its idea
     # of the content is that old. With no room, this is the only writer.
     if collaboration_manager.has_active_collaborators(guild_id, document_id):
+        if user_has_connection(guild_id, document_id, user.id):
+            logger.info(
+                f"Sync content: document {document_id} is live; leaving the "
+                "content column to its room"
+            )
+            return {"status": "ok", "deferred": True}
         logger.info(
-            f"Sync content: document {document_id} is live; leaving the "
-            "content column to its room"
+            f"Sync content: user {user.id} is outside document {document_id}'s "
+            "live session; not applying their content"
         )
-        return {"status": "ok", "deferred": True}
+        return {
+            "status": "error",
+            "message": DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
+        }
 
     # Update the content column
     try:

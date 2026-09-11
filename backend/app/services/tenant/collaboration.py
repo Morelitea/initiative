@@ -51,6 +51,17 @@ class DocumentRoom:
         # done under the lock the registry uses.
         self._load_lock = asyncio.Lock()
         self._loaded = False
+        # One writer at a time. A sweep and a disconnect can reach the same
+        # room together, and the row must end up holding the newer of the two
+        # snapshots rather than whichever commits last.
+        self._write_lock = asyncio.Lock()
+        # Connections that have been handed this room but have not yet reached
+        # the register. They are on their way in, so the room is not idle.
+        self._holds = 0
+        # The connection whose update the document currently reflects. A
+        # rendering of the document is only current if it came from the tab
+        # that last moved it.
+        self._last_writer: Any = None
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -78,8 +89,22 @@ class DocumentRoom:
         )
 
     def is_empty(self) -> bool:
-        """Whether no connection is in this room."""
-        return self.connection_count() == 0
+        """Whether nothing is in this room and nothing is arriving.
+
+        A connection is handed its room before it reaches the register, so
+        the count alone would read a room as idle during that gap.
+        """
+        return self.connection_count() == 0 and self._holds == 0
+
+    def hold(self) -> None:
+        """Claim this room for a connection that is joining."""
+        self._holds += 1
+
+    def release(self) -> None:
+        """Drop a claim, once the connection holding it has reached the
+        register or given up."""
+        if self._holds > 0:
+            self._holds -= 1
 
     async def load_once(self, session: AsyncSession) -> None:
         """Read this room's stored state, once, however many callers arrive.
@@ -162,22 +187,30 @@ class DocumentRoom:
         """
         return bytes(self.doc.get_state())
 
-    def apply_update(self, update: bytes, origin: Optional[int] = None) -> None:
+    def apply_update(self, update: bytes, connection: Any = None) -> None:
         """Apply a Yjs update from a client."""
         self.doc.apply_update(update)
         self._revision += 1
+        self._last_writer = connection
 
-    def offer_content(self, content: dict) -> None:
+    def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
 
         ``content`` and ``yjs_state`` are two views of one document, and a row
         whose two views disagree is a document that loads as something other
-        than what was edited. While a room is live it writes both, together,
-        from one snapshot — so the only content that counts is the content
-        offered by a connection inside it.
+        than what was edited. The room writes both together, from one
+        snapshot, and takes the rendering from the connection that last moved
+        the document — that is the tab whose view of it is current. Another
+        tab's rendering is of the document as it stood before, and its own
+        next offer will carry the merged state.
+
+        Returns whether the offer was taken.
         """
+        if self._last_writer is not None and connection is not self._last_writer:
+            return False
         self._content = content
         self._revision += 1
+        return True
 
     def snapshot(self) -> Tuple[int, bytes, Optional[dict]]:
         """The revision being written, and both views of it."""
@@ -292,6 +325,13 @@ class CollaborationManager:
                 # who is about to join it.
                 return False
             if room.is_empty():
+                if room.is_dirty:
+                    # Empty but still owing the database: the sweep has it.
+                    logger.info(
+                        f"Document {document_id} has unsaved state; keeping its "
+                        "room until it is written"
+                    )
+                    return False
                 room.detached = True
                 del self._rooms[key]
                 logger.info(
@@ -326,6 +366,12 @@ class CollaborationManager:
         reported one; a room nobody has offered content for leaves the column
         as it stands rather than blanking it.
         """
+        async with room._write_lock:
+            await self._write_room_locked(room, session)
+
+    async def _write_room_locked(
+        self, room: DocumentRoom, session: AsyncSession
+    ) -> None:
         revision, state, content = room.snapshot()
         values: Dict[str, Any] = {
             "yjs_state": state,
@@ -473,6 +519,20 @@ def room_roster(guild_id: int, document_id: int) -> list[dict]:
         elif member.meta.get("can_write"):
             entry["can_write"] = True
     return list(by_user.values())
+
+
+def user_has_connection(guild_id: int, document_id: int, user_id: int) -> bool:
+    """Whether this account still holds any connection to a document.
+
+    A person leaves a document when their last tab does, not when one of
+    several does.
+    """
+    return any(
+        member.user.id == user_id
+        for member in stream_authority.room_members(
+            guild_id, RESOURCE_TYPE, document_id
+        )
+    )
 
 
 async def broadcast_awareness(
