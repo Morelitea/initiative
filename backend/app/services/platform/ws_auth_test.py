@@ -11,7 +11,7 @@ from app.core.security import JWT_ALGORITHM, create_access_token
 from app.models.platform.user import UserStatus
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.testing import create_user, get_auth_token, get_new_access_token
+from app.testing import create_user, get_auth_token, get_legacy_auth_token
 
 
 async def test_valid_token_authenticates(session: AsyncSession):
@@ -24,11 +24,11 @@ async def test_valid_token_authenticates(session: AsyncSession):
     assert result.id == user.id
 
 
-async def test_new_access_token_authenticates(session: AsyncSession):
-    """Dual-verify: the WS path accepts the new-model access token too, so
-    realtime sockets stay in lockstep with the HTTP path."""
+async def test_a_legacy_token_still_authenticates(session: AsyncSession):
+    """Dual-verify, the other half: the WS path still accepts a pre-session
+    token, so realtime sockets stay in lockstep with the HTTP path."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_legacy_auth_token(user)
 
     result = await authenticate_ws_token(token, session)
 
@@ -36,10 +36,10 @@ async def test_new_access_token_authenticates(session: AsyncSession):
     assert result.id == user.id
 
 
-async def test_new_access_token_stale_version_rejected(session: AsyncSession):
-    """The new token's ``ver`` is enforced on the WS path as well."""
+async def test_a_legacy_tokens_version_is_enforced_too(session: AsyncSession):
+    """``ver`` is what revokes either scheme on the WS path."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_legacy_auth_token(user)
     user.token_version += 1
     session.add(user)
     await session.commit()
