@@ -769,3 +769,46 @@ async def test_unreadable_key_answers_503_not_403(
     response = await _post(client, "guild-tier", await _tier_payload(guild.id))
     assert response.status_code == 503
     assert response.json()["detail"] == "BILLING_KEY_UNREADABLE"
+
+
+# ── what a guild calls itself ────────────────────────────────────────────────
+
+
+async def test_billing_reads_a_guilds_name(client: AsyncClient, session: AsyncSession):
+    """A reference is unreadable on purpose, so a page about somebody's own
+    community would have nothing to title itself with."""
+    guild = await create_guild(session, name="The Tuesday Club")
+    ref = await billing_guild_ref(guild.id)
+
+    response = await _post(client, "guild-name", {"guild_ref": ref})
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"guild_ref": ref, "name": "The Tuesday Club"}
+
+
+async def test_the_name_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
+    """One-shot like every other verb here — a captured envelope is spent."""
+    guild = await create_guild(session, name="Once Only")
+    ref = await billing_guild_ref(guild.id)
+    body = json.dumps({"guild_ref": ref}).encode()
+    headers = _signed_headers("/api/v1/billing/guild-name", body)
+
+    first = await client.post(
+        "/api/v1/billing/guild-name", content=body, headers=headers
+    )
+    second = await client.post(
+        "/api/v1/billing/guild-name", content=body, headers=headers
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 403
+    assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
+
+
+async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
+    """404 with the jti unredeemed, so the call stays retryable — the same
+    shape the other reads give a guild that is not there."""
+    response = await _post(client, "guild-name", {"guild_ref": "gbil_notoneweminted"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"

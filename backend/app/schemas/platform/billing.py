@@ -99,6 +99,28 @@ class BillingUsageRead(SanitizedBaseModel):
     usage_bytes: int
 
 
+class BillingGuildNameRequest(SanitizedBaseModel):
+    """Body of ``POST /billing/guild-name``.
+
+    The guild rides the signed body rather than a query string, so the
+    envelope's HMAC covers it — like every other verb on this boundary.
+    """
+
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+
+
+class BillingGuildNameRead(SanitizedBaseModel):
+    """What a guild calls itself, so a person is shown that and not a reference.
+
+    A reference is what the two services key on and is unreadable by design;
+    somebody looking at a page about their own community should see its name.
+    Nothing else about the guild travels with it.
+    """
+
+    guild_ref: str
+    name: str
+
+
 class BillingPortalHandoffResponse(SanitizedBaseModel):
     """Billing-portal handoff token and its lifetime in seconds."""
 
