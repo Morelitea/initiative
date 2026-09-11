@@ -385,7 +385,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         updated_at=task.updated_at,
         completed_at=task.completed_at,
         position=task.position,
-        is_archived=task.is_archived,
+        archived_at=task.archived_at,
         created_by=task.created_by,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
@@ -695,7 +695,7 @@ async def _get_project_with_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
         )
-    if project.is_archived and access == "write":
+    if project.archived_at is not None and access == "write":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
@@ -775,7 +775,7 @@ async def _allowed_project_ids(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        Project.is_archived == False,  # noqa: E712
+        Project.archived_at.is_(None),
     ]
     if project_id is None:
         # Spanning initiatives, the answer is what has been shared with the
@@ -883,11 +883,11 @@ async def _list_global_tasks(
     """
     base_conditions = [
         TaskAssignee.user_id == current_user.id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        base_conditions.append(Task.is_archived.is_(False))
+        base_conditions.append(Task.archived_at.is_(None))
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         base_conditions.append(window)
@@ -946,11 +946,11 @@ async def _list_global_created_tasks(
     """
     base_conditions = [
         Task.created_by == current_user.id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        base_conditions.append(Task.is_archived.is_(False))
+        base_conditions.append(Task.archived_at.is_(None))
 
     def _build(guild_id: int):
         # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
@@ -1130,7 +1130,7 @@ async def _guild_task_query_builder(
     access_conditions = [Initiative.guild_id == guild_id]
 
     if not include_archived:
-        access_conditions.append(Task.is_archived.is_(False))
+        access_conditions.append(Task.archived_at.is_(None))
 
     allowed_ids = await _allowed_project_ids(
         session,
@@ -2284,7 +2284,7 @@ async def archive_done_tasks(
         .join(Task.task_status)
         .where(
             Task.project_id == project_id,
-            Task.is_archived.is_(False),
+            Task.archived_at.is_(None),
             TaskStatus.category == TaskStatusCategory.done,
         )
     )
@@ -2301,7 +2301,7 @@ async def archive_done_tasks(
 
     now = datetime.now(timezone.utc)
     for task in tasks:
-        task.is_archived = True
+        task.archived_at = now
         task.updated_at = now
         session.add(task)
 

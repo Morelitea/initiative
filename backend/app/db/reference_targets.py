@@ -142,6 +142,30 @@ async def live_ids(
     return {row[0] for row in (await session.exec(statement)).all()}
 
 
+async def unfrozen_ids(
+    session, entity_type: SearchEntityType, ids: Sequence[int]
+) -> set[int]:
+    """Which of these are still taking writes — not archived or trashed, and
+    not sitting under something that is.
+
+    Asked through ``public.resource_frozen``, the same declaration the freeze
+    policies are rendered from, so a caller checking before it writes and the
+    database deciding afterwards are reading one answer.
+    """
+    wanted = [int(i) for i in dict.fromkeys(ids)]
+    if not wanted:
+        return set()
+    table_name = _table_for(entity_type)
+    table = SQLModel.metadata.tables[table_name]
+    rows = await session.exec(
+        select(table.c["id"]).where(
+            table.c["id"].in_(wanted),
+            ~func.resource_frozen(table_name, table.c["id"], False),
+        )
+    )
+    return {row[0] for row in rows.all()}
+
+
 @dataclass(frozen=True)
 class Resolved:
     """What a reference turned out to name."""
@@ -158,10 +182,11 @@ class Resolved:
     #: sits on a guild calendar, which is guild-level content rather than
     #: initiative content.
     scoped_kind: bool
-    #: Whether the row is archived. Only projects and tasks can be; every other
-    #: kind reports False, which is the honest answer for a kind with no such
-    #: state rather than a default standing in for one.
-    is_archived: bool
+    #: Whether the row is archived. Every tool can be, as can a task and an
+    #: initiative; a kind that carries no archive lifecycle reports False, which
+    #: is the honest answer for a kind with no such state rather than a default
+    #: standing in for one.
+    archived: bool
     #: When the row last changed, for the surfaces that order by recency. None
     #: for a kind that records no such moment.
     updated_at: datetime | None = None
@@ -185,7 +210,11 @@ async def resolve_many(
     table = SQLModel.metadata.tables[table_name]
     path = INITIATIVE_PATHS.get(table_name)
     initiative = text(path.initiative_expr(table_name)) if path is not None else null()
-    archived = table.c["is_archived"] if "is_archived" in table.c else literal(False)
+    archived = (
+        table.c["archived_at"].isnot(None)
+        if "archived_at" in table.c
+        else literal(False)
+    )
     updated = table.c["updated_at"] if "updated_at" in table.c else null()
 
     rows = await session.exec(
@@ -207,7 +236,7 @@ async def resolve_many(
             title=row[1],
             initiative_id=row[2],
             scoped_kind=path is not None,
-            is_archived=bool(row[3]),
+            archived=bool(row[3]),
             updated_at=row[4],
         )
         for row in rows.all()

@@ -168,5 +168,7 @@
     "permission": "Initiative needs permission to use your camera and photos. Allow it in your device settings, then try again.",
     "unavailable": "This device has no camera to take a photo with.",
     "failed": "That photo could not be read. Try again."
-  }
+  },
+  "archiveError": "Couldn't archive that. Please try again.",
+  "unarchiveError": "Couldn't unarchive that. Please try again."
 }

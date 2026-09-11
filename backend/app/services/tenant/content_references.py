@@ -25,7 +25,7 @@ already reads provenance to decide that, so it is stated once, there.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Sequence
+from typing import Any, Awaitable, Callable, Sequence
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -189,15 +189,36 @@ async def _live_targets(
     Asked through the saving session, so a reference resolves to exactly what
     the person writing the content can point at.
     """
+    return await _by_kind(session, wanted, reference_targets.live_ids)
+
+
+async def _accepting_links(
+    session: AsyncSession, wanted: set[tuple[SearchEntityType, int]]
+) -> set[tuple[SearchEntityType, int]]:
+    """The subset that is still taking writes.
+
+    Asked only of the edges about to be MADE. An archived or trashed thing takes
+    no new links, so a mention of one records nothing until it comes back; an
+    edge already there stands on the mention that made it, which is still there.
+    """
+    return await _by_kind(session, wanted, reference_targets.unfrozen_ids)
+
+
+async def _by_kind(
+    session: AsyncSession,
+    wanted: set[tuple[SearchEntityType, int]],
+    ask: Callable[[AsyncSession, SearchEntityType, list[int]], Awaitable[set[int]]],
+) -> set[tuple[SearchEntityType, int]]:
+    """Run one id question per kind, and put the pairs back together."""
     by_kind: dict[SearchEntityType, list[int]] = {}
     for kind, entity_id in wanted:
         by_kind.setdefault(kind, []).append(entity_id)
 
-    live: set[tuple[SearchEntityType, int]] = set()
+    found: set[tuple[SearchEntityType, int]] = set()
     for kind, ids in by_kind.items():
-        for entity_id in await reference_targets.live_ids(session, kind, ids):
-            live.add((kind, entity_id))
-    return live
+        for entity_id in await ask(session, kind, ids):
+            found.add((kind, entity_id))
+    return found
 
 
 async def _reconcile(
@@ -207,7 +228,12 @@ async def _reconcile(
     *,
     author_id: int | None,
 ) -> None:
-    """Add what the content now names, drop what it no longer does."""
+    """Add what the content now names, drop what it no longer does.
+
+    Only the additions ask whether the far end is still taking writes. What
+    removes an edge here is the sentence going, and a far end being archived
+    afterwards is not that.
+    """
     existing = (
         await session.exec(
             select(EntityRelationship).where(
@@ -235,7 +261,8 @@ async def _reconcile(
         targets=[
             Endpoint(kind, entity_id)
             for kind, entity_id in sorted(
-                wanted - set(have), key=lambda pair: (pair[0].value, pair[1])
+                await _accepting_links(session, wanted - set(have)),
+                key=lambda pair: (pair[0].value, pair[1]),
             )
         ],
         provenance=Provenance.content,

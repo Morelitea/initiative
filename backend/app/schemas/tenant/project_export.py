@@ -31,7 +31,7 @@ class ProjectExportProject(SanitizedBaseModel):
     icon: Optional[str] = None
     description: Optional[str] = None
     is_template: bool = False
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -100,7 +100,7 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
     position: float = 0.0
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the
     # importer derives it from the restored status in that case.
     completed_at: Optional[datetime] = None

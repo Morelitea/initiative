@@ -96,7 +96,7 @@ def scope_conditions(
     if tool is Tool.project:
         # An archived project and a template are both off the working list;
         # the guild-wide project list says the same.
-        conditions.append(Project.is_archived.is_(False))
+        conditions.append(Project.archived_at.is_(None))
         conditions.append(Project.is_template.is_(False))
 
     if tool is Tool.post:

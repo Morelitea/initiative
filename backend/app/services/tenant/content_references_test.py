@@ -350,3 +350,47 @@ async def test_saving_the_same_body_twice_changes_nothing(session, acting_user):
     )
 
     assert await _references(session, anchor) == {("document", other.id)}
+
+
+@pytest.mark.integration
+async def test_an_archived_thing_takes_no_new_reference(session, acting_user):
+    """Archiving says the work is finished with, and a link shows on both ends
+    — so a mention of one records nothing rather than failing the save."""
+    from app.services.tenant.archive import archive_entity
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user)
+    task = await create_task(session, a.project)
+    await archive_entity(session, task)
+
+    anchor = Endpoint(DOCUMENT, doc.id)
+    await content_references.sync_for_entity(
+        session, anchor, body=_doc(_reference("task", task.id)), author_id=a.user.id
+    )
+
+    assert await _references(session, anchor) == set()
+
+
+@pytest.mark.integration
+async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting_user):
+    """The mention is still in the body, so the edge is still what the body
+    says. A later save does not quietly drop it."""
+    from app.services.tenant.archive import archive_entity
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user)
+    task = await create_task(session, a.project)
+    anchor = Endpoint(DOCUMENT, doc.id)
+    body = _doc(_reference("task", task.id))
+
+    await content_references.sync_for_entity(
+        session, anchor, body=body, author_id=a.user.id
+    )
+    assert await _references(session, anchor) == {("task", task.id)}
+
+    await archive_entity(session, task)
+    await content_references.sync_for_entity(
+        session, anchor, body=body, author_id=a.user.id
+    )
+
+    assert await _references(session, anchor) == {("task", task.id)}

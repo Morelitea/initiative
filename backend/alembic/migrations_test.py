@@ -852,8 +852,8 @@ _RELATIONSHIPS = "20260910_0252"
 _TAGS_AS_RELATIONSHIPS = "20260910_0253"
 #: The revision the content-reference move follows, which is what one step back
 #: from it lands on.
-_BEFORE_CONTENT_REFERENCES = "20260911_0254"
-_CONTENT_REFERENCES = "20260911_0255"
+_BEFORE_CONTENT_REFERENCES = "20260911_0255"
+_CONTENT_REFERENCES = "20260911_0256"
 
 #: Enough of a guild schema to hang a junction row off. ``guild_template`` is a
 #: real guild schema for these purposes — ``run_for_each_guild_schema`` visits

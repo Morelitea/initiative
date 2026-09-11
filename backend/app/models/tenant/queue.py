@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -26,7 +27,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Queue(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"

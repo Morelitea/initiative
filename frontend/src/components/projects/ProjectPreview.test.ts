@@ -29,7 +29,7 @@ describe("canPinProject", () => {
     // The server rejects every edit to an archived project, pinning included,
     // so the card must not offer it.
     const managed = projectWithRole({ role_name: "project_manager", is_manager: true });
-    const archived = { ...managed, is_archived: true };
+    const archived = { ...managed, archived_at: "2026-06-01T00:00:00.000Z" };
     expect(canPinProject(archived, USER_ID)).toBe(false);
     expect(canPinProject(archived, USER_ID, "admin")).toBe(false);
   });

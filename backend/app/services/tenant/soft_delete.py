@@ -11,6 +11,11 @@ restored row is owned by whoever owns it or by nobody — the same as it was whi
 in the trash. The columns restore used to reassign name the *author*, which is a
 historical fact and not reassignable at all.
 
+A trashed row is read-only at the database — see ``app.db.frozen`` — so both
+walks here are ordered against that: a stamp goes deepest-first, a restore
+shallowest-first, and each level is flushed before the next so the order is the
+one the database sees rather than the one the unit of work picks.
+
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
 ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
 ``app.db.guild_ddl`` from the SoftDeleteMixin subclasses) admits only a routed
@@ -28,6 +33,9 @@ from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sqlalchemy import text
+
+from app.db.frozen import PURGE_GUC
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.calendar import Calendar
@@ -83,66 +91,42 @@ def _compute_purge_at(
     return deleted_at + timedelta(days=retention_days)
 
 
-async def _stamp_descendants(
+async def _descendant_levels(
     session: AsyncSession,
     parent: SoftDeleteMixin,
     *,
-    deleted_at: datetime,
-    deleted_by: Optional[int],
-    purge_at: Optional[datetime],
-) -> None:
-    """Recursively stamp deleted_at / deleted_by / purge_at on every active
-    descendant of ``parent``. Skips already-soft-deleted children so an
-    independently-trashed child keeps its own deleted_at."""
-    for child_model, fk_col in CASCADE_CHILDREN.get(type(parent), []):
-        fk = getattr(child_model, fk_col)
-        stmt = (
-            select_including_deleted(child_model)
-            .where(fk == parent.id)
-            .where(child_model.deleted_at.is_(None))
-        )
-        result = await session.exec(stmt)
-        for child in result.all():
-            child.deleted_at = deleted_at
-            child.deleted_by = deleted_by
-            child.purge_at = purge_at
-            session.add(child)
-            await _stamp_descendants(
-                session,
-                child,
-                deleted_at=deleted_at,
-                deleted_by=deleted_by,
-                purge_at=purge_at,
-            )
+    match_deleted_at: Optional[datetime],
+) -> list[list[SoftDeleteMixin]]:
+    """Every descendant of ``parent``, grouped by how far down it sits.
 
+    Breadth-first over ``CASCADE_CHILDREN``: level 0 is the direct children,
+    level 1 their children, and so on. The caller walks the levels in whichever
+    direction its write needs — see the ordering note on the two callers below.
 
-async def _unstamp_descendants(
-    session: AsyncSession,
-    parent: SoftDeleteMixin,
-    *,
-    matching_deleted_at: datetime,
-) -> None:
-    """Inverse of _stamp_descendants. Restores only descendants whose
-    deleted_at == matching_deleted_at, so that children which were
-    independently soft-deleted (different timestamp) remain in trash."""
-    for child_model, fk_col in CASCADE_CHILDREN.get(type(parent), []):
-        fk = getattr(child_model, fk_col)
-        stmt = (
-            select_including_deleted(child_model)
-            .where(fk == parent.id)
-            .where(child_model.deleted_at == matching_deleted_at)
-        )
-        result = await session.exec(stmt)
-        for child in result.all():
-            child.deleted_at = None
-            child.deleted_by = None
-            child.purge_at = None
-            session.add(child)
-            await _unstamp_descendants(
-                session,
-                child,
-                matching_deleted_at=matching_deleted_at,
-            )
+    ``match_deleted_at`` picks the set: ``None`` takes the ACTIVE descendants
+    (what a soft-delete stamps), a timestamp takes the ones stamped by that same
+    soft-delete (what a restore brings back), so an independently-trashed child
+    keeps its own ``deleted_at`` either way.
+    """
+    levels: list[list[SoftDeleteMixin]] = []
+    frontier: list[SoftDeleteMixin] = [parent]
+    while frontier:
+        level: list[SoftDeleteMixin] = []
+        for node in frontier:
+            for child_model, fk_col in CASCADE_CHILDREN.get(type(node), []):
+                fk = getattr(child_model, fk_col)
+                stmt = select_including_deleted(child_model).where(fk == node.id)
+                if match_deleted_at is None:
+                    stmt = stmt.where(child_model.deleted_at.is_(None))
+                else:
+                    stmt = stmt.where(child_model.deleted_at == match_deleted_at)
+                result = await session.exec(stmt)
+                level.extend(result.all())
+        if not level:
+            break
+        levels.append(level)
+        frontier = level
+    return levels
 
 
 async def soft_delete_entity(
@@ -161,17 +145,27 @@ async def soft_delete_entity(
         return
     deleted_at = _utc_now()
     purge_at = _compute_purge_at(deleted_at, retention_days)
+
+    # Deepest first, with a flush per level. A trashed row freezes everything
+    # under it at the database, so a child written after its parent was stamped
+    # would be refused — and the unit of work orders UPDATEs by mapper, not by
+    # the order they were added, so the levels are flushed explicitly rather
+    # than assumed. Collected before the entity is stamped, while the walk's own
+    # queries still see an untouched tree.
+    levels = await _descendant_levels(session, entity, match_deleted_at=None)
+    for level in reversed(levels):
+        for child in level:
+            child.deleted_at = deleted_at
+            child.deleted_by = deleted_by_user_id
+            child.purge_at = purge_at
+            session.add(child)
+        await session.flush()
+
     entity.deleted_at = deleted_at
     entity.deleted_by = deleted_by_user_id
     entity.purge_at = purge_at
     session.add(entity)
-    await _stamp_descendants(
-        session,
-        entity,
-        deleted_at=deleted_at,
-        deleted_by=deleted_by_user_id,
-        purge_at=purge_at,
-    )
+    await session.flush()
 
 
 async def _resolve_initiative_scope(
@@ -236,15 +230,26 @@ async def restore_entity(
         return
 
     matching_deleted_at = entity.deleted_at
+    # The mirror of the stamp above: shallowest first, so a child is never
+    # written while its parent is still trashed. Collected before anything is
+    # cleared, because the set is defined by the timestamp being cleared.
+    levels = await _descendant_levels(
+        session, entity, match_deleted_at=matching_deleted_at
+    )
+
     entity.deleted_at = None
     entity.deleted_by = None
     entity.purge_at = None
     session.add(entity)
-    await _unstamp_descendants(
-        session,
-        entity,
-        matching_deleted_at=matching_deleted_at,
-    )
+    await session.flush()
+
+    for level in levels:
+        for child in level:
+            child.deleted_at = None
+            child.deleted_by = None
+            child.purge_at = None
+            session.add(child)
+        await session.flush()
 
 
 async def _purge_relationships(
@@ -318,6 +323,13 @@ async def hard_purge_entity(
         purge_gallery_image_uploads,
     )
     from app.services.tenant.reactions import purge_comment_reactions
+
+    # Purge is the one lifecycle step that writes frozen content instead of only
+    # removing it — the wikilink unresolve below reaches documents that are
+    # themselves in the trash. Transaction-local (see app.db.frozen.PURGE_GUC).
+    await session.exec(
+        text("SELECT set_config(:name, 'true', true)").bindparams(name=PURGE_GUC)
+    )
 
     descendants = await _gather_descendants(session, entity)
     all_doomed: list[SoftDeleteMixin] = [entity, *descendants]

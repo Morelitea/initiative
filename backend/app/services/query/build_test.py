@@ -112,7 +112,7 @@ def test_several_conditions_are_all_required():
             dataset="tasks",
             columns=(Column(field="title"),),
             where=(
-                Condition(field="is_archived", op=FilterOp.eq, value=False),
+                Condition(field="archived_at", op=FilterOp.is_null, value=True),
                 Condition(field="priority", op=FilterOp.in_, value=["high", "urgent"]),
             ),
         )
@@ -343,9 +343,9 @@ class TestBracketingWhatItAsks:
         assert (
             self.where(
                 Condition(field="priority", op=FilterOp.eq, value="high"),
-                Condition(field="is_archived", op=FilterOp.eq, value=False),
+                Condition(field="archived_at", op=FilterOp.is_null, value=True),
             )
-            == "WHERE priority = 'high' AND is_archived = FALSE"
+            == "WHERE priority = 'high' AND archived_at IS NULL"
         )
 
     def test_a_condition_can_be_answered_the_other_way(self):

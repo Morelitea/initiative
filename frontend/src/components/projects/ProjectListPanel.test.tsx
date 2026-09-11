@@ -49,7 +49,6 @@ describe("ProjectListPanel bulk sharing", () => {
       buildProject({
         name: "Planescape Detour",
         my_permission_level: "owner",
-        is_archived: true,
         archived_at: "2026-06-01T00:00:00.000Z",
       }),
     ]);

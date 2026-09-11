@@ -2620,8 +2620,8 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
         .where(
             TaskAssignee.user_id == user_id,
             Project.is_template.is_(False),
-            Project.is_archived.is_(False),
-            Task.is_archived.is_(False),
+            Project.archived_at.is_(None),
+            Task.archived_at.is_(None),
             Task.due_date.is_not(None),
             Task.due_date < datetime.now(timezone.utc),
             TaskStatus.category != TaskStatusCategory.done,

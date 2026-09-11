@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -39,7 +40,9 @@ class DocumentType(str, Enum):
     spreadsheet = "spreadsheet"  # Sparse cell map; collaborative via yjs
 
 
-class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Document(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     __tablename__ = "documents"
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and

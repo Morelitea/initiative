@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -292,7 +292,11 @@ _InitiativeToolSwitchColumns = type(
 
 
 class Initiative(
-    _InitiativeToolSwitchColumns, CreatedByMixin, SoftDeleteMixin, table=True
+    _InitiativeToolSwitchColumns,
+    CreatedByMixin,
+    ArchiveMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     __tablename__ = "initiatives"
 
@@ -320,10 +324,6 @@ class Initiative(
         sa_column=Column(String(length=32), nullable=True),
     )
     is_default: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    is_archived: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

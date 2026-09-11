@@ -28,8 +28,8 @@ What proves the rows actually move is ``TestJunctionsMoveTheirRows`` in
 has rows in it. A fresh install has nothing to carry over, so a test built from
 empty tells you nothing either way.
 
-Revision ID: 20260911_0255
-Revises: 20260911_0254
+Revision ID: 20260911_0256
+Revises: 20260911_0255
 Create Date: 2026-09-11
 """
 
@@ -38,8 +38,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260911_0255"
-down_revision = "20260911_0254"
+revision = "20260911_0256"
+down_revision = "20260911_0255"
 branch_labels = None
 depends_on = None
 

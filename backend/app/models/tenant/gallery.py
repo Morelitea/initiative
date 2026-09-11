@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -25,7 +26,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Gallery(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Gallery(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """A collection of pictures in an initiative.
 
     A gallery is a whole tool entity — its own sharing, its own comment thread,
