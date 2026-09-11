@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
 - **Hiding a spreadsheet row hides it** — a hidden row stopped taking up space but kept drawing its contents, which landed on top of the row beneath it: hide the row holding "Test2" and "Test2" and "Test3" ended up printed over each other on one line, with both row numbers crowded into the same place. A hidden row or column is no longer drawn at all, so the rows after it close up the way they should. Hiding a frozen row does the same.
 
 ## [0.68.0] - 2026-09-11
