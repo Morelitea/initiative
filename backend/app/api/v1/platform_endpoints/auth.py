@@ -551,10 +551,17 @@ async def refresh_access_token(
         ip=get_inet_client_ip(request),
     )
     if result.outcome is RefreshOutcome.REUSED and result.user_id is not None:
+        # No actor, for the same reason a refused sign-in has none, and more
+        # sharply: this endpoint is authorised by possession of the cookie
+        # alone, and the credential has just been rejected. The account that
+        # owned the chain is what the replay was against.
         await audit_service.record(
             admin_session,
             event_type=AuditEventType.AUTH_REFRESH_REUSE_DETECTED,
-            actor_user_id=result.user_id,
+            actor_user_id=None,
+            target_user_id=result.user_id,
+            target_type="user",
+            target_id=result.user_id,
         )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill

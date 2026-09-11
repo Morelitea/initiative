@@ -13,6 +13,11 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.platform_endpoints.auth_test import (
+    _enable_platform_oidc,
+    _run_oidc_flow,
+    _wire_fake_idp,
+)
 from app.core.audit_events import AuditCategory, AuditEventType, meta_for
 from app.models.platform.audit_event import AuditEvent
 from app.models.platform.user import UserStatus
@@ -162,7 +167,8 @@ async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
     client: AsyncClient, session: AsyncSession
 ):
     """The rejection kills the whole chain, so the record has to be able to say
-    whose chain it was — there is no issued session to read it from."""
+    whose chain it was — there is no issued session to read it from, which is
+    why ``RotationResult`` carries the id."""
     from app.core.security import REFRESH_COOKIE_NAME
 
     user = await create_user(session, email="replay-audit@example.com")
@@ -179,7 +185,10 @@ async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
     assert replayed.status_code == 401
 
     rows = await _events(session, AuditEventType.AUTH_REFRESH_REUSE_DETECTED)
-    assert [r.actor_user_id for r in rows] == [user_id]
+    # The endpoint is authorised by the cookie alone and has just rejected it,
+    # so the owner of the chain is the target, not the one who presented it.
+    assert [r.actor_user_id for r in rows] == [None]
+    assert [r.target_user_id for r in rows] == [user_id]
 
 
 async def test_an_unauthenticated_event_reads_back_with_no_party(
@@ -207,3 +216,60 @@ async def test_an_unauthenticated_event_reads_back_with_no_party(
     assert items
     assert items[0].actor is None
     assert items[0].target_user is not None
+
+
+async def test_an_oidc_sign_in_records_its_provider_and_whether_it_stepped_up(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+    from app.testing.oidc import FakeIdp
+
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "oidc-audit@example.com",
+            "username": "oidc-audit",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
+    assert [r.envelope["detail"] for r in rows] == [
+        {"method": "oidc", "provider": PLATFORM_OIDC_SLUG, "step_up": False}
+    ]
+    assert rows[0].actor_user_id is not None
+
+
+async def test_claiming_an_existing_account_by_verified_email_is_recorded(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The link is what makes every later sign-in resolve by subject, so the
+    moment an identity provider claims an existing account is worth a record."""
+    from app.testing.oidc import FakeIdp
+
+    await _enable_platform_oidc(session)
+    existing = await create_user(session, email="claimed-audit@example.com")
+    existing_id = existing.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "claimed-audit@example.com",
+            "username": "claimed-audit",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    rows = await _events(session, AuditEventType.AUTH_IDENTITY_LINKED)
+    assert [r.actor_user_id for r in rows] == [existing_id]
+    assert rows[0].envelope["detail"]["matched_by"] == "verified_email"
