@@ -9,8 +9,8 @@ One column, named, on a role whose access to this table is otherwise five
 columns: it sees ``id`` and ``status`` here, and three caps on
 ``guild_administration``. Nothing else about a guild becomes readable.
 
-Revision ID: 20260911_0255
-Revises: 20260911_0254
+Revision ID: 20260911_0257
+Revises: 20260911_0256
 Create Date: 2026-09-11
 """
 
@@ -20,8 +20,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20260911_0255"
-down_revision = "20260911_0254"
+revision = "20260911_0257"
+down_revision = "20260911_0256"
 branch_labels = None
 depends_on = None
 
