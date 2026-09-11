@@ -415,8 +415,9 @@ async def walk(
                 WHERE w.depth < :depth
             ) CYCLE node SET is_cycle USING path
             SELECT node, depth, is_cycle FROM reachable WHERE depth > 0
-        """),  # noqa: S608 — column names come from a literal pair above
-        {"start": start.node, "rtype": relationship_type.value, "depth": bounded},
+        """).bindparams(  # noqa: S608 — column names come from a literal pair above
+            start=start.node, rtype=relationship_type.value, depth=bounded
+        )
     )
     return [(row[0], row[1], row[2]) for row in rows.all()]
 

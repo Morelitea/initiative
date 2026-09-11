@@ -883,11 +883,13 @@ async def test_gc_expires_row_even_when_artifact_delete_fails(
 
 
 async def _queue_with_items(acting_user, session):
-    from app.models.tenant.queue import QueueItemDocument, QueueItemTag, QueueItemTask
+    from app.core.search import SearchEntityType
+    from app.models.tenant.queue import QueueItemTag
     from app.testing.factories import (
         create_document,
         create_queue,
         create_queue_item,
+        create_relationship,
         create_tag,
     )
 
@@ -913,13 +915,17 @@ async def _queue_with_items(acting_user, session):
     session.add(QueueItemTag(queue_item_id=lurker.id, tag_id=tag.id))
     doc = await create_document(session, a.initiative, a.user, name="Dungeon map")
     task = await create_task(session, a.project, title="Prep loot")
-    session.add(
-        QueueItemDocument(
-            queue_item_id=current.id, document_id=doc.id, guild_id=a.guild.id
-        )
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, current.id),
+        target=(SearchEntityType.document, doc.id),
     )
-    session.add(
-        QueueItemTask(queue_item_id=current.id, task_id=task.id, guild_id=a.guild.id)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, current.id),
+        target=(SearchEntityType.task, task.id),
     )
     queue.current_item_id = current.id
     session.add(queue)
