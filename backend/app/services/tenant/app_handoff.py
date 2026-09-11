@@ -209,6 +209,9 @@ async def mint_embed_handoff(
     subject = await app_refs.ensure_app_ref(
         guild_id=app.guild_id, app_install_id=app.id, user_id=user_id
     )
+    guild_ref = await app_refs.ensure_app_guild_ref(
+        guild_id=app.guild_id, app_install_id=app.id
+    )
 
     now = datetime.now(timezone.utc)
     audience = app_platform_audience(registration.public_id)
@@ -216,15 +219,17 @@ async def mint_embed_handoff(
         # One-shot marker: the app blocklists a handoff once it has exchanged
         # it, so a captured token is not replayable inside its short window.
         "jti": str(uuid.uuid4()),
-        # The pairwise subject this install knows the member by, never the row
-        # id: two apps must not be able to compare notes and find they are
-        # talking to the same person (OIDC Core §8.1).
+        # The reference this install knows the member by (OIDC Core §8.1
+        # pairwise), never the row id: it is stable for this install and
+        # unrelated to what any other sector holds for the same person.
         "sub": subject,
         "aud": audience,
         "iss": settings.APP_PLATFORM_ISSUER,
         "iat": int(now.timestamp()),
         "exp": now + APP_EMBED_HANDOFF_LIFETIME,
-        "guild_id": app.guild_id,
+        # The guild by reference, for the same reason as the member above: an
+        # index names a row to us, not an entity to somebody else.
+        "guild_ref": guild_ref,
         "app_install_id": app.id,
         "surface_id": surface_id,
     }

@@ -511,7 +511,9 @@ class AutoDelegationClaims:
     #: caller resolves it inside the guild the token names — an app that never
     #: learns who somebody is can still act as them.
     subject: str
-    guild_id: int
+    #: The reference the app knows this guild by, NOT a guild id. Resolved by
+    #: the caller, like ``subject``.
+    guild_ref: str
     initiative_id: int | None
 
 
@@ -594,9 +596,9 @@ def verify_auto_delegation_token(
     if not isinstance(subject, str) or not subject:
         raise AutoDelegationVerificationError("sub must be a pairwise subject")
 
-    guild_id = payload.get("guild_id")
-    if not isinstance(guild_id, int):
-        raise AutoDelegationVerificationError("guild_id must be an int")
+    guild_ref = payload.get("guild_ref")
+    if not isinstance(guild_ref, str) or not guild_ref:
+        raise AutoDelegationVerificationError("guild_ref must be a reference")
 
     initiative_id = payload.get("initiative_id")
     if initiative_id is not None and not isinstance(initiative_id, int):
@@ -607,6 +609,6 @@ def verify_auto_delegation_token(
     return AutoDelegationClaims(
         jti=str(payload["jti"]),
         subject=subject,
-        guild_id=guild_id,
+        guild_ref=guild_ref,
         initiative_id=initiative_id,
     )

@@ -73,6 +73,7 @@ from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
+from app.api import resource_access
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import filter_presets as filter_presets_service
@@ -669,11 +670,14 @@ async def _get_project_with_access(
     guild_id: int,
     access: str = "read",
 ) -> Project:
-    """Get project with DAC permission check.
+    """Load the project a task hangs off, and authorize against it.
 
-    Tasks inherit access from their project's permission levels:
-    - read: any permission level (owner, write, read) — user or role-based
-    - write: owner or write permission level — user or role-based
+    A task has no sharing of its own: it is reached through the project, at
+    the project's level. Which tool that is comes from
+    ``resource_access.governing_tool("tasks")`` rather than a literal here —
+    the same registry entry the ``tasks`` policy is rendered from, where the
+    row's sharing leg is an EXISTS onto ``projects``. One declaration, so the
+    endpoint and the policy cannot disagree about a task's parent.
     """
     project_stmt = (
         select(Project)
@@ -700,8 +704,10 @@ async def _get_project_with_access(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
 
-    # project.grants is eager-loaded above; require_project_access reads it.
-    permissions_service.require_project_access(project, user, access=access)
+    # project.grants is eager-loaded above; the DAC engine reads it.
+    resource_access.authorize(
+        resource_access.governing_tool("tasks"), project, user, access=access
+    )
 
     return project
 

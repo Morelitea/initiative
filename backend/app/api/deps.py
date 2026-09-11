@@ -117,12 +117,14 @@ async def _authenticate_auto_delegation(
       1. Token verifies (signature, audience, issuer, required claims).
       2. ``jti`` is not in the blocklist — first presentation only.
 
-    A verified token also pins the request's guild context to the token's
-    ``guild_id`` claim (via ``request.state.delegated_guild_id``): delegation
-    tokens are minted for exactly one guild, and a machine caller has no
-    guild context of its own to resolve from. The claim is validated against
-    the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
-    auto workflow always acts in the guild its token was issued for.
+    A verified token also pins the request's guild context. The token names its
+    guild by a ``guild_ref`` claim — the reference the app was given, not a row
+    id — which is resolved here to the guild it stands for and put on
+    ``request.state.delegated_guild_id``: delegation tokens are minted for
+    exactly one guild, and a machine caller has no guild context of its own to
+    resolve from. The resolved guild is validated against the user's memberships
+    and must agree with the ``/g/{guild_id}`` path, so an auto workflow always
+    acts in the guild its token was issued for.
     """
     if not delegation_possible():
         return None  # no app platform here — let other auth paths run
@@ -165,12 +167,19 @@ async def _authenticate_auto_delegation(
     if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
         return None
 
-    # The token names its member by the pairwise subject the app was given, not
-    # by a user id — an app never learns which Initiative user it is acting for.
-    # Resolving it needs the guild, and it is scoped to the app that signed:
-    # a subject minted for one install must not resolve for another.
+    # The token names its guild by reference too, so the id everything below
+    # works in is resolved here rather than taken from the token.
+    from app.services.marketplace.app_refs import resolve_app_guild_ref
+
+    guild_id = await resolve_app_guild_ref(ref=claims.guild_ref)
+    if guild_id is None:
+        return None
+
+    # The token names its member by the reference the app was given, not by a
+    # user id. Resolving it takes both the guild it was minted in and the app
+    # that signed, which together are the sector it belongs to.
     resolved = await registration_lookup.resolve_delegated_member(
-        claims.guild_id, signer.registration.public_id, claims.subject
+        guild_id, signer.registration.public_id, claims.subject
     )
     if resolved is None:
         return None
@@ -194,7 +203,7 @@ async def _authenticate_auto_delegation(
     # The read/write split follows the request method, the same line
     # `_enforce_api_key_scope` draws for a read-only PAT.
     if not await registration_lookup.delegation_allowed(
-        claims.guild_id,
+        guild_id,
         signer.registration.public_id,
         resolved,
         need_write=request.method not in _SAFE_HTTP_METHODS,
@@ -216,7 +225,7 @@ async def _authenticate_auto_delegation(
     # Bind the request to the token's guild (see docstring). Stored on
     # request.state so the guild-context resolver can read it without the
     # claims object having to travel through every auth signature.
-    request.state.delegated_guild_id = claims.guild_id
+    request.state.delegated_guild_id = guild_id
 
     return user
 

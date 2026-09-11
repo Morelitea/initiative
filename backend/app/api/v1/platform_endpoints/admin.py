@@ -48,6 +48,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -898,6 +899,9 @@ async def admin_delete_guild(
     # Mirrors the member-facing DELETE /guilds/{id} endpoint.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    # See delete_guild: these live on another connection, so they go after the
+    # commit that made the deletion real.
+    await app_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:

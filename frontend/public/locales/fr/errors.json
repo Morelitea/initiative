@@ -600,5 +600,6 @@
   "GALLERY_VERSION_NOT_FOUND": "Cette version n’existe plus",
   "GALLERY_CANNOT_DELETE_LAST_VERSION": "Une image conserve au moins une version — retirez plutôt l’image",
   "GALLERY_VERSION_CONFLICT": "Quelqu’un d’autre a envoyé une version au même moment — réessayez",
-  "GALLERY_COVER_NOT_IN_GALLERY": "La couverture doit être l’une des images de cette galerie"
+  "GALLERY_COVER_NOT_IN_GALLERY": "La couverture doit être l’une des images de cette galerie",
+  "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Ce document est en cours d'édition en direct. Reconnecte-toi à la session d'édition pour enregistrer tes modifications."
 }

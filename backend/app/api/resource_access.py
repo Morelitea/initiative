@@ -34,10 +34,13 @@ from app.core.messages import (
 )
 from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
+from app.db.initiative_rls import governing_path
 from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import PermissionKey
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services import rls as rls_service
 from app.services import reachability
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import calendars as calendars_service
@@ -59,6 +62,7 @@ class ResourceAccessConfig:
     feature_attr: Optional[str] = None  # initiative flag gating the feature
     feature_disabled_msg: Optional[str] = None
     grant_cannot_manage_msg: Optional[str] = None
+    create_denied_msg: Optional[str] = None  # 403 when the role may not create one
     loader: Optional[Callable[..., Awaitable[Any]]] = (
         None  # async (session, id) -> row|None
     )
@@ -83,6 +87,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.queue: ResourceAccessConfig(
         dac_kind=Tool.queue,
+        create_denied_msg=QueueMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.queue.view_permission,
         feature_disabled_msg=QueueMessages.FEATURE_DISABLED,
         loader=queues_service.get_queue,
@@ -91,6 +96,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.counter_group: ResourceAccessConfig(
         dac_kind=Tool.counter_group,
+        create_denied_msg=CounterMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.counter_group.view_permission,
         feature_disabled_msg=CounterMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CounterMessages.GRANT_CANNOT_MANAGE,
@@ -100,6 +106,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.calendar: ResourceAccessConfig(
         dac_kind=Tool.calendar,
+        create_denied_msg=CalendarMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.calendar.view_permission,
         feature_disabled_msg=CalendarMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CalendarMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -109,6 +116,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.dashboard: ResourceAccessConfig(
         dac_kind=Tool.dashboard,
+        create_denied_msg=DashboardMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.dashboard.view_permission,
         feature_disabled_msg=DashboardMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=DashboardMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -118,6 +126,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.post: ResourceAccessConfig(
         dac_kind=Tool.post,
+        create_denied_msg=PostMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.post.view_permission,
         feature_disabled_msg=PostMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=PostMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -127,6 +136,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.gallery: ResourceAccessConfig(
         dac_kind=Tool.gallery,
+        create_denied_msg=GalleryMessages.CREATE_PERMISSION_REQUIRED,
         feature_attr=Tool.gallery.view_permission,
         feature_disabled_msg=GalleryMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=GalleryMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -140,6 +150,57 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
 # (``set_resource_grants`` / the bulk endpoint) — exactly the tools registered
 # above, derived so the two never drift.
 GRANTABLE_KINDS: tuple[Tool, ...] = tuple(RESOURCE_ACCESS)
+
+
+def governing_tool(table: str) -> Tool:
+    """The tool whose sharing governs one content table's rows.
+
+    Read from ``initiative_rls.governing_path`` — the same registry the table's
+    RLS policy is rendered from — so an endpoint that reaches a sub-resource's
+    parent cannot name a different tool from the one the database asked about.
+    A task's is ``project``, and it is one edit away from staying that way if
+    the hierarchy ever changes.
+    """
+    path = governing_path(table)
+    if path is None:
+        # Config bug, not a request error: the caller named a table whose
+        # governing tool is a property of the row (a comment, a reaction) or
+        # that no tool's sharing governs at all.
+        raise RuntimeError(f"no single tool governs {table!r}")
+    return path[0]
+
+
+async def require_create(
+    session: Any,
+    kind: Tool,
+    initiative: Any,
+    user: User,
+    guild_context: GuildContext,
+) -> None:
+    """Raise 403 unless this caller may create a ``kind`` in ``initiative``.
+
+    Gate 3 at the moment of creation: the initiative role's create right for
+    the tool, with a guild admin above it. The permission key comes from the
+    tool (``Tool.create_permission``) and the message from the registry, so a
+    ninth tool is gated by registering it rather than by copying this.
+
+    The database asks the same question on INSERT — the rendered policy's
+    ``initiative_role_permits(..., create_<plural>, false)`` leg. This one runs
+    first so the answer is a named 403.
+    """
+    if rls_service.is_guild_admin(guild_context.role):
+        return
+    if await rls_service.check_initiative_permission(
+        session,
+        initiative_id=initiative.id,
+        user=user,
+        permission_key=PermissionKey(kind.create_permission),
+    ):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=RESOURCE_ACCESS[kind].create_denied_msg,
+    )
 
 
 def authorize(

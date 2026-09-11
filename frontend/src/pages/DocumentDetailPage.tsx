@@ -114,6 +114,7 @@ import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } fr
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
 /**
  * Live "Attached N ago" label for one attached-project row. A component (not an
@@ -195,6 +196,7 @@ export const DocumentDetailPage = () => {
     null
   );
   const collaboratingRef = useRef(false);
+  const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
 
   // Wikilink dialog state
@@ -225,11 +227,16 @@ export const DocumentDetailPage = () => {
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
-      // Show toast and fall back to autosave mode on collaboration error
       toast.error(t("detail.collaborationFailed"), {
         description: error.message || t("detail.collaborationFailedDescription"),
       });
-      setCollaborationEnabled(false);
+      // Only a refusal ends the session. A lost connection leaves the provider
+      // trying, and turning collaboration off here would tear down the socket
+      // that is going to carry this tab's work back — anything typed during an
+      // outage lives in the local doc until the sync handshake hands it over.
+      if (!(error instanceof CollaborationError) || !error.recoverable) {
+        setCollaborationEnabled(false);
+      }
     },
   });
 
@@ -497,8 +504,25 @@ export const DocumentDetailPage = () => {
   );
 
   useEffect(() => {
+    const resumed = collaboration.isCollaborating && !collaboratingRef.current;
     collaboratingRef.current = collaboration.isCollaborating;
-  }, [collaboration.isCollaborating]);
+    sendContentRef.current = collaboration.sendContent;
+    // The handshake brings this tab's Yjs work back into the room, but the
+    // content column moves only when an editor reports a rendering — and after
+    // an outage there may be nothing further to type. Report one on arrival.
+    if (resumed && canEditDocument) {
+      const stored = contentStateRef.current;
+      if (stored && stored.documentId === parsedId) {
+        collaboration.sendContent(stored.content);
+      }
+    }
+  }, [
+    collaboration.isCollaborating,
+    collaboration.sendContent,
+    collaboration,
+    canEditDocument,
+    parsedId,
+  ]);
 
   // Extract the Yjs doc from the collaboration provider for whiteboards.
   // Mirrors what Lexical's CollaborationPlugin does internally — we call the
@@ -595,10 +619,14 @@ export const DocumentDetailPage = () => {
     if (collaboration.isCollaborating) {
       const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
+        // The room is the writer of this document's content column while it
+        // is live: it saves the JSON and the Yjs state from one snapshot, so
+        // the two always describe the same moment. Every tab reports to it,
+        // and it reconciles them.
+        collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
           name: title?.trim(),
-          content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
@@ -627,6 +655,7 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
+    collaboration.sendContent,
     isOnline,
     document?.document_type,
   ]);
@@ -640,7 +669,17 @@ export const DocumentDetailPage = () => {
     const wasOffline = !prevOnlineRef.current;
     prevOnlineRef.current = isOnline;
     if (!wasOffline || !isOnline) return;
-    if (!canEditDocument || !isDirty || saveDocument.isPending) return;
+    if (!canEditDocument || saveDocument.isPending) return;
+    if (collaborationEnabled) {
+      // The work done while offline is in this tab's Yjs doc, and the sync
+      // handshake is what carries it over — merged with whatever the rest of
+      // the room did meanwhile, rather than written over it. The REST path
+      // carries a rendering rather than the work itself, and the server keeps
+      // the content column with the room for that reason.
+      collaboration.resume();
+      return;
+    }
+    if (!isDirty) return;
     // Do NOT set isAutosaveRef here — we want the success toast to fire so
     // users who edited while offline get explicit confirmation their work
     // was persisted after reconnecting.
@@ -655,6 +694,8 @@ export const DocumentDetailPage = () => {
     isDirty,
     saveDocument,
     parsedId,
+    collaborationEnabled,
+    collaboration,
     title,
     contentForSave,
     featuredImageUrl,
@@ -794,6 +835,12 @@ export const DocumentDetailPage = () => {
       const syncUrl = resolveHeaderlessApiUrl(
         `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
       );
+
+      // Push it to the room first, over the socket that is still open. The
+      // REST call below stays as the fallback for a socket that has already
+      // gone: the server applies it only when no room is live, so whichever
+      // of the two is the redundant one is the one it drops.
+      sendContentRef.current?.(stored.content);
 
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {

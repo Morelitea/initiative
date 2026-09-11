@@ -22,6 +22,12 @@ const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
 const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
 const MSG_AUTH = 5; // Authentication message (sent first after connect)
+const MSG_CONTENT = 6; // The editor's JSON rendering, for the document's content column
+
+/** What ``Y.encodeStateAsUpdate`` produces for a document with nothing in it.
+ *  An answer to the server's SYNC_STEP1 that is this long carries no data, and
+ *  sending one would mark the room unsaved over nothing. */
+const EMPTY_UPDATE_LENGTH = Y.encodeStateAsUpdate(new Y.Doc()).length;
 
 export interface CollaboratorInfo {
   user_id: number;
@@ -30,10 +36,25 @@ export interface CollaboratorInfo {
   /** The picture's URL — a path this server serves, or one linked from a
    *  single sign-on account. Needs ``resolveUploadUrl`` to become absolute. */
   avatar_url?: string | null;
-  cursor?: {
-    anchor: { path: number[]; offset: number };
-    focus: { path: number[]; offset: number };
-  } | null;
+}
+
+/**
+ * A collaboration failure, and whether the provider is still trying.
+ *
+ * ``recoverable`` separates losing the connection — a tunnel, a sleeping
+ * laptop, a server restart — from being refused one. The first is a state the
+ * provider works its way out of and the editor should degrade through; the
+ * second is final, and latching collaboration off is the right response only
+ * to that.
+ */
+export class CollaborationError extends Error {
+  readonly recoverable: boolean;
+
+  constructor(message: string, recoverable: boolean) {
+    super(message);
+    this.name = "CollaborationError";
+    this.recoverable = recoverable;
+  }
 }
 
 export interface CollaborationProviderOptions {
@@ -121,6 +142,9 @@ export class CollaborationProvider implements Provider {
   private shouldConnect: boolean;
   private connectionId: string;
   private authParams: { token: string | null } | null = null;
+  /** Set once the retry budget is spent, so the editor is told it is on its
+   *  own exactly once however long the outage runs. */
+  private lostConnectionReported = false;
 
   // Typed event handlers
   private syncHandlers: Set<SyncCallback> = new Set();
@@ -183,10 +207,45 @@ export class CollaborationProvider implements Provider {
     // Listen for awareness changes
     this._awareness.on("change", this.handleAwarenessChange);
 
+    // A dropped connection is usually a network that went away, and the
+    // browser says when it is back. That is the signal worth acting on: a
+    // retry schedule can only guess at how long an outage runs.
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", this.handleNetworkOnline);
+    }
+
     // Auto-connect if not disabled
     if (this.shouldConnect) {
       this.connect();
     }
+  }
+
+  /**
+   * Try again as soon as the network is back, whatever the retry budget did
+   * while it was gone.
+   */
+  private handleNetworkOnline = (): void => {
+    if (this.destroyed || !this.shouldConnect || this.connected) return;
+    this.resume();
+  };
+
+  /**
+   * Start over: a fresh retry budget and an immediate attempt.
+   *
+   * The rate-limit tally is cleared with it — that counter exists to stop a
+   * broken connection spinning, and a network coming back is not that.
+   */
+  resume(): void {
+    if (this.destroyed) return;
+    this.reconnectAttempts = 0;
+    this.lostConnectionReported = false;
+    connectionAttempts.delete(this.connectionId);
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    this.shouldConnect = true;
+    this.connect();
   }
 
   /**
@@ -355,6 +414,10 @@ export class CollaborationProvider implements Provider {
       this.websocket = null;
     }
 
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.handleNetworkOnline);
+    }
+
     this.doc.off("update", this.handleDocUpdate);
     this._awareness.off("change", this.handleAwarenessChange);
     this._awareness.destroy();
@@ -508,6 +571,7 @@ export class CollaborationProvider implements Provider {
 
   private handleOpen = (): void => {
     this.reconnectAttempts = 0;
+    this.lostConnectionReported = false;
 
     // Send authentication message first (required by server)
     if (this.authParams) {
@@ -530,6 +594,21 @@ export class CollaborationProvider implements Provider {
     const payload = data.slice(1);
 
     switch (msgType) {
+      case MSG_SYNC_STEP1: {
+        // The server is asking for whatever we have that it doesn't. This is
+        // the other half of the handshake, and the one path by which state
+        // this client already holds travels upstream — every other frame we
+        // send is an increment on top of state the server is known to have.
+        const update =
+          payload.length > 0
+            ? Y.encodeStateAsUpdate(this.doc, payload)
+            : Y.encodeStateAsUpdate(this.doc);
+        if (update.length > EMPTY_UPDATE_LENGTH) {
+          this.sendMessage(MSG_SYNC_STEP2, update);
+        }
+        break;
+      }
+
       case MSG_SYNC_STEP2:
         // Apply server state - always call applyUpdate, Yjs handles empty updates gracefully
         Y.applyUpdate(this.doc, payload, this);
@@ -579,7 +658,7 @@ export class CollaborationProvider implements Provider {
     const wasAuthFailure = event.code === 1008;
 
     if (wasAuthFailure) {
-      this.emitError(new Error("Authentication failed or access denied"));
+      this.emitError(new CollaborationError("Authentication failed or access denied", false));
     } else if (this.shouldConnect && !this.destroyed) {
       // Not an auth failure and we should stay connected - try to reconnect
       this.emitStatus({ status: "disconnected" });
@@ -685,11 +764,19 @@ export class CollaborationProvider implements Provider {
         }
         break;
       }
-
-      case "cursor":
-        // Cursor position update - handled by Lexical's built-in cursor support
-        break;
     }
+  }
+
+  /**
+   * Report the editor's JSON rendering of the document to its room.
+   *
+   * The room writes this alongside the Yjs state, from one snapshot, so the
+   * document's two stored views always describe the same moment. Only sent
+   * once synced: before that this client's doc is not yet the room's.
+   */
+  sendContent(content: unknown): void {
+    if (!this._synced) return;
+    this.sendMessage(MSG_CONTENT, new TextEncoder().encode(JSON.stringify(content)));
   }
 
   private sendMessage(type: number, payload: Uint8Array): void {
@@ -708,14 +795,19 @@ export class CollaborationProvider implements Provider {
       return;
     }
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      // Max retries exceeded - emit error
-      this.emitError(new Error("Connection lost. Maximum reconnection attempts reached."));
-      return;
+    // Past the budget the editor is told it is on its own — once — and the
+    // provider keeps trying at the slowest interval. An outage that outlasts
+    // the budget is the ordinary case (a tunnel, a sleeping laptop), and the
+    // work done during one reaches the server through the sync handshake the
+    // moment the socket is back. Stopping for good is what leaves it stranded.
+    const budgetSpent = this.reconnectAttempts >= this.maxReconnectAttempts;
+    if (budgetSpent && !this.lostConnectionReported) {
+      this.lostConnectionReported = true;
+      this.emitError(new CollaborationError("Connection lost. Still trying to reconnect.", true));
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 30000);
+    const delay = budgetSpent ? 30000 : Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 30000);
 
     // Emit connecting status while waiting to reconnect
     this.emitStatus({ status: "connecting" });

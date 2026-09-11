@@ -257,10 +257,75 @@ class TestRemoval:
             guild_id=there.id, app_install_id=app_there.id, user_id=user.id
         )
 
-        assert await drop_guild_app_refs(session, guild_id=here.id) == 1
+        assert await drop_guild_app_refs(guild_id=here.id) == 1
         await session.commit()
         assert await resolve_app_ref(session, ref=gone, guild_id=here.id) is None
         assert await resolve_app_ref(session, ref=kept, guild_id=there.id) is not None
+
+    @pytest.mark.integration
+    async def test_the_deletion_sequence_its_callers_follow(self, session):
+        """Delete, commit, then drop — the order `delete_guild` documents.
+
+        The references are on a different connection and cannot join the
+        deletion's transaction, so they go after the commit that made it real.
+        A guild whose deletion then failed still holds the identities its apps
+        know its members by.
+        """
+        from app.services.platform import guilds as guilds_service
+
+        user = await create_user(session)
+        guild = await create_guild(session, creator=user)
+        app = await _install(session, guild, user)
+        await session.commit()
+
+        guild_id = guild.id
+        ref = await ensure_app_ref(
+            guild_id=guild_id, app_install_id=app.id, user_id=user.id
+        )
+        await guilds_service.delete_guild(session, guild)
+
+        # Still resolvable until the deletion is committed.
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild_id) is not None
+
+        await session.commit()
+        await drop_guild_app_refs(guild_id=guild_id)
+
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild_id) is None
+
+    @pytest.mark.integration
+    async def test_the_sweep_reclaims_a_deleted_guilds_references(self, session):
+        """What a failed post-commit cleanup leaves behind.
+
+        The sector columns cannot be foreign keys, so nothing removes these on
+        the guild's way out except the deletion path. When that does not manage
+        it, this is what reclaims them.
+        """
+        from app.services.platform import guilds as guilds_service
+        from app.services.platform.identity_refs import purge_orphaned_sector_refs
+
+        user = await create_user(session)
+        gone = await create_guild(session, creator=user)
+        kept = await create_guild(session, creator=user)
+        gone_app = await _install(session, gone, user)
+        kept_app = await _install(session, kept, user)
+        await session.commit()
+
+        orphaned = await ensure_app_ref(
+            guild_id=gone.id, app_install_id=gone_app.id, user_id=user.id
+        )
+        live = await ensure_app_ref(
+            guild_id=kept.id, app_install_id=kept_app.id, user_id=user.id
+        )
+
+        # The guild goes and the cleanup does not run — the case this covers.
+        kept_id = kept.id
+        await guilds_service.delete_guild(session, gone)
+        await session.commit()
+
+        assert await purge_orphaned_sector_refs(session) == 1
+        await session.commit()
+        assert await resolve_app_ref(session, ref=orphaned, guild_id=kept_id) is None
+        assert await resolve_app_ref(session, ref=live, guild_id=kept_id) is not None
 
     @pytest.mark.unit
     def test_the_grace_window_is_the_shared_one(self):
