@@ -10,9 +10,6 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.relationships import RelationshipType
-from app.core.search import SearchEntityType
-from app.services.tenant import relationships
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
@@ -27,7 +24,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.project import Project
 from app.core.config import settings
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
@@ -254,56 +250,6 @@ async def get_document_for_grants(
         )
     )
     return (await session.exec(statement)).one_or_none()
-
-
-def _document_endpoint(document_id: int) -> relationships.Endpoint:
-    return relationships.Endpoint(SearchEntityType.document, document_id)
-
-
-def _project_endpoint(project_id: int) -> relationships.Endpoint:
-    return relationships.Endpoint(SearchEntityType.project, project_id)
-
-
-async def attach_document_to_project(
-    session: AsyncSession,
-    *,
-    document: Document,
-    project: Project,
-    user_id: int,
-) -> None:
-    """Put a document on a project. Idempotent, as the junction was."""
-    await relationships.create(
-        session,
-        source=_document_endpoint(document.id),
-        relationship_type=RelationshipType.attached,
-        target=_project_endpoint(project.id),
-        created_by=user_id,
-    )
-    await session.commit()
-
-
-async def detach_document_from_project(
-    session: AsyncSession,
-    *,
-    document_id: int,
-    project_id: int,
-    removed_by: int | None = None,
-) -> None:
-    """Take a document off a project.
-
-    Tombstoned rather than deleted: somebody attached these two things and has
-    now said they do not belong together, which is the one negative signal
-    nothing else in the schema records.
-    """
-    row = await relationships.find(
-        session,
-        source=_document_endpoint(document_id),
-        relationship_type=RelationshipType.attached,
-        target=_project_endpoint(project_id),
-    )
-    if row is not None:
-        await relationships.remove(session, row, removed_by=removed_by)
-        await session.commit()
 
 
 async def duplicate_document(
