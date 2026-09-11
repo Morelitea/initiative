@@ -278,6 +278,8 @@ async def export_my_calendar_events_ics(
     — events live only in the per-guild schemas, so no one query spans them.
     """
 
+    documents_by_event: dict[int, list[Related]] = {}
+
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [calendars_service.tool_enabled_clause()]
         if start_after is not None:
@@ -293,9 +295,10 @@ async def export_my_calendar_events_ics(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user
                 ),
-                # event_export_dict reads tags, linked-document titles, and
-                # custom properties too — async lazy loads would raise, so
-                # load them here.
+                # event_export_dict reads tags and custom properties too —
+                # async lazy loads would raise, so load them here. Attached
+                # documents are not on the row any more and are gathered per
+                # guild below, where the session is routed to read them.
                 selectinload(CalendarEvent.tag_links).selectinload(
                     CalendarEventTag.tag
                 ),
@@ -307,7 +310,16 @@ async def export_my_calendar_events_ics(
                 ),
             )
         )
-        return _exec_events(guild_session, stmt)
+        async def _run():
+            found = await _exec_events(guild_session, stmt)
+            # While this session is routed to THIS guild: edges live in its
+            # schema, so they cannot be read once the walk has moved on.
+            documents_by_event.update(
+                await ical_service.documents_for_events(guild_session, found)
+            )
+            return found
+
+        return _run()
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -315,7 +327,7 @@ async def export_my_calendar_events_ics(
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
     events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
 
-    ics_bytes = ical_service.events_to_ical(list(events))
+    ics_bytes = ical_service.events_to_ical(list(events), documents_by_event)
     return Response(
         content=ics_bytes,
         media_type="text/calendar",
