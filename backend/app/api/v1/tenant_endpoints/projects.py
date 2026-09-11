@@ -119,14 +119,6 @@ GuildAdminContext = Annotated[
 MAX_RECENT_PROJECTS = 20
 
 
-#: What the document DAC decision reads. Loaded with the far ends, because a
-#: lazy load under asyncio raises rather than quietly costing a query.
-PROJECT_DOCUMENT_OPTIONS = (
-    selectinload(Document.grants).selectinload(ResourceGrant.role),
-    selectinload(Document.initiative).selectinload(Initiative.memberships),
-)
-
-
 async def _documents_for_projects(
     session: AsyncSession, projects: Sequence[Project]
 ) -> dict[int, list[Related]]:
@@ -138,31 +130,22 @@ async def _documents_for_projects(
         relationship_type=RelationshipType.attached,
         other_kind=SearchEntityType.document,
         model=Document,
-        options=PROJECT_DOCUMENT_OPTIONS,
     )
 
 
 def _project_documents(
     attached: Sequence[Related],
-    *,
-    user_id: int | None = None,
 ) -> List[ProjectDocumentSummary]:
-    """Serialize a project's attached documents, filtering by DAC permission.
+    """Serialize a project's attached documents.
 
-    The edges are handed in: a project list serialises many at once, so they are
-    loaded for the whole page rather than per project.
-
-    Pass ``user_id`` so only documents the user can access are included.
+    No sharing check here. The edge row carries the document's own gate 4 —
+    ``relationships`` asks ``resource_access`` of BOTH ends — so a document this
+    reader holds no grant on never arrives, and the entity query behind
+    ``Related`` passes the documents' policies a second time. Restating it here
+    would be a rule said twice, which can only agree or drift.
     """
     documents: List[ProjectDocumentSummary] = []
     for link in attached:
-        doc = link.entity
-        if user_id is not None and doc is not None:
-            # Single source of truth: the document DAC engine (per-user / per-role /
-            # all-initiative-members grants, plus guild-admin, Full-access, and PAM
-            # overrides) — no re-implementation here.
-            if permissions_service.compute_document_permission(doc, user_id) is None:
-                continue
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
@@ -821,7 +804,7 @@ def _build_project_payload(
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
-            "documents": _project_documents(attached_documents, user_id=user_id),
+            "documents": _project_documents(attached_documents),
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
             "tags": tags_service.tag_summaries(project.tag_links),

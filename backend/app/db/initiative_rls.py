@@ -774,18 +774,22 @@ def relationships_path() -> InitiativePath:
     def _dac_for(endpoint: EndpointKind) -> DacPath | None:
         """The sharing leg for one kind, with its tool NAMED.
 
-        Both ends are reached under an alias here, and ``_dac_self`` derives the
-        governing tool from the table name it is handed — which under an alias
-        is not a table name, so it would find no tool and render no gate at all.
-        Naming the tool is what ``reactions_path`` does for the same reason. A
-        kind whose rows are not a tool's keeps the leg its own entry declares,
-        which reaches its parent by name and so survives the alias.
+        Both ends are reached under an alias here. Where the row IS the
+        governing resource (``via`` empty), ``_dac_self`` reads the tool off the
+        name it is handed — which under an alias is not a table name, so it
+        would find no tool and render no gate at all. The lookup it wants is the
+        same one, against the real table; naming the tool is what
+        ``reactions_path`` does for the same reason.
+
+        A kind that reaches its resource through a parent keeps the leg its own
+        entry declares: that walk names each table, so it survives the alias.
         """
-        try:
-            return _dac_self(Tool(endpoint.kind.value))
-        except ValueError:
-            path = _leg_for(endpoint)
-            return path.dac if path is not None else None
+        path = _leg_for(endpoint)
+        dac = path.dac if path is not None else None
+        if dac is None or dac.via:
+            return dac
+        tool = dac.tool or _TOOL_BY_TABLE.get(endpoint.table)
+        return _dac_self(tool) if tool is not None else None
 
     def _end(t: str, side: str, write: bool) -> str:
         """One end's membership gate: a CASE over that end's kind."""
