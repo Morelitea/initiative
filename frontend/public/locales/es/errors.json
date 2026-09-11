@@ -96,6 +96,7 @@
   "PROJECT_NOT_FOUND": "Proyecto no encontrado",
   "PROJECT_INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",
   "PROJECT_IS_ARCHIVED": "El proyecto está archivado",
+  "CONTENT_IS_FROZEN": "Esto está archivado o en la papelera. Restáuralo antes de hacer cambios.",
   "PROJECT_OWNER_REQUIRED": "Se requiere permiso de propietario del proyecto",
   "PROJECT_NO_ACCESS": "No tienes acceso a este proyecto",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Se requiere acceso de escritura",

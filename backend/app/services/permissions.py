@@ -44,7 +44,9 @@ from app.models.tenant.project import Project
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
+from app.db.frozen import row_is_frozen
 from app.core.messages import (
+    CommonMessages,
     SharingMessages,
     ProjectMessages,
     DocumentMessages,
@@ -674,6 +676,7 @@ def require_access(
     access: str = "read",
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
+    allow_frozen: bool = False,
 ) -> None:
     """Raise 403 unless ``user`` may act on ``row``: frozen-guild read cap →
     bypass (admin/PAM/Full access) → effective DAC level vs requested access.
@@ -682,7 +685,13 @@ def require_access(
     every content table's policy defers to ``public.initiative_access`` before
     anything here runs — a row belonging to an initiative the caller is not in
     does not arrive to be checked. What is left is the part the policies do not
-    do: saying which refusal it is."""
+    do: saying which refusal it is.
+
+    ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving.
+    It asks for write on a row that is archived by definition, so the freeze
+    cap would refuse the one action that lifts it. It exempts nothing else: the
+    caller still needs the write level, and the database still holds the row to
+    a lifecycle-only change."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
     # A frozen guild (read_only lifecycle status) caps EVERY real member at
@@ -694,6 +703,16 @@ def require_access(
     if content_read_only_active(guild_id) and (access != "read" or require_owner):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
+    # Archived or trashed content is read-only, and so is everything under it.
+    # Not a permission answer — the caller may well own it — so it is its own
+    # code and its own status, and it sits before the bypass legs because a
+    # guild admin unarchives first like anybody else. The database refuses the
+    # write regardless (app.db.frozen); this is what makes the refusal legible.
+    if not allow_frozen and row_is_frozen(row) and (access != "read" or require_owner):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CommonMessages.CONTENT_IS_FROZEN,
         )
     if request_bypasses_dac(
         guild_id,
@@ -729,7 +748,10 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     A frozen guild (read_only lifecycle status) caps the result at read — the
     single place the client-facing level reflects the hold, so every surface
     (edit affordances, writable filters, the collaboration socket's can_write)
-    inherits it without re-deriving the status."""
+    inherits it without re-deriving the status. Archived and trashed content
+    caps it the same way and for the same reason: one place, so a document in
+    the trash opens with its editor already read-only rather than failing on the
+    first keystroke."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
     level: str | None
@@ -738,6 +760,8 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     else:
         level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
     if level is not None and content_read_only_active(guild_id):
+        return "read"
+    if level is not None and row_is_frozen(row):
         return "read"
     return level
 

@@ -858,10 +858,13 @@ async def _require_project_membership(
     access: str = "read",
     require_manager: bool = False,
     manage_access: bool = False,
+    allow_frozen: bool = False,
 ):
     """Authorize a project via the shared engine. ``manage_access=True`` (member/
     permission ops) additionally rejects PAM grantees — a grant never manages
-    access. Loads the permission row first in case it wasn't eager-loaded."""
+    access. ``allow_frozen=True`` is unarchiving, which asks for write on a
+    project that is archived by definition. Loads the permission row first in
+    case it wasn't eager-loaded."""
     await _get_project_permission(project, current_user.id, session)
     resource_access.authorize(
         Tool.project,
@@ -870,6 +873,7 @@ async def _require_project_membership(
         access=access,
         require_owner=require_manager,
         manage_access=manage_access,
+        allow_frozen=allow_frozen,
     )
 
 
@@ -1547,6 +1551,7 @@ async def unarchive_project(
         current_user,
         session,
         access="write",
+        allow_frozen=True,
     )
     if project.is_archived:
         project.is_archived = False
