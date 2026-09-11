@@ -22,6 +22,8 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     comment_count: 0,
     comments_enabled: true,
     grants: [],
+    archived_at: null,
+    can_unarchive: false,
     my_permission_level: "owner",
     tags: [],
     document_type: "native",

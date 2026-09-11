@@ -10,6 +10,11 @@ import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { CreateDashboardDialog } from "@/components/initiativeTools/dashboards/CreateDashboardDialog";
 import { DashboardCard } from "@/components/initiativeTools/dashboards/DashboardCard";
 import { DashboardsFilterBar } from "@/components/initiativeTools/dashboards/DashboardsFilterBar";
+import {
+  archivedParam,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -35,8 +40,13 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
   const router = useRouter();
   const gp = useGuildPath();
 
+  // Which of the tool's two states the list is showing. Archived rows are
+  // off the live list, so this is the only place they can be reached.
+  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+
   const dashboardsQuery = useDashboardsList({
     initiative_id: fixedInitiativeId,
+    archived: archivedParam(archiveState),
     page: 1,
     page_size: 50,
   });
@@ -84,6 +94,13 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
   return (
     <div className="space-y-6">
       <ToolListToolbar
+        leading={
+          <ToolArchiveFilter
+            tool={Tool.dashboard}
+            value={archiveState}
+            onChange={setArchiveState}
+          />
+        }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,

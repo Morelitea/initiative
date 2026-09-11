@@ -13,6 +13,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { canUseArchiveCard, ToolArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,8 @@ export const ToolSettingsAdvancedPage = () => {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const hasAnything = Boolean(advancedExtra) || isOwner;
+  const canArchive = canUseArchiveCard(entity);
+  const hasAnything = Boolean(advancedExtra) || isOwner || canArchive;
 
   const handleDelete = () => {
     remove.mutate(entity.id, {
@@ -57,6 +59,8 @@ export const ToolSettingsAdvancedPage = () => {
   return (
     <div className="space-y-6">
       {advancedExtra}
+
+      <ToolArchiveCard />
 
       {isOwner && (
         <Card className="border-destructive/40 bg-destructive/5 shadow-sm">

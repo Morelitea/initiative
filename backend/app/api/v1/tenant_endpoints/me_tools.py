@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api import resource_access
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.tools import Tool
 from app.db.query import page_has_next, paginate_sequence
@@ -72,21 +71,13 @@ class MyToolList:
 MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.queue: MyToolList(
         loader_options=queues_service.list_loader_options,
-        serialize=lambda row, user: serialize_queue_summary(
-            row,
-            my_permission_level=resource_access.my_permission_level(
-                row, Tool.queue, user
-            ),
-        ),
+        serialize=lambda row, user: serialize_queue_summary(row, user_id=user.id),
         default_key=lambda row: row.updated_at,
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
         serialize=lambda row, user: serialize_counter_group_summary(
-            row,
-            my_permission_level=resource_access.my_permission_level(
-                row, Tool.counter_group, user
-            ),
+            row, user_id=user.id
         ),
         default_key=lambda row: row.updated_at,
     ),

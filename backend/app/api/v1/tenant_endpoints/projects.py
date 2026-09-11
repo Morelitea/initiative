@@ -257,14 +257,6 @@ async def _get_initiative_or_404(
     return initiative
 
 
-def _compute_my_permission_level(
-    project: Project,
-    user_id: int,
-) -> str | None:
-    """Compute the effective permission level for a user on a project."""
-    return permissions_service.compute_project_permission(project, user_id)
-
-
 def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
     initiative = getattr(project, "initiative", None)
     if not initiative:
@@ -603,14 +595,12 @@ async def _project_reads_with_order(
     attached = await _documents_for_projects(session, sorted_projects)
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
-        my_level = _compute_my_permission_level(project, current_user.id)
         payloads.append(
             _build_project_payload(
                 project,
                 sort_order=order_map.get(project.id),
                 favorite_ids=favorite_ids,
                 view_map=view_map,
-                my_permission_level=my_level,
                 user_id=current_user.id,
                 attached_documents=attached.get(project.id, []),
             )
@@ -641,9 +631,7 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
-                my_permission_level=permissions_service.compute_project_permission(
-                    project, user_id
-                ),
+                **permissions_service.client_access(Tool.project, project, user_id),
             )
         )
     return reads
@@ -787,7 +775,6 @@ def _build_project_payload(
     sort_order: Optional[float],
     favorite_ids: set[int],
     view_map: dict[int, datetime],
-    my_permission_level: str | None = None,
     user_id: int | None = None,
     attached_documents: Sequence[Related] = (),
 ) -> ProjectRead:
@@ -808,7 +795,7 @@ def _build_project_payload(
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
-            "my_permission_level": my_permission_level,
+            **permissions_service.client_access(Tool.project, project, user_id),
             "owner_id": ownership_service.owner_id_of(project),
             "owner": _project_owner(project),
         }
@@ -1556,10 +1543,6 @@ async def favorite_projects(
                 sort_order=None,
                 favorite_ids=favorite_ids,
                 view_map=view_map,
-                my_permission_level=_compute_my_permission_level(
-                    project,
-                    current_user.id,
-                ),
                 user_id=current_user.id,
                 attached_documents=attached.get(project.id, []),
             )

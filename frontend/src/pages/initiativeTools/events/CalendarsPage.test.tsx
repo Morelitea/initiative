@@ -173,6 +173,9 @@ describe("CalendarsView on a guild calendar", () => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     my_permission_level: "write",
+    comments_enabled: true,
+    archived_at: null,
+    can_unarchive: false,
     tags: [],
     grants: [],
   };
@@ -241,6 +244,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     my_permission_level: "write",
+    comments_enabled: true,
+    archived_at: null,
+    can_unarchive: false,
     tags: [],
     grants: [],
   });

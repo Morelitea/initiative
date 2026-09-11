@@ -82,6 +82,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     owner: null,
     initiative: null,
     grants: [],
+    can_unarchive: false,
     my_permission_level: "owner",
     sort_order: counter,
     is_favorited: false,

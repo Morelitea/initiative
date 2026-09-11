@@ -244,8 +244,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             />
           ) : null
       : status === "archived"
-        ? (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
-            hasProjectWritePermission(project) ? (
+        ? // Not `hasProjectWritePermission`: an archived project reports `read`,
+          // which is the cap that turns its edit affordances off. Reading it
+          // here would turn off the way back out as well.
+          (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
+            project.can_unarchive ? (
               <ProjectCardActionButton
                 icon={ArchiveRestore}
                 iconSize={iconSize}

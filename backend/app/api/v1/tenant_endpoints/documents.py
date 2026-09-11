@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
+from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
@@ -280,14 +281,6 @@ async def _require_initiative_access(
             )
 
 
-def _compute_my_doc_permission_level(
-    document: Document,
-    user_id: int,
-) -> str | None:
-    """Compute the effective permission level for a user on a document."""
-    return permissions_service.compute_document_permission(document, user_id)
-
-
 def _require_document_write_access(
     document: Document,
     user: User,
@@ -513,9 +506,7 @@ async def _list_global_documents(
         return [
             serialize_document_summary(
                 document,
-                my_permission_level=_compute_my_doc_permission_level(
-                    document, current_user.id
-                ),
+                user_id=current_user.id,
                 projects=attached.get(document.id, []),
             )
             for document in documents
@@ -544,6 +535,9 @@ async def get_document_counts(
     document_type: Optional[DocumentType] = Query(
         default=None, description="Filter by document type"
     ),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
 ) -> DocumentCountsResponse:
     """Get per-tag document counts for visible documents.
 
@@ -564,6 +558,7 @@ async def get_document_counts(
         is_template=is_template,
         document_type=document_type,
     )
+    conditions.append(archive_service.archive_filter_clause(Document, archived))
 
     # Subquery: IDs of visible documents
     visible_docs_subq = (
@@ -705,6 +700,9 @@ async def list_documents(
         description="Order by one of: name, initiative, updated_at, created_at.",
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
 ) -> DocumentListResponse:
     """List documents in the active guild visible to the current user.
 
@@ -738,6 +736,7 @@ async def list_documents(
         is_template=is_template,
         document_type=document_type,
     )
+    conditions.append(archive_service.archive_filter_clause(Document, archived))
 
     # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
     try:
@@ -798,10 +797,7 @@ async def list_documents(
     items = [
         serialize_document_summary(
             document,
-            my_permission_level=_compute_my_doc_permission_level(
-                document,
-                current_user.id,
-            ),
+            user_id=current_user.id,
             projects=attached.get(document.id, []),
         )
         for document in documents
@@ -942,10 +938,7 @@ async def create_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1102,10 +1095,7 @@ async def upload_document_file(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1399,10 +1389,7 @@ async def read_document(
     _require_document_access(document, current_user, access="read")
     return serialize_document(
         document,
-        my_permission_level=_compute_my_doc_permission_level(
-            document,
-            current_user.id,
-        ),
+        user_id=current_user.id,
         include_content=include_content,
     )
 
@@ -1528,10 +1515,7 @@ async def update_document(
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1584,10 +1568,7 @@ async def duplicate_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1655,10 +1636,7 @@ async def copy_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1843,10 +1821,7 @@ async def set_document_properties(
     )
     return serialize_document(
         refreshed,
-        my_permission_level=_compute_my_doc_permission_level(
-            refreshed,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1873,7 +1848,7 @@ async def set_document_grants(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(hydrated, current_user.id),
+        user_id=current_user.id,
     )
 
 

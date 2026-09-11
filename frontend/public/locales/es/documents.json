@@ -305,6 +305,8 @@
     "collapse": "Ocultar lo que hay bajo {{heading}}"
   },
   "page": {
+    "noArchivedDescription": "Los documentos que archives aparecen aquí, de solo lectura, hasta que los recuperes.",
+    "noArchivedTitle": "No hay nada archivado",
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
     "newDocument": "Nuevo documento",
@@ -616,7 +618,8 @@
   "status": {
     "label": "Mostrar",
     "documents": "Documentos",
-    "templates": "Plantillas"
+    "templates": "Plantillas",
+    "archived": "Archivados"
   },
   "summary": {
     "aiNotEnabled": "Las funciones de IA no están habilitadas. Configura los ajustes de IA para generar resúmenes de documentos.",

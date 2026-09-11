@@ -183,6 +183,36 @@ def row_is_frozen(row: Any) -> bool:
     return row_is_frozen(getattr(row, "initiative", None))
 
 
+#: The ancestor a row hangs off, in the order the walk tries them. A task
+#: reaches its initiative through its project; every tool names one directly.
+_ANCESTOR_ATTRS: tuple[str, ...] = ("project", "initiative")
+
+
+def ancestor_is_frozen(row: Any) -> bool:
+    """Whether something ABOVE this row is archived or in the trash.
+
+    The same walk :func:`row_is_frozen` does, minus the row's own stamp. That
+    difference is the whole of it: a row put away on its own occasion comes back
+    on its own, and a row that went with the thing above it comes back with that
+    thing. The database draws the line in the same place — see
+    ``fn_frozen_parent_guard`` — so the two answers agree about which one this
+    is.
+
+    Only an ancestor already loaded is consulted, for the reason given on
+    :func:`row_is_frozen`.
+    """
+    if row is None:
+        return False
+    try:
+        unloaded = sa_inspect(row).unloaded
+    except Exception:  # noqa: BLE001 — not a mapped instance; nothing to walk
+        return False
+    return any(
+        attr not in unloaded and row_is_frozen(getattr(row, attr, None))
+        for attr in _ANCESTOR_ATTRS
+    )
+
+
 #: The prefix every ancestor policy's name carries; Postgres puts it in the
 #: message it raises.
 _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"

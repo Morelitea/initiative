@@ -81,6 +81,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.core.search import SearchEntityType
+from app.services.tenant import archive as archive_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
@@ -335,6 +336,9 @@ async def list_posts(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     unread: bool = Query(
         default=False,
         description="Only notices this reader has not read yet.",
@@ -383,7 +387,10 @@ async def list_posts(
             page_size=page_size,
             has_next=False,
         )
-    conditions = list(scope)
+    conditions = [
+        *scope,
+        archive_service.archive_filter_clause(Post, archived),
+    ]
 
     if until is not None:
         conditions.append(posts_service.anchored_clause(until))

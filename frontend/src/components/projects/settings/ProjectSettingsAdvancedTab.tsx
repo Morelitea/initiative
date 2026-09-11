@@ -13,12 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  useArchiveProject,
-  useDuplicateProject,
-  useUnarchiveProject,
-  useUpdateProject,
-} from "@/hooks/useProjects";
+import { useDuplicateProject, useUpdateProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute, toolListRoute } from "@/lib/tools";
 
@@ -56,10 +51,6 @@ export const ProjectSettingsAdvancedTab = ({
       router.navigate({ to: gp(toolDetailRoute(Tool.project, data.initiative_id, data.id)) });
     },
   });
-
-  const archiveProject = useArchiveProject();
-
-  const unarchiveProject = useUnarchiveProject();
 
   return (
     <>
@@ -140,39 +131,6 @@ export const ProjectSettingsAdvancedTab = ({
             ) : (
               <p className="text-muted-foreground text-sm">
                 {t("settings.duplicate.noWriteAccess")}
-              </p>
-            )}
-          </CardFooter>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>{t("settings.archiveStatus.title")}</CardTitle>
-            <CardDescription>
-              {project.archived_at !== null
-                ? t("settings.archiveStatus.isArchived")
-                : t("settings.archiveStatus.isActive")}
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            {canWriteProject ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  project.archived_at !== null
-                    ? unarchiveProject.mutate(projectId)
-                    : archiveProject.mutate(projectId)
-                }
-                disabled={archiveProject.isPending || unarchiveProject.isPending}
-              >
-                {project.archived_at !== null
-                  ? t("settings.archiveStatus.unarchive")
-                  : t("settings.archiveStatus.archive")}
-              </Button>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("settings.archiveStatus.noWriteAccess")}
               </p>
             )}
           </CardFooter>

@@ -20,8 +20,12 @@ import type { MutationOpts } from "@/types/mutation";
 
 export type ArchiveTarget = { entityType: ArchivableType; entityId: number };
 
-const refresh = () =>
-  invalidate(q.allProjects(), q.allTasks(), q.allInitiatives(), q.allDocuments());
+// Everything the guild shows. Not a wide net for its own sake: archiving
+// cascades, so an initiative going away takes every tool in it and a project
+// takes its tasks, and the row's own detail changes state as well as its list.
+// The hand-written four this used to name predated archiving reaching every
+// tool, so a queue or a gallery kept showing the state it had before the call.
+const refresh = () => invalidate(q.guildContent());
 
 export const useArchiveEntity = (options?: MutationOpts<ArchiveResponse, ArchiveTarget>) =>
   useGuildMutation<ArchiveResponse, ArchiveTarget>(

@@ -1721,6 +1721,8 @@ export interface CalendarEventUpdate {
 }
 
 export interface CalendarSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -1750,6 +1752,8 @@ export interface CalendarListResponse {
 }
 
 export interface CalendarRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2224,6 +2228,8 @@ export interface CounterGroupDuplicateRequest {
 }
 
 export interface CounterGroupSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2275,6 +2281,8 @@ export interface CounterRead {
 }
 
 export interface CounterGroupRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2385,6 +2393,8 @@ export interface DashboardInstalledListings {
 }
 
 export interface DashboardSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2427,6 +2437,8 @@ export interface PublishedOver {
 }
 
 export interface DashboardRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2925,6 +2937,8 @@ export const DocumentSummaryDocumentType = {
 } as const;
 
 export interface DocumentSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   name: string;
   initiative_id: number;
   featured_image_url: string | null;
@@ -2975,6 +2989,8 @@ export const DocumentReadDocumentType = {
 export type DocumentReadContent = { [key: string]: unknown };
 
 export interface DocumentRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   name: string;
   initiative_id: number;
   featured_image_url: string | null;
@@ -3400,6 +3416,8 @@ export interface GalleryImageVersionRead {
 }
 
 export interface GallerySummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -3436,6 +3454,8 @@ export interface GalleryListResponse {
  * are paged separately, because a gallery is browsed rather than read.
  */
 export interface GalleryRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -5080,6 +5100,8 @@ export interface PostCreate {
 export type PostReadBody = { [key: string]: unknown };
 
 export interface PostRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -5268,6 +5290,8 @@ export interface ProjectTaskSummary {
 }
 
 export interface ProjectRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   name: string;
   description: string | null;
   icon: string | null;
@@ -5280,7 +5304,6 @@ export interface ProjectRead {
   created_at: string;
   updated_at: string;
   is_template: boolean;
-  archived_at: string | null;
   pinned_at: string | null;
   default_view_mode: string | null;
   owner: UserPublic | null;
@@ -5707,6 +5730,8 @@ export interface QueueItemUpdate {
 }
 
 export interface QueueSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -5737,6 +5762,8 @@ export interface QueueListResponse {
 }
 
 export interface QueueRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
   /**
    * @minLength 1
    * @maxLength 255
@@ -7549,6 +7576,10 @@ export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
    * Filter by document type
    */
   document_type?: DocumentType | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
 };
 
 export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
@@ -7595,6 +7626,10 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
 };
 
 export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams = {
@@ -7863,6 +7898,10 @@ export type ListQueuesApiV1GGuildIdQueuesGetParams = {
    */
   sort_dir?: string | null;
   /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -7901,6 +7940,10 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
   /**
    * @minimum 1
    */
@@ -7942,6 +7985,10 @@ export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
    */
   sort_dir?: string | null;
   /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -7974,6 +8021,10 @@ export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
    */
   sort_dir?: string | null;
   /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -8005,6 +8056,10 @@ export type ListPostsApiV1GGuildIdPostsGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
   /**
    * Only notices this reader has not read yet.
    */
@@ -8056,6 +8111,10 @@ export type ListGalleriesApiV1GGuildIdGalleriesGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
   /**
    * @minimum 1
    */

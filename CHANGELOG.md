@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Archived work can be brought back out again** — the last release made archiving mean something everywhere but left no way out of it: an archived project offered "you need write access" where its Unarchive button used to be, and seven of the eight tools had no archive control at all and nowhere to see what had been put away. Every tool now has an Archive section in its settings that both puts it away and takes it back, and every tool list has an Archived view to find it in — documents beside their templates, calendars in the community's tool table. Anything archived along with the initiative or project above it comes back when that one does.
+
 - **Upgrading no longer leaves the app unable to start** — on an existing deployment, the previous release's change to how archiving is recorded could not be applied, and the new version restarted into the same failure instead of coming up. Nothing was lost: the change is applied whole or not at all, so the database was left exactly as it was and the running version carried on serving throughout. Upgrading completes now, and a deployment already stuck this way recovers on its next restart with nothing to repair by hand.
 
 - **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.

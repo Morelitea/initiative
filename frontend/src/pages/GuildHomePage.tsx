@@ -24,6 +24,12 @@ import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState"
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
+import {
+  archivedParam,
+  isToolArchiveState,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { PageBanner } from "@/components/PageBanner";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
@@ -52,6 +58,7 @@ export function GuildHomePage() {
     q?: string;
     sort?: string;
     dir?: string;
+    state?: string;
   };
 
   const initiativesQuery = useInitiatives();
@@ -110,7 +117,7 @@ export function GuildHomePage() {
 
   const page = search.page ?? 1;
   const setSearch = useCallback(
-    (next: { page?: number; q?: string; sort?: string; dir?: string }) => {
+    (next: { page?: number; q?: string; sort?: string; dir?: string; state?: string }) => {
       void navigate({
         to: ".",
         search: { ...search, ...next },
@@ -125,6 +132,9 @@ export function GuildHomePage() {
   // left out of it — most-recently-updated is what the endpoints do unasked,
   // so spelling it in every URL would only be noise.
   const query = search.q ?? "";
+  // Which of the tool's two states the table is showing. In the address like
+  // the rest of it, and left out while live — the default needs no spelling.
+  const archiveState: ToolArchiveState = isToolArchiveState(search.state) ? search.state : "active";
   const sortBy: ToolSortField = isToolSortField(search.sort) ? search.sort : "updated_at";
   const sortDir: "asc" | "desc" =
     search.dir === "asc" || search.dir === "desc"
@@ -191,6 +201,7 @@ export function GuildHomePage() {
     search: query || undefined,
     sortBy,
     sortDir,
+    archived: archivedParam(archiveState),
   });
 
   const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
@@ -257,6 +268,25 @@ export function GuildHomePage() {
               <div
                 className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}
               >
+                {/* Which of the tool's two states the tray is showing. Above
+                    the table rather than in its toolbar, because it changes
+                    what the table IS rather than narrowing what it holds — and
+                    for a calendar, which has no list page of its own, this is
+                    the only place an archived one can be found. */}
+                <div className="flex justify-end pt-2 pb-3">
+                  <ToolArchiveFilter
+                    tool={selected}
+                    value={archiveState}
+                    onChange={(next) =>
+                      setSearch({
+                        state: next === "active" ? undefined : next,
+                        // The other state's cursor means nothing in this one.
+                        page: undefined,
+                      })
+                    }
+                  />
+                </div>
+
                 {/* A search that found nothing still renders the table: the
                     box that found nothing is in its toolbar, and taking it
                     away would leave no way to unsay the search. */}

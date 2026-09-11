@@ -72,6 +72,7 @@ from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
+from app.services.tenant import archive as archive_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import published_views
 from app.services.tenant import recent_views as recent_views_service
@@ -244,11 +245,17 @@ async def list_dashboards(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> DashboardListResponse:
     """List dashboards visible to the current user (guild admins see all)."""
-    conditions = [Dashboard.guild_id == guild_context.guild_id]
+    conditions = [
+        Dashboard.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(Dashboard, archived),
+    ]
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
