@@ -93,6 +93,8 @@ from app.schemas.tenant.ownership import (
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.messages import AuthMessages, UserMessages
 from app.services.auth import sessions as session_service
+from app.core.audit_events import AuditEventType
+from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_delegations as app_delegations_service
@@ -987,6 +989,19 @@ async def update_users_me(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
+    if password:
+        # After the commit, and on its own: the password lands on the request
+        # session and ``audit_events`` is reached on the system engine, so the
+        # two cannot share a transaction. Recording afterwards means a crash
+        # between them loses a record of a change that happened, rather than
+        # leaving one that asserts a change that did not.
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
+            actor_user_id=current_user.id,
+            detail={"via": "self_service"},
+        )
+        await admin_session.commit()
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing

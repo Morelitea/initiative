@@ -122,6 +122,11 @@ class RotationResult:
 
     outcome: RefreshOutcome
     issued: IssuedSession | None = None  # present iff ``outcome is ROTATED``
+    #: Whose session the token belonged to. Set whenever the token resolved to
+    #: a row, so a ``REUSED`` rejection — where there is no ``issued`` — can
+    #: still say whose chain was killed. ``None`` for a token that matched
+    #: nothing at all.
+    user_id: int | None = None
 
     @property
     def ok(self) -> bool:
@@ -236,10 +241,10 @@ async def rotate_session(
     # Already spent (rotated or explicitly revoked) ⇒ replay of a dead token.
     if row.revoked_at is not None:
         await revoke_chain(session, session_id=row.id, now=issued)
-        return RotationResult(RefreshOutcome.REUSED)
+        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
 
     if row.expires_at <= issued:
-        return RotationResult(RefreshOutcome.EXPIRED)
+        return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
@@ -255,7 +260,7 @@ async def rotate_session(
     if claimed is None:
         # Lost the race to a concurrent rotation — same danger as a replay.
         await revoke_chain(session, session_id=row.id, now=issued)
-        return RotationResult(RefreshOutcome.REUSED)
+        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
 
