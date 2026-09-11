@@ -66,19 +66,20 @@ from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
     DocumentBacklink,
+    DocumentCopyRequest,
     DocumentCountsResponse,
     DocumentCreate,
-    DocumentCopyRequest,
     DocumentDuplicateRequest,
-    DocumentListResponse,
-    DocumentSummary,
-    DocumentRead,
     DocumentFileVersionRead,
+    DocumentListResponse,
+    DocumentRead,
+    DocumentSummary,
     DocumentUpdate,
     serialize_document,
     serialize_document_file_version,
     serialize_document_file_versions,
     serialize_document_summary,
+    SpreadsheetImportRead,
 )
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -102,6 +103,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
+from app.services.tenant import spreadsheet_import
 from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
@@ -2169,3 +2171,62 @@ async def clear_document_view(
         entity_type="document",
         entity_id=document.id,
     )
+
+
+@router.post(
+    "/{document_id}/spreadsheet/import",
+    response_model=SpreadsheetImportRead,
+)
+async def import_spreadsheet_file(
+    document_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+) -> SpreadsheetImportRead:
+    """Read a CSV/XLSX file into sheets, for the caller to add to this workbook.
+
+    The document is the permission scope rather than the destination — nothing
+    here writes to it. The sheets go back to the editor, which adds them to the
+    live document in a single transaction, so the whole import is one thing to
+    undo and peers receive it as one change.
+
+    Parsing is server-side for the same reason rendering is: the workbook
+    libraries are here, and the result goes through the same normalizer a
+    created spreadsheet does, so an imported sheet is the same kind of object
+    as any other.
+    """
+    document = await _get_document_or_404(
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+    )
+    _require_document_write_access(document, current_user)
+    if document.document_type != DocumentType.spreadsheet:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.SPREADSHEET_INVALID_PAYLOAD,
+        )
+
+    # Bounded read, so an over-sized file is refused before it is buffered.
+    try:
+        contents = await attachments_service.read_upload_bounded(
+            file, attachments_service.MAX_DOCUMENT_FILE_SIZE
+        )
+    except attachments_service.FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=DocumentMessages.FILE_TOO_LARGE,
+        )
+
+    try:
+        sheets = spreadsheet_import.parse_spreadsheet_file(
+            file.filename or "", contents
+        )
+    except documents_service.DocumentContentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+
+    return SpreadsheetImportRead(sheets=sheets)

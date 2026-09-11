@@ -18,6 +18,7 @@ import {
   SHEET_META,
   SHEET_ROWS,
   type SheetContainer,
+  seedSheet,
   sheetContainer,
   sheetPart,
   sheetsRoot,
@@ -88,6 +89,13 @@ export interface SpreadsheetSheetsStore {
   /** Copy a sheet (content, formatting, formulas verbatim) in right after
    *  the original. Returns the new id. */
   duplicateSheet: (id: SheetId) => SheetId | null;
+  /** Add whole sheets, content and all, as new tabs. Reports the ids added
+   *  and how many the workbook had no room for, so a partial import is never
+   *  announced as a whole one. */
+  importSheets: (sheets: SpreadsheetSheetContent[]) => {
+    added: SheetId[];
+    skipped: number;
+  };
   /** The whole workbook as the persisted v3 JSON snapshot. */
   snapshot: () => SpreadsheetContent;
 }
@@ -334,6 +342,37 @@ export const useSpreadsheetSheets = ({
     [yDoc]
   );
 
+  const importSheets = useCallback(
+    (incoming: SpreadsheetSheetContent[]) => {
+      if (!yDoc || incoming.length === 0) return { added: [], skipped: 0 };
+      const current = readSheetOrder(yDoc);
+      const room = Math.max(MAX_SHEETS - current.length, 0);
+      const skipped = Math.max(incoming.length - room, 0);
+      if (room <= 0) return { added: [], skipped };
+
+      const taken = current.map((s) => s.name);
+      const ids = current.map((s) => s.id);
+      const added: SheetId[] = [];
+      // One transaction for the whole file: peers receive the import as a
+      // single change, and it is one thing to undo however many tabs it
+      // brought. Ids are minted here rather than taken from the file, so an
+      // imported sheet can never land on top of one already open.
+      yDoc.transact(() => {
+        for (const sheet of incoming.slice(0, room)) {
+          const id = newSheetId();
+          const name = uniqueSheetName(sheet.name, taken);
+          taken.push(name);
+          ids.push(id);
+          added.push(id);
+          seedSheet(yDoc, { ...sheet, id, name }, ids.length - 1);
+        }
+        renumber(yDoc, ids);
+      }, SPREADSHEET_ORIGINS.IMPORT);
+      return { added, skipped };
+    },
+    [yDoc]
+  );
+
   const duplicateSheet = useCallback(
     (id: SheetId): SheetId | null => {
       if (!yDoc) return null;
@@ -415,6 +454,7 @@ export const useSpreadsheetSheets = ({
     setSheetHidden,
     moveSheet,
     duplicateSheet,
+    importSheets,
     snapshot,
   };
 };

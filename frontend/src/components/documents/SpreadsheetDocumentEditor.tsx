@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/context-menu";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   CEILING,
   clipToCeiling,
@@ -60,7 +61,11 @@ import {
   clipMatchesClipboard,
   placeClip,
 } from "@/lib/spreadsheet/clipboard";
-import { parseSpreadsheetContent, type SpreadsheetContent } from "@/lib/spreadsheet/content";
+import {
+  parseSpreadsheetContent,
+  type SpreadsheetContent,
+  type SpreadsheetSheetContent,
+} from "@/lib/spreadsheet/content";
 import {
   type CellRange,
   type CellValue,
@@ -136,6 +141,9 @@ interface SpreadsheetDocumentEditorProps {
    *  Until then the workbook must not be seeded from ``initialContent``
    *  (see ``useSpreadsheetSheets``). Ignored when ``yDoc`` is null. */
   isSynced?: boolean;
+  /** Read a file into sheets. Supplied by the host, which knows the document
+   *  and guild this editor is showing; absent when import is unavailable. */
+  onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
   /** Awareness handle from the same provider as ``yDoc``. Used to
    *  publish / observe selected-cell presence rings. */
   awareness?: ProviderAwareness | null;
@@ -194,6 +202,7 @@ export const SpreadsheetDocumentEditor = ({
   className,
   yDoc = null,
   isSynced = true,
+  onImportFile,
   awareness = null,
   currentUser = null,
 }: SpreadsheetDocumentEditorProps) => {
@@ -2049,6 +2058,45 @@ export const SpreadsheetDocumentEditor = ({
     [workbook, editing, commitEdit, t]
   );
 
+  // Import: the host reads the file, this writes what comes back. Every sheet
+  // lands in one transaction (see ``importSheets``), so a file is one thing to
+  // undo however many tabs it brought.
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      if (!onImportFile) return;
+      setImporting(true);
+      try {
+        const incoming = await onImportFile(file);
+        const { added, skipped } = workbook.importSheets(incoming);
+        if (added.length === 0) {
+          toast.info(t("documents:spreadsheet.sheets.maxReached"));
+          return;
+        }
+        setRequestedSheetId(added[0]);
+        if (skipped > 0) {
+          // Some of the file is in and some is not; saying only how much
+          // arrived would read as all of it.
+          toast.warning(
+            t("documents:spreadsheet.sheets.importedPartly", {
+              count: added.length,
+              skipped,
+            })
+          );
+        } else {
+          toast.success(t("documents:spreadsheet.sheets.imported", { count: added.length }));
+        }
+      } catch (error) {
+        toast.error(getErrorMessage(error, "documents:spreadsheet.sheets.importFailed"));
+      } finally {
+        setImporting(false);
+      }
+    },
+    [onImportFile, workbook, t]
+  );
+
   const handleDeleteSheet = useCallback(
     (id: SheetId) => {
       // Drop an edit anchored to this sheet before it goes: its container
@@ -2448,12 +2496,27 @@ export const SpreadsheetDocumentEditor = ({
         canAdd={sheets.length < MAX_SHEETS}
         onSelect={selectSheet}
         onAdd={handleAddSheet}
+        onImport={onImportFile && !importing ? () => importInputRef.current?.click() : undefined}
         onRename={workbook.renameSheet}
         onDelete={handleDeleteSheet}
         onDuplicate={handleDuplicateSheet}
         onMove={workbook.moveSheet}
         onSetHidden={handleSetSheetHidden}
       />
+      {onImportFile && (
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,.tsv,.xlsx,.xlsm"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Cleared so choosing the same file twice fires again.
+            e.target.value = "";
+            if (file) void handleImportFile(file);
+          }}
+        />
+      )}
     </div>
   );
 };

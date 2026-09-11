@@ -23,6 +23,7 @@ export const SPREADSHEET_ORIGINS = {
   BULK: "spreadsheet-bulk",
   REPLACE_ALL: "spreadsheet-replace-all",
   PASTE: "spreadsheet-paste",
+  IMPORT: "spreadsheet-import",
   FMT_EDIT: "spreadsheet-fmt-edit",
   FMT_BATCH: "spreadsheet-fmt-batch",
   FMT_REPLACE_ALL: "spreadsheet-fmt-replace-all",

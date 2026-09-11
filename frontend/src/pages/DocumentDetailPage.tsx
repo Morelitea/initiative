@@ -69,6 +69,7 @@ const SmartLinkDocumentViewer = lazy(() =>
 import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
+import { importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
 import type {
   DocumentProjectLink,
   PropertyDefinitionRead,
@@ -109,6 +110,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
+import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
@@ -878,6 +880,23 @@ export const DocumentDetailPage = () => {
     };
   }, [parsedId, token, activeGuildId, canEditDocument]);
 
+  // Reading a file is the host's job — it knows which document and guild the
+  // editor is showing. What comes back is sheets; the editor adds them to its
+  // live workbook itself, in one transaction.
+  const importSpreadsheetSheets = useCallback(
+    async (file: File) => {
+      if (!activeGuildId || !Number.isFinite(parsedId)) return [];
+      const result =
+        await importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+          activeGuildId,
+          parsedId,
+          { file }
+        );
+      return result.sheets as unknown as SpreadsheetSheetContent[];
+    },
+    [activeGuildId, parsedId]
+  );
+
   const handleFeaturedImageChange = async (file: File) => {
     if (!canEditDocument) {
       return;
@@ -1375,6 +1394,7 @@ export const DocumentDetailPage = () => {
                     collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
                   }
                   currentUser={spreadsheetCurrentUser}
+                  onImportFile={canEditDocument ? importSpreadsheetSheets : undefined}
                   className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                 />
               ) : (
