@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A document has a contents list** — a long page is easier to move around than to scroll, so every document now offers one: a panel listing its headings, nested the way they are written, that scrolls the page to a heading when you pick one and marks the one you are reading as you go. Sections with headings under them fold away, and a document that starts at a second-level heading is laid out from there rather than from an indent nobody wrote. It is closed until you open it, and then it stays open. Beside the document on a desktop; on a phone it takes the page over while it is open, because a column that narrow would be worse than no list at all.
+
 ### Changed
 
 - **Accounts record when their password was set** — a stored password hash said a value was there, never whether anybody knew it. Accounts created through single sign-on before mid-2026 were given a throwaway password nobody ever held, which looks exactly like a real one. Setting or changing a password now records when, so the question stops being unanswerable for every account from here on, and the few stored values that could never have worked have been cleared. Nothing is guessed: an existing password is left alone, and how you sign in does not change.

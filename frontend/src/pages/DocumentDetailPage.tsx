@@ -5,6 +5,7 @@ import {
   ChevronUp,
   ExternalLink,
   ImagePlus,
+  ListTree,
   Loader2,
   Maximize2,
   Minimize2,
@@ -25,6 +26,11 @@ import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
+import {
+  DocumentOutlinePanel,
+  DocumentOutlineScope,
+  useDocumentOutline,
+} from "@/components/documents/DocumentOutline";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
@@ -144,6 +150,7 @@ export const DocumentDetailPage = () => {
   const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
+  const outline = useDocumentOutline();
   const { isEnabled: isAIEnabled } = useAIEnabled();
   const setDocumentTagsMutation = useSetToolTags(Tool.document);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -1048,6 +1055,9 @@ export const DocumentDetailPage = () => {
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
   const showSummaryTab = document.document_type === "native" && isAIEnabled;
+  // Only prose has headings to navigate; a board, a sheet, an uploaded
+  // file and a link to somewhere else have no contents of their own.
+  const showOutline = document.document_type === "native";
 
   return (
     <div className="space-y-6">
@@ -1303,210 +1313,257 @@ export const DocumentDetailPage = () => {
             />
           </Suspense>
         ) : (
-          <div
-            className={cn(
-              "flex flex-col gap-4",
-              isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
-            )}
-          >
-            {/* Collaboration status - shown between featured image and editor.
-                Also shown when offline even in non-collaborative mode, so the
-                user sees an explicit offline indicator at the top of the editor. */}
-            <div className="flex items-center gap-2">
-              {(collaborationEnabled || !isOnline) && (
-                <CollaborationStatusBadge
-                  connectionStatus={collaboration.connectionStatus}
-                  collaborators={collaboration.collaborators}
-                  isCollaborating={collaboration.isCollaborating}
-                  isSynced={collaboration.isSynced}
-                  isOnline={isOnline}
-                />
+          // Scoped to the body editor alone: a comment composer further down
+          // the page is an editor too, and its headings are not this
+          // document's contents.
+          <DocumentOutlineScope>
+            <div
+              className={cn(
+                "flex flex-col gap-4",
+                isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
               )}
-              {document.document_type === "smart_link" &&
-              typeof (document.content as { url?: unknown } | null)?.url === "string" ? (
-                <Button asChild type="button" variant="ghost" size="sm" className="ml-auto">
-                  <a
-                    href={(document.content as { url: string }).url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {t("smartLink.openInNewTab")}
-                  </a>
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsFullscreen((value) => !value)}
-                aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-                className={cn(document.document_type !== "smart_link" && "ml-auto")}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-                {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-              </Button>
-            </div>
-            {/*
-              Key is just document.id - we don't remount when entering collaborative mode.
-              The CollaborationPlugin handles syncing the existing content to Yjs.
-            */}
-            <Suspense
-              fallback={
-                <div className="flex h-96 items-center justify-center rounded-xl border">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              }
             >
-              {document.document_type === "whiteboard" ? (
-                whiteboardSceneReady ? (
-                  <WhiteboardDocumentEditor
-                    key={parsedId}
-                    initialScene={whiteboardScene}
-                    initialSceneFromCache={whiteboardSceneFromCache}
-                    onSerializedChange={handleWhiteboardChange}
-                    readOnly={!canEditDocument}
-                    yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
+              {/* Collaboration status - shown between featured image and editor.
+                  Also shown when offline even in non-collaborative mode, so the
+                  user sees an explicit offline indicator at the top of the editor. */}
+              {/* Wraps rather than overflows: the row carries up to four
+                  controls and none of them shrink. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {showOutline && (
+                  <Button
+                    type="button"
+                    variant={outline.isOpen ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={outline.toggle}
+                    aria-expanded={outline.isOpen}
+                    title={t(outline.isOpen ? "outline.hide" : "outline.show")}
+                  >
+                    <ListTree className="h-4 w-4" />
+                    {t("outline.title")}
+                  </Button>
+                )}
+                {(collaborationEnabled || !isOnline) && (
+                  <CollaborationStatusBadge
+                    connectionStatus={collaboration.connectionStatus}
+                    collaborators={collaboration.collaborators}
+                    isCollaborating={collaboration.isCollaborating}
                     isSynced={collaboration.isSynced}
-                    // The server roster includes ourselves — only *other*
-                    // users make the room's Yjs state authoritative over a
-                    // local write-ahead cache.
-                    hasOtherCollaborators={collaboration.collaborators.some(
-                      (c) => c.user_id !== user?.id
-                    )}
-                    collaboratorsReady={collaboration.collaboratorsReady}
-                    awareness={
-                      collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
-                    }
-                    currentUser={
-                      user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null
-                    }
-                    className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                    isOnline={isOnline}
                   />
-                ) : (
-                  <div className="flex h-96 items-center justify-center rounded-xl border">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                )
-              ) : document.document_type === "smart_link" ? (
-                <SmartLinkDocumentViewer
-                  key={parsedId}
-                  content={document.content as unknown as SmartLinkContent | null}
-                  className={cn(isFullscreen && "h-full min-h-0 flex-1")}
-                />
-              ) : document.document_type === "spreadsheet" ? (
-                <SpreadsheetDocumentEditor
-                  key={parsedId}
-                  initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
-                  onContentChange={(content) =>
-                    handleContentChange(content as unknown as SerializedEditorState)
-                  }
-                  documentTitle={title || document.name}
-                  readOnly={!canEditDocument}
-                  yDoc={collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null}
-                  isSynced={collaboration.isSynced}
-                  awareness={
-                    collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
-                  }
-                  currentUser={spreadsheetCurrentUser}
-                  onImportFile={canEditDocument ? importSpreadsheetSheets : undefined}
-                  className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
-                />
-              ) : (
-                <Editor
-                  key={parsedId}
-                  editorSerializedState={normalizedDocumentContent}
-                  onSerializedChange={handleContentChange}
-                  readOnly={!canEditDocument}
-                  showToolbar={canEditDocument}
-                  className={cn(
-                    "max-h-[80vh] bg-card",
-                    isFullscreen && "h-full max-h-none min-h-0 flex-1"
-                  )}
-                  collaborative={collaborationEnabled && collaboration.isReady}
-                  providerFactory={collaboration.providerFactory}
-                  // Always track changes so contentState stays updated for periodic saves
-                  trackChanges={true}
-                  isSynced={collaboration.isSynced}
-                  // Wikilinks support
-                  initiativeId={document.initiative_id}
-                  subject={referenceRef(SearchEntityType.document, document.id)}
-                  supportsEntityMentions={supportsEntityMentions(document.document_type)}
-                  onWikilinkNavigate={handleWikilinkNavigate}
-                  onCreateReferencedThing={handleCreateReferencedThing}
-                />
-              )}
-            </Suspense>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Smart-link docs have nothing editable on this page — suppress
-                  the save/autosave bar entirely. */}
-              {document.document_type === "smart_link" ? null : canEditDocument ? (
-                <>
-                  {/* When collaboration is active, changes sync in real-time */}
-                  {collaboration.isCollaborating ? (
-                    <span className="text-muted-foreground text-sm">
-                      {t("detail.collaborationDescription")}
-                    </span>
+                )}
+                {document.document_type === "smart_link" &&
+                typeof (document.content as { url?: unknown } | null)?.url === "string" ? (
+                  <Button asChild type="button" variant="ghost" size="sm" className="ml-auto">
+                    <a
+                      href={(document.content as { url: string }).url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {t("smartLink.openInNewTab")}
+                    </a>
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsFullscreen((value) => !value)}
+                  aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+                  className={cn(document.document_type !== "smart_link" && "ml-auto")}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
                   ) : (
-                    <>
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          saveDocument.mutate({
-                            name: title?.trim(),
-                            content: contentForSave,
-                            featured_image_url: featuredImageUrl,
-                          })
-                        }
-                        disabled={!isDirty || saveDocument.isPending}
-                      >
-                        {saveDocument.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            {t("detail.saving")}
-                          </>
-                        ) : (
-                          t("detail.saveChanges")
-                        )}
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="autosave"
-                          checked={autosaveEnabled}
-                          onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
-                        />
-                        <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                          {t("detail.autosave")}
-                        </Label>
-                      </div>
-                      {!isDirty ? (
-                        <span className="self-center text-muted-foreground text-sm">
-                          {t("detail.allChangesSaved")}
-                        </span>
-                      ) : null}
-                    </>
+                    <Maximize2 className="h-4 w-4" />
                   )}
-                  {/* Always show collaboration toggle */}
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="collaboration"
-                      checked={collaborationEnabled}
-                      onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
-                    />
-                    <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                      {t("detail.liveCollaboration")}
-                    </Label>
-                  </div>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
-              )}
+                  {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+                </Button>
+              </div>
+              {/*
+                Key is just document.id - we don't remount when entering collaborative mode.
+                The CollaborationPlugin handles syncing the existing content to Yjs.
+              */}
+              <div className={cn("flex min-w-0 gap-4", isFullscreen && "min-h-0 flex-1")}>
+                {showOutline && (
+                  <DocumentOutlinePanel
+                    isOpen={outline.isOpen}
+                    onOpenChange={outline.setIsOpen}
+                    className={cn(
+                      "hidden w-64 shrink-0 lg:flex",
+                      isFullscreen ? "min-h-0" : "max-h-[80vh]"
+                    )}
+                  />
+                )}
+                <div className={cn("flex min-w-0 flex-1 flex-col", isFullscreen && "min-h-0")}>
+                  <Suspense
+                    fallback={
+                      <div className="flex h-96 items-center justify-center rounded-xl border">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    }
+                  >
+                    {document.document_type === "whiteboard" ? (
+                      whiteboardSceneReady ? (
+                        <WhiteboardDocumentEditor
+                          key={parsedId}
+                          initialScene={whiteboardScene}
+                          initialSceneFromCache={whiteboardSceneFromCache}
+                          onSerializedChange={handleWhiteboardChange}
+                          readOnly={!canEditDocument}
+                          yDoc={
+                            collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null
+                          }
+                          isSynced={collaboration.isSynced}
+                          // The server roster includes ourselves — only *other*
+                          // users make the room's Yjs state authoritative over a
+                          // local write-ahead cache.
+                          hasOtherCollaborators={collaboration.collaborators.some(
+                            (c) => c.user_id !== user?.id
+                          )}
+                          collaboratorsReady={collaboration.collaboratorsReady}
+                          awareness={
+                            collaborationEnabled && collaboration.isReady
+                              ? whiteboardAwareness
+                              : null
+                          }
+                          currentUser={
+                            user
+                              ? { id: user.id, name: getUserDisplayName(user, "Anonymous") }
+                              : null
+                          }
+                          className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                        />
+                      ) : (
+                        <div className="flex h-96 items-center justify-center rounded-xl border">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                      )
+                    ) : document.document_type === "smart_link" ? (
+                      <SmartLinkDocumentViewer
+                        key={parsedId}
+                        content={document.content as unknown as SmartLinkContent | null}
+                        className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                      />
+                    ) : document.document_type === "spreadsheet" ? (
+                      <SpreadsheetDocumentEditor
+                        key={parsedId}
+                        initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
+                        onContentChange={(content) =>
+                          handleContentChange(content as unknown as SerializedEditorState)
+                        }
+                        documentTitle={title || document.name}
+                        readOnly={!canEditDocument}
+                        yDoc={
+                          collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null
+                        }
+                        isSynced={collaboration.isSynced}
+                        awareness={
+                          collaborationEnabled && collaboration.isReady
+                            ? spreadsheetAwareness
+                            : null
+                        }
+                        currentUser={spreadsheetCurrentUser}
+                        onImportFile={canEditDocument ? importSpreadsheetSheets : undefined}
+                        className={cn(
+                          "max-h-[70vh]",
+                          isFullscreen && "h-full max-h-none min-h-0 flex-1"
+                        )}
+                      />
+                    ) : (
+                      <Editor
+                        key={parsedId}
+                        editorSerializedState={normalizedDocumentContent}
+                        onSerializedChange={handleContentChange}
+                        readOnly={!canEditDocument}
+                        showToolbar={canEditDocument}
+                        className={cn(
+                          "max-h-[80vh] bg-card",
+                          isFullscreen && "h-full max-h-none min-h-0 flex-1"
+                        )}
+                        collaborative={collaborationEnabled && collaboration.isReady}
+                        providerFactory={collaboration.providerFactory}
+                        // Always track changes so contentState stays updated for periodic saves
+                        trackChanges={true}
+                        isSynced={collaboration.isSynced}
+                        // Wikilinks support
+                        initiativeId={document.initiative_id}
+                        subject={referenceRef(SearchEntityType.document, document.id)}
+                        supportsEntityMentions={supportsEntityMentions(document.document_type)}
+                        onWikilinkNavigate={handleWikilinkNavigate}
+                        onCreateReferencedThing={handleCreateReferencedThing}
+                      />
+                    )}
+                  </Suspense>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Smart-link docs have nothing editable on this page — suppress
+                    the save/autosave bar entirely. */}
+                {document.document_type === "smart_link" ? null : canEditDocument ? (
+                  <>
+                    {/* When collaboration is active, changes sync in real-time */}
+                    {collaboration.isCollaborating ? (
+                      <span className="text-muted-foreground text-sm">
+                        {t("detail.collaborationDescription")}
+                      </span>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          onClick={() =>
+                            saveDocument.mutate({
+                              name: title?.trim(),
+                              content: contentForSave,
+                              featured_image_url: featuredImageUrl,
+                            })
+                          }
+                          disabled={!isDirty || saveDocument.isPending}
+                        >
+                          {saveDocument.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t("detail.saving")}
+                            </>
+                          ) : (
+                            t("detail.saveChanges")
+                          )}
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="autosave"
+                            checked={autosaveEnabled}
+                            onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                          />
+                          <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                            {t("detail.autosave")}
+                          </Label>
+                        </div>
+                        {!isDirty ? (
+                          <span className="self-center text-muted-foreground text-sm">
+                            {t("detail.allChangesSaved")}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                    {/* Always show collaboration toggle */}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="collaboration"
+                        checked={collaborationEnabled}
+                        onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
+                      />
+                      <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                        {t("detail.liveCollaboration")}
+                      </Label>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
+                )}
+              </div>
             </div>
-          </div>
+          </DocumentOutlineScope>
         )}
 
         <Card>
