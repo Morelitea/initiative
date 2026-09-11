@@ -278,10 +278,6 @@ async def export_my_calendar_events_ics(
     — events live only in the per-guild schemas, so no one query spans them.
     """
 
-    # Keyed by (guild_id, event_id): ids come from each guild's own sequence,
-    # and this feed merges several guilds' worth.
-    documents_by_event: dict[tuple[int, int], list[Related]] = {}
-
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [calendars_service.tool_enabled_clause()]
         if start_after is not None:
@@ -313,14 +309,13 @@ async def export_my_calendar_events_ics(
             )
         )
 
-        async def _run():
+        async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
             found = await _exec_events(guild_session, stmt)
-            # While this session is routed to THIS guild: edges live in its
-            # schema, so they cannot be read once the walk has moved on.
-            documents_by_event.update(
-                await ical_service.documents_for_events(guild_session, found)
-            )
-            return found
+            # Read while this session is still routed to THIS guild — edges live
+            # in its schema — and paired with their event on the way out, so
+            # nothing downstream has to key them. Ids repeat across schemas.
+            documents = await ical_service.documents_for_events(guild_session, found)
+            return [(event, documents.get(event.id, [])) for event in found]
 
         return _run()
 
@@ -328,9 +323,9 @@ async def export_my_calendar_events_ics(
         session, current_user.id, restrict_to=guild_ids
     )
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
+    events.sort(key=lambda pair: (pair[0].start_at, pair[0].guild_id, pair[0].id))
 
-    ics_bytes = ical_service.events_to_ical(list(events), documents_by_event)
+    ics_bytes = ical_service.events_to_ical(events)
     return Response(
         content=ics_bytes,
         media_type="text/calendar",

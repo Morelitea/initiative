@@ -6,6 +6,10 @@ before parsing, run under the ``initiative_billing`` database role scoped to
 the request's guild, and share one transaction (jti redemption, event-log
 claim, and write commit or roll back together). Not part of the OpenAPI
 schema; no user is ever resolved.
+
+Every verb names its guild by the **reference** billing holds for it, never by
+a row id of ours. ``_resolve_guild`` is the one place that becomes a guild id,
+and everything past it works on the id as before.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from app.schemas.platform.billing import (
     BillingUsageRequest,
 )
 from app.services.platform import billing as billing_service
+from app.services.platform import identity_refs
 from app.services.platform.billing import (
     BillingEnvelopeError,
     BillingGuildNotFoundError,
@@ -88,6 +93,23 @@ async def _verify_and_parse(request: Request, model):
     return claims, payload
 
 
+async def _resolve_guild(guild_ref: str) -> int:
+    """The guild billing's reference names.
+
+    Billing names a guild by the reference it was given and never by a row id
+    of ours, so this is the edge every verb below crosses first. An unknown
+    reference answers 404 with nothing consumed, which is the same retryable
+    shape as a guild that does not exist yet.
+    """
+    guild_id = await identity_refs.resolve_billing_guild(ref=guild_ref)
+    if guild_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        )
+    return guild_id
+
+
 async def _burn_jti(session, claims) -> None:
     try:
         await billing_service.record_jti(
@@ -105,10 +127,13 @@ async def apply_guild_tier(
     request: Request, session: SessionDep
 ) -> BillingGuildTierRead:
     claims, payload = await _verify_and_parse(request, BillingGuildTierApply)
-    await set_billing_context(session, guild_id=payload.guild_id)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
     try:
-        result = await billing_service.apply_guild_tier(session, payload)
+        result = await billing_service.apply_guild_tier(
+            session, payload, guild_id=guild_id
+        )
     except BillingGuildNotFoundError as exc:
         # Rolls back with the jti unredeemed and the event id unconsumed, so
         # the delivery can be retried once the guild exists.
@@ -142,16 +167,15 @@ async def guild_usage(
     guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
-    await set_billing_context(session, guild_id=payload.guild_id)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
     try:
-        usage_bytes = await billing_service.guild_storage_usage(
-            admin_session, payload.guild_id
-        )
+        usage_bytes = await billing_service.guild_storage_usage(admin_session, guild_id)
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BillingMessages.GUILD_NOT_FOUND,
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
-    return BillingUsageRead(guild_id=payload.guild_id, usage_bytes=usage_bytes)
+    return BillingUsageRead(guild_ref=payload.guild_ref, usage_bytes=usage_bytes)

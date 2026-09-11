@@ -34,7 +34,9 @@ from app.models.platform.identity_ref import (
 
 __all__ = [
     "REF_GRACE_PERIOD",
+    "billing_guild_ref",
     "billing_refs",
+    "billing_user_ref",
     "drop_entity_refs",
     "drop_sector_refs",
     "ensure_ref",
@@ -43,6 +45,7 @@ __all__ = [
     "purge_retired_refs",
     "reissue_all_refs",
     "reissue_ref",
+    "resolve_billing_guild",
     "resolve_ref",
 ]
 
@@ -124,6 +127,44 @@ async def ensure_ref(
     return stored.ref
 
 
+async def billing_user_ref(*, user_id: int) -> str:
+    """The reference billing knows one user by, minting on first use.
+
+    For the people a handoff names besides the one presenting it — the
+    approver of a support visit — who need the same treatment and no more.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        ref = await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=user_id,
+            purpose=IdentityPurpose.billing,
+        )
+        await session.commit()
+    return ref
+
+
+async def billing_guild_ref(*, guild_id: int) -> str:
+    """The reference billing knows one guild by, minting on first use.
+
+    For the paths that name a guild to billing without a person attached — the
+    membership nudge, and the tests that post what billing would.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        ref = await ensure_ref(
+            session,
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=IdentityPurpose.billing,
+        )
+        await session.commit()
+    return ref
+
+
 async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
     """The references billing knows one user and one guild by.
 
@@ -150,6 +191,32 @@ async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
         )
         await session.commit()
     return user_ref, guild_ref
+
+
+async def resolve_billing_guild(*, ref: str) -> int | None:
+    """Which guild one billing reference names, or None.
+
+    The inverse of ``billing_refs``, for the endpoints billing calls: it names
+    the guild by the reference it was given, and this is where that becomes the
+    row id everything inside works on. Opens a system-engine session of its own
+    for the same reason ``billing_refs`` does — the callers are request
+    handlers routed to other roles.
+
+    Narrower than ``resolve_ref``: a reference minted for a user, or for
+    another purpose, is not an answer to this question.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        row = await resolve_ref(session, ref=ref)
+    if row is None:
+        return None
+    if (
+        row.entity_type != IdentityEntity.guild
+        or row.purpose != IdentityPurpose.billing
+    ):
+        return None
+    return row.entity_id
 
 
 async def resolve_ref(

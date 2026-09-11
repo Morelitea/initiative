@@ -135,7 +135,7 @@ def build_calendar_item(
     calendar: Calendar,
     format: str,
     date: str,
-    documents: dict[tuple[int, int], list] | None = None,
+    documents: dict[int, list] | None = None,
 ) -> RenderItem:
     """One render item per calendar: an ``ics`` VCALENDAR or an importable
     ``initiative-calendar`` JSON envelope, both carrying every event."""
@@ -143,7 +143,7 @@ def build_calendar_item(
 
     by_event = documents or {}
     dicts = [
-        event_export_dict(event, by_event.get((event.guild_id, event.id), []))
+        event_export_dict(event, by_event.get(event.id, []))
         for event in calendar.events
     ]
     stem = safe_filename_component(calendar.name).lower()

@@ -215,39 +215,37 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
 
 def events_to_ical(
-    events: List[CalendarEvent],
-    documents: "dict[tuple[int, int], list[Related]] | None" = None,
+    events: "List[tuple[CalendarEvent, Sequence[Related]]]",
 ) -> bytes:
-    """Serialize a list of CalendarEvent models to iCal bytes."""
-    by_event = documents or {}
+    """Serialize events and their attachments to iCal bytes.
+
+    Takes pairs rather than a list plus a lookup: an event's attachments travel
+    WITH it, so nothing has to key them. Ids are unique only inside one guild's
+    schema, and this is fed by a walk across several.
+    """
     return ical_from_export_dicts(
-        [
-            event_export_dict(event, by_event.get((event.guild_id, event.id), []))
-            for event in events
-        ]
+        [event_export_dict(event, documents) for event, documents in events]
     )
 
 
 async def documents_for_events(
     session: "AsyncSession", events: List[CalendarEvent]
-) -> "dict[tuple[int, int], list[Related]]":
+) -> "dict[int, list[Related]]":
     """Attached documents for many events, in two queries.
 
     Here rather than at each caller: the builders above are synchronous and hold
     no session, and a calendar export renders every event a calendar has.
 
-    Keyed by ``(guild_id, event_id)`` and never by the id alone. Event ids come
-    from a sequence in each guild's own schema, so two guilds hold an event 5
-    between them; the cross-guild ``/me`` feed merges what several of these
-    return, and an id-only key would give one guild's event the other's
-    attachments.
+    Keyed by event id, which is unambiguous because this reads ONE guild's
+    schema. A caller walking several guilds must not merge these dicts — ids
+    repeat across schemas — and should carry each list with its event instead.
     """
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
     from app.models.tenant.document import Document
     from app.services.tenant import relationships
 
-    by_id = await relationships.related_for_many(
+    return await relationships.related_for_many(
         session,
         SearchEntityType.calendar_event,
         [event.id for event in events if event.id is not None],
@@ -255,8 +253,6 @@ async def documents_for_events(
         other_kind=SearchEntityType.document,
         model=Document,
     )
-    guilds = {event.id: event.guild_id for event in events if event.id is not None}
-    return {(guilds[event_id], event_id): found for event_id, found in by_id.items()}
 
 
 # ---------------------------------------------------------------------------
