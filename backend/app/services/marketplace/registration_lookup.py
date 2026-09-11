@@ -469,29 +469,34 @@ async def resolve_delegated_member(
     signer is the part that matters: without it, an app could present a subject
     another app was given and act as that person.
 
-    Read on the system engine and routed into the guild, because the subject
-    table is guild content and the caller at this point is nobody yet.
+    Read on the system engine, because the caller at this point is nobody yet.
+    The session is routed into the guild for the install lookup; the reference
+    itself lives in a platform-wide table, so ``resolve_app_ref`` takes the
+    guild as a predicate rather than inheriting it from the schema.
     """
     if not public_id or not subject:
         return None
 
     from app.models.tenant.guild_app import GuildApp
-    from app.services.marketplace.app_subjects import resolve_subject
+    from app.services.marketplace.app_refs import resolve_app_ref
 
     async with db_session.AdminSessionLocal() as session:
         try:
+            # The reference first, on the unrouted session: it lives in a
+            # platform-wide table the guild roles hold nothing on.
+            row = await resolve_app_ref(session, ref=subject, guild_id=guild_id)
+            if row is None:
+                return None
+            # Then the install, which lives in the guild's own schema.
             await db_session.set_rls_context(
                 session, guild_id=guild_id, guild_role="admin"
             )
-            row = await resolve_subject(session, subject=subject)
-            if row is None:
-                return None
-            # The subject resolved — now check it was minted for *this* app's
-            # install, in this guild.
+            # The reference resolved — now check it was minted for *this*
+            # app's install.
             install = (
                 await session.exec(
                     select(GuildApp.id).where(
-                        GuildApp.id == row.app_id,
+                        GuildApp.id == row.sector_id,
                         GuildApp.enabled.is_(True),
                         GuildApp.definition["app_kind"].astext == "service",
                         GuildApp.definition["service"]["public_id"].astext == public_id,
@@ -500,7 +505,7 @@ async def resolve_delegated_member(
             ).first()
             if install is None:
                 return None
-            return row.user_id
+            return row.entity_id
         except SQLAlchemyError:
             logger.warning(
                 "app services: subject lookup could not read guild %s", guild_id

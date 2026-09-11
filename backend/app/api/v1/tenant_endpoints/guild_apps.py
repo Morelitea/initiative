@@ -36,7 +36,7 @@ from typing import Annotated, Any, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -79,6 +79,7 @@ from app.schemas.tenant.guild_app import (
     serialize_member_delegation,
 )
 from app.services import rls as rls_service
+from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 from app.services.marketplace import registrations as registrations_service
@@ -578,9 +579,24 @@ async def uninstall_guild_app(
         deleted_by_user_id=current_user.id,
         retention_days=retention_days,
     )
+    install_id = app.id
+    guild_id = app.guild_id
     await session.delete(app)
     await session.commit()
     await _flush_revocations(session)
+    # What this install called each member. Removed explicitly, because the
+    # reference lives in a platform-wide table that no foreign key reaches from
+    # here — and last, after the revocations the commit above queued, so those
+    # are dispatched either way. A reference left behind names an install that
+    # no longer exists, so it resolves to nobody.
+    try:
+        await app_refs.drop_install_refs(guild_id=guild_id, app_install_id=install_id)
+    except SQLAlchemyError:
+        logger.warning(
+            "app refs: references for install %s in guild %s were not removed",
+            install_id,
+            guild_id,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -50,7 +50,7 @@ from app.core.security import (
 from app.models.tenant.guild_app import GuildApp
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.marketplace import app_subjects, registration_lookup
+from app.services.marketplace import app_refs, registration_lookup
 from app.services.marketplace.service_apps import clears_visibility
 from app.services.tenant.guild_apps import placed_in
 
@@ -206,8 +206,8 @@ async def mint_embed_handoff(
             detail=AppServiceMessages.SIGNING_NOT_CONFIGURED,
         ) from exc
 
-    subject = await app_subjects.ensure_subject(
-        session, app_install_id=app.id, guild_id=app.guild_id, user_id=user_id
+    subject = await app_refs.ensure_app_ref(
+        guild_id=app.guild_id, app_install_id=app.id, user_id=user_id
     )
 
     now = datetime.now(timezone.utc)

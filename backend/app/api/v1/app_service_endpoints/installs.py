@@ -49,7 +49,7 @@ from app.schemas.tenant.app_channel import (
 from app.models.tenant.guild_app_user_connection import CONNECTION_ID_LENGTH
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.app_channel_auth import MAX_APP_ID_LENGTH
-from app.services.marketplace.app_subjects import SUBJECT_LENGTH
+from app.services.marketplace.app_refs import REF_MAX_LENGTH
 from app.services.tenant import app_channels as channels_service
 from app.services.tenant.app_channels import AppChannelError
 
@@ -125,7 +125,7 @@ async def list_install_connections(
 DelegateParam = Annotated[str, Query(min_length=1, max_length=MAX_APP_ID_LENGTH)]
 #: The pairwise subject itself, bounded to the width the column stores so an
 #: oversized value is refused before it reaches a lookup.
-SubjectParam = Annotated[str, Query(min_length=1, max_length=SUBJECT_LENGTH)]
+SubjectParam = Annotated[str, Query(min_length=1, max_length=REF_MAX_LENGTH)]
 #: Which of the install's connections is meant, by manifest id.
 ConnectionParam = Annotated[Optional[str], Query(max_length=CONNECTION_ID_LENGTH)]
 
