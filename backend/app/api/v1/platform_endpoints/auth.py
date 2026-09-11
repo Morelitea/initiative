@@ -80,6 +80,11 @@ from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
+from app.services.auth.assurance import (
+    read_assurance,
+    record_for_provider,
+    session_amr,
+)
 from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
 from app.services.auth.identity import (
@@ -514,6 +519,7 @@ async def login_access_token(
         session_id=issued.session.id,
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
@@ -588,6 +594,7 @@ async def refresh_access_token(
         session_id=issued.session.id,
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
@@ -1390,8 +1397,16 @@ async def _complete_provider_login(
     # session is revoked, replaced by the new one — satisfying one guild's
     # requirement never un-satisfies another's. Only the same user's session
     # merges; anything else is a fresh login.
-    amr = [f"oidc:{provider_slug}"]
+    #
+    # The union is per provider for the assurance record: this provider's
+    # entry is replaced by what it just asserted, and every other provider's
+    # account of its own event is left as it was.
+    assurance = read_assurance(completion.claims)
+    amr = session_amr(provider_slug, assurance)
     satisfied = [provider_id]
+    provider_auth = record_for_provider(
+        None, provider_id=provider_id, assurance=assurance
+    )
     prior = None
     prior_raw = request.cookies.get(REFRESH_COOKIE_NAME)
     if prior_raw:
@@ -1401,6 +1416,9 @@ async def _complete_provider_login(
         if prior is not None and prior.user_id == user_id:
             amr = sorted(set(prior.amr) | set(amr))
             satisfied = sorted(set(prior.satisfied_providers) | set(satisfied))
+            provider_auth = record_for_provider(
+                prior.provider_auth, provider_id=provider_id, assurance=assurance
+            )
         else:
             prior = None
     try:
@@ -1409,6 +1427,7 @@ async def _complete_provider_login(
             user_id=user_id,
             amr=amr,
             satisfied_providers=satisfied,
+            provider_auth=provider_auth,
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
         )
@@ -1423,6 +1442,10 @@ async def _complete_provider_login(
                 # A step-up carries the interrupted session's factors forward
                 # rather than starting a new login.
                 "step_up": prior is not None,
+                # What the provider said about this authentication, in the same
+                # shape the session row keeps — the reviewer's answer to "was a
+                # second factor used, and when". Absent claims add no keys.
+                **assurance.as_record(),
             },
         )
         if prior is not None:
@@ -1459,6 +1482,7 @@ async def _complete_provider_login(
         session_id=issued.session.id,
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
     set_session_cookie(oidc_response, app_token, max_age=access_max_age)
     set_refresh_cookie(oidc_response, issued.refresh_token)

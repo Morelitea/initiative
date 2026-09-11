@@ -246,6 +246,45 @@ async def test_an_oidc_sign_in_records_its_provider_and_whether_it_stepped_up(
     assert rows[0].actor_user_id is not None
 
 
+async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The methods and context class the provider named ride the record, so a
+    reviewer reading the log can tell a second factor was used and when."""
+    from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+    from app.testing.oidc import FakeIdp
+
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "oidc-amr@example.com",
+            "username": "oidc-amr",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+            "auth_time": 1757600000,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
+    assert [r.envelope["detail"] for r in rows] == [
+        {
+            "method": "oidc",
+            "provider": PLATFORM_OIDC_SLUG,
+            "step_up": False,
+            "auth_time": 1757600000,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+        }
+    ]
+
+
 async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

@@ -26,6 +26,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -167,6 +168,7 @@ async def create_session(
     user_id: int,
     amr: list[str],
     satisfied_providers: list[int],
+    provider_auth: dict[str, Any] | None = None,
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
@@ -177,7 +179,9 @@ async def create_session(
 
     ``amr`` / ``satisfied_providers`` record which factors/providers this login
     satisfied — they are mirrored into the access token so the per-guild
-    auth-policy gate and step-up read them locally.
+    auth-policy gate and step-up read them locally. ``provider_auth`` carries
+    each satisfied provider's own account of its authentication event (see
+    ``services.auth.assurance``).
     """
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
@@ -187,6 +191,7 @@ async def create_session(
         refresh_token_hash=_hash_refresh_token(raw),
         amr=list(amr),
         satisfied_providers=list(satisfied_providers),
+        provider_auth=dict(provider_auth or {}),
         created_at=issued,
         expires_at=issued + ttl,
         user_agent=user_agent,
@@ -204,6 +209,7 @@ async def rotate_session(
     raw_refresh_token: str,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    provider_auth: dict[str, Any] | None = None,
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
@@ -212,8 +218,9 @@ async def rotate_session(
 ) -> RotationResult:
     """Single-use rotate: spend the presented refresh token, mint its successor.
 
-    Carries ``amr``/``satisfied_providers`` (and device metadata) forward from the
-    parent unless overridden — a step-up rotation passes the widened set.
+    Carries ``amr``/``satisfied_providers``/``provider_auth`` (and device
+    metadata) forward from the parent unless overridden — a step-up rotation
+    passes the widened set.
 
     **Returns** a :class:`RotationResult` (never raises for a bad token) —
     ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
@@ -273,6 +280,11 @@ async def rotate_session(
             list(satisfied_providers)
             if satisfied_providers is not None
             else list(row.satisfied_providers)
+        ),
+        provider_auth=(
+            dict(provider_auth)
+            if provider_auth is not None
+            else dict(row.provider_auth)
         ),
         parent_id=row.id,
         created_at=issued,

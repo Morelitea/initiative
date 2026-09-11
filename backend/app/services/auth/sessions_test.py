@@ -73,6 +73,7 @@ async def test_rotate_spends_parent_and_carries_context(session):
         user_id=user.id,
         amr=["oidc:acme"],
         satisfied_providers=[3],
+        provider_auth={"3": {"auth_time": 1757600000, "amr": ["mfa"]}},
         device_name="Pixel",
         now=_at(),
     )
@@ -85,6 +86,9 @@ async def test_rotate_spends_parent_and_carries_context(session):
     # amr / providers / device carry forward when not overridden.
     assert second.session.amr == ["oidc:acme"]
     assert second.session.satisfied_providers == [3]
+    assert second.session.provider_auth == {
+        "3": {"auth_time": 1757600000, "amr": ["mfa"]}
+    }
     assert second.session.device_name == "Pixel"
     # Sliding window: the child expires 30d from the rotation, not from creation.
     assert second.session.expires_at == _at(days=30, minutes=5)
@@ -107,10 +111,12 @@ async def test_rotate_can_widen_amr_and_providers(session):
         _at(minutes=1),
         amr=["pwd", "otp"],
         satisfied_providers=[9],
+        provider_auth={"9": {"auth_time": 1757600000}},
     )
 
     assert second.session.amr == ["pwd", "otp"]
     assert second.session.satisfied_providers == [9]
+    assert second.session.provider_auth == {"9": {"auth_time": 1757600000}}
 
 
 async def test_rotate_unknown_token_returns_unknown(session):
