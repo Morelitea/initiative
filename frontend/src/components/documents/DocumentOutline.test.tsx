@@ -6,7 +6,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { $createTextNode, $getRoot, type LexicalEditor } from "lexical";
 import { useMemo } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
 import {
@@ -80,26 +80,69 @@ function Grab(): null {
   return null;
 }
 
-/** The document page's arrangement: the body editor and the contents list
- *  under one scope, which is the only thing joining them. */
+/** The document page's arrangement: the body editor in its own scrollport, with
+ *  the toolbar stuck to the top of it, and the contents list beside them. The
+ *  scope is the only thing joining the two. */
 function Harness() {
   const extension = useMemo(() => documentExtension({ collaborative: false, editable: true }), []);
 
   return (
     <DocumentOutlineScope>
       <SmartChipScope>
-        <LexicalExtensionComposer extension={extension} contentEditable={null}>
-          <TooltipProvider>
-            <Grab />
-            <Plugins showToolbar={false} initiativeId={7} />
-            <DocumentOutlineTracker />
-          </TooltipProvider>
-        </LexicalExtensionComposer>
+        <div data-testid="scrollport" style={{ overflowY: "auto" }}>
+          <LexicalExtensionComposer extension={extension} contentEditable={null}>
+            <TooltipProvider>
+              <Grab />
+              <Plugins showToolbar initiativeId={7} />
+              <DocumentOutlineTracker />
+            </TooltipProvider>
+          </LexicalExtensionComposer>
+        </div>
       </SmartChipScope>
       <DocumentOutlinePanel isOpen onOpenChange={() => {}} />
     </DocumentOutlineScope>
   );
 }
+
+/** jsdom lays nothing out, so the geometry the outline measures is supplied. */
+const atTop = (element: Element, top: number) => {
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ top } as DOMRect);
+};
+
+/**
+ * The same, installed before anything renders — the outline measures as soon as
+ * the headings arrive, and a test that mocks afterwards is only agreeing with
+ * whatever the first, unmocked pass happened to decide.
+ *
+ * `tops` is keyed on what an element says, which for a heading is its own text
+ * and for the scrollport is nothing (its children's text is not its own).
+ */
+const layOut = (tops: Record<string, number>, toolbarHeight: number) => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+    this: HTMLElement
+  ) {
+    const named = this.dataset.testid ?? this.textContent ?? "";
+    return { top: tops[named] ?? 0 } as DOMRect;
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get(this: HTMLElement) {
+      // Only the wide row is on screen at this width; the narrow one is display:none.
+      return this.hasAttribute("data-editor-toolbar") && this.className.includes("lg:flex")
+        ? toolbarHeight
+        : 0;
+    },
+  });
+};
+
+const jsdomOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  if (jsdomOffsetHeight) {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", jsdomOffsetHeight);
+  }
+});
 
 const writeHeadings = (headings: [HeadingTagType, string][]) => {
   editor.update(
@@ -131,10 +174,48 @@ describe("the document's contents", () => {
     ).toBeInTheDocument();
   });
 
-  it("scrolls to a heading when it is chosen", async () => {
-    const scrollIntoView = vi
-      .spyOn(HTMLElement.prototype, "scrollIntoView")
-      .mockImplementation(() => {});
+  it("parks the chosen heading below the toolbar, not behind it", async () => {
+    renderPage(Harness);
+    await waitFor(() => expect(editor).toBeTruthy());
+
+    writeHeadings([
+      ["h1", "Overview"],
+      ["h1", "Appendix"],
+    ]);
+    await screen.findByRole("button", { name: "Appendix" });
+
+    const scrollPort = screen.getByTestId("scrollport");
+    const scrollTo = vi.fn();
+    scrollPort.scrollTo = scrollTo;
+    atTop(scrollPort, 100);
+
+    // The wide toolbar is the one on screen; the narrow one measures nothing.
+    const [wide, narrow] = Array.from(
+      scrollPort.querySelectorAll<HTMLElement>("[data-editor-toolbar]")
+    );
+    expect(narrow).toBeDefined();
+    Object.defineProperty(wide, "offsetHeight", { value: 48, configurable: true });
+
+    const keys = editor.getEditorState().read(() =>
+      $getRoot()
+        .getChildren()
+        .map((child) => child.getKey())
+    );
+    atTop(editor.getElementByKey(keys[0]) as HTMLElement, 200);
+    atTop(editor.getElementByKey(keys[1]) as HTMLElement, 400);
+
+    await userEvent.click(screen.getByRole("button", { name: "Appendix" }));
+
+    // 400 (the heading) - 100 (the scrollport) - 48 (the toolbar) - 8 (room to breathe)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 244, behavior: "smooth" });
+  });
+
+  it("marks the heading it just scrolled to as the one being read", async () => {
+    // "Appendix" sits exactly where `scrollToHeading` parks it: 48 for the
+    // toolbar plus 8 of room. A reading line drawn from the scrollport's own
+    // edge would fall above that and credit "Overview", which is 300px off the
+    // top of the page.
+    layOut({ scrollport: 0, Overview: -300, Appendix: 56 }, 48);
 
     renderPage(Harness);
     await waitFor(() => expect(editor).toBeTruthy());
@@ -144,15 +225,13 @@ describe("the document's contents", () => {
       ["h1", "Appendix"],
     ]);
 
-    const appendix = await screen.findByRole("button", { name: "Appendix" });
-    await userEvent.click(appendix);
-
-    const heading = editor.getEditorState().read(() => $getRoot().getLastChild()?.getKey() ?? null);
-    expect(heading).not.toBeNull();
-    expect(scrollIntoView).toHaveBeenCalled();
-    expect(scrollIntoView.mock.instances[0]).toBe(editor.getElementByKey(heading as string));
-
-    scrollIntoView.mockRestore();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Appendix" })).toHaveAttribute(
+        "aria-current",
+        "location"
+      )
+    );
+    expect(screen.getByRole("button", { name: "Overview" })).not.toHaveAttribute("aria-current");
   });
 
   it("says so when the document has no headings", async () => {

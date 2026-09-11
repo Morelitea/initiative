@@ -23,9 +23,13 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "document-outline-open";
 
-/** How far below the top of the visible area a heading still counts as the one
- *  being read. */
-const ACTIVE_HEADING_SLACK_PX = 24;
+/** Where a heading is parked when it is navigated to: clear of the toolbar,
+ *  with a little room to breathe under it. */
+const HEADING_GAP_PX = 8;
+
+/** How far past its resting place a heading still counts as the one being read.
+ *  Absorbs the rounding a smooth scroll leaves behind. */
+const ACTIVE_HEADING_SLACK_PX = 16;
 
 /** One heading, with the headings it contains. */
 export interface OutlineNode {
@@ -169,17 +173,68 @@ export const DocumentOutlineTracker = () => {
   );
 };
 
-/** The nearest ancestor that scrolls, whose visible top is the reading line. */
-const scrollPortTop = (element: HTMLElement): number => {
+/** The box the document scrolls inside — the editor's own scrollport, which the
+ *  toolbar sticks to the top of. */
+const scrollPortOf = (element: HTMLElement): HTMLElement | null => {
   let node = element.parentElement;
   while (node) {
     const overflowY = window.getComputedStyle(node).overflowY;
     if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
-      return node.getBoundingClientRect().top;
+      return node;
     }
     node = node.parentElement;
   }
-  return 0;
+  return null;
+};
+
+/**
+ * What the toolbar covers at the top of the scrollport.
+ *
+ * Measured rather than assumed: the wide toolbar wraps, a narrow one is a
+ * single row, and a document somebody can only read has no toolbar at all. The
+ * hidden one of the two measures zero, so the larger is the one on screen.
+ */
+const stickyHeaderOffset = (scrollPort: HTMLElement): number => {
+  let offset = 0;
+  for (const bar of scrollPort.querySelectorAll<HTMLElement>("[data-editor-toolbar]")) {
+    offset = Math.max(offset, bar.offsetHeight);
+  }
+  return offset;
+};
+
+/** How far down the scrollport a heading comes to rest when it is navigated to:
+ *  clear of the toolbar, with room to breathe under it. */
+const restPoint = (scrollPort: HTMLElement): number =>
+  stickyHeaderOffset(scrollPort) + HEADING_GAP_PX;
+
+/**
+ * The top of the readable area, in client coordinates.
+ *
+ * Measured from {@link restPoint} rather than from the scrollport's own edge, so
+ * a heading navigation has just parked is inside it by construction — the entry
+ * you picked is the entry that lights up.
+ */
+const readingLine = (scrollPort: HTMLElement | null): number =>
+  (scrollPort ? scrollPort.getBoundingClientRect().top + restPoint(scrollPort) : 0) +
+  ACTIVE_HEADING_SLACK_PX;
+
+/** Brings a heading to rest just under the toolbar rather than behind it. */
+const scrollToHeading = (heading: HTMLElement) => {
+  const scrollPort = scrollPortOf(heading);
+  if (!scrollPort) {
+    // Nothing between the heading and the page; the heading's own scroll margin
+    // is what keeps it clear.
+    heading.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const top =
+    scrollPort.scrollTop +
+    heading.getBoundingClientRect().top -
+    scrollPort.getBoundingClientRect().top -
+    restPoint(scrollPort);
+
+  scrollPort.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 };
 
 /** The heading the reader is under — the last one to have passed the top of the
@@ -204,7 +259,7 @@ const useActiveHeadingKey = (
       if (!root) {
         return;
       }
-      const line = scrollPortTop(root) + ACTIVE_HEADING_SLACK_PX;
+      const line = readingLine(scrollPortOf(root));
 
       let current: string | null = null;
       for (const key of keys) {
@@ -354,7 +409,10 @@ const OutlineTree = ({ onNavigate }: { onNavigate?: () => void }) => {
 
   const select = useCallback(
     (key: string) => {
-      snapshot.editor?.getElementByKey(key)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const heading = snapshot.editor?.getElementByKey(key);
+      if (heading) {
+        scrollToHeading(heading);
+      }
       onNavigate?.();
     },
     [snapshot.editor, onNavigate]
