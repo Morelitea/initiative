@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Sequence
 
 from fastapi import (
     APIRouter,
@@ -21,6 +21,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.project import Project
+from app.services.tenant import relationships
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -47,7 +51,6 @@ from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
@@ -102,6 +105,26 @@ from app.services.ai_generation import AIGenerationError, generate_document_summ
 from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def _document_projects(
+    session: AsyncSession, documents: Sequence[Document]
+) -> dict[int, list[Related]]:
+    """Which projects each of these documents is attached to.
+
+    One call for the whole page. The list endpoints below serialise documents in
+    a comprehension, so anything per-document here would be a query per row on
+    the busiest read in the tool.
+    """
+    return await relationships.related_for_many(
+        session,
+        SearchEntityType.document,
+        [d.id for d in documents if d.id is not None],
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.project,
+        model=Project,
+    )
+
 
 router = APIRouter()
 # Cross-guild "my documents" aggregate (My Documents page). Mounted under
@@ -482,9 +505,6 @@ async def _list_global_documents(
                         InitiativeRoleModel.permissions
                     ),
                 ),
-                selectinload(Document.project_links).selectinload(
-                    ProjectDocument.project
-                ),
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
                 selectinload(Document.tag_links).selectinload(DocumentTag.tag),
                 selectinload(Document.property_values).selectinload(
@@ -497,12 +517,14 @@ async def _list_global_documents(
         )
         documents = list((await guild_session.exec(statement)).unique().all())
         await documents_service.annotate_comment_counts(guild_session, documents)
+        attached = await _document_projects(guild_session, documents)
         return [
             serialize_document_summary(
                 document,
                 my_permission_level=_compute_my_doc_permission_level(
                     document, current_user.id
                 ),
+                projects=attached.get(document.id, []),
             )
             for document in documents
         ]
@@ -768,7 +790,6 @@ async def list_documents(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
@@ -790,6 +811,7 @@ async def list_documents(
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
+    attached = await _document_projects(session, documents)
     items = [
         serialize_document_summary(
             document,
@@ -797,6 +819,7 @@ async def list_documents(
                 document,
                 current_user.id,
             ),
+            projects=attached.get(document.id, []),
         )
         for document in documents
     ]

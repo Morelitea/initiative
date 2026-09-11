@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 from sqlalchemy import text, union_all
 from sqlmodel import delete, select
@@ -216,6 +216,7 @@ async def related_for_many(
     relationship_type: RelationshipType,
     other_kind: SearchEntityType,
     model: type | None = None,
+    options: Sequence[Any] = (),
 ) -> dict[int, list[Related]]:
     """The far ends of one relation, for many entities at once.
 
@@ -269,9 +270,12 @@ async def related_for_many(
 
     entities: dict[int, object] = {}
     if model is not None and edges:
-        found = await session.exec(
-            select(model).where(model.id.in_({other for _, other, _ in edges}))  # type: ignore[attr-defined]
+        entity_stmt = select(model).where(
+            model.id.in_({other for _, other, _ in edges})  # type: ignore[attr-defined]
         )
+        if options:
+            entity_stmt = entity_stmt.options(*options)
+        found = await session.exec(entity_stmt)
         entities = {row.id: row for row in found.all()}
 
     grouped: dict[int, list[Related]] = {entity_id: [] for entity_id in entity_ids}
@@ -290,6 +294,7 @@ async def related_for(
     relationship_type: RelationshipType,
     other_kind: SearchEntityType,
     model: type | None = None,
+    options: Sequence[Any] = (),
 ) -> list[Related]:
     """:func:`related_for_many` for one entity — the same two queries."""
     grouped = await related_for_many(
@@ -299,6 +304,7 @@ async def related_for(
         relationship_type=relationship_type,
         other_kind=other_kind,
         model=model,
+        options=options,
     )
     return grouped.get(entity.id, [])
 
