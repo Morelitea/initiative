@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Archived and finished work is properly read-only** — archiving a project stopped edits on a handful of screens and left the rest open; archiving an initiative only hid it from the sidebar, with everything inside still editable; an archived task could be edited as though it were not. Archiving now means what it says, everywhere: an archived initiative, project or task is read-only until you bring it back, and so is everything inside it — tasks, comments, reactions, attachments, properties and sharing alike. The trash works the same way: a trashed item and its contents can be restored or emptied, and nothing else. Unarchiving and restoring are unchanged, and so is reading — archived work still opens, searches and exports the way it always did.
+
 ## [0.68.0] - 2026-09-11
 
 ### Added

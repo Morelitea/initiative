@@ -212,9 +212,13 @@ def authorize(
     require_owner: bool = False,
     manage_access: bool = False,
     guild_role: GuildRole | str | None = None,
+    allow_frozen: bool = False,
 ) -> None:
     """Feature gate → manage-via-grant block → DAC decision. Reads request-scoped
-    role/PAM context, so callers don't thread it."""
+    role/PAM context, so callers don't thread it.
+
+    ``allow_frozen`` belongs to unarchiving and to nothing else — see
+    ``permissions_service.require_access``."""
     cfg = RESOURCE_ACCESS[kind]
     initiative = getattr(row, "initiative", None)
     if (
@@ -239,6 +243,7 @@ def authorize(
             row,
             user,
             access=access,
+            allow_frozen=allow_frozen,
             require_owner=require_owner,
             guild_role=guild_role,
         )

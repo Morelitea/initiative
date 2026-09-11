@@ -18,6 +18,11 @@ class CommonMessages:
     #: the zone is a real parameter rather than a formatting hint.
     UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
 
+    #: The write reached content that is archived or in the trash, or something
+    #: under it. One code for both, because the answer is the same either way:
+    #: bring it back first. See ``app.db.frozen``.
+    CONTENT_IS_FROZEN = "CONTENT_IS_FROZEN"
+
 
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
