@@ -255,6 +255,9 @@ export const DocumentDetailPage = () => {
   );
   const title = titleField.values.title;
   const setTitle = (next: string) => titleField.set({ title: next });
+  // Whether the name field is being typed in right now. Autosave waits it out
+  // so the Save button beside the field stays put for as long as it is wanted.
+  const [titleHasFocus, setTitleHasFocus] = useState(false);
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -405,15 +408,14 @@ export const DocumentDetailPage = () => {
     // frozen (read_only lifecycle status) or access is via a read-level grant.
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
-  const isDirty =
-    canEditDocument &&
-    ((document && title?.trim() !== document?.name?.trim()) ||
-      documentContentJson !== currentContentJson ||
-      normalizedDocumentFeatured !== featuredImageUrl);
+  // Split by what a save would carry: a rename and the rest of the document
+  // are committed on different terms — see the autosave effect.
+  const nameIsDirty = Boolean(document) && title?.trim() !== document?.name?.trim();
+  const bodyIsDirty =
+    documentContentJson !== currentContentJson || normalizedDocumentFeatured !== featuredImageUrl;
+  const isDirty = canEditDocument && (nameIsDirty || bodyIsDirty);
 
-  const titleIsDirty = Boolean(
-    canEditDocument && document && title?.trim() !== document?.name?.trim()
-  );
+  const titleIsDirty = canEditDocument && nameIsDirty;
 
   const commentsCanModerate = useMemo(() => {
     if (!document || !user) {
@@ -474,8 +476,12 @@ export const DocumentDetailPage = () => {
     suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
-      // that started before the last keystroke must not mark it saved.
-      titleField.settle({ title: sent.name ?? "" });
+      // that started before the last keystroke must not mark it saved. A save
+      // that carried no name at all (one made while the field was being typed
+      // in) settles nothing.
+      if (typeof sent.name === "string") {
+        titleField.settle({ title: sent.name });
+      }
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
@@ -611,6 +617,17 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
+    // A rename in progress belongs to the person typing it: taking it retires
+    // the Save button beside the field mid-reach. The name waits for the field
+    // to be let go — leaving the page still flushes it (see the unmount/unload
+    // flush below) — while the body carries on saving on its own schedule.
+    const savesName = nameIsDirty && !titleHasFocus;
+    // Nothing this pass would write. The collaborating branch below checks
+    // this too: the room owns the content column while it is live, but an open
+    // document nobody is editing has no rendering to report and no name to send.
+    if (!savesName && !bodyIsDirty) {
+      return;
+    }
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
@@ -628,19 +645,16 @@ export const DocumentDetailPage = () => {
         collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
-      if (!isDirty) {
-        return;
-      }
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -649,7 +663,8 @@ export const DocumentDetailPage = () => {
     }
   }, [
     autosaveEnabled,
-    isDirty,
+    nameIsDirty,
+    bodyIsDirty,
     canEditDocument,
     saveDocument,
     parsedId,
@@ -660,6 +675,7 @@ export const DocumentDetailPage = () => {
     collaboration.sendContent,
     isOnline,
     document?.document_type,
+    titleHasFocus,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -1080,8 +1096,10 @@ export const DocumentDetailPage = () => {
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            onFocus={() => setTitleHasFocus(true)}
+            onBlur={() => setTitleHasFocus(false)}
             placeholder={t("detail.titlePlaceholder")}
-            className="font-semibold text-2xl"
+            className="min-w-0 font-semibold text-2xl"
             disabled={!canEditDocument}
           />
           {titleIsDirty ? (
