@@ -21,6 +21,7 @@ falls out of what the edge describes — see :class:`RelationshipSpec`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 from app.core.references import REFERENCEABLE_TYPES
@@ -229,6 +230,23 @@ def decode_node_id(value: int) -> tuple[SearchEntityType, int]:
         if endpoint.code == code:
             return kind, entity_id
     raise ValueError(f"no endpoint kind has code {code}")
+
+
+@dataclass(frozen=True)
+class Related:
+    """One thing on the far end of an edge, and when the edge was made.
+
+    What a read schema needs and no more. It lives here rather than beside the
+    queries that build it so a schema can name it without importing a service.
+
+    ``entity`` is None when the thing is gone or the reader cannot open it — the
+    edge row cleared the gate but its far end did not, which reads as absent
+    rather than as an error.
+    """
+
+    id: int
+    entity: object | None
+    linked_at: datetime
 
 
 def is_symmetric(relationship_type: RelationshipType) -> bool:

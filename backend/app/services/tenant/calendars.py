@@ -25,7 +25,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
     CalendarEventTag,
 )
 from app.models.tenant.initiative import Initiative
@@ -100,9 +99,6 @@ def _event_export_loader_options() -> list:
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.tag_links)
         .selectinload(CalendarEventTag.tag),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.document_links)
-        .selectinload(CalendarEventDocument.document),
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.property_values)
         .selectinload(CalendarEventPropertyValue.property_definition),

@@ -19,13 +19,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
-from sqlalchemy import text
+from sqlalchemy import text, union_all
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import (
     ENDPOINT_KINDS,
     SPECS,
+    Related,
     Provenance,
     RelationshipType,
     is_symmetric,
@@ -207,6 +208,101 @@ async def list_for_entity(
     return [*outbound.all(), *inbound.all()]
 
 
+async def related_for_many(
+    session: AsyncSession,
+    kind: SearchEntityType,
+    entity_ids: Sequence[int],
+    *,
+    relationship_type: RelationshipType,
+    other_kind: SearchEntityType,
+    model: type | None = None,
+) -> dict[int, list[Related]]:
+    """The far ends of one relation, for many entities at once.
+
+    **Two queries, whatever the page size.** This is the helper every list page
+    goes through, so it is written to be flat in N rather than convenient: one
+    UNION ALL over the two anchored indexes for the edges, one ``IN`` for the
+    entities they name. Fetching per row instead would put a query per card on
+    a page that already shows dozens.
+
+    Both queries are gated. The edge query ANDs both endpoints, so an id only
+    comes back if the reader clears the far end as well; the entity query then
+    passes through that kind's own policies. A far end the reader cannot open
+    yields ``Related.entity is None`` and the caller renders nothing for it.
+    """
+    nodes = [node_id(kind, entity_id) for entity_id in entity_ids]
+    if not nodes:
+        return {}
+
+    columns = (
+        EntityRelationship.source_node,
+        EntityRelationship.source_id,
+        EntityRelationship.target_node,
+        EntityRelationship.target_id,
+        EntityRelationship.created_at,
+    )
+
+    def arm(anchor, other_kind_column):
+        return select(*columns).where(
+            anchor.in_(nodes),
+            EntityRelationship.relationship_type == relationship_type.value,
+            other_kind_column == other_kind.value,
+            EntityRelationship.removed_at.is_(None),  # type: ignore[union-attr]
+        )
+
+    rows = (
+        await session.exec(
+            union_all(
+                arm(EntityRelationship.source_node, EntityRelationship.target_type),
+                arm(EntityRelationship.target_node, EntityRelationship.source_type),
+            )
+        )
+    ).all()
+
+    ours = set(nodes)
+    edges: list[tuple[int, int, datetime]] = []
+    for source_node, source_id, target_node, target_id, created_at in rows:
+        if source_node in ours:
+            edges.append((source_node, target_id, created_at))
+        else:
+            edges.append((target_node, source_id, created_at))
+
+    entities: dict[int, object] = {}
+    if model is not None and edges:
+        found = await session.exec(
+            select(model).where(model.id.in_({other for _, other, _ in edges}))  # type: ignore[attr-defined]
+        )
+        entities = {row.id: row for row in found.all()}
+
+    grouped: dict[int, list[Related]] = {entity_id: [] for entity_id in entity_ids}
+    by_node = {node_id(kind, entity_id): entity_id for entity_id in entity_ids}
+    for node, other_id, created_at in sorted(edges, key=lambda e: e[2]):
+        grouped[by_node[node]].append(
+            Related(id=other_id, entity=entities.get(other_id), linked_at=created_at)
+        )
+    return grouped
+
+
+async def related_for(
+    session: AsyncSession,
+    entity: Endpoint,
+    *,
+    relationship_type: RelationshipType,
+    other_kind: SearchEntityType,
+    model: type | None = None,
+) -> list[Related]:
+    """:func:`related_for_many` for one entity — the same two queries."""
+    grouped = await related_for_many(
+        session,
+        entity.kind,
+        [entity.id],
+        relationship_type=relationship_type,
+        other_kind=other_kind,
+        model=model,
+    )
+    return grouped.get(entity.id, [])
+
+
 async def related_ids(
     session: AsyncSession,
     entity: Endpoint,
@@ -374,10 +470,13 @@ __all__ = [
     "Endpoint",
     "NotTransitive",
     "SelfLoop",
+    "Related",
     "create",
     "find",
     "list_for_entity",
     "purge_for_entities",
+    "related_for",
+    "related_for_many",
     "related_ids",
     "remove",
     "set_related",

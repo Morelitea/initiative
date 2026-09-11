@@ -6,7 +6,6 @@ loaders here eager-load the parent calendar with what the permission engine
 needs.
 """
 
-from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
@@ -19,10 +18,12 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
     CalendarEventTag,
 )
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
+from app.services.tenant import relationships
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
@@ -48,9 +49,6 @@ async def get_event(
                 CalendarEventAttendee.user
             ),
             selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
-            selectinload(CalendarEvent.document_links).selectinload(
-                CalendarEventDocument.document
-            ),
             selectinload(CalendarEvent.calendar)
             .selectinload(Calendar.grants)
             .selectinload(ResourceGrant.role),
@@ -167,18 +165,11 @@ async def set_event_documents(
                 detail=CalendarEventMessages.NOT_FOUND,
             )
 
-    delete_stmt = sa_delete(CalendarEventDocument).where(
-        CalendarEventDocument.calendar_event_id == event.id,
+    await relationships.set_related(
+        session,
+        relationships.Endpoint(SearchEntityType.calendar_event, event.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        ids=document_ids,
+        created_by=user_id,
     )
-    await session.exec(delete_stmt)
-
-    now = datetime.now(timezone.utc)
-    for doc_id in document_ids:
-        link = CalendarEventDocument(
-            calendar_event_id=event.id,
-            document_id=doc_id,
-            guild_id=guild_id,
-            attached_by_id=user_id,
-            attached_at=now,
-        )
-        session.add(link)
