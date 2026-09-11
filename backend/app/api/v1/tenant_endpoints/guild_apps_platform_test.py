@@ -43,7 +43,7 @@ from app.core.messages import (
 )
 from app.models.platform.app_service_registration import AppServiceStatus
 from app.models.platform.guild import GuildRole
-from app.services.marketplace.app_refs import ensure_app_ref
+from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
     create_app_service_registration,
@@ -881,7 +881,9 @@ class TestConnectLaunch:
         )
         query = parse_qs(urlsplit(body["connect_url"]).query)
         assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_id"] == [str(a.guild.id)]
+        assert query["guild_ref"] == [
+            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
+        ]
 
     async def test_the_url_uses_the_browser_address(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration

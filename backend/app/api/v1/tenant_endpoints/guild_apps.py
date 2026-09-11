@@ -874,7 +874,9 @@ async def connect_guild_app(
 
     return await _connect_start(
         registration,
-        guild_id=app.guild_id,
+        guild_ref=await app_refs.ensure_app_guild_ref(
+            guild_id=app.guild_id, app_install_id=app.id
+        ),
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
         connect_path=connect_path,
@@ -926,7 +928,9 @@ async def _start_guild_connect(
     )
     return await _connect_start(
         registration,
-        guild_id=app.guild_id,
+        guild_ref=await app_refs.ensure_app_guild_ref(
+            guild_id=app.guild_id, app_install_id=app.id
+        ),
         connection_id=connection_id,
         connection_ref=connection_ref,
         connect_path=connect_path,
@@ -937,7 +941,7 @@ async def _start_guild_connect(
 async def _connect_start(
     registration: Any,
     *,
-    guild_id: int,
+    guild_ref: str,
     connection_id: str,
     connection_ref: str,
     connect_path: str,
@@ -950,12 +954,13 @@ async def _connect_start(
 
     The guild travels with the ref because the channel addresses every install
     by guild: the app writes its result back to
-    ``/installs/{guild_id}/connections/{ref}``, and a ref on its own names
-    nothing it can look up.
+    ``/installs/{guild_ref}/connections/{ref}``, and a ref on its own names
+    nothing it can look up. It is the reference minted for this install — the
+    same name the app is given everywhere else — and not a row id.
     """
     query = [
         ("connection_ref", connection_ref),
-        ("guild_id", str(guild_id)),
+        ("guild_ref", guild_ref),
     ]
     query += await _return_address(registration.public_id, connection_id)
 
