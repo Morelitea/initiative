@@ -929,7 +929,7 @@ class TestConnectLaunch:
         # URL, which is why it travels here and the secret does not.
         assert set(parse_qs(query)) == {
             "connection_ref",
-            "guild_id",
+            "guild_ref",
             "return_url",
             "return_sig",
         }
