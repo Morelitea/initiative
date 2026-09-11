@@ -66,7 +66,10 @@ async def test_a_refused_sign_in_is_recorded_with_its_reason(
     assert response.status_code == 400
 
     rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
-    assert [r.actor_user_id for r in rows] == [user_id]
+    # The account is what the attempt was against, not who made it: the
+    # request is unauthenticated, so there is no actor to name.
+    assert [r.actor_user_id for r in rows] == [None]
+    assert [r.target_user_id for r in rows] == [user_id]
     assert rows[0].envelope["detail"]["reason"] == "bad_password"
     # A refusal changed nothing, so it is not a write.
     assert rows[0].envelope["is_write"] is False
@@ -82,7 +85,8 @@ async def test_an_inactive_account_is_recorded_separately_from_a_wrong_password(
     assert (await _sign_in(client, "inactive-audit@example.com")).status_code == 400
 
     rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
-    assert [r.actor_user_id for r in rows] == [user_id]
+    assert [r.actor_user_id for r in rows] == [None]
+    assert [r.target_user_id for r in rows] == [user_id]
     assert rows[0].envelope["detail"]["reason"] == "inactive"
 
 
@@ -152,3 +156,54 @@ async def test_every_auth_event_is_filed_under_authentication():
     assert auth_events
     for event_type in auth_events:
         assert meta_for(event_type).category is AuditCategory.AUTHENTICATION
+
+
+async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
+    client: AsyncClient, session: AsyncSession
+):
+    """The rejection kills the whole chain, so the record has to be able to say
+    whose chain it was — there is no issued session to read it from."""
+    from app.core.security import REFRESH_COOKIE_NAME
+
+    user = await create_user(session, email="replay-audit@example.com")
+    user_id = user.id
+    signed_in = await _sign_in(client, "replay-audit@example.com")
+    assert signed_in.status_code == 200
+    spent = client.cookies.get(REFRESH_COOKIE_NAME)
+    assert spent
+
+    # Spend it once — which rotates the cookie — then put the spent one back.
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
+    client.cookies.set(REFRESH_COOKIE_NAME, spent)
+    replayed = await client.post("/api/v1/auth/refresh")
+    assert replayed.status_code == 401
+
+    rows = await _events(session, AuditEventType.AUTH_REFRESH_REUSE_DETECTED)
+    assert [r.actor_user_id for r in rows] == [user_id]
+
+
+async def test_an_unauthenticated_event_reads_back_with_no_party(
+    client: AsyncClient, session: AsyncSession
+):
+    """The board renders the actor column from this field, so an event nobody
+    signed in caused has to survive the read as no party rather than a stray
+    id."""
+    from app.models.platform.user import UserRole
+    from app.schemas.platform.audit import AuditEventRead
+
+    await create_user(session, email="noparty-audit@example.com")
+    assert (
+        await _sign_in(client, "noparty-audit@example.com", "wrong")
+    ).status_code == 400
+
+    owner = await create_user(session, role=UserRole.owner)
+    listing = await client.get(
+        "/api/v1/admin/audit-events",
+        headers=get_auth_headers(owner),
+        params={"event_type": AuditEventType.AUTH_SIGN_IN_FAILED.value},
+    )
+    assert listing.status_code == 200
+    items = [AuditEventRead(**item) for item in listing.json()["items"]]
+    assert items
+    assert items[0].actor is None
+    assert items[0].target_user is not None

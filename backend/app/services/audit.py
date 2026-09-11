@@ -60,7 +60,7 @@ async def record(
     session: AsyncSession,
     *,
     event_type: AuditEventType,
-    actor_user_id: int,
+    actor_user_id: Optional[int],
     target_user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
     target_type: Optional[str] = None,
@@ -68,6 +68,9 @@ async def record(
     detail: Optional[dict[str, Any]] = None,
 ) -> AuditEvent:
     """Record one action in ``session``'s transaction and emit its log line.
+
+    ``actor_user_id`` is ``None`` for an action nobody signed in took — see
+    ``AuditEvent.actor_user_id``.
 
     Staged, not committed: the caller owns the transaction, which is what makes
     the record atomic with the thing it records.

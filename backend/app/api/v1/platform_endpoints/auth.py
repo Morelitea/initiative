@@ -403,6 +403,10 @@ async def _record_sign_in_failure(
 ) -> None:
     """Write down a refused sign-in and commit it.
 
+    The account is the **target**, and there is no actor: the request that made
+    the attempt is unauthenticated, so the account named by the address is what
+    the attempt was against rather than who made it.
+
     Its own commit because the request is about to raise, and ``audit_events``
     is reached on the system engine — the request-path role holds nothing on
     that table.
@@ -410,7 +414,10 @@ async def _record_sign_in_failure(
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
-        actor_user_id=user.id,
+        actor_user_id=None,
+        target_user_id=user.id,
+        target_type="user",
+        target_id=user.id,
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
@@ -1234,13 +1241,8 @@ async def _complete_provider_login(
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
-        identity = await link_identity(
-            admin_session,
-            user=user,
-            provider=provider_row,
-            subject=completion.subject,
-            email_verified=email_verified,
-        )
+        # Staged before the link, which commits: the two land together rather
+        # than the record trailing a link already durable.
         await audit_service.record(
             admin_session,
             event_type=AuditEventType.AUTH_IDENTITY_LINKED,
@@ -1249,6 +1251,13 @@ async def _complete_provider_login(
             target_type="auth_provider",
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
+        )
+        identity = await link_identity(
+            admin_session,
+            user=user,
+            provider=provider_row,
+            subject=completion.subject,
+            email_verified=email_verified,
         )
 
     # Profile refresh from the verified claims.
@@ -1633,6 +1642,15 @@ async def reset_password(
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
+    # Staged before ``revoke_user_sessions`` below, which commits this session:
+    # ``user`` is bound to it, so the new password and this record land on the
+    # same commit rather than the record trailing a change already durable.
+    await audit_service.record(
+        admin_session,
+        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
+        actor_user_id=user.id,
+        detail={"via": "reset"},
+    )
     # Bump token_version and revoke API keys / refresh sessions so no stale
     # credential (JWT or captured refresh) survives either. ``token_version``
     # is bumped on ``user``, which is bound to the system engine here, so that
@@ -1644,12 +1662,6 @@ async def reset_password(
         user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
     admin_session.add(user)
-    await audit_service.record(
-        admin_session,
-        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-        actor_user_id=user.id,
-        detail={"via": "reset"},
-    )
     await session.commit()
     await admin_session.commit()
     return VerificationSendResponse(status="reset")

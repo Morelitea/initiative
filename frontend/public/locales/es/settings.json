@@ -1186,7 +1186,13 @@
     "empty": "Todavía no se ha registrado nada.",
     "pageOf": "Página {{page}} de {{total}} entradas",
     "actions": {
-      "user.avatar_removed": "Foto de perfil eliminada"
+      "user.avatar_removed": "Foto de perfil eliminada",
+      "auth.signed_in": "Sesión iniciada",
+      "auth.sign_in_failed": "Inicio de sesión rechazado",
+      "auth.signed_out": "Sesión cerrada",
+      "auth.password_changed": "Contraseña cambiada",
+      "auth.identity_linked": "Inicio de sesión único vinculado",
+      "auth.refresh_reuse_detected": "Token de sesión reutilizado rechazado"
     }
   },
   "account": {
