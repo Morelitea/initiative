@@ -819,3 +819,35 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSessi
     assert (
         await session.exec(select(Task).where(Task.id == task_id))
     ).one_or_none() is not None
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_soft_delete_user_removes_sign_in_sessions(session: AsyncSession):
+    """Erasure empties the account of its sign-in sessions too — those rows
+    carry a device label, a user agent and an address."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    mine = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        user_agent="Mozilla/5.0",
+        ip="203.0.113.7",
+        device_name="Laptop",
+    )
+    theirs = await session_service.create_session(
+        session, user_id=bystander.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    mine_id, theirs_id, user_id = mine.session.id, theirs.session.id, user.id
+
+    await user_service.soft_delete_user(session, user_id)
+
+    session.expire_all()
+    assert await session.get(AuthSession, mine_id) is None
+    assert await session.get(AuthSession, theirs_id) is not None

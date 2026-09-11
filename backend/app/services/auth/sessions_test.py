@@ -248,3 +248,87 @@ async def test_revoke_chain_missing_id_is_noop(session):
         session, session_id=uuid.uuid4(), now=_at()
     )
     assert revoked == 0
+
+
+async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
+    """The sweep takes what can no longer be used and is past the window: a
+    long-expired row and a long-revoked one. A live session, a session that
+    expired only yesterday, and one revoked only yesterday all stay."""
+    user = await create_user(session)
+    now = _at(days=100)
+
+    live = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=now
+    )
+    long_expired = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        now=now,
+        refresh_ttl=timedelta(days=-40),
+    )
+    just_expired = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        now=now,
+        refresh_ttl=timedelta(days=-1),
+    )
+    long_revoked = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=now
+    )
+    just_revoked = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=now
+    )
+    await session_service.revoke_session(
+        session, session_id=long_revoked.session.id, now=now - timedelta(days=40)
+    )
+    await session_service.revoke_session(
+        session, session_id=just_revoked.session.id, now=now - timedelta(days=1)
+    )
+    await session.commit()
+    # Plain values before the sweep: the rows are expired afterwards, and an
+    # ORM attribute read then would lazy-load.
+    ids = {
+        name: issued.session.id
+        for name, issued in {
+            "live": live,
+            "just_expired": just_expired,
+            "just_revoked": just_revoked,
+            "long_expired": long_expired,
+            "long_revoked": long_revoked,
+        }.items()
+    }
+
+    removed = await session_service.purge_dead_sessions(session, now=now)
+    assert removed == 2
+
+    session.expire_all()
+    assert await session.get(AuthSession, ids["live"]) is not None
+    assert await session.get(AuthSession, ids["just_expired"]) is not None
+    assert await session.get(AuthSession, ids["just_revoked"]) is not None
+    assert await session.get(AuthSession, ids["long_expired"]) is None
+    assert await session.get(AuthSession, ids["long_revoked"]) is None
+
+
+async def test_delete_all_for_user_leaves_other_accounts_alone(session):
+    user = await create_user(session)
+    bystander = await create_user(session)
+    mine = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    theirs = await session_service.create_session(
+        session, user_id=bystander.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    mine_id, theirs_id = mine.session.id, theirs.session.id
+
+    removed = await session_service.delete_all_for_user(session, user_id=user.id)
+    await session.commit()
+    assert removed == 1
+
+    session.expire_all()
+    assert await session.get(AuthSession, mine_id) is None
+    assert await session.get(AuthSession, theirs_id) is not None
