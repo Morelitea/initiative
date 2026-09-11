@@ -62,6 +62,14 @@ SESSION_COOKIE_NAME = "session_token"
 # smaller exposure than the session cookie).
 REFRESH_COOKIE_NAME = "refresh_token"
 
+# The hash schemes ``verify_password`` below can actually check. A stored value
+# outside this set — the ``'!'`` marker the 0152 downgrade writes, or anything
+# else — never verifies, which makes it the definition of "no usable password"
+# for callers that have to ask about a hash without checking one.
+ARGON2_HASH_PREFIX = "$argon2"
+BCRYPT_HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
+USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
+
 # argon2id with library defaults — OWASP-aligned. Stored hashes embed the
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
@@ -84,13 +92,13 @@ def verify_password(plain_password: str, hashed_password: str | None) -> bool:
     """
     if hashed_password is None:
         return False
-    if hashed_password.startswith("$argon2"):
+    if hashed_password.startswith(ARGON2_HASH_PREFIX):
         try:
             _argon2_hasher.verify(hashed_password, plain_password)
             return True
         except (VerifyMismatchError, VerificationError, InvalidHashError):
             return False
-    if hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
+    if hashed_password.startswith(BCRYPT_HASH_PREFIXES):
         try:
             return bcrypt.checkpw(
                 plain_password.encode("utf-8"),
@@ -110,7 +118,7 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
     """
     if hashed_password is None:
         return False
-    if not hashed_password.startswith("$argon2"):
+    if not hashed_password.startswith(ARGON2_HASH_PREFIX):
         return True
     try:
         return _argon2_hasher.check_needs_rehash(hashed_password)

@@ -28,16 +28,19 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
+from app.core.security import USABLE_HASH_PREFIXES
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.services.auth.platform_provider import login_ready_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
 
@@ -228,25 +231,48 @@ async def has_federated_identity(session: AsyncSession, *, user_id: int) -> bool
 async def sole_credential_user_count(session: AsyncSession, *, provider_id: int) -> int:
     """How many accounts hold this provider as their only credential.
 
-    An account counts when it has no password and every identity link it holds
-    belongs to this provider — the provider's links cascade with it, so this
-    account's last credential goes too. An account that kept a password, or
-    linked a second provider, still holds one and is not counted.
+    An account counts when it has no usable password and every identity link it
+    holds belongs to this provider — the provider's links cascade with it, so
+    this account's last credential goes too.
+
+    "No usable password" is read from the stored hash rather than from NULL
+    alone: an account can carry a value no scheme verifies (the ``'!'`` marker
+    the 0152 downgrade writes), and that is not a password. What it cannot read
+    is an account provisioned before 0152, whose throwaway hash is a real argon2
+    value indistinguishable from a chosen one; that account is not counted here
+    and reaches its account through password reset instead.
+
+    An alternate link only counts when its provider could actually serve a
+    login — a disabled or half-configured row is not a way in.
     """
     holds_this = select(FederatedIdentity.id).where(
         FederatedIdentity.user_id == User.id,
         FederatedIdentity.provider_id == provider_id,
     )
-    holds_another = select(FederatedIdentity.id).where(
-        FederatedIdentity.user_id == User.id,
-        FederatedIdentity.provider_id != provider_id,
+    holds_another = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            FederatedIdentity.provider_id != provider_id,
+            login_ready_clause(),
+        )
+    )
+    no_usable_password = or_(
+        User.hashed_password.is_(None),
+        ~or_(
+            *(
+                User.hashed_password.startswith(prefix)
+                for prefix in USABLE_HASH_PREFIXES
+            )
+        ),
     )
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
             .where(
-                User.hashed_password.is_(None),
+                no_usable_password,
                 holds_this.exists(),
                 ~holds_another.exists(),
             )

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import ColumnElement, and_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -46,6 +47,20 @@ def is_login_ready(row: AuthProvider) -> bool:
     the non-secret client config discovery needs. The single predicate behind
     the login routes, the provider listing, and guild auth policies."""
     return bool(row.enabled and row.kind == "oidc" and row.issuer and row.client_id)
+
+
+def login_ready_clause() -> ColumnElement[bool]:
+    """:func:`is_login_ready` as a predicate over ``auth_providers``, for
+    queries that must ask it of rows they are not loading. Kept in step with
+    the row form by ``platform_provider_test``."""
+    return and_(
+        AuthProvider.enabled.is_(True),
+        AuthProvider.kind == "oidc",
+        AuthProvider.issuer.is_not(None),
+        AuthProvider.issuer != "",
+        AuthProvider.client_id.is_not(None),
+        AuthProvider.client_id != "",
+    )
 
 
 def scopes_list(row: AuthProvider) -> list[str]:

@@ -250,6 +250,41 @@ async def test_delete_allowed_when_account_holds_another_provider(
     assert await session.get(AuthProvider, provider_id) is None
 
 
+async def test_delete_refused_when_the_stored_hash_cannot_verify(
+    client: AsyncClient, session: AsyncSession
+):
+    """A hash no scheme accepts is not a password. The 0152 downgrade writes
+    ``'!'`` into rows that had none, and such an account still reaches its
+    account only through the provider."""
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    marked = await create_user(session, hashed_password="!")
+    await create_federated_identity(session, marked, provider=provider)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "AUTH_PROVIDER_SOLE_CREDENTIAL"
+
+
+async def test_delete_refused_when_the_only_other_provider_is_disabled(
+    client: AsyncClient, session: AsyncSession
+):
+    """A disabled provider cannot serve a login, so a link to one is not a
+    second way in."""
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    dormant = await create_auth_provider(session, slug="dormant", enabled=False)
+    sso_only = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, sso_only, provider=provider)
+    await create_federated_identity(session, sso_only, provider=dormant)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "AUTH_PROVIDER_SOLE_CREDENTIAL"
+
+
 async def test_created_provider_reaches_login_page_listing(
     client: AsyncClient, session: AsyncSession
 ):

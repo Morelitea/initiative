@@ -240,6 +240,13 @@ async def delete_provider(
     first, and then it deletes.
     """
     row = await editable_provider(session, provider_id, guild_id=guild_id)
+    # Lock the row before counting. Inserting a ``federated_identities`` row
+    # takes FOR KEY SHARE on the provider it references, which FOR UPDATE
+    # conflicts with — so a login provisioning an account either lands before
+    # the count and is seen by it, or waits and then fails the foreign key.
+    await session.exec(
+        select(AuthProvider.id).where(AuthProvider.id == row.id).with_for_update()
+    )
     stranded = await identity_service.sole_credential_user_count(
         session, provider_id=row.id
     )
