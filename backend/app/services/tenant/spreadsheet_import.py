@@ -56,6 +56,13 @@ _FLOOR_COLS = 26
 # than one that did not come back at all.
 MAX_IMPORT_CELLS: int = 500_000
 
+# The most coordinates one import will look at. A sheet declares the rectangle
+# it covers, and that rectangle can be enormously larger than the cells it
+# actually holds — every coordinate inside one still costs a read. Measured
+# from the declared rectangle before anything is read, so a sheet that would
+# take too long never starts.
+MAX_IMPORT_SCAN: int = 2_000_000
+
 
 def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     """The sheets a file holds, in canonical workbook form.
@@ -181,6 +188,7 @@ def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
 
     if len(workbook.worksheets) > MAX_SHEETS:
         raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+    _refuse_unreadable_shape(workbook.worksheets)
 
     budget = MAX_IMPORT_CELLS
     sheets: list[dict[str, Any]] = []
@@ -189,6 +197,23 @@ def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
         budget -= used
         sheets.append(sheet)
     return sheets
+
+
+def _refuse_unreadable_shape(worksheets: list[Worksheet]) -> None:
+    """Refuse a workbook whose declared shape is more than one import reads.
+
+    Checked across every sheet before any is read, so the cost of deciding is
+    the same whatever the file claims to hold.
+    """
+    scan = 0
+    for ws in worksheets:
+        rows = ws.max_row or 0
+        cols = ws.max_column or 0
+        if rows > MAX_ROWS or cols > MAX_COLS:
+            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+        scan += rows * cols
+        if scan > MAX_IMPORT_SCAN:
+            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
 
 
 def _parse_worksheet(ws: Worksheet, budget: int) -> tuple[dict[str, Any], int]:
@@ -206,8 +231,6 @@ def _parse_worksheet(ws: Worksheet, budget: int) -> tuple[dict[str, Any], int]:
                 continue
             r = cell.row - 1
             c = cell.column - 1
-            if r >= MAX_ROWS or c >= MAX_COLS:
-                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
             used += 1
             if used > budget:
                 # Better to say a file is too big than to hand back some of it

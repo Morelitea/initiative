@@ -298,3 +298,43 @@ def test_a_workbook_with_too_many_tabs_is_refused() -> None:
         parse_spreadsheet_file("many.xlsx", buffer.getvalue())
 
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+
+
+@pytest.mark.unit
+def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
+    """The shape is judged from what the sheet declares, before anything in it
+    is read — a file that would take too long never starts."""
+    import io as _io
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    book.active["A200000"] = 1  # one cell, a rectangle past the grid
+    buffer = _io.BytesIO()
+    book.save(buffer)
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("sparse.xlsx", buffer.getvalue())
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+
+
+@pytest.mark.unit
+def test_a_sparse_sheet_with_a_distant_corner_is_refused() -> None:
+    """Two cells can declare a rectangle of millions of coordinates. The cost
+    is in the rectangle, not in what is stored."""
+    import io as _io
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet["A1"] = 1
+    sheet.cell(row=50_000, column=100, value=1)  # 5,000,000 coordinates
+    buffer = _io.BytesIO()
+    book.save(buffer)
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("sparse.xlsx", buffer.getvalue())
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
