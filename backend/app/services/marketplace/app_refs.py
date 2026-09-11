@@ -28,6 +28,10 @@ its caller composes it with a guild-routed read in the same transaction.
 
 from __future__ import annotations
 
+import logging
+
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.db import session as db_session
 from app.models.platform.identity_ref import (
     REF_MAX_LENGTH,
@@ -40,6 +44,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 __all__ = [
     "REF_MAX_LENGTH",
+    "forget_guild",
+    "ensure_app_guild_ref",
+    "resolve_app_guild_ref",
     "drop_guild_app_refs",
     "drop_install_refs",
     "ensure_app_ref",
@@ -47,6 +54,8 @@ __all__ = [
     "reissue_install_refs",
     "resolve_app_ref",
 ]
+
+logger = logging.getLogger(__name__)
 
 _PURPOSE = IdentityPurpose.app
 
@@ -69,6 +78,41 @@ async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) ->
         )
         await session.commit()
     return ref
+
+
+async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
+    """What this install calls the guild it is installed in.
+
+    The guild's own reference at the same sector the member's uses, so an app
+    installed in two guilds holds two unrelated values for them — the same
+    property the member reference has, applied to the tenant.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        ref = await identity_refs.ensure_ref(
+            session,
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=_PURPOSE,
+            sector_guild_id=guild_id,
+            sector_id=app_install_id,
+        )
+        await session.commit()
+    return ref
+
+
+async def resolve_app_guild_ref(*, ref: str) -> int | None:
+    """Which guild a guild reference names, or None.
+
+    The inverse of ``ensure_app_guild_ref``, for a token that names its guild by
+    reference. Opens its own session: the caller at this point holds none.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        row = await identity_refs.resolve_ref(session, ref=ref)
+    if row is None:
+        return None
+    if row.purpose != _PURPOSE or row.entity_type != IdentityEntity.guild:
+        return None
+    return row.entity_id
 
 
 async def resolve_app_ref(
@@ -153,3 +197,21 @@ async def drop_guild_app_refs(*, guild_id: int) -> int:
         )
         await session.commit()
     return dropped
+
+
+async def forget_guild(*, guild_id: int) -> None:
+    """Drop a deleted guild's references, reporting rather than raising.
+
+    Called after the deletion has committed, so there is nothing left to roll
+    back and a failure here must not fail the request. It is logged with the
+    guild, and what it leaves behind is reclaimed by
+    ``identity_refs.purge_orphaned_sector_refs``.
+    """
+    try:
+        await drop_guild_app_refs(guild_id=guild_id)
+    except SQLAlchemyError:
+        logger.warning(
+            "app refs: references for deleted guild %s were not removed; "
+            "the orphan sweep will reclaim them",
+            guild_id,
+        )

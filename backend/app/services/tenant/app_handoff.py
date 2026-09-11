@@ -209,6 +209,9 @@ async def mint_embed_handoff(
     subject = await app_refs.ensure_app_ref(
         guild_id=app.guild_id, app_install_id=app.id, user_id=user_id
     )
+    guild_ref = await app_refs.ensure_app_guild_ref(
+        guild_id=app.guild_id, app_install_id=app.id
+    )
 
     now = datetime.now(timezone.utc)
     audience = app_platform_audience(registration.public_id)
@@ -224,7 +227,9 @@ async def mint_embed_handoff(
         "iss": settings.APP_PLATFORM_ISSUER,
         "iat": int(now.timestamp()),
         "exp": now + APP_EMBED_HANDOFF_LIFETIME,
-        "guild_id": app.guild_id,
+        # The guild by reference, for the same reason as the member above: an
+        # index names a row to us, not an entity to somebody else.
+        "guild_ref": guild_ref,
         "app_install_id": app.id,
         "surface_id": surface_id,
     }

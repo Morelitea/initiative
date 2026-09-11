@@ -442,6 +442,8 @@ def test_loader_refuses_a_private_key():
 #: for one member at one install, opaque to the app that holds it. These tests
 #: are about key selection and carry it only so it can be read back out.
 _SUBJECT = "mBqR7xK2wPL0vN4tZ8yC6sD1fG3hJ5nA"
+#: The reference the delegate knows the guild by, as it would arrive.
+_GUILD_REF = "gapp_wRkC8mBv1xQ2fTn6JhLpZs4dY7eA0uKq"
 
 
 def _mint_delegation(
@@ -456,7 +458,7 @@ def _mint_delegation(
             "iss": settings.AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
             "exp": now + timedelta(seconds=expires_in),
-            "guild_id": 9,
+            "guild_ref": _GUILD_REF,
         },
         private_pem(signed_by),
         algorithm="RS256",
@@ -469,7 +471,7 @@ def test_delegation_accepts_the_key_it_was_given():
     claims = security.verify_auto_delegation_token(
         _mint_delegation(signed_by=0), keys=[public_key(0)]
     )
-    assert (claims.subject, claims.guild_id) == (_SUBJECT, 9)
+    assert (claims.subject, claims.guild_ref) == (_SUBJECT, _GUILD_REF)
 
 
 @pytest.mark.unit

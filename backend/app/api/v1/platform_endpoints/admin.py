@@ -1,11 +1,9 @@
 import logging
-from contextlib import suppress
 from typing import Annotated, List, Optional, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlalchemy import func
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
@@ -903,8 +901,7 @@ async def admin_delete_guild(
     await session.commit()
     # See delete_guild: these live on another connection, so they go after the
     # commit that made the deletion real.
-    with suppress(SQLAlchemyError):
-        await app_refs.drop_guild_app_refs(guild_id=guild_id)
+    await app_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:
