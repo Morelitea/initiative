@@ -278,7 +278,9 @@ async def export_my_calendar_events_ics(
     — events live only in the per-guild schemas, so no one query spans them.
     """
 
-    documents_by_event: dict[int, list[Related]] = {}
+    # Keyed by (guild_id, event_id): ids come from each guild's own sequence,
+    # and this feed merges several guilds' worth.
+    documents_by_event: dict[tuple[int, int], list[Related]] = {}
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [calendars_service.tool_enabled_clause()]
@@ -310,6 +312,7 @@ async def export_my_calendar_events_ics(
                 ),
             )
         )
+
         async def _run():
             found = await _exec_events(guild_session, stmt)
             # While this session is routed to THIS guild: edges live in its

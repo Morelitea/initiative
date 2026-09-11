@@ -216,29 +216,38 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
 def events_to_ical(
     events: List[CalendarEvent],
-    documents: "dict[int, list[Related]] | None" = None,
+    documents: "dict[tuple[int, int], list[Related]] | None" = None,
 ) -> bytes:
     """Serialize a list of CalendarEvent models to iCal bytes."""
     by_event = documents or {}
     return ical_from_export_dicts(
-        [event_export_dict(event, by_event.get(event.id, [])) for event in events]
+        [
+            event_export_dict(event, by_event.get((event.guild_id, event.id), []))
+            for event in events
+        ]
     )
 
 
 async def documents_for_events(
     session: "AsyncSession", events: List[CalendarEvent]
-) -> "dict[int, list[Related]]":
+) -> "dict[tuple[int, int], list[Related]]":
     """Attached documents for many events, in two queries.
 
     Here rather than at each caller: the builders above are synchronous and hold
     no session, and a calendar export renders every event a calendar has.
+
+    Keyed by ``(guild_id, event_id)`` and never by the id alone. Event ids come
+    from a sequence in each guild's own schema, so two guilds hold an event 5
+    between them; the cross-guild ``/me`` feed merges what several of these
+    return, and an id-only key would give one guild's event the other's
+    attachments.
     """
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
     from app.models.tenant.document import Document
     from app.services.tenant import relationships
 
-    return await relationships.related_for_many(
+    by_id = await relationships.related_for_many(
         session,
         SearchEntityType.calendar_event,
         [event.id for event in events if event.id is not None],
@@ -246,6 +255,8 @@ async def documents_for_events(
         other_kind=SearchEntityType.document,
         model=Document,
     )
+    guilds = {event.id: event.guild_id for event in events if event.id is not None}
+    return {(guilds[event_id], event_id): found for event_id, found in by_id.items()}
 
 
 # ---------------------------------------------------------------------------

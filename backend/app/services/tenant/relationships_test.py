@@ -29,6 +29,8 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
 from app.testing.factories import (
+    create_calendar,
+    create_calendar_event,
     create_document,
     create_initiative,
     create_relationship,
@@ -412,3 +414,39 @@ async def test_purging_an_endpoint_takes_its_edges_including_tombstones(
         )
     ).all()
     assert remaining == []
+
+
+async def test_two_guilds_events_do_not_share_attachments(
+    session: AsyncSession, acting_user
+):
+    """Ids come from each guild's own sequence, so two guilds hold an event 5
+    between them. The cross-guild feed merges what several guilds return, and a
+    key of the id alone would hand one guild's event the other's documents."""
+    from app.services.tenant.ical_service import documents_for_events
+
+    first = await acting_user(guild_role=GuildRole.member, initiative=True)
+    second = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    events = []
+    for actor in (first, second):
+        calendar = await create_calendar(session, actor.initiative, actor.user)
+        event = await create_calendar_event(session, calendar, actor.user)
+        doc = await create_document(session, actor.initiative, actor.user)
+        await create_relationship(
+            session,
+            actor.guild,
+            source=(SearchEntityType.calendar_event, event.id),
+            target=(SearchEntityType.document, doc.id),
+        )
+        events.append((actor, event, doc))
+
+    # Gathered per guild, as the feed does, and merged.
+    merged: dict[tuple[int, int], list] = {}
+    for actor, event, _ in events:
+        await route_session_to_guild(session, actor.guild.id)
+        merged.update(await documents_for_events(session, [event]))
+
+    assert len(merged) == 2, "one guild's events displaced the other's"
+    for _, event, doc in events:
+        found = merged[(event.guild_id, event.id)]
+        assert [related.id for related in found] == [doc.id]
