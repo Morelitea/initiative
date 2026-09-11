@@ -67,10 +67,16 @@ class IdentityPurpose(str, Enum):
     platform. ``app``'s sector is a single **install**, so its rows carry one in
     ``sector_guild_id`` + ``sector_id``: an app installed in two guilds sees an
     unrelated reference for the same person in each.
+
+    ``webhook``'s sector is one subscription, for a target nothing else here
+    knows: a member's own URL rather than an installed app. A subscription an
+    app registered is named in that app's ``app`` sector instead, so the guild
+    and the member arrive under the names it already holds.
     """
 
     billing = "billing"
     app = "app"
+    webhook = "webhook"
 
     @property
     def code(self) -> str:

@@ -369,7 +369,11 @@ async def drop_entity_refs(
 
 
 async def drop_sector_refs(
-    session: AsyncSession, *, sector_guild_id: int, sector_id: int | None = None
+    session: AsyncSession,
+    *,
+    sector_guild_id: int,
+    sector_id: int | None = None,
+    purpose: IdentityPurpose | None = None,
 ) -> int:
     """Remove every reference minted for one sector. Returns the count.
 
@@ -377,10 +381,18 @@ async def drop_sector_refs(
     deletion needs. Neither column is a foreign key — the thing a sector names
     lives in a guild schema and this table does not — so this stands in for the
     cascade.
+
+    ``purpose`` names which kind of thing ``sector_id`` is. The ids a sector is
+    built from are per-guild-schema sequences, so an install and a webhook
+    subscription in one guild can both be number three; the purpose is what
+    tells those two sectors apart. Every caller naming a ``sector_id`` passes
+    it. Guild deletion does not, because it is taking all of them.
     """
     clause = IdentityRef.sector_guild_id == sector_guild_id
     if sector_id is not None:
         clause = and_(clause, IdentityRef.sector_id == sector_id)
+    if purpose is not None:
+        clause = and_(clause, IdentityRef.purpose == purpose.value)
     result = await session.exec(delete(IdentityRef).where(clause))
     return result.rowcount or 0
 

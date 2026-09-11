@@ -100,6 +100,9 @@ from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import app_updates as app_updates_service
 from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import (
+    webhook_subscriptions as webhook_subscriptions_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -562,6 +565,12 @@ async def uninstall_guild_app(
     )
     await connections_service.delete_app_connections(session, app=app)
     await delegations_service.delete_app_delegations(session, app_id=app.id)
+    # An install is what makes an app present in a guild, so removing it ends
+    # what that app is sent. Switched off rather than deleted: the row records
+    # what was going where, and a reinstall registers afresh.
+    await webhook_subscriptions_service.deactivate_for_install(
+        session, guild_id=app.guild_id, app_install_id=app.id
+    )
     if app.config_secrets or app.config:
         revocation_service.queue_revocation(
             session,
