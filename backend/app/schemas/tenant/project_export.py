@@ -19,10 +19,10 @@ from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 """Bump on breaking changes to the envelope shape. Independent of app VERSION."""
 
-MIN_SUPPORTED_IMPORT_VERSION = 2
+MIN_SUPPORTED_IMPORT_VERSION = 1
 """Imports below this version are rejected. Future migrations may bridge older versions."""
 
 
