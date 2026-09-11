@@ -173,7 +173,10 @@ export const DocumentsView = ({
     !fixedTagIds && isDocumentStatus(searchParams.status) ? searchParams.status : "documents";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
-  // place it can be found — and the only place it can be taken back out.
+  // place it can be found — and the only place it can be taken back out. It
+  // deliberately says nothing about `is_template`, which for documents means
+  // both: a template that was put away belongs to neither of the other two
+  // states, so leaving it out of this one would strand it.
   const isArchivedView = status === "archived";
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
@@ -354,8 +357,7 @@ export const DocumentsView = ({
     ...(treeWantsUntagged ? { untagged: true } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    is_template: isTemplateView,
-    ...(isArchivedView ? { archived: true } : {}),
+    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -369,8 +371,7 @@ export const DocumentsView = ({
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    is_template: isTemplateView,
-    ...(isArchivedView ? { archived: true } : {}),
+    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
   };
 
   const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
@@ -389,7 +390,7 @@ export const DocumentsView = ({
     { enabled: !fixedTagIds }
   );
   const archivedCountQuery = useDocumentCounts(
-    { ...statusCountsBase, is_template: false, archived: true },
+    { ...statusCountsBase, archived: true },
     { enabled: !fixedTagIds }
   );
   const statusCounts = {
@@ -409,8 +410,7 @@ export const DocumentsView = ({
         ...(treeWantsUntagged ? { untagged: true } : {}),
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-        is_template: isTemplateView,
-        ...(isArchivedView ? { archived: true } : {}),
+        ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),

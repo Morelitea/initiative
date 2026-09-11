@@ -149,7 +149,17 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     <div className="space-y-6">
       <ToolListToolbar
         leading={
-          <ToolArchiveFilter tool={Tool.queue} value={archiveState} onChange={setArchiveState} />
+          <ToolArchiveFilter
+            tool={Tool.queue}
+            value={archiveState}
+            onChange={(next) => {
+              setArchiveState(next);
+              // The other state's cursor means nothing in this one: switching
+              // from page 3 of the live list into a one-page archive would
+              // land on an empty page with the archive sitting on page 1.
+              setPage(1);
+            }}
+          />
         }
         filters={{
           open: filtersOpen,
