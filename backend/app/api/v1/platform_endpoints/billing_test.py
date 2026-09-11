@@ -32,7 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
 from app.db.jti_blocklist import purge_expired_jtis
-from app.db.session import AdminSessionLocal
+from app.db import session as db_session
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform.identity_refs import ensure_ref
@@ -592,13 +592,22 @@ async def test_a_reference_minted_for_something_else_is_404(
     client: AsyncClient, session: AsyncSession
 ):
     """A user's reference resolves, and is still not an answer to which guild
-    this is."""
-    user = await create_user(session)
-    async with AdminSessionLocal() as admin:
+    this is.
+
+    Minted against an id that IS a guild's, which is the only shape where the
+    question has teeth: entity ids are per-table sequences with no foreign key
+    between them, so the same number names a user and a guild at once. What
+    separates them is what the reference was minted for, and nothing else.
+    """
+    guild = await create_guild(session)
+    # Through the module, not a name bound at import: conftest points the
+    # factory at this worker's database by setting the attribute, and a name
+    # imported before that still refers to the configured one.
+    async with db_session.AdminSessionLocal() as admin:
         user_ref = await ensure_ref(
             admin,
             entity_type=IdentityEntity.user,
-            entity_id=user.id,
+            entity_id=guild.id,
             purpose=IdentityPurpose.billing,
         )
         await admin.commit()
