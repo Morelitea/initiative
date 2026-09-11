@@ -18,11 +18,15 @@ derivation, and the two kinds that are deliberately not referenceable.
 
 from __future__ import annotations
 
-from sqlalchemy import Select, Table, func, select
+from dataclasses import dataclass
+from typing import Sequence
+
+from sqlalchemy import Select, Table, func, null, select, text
 from sqlmodel import SQLModel
 
 from app.core.references import NOT_REFERENCEABLE
 from app.core.search import SearchEntityType
+from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
 
 
@@ -63,13 +67,19 @@ def _live(table: Table):
     return table.c["deleted_at"].is_(None) if "deleted_at" in table.c else None
 
 
-def visible_ids(entity_type: SearchEntityType, user_id: int) -> Select:
-    """Ids of this kind that ``user_id`` may open.
+def visible_ids(
+    entity_type: SearchEntityType, user_id: int, *, need_write: bool = False
+) -> Select:
+    """Ids of this kind that ``user_id`` may open, or may edit.
 
     Joins the row to the resource that governs it — its own, or its parent's —
     and asks ``public.resource_access``, the same function the tables' own RLS
     policies call. A kind with no sharing of its own (the guild's tags) is
     reachable by anyone who reached the schema, which is the whole gate for it.
+
+    ``need_write`` asks the same question at edit level. It is the caller's to
+    say, because reaching a thing and changing it are different questions and
+    only the caller knows which it is asking.
     """
     table_name = _table_for(entity_type)
     source = SEARCH_SOURCES[table_name]
@@ -93,7 +103,7 @@ def visible_ids(entity_type: SearchEntityType, user_id: int) -> Select:
                 table.c["id"],
                 user_id,
                 table.c["initiative_id"],
-                False,
+                need_write,
             )
         )
 
@@ -106,6 +116,72 @@ def visible_ids(entity_type: SearchEntityType, user_id: int) -> Select:
             resource.c["id"],
             user_id,
             resource.c["initiative_id"],
-            False,
+            need_write,
         )
     )
+
+
+@dataclass(frozen=True)
+class Resolved:
+    """What a reference turned out to name."""
+
+    entity_type: SearchEntityType
+    id: int
+    title: str | None
+    #: The initiative the row belongs to. None means one of two different
+    #: things, which :attr:`scoped_kind` tells apart.
+    initiative_id: int | None
+    #: Whether rows of this kind belong to an initiative at all. A tag does not
+    #: — it is the guild's own vocabulary — so it pairs with anything in the
+    #: guild. A calendar event does, and a NULL there means this particular one
+    #: sits on a guild calendar, which is guild-level content rather than
+    #: initiative content.
+    scoped_kind: bool
+
+
+async def resolve_many(
+    session, entity_type: SearchEntityType, ids: Sequence[int], *, user_id: int
+) -> dict[int, Resolved]:
+    """The rows of one kind this reader may open, keyed by id.
+
+    One query for the lot. The initiative comes from the same
+    ``INITIATIVE_PATHS`` entry that renders the kind's RLS, so a surface asking
+    "are these two in one initiative" and the policy deciding who may read them
+    are working from one declaration rather than two.
+    """
+    wanted = [int(i) for i in dict.fromkeys(ids)]
+    if not wanted:
+        return {}
+
+    table_name = _table_for(entity_type)
+    table = SQLModel.metadata.tables[table_name]
+    path = INITIATIVE_PATHS.get(table_name)
+    initiative = text(path.initiative_expr(table_name)) if path is not None else null()
+    rows = await session.exec(
+        select(
+            table.c["id"],
+            title_column(entity_type),
+            initiative,
+        ).where(
+            table.c["id"].in_(wanted),
+            table.c["id"].in_(visible_ids(entity_type, user_id)),
+        )
+    )
+    return {
+        row[0]: Resolved(
+            entity_type=entity_type,
+            id=row[0],
+            title=row[1],
+            initiative_id=row[2],
+            scoped_kind=path is not None,
+        )
+        for row in rows.all()
+    }
+
+
+async def resolve_one(
+    session, entity_type: SearchEntityType, entity_id: int, *, user_id: int
+) -> Resolved | None:
+    """:func:`resolve_many` for one id."""
+    found = await resolve_many(session, entity_type, [entity_id], user_id=user_id)
+    return found.get(entity_id)

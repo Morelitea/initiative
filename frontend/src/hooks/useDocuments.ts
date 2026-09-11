@@ -45,8 +45,8 @@ import type {
   ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
 import { invalidate, q } from "@/api/query-keys";
+import { attachDocumentToProject } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -270,11 +270,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
       // Auto-attach to project if specified
       if (project_id) {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
-          guildId,
-          project_id,
-          newDocument.id
-        );
+        await attachDocumentToProject(guildId, project_id, newDocument.id);
       }
 
       return newDocument;
@@ -332,11 +328,7 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
 
       // Auto-attach to project if specified
       if (project_id) {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
-          guildId,
-          project_id,
-          newDocument.id
-        );
+        await attachDocumentToProject(guildId, project_id, newDocument.id);
       }
 
       return newDocument;

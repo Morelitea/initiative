@@ -603,5 +603,12 @@
   "GALLERY_COVER_NOT_IN_GALLERY": "Das Titelbild muss eines der Bilder dieser Galerie sein",
   "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Dieses Dokument wird gerade gemeinsam bearbeitet. Stelle die Verbindung zur Bearbeitungssitzung wieder her, um deine Änderungen zu speichern.",
   "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Diese Datei konnte nicht als Tabelle gelesen werden. Der Import akzeptiert .csv-, .tsv- und .xlsx-Dateien.",
-  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Diese Datei ist zu groß für den Import. Sie enthält mehr Blätter oder Zellen, als eine Tabelle hier aufnehmen kann."
+  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Diese Datei ist zu groß für den Import. Sie enthält mehr Blätter oder Zellen, als eine Tabelle hier aufnehmen kann.",
+  "RELATIONSHIP_BAD_ENDPOINT": "Das kann nicht verknüpft werden",
+  "RELATIONSHIP_ENDPOINT_NOT_FOUND": "Eines davon existiert nicht mehr oder wurde nicht mit dir geteilt",
+  "RELATIONSHIP_CROSS_INITIATIVE": "Beide müssen zur selben Initiative gehören",
+  "RELATIONSHIP_SELF": "Etwas kann nicht mit sich selbst verknüpft werden",
+  "RELATIONSHIP_EXISTS": "Diese sind bereits verknüpft",
+  "RELATIONSHIP_NOT_FOUND": "Diese Verknüpfung existiert nicht mehr",
+  "RELATIONSHIP_REMOVE_DENIED": "Du kannst nur Verknüpfungen entfernen, die du erstellt hast, oder solche an etwas, das du bearbeiten darfst"
 }

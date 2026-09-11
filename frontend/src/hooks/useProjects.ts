@@ -17,10 +17,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
-  attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost,
   createProjectApiV1GGuildIdProjectsPost,
   deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
-  detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete,
   duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
   favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
@@ -52,6 +50,7 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
+import { attachDocumentToProject, detachDocumentFromProject } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -464,11 +463,7 @@ export const useAttachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
-          guildId,
-          projectId,
-          documentId
-        );
+        await attachDocumentToProject(guildId, projectId, documentId);
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
       errorKey: "projects:documents.attachError",
@@ -480,11 +475,7 @@ export const useDetachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
-          guildId,
-          projectId,
-          documentId
-        );
+        await detachDocumentFromProject(guildId, projectId, documentId);
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
       errorKey: "projects:documents.detachError",

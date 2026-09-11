@@ -10,7 +10,6 @@ import {
   listMyCalendarEventsApiV1MeCalendarEventsGet,
   readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
-  setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut,
   setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
   updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
   updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch,
@@ -25,7 +24,9 @@ import type {
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   TagSetRequest,
 } from "@/api/generated/initiativeAPI.schemas";
+import { type RelationshipRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { setAttached } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -181,12 +182,18 @@ export const useSetEventTags = (
 
 export const useSetEventDocuments = (
   eventId: number,
-  options?: MutationOpts<CalendarEventRead, number[]>
+  options?: MutationOpts<RelationshipRead[], number[]>
 ) =>
-  useGuildMutation<CalendarEventRead, number[]>(
+  useGuildMutation<RelationshipRead[], number[]>(
     {
       mutationFn: (guildId, documentIds) =>
-        setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut(guildId, eventId, documentIds),
+        setAttached(
+          guildId,
+          SearchEntityType.calendar_event,
+          eventId,
+          SearchEntityType.document,
+          documentIds
+        ),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
