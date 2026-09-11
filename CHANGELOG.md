@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Work written with no connection is not lost when it returns** — a document held its editing session open for about half a minute of lost connection and then gave up on it for good, with nothing to bring it back when the network returned. Anything written in the meantime lived only in that window, and the attempt to save it on reconnect was the one kind of save a document being edited by somebody else refuses. The session now waits out an outage of any length, comes back the moment the network does, and hands over everything written while it was away — merged with whatever everyone else did in the meantime, rather than written over it. Being refused access still ends the session; losing the connection no longer does.
 
+- **Undo takes a paste back whole** — pasting a block of cells, or cutting one and putting it somewhere else, left nothing on the undo stack at all: the next undo reached past it and took back the edit made before, so it looked as though one stray cell had changed its mind. A paste is a single action again, and one press returns every cell it wrote — and, for a cut, returns the block it came from. Hiding a sheet can be undone now too, which it could not be while every other thing done to a sheet could.
+
 ## [0.67.1] - 2026-09-09
 
 ### Added
