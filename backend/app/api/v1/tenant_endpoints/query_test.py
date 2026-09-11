@@ -93,7 +93,7 @@ async def test_describing_a_statement_names_its_columns_and_types(client, acting
     assert response.json()["columns"] == [
         {"name": "name", "type": "text"},
         {"name": "created_at", "type": "date"},
-        {"name": "archived_at", "type": "timestamp"},
+        {"name": "archived_at", "type": "date"},
         {"name": "id", "type": "number"},
     ]
 
