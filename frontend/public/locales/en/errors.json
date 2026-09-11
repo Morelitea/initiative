@@ -95,6 +95,7 @@
   "PROJECT_INITIATIVE_NOT_FOUND": "Initiative not found",
   "PROJECT_IS_ARCHIVED": "Project is archived",
   "CONTENT_IS_FROZEN": "This is archived or in the trash. Restore it before making changes.",
+  "PARENT_IS_FROZEN": "The thing this is inside is archived or in the trash. Restore that first.",
   "PROJECT_OWNER_REQUIRED": "Project owner permission required",
   "PROJECT_NO_ACCESS": "You don't have access to this project",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Write access required",

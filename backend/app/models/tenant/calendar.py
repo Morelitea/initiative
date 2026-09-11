@@ -5,6 +5,7 @@ from sqlalchemy import Column, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -20,7 +21,9 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
-class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Calendar(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to

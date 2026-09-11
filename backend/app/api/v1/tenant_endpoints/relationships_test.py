@@ -5,6 +5,7 @@ reaches across initiatives, and an answer rendered from the side that asked —
 so a caller never has to know that a symmetric edge is stored in node-id order.
 """
 
+from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 
@@ -372,7 +373,7 @@ async def test_an_archived_project_takes_no_new_links(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     await route_session_to_guild(session, a.guild.id)
-    a.project.is_archived = True
+    a.project.archived_at = datetime.now(timezone.utc)
     session.add(a.project)
     await session.commit()
 

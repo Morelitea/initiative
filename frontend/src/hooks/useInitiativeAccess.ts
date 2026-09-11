@@ -178,7 +178,7 @@ export function useInitiativeAccess() {
       // Archived initiatives are hidden from the main sidebar for everyone
       // (admins included); they stay manageable from guild settings →
       // Initiatives, which reads the unfiltered list directly.
-      const source = (initiatives ?? []).filter((initiative) => !initiative.is_archived);
+      const source = (initiatives ?? []).filter((initiative) => initiative.archived_at === null);
       if (seesAllInitiatives) {
         return source.slice().sort(byName);
       }
@@ -274,7 +274,7 @@ export function useCreatableInitiatives(tool: Tool, guildId: number | null) {
     const guild = guilds.find((g) => g.id === guildId);
     const access = deriveGuildAccess(guild, user);
     return (query.data ?? [])
-      .filter((initiative) => !initiative.is_archived)
+      .filter((initiative) => initiative.archived_at === null)
       .filter((initiative) => toolAccessForInitiative(access, initiative, user.id)[tool].create)
       .sort(byName);
   }, [user, guildId, guilds, query.data, tool]);

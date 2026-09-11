@@ -32,7 +32,7 @@ from app.core.security import (
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
-from app.db.frozen import is_frozen_write
+from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -408,9 +408,10 @@ async def insufficient_privilege_handler(
 ) -> JSONResponse:
     """Map a database-layer refusal to the answer it deserves.
 
-    The lifecycle freeze comes first: the content is archived or in the trash,
-    the caller may well be its owner, and the thing to do is bring it back. 409,
-    naming the state, rather than a permission answer.
+    The lifecycle freeze comes first: the content is archived or in the trash —
+    or what it sits inside is — the caller may well be its owner, and the thing
+    to do is bring one or the other back. 409, naming which, rather than a
+    permission answer.
 
     Otherwise, map Postgres ``insufficient_privilege`` (42501) to a generic 403.
 
@@ -427,10 +428,15 @@ async def insufficient_privilege_handler(
     grant, a misconfigured login role) must be findable in the logs — the
     client body is deliberately too generic to debug from.
     """
-    if is_frozen_write(exc):
+    refusal = frozen_refusal(exc)
+    if refusal is not None:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
-            content={"detail": CommonMessages.CONTENT_IS_FROZEN},
+            content={
+                "detail": CommonMessages.PARENT_IS_FROZEN
+                if refusal == FROZEN_PARENT_CONSTRAINT
+                else CommonMessages.CONTENT_IS_FROZEN
+            },
         )
     if dbapi_sqlstate(exc) == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         logger.warning(

@@ -110,7 +110,7 @@ async def import_project(
         icon=envelope.project.icon,
         description=envelope.project.description,
         is_template=envelope.project.is_template,
-        is_archived=envelope.project.is_archived,
+        archived_at=envelope.project.archived_at,
         start_date=envelope.project.start_date,
         end_date=envelope.project.end_date,
         initiative_id=target_initiative.id,
@@ -294,7 +294,7 @@ async def _import_task(
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,
-        is_archived=envelope_task.is_archived,
+        archived_at=envelope_task.archived_at,
         completed_at=envelope_task.completed_at,
         created_by=importer_id,
         checklist=[

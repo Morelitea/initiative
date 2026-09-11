@@ -346,7 +346,7 @@ async def _ensure_user_in_initiative(
 
 
 def _ensure_not_archived(project: Project) -> None:
-    if project.is_archived:
+    if project.archived_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
@@ -524,9 +524,13 @@ def _visible_project_conditions(
         conditions.append(Project.is_template.is_(template))
 
     if archived is None:
-        conditions.append(Project.is_archived.is_(False))
+        conditions.append(Project.archived_at.is_(None))
     else:
-        conditions.append(Project.is_archived.is_(archived))
+        conditions.append(
+            Project.archived_at.isnot(None)
+            if archived
+            else Project.archived_at.is_(None)
+        )
 
     name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
     if name_match is not None:
@@ -634,7 +638,6 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 initiative_id=project.initiative_id,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
-                is_archived=project.is_archived,
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
@@ -1118,7 +1121,7 @@ async def get_project_counts_by_initiative(
     """
     conditions = [
         Initiative.guild_id == guild_context.guild_id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
         permissions_service.granted_scope_clause(
             Tool.project,
@@ -1363,38 +1366,6 @@ async def create_project(
     )
 
 
-@router.post("/{project_id}/archive", response_model=ProjectRead)
-async def archive_project(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    if not project.is_archived:
-        project.is_archived = True
-        project.archived_at = datetime.now(timezone.utc)
-        session.add(project)
-        await session.commit()
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
-    )
-
-
 @router.post(
     "/{project_id}/duplicate",
     response_model=ProjectRead,
@@ -1533,39 +1504,6 @@ async def duplicate_project(
         session,
         current_user,
         new_project,
-    )
-
-
-@router.post("/{project_id}/unarchive", response_model=ProjectRead)
-async def unarchive_project(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-        allow_frozen=True,
-    )
-    if project.is_archived:
-        project.is_archived = False
-        project.archived_at = None
-        session.add(project)
-        await session.commit()
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
     )
 
 

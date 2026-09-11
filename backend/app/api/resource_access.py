@@ -58,6 +58,9 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 @dataclass(frozen=True)
 class ResourceAccessConfig:
+    # Required: a resource with nothing to say when it is missing would answer
+    # 404 with an empty body, and every entry has always set one.
+    not_found_msg: str
     dac_kind: Optional[Tool] = None  # key into DAC_RESOURCES; None = feature gate only
     feature_attr: Optional[str] = None  # initiative flag gating the feature
     feature_disabled_msg: Optional[str] = None
@@ -67,7 +70,6 @@ class ResourceAccessConfig:
         None  # async (session, id) -> row|None
     )
     path_param: Optional[str] = None
-    not_found_msg: Optional[str] = None
 
 
 RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {

@@ -417,7 +417,10 @@ async def test_archived_work_is_kept_back_until_it_is_asked_for(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     live = await create_task(session, a.project, title="shelved cabinet")
     filed = await create_task(
-        session, a.project, title="shelved cabinet too", is_archived=True
+        session,
+        a.project,
+        title="shelved cabinet too",
+        archived_at=datetime.now(timezone.utc),
     )
 
     default = await _search(client, a, q="shelved")
@@ -477,7 +480,12 @@ async def test_suggest_leaves_archived_work_out(
 ) -> None:
     """A picker offers somewhere to put work, so it offers live work."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    await create_task(session, a.project, title="retired lantern", is_archived=True)
+    await create_task(
+        session,
+        a.project,
+        title="retired lantern",
+        archived_at=datetime.now(timezone.utc),
+    )
 
     response = await client.get(
         a.g("/search/suggest"), headers=a.headers, params={"q": "lantern"}

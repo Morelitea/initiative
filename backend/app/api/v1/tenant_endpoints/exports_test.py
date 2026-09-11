@@ -266,7 +266,9 @@ async def test_project_export_report_formats(client: AsyncClient, acting_user, s
     """pdf/csv/xlsx render the project report (unarchived tasks) from the same
     adapter that produces the json backup."""
     a = await _actor_with_tasks(acting_user, session)
-    await create_task(session, a.project, title="Old news", is_archived=True)
+    await create_task(
+        session, a.project, title="Old news", archived_at=datetime.now(timezone.utc)
+    )
 
     pdf = await client.get(
         a.g("/exports/project"),

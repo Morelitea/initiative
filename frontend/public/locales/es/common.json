@@ -168,5 +168,7 @@
     "permission": "Initiative necesita permiso para usar la cámara y las fotos. Actívalo en los ajustes del dispositivo e inténtalo de nuevo.",
     "unavailable": "Este dispositivo no tiene cámara para hacer una foto.",
     "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
-  }
+  },
+  "archiveError": "No se pudo archivar. Inténtalo de nuevo.",
+  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo."
 }

@@ -7,6 +7,8 @@ they would show either way — but the split is exactly what these pin down, and
 mixing the two sessions would hide which half refused a write.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -15,9 +17,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.errors import dbapi_sqlstate
 from app.db.frozen import FROZEN_SQLSTATE
 from app.db.session import set_rls_context
+from app.services.tenant import archive as archive_service
+from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
 from app.testing import (
     create_guild,
+    create_initiative_member,
     create_guild_membership,
     create_initiative,
     create_project,
@@ -85,22 +90,27 @@ async def _frozen(
     ).scalar()
 
 
-async def _archive(session, model, row_id: int) -> None:
-    """Archive through the superuser fixture, so the test sets up the state
-    rather than exercising the path that reaches it."""
-    await session.exec(
-        text(f"UPDATE {model} SET is_archived = true WHERE id = :id").bindparams(
-            id=row_id
-        )
-    )
+async def _archive(session, entity) -> None:
+    """Archive through the service, because the cascade is part of the state.
+
+    Archiving stamps what is inside it, and the freeze reads that stamp rather
+    than walking up to find it — so a raw UPDATE here would set up a state the
+    application never produces and the tests below would be describing nothing.
+    """
+    await archive_service.archive_entity(session, entity)
     await session.commit()
 
 
-async def _trash(session, model, row_id: int) -> None:
-    await session.exec(
-        text(f"UPDATE {model} SET deleted_at = now() WHERE id = :id").bindparams(
-            id=row_id
-        )
+async def _trash(session, entity, by: int) -> None:
+    """Trash through the service, for the same reason as ``_archive``: the
+    cascade is what puts the contents into the state being tested.
+
+    ``by`` is not optional. A trashed row is visible to whoever deleted it, and
+    leaving that unrecorded would set up a row nobody can see — which no request
+    path produces, and which would make these tests describe the wrong thing.
+    """
+    await soft_delete_entity(
+        session, entity, deleted_by_user_id=by, retention_days=None
     )
     await session.commit()
 
@@ -118,7 +128,7 @@ class TestResourceFrozen:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, task = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         assert await _frozen(routed, "projects", project.id) is True
         assert await _frozen(routed, "tasks", task.id) is True
 
@@ -126,7 +136,7 @@ class TestResourceFrozen:
         self, session, routed, workspace
     ):
         _u, _g, initiative, project, task = workspace
-        await _archive(session, "initiatives", initiative.id)
+        await _archive(session, initiative)
         assert await _frozen(routed, "projects", project.id) is True
         assert await _frozen(routed, "tasks", task.id) is True
 
@@ -134,15 +144,15 @@ class TestResourceFrozen:
         self, session, routed, workspace
     ):
         """What is under a trashed row is being purged, not edited."""
-        _u, _g, _i, project, task = workspace
-        await _trash(session, "projects", project.id)
+        user, _g, _i, project, task = workspace
+        await _trash(session, project, by=user.id)
         assert await _frozen(routed, "tasks", task.id) is True
         assert await _frozen(routed, "tasks", task.id, trashed_ok=True) is False
 
     async def test_an_archived_parent_does_not_end_it(self, session, routed, workspace):
         """Archived is not on the way anywhere: a delete under it is refused."""
         _u, _g, _i, project, task = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         assert await _frozen(routed, "tasks", task.id, trashed_ok=True) is True
 
     async def test_an_unknown_kind_and_a_null_id_are_not_frozen(self, routed):
@@ -161,7 +171,7 @@ class TestAncestorFreeze:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, task = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE tasks SET title = 'edited' WHERE id = :id").bindparams(
@@ -176,7 +186,7 @@ class TestAncestorFreeze:
         user, _g, initiative, project, _t = workspace
         elsewhere = await create_project(session, initiative=initiative, owner=user)
         loose = await create_task(session, project=elsewhere)
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE tasks SET project_id = :dest WHERE id = :id").bindparams(
@@ -189,7 +199,7 @@ class TestAncestorFreeze:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, task = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text(
@@ -205,7 +215,7 @@ class TestAncestorFreeze:
         """DELETE has no WITH CHECK, so this half is a trigger — and the point
         of the trigger is that the caller hears about it."""
         _u, _g, _i, project, task = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await admin_routed.exec(
                 text("DELETE FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -215,8 +225,8 @@ class TestAncestorFreeze:
     async def test_a_purge_under_a_trashed_project_still_runs(
         self, session, admin_routed, workspace
     ):
-        _u, _g, _i, project, task = workspace
-        await _trash(session, "projects", project.id)
+        user, _g, _i, project, task = workspace
+        await _trash(session, project, by=user.id)
         result = await admin_routed.exec(
             text("DELETE FROM tasks WHERE id = :id").bindparams(id=task.id)
         )
@@ -230,7 +240,7 @@ class TestAncestorFreeze:
         one it would end up under."""
         user, _g, initiative, project, task = workspace
         elsewhere = await create_project(session, initiative=initiative, owner=user)
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE tasks SET project_id = :dest WHERE id = :id").bindparams(
@@ -244,9 +254,9 @@ class TestAncestorFreeze:
     ):
         """A lifecycle change is the one write a frozen ancestor still admits —
         restoring a trashed project's tasks would be impossible otherwise."""
-        _u, _g, _i, project, task = workspace
-        await _trash(session, "tasks", task.id)
-        await _archive(session, "projects", project.id)
+        user, _g, _i, project, task = workspace
+        await _trash(session, task, by=user.id)
+        await _archive(session, project)
         await routed.exec(
             text(
                 "UPDATE tasks SET deleted_at = NULL, deleted_by = NULL, "
@@ -268,7 +278,7 @@ class TestAncestorFreeze:
         self, session, routed, workspace
     ):
         _u, _g, initiative, project, task = workspace
-        await _archive(session, "initiatives", initiative.id)
+        await _archive(session, initiative)
         rows = (
             await routed.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -284,7 +294,7 @@ class TestRowFreeze:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, _t = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE projects SET name = 'renamed' WHERE id = :id").bindparams(
@@ -297,18 +307,18 @@ class TestRowFreeze:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, _t = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         await routed.exec(
             text(
-                "UPDATE projects SET is_archived = false, updated_at = now() "
+                "UPDATE projects SET archived_at = NULL, updated_at = now() "
                 "WHERE id = :id"
             ).bindparams(id=project.id)
         )
         await routed.commit()
 
     async def test_a_trashed_project_can_be_restored(self, session, routed, workspace):
-        _u, _g, _i, project, _t = workspace
-        await _trash(session, "projects", project.id)
+        user, _g, _i, project, _t = workspace
+        await _trash(session, project, by=user.id)
         await routed.exec(
             text(
                 "UPDATE projects SET deleted_at = NULL, deleted_by = NULL, "
@@ -321,11 +331,11 @@ class TestRowFreeze:
         self, session, routed, workspace
     ):
         _u, _g, _i, project, _t = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text(
-                    "UPDATE projects SET is_archived = false, name = 'renamed' "
+                    "UPDATE projects SET archived_at = NULL, name = 'renamed' "
                     "WHERE id = :id"
                 ).bindparams(id=project.id)
             )
@@ -333,7 +343,7 @@ class TestRowFreeze:
 
     async def test_an_archived_task_is_read_only(self, session, routed, workspace):
         _u, _g, _i, _p, task = workspace
-        await _archive(session, "tasks", task.id)
+        await _archive(session, task)
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE tasks SET title = 'edited' WHERE id = :id").bindparams(
@@ -350,7 +360,7 @@ class TestWhatTheFreezeLeavesAlone:
         """Reading frozen content writes rows. If the freeze reached them,
         opening an archived project would be an error."""
         user, _g, _i, project, _t = workspace
-        await _archive(session, "projects", project.id)
+        await _archive(session, project)
         await routed.exec(
             text(
                 "INSERT INTO recent_views"
@@ -359,3 +369,102 @@ class TestWhatTheFreezeLeavesAlone:
             ).bindparams(uid=user.id, pid=project.id)
         )
         await routed.commit()
+
+
+class TestTrashedRowsAreOutOfSight:
+    """Deleting something takes it out of sight, not just out of the way."""
+
+    @pytest.fixture
+    async def other_member(self, session, workspace):
+        """A second member of the same initiative, who deleted nothing."""
+        _u, guild, initiative, _p, _t = workspace
+        user = await create_user(session)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.member
+        )
+        await create_initiative_member(session, initiative=initiative, user=user)
+        return user
+
+    async def _routed_as(self, role_session, user, guild, guild_role):
+        s = await role_session("app_user")
+        await set_rls_context(
+            s, user_id=user.id, guild_id=guild.id, guild_role=guild_role
+        )
+        return s
+
+    async def test_a_member_does_not_see_what_somebody_else_deleted(
+        self, session, role_session, workspace, other_member
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.member.value
+        )
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert rows == []
+
+    async def test_whoever_deleted_it_still_sees_it(
+        self, session, role_session, workspace
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(role_session, user, guild, GuildRole.member.value)
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert len(rows) == 1
+
+    async def test_the_guild_admin_sees_everything_in_the_trash(
+        self, session, role_session, workspace, other_member
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.admin.value
+        )
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert len(rows) == 1
+
+    async def test_the_freeze_still_sees_it_when_deciding(
+        self, session, role_session, workspace, other_member
+    ):
+        """The guard asks the database about a row the asker cannot read. If
+        hiding it also hid it from the guard, everything hanging off a trashed
+        row would become writable by anyone who did not delete it."""
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.member.value
+        )
+        frozen = await _frozen(s, "tasks", task.id)
+        await s.rollback()
+        assert frozen is True

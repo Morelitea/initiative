@@ -5,6 +5,7 @@ from sqlalchemy import Column, Date, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -21,7 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Project(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     __tablename__ = "projects"
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and
@@ -54,12 +57,7 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    is_archived: bool = Field(default=False, nullable=False)
     is_template: bool = Field(default=False, nullable=False)
-    archived_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
     pinned_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),

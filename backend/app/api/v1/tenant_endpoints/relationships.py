@@ -131,7 +131,7 @@ def _refuse_archived(*ends: reference_targets.Resolved) -> None:
     """An archived thing is finished with, and its links are part of what it
     says. Asked of both ends, and of a removal as much as an addition."""
     for end in ends:
-        if end.is_archived:
+        if end.archived:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=RelationshipMessages.ENDPOINT_ARCHIVED,

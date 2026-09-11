@@ -91,7 +91,6 @@ class ProjectRead(ProjectBase):
     guild_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    is_archived: bool
     is_template: bool
     archived_at: Optional[datetime] = None
     pinned_at: Optional[datetime] = None

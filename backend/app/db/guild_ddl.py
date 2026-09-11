@@ -40,10 +40,11 @@ from app.db.initiative_rls import (
 from app.db.frozen import (
     FROZEN_TABLES,
     freeze_leg,
-    frozen_ancestor_triggers,
+    frozen_write_triggers,
     frozen_guard_trigger,
     render_frozen_ancestor_fn,
     render_frozen_guard_fn,
+    render_frozen_parent_guard_fn,
     render_resource_frozen_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
@@ -78,6 +79,30 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
 _PURGE_GUARD_PREDICATE = (
     "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
 )
+
+# Who may READ a row that is in the trash. Deleting something takes it out of
+# sight, so the ordinary answer is nobody: the trash is a place to recover from,
+# not a second copy of the guild's content that outlives the decision to remove
+# it. Two legs open it — the guild admin, who manages the trash for everyone,
+# and whoever deleted the row, who gets their own deletions back from /me/trash.
+# RESTRICTIVE, so it AND-combines with the membership gate rather than widening
+# it: a trashed row is still only visible to someone who could see it alive.
+_TRASH_READ_PREDICATE = (
+    "deleted_at IS NULL"
+    f" OR {_PURGE_GUARD_PREDICATE}"
+    " OR deleted_by = NULLIF(current_setting('app.current_user_id'::text, true),"
+    " ''::text)::integer"
+)
+
+
+def _trash_read_policy(table: str) -> list[str]:
+    """Hide a trashed row from everyone but the admin and whoever deleted it."""
+    return [
+        f"DROP POLICY IF EXISTS trashed_read ON {table};",
+        f"CREATE POLICY trashed_read ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_TRASH_READ_PREDICATE});",
+    ]
+
 
 _HEADER = """\
 -- RENDERED AT RUNTIME from app/db/initiative_rls.py (INITIATIVE_PATHS).
@@ -218,6 +243,8 @@ def _table_block(table: str, path: InitiativePath) -> str:
         else:  # USING
             lines.append(f"  USING ({pred});")
     lines.extend(_freeze_policies(table))
+    if table in SOFT_DELETE_TABLES:
+        lines.extend(_trash_read_policy(table))
     if table in _PURGE_GUARD_TABLES:
         # Admin-only hard delete (purge), AND-combined with the PERMISSIVE delete
         # policy above. RESTRICTIVE, so a write-member who clears the permissive
@@ -291,6 +318,7 @@ def _guild_level_guard_block(table: str) -> str:
             f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
             f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
             f"  USING ({_PURGE_GUARD_PREDICATE});",
+            *_trash_read_policy(table),
         ]
     )
 
@@ -301,15 +329,17 @@ _FREEZE_SECTION = """\
 -- together, which a policy never has.
 --
 -- tr_<t>_frozen_guard: the row is itself archived or trashed.
--- tr_<t>_frozen_ancestor_update: it hangs off something that is, or is being
---   moved to hang off something that is.
+-- tr_<t>_frozen_ancestor_update: it carries no stamp of its own and hangs off
+--   something that is, or is being moved to hang off something that is.
 -- Both permit a change to the lifecycle columns and nothing else, so a frozen
 -- row can still be unarchived, restored, or given a new purge date. Their WHEN
 -- clauses keep an ordinary write on live content from reaching the function.
 --
--- tr_<t>_frozen_ancestor_delete: DELETE under a frozen parent, asked with
--- trashed_ok so a purge cascade — the one delete a trashed parent is FOR —
--- runs.
+-- tr_<t>_frozen_delete / tr_<t>_frozen_ancestor_delete: DELETE has no WITH
+-- CHECK, so RLS could only refuse it by returning no rows. A row that carries
+-- its own stamp is asked about itself; one that does not is asked about its
+-- ancestry, with trashed_ok so a purge cascade — the one delete a trashed row
+-- is FOR — runs.
 -- ==========================================================================="""
 
 
@@ -327,6 +357,8 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + render_frozen_guard_fn()
         + "\n"
+        + render_frozen_parent_guard_fn()
+        + "\n"
         + render_frozen_ancestor_fn()
         + "\n"
         + "\n\n".join(blocks)
@@ -341,7 +373,7 @@ def render_guild_rls_ddl() -> str:
     guards += [
         f"{trigger};"
         for table in sorted(INITIATIVE_PATHS)
-        for trigger in frozen_ancestor_triggers(table)
+        for trigger in frozen_write_triggers(table)
     ]
     out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
     return out + "\n"

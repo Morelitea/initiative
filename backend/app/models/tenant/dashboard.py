@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -17,7 +18,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Dashboard(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Dashboard(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
     ``definition`` is the validated, declarative body — layout plus widgets and

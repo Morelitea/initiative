@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
+import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
@@ -291,15 +292,13 @@ export const TaskEditPage = () => {
     },
   });
 
-  const toggleArchive = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskRead>(
-        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
-        updatedTask
-      );
-      toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
-    },
+  const archiveTask = useArchiveEntity({
+    onSuccess: () => toast.success(t("edit.taskArchived")),
   });
+  const unarchiveTask = useUnarchiveEntity({
+    onSuccess: () => toast.success(t("edit.taskUnarchived")),
+  });
+  const toggleArchive = task?.archived_at !== null ? unarchiveTask : archiveTask;
 
   const generateDescription = useGenerateTaskDescription({
     onSuccess: (data) => {
@@ -404,7 +403,7 @@ export const TaskEditPage = () => {
   // capped at "read" when the guild's content is frozen (read_only status).
   const hasWritePermission = hasWriteAccess(project?.my_permission_level);
   const canWriteProject = hasWritePermission;
-  const projectIsArchived = project?.is_archived ?? false;
+  const projectIsArchived = (project?.archived_at ?? null) !== null;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
     ? t("edit.readOnlyNoAccess")
@@ -770,12 +769,12 @@ export const TaskEditPage = () => {
                         disabled={toggleArchive.isPending}
                         onSelect={() =>
                           toggleArchive.mutate({
-                            taskId: parsedTaskId,
-                            data: { is_archived: !task?.is_archived } as never,
+                            entityType: "task",
+                            entityId: parsedTaskId,
                           })
                         }
                       >
-                        {task?.is_archived ? (
+                        {task?.archived_at !== null ? (
                           <>
                             <ArchiveRestore className="h-4 w-4" />
                             {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}

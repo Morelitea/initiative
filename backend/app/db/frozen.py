@@ -4,7 +4,7 @@ Archiving and trashing promise the same thing — *this is finished, leave it
 alone* — and this module is where that promise is kept, in Postgres, for every
 guild-content table at once.
 
-A row is **frozen** when it is archived (``is_archived``), in the trash
+A row is **frozen** when it is archived (``archived_at``), in the trash
 (``deleted_at``), or hangs off something that is. Frozen content accepts no
 writes; the only writes it accepts are the ones that end the state or move it
 along — unarchive, restore, purge.
@@ -49,15 +49,23 @@ from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     governing_path,
 )
-from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
+from app.db.errors import (
+    INSUFFICIENT_PRIVILEGE_SQLSTATE,
+    dbapi_constraint,
+    dbapi_sqlstate,
+)
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES
+from app.models.tenant._mixins import archive_models
 
 #: The SQLSTATE the guard raises, with a constraint name so it is told apart
 #: from any other object-not-in-prerequisite-state error. 55000 is Postgres's
 #: own code for "the object is not in the state this operation needs".
 FROZEN_SQLSTATE = "55000"
 FROZEN_CONSTRAINT = "frozen_row_guard"
+
+#: The refusal that names the thing ABOVE the row: it is archived or in the
+#: trash, so this one cannot come out from under it on its own.
+FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
 
 #: Transaction-local flag marking a transaction as a purge.
 #:
@@ -76,7 +84,6 @@ _PURGING = f"current_setting('{PURGE_GUC}'::text, true) = 'true'::text"
 #: What a frozen row may still change: the columns that describe the freeze
 #: itself, plus the timestamp every write touches. Everything else is content.
 LIFECYCLE_COLUMNS: tuple[str, ...] = (
-    "is_archived",
     "archived_at",
     "deleted_at",
     "deleted_by",
@@ -84,12 +91,9 @@ LIFECYCLE_COLUMNS: tuple[str, ...] = (
     "updated_at",
 )
 
-#: Tables carrying ``is_archived``, read off the mapped models rather than
-#: listed — a model that gains the column joins the freeze by declaring it.
+#: Tables carrying the archive lifecycle (the ``ArchiveMixin`` subclasses).
 ARCHIVABLE_TABLES: frozenset[str] = frozenset(
-    name
-    for name, table in SQLModel.metadata.tables.items()
-    if "is_archived" in table.c and name in GUILD_SCOPED_TABLES
+    str(model.__tablename__) for model in archive_models()
 )
 
 #: Tables carrying the trash-can lifecycle (the ``SoftDeleteMixin`` subclasses).
@@ -97,6 +101,20 @@ TRASHABLE_TABLES: frozenset[str] = frozenset(SOFT_DELETE_TABLES)
 
 #: Every table a row can be frozen ON. These carry the BEFORE UPDATE guard.
 FROZEN_TABLES: frozenset[str] = ARCHIVABLE_TABLES | TRASHABLE_TABLES
+
+#: Tables whose own two columns are the whole answer.
+#:
+#: Both lifecycles CASCADE — archiving an initiative stamps the tools in it and
+#: a project stamps its tasks (``services.tenant.archive``), and the trash does
+#: the same (``services.tenant.soft_delete``) — so a row here already carries
+#: what its parent's state would have told us. Asking upward as well would be
+#: the same question answered twice, from two places that could disagree.
+#:
+#: What is NOT here still asks: a comment or a picture carries a ``deleted_at``
+#: but no ``archived_at``, and a row that carries neither — an assignee, a
+#: property value, a grant — has nothing of its own to read. They inherit from
+#: the nearest ancestor that does, which is one hop for most and two at worst.
+SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
 
 
 #: Tables the freeze does not reach, and why. Reading frozen content still
@@ -152,7 +170,7 @@ def row_is_frozen(row: Any) -> bool:
     """
     if row is None:
         return False
-    if getattr(row, "is_archived", False):
+    if getattr(row, "archived_at", None) is not None:
         return True
     if getattr(row, "deleted_at", None) is not None:
         return True
@@ -169,18 +187,35 @@ def row_is_frozen(row: Any) -> bool:
 #: message it raises.
 _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"
 
+#: The constraint names the guards raise under.
+_FROZEN_CONSTRAINTS = frozenset({FROZEN_CONSTRAINT, FROZEN_PARENT_CONSTRAINT})
+
+
+def frozen_refusal(exc: DBAPIError) -> str | None:
+    """Which freeze refused this write — its constraint name, or None.
+
+    The two answer differently: one says the thing you wrote is archived or in
+    the trash, the other says what it sits inside is, and the caller is told to
+    bring back a different thing in each case.
+    """
+    if not is_frozen_write(exc):
+        return None
+    named = dbapi_constraint(exc)
+    return named if named in _FROZEN_CONSTRAINTS else FROZEN_CONSTRAINT
+
 
 def is_frozen_write(exc: DBAPIError) -> bool:
     """Whether this error is the freeze refusing a write.
 
-    Two shapes, because the rule is enforced two ways: the triggers raise with a
-    constraint name of their own, and the policies raise with the name of the
-    policy that refused. Matching on both is what lets a frozen write answer 409
-    where a role-layer denial answers 403.
+    Two shapes, because the rule is enforced two ways: the triggers raise under
+    a constraint name of their own, carried as an attribute of the error rather
+    than in its text, and the policies raise with the name of the policy that
+    refused, which Postgres does put in the message. Matching on both is what
+    lets a frozen write answer 409 where a role-layer denial answers 403.
     """
     sqlstate = dbapi_sqlstate(exc)
     if sqlstate == FROZEN_SQLSTATE:
-        return FROZEN_CONSTRAINT in str(getattr(exc, "orig", exc))
+        return dbapi_constraint(exc) in _FROZEN_CONSTRAINTS
     if sqlstate == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         return _ANCESTOR_POLICY_PREFIX in str(getattr(exc, "orig", exc))
     return False
@@ -190,7 +225,7 @@ def _own_frozen(alias: str, table: str) -> str | None:
     """Whether the row aliased ``alias`` is itself archived or trashed."""
     legs = []
     if table in ARCHIVABLE_TABLES:
-        legs.append(f"{alias}.is_archived")
+        legs.append(f"{alias}.archived_at IS NOT NULL")
     if table in TRASHABLE_TABLES:
         legs.append(f"{alias}.deleted_at IS NOT NULL")
     if not legs:
@@ -246,9 +281,20 @@ def _dispatch_tables() -> tuple[str, ...]:
 def render_resource_frozen_fn() -> str:
     """``public.resource_frozen(kind, id, trashed_ok)`` — one walk, every caller.
 
-    ``trashed_ok`` is what a DELETE asks: under a trashed parent, deleting is
-    the lifecycle rather than a change to it, so the walk stops there and
-    answers no. Under an archived one it answers yes, and the delete is refused.
+    A row that carries both lifecycle columns answers from itself and stops:
+    the cascades already put its parent's state on it. Only a row with nothing
+    of its own to read asks upward.
+
+    A row it cannot find is treated as frozen. The caller reads under its own
+    policies, and a trashed row is hidden from everyone but the guild admin and
+    whoever deleted it — so "no such row" and "a row I may not see" arrive here
+    as the same answer, and only one of them is safe to guess. Everything this
+    walks is reached by a foreign key from a row that exists, so a miss means
+    the second. Purge says so explicitly and is exempt above.
+
+    ``trashed_ok`` is what a DELETE asks: a trashed row ends the walk, because
+    deleting there is the lifecycle rather than a change to it. An archived one
+    answers yes, and the delete is refused.
 
     Created in ``public`` with no ``SET search_path``, like
     ``public.initiative_access``, so it resolves the guild-local tables of
@@ -259,7 +305,7 @@ def render_resource_frozen_fn() -> str:
         lines = [
             f"      WHEN '{table}' THEN",
             f"        SELECT * INTO fz FROM {table} WHERE id = rid;",  # noqa: S608
-            "        IF NOT FOUND THEN RETURN false; END IF;",
+            "        IF NOT FOUND THEN RETURN true; END IF;",
         ]
         trashed = _trashed("fz", table)
         if trashed is not None:
@@ -272,7 +318,9 @@ def render_resource_frozen_fn() -> str:
             c
             for c in (
                 _own_frozen("fz", table),
-                _parent_call(table, "fz", trashed_ok="trashed_ok"),
+                None
+                if table in SELF_STAMPED_TABLES
+                else _parent_call(table, "fz", trashed_ok="trashed_ok"),
             )
             if c is not None
         ]
@@ -286,33 +334,65 @@ def render_frozen_ancestor_fn() -> str:
     """``public.fn_frozen_ancestor_guard()`` — says no, and nothing else.
 
     The decision is in each trigger's ``WHEN`` clause, rendered per table from
-    the same walk the policies use, so this stays one function for every table.
+    the same declaration the policies use, so this stays one function for every
+    table and both reasons — a frozen ancestry, and a row's own frozen state on
+    a delete. It keeps the name it was created under: the triggers that call it
+    depend on it, so renaming it would mean dropping and rebuilding every one.
     """
     return f"""
 CREATE OR REPLACE FUNCTION public.fn_frozen_ancestor_guard() RETURNS trigger
     LANGUAGE plpgsql AS $frozen_ancestor$
 BEGIN
-    RAISE EXCEPTION 'content of an archived or trashed parent is read-only'
+    RAISE EXCEPTION 'archived or trashed content is read-only'
         USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
 END;
 $frozen_ancestor$;
 """
 
 
-def frozen_ancestor_triggers(table: str) -> list[str]:
-    """The ancestor attachments for one table, or none where the freeze does
-    not reach it.
+def frozen_write_triggers(table: str) -> list[str]:
+    """What refuses a write to one table, beyond the row's own UPDATE guard.
 
-    UPDATE asks about BOTH ancestries — the one the row has and the one it would
-    end up under — so neither editing under a frozen parent nor moving into one
-    gets through, and reparenting is covered by the database rather than by each
-    endpoint that does it. It runs the row guard, so the lifecycle columns may
-    still change: a trashed task under an archived project can be restored.
+    A cascade says where a row has BEEN, never where it is going. That is the
+    line these are drawn on.
 
-    DELETE asks only about the ancestry the row has, with ``trashed_ok`` so a
-    purge cascade runs.
+    A row that carries both lifecycle columns already has its parent's state on
+    it, so nothing here asks about the ancestry it HAS — its own UPDATE guard
+    covers that, and asking upward too would be one question answered twice from
+    two places that could disagree. It still takes:
+
+    * a DELETE guard on its own state, since the row guard is BEFORE UPDATE and
+      says nothing about removal. Deleting a TRASHED row is exempt: that is what
+      purge is.
+    * an UPDATE guard on the ancestry it would END UP under, because no cascade
+      can have stamped a row for a parent it has not reached yet — the same
+      reason INSERT keeps its walk.
+
+    A row with nothing of its own to read inherits instead, and asks about both
+    ancestries: the one it has as well as the one it is moving to.
     """
     out: list[str] = []
+    if table in SELF_STAMPED_TABLES:
+        own = _own_frozen("OLD", table)
+        trashed = _trashed("OLD", table)
+        out.append(
+            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_delete "
+            f"BEFORE DELETE ON {table} FOR EACH ROW "
+            f"WHEN (({own}) AND NOT ({trashed})) "
+            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+        )
+        moving_into = freeze_leg(table, "UPDATE", alias="NEW")
+        prior = freeze_leg(table, "UPDATE", alias="OLD")
+        if moving_into is not None and prior is not None:
+            moving_into = f"{prior} OR {moving_into}"
+        if moving_into is not None:
+            out.append(
+                f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
+                f"BEFORE UPDATE ON {table} FOR EACH ROW WHEN ({moving_into}) "
+                f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
+            )
+        return out
+
     prior = freeze_leg(table, "UPDATE", alias="OLD")
     proposed = freeze_leg(table, "UPDATE", alias="NEW")
     if prior is not None and proposed is not None:
@@ -320,7 +400,7 @@ def frozen_ancestor_triggers(table: str) -> list[str]:
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
             f"WHEN ({prior} OR {proposed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_row_guard()"
+            f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
         )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
     if doomed is not None:
@@ -330,6 +410,51 @@ def frozen_ancestor_triggers(table: str) -> list[str]:
             f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
         )
     return out
+
+
+def render_frozen_parent_guard_fn() -> str:
+    """``public.fn_frozen_parent_guard()`` — the row guard, plus one rule.
+
+    A row under something archived or trashed may still change its lifecycle
+    columns: that is what lets a whole tree be stamped, and a trashed task in an
+    archived project be taken out of the trash — it stays archived, with its
+    project, which is the state it should be in.
+
+    What it may not do is end up with NO stamp at all while the thing above it
+    still carries one. It would then be live inside a finished thing, and a row
+    that carries its own stamp is not asked about its ancestry again once it is
+    live — so it could be moved or deleted straight out.
+
+    Read through ``to_jsonb`` rather than by column, because one function serves
+    tables that have both lifecycle columns and tables that have neither.
+    """
+    cols = ", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)
+    return f"""
+CREATE OR REPLACE FUNCTION public.fn_frozen_parent_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $frozen_parent$
+DECLARE
+    lifecycle text[] := ARRAY[{cols}];
+    was jsonb := to_jsonb(OLD);
+    now_ jsonb := to_jsonb(NEW);
+BEGIN
+    IF {_PURGING} THEN
+        RETURN NEW;
+    END IF;
+    IF (was ? 'archived_at' OR was ? 'deleted_at')
+       AND now_ ->> 'archived_at' IS NULL
+       AND now_ ->> 'deleted_at' IS NULL THEN
+        RAISE EXCEPTION 'what this is inside is archived or in the trash'
+            USING ERRCODE = '{FROZEN_SQLSTATE}',
+                  CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
+    END IF;
+    IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
+        RAISE EXCEPTION 'archived or trashed content is read-only'
+            USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
+    END IF;
+    RETURN NEW;
+END;
+$frozen_parent$;
+"""
 
 
 def render_frozen_guard_fn() -> str:
