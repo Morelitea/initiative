@@ -314,11 +314,9 @@ async def replace_relationship_slice(
     anchor = Endpoint(ref.type, ref.id)
 
     # A replace is a bulk removal, so everything it drops answers the same
-    # question a DELETE does. A symmetric edge is writable by anyone who can
-    # read both of its ends, so without this the slice would be a way to undo
-    # somebody else's curation that the single removal refuses. One edge the
-    # caller may not remove fails the whole request rather than being silently
-    # kept, which would leave the surface showing a set it did not ask for.
+    # question a single removal does. One edge the caller may not remove fails
+    # the whole request: keeping it silently would answer with a set the caller
+    # did not ask for.
     keeping = set(wanted)
     for row in await relationships_service.list_for_entity(
         session, anchor, relationship_type=relationship_type, other_kind=other_type
