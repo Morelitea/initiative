@@ -228,3 +228,73 @@ def test_every_tab_of_a_workbook_arrives() -> None:
 
     assert [s["name"] for s in back] == ["Q1", "Q2"]
     assert [s["cells"]["0:0"] for s in back] == ["one", "two"]
+
+
+# ── what a field means ───────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_a_leading_zero_keeps_its_field_as_text() -> None:
+    """``00123`` is a part number or a postcode far more often than it is the
+    number 123, and making it one cannot be undone."""
+    sheets = parse_spreadsheet_file("x.csv", b"00123,0,0.5,123\n")
+
+    assert sheets[0]["cells"] == {
+        "0:0": "00123",
+        "0:1": 0,
+        "0:2": 0.5,
+        "0:3": 123,
+    }
+
+
+@pytest.mark.unit
+def test_true_and_false_arrive_as_booleans() -> None:
+    sheets = parse_spreadsheet_file("x.csv", b"TRUE,false,Maybe\n")
+
+    assert sheets[0]["cells"] == {"0:0": True, "0:1": False, "0:2": "Maybe"}
+
+
+@pytest.mark.unit
+def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
+    """The rule lives twice — here and in ``coerceScalar`` on the client — so
+    this is the check that the two still say the same thing."""
+    sheets = parse_spreadsheet_file("x.csv", b" 42 ,1e3,-7,=A1\n")
+
+    assert sheets[0]["cells"] == {"0:0": 42, "0:1": 1000.0, "0:2": -7, "0:3": "=A1"}
+
+
+# ── refusing what cannot be carried whole ────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_a_csv_with_too_many_cells_is_refused_rather_than_trimmed(monkeypatch) -> None:
+    """A workbook that came back missing everything past some line, reported
+    as imported, is worse than one that did not come back."""
+    from app.services.tenant import spreadsheet_import
+
+    # A budget small enough to trip on a file this test can afford to build.
+    monkeypatch.setattr(spreadsheet_import, "MAX_IMPORT_CELLS", 500)
+    row = b",".join(b"x" for _ in range(50)) + b"\n"
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("big.csv", row * 40)
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+
+
+@pytest.mark.unit
+def test_a_workbook_with_too_many_tabs_is_refused() -> None:
+    from openpyxl import Workbook
+
+    import io as _io
+
+    book = Workbook()
+    for index in range(70):
+        book.create_sheet(f"S{index}")
+    buffer = _io.BytesIO()
+    book.save(buffer)
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("many.xlsx", buffer.getvalue())
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE

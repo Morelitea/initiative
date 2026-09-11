@@ -10,6 +10,7 @@ import {
   sheetsRoot,
 } from "@/components/documents/spreadsheet/workbookDoc";
 import { parseSpreadsheetContent } from "@/lib/spreadsheet/content";
+import { MAX_SHEETS } from "@/lib/spreadsheet/sheets";
 
 const content = (cells: Record<string, unknown>) =>
   parseSpreadsheetContent({ cells: cells as Record<string, string | number> });
@@ -131,7 +132,9 @@ describe("useSpreadsheetSheets — importSheets", () => {
     let added: string[] = [];
     act(() => {
       // The file calls its sheet by an id the workbook already uses.
-      added = result.current.importSheets([{ ...incoming("Q1", { "0:0": "one" }), id: "s1" }]);
+      added = result.current.importSheets([
+        { ...incoming("Q1", { "0:0": "one" }), id: "s1" },
+      ]).added;
     });
 
     expect(added[0]).not.toBe("s1");
@@ -189,5 +192,36 @@ describe("useSpreadsheetSheets — importSheets", () => {
     });
 
     expect(updates).toBe(1);
+  });
+});
+
+describe("useSpreadsheetSheets — a workbook with no room", () => {
+  it("says how many sheets it could not take", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({}) })
+    );
+
+    const file = Array.from({ length: MAX_SHEETS + 5 }, (_, i) => ({
+      id: `f${i}`,
+      name: `S${i}`,
+      dimensions: { rows: 100, cols: 26 },
+      cells: {},
+      columns: {},
+      rows: {},
+      cellStyles: {},
+      frozen: { rows: 0, cols: 0 },
+    }));
+
+    let outcome = { added: [] as string[], skipped: 0 };
+    act(() => {
+      outcome = result.current.importSheets(file);
+    });
+
+    // One sheet was already there, so the file loses that many plus the five
+    // it was over by — and the count is reported rather than swallowed.
+    expect(outcome.added.length + outcome.skipped).toBe(file.length);
+    expect(outcome.skipped).toBeGreaterThan(0);
+    expect(result.current.sheets).toHaveLength(MAX_SHEETS);
   });
 });

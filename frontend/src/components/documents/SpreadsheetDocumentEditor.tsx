@@ -2058,13 +2058,24 @@ export const SpreadsheetDocumentEditor = ({
       setImporting(true);
       try {
         const incoming = await onImportFile(file);
-        const added = workbook.importSheets(incoming);
+        const { added, skipped } = workbook.importSheets(incoming);
         if (added.length === 0) {
           toast.info(t("documents:spreadsheet.sheets.maxReached"));
           return;
         }
         setRequestedSheetId(added[0]);
-        toast.success(t("documents:spreadsheet.sheets.imported", { count: added.length }));
+        if (skipped > 0) {
+          // Some of the file is in and some is not; saying only how much
+          // arrived would read as all of it.
+          toast.warning(
+            t("documents:spreadsheet.sheets.importedPartly", {
+              count: added.length,
+              skipped,
+            })
+          );
+        } else {
+          toast.success(t("documents:spreadsheet.sheets.imported", { count: added.length }));
+        }
       } catch (error) {
         toast.error(getErrorMessage(error, "documents:spreadsheet.sheets.importFailed"));
       } finally {

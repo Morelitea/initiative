@@ -602,5 +602,6 @@
   "GALLERY_VERSION_CONFLICT": "Quelqu’un d’autre a envoyé une version au même moment — réessayez",
   "GALLERY_COVER_NOT_IN_GALLERY": "La couverture doit être l’une des images de cette galerie",
   "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Ce document est en cours d'édition en direct. Reconnecte-toi à la session d'édition pour enregistrer tes modifications.",
-  "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Ce fichier n'a pas pu être lu comme un tableur. L'import accepte les fichiers .csv, .tsv et .xlsx."
+  "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Ce fichier n'a pas pu être lu comme un tableur. L'import accepte les fichiers .csv, .tsv et .xlsx.",
+  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Ce fichier est trop volumineux pour être importé. Il contient plus de feuilles ou de cellules qu'un tableur ne peut en accueillir ici."
 }

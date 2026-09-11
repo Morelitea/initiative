@@ -602,5 +602,6 @@
   "GALLERY_VERSION_CONFLICT": "Jemand anderes hat im selben Moment eine Version hochgeladen – versuche es erneut",
   "GALLERY_COVER_NOT_IN_GALLERY": "Das Titelbild muss eines der Bilder dieser Galerie sein",
   "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Dieses Dokument wird gerade gemeinsam bearbeitet. Stelle die Verbindung zur Bearbeitungssitzung wieder her, um deine Änderungen zu speichern.",
-  "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Diese Datei konnte nicht als Tabelle gelesen werden. Der Import akzeptiert .csv-, .tsv- und .xlsx-Dateien."
+  "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Diese Datei konnte nicht als Tabelle gelesen werden. Der Import akzeptiert .csv-, .tsv- und .xlsx-Dateien.",
+  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Diese Datei ist zu groß für den Import. Sie enthält mehr Blätter oder Zellen, als eine Tabelle hier aufnehmen kann."
 }

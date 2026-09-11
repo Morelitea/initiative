@@ -577,7 +577,9 @@
       "importing": "Datei wird gelesen…",
       "imported_one": "{{count}} Blatt importiert.",
       "imported_other": "{{count}} Blätter importiert.",
-      "importFailed": "Diese Datei konnte nicht importiert werden."
+      "importFailed": "Diese Datei konnte nicht importiert werden.",
+      "importedPartly_one": "{{count}} Blatt importiert; {{skipped}} ausgelassen — diese Tabelle ist voll.",
+      "importedPartly_other": "{{count}} Blätter importiert; {{skipped}} ausgelassen — diese Tabelle ist voll."
     },
     "pasteClipped_one": "{{count}} Zelle passte nicht auf das Blatt und wurde nicht eingefügt.",
     "pasteClipped_other": "{{count}} Zellen passten nicht auf das Blatt und wurden nicht eingefügt.",

@@ -577,7 +577,9 @@
       "importing": "Reading file…",
       "imported_one": "{{count}} sheet imported.",
       "imported_other": "{{count}} sheets imported.",
-      "importFailed": "That file could not be imported."
+      "importFailed": "That file could not be imported.",
+      "importedPartly_one": "{{count}} sheet imported; {{skipped}} left out — this spreadsheet is full.",
+      "importedPartly_other": "{{count}} sheets imported; {{skipped}} left out — this spreadsheet is full."
     },
     "pasteClipped_one": "{{count}} cell didn't fit on the sheet and wasn't pasted.",
     "pasteClipped_other": "{{count}} cells didn't fit on the sheet and weren't pasted.",

@@ -50,9 +50,11 @@ _XLSX_DEFAULT_FONT_PT = 11.0
 _FLOOR_ROWS = 100
 _FLOOR_COLS = 26
 
-# Excel's own ceiling, and the point past which a file is not a spreadsheet
-# somebody is editing by hand.
-MAX_IMPORT_CELLS = 500_000
+# The point past which a file is not a spreadsheet somebody is editing by
+# hand. Reached, the import is refused rather than trimmed: a workbook that
+# came back missing the rows past some line, reported as imported, is worse
+# than one that did not come back at all.
+MAX_IMPORT_CELLS: int = 500_000
 
 
 def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
@@ -78,7 +80,7 @@ def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     # One trip through the normalizer the create/patch paths use, so an
     # imported sheet is the same kind of object as any other.
     normalized = normalize_spreadsheet_content(
-        {"schema_version": 3, "kind": "spreadsheet", "sheets": raw[:MAX_SHEETS]}
+        {"schema_version": 3, "kind": "spreadsheet", "sheets": raw}
     )
     return normalized["sheets"]
 
@@ -107,14 +109,16 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
     cols = 0
     for r, record in enumerate(reader):
         if r >= MAX_ROWS:
-            break
+            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
         rows = r + 1
         for c, value in enumerate(record):
             if c >= MAX_COLS:
-                break
+                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
             cols = max(cols, c + 1)
             if value == "":
                 continue
+            if len(cells) >= MAX_IMPORT_CELLS:
+                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
             cells[f"{r}:{c}"] = _scalar(value)
     return {
         "name": name,
@@ -123,20 +127,41 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
     }
 
 
+# What a number looks like, matching ``coerceScalar`` in
+# ``frontend/src/lib/spreadsheet/csv.ts``. A field pasted from the clipboard
+# and the same field read from a file have to become the same value.
+_NUMERIC_RE = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
+
+
 def _scalar(text: str) -> Any:
     """A CSV field as the value it spells.
 
     A leading ``=`` stays a string — that is how this app stores a formula,
-    and the grid evaluates it on read.
+    and the grid evaluates it on read. A leading zero also keeps the field as
+    text: ``00123`` is a part number, a postcode or an extension far more often
+    than it is the number 123, and turning it into one cannot be undone.
     """
-    if text.startswith("="):
-        return text
-    try:
-        if text.strip().lstrip("+-").isdigit():
-            return int(text)
-        return float(text)
-    except ValueError:
-        return text
+    trimmed = text.strip()
+    if trimmed == "":
+        return ""
+    if trimmed.startswith("="):
+        return trimmed
+    lower = trimmed.lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if _NUMERIC_RE.match(trimmed):
+        if trimmed.startswith("0") and not trimmed.startswith("0.") and trimmed != "0":
+            return trimmed
+        try:
+            number = float(trimmed)
+        except ValueError:
+            return text
+        if number == int(number) and "." not in trimmed and "e" not in lower:
+            return int(number)
+        return number
+    return text
 
 
 # ── XLSX ─────────────────────────────────────────────────────────────────────
@@ -154,14 +179,15 @@ def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
             DocumentMessages.SPREADSHEET_UNREADABLE_FILE
         ) from exc
 
+    if len(workbook.worksheets) > MAX_SHEETS:
+        raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+
     budget = MAX_IMPORT_CELLS
     sheets: list[dict[str, Any]] = []
-    for worksheet in workbook.worksheets[:MAX_SHEETS]:
+    for worksheet in workbook.worksheets:
         sheet, used = _parse_worksheet(worksheet, budget)
         budget -= used
         sheets.append(sheet)
-        if budget <= 0:
-            break
     return sheets
 
 
@@ -174,17 +200,19 @@ def _parse_worksheet(ws: Worksheet, budget: int) -> tuple[dict[str, Any], int]:
 
     for row in ws.iter_rows():
         for cell in row:
-            r = cell.row - 1
-            c = cell.column - 1
-            if r >= MAX_ROWS or c >= MAX_COLS:
-                continue
             value = _cell_value(cell)
             style = _style_of(cell)
             if value is None and style is None:
                 continue
+            r = cell.row - 1
+            c = cell.column - 1
+            if r >= MAX_ROWS or c >= MAX_COLS:
+                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
             used += 1
             if used > budget:
-                return _sheet(ws, cells, cell_styles, rows, cols), used
+                # Better to say a file is too big than to hand back some of it
+                # and call that the file.
+                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
             rows = max(rows, r + 1)
             cols = max(cols, c + 1)
             if value is not None:

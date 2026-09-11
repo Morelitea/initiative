@@ -89,9 +89,13 @@ export interface SpreadsheetSheetsStore {
   /** Copy a sheet (content, formatting, formulas verbatim) in right after
    *  the original. Returns the new id. */
   duplicateSheet: (id: SheetId) => SheetId | null;
-  /** Add whole sheets, content and all, as new tabs. Returns the ids added,
-   *  which is empty when the workbook is already full. */
-  importSheets: (sheets: SpreadsheetSheetContent[]) => SheetId[];
+  /** Add whole sheets, content and all, as new tabs. Reports the ids added
+   *  and how many the workbook had no room for, so a partial import is never
+   *  announced as a whole one. */
+  importSheets: (sheets: SpreadsheetSheetContent[]) => {
+    added: SheetId[];
+    skipped: number;
+  };
   /** The whole workbook as the persisted v3 JSON snapshot. */
   snapshot: () => SpreadsheetContent;
 }
@@ -339,11 +343,12 @@ export const useSpreadsheetSheets = ({
   );
 
   const importSheets = useCallback(
-    (incoming: SpreadsheetSheetContent[]): SheetId[] => {
-      if (!yDoc || incoming.length === 0) return [];
+    (incoming: SpreadsheetSheetContent[]) => {
+      if (!yDoc || incoming.length === 0) return { added: [], skipped: 0 };
       const current = readSheetOrder(yDoc);
-      const room = MAX_SHEETS - current.length;
-      if (room <= 0) return [];
+      const room = Math.max(MAX_SHEETS - current.length, 0);
+      const skipped = Math.max(incoming.length - room, 0);
+      if (room <= 0) return { added: [], skipped };
 
       const taken = current.map((s) => s.name);
       const ids = current.map((s) => s.id);
@@ -363,7 +368,7 @@ export const useSpreadsheetSheets = ({
         }
         renumber(yDoc, ids);
       }, SPREADSHEET_ORIGINS.IMPORT);
-      return added;
+      return { added, skipped };
     },
     [yDoc]
   );
