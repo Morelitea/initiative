@@ -1104,3 +1104,49 @@ class TestUninstallStopsDeliveries:
         await session.refresh(mine)
         assert theirs.active is False
         assert mine.active is True
+
+    async def test_switching_them_off_is_staged_with_the_rest_of_the_uninstall(
+        self, acting_user, session: AsyncSession
+    ):
+        """Uninstall removes connections, delegations, these and the install in
+        one transaction, and commits once at the end.
+
+        A commit in the middle would make everything staged before it durable
+        while the install is still there to fail on — leaving an app installed
+        with its credentials and deliveries already gone.
+        """
+        from datetime import datetime, timezone
+
+        from app.models.tenant.webhook_subscription import WebhookSubscription
+        from app.services.tenant import (
+            webhook_subscriptions as webhook_subscriptions_service,
+        )
+
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        now = datetime.now(timezone.utc)
+        sub = WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+            created_by=a.user.id,
+            app_install_id=app.id,
+            target_url="https://widgetco.example/staged",
+            hmac_secret="s" * 40,
+            event_types=["tasks.created"],
+            active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(sub)
+        await session.commit()
+
+        switched = await webhook_subscriptions_service.deactivate_for_install(
+            session, guild_id=a.guild.id, app_install_id=app.id
+        )
+        assert switched == 1
+
+        # Nothing committed it, so abandoning the transaction abandons it.
+        await session.rollback()
+        await session.refresh(sub)
+        assert sub.active is True

@@ -5,10 +5,12 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 
+from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -209,6 +211,11 @@ async def deactivate_for_install(
 
     Called from the uninstall path, which runs as a guild admin — the authority
     the guild-wide ones need, and more than enough for the rest.
+
+    **Staged, not committed.** Uninstall removes connections, delegations, these
+    and the install itself, and commits once at the end so the whole thing
+    happens or none of it does. Committing here would make everything staked
+    before it durable while the install is still there to fail on.
     """
     rows = (
         await session.exec(
@@ -223,9 +230,25 @@ async def deactivate_for_install(
         row.active = False
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
-    if rows:
-        await session.commit()
     return len(rows)
+
+
+def registered_install_is_live():
+    """A subscription whose install is still there, or that never had one.
+
+    Deactivating at uninstall is what stops deliveries promptly; this is what
+    makes it true regardless. ``app_install_id`` carries no foreign key —
+    ``guild_apps`` rows and these are both guild content, but nothing enforces
+    the link — so the delivery paths ask rather than assume. It rides inside the
+    selector they already run, and ``guild_apps`` is guild-level, so any routed
+    session can answer it.
+    """
+    return or_(
+        WebhookSubscription.app_install_id.is_(None),
+        select(GuildApp.id)
+        .where(GuildApp.id == WebhookSubscription.app_install_id)
+        .exists(),
+    )
 
 
 async def delete_subscription(

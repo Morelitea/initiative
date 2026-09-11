@@ -63,6 +63,7 @@ from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import webhook_refs
+from app.services.tenant import webhook_subscriptions
 from app.services.tenant.webhook_dispatcher import deliver
 
 logger = logging.getLogger(__name__)
@@ -357,7 +358,12 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     subscription_ids = list(
         await session.exec(
             select(WebhookSubscription.id)
-            .where(WebhookSubscription.active.is_(True))
+            .where(
+                WebhookSubscription.active.is_(True),
+                # Same rule the dispatcher applies: an install that is gone is
+                # drained to nobody.
+                webhook_subscriptions.registered_install_is_live(),
+            )
             .order_by(WebhookSubscription.id.asc())
         )
     )

@@ -40,6 +40,7 @@ from app.services.marketplace.registration_lookup import any_delegate_registered
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
 from app.services.tenant import webhook_refs
+from app.services.tenant import webhook_subscriptions
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -181,6 +182,9 @@ async def dispatch_event(
     statement = select(WebhookSubscription).where(
         WebhookSubscription.guild_id == guild_id,
         WebhookSubscription.active.is_(True),
+        # An app that is no longer installed is sent nothing, whatever its
+        # subscriptions still say.
+        webhook_subscriptions.registered_install_is_live(),
         WebhookSubscription.event_types.contains([event_type]),
     )
     if initiative_id is not None:
