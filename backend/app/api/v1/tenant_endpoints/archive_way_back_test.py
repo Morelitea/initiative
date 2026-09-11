@@ -149,3 +149,20 @@ async def test_something_archived_with_its_initiative_comes_back_with_it(
     body = read.json()
     assert body["archived_at"] is not None
     assert body["can_unarchive"] is False
+
+
+async def test_the_archived_list_agrees_with_the_detail_about_the_way_back(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A list row and its own page have to answer the same, or the button is
+    offered in one place and refused from the other."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    queue = await create_queue(session, a.initiative, a.user)
+    await client.post(a.g(f"/archive/initiative/{a.initiative.id}"), headers=a.headers)
+
+    listed = await client.get(a.g("/queues/?archived=true"), headers=a.headers)
+    row = next(q for q in listed.json()["items"] if q["id"] == queue.id)
+    detail = await client.get(a.g(f"/queues/{queue.id}"), headers=a.headers)
+
+    assert row["can_unarchive"] == detail.json()["can_unarchive"]
+    assert row["can_unarchive"] is False
