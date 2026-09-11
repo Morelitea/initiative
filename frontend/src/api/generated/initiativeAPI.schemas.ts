@@ -1151,6 +1151,10 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+export interface BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost {
+  file: Blob;
+}
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -6040,6 +6044,19 @@ export interface SmartChipState {
  */
 export interface SmartChipStateList {
   items: SmartChipState[];
+}
+
+export type SpreadsheetImportReadSheetsItem = { [key: string]: unknown };
+
+/**
+ * The sheets a file held, ready to be added to a workbook.
+ *
+ * Nothing is written by the read that produces this: the editor adds these
+ * to its live document itself, in one transaction, so an import is one thing
+ * to undo.
+ */
+export interface SpreadsheetImportRead {
+  sheets?: SpreadsheetImportReadSheetsItem[];
 }
 
 export type StorageBackfillStatusResponseStatus =

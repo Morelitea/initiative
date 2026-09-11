@@ -94,3 +94,100 @@ describe("useSpreadsheetSheets — seeding gate", () => {
     expect(Y.encodeStateAsUpdate(doc, Y.encodeStateVector(server)).length).toBeLessThanOrEqual(2);
   });
 });
+
+describe("useSpreadsheetSheets — importSheets", () => {
+  const incoming = (name: string, cells: Record<string, string | number>) => ({
+    id: "from-the-file",
+    name,
+    dimensions: { rows: 100, cols: 26 },
+    cells,
+    columns: {},
+    rows: {},
+    cellStyles: {},
+    frozen: { rows: 0, cols: 0 },
+  });
+
+  it("adds a file's sheets beside what is already open", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({ "0:0": "kept" }) })
+    );
+
+    act(() => {
+      result.current.importSheets([incoming("Q1", { "0:0": "one" })]);
+    });
+
+    expect(result.current.sheets.map((s) => s.name)).toEqual(["Sheet1", "Q1"]);
+    // Nothing that was there is disturbed.
+    expect(cellsOf(doc, "s1")).toEqual({ "0:0": "kept" });
+  });
+
+  it("mints its own ids, so a file cannot land on an open sheet", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({ "0:0": "kept" }) })
+    );
+
+    let added: string[] = [];
+    act(() => {
+      // The file calls its sheet by an id the workbook already uses.
+      added = result.current.importSheets([{ ...incoming("Q1", { "0:0": "one" }), id: "s1" }]);
+    });
+
+    expect(added[0]).not.toBe("s1");
+    expect(cellsOf(doc, "s1")).toEqual({ "0:0": "kept" });
+    expect(cellsOf(doc, added[0])).toEqual({ "0:0": "one" });
+  });
+
+  it("gives a sheet a free name when the file's is taken", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({}) })
+    );
+
+    act(() => {
+      result.current.importSheets([incoming("Sheet1", { "0:0": "one" })]);
+    });
+
+    const names = result.current.sheets.map((s) => s.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("brings every tab of a multi-sheet file", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({}) })
+    );
+
+    act(() => {
+      result.current.importSheets([
+        incoming("Q1", { "0:0": "one" }),
+        incoming("Q2", { "0:0": "two" }),
+      ]);
+    });
+
+    expect(result.current.sheets.map((s) => s.name)).toEqual(["Sheet1", "Q1", "Q2"]);
+  });
+
+  it("writes the whole file as one change", () => {
+    const doc = new Y.Doc();
+    const { result } = renderHook(() =>
+      useSpreadsheetSheets({ yDoc: doc, initialContent: content({}) })
+    );
+
+    // One update event means one thing for a peer to apply, and one thing to
+    // undo — the origin is tracked, so undo reaches the import as a whole.
+    let updates = 0;
+    doc.on("update", () => {
+      updates += 1;
+    });
+    act(() => {
+      result.current.importSheets([
+        incoming("Q1", { "0:0": "one" }),
+        incoming("Q2", { "0:0": "two" }),
+      ]);
+    });
+
+    expect(updates).toBe(1);
+  });
+});

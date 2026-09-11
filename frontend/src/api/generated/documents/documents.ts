@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost,
   BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost,
   BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost,
@@ -43,6 +44,7 @@ import type {
   ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
+  SpreadsheetImportRead,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2663,6 +2665,163 @@ export const useClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete = <
 > => {
   return useMutation(
     getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Read a CSV/XLSX file into sheets, for the caller to add to this workbook.
+ *
+ * The document is the permission scope rather than the destination — nothing
+ * here writes to it. The sheets go back to the editor, which adds them to the
+ * live document in a single transaction, so the whole import is one thing to
+ * undo and peers receive it as one change.
+ *
+ * Parsing is server-side for the same reason rendering is: the workbook
+ * libraries are here, and the result goes through the same normalizer a
+ * created spreadsheet does, so an imported sheet is the same kind of object
+ * as any other.
+ * @summary Import Spreadsheet File
+ */
+export const importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost = (
+  guildId: number,
+  documentId: number,
+  bodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(
+    `file`,
+    bodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost.file
+  );
+
+  return apiMutator<SpreadsheetImportRead>(
+    {
+      url: `/api/v1/g/${guildId}/documents/${documentId}/spreadsheet/import`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+        >
+      >,
+      TError,
+      {
+        guildId: number;
+        documentId: number;
+        data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+    >,
+    TError,
+    {
+      guildId: number;
+      documentId: number;
+      data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+    },
+    TContext
+  > => {
+    const mutationKey = [
+      "importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+        >
+      >,
+      {
+        guildId: number;
+        documentId: number;
+        data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+      }
+    > = (props) => {
+      const { guildId, documentId, data } = props ?? {};
+
+      return importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+        guildId,
+        documentId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+    >
+  >;
+export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationBody =
+  BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Import Spreadsheet File
+ */
+export const useImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+        >
+      >,
+      TError,
+      {
+        guildId: number;
+        documentId: number;
+        data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+  >,
+  TError,
+  {
+    guildId: number;
+    documentId: number;
+    data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions(
+      options
+    ),
     queryClient
   );
 };

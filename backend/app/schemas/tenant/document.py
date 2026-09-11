@@ -21,6 +21,9 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 LexicalState = Dict[str, Any]
+#: One sheet of a workbook, in the canonical shape
+#: ``normalize_spreadsheet_content`` produces.
+SpreadsheetSheet = Dict[str, Any]
 DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link", "spreadsheet"]
 
 
@@ -323,3 +326,14 @@ def serialize_project_document_link(
         updated_at=document.updated_at,
         attached_at=related.linked_at,
     )
+
+
+class SpreadsheetImportRead(SanitizedBaseModel):
+    """The sheets a file held, ready to be added to a workbook.
+
+    Nothing is written by the read that produces this: the editor adds these
+    to its live document itself, in one transaction, so an import is one thing
+    to undo.
+    """
+
+    sheets: List[SpreadsheetSheet] = Field(default_factory=list)

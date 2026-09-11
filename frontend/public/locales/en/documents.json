@@ -572,7 +572,12 @@
       "hideLastBlocked": "A workbook needs at least one sheet on show.",
       "hiddenCount_one": "{{count}} hidden sheet",
       "hiddenCount_other": "{{count}} hidden sheets",
-      "unhideNamed": "Show “{{name}}”"
+      "unhideNamed": "Show “{{name}}”",
+      "import": "Import a file",
+      "importing": "Reading file…",
+      "imported_one": "{{count}} sheet imported.",
+      "imported_other": "{{count}} sheets imported.",
+      "importFailed": "That file could not be imported."
     },
     "pasteClipped_one": "{{count}} cell didn't fit on the sheet and wasn't pasted.",
     "pasteClipped_other": "{{count}} cells didn't fit on the sheet and weren't pasted.",

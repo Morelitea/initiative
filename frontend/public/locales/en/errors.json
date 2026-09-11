@@ -601,5 +601,6 @@
   "GALLERY_CANNOT_DELETE_LAST_VERSION": "A picture keeps at least one version — remove the picture instead",
   "GALLERY_VERSION_CONFLICT": "Someone else uploaded a version at the same moment — try again",
   "GALLERY_COVER_NOT_IN_GALLERY": "The cover has to be one of this gallery's own pictures",
-  "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "This document is being edited live. Reconnect to the editing session to save your changes."
+  "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "This document is being edited live. Reconnect to the editing session to save your changes.",
+  "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "That file could not be read as a spreadsheet. Import accepts .csv, .tsv and .xlsx files."
 }
