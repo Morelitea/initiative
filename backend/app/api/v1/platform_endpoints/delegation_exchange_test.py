@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import jwt
 import pytest
+from sqlmodel import select
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,6 +23,7 @@ from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import create_guild, create_guild_app, create_user
 from app.testing.app_channel import register_app_service
+from app.testing.schema_harness import route_session_to_guild
 from app.testing.delegation import (
     DELEGATE_PUBLIC_ID,
     authorize_delegate,
@@ -152,6 +154,52 @@ async def test_a_guild_without_that_app_is_refused(
     response = await _post(client, session, guild, subject, TARGET_PUBLIC_ID)
     assert response.status_code == 404
     assert response.json()["detail"] == DelegationExchangeMessages.NOT_INSTALLED
+
+
+async def test_a_guild_that_switched_the_app_off_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    """Installed is not the same as switched on, and a delegate can act on the
+    difference: an app the guild turned off comes back on its own, so the work
+    is worth parking rather than abandoning."""
+    guild, _member, subject, target = await _delegated(session)
+
+    await route_session_to_guild(session, guild.id)
+    target.enabled = False
+    session.add(target)
+    await session.commit()
+
+    response = await _post(client, session, guild, subject, TARGET_PUBLIC_ID)
+    assert response.status_code == 409
+    assert response.json()["detail"] == DelegationExchangeMessages.INSTALL_DISABLED
+
+
+async def test_a_registration_that_never_verified_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    """Enabled is not the same as live. A row that has never handshaken has no
+    confirmed manifest behind it, so there is nothing to address a token to."""
+    from app.models.platform.app_service_registration import (
+        AppServiceRegistration,
+        AppServiceStatus,
+    )
+
+    guild, _member, subject, _target = await _delegated(session)
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == TARGET_PUBLIC_ID
+            )
+        )
+    ).one()
+    row.status = AppServiceStatus.UNVERIFIED
+    session.add(row)
+    await session.commit()
+    invalidate_registrations()
+
+    response = await _post(client, session, guild, subject, TARGET_PUBLIC_ID)
+    assert response.status_code == 404
+    assert response.json()["detail"] == DelegationExchangeMessages.UNKNOWN_AUDIENCE
 
 
 async def test_a_caller_holding_no_delegation_has_nothing_to_re_address(

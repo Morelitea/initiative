@@ -964,6 +964,11 @@ class DelegationExchangeMessages:
 
     Read by a delegate deciding whether to park the work or give up on it, so
     the three states it can actually do something about are told apart.
+
+    Machine-to-machine (a delegate, not the SPA), so these are consumed by the
+    caller's logs and retry logic rather than ``errors.json`` — the same
+    reasoning as :class:`BillingMessages`. No surface renders one to a person,
+    and a translation for one would be a string nothing reads.
     """
 
     #: No app of this deployment answers to that public id.
