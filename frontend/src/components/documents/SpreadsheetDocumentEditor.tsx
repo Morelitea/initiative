@@ -88,6 +88,7 @@ import {
   referenceInsertTarget,
 } from "@/lib/spreadsheet/formula-refs";
 import {
+  draftResolution,
   formatSheetPrefix,
   MAX_SHEETS,
   type SheetId,
@@ -895,6 +896,17 @@ export const SpreadsheetDocumentEditor = ({
     setEditing(null);
     pointRefRef.current = null;
   }, []);
+
+  // Hiding a sheet from the menu commits the draft on it first (see
+  // ``handleSetSheetHidden``). Undo, redo and a peer reach the same state
+  // without passing through there, so the rule is applied to the sheets
+  // themselves rather than to the one action that used to change them.
+  useEffect(() => {
+    if (!editing) return;
+    const resolution = draftResolution(sheets, editing.sheetId);
+    if (resolution === "commit") commitEdit();
+    else if (resolution === "cancel") cancelEdit();
+  }, [editing, sheets, commitEdit, cancelEdit]);
 
   // Blur handler shared by the in-cell input and the formula-bar input. A blur
   // that hands focus to the *other* editing surface is a surface switch, not

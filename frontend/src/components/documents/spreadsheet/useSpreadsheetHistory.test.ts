@@ -116,30 +116,63 @@ describe("spreadsheet undo", () => {
 
 // ── the registry is the only list ────────────────────────────────────────────
 
-const SOURCE_DIRS = [
-  __dirname, // the spreadsheet hooks
-  join(__dirname, ".."), // components/documents, for the editor itself
+/** Every tree a spreadsheet transaction can be written from. */
+const SOURCE_ROOTS = [
+  join(__dirname, ".."), // components/documents, spreadsheet/ included
+  join(__dirname, "..", "..", "..", "lib", "spreadsheet"),
 ];
 
-/** Every `"spreadsheet-…"` string literal written in the spreadsheet source. */
-const originLiteralsInSource = (): Set<string> => {
-  const found = new Set<string>();
-  for (const dir of SOURCE_DIRS) {
+/** Every source file under those trees, at any depth. */
+const sourceFiles = (): string[] => {
+  const out: string[] = [];
+  const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile()) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+        continue;
+      }
       if (!/\.tsx?$/.test(entry.name)) continue;
       if (entry.name.includes(".test.")) continue;
       if (entry.name === "origins.ts") continue;
-      const text = readFileSync(join(dir, entry.name), "utf8");
-      for (const [, literal] of text.matchAll(/"(spreadsheet-[a-z-]+)"/g)) {
-        found.add(literal);
-      }
+      out.push(path);
+    }
+  };
+  for (const root of SOURCE_ROOTS) walk(root);
+  return out;
+};
+
+/** Every `"spreadsheet-…"` string literal written outside the registry. */
+const originLiteralsInSource = (): Set<string> => {
+  const found = new Set<string>();
+  for (const file of sourceFiles()) {
+    for (const [, literal] of readFileSync(file, "utf8").matchAll(/"(spreadsheet-[a-z-]+)"/g)) {
+      found.add(literal);
     }
   }
   return found;
 };
 
+/** Every registry key the source actually writes under. */
+const originKeysUsed = (): Set<string> => {
+  const used = new Set<string>();
+  for (const file of sourceFiles()) {
+    for (const [, key] of readFileSync(file, "utf8").matchAll(
+      /SPREADSHEET_(?:SEED_)?ORIGINS\.([A-Z_]+)/g
+    )) {
+      used.add(key);
+    }
+  }
+  return used;
+};
+
 describe("spreadsheet transaction origins", () => {
+  it("finds the source it is meant to be guarding", () => {
+    // A guard that reads nothing passes forever.
+    expect(sourceFiles().length).toBeGreaterThan(10);
+    expect(originKeysUsed().size).toBeGreaterThan(10);
+  });
+
   it("are written as constants, never as bare strings", () => {
     // A bare literal is how an origin comes into being without anyone deciding
     // whether undo should reach it — which is the way paste arrived.
@@ -147,22 +180,12 @@ describe("spreadsheet transaction origins", () => {
   });
 
   it("hold no entry that nothing writes under", () => {
-    const used = new Set<string>();
-    for (const dir of SOURCE_DIRS) {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
-        if (entry.name.includes(".test.") || entry.name === "origins.ts") continue;
-        const text = readFileSync(join(dir, entry.name), "utf8");
-        for (const [, key] of text.matchAll(/SPREADSHEET_(?:SEED_)?ORIGINS\.([A-Z_]+)/g)) {
-          used.add(key);
-        }
-      }
-    }
+    const used = originKeysUsed();
     const declared = [
       ...Object.keys(SPREADSHEET_ORIGINS),
       ...Object.keys(SPREADSHEET_SEED_ORIGINS),
     ];
-    expect([...declared].filter((k) => !used.has(k))).toEqual([]);
+    expect(declared.filter((key) => !used.has(key))).toEqual([]);
   });
 
   it("are undoable unless they seed a document", () => {
