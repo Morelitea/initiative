@@ -42,6 +42,8 @@ import {
 } from "@/lib/spreadsheet/sheets";
 import type { CellFmt, ColumnFmt, RowFmt } from "@/lib/spreadsheet/styles";
 
+import { SPREADSHEET_ORIGINS } from "./origins";
+
 /**
  * The workbook level of a spreadsheet document: which sheets exist, what
  * they're called, what order the tabs sit in — and, because a formula can
@@ -244,7 +246,7 @@ export const useSpreadsheetSheets = ({
         meta?.set(META_FROZEN_ROWS, 0);
         meta?.set(META_FROZEN_COLS, 0);
         renumber(yDoc, ids);
-      }, "spreadsheet-sheet-add");
+      }, SPREADSHEET_ORIGINS.SHEET_ADD);
       return id;
     },
     [yDoc, initialContent]
@@ -276,7 +278,7 @@ export const useSpreadsheetSheets = ({
           });
           for (const [key, value] of rewrites) cells.set(key, value);
         }
-      }, "spreadsheet-sheet-rename");
+      }, SPREADSHEET_ORIGINS.SHEET_RENAME);
       return name;
     },
     [yDoc]
@@ -293,7 +295,7 @@ export const useSpreadsheetSheets = ({
           yDoc,
           current.filter((s) => s.id !== id).map((s) => s.id)
         );
-      }, "spreadsheet-sheet-delete");
+      }, SPREADSHEET_ORIGINS.SHEET_DELETE);
       return true;
     },
     [yDoc]
@@ -312,7 +314,7 @@ export const useSpreadsheetSheets = ({
         // instead of storing a negative in every saved workbook.
         if (hidden) meta?.set(META_HIDDEN, true);
         else meta?.delete(META_HIDDEN);
-      }, "spreadsheet-sheet-hidden");
+      }, SPREADSHEET_ORIGINS.SHEET_HIDDEN);
       return true;
     },
     [yDoc]
@@ -327,7 +329,7 @@ export const useSpreadsheetSheets = ({
       const to = Math.max(0, Math.min(ids.length - 1, from + delta));
       if (to === from) return;
       ids.splice(to, 0, ...ids.splice(from, 1));
-      yDoc.transact(() => renumber(yDoc, ids), "spreadsheet-sheet-move");
+      yDoc.transact(() => renumber(yDoc, ids), SPREADSHEET_ORIGINS.SHEET_MOVE);
     },
     [yDoc]
   );
@@ -363,7 +365,7 @@ export const useSpreadsheetSheets = ({
         meta?.set(META_FROZEN_ROWS, readInt(sourceMeta, META_FROZEN_ROWS, 0));
         meta?.set(META_FROZEN_COLS, readInt(sourceMeta, META_FROZEN_COLS, 0));
         renumber(yDoc, ids);
-      }, "spreadsheet-sheet-duplicate");
+      }, SPREADSHEET_ORIGINS.SHEET_DUPLICATE);
       return copyId;
     },
     [yDoc]

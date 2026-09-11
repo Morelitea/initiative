@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 
 import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
+import { SPREADSHEET_ORIGINS } from "@/components/documents/spreadsheet/origins";
 import { SpreadsheetFindBar } from "@/components/documents/spreadsheet/SpreadsheetFindBar";
 import { SpreadsheetFormulaBar } from "@/components/documents/spreadsheet/SpreadsheetFormulaBar";
 import { SpreadsheetSheetTabs } from "@/components/documents/spreadsheet/SpreadsheetSheetTabs";
@@ -1285,7 +1286,7 @@ export const SpreadsheetDocumentEditor = ({
             formatting.updateCell(at[0], at[1], { style: fmt.style, format: fmt.format ?? null });
           }
         }
-      }, "spreadsheet-paste");
+      }, SPREADSHEET_ORIGINS.PASTE);
       if (dropped > 0) toast.info(t("documents:spreadsheet.pasteClipped", { count: dropped }));
     },
     [docForData, bulkUpdate, bulkUpdateOn, formatting, grid, t]
@@ -1372,7 +1373,7 @@ export const SpreadsheetDocumentEditor = ({
           cellStyles: result.cellStyles,
           frozen: formatting.frozen,
         });
-      }, "spreadsheet-sort");
+      }, SPREADSHEET_ORIGINS.SORT);
     },
     [readOnly, cells, formatting, bulkUpdate, docForData]
   );
@@ -1438,7 +1439,7 @@ export const SpreadsheetDocumentEditor = ({
             for (const [key, value] of Object.entries(rewritten)) draft.set(key, value);
           });
         }
-      }, "spreadsheet-structure");
+      }, SPREADSHEET_ORIGINS.STRUCTURE);
 
       // Remap the selection along the shifted axis so it tracks the same
       // content — otherwise an insert-above leaves the stale band straddling
