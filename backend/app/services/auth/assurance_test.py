@@ -12,6 +12,7 @@ import pytest
 from app.services.auth.assurance import (
     MAX_AMR_VALUE_LENGTH,
     MAX_AMR_VALUES,
+    MAX_AUTH_TIME,
     MAX_TRACKED_PROVIDERS,
     ProviderAssurance,
     read_assurance,
@@ -81,6 +82,15 @@ def test_amr_values_are_trimmed_deduplicated_and_bounded():
         ("yesterday", None),
         (None, None),
         (1757600000.5, None),
+        (MAX_AUTH_TIME, MAX_AUTH_TIME),
+        (MAX_AUTH_TIME + 1, None),
+        (str(MAX_AUTH_TIME), MAX_AUTH_TIME),
+        # Past the far end of any time, in each shape a JSON number arrives in.
+        ("9" * 5000, None),
+        (10**40, None),
+        (1e300, None),
+        (float("inf"), None),
+        (float("nan"), None),
     ],
 )
 def test_auth_time_is_read_as_epoch_seconds_or_not_at_all(value, expected):

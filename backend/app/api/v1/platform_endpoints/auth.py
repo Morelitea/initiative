@@ -428,6 +428,37 @@ async def _record_sign_in_failure(
     await admin_session.commit()
 
 
+async def _record_sign_in_fallback(
+    admin_session: AsyncSession,
+    *,
+    user_id: int,
+    detail: dict[str, Any],
+    guild_id: int | None = None,
+) -> None:
+    """Write down a sign-in whose session write failed, on its own commit.
+
+    The record is normally staged beside the session so the two land together;
+    when that write fails, the rollback takes the record with it. The sign-in
+    itself still succeeded — the caller is about to hand out a legacy token —
+    so the log still owes its reader the event.
+
+    Best-effort by construction: whatever stopped the session write may stop
+    this too, and a login that has already succeeded must not fail here.
+    """
+    try:
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=user_id,
+            guild_id=guild_id,
+            detail={**detail, "session": "legacy"},
+        )
+        await admin_session.commit()
+    except Exception:
+        await admin_session.rollback()
+        logger.warning("sign-in for user %s was not recorded in the audit log", user_id)
+
+
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -500,6 +531,9 @@ async def login_access_token(
             "Failed to establish refresh session for user %s; "
             "falling back to a legacy access token",
             user.id,
+        )
+        await _record_sign_in_fallback(
+            admin_session, user_id=user.id, detail={"method": "password"}
         )
         access_token = create_access_token(
             subject=str(user.id), token_version=user.token_version
@@ -1382,6 +1416,7 @@ async def _complete_provider_login(
     # path never touches the ORM object again.
     user_id, token_version = user.id, user.token_version
     provider_id, provider_slug = provider_row.id, provider_row.slug
+    provider_guild_id = provider_row.guild_id
     # Return the browser to where the login started (a step-up hands the
     # guild page it interrupted): the login route stored a validated SPA
     # path in the short-lived cookie; re-validate before echoing it, and
@@ -1435,7 +1470,7 @@ async def _complete_provider_login(
             admin_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
             actor_user_id=user_id,
-            guild_id=provider_row.guild_id,
+            guild_id=provider_guild_id,
             detail={
                 "method": "oidc",
                 "provider": provider_slug,
@@ -1462,6 +1497,17 @@ async def _complete_provider_login(
             "Failed to establish refresh session for user %s; "
             "falling back to a legacy access token",
             user_id,
+        )
+        await _record_sign_in_fallback(
+            admin_session,
+            user_id=user_id,
+            guild_id=provider_guild_id,
+            detail={
+                "method": "oidc",
+                "provider": provider_slug,
+                "step_up": prior is not None,
+                **assurance.as_record(),
+            },
         )
         legacy_token = create_access_token(
             subject=str(user_id), token_version=token_version

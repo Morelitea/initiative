@@ -29,6 +29,11 @@ MAX_AMR_VALUES = 16
 MAX_AMR_VALUE_LENGTH = 64
 MAX_ACR_LENGTH = 256
 
+# The far end of what could be a time: 9999-12-31T23:59:59Z in epoch seconds.
+# A value past it is not a timestamp, whatever else it is.
+MAX_AUTH_TIME = 253_402_300_799
+_MAX_AUTH_TIME_DIGITS = len(str(MAX_AUTH_TIME))
+
 # How many providers one session keeps an account for. A session gains an entry
 # per identity source it authenticates against — none for a consumer, a handful
 # for someone in several enterprise guilds.
@@ -131,14 +136,20 @@ def _read_auth_time(value: Any) -> int | None:
     # and some IdPs send the number as a JSON string.
     if isinstance(value, bool):
         return None
-    if isinstance(value, int):
-        return value if value > 0 else None
-    if isinstance(value, float):
-        return int(value) if value.is_integer() and value > 0 else None
-    if isinstance(value, str) and value.isdigit():
-        seconds = int(value)
-        return seconds if seconds > 0 else None
-    return None
+    if isinstance(value, str):
+        # Length before conversion: Python refuses to convert a digit string
+        # past a few thousand characters at all, and a number that long is not
+        # a time either way.
+        if not value.isdigit() or len(value) > _MAX_AUTH_TIME_DIGITS:
+            return None
+        value = int(value)
+    elif isinstance(value, float):
+        if not value.is_integer():
+            return None
+        value = int(value)
+    if not isinstance(value, int):
+        return None
+    return value if 0 < value <= MAX_AUTH_TIME else None
 
 
 def _read_amr(value: Any) -> tuple[str, ...]:
