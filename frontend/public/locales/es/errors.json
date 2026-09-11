@@ -90,6 +90,7 @@
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Inicia sesión tú mismo con ese proveedor antes de exigirlo para la comunidad",
   "GUILD_AUTH_NOT_ENABLED": "La autenticación por comunidad no está habilitada en esta plataforma",
   "AUTH_PROVIDER_IN_USE": "El requisito de inicio de sesión de una comunidad usa este proveedor; cambia primero ese requisito",
+  "AUTH_PROVIDER_SOLE_CREDENTIAL": "Algunas cuentas inician sesión solo con este proveedor; necesitan una contraseña u otro método de inicio de sesión antes de poder eliminarlo",
   "SMTP_NOT_CONFIGURED": "La configuración SMTP está incompleta.",
   "INVALID_OR_EXPIRED_TOKEN": "Token no válido o expirado",
   "RESERVED_SIGIL_IN_NAME": "Los nombres y títulos no pueden contener # ni @.",

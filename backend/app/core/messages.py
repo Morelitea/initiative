@@ -270,6 +270,9 @@ class AuthProviderMessages:
     SLUG_RESERVED = "AUTH_PROVIDER_SLUG_RESERVED"
     SLUG_TAKEN = "AUTH_PROVIDER_SLUG_TAKEN"
     IN_USE = "AUTH_PROVIDER_IN_USE"
+    # Some account signs in only through it; the delete waits until those
+    # accounts hold another credential.
+    SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
 
 
 class TagMessages:

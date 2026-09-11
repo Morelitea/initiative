@@ -87,6 +87,7 @@
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Sign in with that provider yourself before requiring it for the community",
   "GUILD_AUTH_NOT_ENABLED": "Per-community authentication is not enabled on this platform",
   "AUTH_PROVIDER_IN_USE": "A community's sign-in requirement uses this provider; change that requirement first",
+  "AUTH_PROVIDER_SOLE_CREDENTIAL": "Some accounts sign in only with this provider; they need a password or another sign-in method before it can be removed",
   "OIDC_EMAIL_UNVERIFIED": "Your identity provider did not confirm your email is verified, so we can't sign you in to an existing account. Verify your email with your provider and try again.",
   "SMTP_NOT_CONFIGURED": "SMTP settings are incomplete.",
   "INVALID_OR_EXPIRED_TOKEN": "Invalid or expired token",

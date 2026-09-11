@@ -212,6 +212,44 @@ async def test_delete_cascades_identity_links(
     assert identities == []
 
 
+async def test_delete_refused_when_provider_is_a_sole_credential(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account with no password, linked only to this provider, holds it as
+    its only credential — so the delete is refused."""
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    sso_only = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, sso_only, provider=provider)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "AUTH_PROVIDER_SOLE_CREDENTIAL"
+
+    session.expire_all()
+    assert await session.get(AuthProvider, provider_id) is not None
+
+
+async def test_delete_allowed_when_account_holds_another_provider(
+    client: AsyncClient, session: AsyncSession
+):
+    """A second link is another way in, so the provider is free to go."""
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    spare = await create_auth_provider(session, slug="spare")
+    sso_only = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, sso_only, provider=provider)
+    await create_federated_identity(session, sso_only, provider=spare)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 204
+
+    session.expire_all()
+    assert await session.get(AuthProvider, provider_id) is None
+
+
 async def test_created_provider_reaches_login_page_listing(
     client: AsyncClient, session: AsyncSession
 ):

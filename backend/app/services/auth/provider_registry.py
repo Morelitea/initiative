@@ -35,6 +35,7 @@ from app.schemas.platform.settings import (
     AuthProviderCreate,
     AuthProviderUpdate,
 )
+from app.services.auth import identity as identity_service
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 
 logger = logging.getLogger(__name__)
@@ -231,10 +232,28 @@ async def delete_provider(
 ) -> None:
     """Delete a row from the namespace. Its linked identities (and their
     stored refresh tokens) go with it via cascade — users who signed in
-    through it keep their accounts and any other sign-in methods. A provider
-    some guild's auth policy requires is refused (409): drop or repoint the
-    policy first."""
+    through it keep their accounts and any other sign-in methods.
+
+    Two refusals, both 409. A provider some guild's auth policy requires:
+    drop or repoint the policy first. And a provider that is some account's
+    only credential: those people set a password or link another provider
+    first, and then it deletes.
+    """
     row = await editable_provider(session, provider_id, guild_id=guild_id)
+    stranded = await identity_service.sole_credential_user_count(
+        session, provider_id=row.id
+    )
+    if stranded:
+        logger.info(
+            "auth provider %s (%s) delete refused: sole credential for %d account(s)",
+            row.slug,
+            provider_id,
+            stranded,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AuthProviderMessages.SOLE_CREDENTIAL,
+        )
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
         await session.delete(secret)

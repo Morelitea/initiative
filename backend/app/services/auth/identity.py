@@ -225,6 +225,35 @@ async def has_federated_identity(session: AsyncSession, *, user_id: int) -> bool
     return row is not None
 
 
+async def sole_credential_user_count(session: AsyncSession, *, provider_id: int) -> int:
+    """How many accounts hold this provider as their only credential.
+
+    An account counts when it has no password and every identity link it holds
+    belongs to this provider — the provider's links cascade with it, so this
+    account's last credential goes too. An account that kept a password, or
+    linked a second provider, still holds one and is not counted.
+    """
+    holds_this = select(FederatedIdentity.id).where(
+        FederatedIdentity.user_id == User.id,
+        FederatedIdentity.provider_id == provider_id,
+    )
+    holds_another = select(FederatedIdentity.id).where(
+        FederatedIdentity.user_id == User.id,
+        FederatedIdentity.provider_id != provider_id,
+    )
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.hashed_password.is_(None),
+                holds_this.exists(),
+                ~holds_another.exists(),
+            )
+        )
+    ).one()
+
+
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
     """Remove every identity link (and, via cascade, its stored refresh token)
     for a user — the anonymize/delete-account cleanup. Stages only."""
