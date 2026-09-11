@@ -610,5 +610,6 @@
   "RELATIONSHIP_SELF": "Un élément ne peut pas être lié à lui-même",
   "RELATIONSHIP_EXISTS": "Ces éléments sont déjà liés",
   "RELATIONSHIP_NOT_FOUND": "Ce lien n'existe plus",
-  "RELATIONSHIP_REMOVE_DENIED": "Vous ne pouvez retirer que les liens que vous avez créés, ou ceux portant sur un élément que vous pouvez modifier"
+  "RELATIONSHIP_REMOVE_DENIED": "Vous ne pouvez retirer que les liens que vous avez créés, ou ceux portant sur un élément que vous pouvez modifier",
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Cet élément est archivé"
 }

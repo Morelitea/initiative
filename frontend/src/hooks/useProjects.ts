@@ -15,6 +15,7 @@ import type {
   TaskStatusReorderRequest,
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
   createProjectApiV1GGuildIdProjectsPost,
@@ -50,7 +51,7 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
-import { attachDocumentToProject, detachDocumentFromProject } from "@/api/relationships";
+import { relate, unrelate } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -463,7 +464,11 @@ export const useAttachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await attachDocumentToProject(guildId, projectId, documentId);
+        await relate(
+          guildId,
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
+        );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
       errorKey: "projects:documents.attachError",
@@ -475,7 +480,11 @@ export const useDetachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await detachDocumentFromProject(guildId, projectId, documentId);
+        await unrelate(
+          guildId,
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
+        );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
       errorKey: "projects:documents.detachError",

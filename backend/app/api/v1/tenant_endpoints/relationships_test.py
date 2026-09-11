@@ -10,6 +10,8 @@ from httpx import AsyncClient
 
 from app.core.messages import RelationshipMessages
 from app.models.platform.guild import GuildRole
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
     create_calendar_event,
     create_document,
@@ -274,3 +276,114 @@ async def test_the_guilds_vocabulary_pairs_with_anything(
     )
     assert response.status_code == 201, response.text
     assert response.json()["other"]["type"] == "tag"
+
+
+async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
+    client: AsyncClient, acting_user, session
+):
+    """A replace is a bulk removal, so it answers the same question a DELETE
+    does. ``attached`` is symmetric, which means anyone who can read both ends
+    may write the row — the right rule for making one and the wrong rule for
+    undoing somebody else's."""
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    doc = await create_document(session, owner.initiative, owner.user)
+    made = await client.post(
+        _url(owner),
+        headers=owner.headers,
+        json={
+            "source": {"type": "project", "id": owner.project.id},
+            "relationship_type": "attached",
+            "target": {"type": "document", "id": doc.id},
+        },
+    )
+    assert made.status_code == 201, made.text
+
+    # A co-member who can read both ends but edit neither.
+    await route_session_to_guild(session, owner.guild.id)
+    for resource_type, resource_id in (
+        ("project", owner.project.id),
+        ("document", doc.id),
+    ):
+        session.add(
+            ResourceGrant(
+                resource_type=resource_type,
+                resource_id=resource_id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=owner.guild.id,
+                initiative_id=owner.initiative.id,
+            )
+        )
+    await session.commit()
+
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    wipe = await client.put(
+        _url(reader),
+        headers=reader.headers,
+        params={
+            "entity": f"project:{owner.project.id}",
+            "relationship_type": "attached",
+            "other_type": "document",
+        },
+        json=[],
+    )
+    assert wipe.status_code == 403, wipe.text
+    assert wipe.json()["detail"] == RelationshipMessages.REMOVE_DENIED
+
+    # And it is still there.
+    still = await client.get(
+        _url(owner),
+        headers=owner.headers,
+        params={"entity": f"project:{owner.project.id}"},
+    )
+    assert [e["other"]["id"] for e in still.json()] == [doc.id]
+
+
+async def test_a_kind_no_edge_may_name_is_refused_as_a_filter(
+    client: AsyncClient, acting_user, session
+):
+    """``other_type`` takes any search kind, and the ones no edge can name have
+    to be refused here rather than at the node encoder."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    response = await client.put(
+        _url(a),
+        headers=a.headers,
+        params={
+            "entity": f"project:{a.project.id}",
+            "relationship_type": "attached",
+            "other_type": "comment",
+        },
+        json=[],
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == RelationshipMessages.BAD_ENDPOINT
+
+
+async def test_an_archived_project_takes_no_new_links(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user)
+    await route_session_to_guild(session, a.guild.id)
+    a.project.is_archived = True
+    session.add(a.project)
+    await session.commit()
+
+    response = await client.post(
+        _url(a),
+        headers=a.headers,
+        json={
+            "source": {"type": "project", "id": a.project.id},
+            "relationship_type": "attached",
+            "target": {"type": "document", "id": doc.id},
+        },
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == RelationshipMessages.ENDPOINT_ARCHIVED

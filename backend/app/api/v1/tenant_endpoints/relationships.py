@@ -11,14 +11,17 @@ and read on the other, or read on both where it describes neither. So a caller
 who cannot reach an end gets a 404 from the lookup below, and one who can reach
 but not edit gets nothing written.
 
-One rule the per-tool endpoints applied that the policy deliberately does not,
-carried over because it belongs to the surface rather than to the table:
+Two rules the per-tool endpoints applied that the policy deliberately does not,
+carried over because they belong to the surface rather than to the table:
 
 * **Both ends of a link made here are in one initiative.** The table permits a
   cross-initiative edge — that is where the graph gets its reach, and content
   references will make them — but choosing one in a picker is not how they
   should arrive. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal by the same
   name.
+* **An archived thing takes no new links, and gives none up.** Archiving is a
+  statement that a project is finished with, and the policy has no opinion on
+  it. Asked of whichever end has the state — only projects and tasks do.
 """
 
 from typing import Annotated, List, Optional
@@ -124,6 +127,32 @@ def _refuse_across_initiatives(
     )
 
 
+def _refuse_archived(*ends: reference_targets.Resolved) -> None:
+    """An archived thing is finished with, and its links are part of what it
+    says. Asked of both ends, and of a removal as much as an addition."""
+    for end in ends:
+        if end.is_archived:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RelationshipMessages.ENDPOINT_ARCHIVED,
+            )
+
+
+def _endpoint_kind(value: SearchEntityType) -> SearchEntityType:
+    """A kind an edge may actually name.
+
+    ``other_type`` arrives as any ``SearchEntityType``, and the two that no
+    edge can name (a comment, a counter) would otherwise reach the node
+    encoder and fail there as a 500 rather than here as a refusal.
+    """
+    if value not in ENDPOINT_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RelationshipMessages.BAD_ENDPOINT,
+        )
+    return value
+
+
 def _render(
     row: EntityRelationship,
     *,
@@ -192,6 +221,8 @@ async def list_relationships(
 ) -> List[RelationshipRead]:
     """Every live edge touching one thing, rendered from its side."""
     ref = _parse_ref(entity)
+    if other_type is not None:
+        other_type = _endpoint_kind(other_type)
     await _resolve(session, ref, current_user.id)
     anchor = Endpoint(ref.type, ref.id)
 
@@ -217,6 +248,7 @@ async def create_relationship(
     source = await _resolve(session, body.source, current_user.id)
     target = await _resolve(session, body.target, current_user.id)
     _refuse_across_initiatives(source, target)
+    _refuse_archived(source, target)
 
     try:
         row = await relationships_service.create(
@@ -261,7 +293,9 @@ async def replace_relationship_slice(
     one link back.
     """
     ref = _parse_ref(entity)
+    other_type = _endpoint_kind(other_type)
     anchor_row = await _resolve(session, ref, current_user.id)
+    _refuse_archived(anchor_row)
 
     wanted = list(dict.fromkeys(ids))
     resolved = await reference_targets.resolve_many(
@@ -275,8 +309,29 @@ async def replace_relationship_slice(
                 detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
             )
         _refuse_across_initiatives(anchor_row, found)
+        _refuse_archived(found)
 
     anchor = Endpoint(ref.type, ref.id)
+
+    # A replace is a bulk removal, so everything it drops answers the same
+    # question a DELETE does. A symmetric edge is writable by anyone who can
+    # read both of its ends, so without this the slice would be a way to undo
+    # somebody else's curation that the single removal refuses. One edge the
+    # caller may not remove fails the whole request rather than being silently
+    # kept, which would leave the surface showing a set it did not ask for.
+    keeping = set(wanted)
+    for row in await relationships_service.list_for_entity(
+        session, anchor, relationship_type=relationship_type, other_kind=other_type
+    ):
+        other_id = row.target_id if row.source_node == anchor.node else row.source_id
+        if other_id in keeping:
+            continue
+        if not await _may_remove(session, row, current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=RelationshipMessages.REMOVE_DENIED,
+            )
+
     await relationships_service.set_related(
         session,
         anchor,
@@ -323,9 +378,7 @@ async def remove_relationship(
             detail=RelationshipMessages.NOT_FOUND,
         )
 
-    if row.created_by != current_user.id and not await _may_edit_an_end(
-        session, row, current_user.id
-    ):
+    if not await _may_remove(session, row, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=RelationshipMessages.REMOVE_DENIED,
@@ -335,10 +388,16 @@ async def remove_relationship(
     await session.commit()
 
 
-async def _may_edit_an_end(
+async def _may_remove(
     session: RLSSessionDep, row: EntityRelationship, user_id: int
 ) -> bool:
-    """Whether either thing this edge is on is one the caller may edit."""
+    """Whether this caller may take one edge back.
+
+    Your own edge, or one on a thing you can edit. The single removal and the
+    replace both ask this, so a slice cannot do what a DELETE refuses.
+    """
+    if row.created_by == user_id:
+        return True
     for kind, entity_id in (
         (row.source_type, row.source_id),
         (row.target_type, row.target_id),

@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 
-from sqlalchemy import Select, Table, func, null, select, text
+from sqlalchemy import Select, Table, func, literal, null, select, text
 from sqlmodel import SQLModel
 
 from app.core.references import NOT_REFERENCEABLE
@@ -137,6 +137,10 @@ class Resolved:
     #: sits on a guild calendar, which is guild-level content rather than
     #: initiative content.
     scoped_kind: bool
+    #: Whether the row is archived. Only projects and tasks can be; every other
+    #: kind reports False, which is the honest answer for a kind with no such
+    #: state rather than a default standing in for one.
+    is_archived: bool
 
 
 async def resolve_many(
@@ -157,11 +161,14 @@ async def resolve_many(
     table = SQLModel.metadata.tables[table_name]
     path = INITIATIVE_PATHS.get(table_name)
     initiative = text(path.initiative_expr(table_name)) if path is not None else null()
+    archived = table.c["is_archived"] if "is_archived" in table.c else literal(False)
+
     rows = await session.exec(
         select(
             table.c["id"],
             title_column(entity_type),
             initiative,
+            archived,
         ).where(
             table.c["id"].in_(wanted),
             table.c["id"].in_(visible_ids(entity_type, user_id)),
@@ -174,6 +181,7 @@ async def resolve_many(
             title=row[1],
             initiative_id=row[2],
             scoped_kind=path is not None,
+            is_archived=bool(row[3]),
         )
         for row in rows.all()
     }

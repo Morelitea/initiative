@@ -3,15 +3,16 @@
  *
  * The five per-tool attach routes — a project's documents, a queue item's
  * documents and tasks, an event's documents — were the same request with
- * different kinds in it. These wrappers are where that vocabulary lives, so a
- * calling hook says what it means ("attach this document to this project")
- * rather than assembling a reference string.
+ * different kinds in it. So is everything here: what varies between attaching a
+ * document to a project and a task to a queue item is which two things are
+ * named, and that is an argument.
  */
 
 import {
+  type EndpointRef,
   type RelationshipRead,
   RelationshipType,
-  SearchEntityType,
+  type SearchEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createRelationshipApiV1GGuildIdRelationshipsPost,
@@ -21,62 +22,68 @@ import {
 } from "@/api/generated/relationships/relationships";
 
 /** A thing, as a reference names it: `task:12`. */
-const ref = (type: SearchEntityType, id: number) => `${type}:${id}`;
+const ref = (end: EndpointRef) => `${end.type}:${end.id}`;
 
-/** Every live `attached` link between one thing and one other kind. */
-export const listAttached = (
+/** Every live link of one type between a thing and one other kind. */
+export const listRelated = (
   guildId: number,
-  entityType: SearchEntityType,
-  entityId: number,
-  otherType: SearchEntityType
+  entity: EndpointRef,
+  otherType: SearchEntityType,
+  relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead[]> =>
   listRelationshipsApiV1GGuildIdRelationshipsGet(guildId, {
-    entity: ref(entityType, entityId),
-    relationship_type: RelationshipType.attached,
+    entity: ref(entity),
+    relationship_type: relationshipType,
     other_type: otherType,
   });
 
-/** Replace everything of one kind attached to a thing. */
-export const setAttached = (
+/** Link two things. */
+export const relate = async (
   guildId: number,
-  entityType: SearchEntityType,
-  entityId: number,
+  source: EndpointRef,
+  target: EndpointRef,
+  relationshipType: RelationshipType = RelationshipType.attached
+): Promise<RelationshipRead> =>
+  createRelationshipApiV1GGuildIdRelationshipsPost(guildId, {
+    source,
+    relationship_type: relationshipType,
+    target,
+  });
+
+/** Replace everything of one kind linked to a thing. */
+export const setRelated = (
+  guildId: number,
+  entity: EndpointRef,
   otherType: SearchEntityType,
-  otherIds: number[]
+  otherIds: number[],
+  relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead[]> =>
   replaceRelationshipSliceApiV1GGuildIdRelationshipsPut(guildId, otherIds, {
-    entity: ref(entityType, entityId),
-    relationship_type: RelationshipType.attached,
+    entity: ref(entity),
+    relationship_type: relationshipType,
     other_type: otherType,
   });
 
-export const attachDocumentToProject = async (
+/**
+ * Unlink two things.
+ *
+ * A link is removed by its own id, so the pair is resolved to one first. A
+ * surface that renders links already holds their ids and should call
+ * {@link removeRelationship} directly; this is for the callers that know the
+ * two things and not the link between them.
+ */
+export const unrelate = async (
   guildId: number,
-  projectId: number,
-  documentId: number
+  entity: EndpointRef,
+  other: EndpointRef,
+  relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<void> => {
-  await createRelationshipApiV1GGuildIdRelationshipsPost(guildId, {
-    source: { type: SearchEntityType.project, id: projectId },
-    relationship_type: RelationshipType.attached,
-    target: { type: SearchEntityType.document, id: documentId },
-  });
+  const links = await listRelated(guildId, entity, other.type, relationshipType);
+  const link = links.find((row) => row.other.id === other.id);
+  if (!link) return;
+  await removeRelationship(guildId, link.id);
 };
 
-export const detachDocumentFromProject = async (
-  guildId: number,
-  projectId: number,
-  documentId: number
-): Promise<void> => {
-  // A link is removed by its own id, so the pair has to be resolved to one
-  // first. The section that will render these carries the ids already; until
-  // it does, this is the lookup that used to be the route's path parameters.
-  const links = await listAttached(
-    guildId,
-    SearchEntityType.project,
-    projectId,
-    SearchEntityType.document
-  );
-  const link = links.find((row) => row.other.id === documentId);
-  if (!link) return;
-  await removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete(guildId, link.id);
-};
+/** Remove a link by its own id. */
+export const removeRelationship = (guildId: number, relationshipId: number): Promise<void> =>
+  removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete(guildId, relationshipId);

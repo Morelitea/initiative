@@ -26,7 +26,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { type RelationshipRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { setAttached } from "@/api/relationships";
+import { setRelated } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -187,10 +187,9 @@ export const useSetEventDocuments = (
   useGuildMutation<RelationshipRead[], number[]>(
     {
       mutationFn: (guildId, documentIds) =>
-        setAttached(
+        setRelated(
           guildId,
-          SearchEntityType.calendar_event,
-          eventId,
+          { type: SearchEntityType.calendar_event, id: eventId },
           SearchEntityType.document,
           documentIds
         ),

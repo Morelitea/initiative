@@ -46,7 +46,7 @@ import {
   updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
-import { setAttached } from "@/api/relationships";
+import { setRelated } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -681,10 +681,9 @@ export const useSetQueueItemDocuments = (
   useGuildMutation<RelationshipRead[], { itemId: number; documentIds: number[] }>(
     {
       mutationFn: (guildId, { itemId, documentIds }) =>
-        setAttached(
+        setRelated(
           guildId,
-          SearchEntityType.queue_item,
-          itemId,
+          { type: SearchEntityType.queue_item, id: itemId },
           SearchEntityType.document,
           documentIds
         ),
@@ -701,7 +700,12 @@ export const useSetQueueItemTasks = (
   useGuildMutation<RelationshipRead[], { itemId: number; taskIds: number[] }>(
     {
       mutationFn: (guildId, { itemId, taskIds }) =>
-        setAttached(guildId, SearchEntityType.queue_item, itemId, SearchEntityType.task, taskIds),
+        setRelated(
+          guildId,
+          { type: SearchEntityType.queue_item, id: itemId },
+          SearchEntityType.task,
+          taskIds
+        ),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },
