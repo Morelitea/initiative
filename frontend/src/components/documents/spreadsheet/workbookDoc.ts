@@ -31,6 +31,8 @@ import * as Y from "yjs";
 import type { SpreadsheetContent, SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { DEFAULT_SHEET_ID, type SheetId, type SheetMeta } from "@/lib/spreadsheet/sheets";
 
+import { SPREADSHEET_SEED_ORIGINS } from "./origins";
+
 export const Y_SHEETS_KEY = "sheets";
 
 /** Keys of a sheet container. */
@@ -194,5 +196,5 @@ export const ensureWorkbook = (doc: Y.Doc | null, content: SpreadsheetContent): 
     content.sheets.forEach((sheet, index) => {
       seedSheet(doc, sheet, index);
     });
-  }, "spreadsheet-bootstrap");
+  }, SPREADSHEET_SEED_ORIGINS.BOOTSTRAP);
 };
