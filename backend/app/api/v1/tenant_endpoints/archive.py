@@ -102,8 +102,6 @@ def _authorize(
     row: Any,
     user: User,
     guild_context: GuildContext,
-    *,
-    unarchiving: bool,
 ) -> None:
     """Who may put this away, and who may take it back out.
 
@@ -112,8 +110,11 @@ def _authorize(
     archiving one hides it from every member's sidebar and freezes everything
     inside it, which is a guild-wide act rather than one initiative's.
 
-    ``allow_frozen`` on the way back: unarchiving asks for write on a row that
-    is archived by definition.
+    ``allow_frozen`` throughout: both directions ask for write on a row whose
+    archived state is the very thing being changed, and archiving one that is
+    already archived has to answer with the stamp it has rather than refuse. The
+    write itself is a lifecycle column, which is all the database will accept
+    here either way.
     """
     if entity_type == "initiative":
         if not rls_service.is_guild_admin(guild_context.role):
@@ -129,7 +130,7 @@ def _authorize(
         subject,
         user,
         access="write",
-        allow_frozen=unarchiving,
+        allow_frozen=True,
     )
 
 
@@ -145,7 +146,7 @@ async def archive_entity(
     the stamp it has, so the date means when it was archived, not when it was
     last asked about."""
     row = await _load(session, entity_type.value, entity_id)
-    _authorize(entity_type.value, row, current_user, guild_context, unarchiving=False)
+    _authorize(entity_type.value, row, current_user, guild_context)
     # Read before the commit: committing expires the instance, and reaching for
     # the column afterwards would be a lazy load with no async context to run in.
     stamp = row.archived_at
@@ -169,7 +170,7 @@ async def unarchive_entity(
 ) -> ArchiveResponse:
     """Take it back out. Idempotent on a live row."""
     row = await _load(session, entity_type.value, entity_id)
-    _authorize(entity_type.value, row, current_user, guild_context, unarchiving=True)
+    _authorize(entity_type.value, row, current_user, guild_context)
     if row.archived_at is not None:
         row.archived_at = None
         session.add(row)

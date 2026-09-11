@@ -39,6 +39,10 @@ from typing import Any
 
 import sqlalchemy as sa
 from alembic import op
+from pglast import ast, parse_sql
+from pglast.enums import NullTestType
+from pglast.stream import RawStream
+from pglast.visitors import Visitor
 
 from app.db.guild_migrations import guild_schema_names
 
@@ -67,18 +71,101 @@ _GAINING_COLUMN = (
 _CARRYING = ("projects", "tasks", "initiatives")
 
 
-#: Saved filters name their field. A boolean asked "is it archived"; a
-#: timestamp asks "is it set", so a stored condition is carried across rather
-#: than left naming a field that no longer exists.
+#: Saved questions name their field. A boolean asked "is it archived"; a
+#: timestamp asks "is it set", so a stored one is carried across rather than
+#: left naming a column that no longer exists.
+#:
+#: They are stored two ways. A filter preset holds structured conditions. A
+#: dashboard widget holds a STATEMENT — since bindings became queries, SQL is
+#: what a widget is — so a dashboard that filtered archived work out says so in
+#: SQL and has to be rewritten as SQL.
 _SAVED_FILTERS: tuple[tuple[str, str], ...] = (
     ("project_filter_presets", "filters"),
     ("dashboards", "definition"),
     ("dashboards", "config"),
 )
 
+#: Every freeze trigger in a guild schema. They are dropped before this
+#: migration writes anything: they name ``is_archived`` in their WHEN clause or
+#: reach it through ``public.resource_frozen``, and they refuse an ordinary edit
+#: to a row whose initiative is archived — which the saved-filter carry below
+#: would otherwise be. Provisioning re-renders them from the registry on the
+#: next boot, which is the ordinary path for a registry change and runs in this
+#: same start-up.
+_DROP_FREEZE_TRIGGERS = """
+DO $$
+DECLARE row record;
+BEGIN
+    FOR row IN
+        SELECT c.relname AS tbl, tg.tgname AS trg
+          FROM pg_trigger tg
+          JOIN pg_class c ON c.oid = tg.tgrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = current_schema()
+           AND NOT tg.tgisinternal
+           AND tg.tgname LIKE '%_frozen_%'
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', row.trg, row.tbl);
+    END LOOP;
+END $$;
+"""
+
+
+def _names_flag(node: Any) -> bool:
+    """Whether this column reference is the old flag, under any alias."""
+    return (
+        isinstance(node, ast.ColumnRef)
+        and bool(node.fields)
+        and isinstance(node.fields[-1], ast.String)
+        and node.fields[-1].sval == "is_archived"
+    )
+
+
+def _null_test(ref: Any, *, archived: bool) -> Any:
+    """The same question of the new column: archived is the stamp being set."""
+    fields = list(ref.fields[:-1]) + [ast.String(sval="archived_at")]
+    return ast.NullTest(
+        arg=ast.ColumnRef(fields=tuple(fields)),
+        nulltesttype=NullTestType.IS_NOT_NULL if archived else NullTestType.IS_NULL,
+    )
+
+
+class _CarryFlagInSql(Visitor):
+    """Rewrite the flag wherever a saved statement reads it.
+
+    Through the real grammar rather than by matching text: these are statements
+    somebody wrote, the column is reached under aliases and inside expressions,
+    and a substitution that looked right would be the one way to corrupt them.
+    """
+
+    def visit_A_Expr(self, ancestors: Any, node: Any) -> Any:
+        if node.name and len(node.name) == 1 and node.name[0].sval == "=":
+            for side, other in ((node.lexpr, node.rexpr), (node.rexpr, node.lexpr)):
+                if (
+                    _names_flag(side)
+                    and isinstance(other, ast.A_Const)
+                    and isinstance(other.val, ast.Boolean)
+                ):
+                    return _null_test(side, archived=other.val.boolval)
+        return None
+
+    def visit_ColumnRef(self, ancestors: Any, node: Any) -> Any:
+        # Read as a bare boolean — `WHERE is_archived`, `CASE WHEN is_archived`.
+        return _null_test(node, archived=True) if _names_flag(node) else None
+
+
+def _carry_statement(statement: str) -> str:
+    """One saved statement, carried. Returns it unchanged if it names nothing."""
+    if "is_archived" not in statement:
+        return statement
+    tree = parse_sql(statement)
+    _CarryFlagInSql()(tree)
+    return RawStream()(tree)
+
 
 def _carry_condition(node: Any) -> Any:
-    """Rewrite ``is_archived eq <bool>`` wherever it appears in a saved body.
+    """Rewrite the old flag wherever it appears in a saved body — as a
+    structured condition, and as a widget's statement.
 
     ``is_null`` carries whether it means null or not-null, so "not archived"
     becomes "archived_at is null" and the pair stays the same question.
@@ -91,7 +178,10 @@ def _carry_condition(node: Any) -> Any:
                 "op": "is_null",
                 "value": not bool(node.get("value")),
             }
-        return {key: _carry_condition(value) for key, value in node.items()}
+        carried = {key: _carry_condition(value) for key, value in node.items()}
+        if isinstance(node.get("sql"), str):
+            carried["sql"] = _carry_statement(node["sql"])
+        return carried
     if isinstance(node, list):
         return [_carry_condition(item) for item in node]
     return node
@@ -143,6 +233,7 @@ def upgrade() -> None:
 
     for schema in guild_schema_names(connection):
         _route(connection, schema)
+        op.execute(_DROP_FREEZE_TRIGGERS)
 
         for table in _GAINING_COLUMN:
             op.execute(f"ALTER TABLE {table} ADD COLUMN archived_at timestamptz")
@@ -173,11 +264,6 @@ def upgrade() -> None:
             for table in _CARRYING:
                 op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
-        # These name the column in their WHEN clause, so it cannot be dropped
-        # while they stand. Re-rendered from the registry on the next boot.
-        for table in _CARRYING:
-            op.execute(f"DROP TRIGGER IF EXISTS tr_{table}_frozen_guard ON {table}")
-
         for table in _CARRYING:
             op.execute(f"ALTER TABLE {table} DROP COLUMN is_archived")
 
@@ -204,6 +290,8 @@ def downgrade() -> None:
     for schema in guild_schema_names(connection):
         _route(connection, schema)
 
+        op.execute(_DROP_FREEZE_TRIGGERS)
+
         for table in _CARRYING:
             op.execute(
                 f"ALTER TABLE {table} ADD COLUMN is_archived boolean NOT NULL "
@@ -219,10 +307,6 @@ def downgrade() -> None:
                 )
             finally:
                 op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
-
-        # Every table about to lose the column has a guard naming it.
-        for table in _GAINING_COLUMN:
-            op.execute(f"DROP TRIGGER IF EXISTS tr_{table}_frozen_guard ON {table}")
 
         # ``projects`` keeps its ``archived_at``: it had one before this ran.
         for table in _GAINING_COLUMN:

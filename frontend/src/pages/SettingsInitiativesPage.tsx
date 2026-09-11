@@ -35,7 +35,6 @@ import {
   useDeleteInitiative,
   useGuildInitiatives,
   useRemoveInitiativeMember,
-  useUpdateInitiative,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
@@ -281,7 +280,6 @@ export const SettingsInitiativesPage = () => {
   // The guild-wide listing, not the admin's own memberships — this table is
   // where they manage initiatives they have not joined.
   const initiativesQuery = useGuildInitiatives({ enabled: isGuildAdmin });
-  const updateInitiative = useUpdateInitiative();
   const deleteInitiative = useDeleteInitiative();
   const archiveInitiative = useArchiveEntity();
   const unarchiveInitiative = useUnarchiveEntity();
@@ -408,7 +406,7 @@ export const SettingsInitiativesPage = () => {
               variant="outline"
               size="sm"
               onClick={() => toggleArchive(initiative)}
-              disabled={updateInitiative.isPending}
+              disabled={archiveInitiative.isPending || unarchiveInitiative.isPending}
             >
               {initiative.archived_at !== null ? (
                 <>

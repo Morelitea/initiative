@@ -16,7 +16,7 @@ import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/I
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
-import { useDeleteInitiative, useUpdateInitiative } from "@/hooks/useInitiatives";
+import { useDeleteInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -32,15 +32,6 @@ export const InitiativeSettingsDangerPage = () => {
 
   const archiveInitiative = useArchiveEntity();
   const unarchiveInitiative = useUnarchiveEntity();
-
-  const updateInitiative = useUpdateInitiative({
-    onSuccess: () => {
-      toast.success(t("settings.updated"));
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:settings.updateError"));
-    },
-  });
 
   const deleteInitiative = useDeleteInitiative({
     onSuccess: () => {
@@ -66,7 +57,7 @@ export const InitiativeSettingsDangerPage = () => {
         isDefault={initiative.is_default}
         isArchived={initiative.archived_at !== null}
         canArchiveInitiative={isGuildAdmin}
-        isArchiving={updateInitiative.isPending}
+        isArchiving={archiveInitiative.isPending || unarchiveInitiative.isPending}
         onToggleArchive={() =>
           (initiative.archived_at === null ? archiveInitiative : unarchiveInitiative).mutate({
             entityType: "initiative",

@@ -86,7 +86,7 @@ async def test_initiative_rls_still_applies_to_it(engine, provisioned):
                 f"INSERT INTO {schema}.projects (name, guild_id, initiative_id, "
                 "archived_at, is_template, comments_enabled, "
                 "created_at, updated_at) "
-                "VALUES ('p', :g, :i, false, false, true, now(), now())"
+                "VALUES ('p', :g, :i, NULL, false, true, now(), now())"
             ),
             {"g": _GID, "i": initiative_id},
         )
