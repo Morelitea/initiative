@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Upgrading past the archive change no longer stops the app from starting** — the previous release made archiving a date rather than a yes-or-no, and removed the old column. Search keeps a trigger on everything it indexes, listing the columns whose change makes an entry stale, and the archive flag was on that list; Postgres holds a column in place for as long as something depends on it. So on any deployment that had run before, the upgrade refused the change and the app restarted into the same failure, over and over. Nothing was damaged by this — the change is applied all at once or not at all, so the database stayed exactly as it was and the previous version carried on serving — but the new version could never finish starting. The upgrade now clears those triggers before the column goes, and they are rebuilt against the new one moments later in the same startup. A fresh install was always fine, which is what kept this hidden until a real upgrade ran it.
+
 - **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
 
 ## [0.68.1] - 2026-09-11
