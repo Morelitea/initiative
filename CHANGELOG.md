@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Removing a sign-in provider no longer takes accounts with it** — deleting a provider from the registry removed the links of everyone who had signed in through it. For most people that was harmless: they still had a password, or a second provider to use. For someone who had only ever signed in through that one provider, it removed the only credential their account had. Deleting a provider is now refused while any account holds it as its only way in, naming that as the reason — those people set a password or link another provider, and then it deletes. A provider some community's sign-in requirement depends on was already refused, and still is.
 - **Hiding a spreadsheet row hides it** — a hidden row stopped taking up space but kept drawing its contents, which landed on top of the row beneath it: hide the row holding "Test2" and "Test2" and "Test3" ended up printed over each other on one line, with both row numbers crowded into the same place. A hidden row or column is no longer drawn at all, so the rows after it close up the way they should. Hiding a frozen row does the same.
 
 ## [0.68.0] - 2026-09-11

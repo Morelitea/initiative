@@ -92,6 +92,7 @@
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Melden Sie sich selbst mit diesem Anbieter an, bevor Sie ihn für die Community verlangen",
   "GUILD_AUTH_NOT_ENABLED": "Die Community-spezifische Anmeldung ist auf dieser Plattform nicht aktiviert",
   "AUTH_PROVIDER_IN_USE": "Die Anmeldeanforderung einer Community verwendet diesen Anbieter; ändern Sie zuerst diese Anforderung",
+  "AUTH_PROVIDER_SOLE_CREDENTIAL": "Einige Konten melden sich nur mit diesem Anbieter an; sie benötigen ein Passwort oder eine andere Anmeldemethode, bevor er entfernt werden kann",
   "SMTP_NOT_CONFIGURED": "SMTP-Einstellungen sind unvollständig.",
   "INVALID_OR_EXPIRED_TOKEN": "Ungültiges oder abgelaufenes Token",
   "RESERVED_SIGIL_IN_NAME": "Namen und Titel dürfen kein # oder @ enthalten.",
