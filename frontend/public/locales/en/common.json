@@ -15,6 +15,11 @@
   "submit": "Submit",
   "reset": "Reset",
   "done": "Done",
+  "toolArchiveFilter": {
+    "label": "Show",
+    "active": "Active",
+    "archived": "Archived"
+  },
   "yes": "Yes",
   "no": "No",
   "ok": "OK",
@@ -86,6 +91,17 @@
     "advancedOptions": "Advanced options"
   },
   "toolSettings": {
+    "archive": {
+      "title": "Archive",
+      "isActive": "Archiving marks this finished. It — and everything inside it — becomes read-only until you take it back out.",
+      "isArchived": "Archived. This and everything inside it is read-only until you take it back out.",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "archiving": "Archiving…",
+      "unarchiving": "Unarchiving…",
+      "archived": "“{{name}}” archived",
+      "unarchived": "“{{name}}” is back"
+    },
     "title": "Settings",
     "description": "Manage details, access, and advanced options.",
     "tabDetails": "Details",

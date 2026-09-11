@@ -159,12 +159,18 @@ export function Plugins({
     // the actions bar's `sticky bottom-0` has somewhere to stick to even when
     // the document is shorter than the viewport.
     <div className="relative flex min-h-full flex-col">
+      {/* `data-editor-toolbar` marks what sits over the top of the scrollport:
+          it sticks there, so anything scrolled to has to clear it. Measured
+          rather than assumed, because the wide row wraps. */}
       {showToolbar && (
         <ToolbarPlugin>
           {({ blockType }) => (
             <>
               {/* Desktop toolbar - all options inline */}
-              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex">
+              <div
+                data-editor-toolbar
+                className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex"
+              >
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -227,7 +233,10 @@ export function Plugins({
               </div>
 
               {/* Compact toolbar - overflow menu */}
-              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden">
+              <div
+                data-editor-toolbar
+                className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden"
+              >
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>

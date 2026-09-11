@@ -44,7 +44,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
-from app.db.frozen import row_is_frozen
+from app.db.frozen import ancestor_is_frozen, row_is_frozen
 from app.core.messages import (
     CommonMessages,
     SharingMessages,
@@ -760,6 +760,61 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     if level is not None and row_is_frozen(row):
         return "read"
     return level
+
+
+def may_unarchive(resource: DacResource, row: Any, user_id: int) -> bool:
+    """Whether the caller may take this row back out of the archive.
+
+    ``compute_permission`` caps a frozen row at read so that every edit
+    affordance goes off at once. Coming back out is a write too, and gating it
+    on that capped level would shut the only door out of the state — so it is
+    answered here instead, from the level the caller would have had if the row
+    were live. The endpoint asks the same question its own way
+    (``allow_frozen``), so the button and the handler agree.
+
+    Two things have to hold. The caller could write it if it were live. And the
+    stamp is the row's own: a row archived along with the thing above it comes
+    back with that thing, which is what the database says too, so the answer
+    here is no and the client points at the parent rather than offering a button
+    that would be refused.
+
+    A read-only guild answers no throughout — its hold is not the archive's to
+    lift.
+    """
+    if getattr(row, "archived_at", None) is None:
+        return False
+    guild_id = getattr(row, "guild_id", None)
+    if content_read_only_active(guild_id):
+        return False
+    if ancestor_is_frozen(row):
+        return False
+    initiative_id = getattr(row, "initiative_id", None)
+    if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
+        return True
+    level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+    return level in ("write", "owner")
+
+
+def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
+    """The two access fields a tool's read schema carries, answered together.
+
+    They are a pair. One says what may be done to the row as it stands — capped
+    at read while it is archived, so every edit affordance goes off at once. The
+    other says whether the caller may end that state. Answered in one place
+    because a surface that reports the first without the second tells someone
+    they may not edit a thing and nothing about how to get it back, which is the
+    state every archived tool was in.
+
+    Returned as a mapping so the pair travels into a serializer as one argument
+    and neither half can be passed without the other.
+    """
+    if user_id is None:
+        return {"my_permission_level": None, "can_unarchive": False}
+    resource = DAC_RESOURCES[tool]
+    return {
+        "my_permission_level": compute_permission(resource, row, user_id),
+        "can_unarchive": may_unarchive(resource, row, user_id),
+    }
 
 
 # ── High-level helpers for projects ─────────────────────────────

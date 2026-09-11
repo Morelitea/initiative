@@ -29,6 +29,13 @@ guild is never left without them; only the three whose WHEN clause names the
 column being dropped cannot survive it, and those are written again here against
 the new one.
 
+The search index names it as well: it renders a refresh trigger whose WHEN
+clause lists every column that makes an entry stale, and the archive flag is one
+of them. So the catalog is asked which triggers depend on the column, in the
+moment before it goes, and those are dropped and left dropped: provisioning
+re-renders them against the surviving column on the next boot, which is this
+same startup.
+
 Revision ID: 20260911_0255
 Revises: 20260911_0254
 Create Date: 2026-09-11
@@ -134,6 +141,47 @@ BEGIN
              || ' WHEN (OLD.archived_at IS NOT NULL OR OLD.deleted_at IS NOT NULL)'
              || ' EXECUTE FUNCTION public.fn_frozen_row_guard()';
     END IF;
+END $$;
+"""
+
+
+#: Triggers that cannot outlive the column being dropped, asked of the catalog.
+#:
+#: A trigger whose ``WHEN`` clause names a column records a real dependency, and
+#: Postgres refuses to drop a column something depends on. The refresh triggers
+#: the search index renders are the ones that bite here: their ``WHEN`` clause
+#: lists every column that makes an entry stale, and both flags are on that list.
+#:
+#: The catalog is asked rather than an inventory kept, because which triggers a
+#: guild carries depends on when it was last provisioned and ``pg_depend`` is
+#: what knows. Its answer is exactly the set the drop would fault on — a trigger
+#: that carries the flag as a text ARGUMENT, or watches some other column, keeps
+#: working across the drop and keeps standing here. On a fresh install the loop
+#: runs against a schema provisioning has yet to reach and finds the drop
+#: already clear, so one statement carries both histories to the same shape.
+#:
+#: Dropping is the whole job: these are provisioning's, re-rendered against the
+#: surviving column on the next boot, which is this same startup and before the
+#: app serves anything. Each rendered block opens with its own ``DROP TRIGGER IF
+#: EXISTS``, so the rebuild picks up from wherever this leaves off.
+_DROP_DEPENDENT_TRIGGERS = """
+DO $$
+DECLARE row record;
+BEGIN
+    FOR row IN
+        SELECT tg.tgname AS trg
+          FROM pg_depend d
+          JOIN pg_trigger tg ON tg.oid = d.objid
+          JOIN pg_attribute a
+            ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+         WHERE d.classid = 'pg_trigger'::regclass
+           AND d.refclassid = 'pg_class'::regclass
+           AND d.refobjid = '{table}'::regclass
+           AND NOT tg.tgisinternal
+           AND a.attname = '{column}'
+    LOOP
+        EXECUTE format('DROP TRIGGER %I ON {table}', row.trg);
+    END LOOP;
 END $$;
 """
 
@@ -302,6 +350,9 @@ def upgrade() -> None:
                 op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
         for table in _CARRYING:
+            op.execute(
+                _DROP_DEPENDENT_TRIGGERS.format(table=table, column="is_archived")
+            )
             op.execute(f"ALTER TABLE {table} DROP COLUMN is_archived")
 
         # The index went with the column it named; the same shape on the new one.
@@ -351,6 +402,9 @@ def downgrade() -> None:
 
         # ``projects`` keeps its ``archived_at``: it had one before this ran.
         for table in _GAINING_COLUMN:
+            op.execute(
+                _DROP_DEPENDENT_TRIGGERS.format(table=table, column="archived_at")
+            )
             op.execute(f"ALTER TABLE {table} DROP COLUMN archived_at")
 
         op.execute(

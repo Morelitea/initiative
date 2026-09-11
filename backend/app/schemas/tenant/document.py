@@ -6,7 +6,9 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.document import DocumentType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -72,7 +74,7 @@ class DocumentCopyRequest(SanitizedBaseModel):
     name: Optional[str] = None
 
 
-class DocumentSummary(DocumentBase):
+class DocumentSummary(DocumentBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -201,7 +203,7 @@ def _serialize_document_properties(document: "Document") -> List[PropertySummary
 def serialize_document_summary(
     document: "Document",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
     initiative = (
@@ -213,7 +215,7 @@ def serialize_document_summary(
         url = content.get("url") if isinstance(content, dict) else None
         if isinstance(url, str) and url:
             smart_link_url = url
-    from app.services.permissions import serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return DocumentSummary(
         id=document.id,
@@ -240,7 +242,8 @@ def serialize_document_summary(
         file_size=document.file_size,
         original_filename=document.original_filename,
         smart_link_url=smart_link_url,
-        my_permission_level=my_permission_level,
+        archived_at=document.archived_at,
+        **client_access(Tool.document, document, user_id),
         yjs_updated_at=document.yjs_updated_at,
     )
 
@@ -248,15 +251,13 @@ def serialize_document_summary(
 def serialize_document(
     document: "Document",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
     include_content: bool = True,
 ) -> DocumentRead:
     """The full document. ``include_content=False`` leaves the body out — every
     other field is unchanged, including the smart-link URL that is derived from
     it."""
-    summary = serialize_document_summary(
-        document, my_permission_level=my_permission_level
-    )
+    summary = serialize_document_summary(document, user_id=user_id)
     return DocumentRead(
         **summary.model_dump(),
         content=(document.content or {}) if include_content else {},

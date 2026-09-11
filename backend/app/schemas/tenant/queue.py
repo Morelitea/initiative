@@ -6,7 +6,9 @@ from typing import List, Optional, Sequence, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
+from app.core.tools import Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
@@ -132,7 +134,7 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueSummary(QueueBase):
+class QueueSummary(QueueBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -236,11 +238,11 @@ def serialize_queue_item(
 def serialize_queue_summary(
     queue: "Queue",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> QueueSummary:
     items = getattr(queue, "items", None) or []
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return QueueSummary(
         id=queue.id,
@@ -254,7 +256,8 @@ def serialize_queue_summary(
         item_count=len(items),
         created_at=queue.created_at,
         updated_at=queue.updated_at,
-        my_permission_level=my_permission_level,
+        archived_at=queue.archived_at,
+        **client_access(Tool.queue, queue, user_id),
         comments_enabled=queue.comments_enabled,
         tags=annotated_tags(queue),
         grants=serialize_grants(queue),
@@ -264,7 +267,7 @@ def serialize_queue_summary(
 def serialize_queue(
     queue: "Queue",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> QueueRead:
     items = getattr(queue, "items", None) or []
     serialized_items = [serialize_queue_item(item) for item in items]
@@ -274,7 +277,7 @@ def serialize_queue(
             if item.id == queue.current_item_id:
                 current_item = item
                 break
-    summary = serialize_queue_summary(queue, my_permission_level=my_permission_level)
+    summary = serialize_queue_summary(queue, user_id=user_id)
     return QueueRead(
         **summary.model_dump(),
         items=serialized_items,

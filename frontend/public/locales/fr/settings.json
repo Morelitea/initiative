@@ -1186,7 +1186,13 @@
     "empty": "Rien n'a encore été enregistré.",
     "pageOf": "Page {{page}} sur {{total}} entrées",
     "actions": {
-      "user.avatar_removed": "Photo de profil supprimée"
+      "user.avatar_removed": "Photo de profil supprimée",
+      "auth.signed_in": "Connexion",
+      "auth.sign_in_failed": "Connexion refusée",
+      "auth.signed_out": "Déconnexion",
+      "auth.password_changed": "Mot de passe modifié",
+      "auth.identity_linked": "Authentification unique liée",
+      "auth.refresh_reuse_detected": "Jeton de session réutilisé rejeté"
     }
   },
   "account": {

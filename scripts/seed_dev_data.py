@@ -79,7 +79,6 @@ from app.models.tenant.counter import (  # noqa: E402
 from app.models.tenant.dashboard import Dashboard  # noqa: E402
 from app.models.tenant.document import (  # noqa: E402
     Document,
-    DocumentLink,
     DocumentType,
 )
 from app.models.platform.access_grant import (  # noqa: E402
@@ -136,9 +135,14 @@ from app.models.tenant.upload import Upload  # noqa: E402
 from app.services.storage import get_guild_storage  # noqa: E402
 from app.services.tenant import galleries as galleries_service  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
-from app.core.relationships import node_id  # noqa: E402
+from app.core.relationships import (  # noqa: E402
+    Provenance,
+    RelationshipType,
+    node_id,
+)
 from app.core.search import SearchEntityType  # noqa: E402
 from app.models.tenant.relationship import EntityRelationship  # noqa: E402
+from app.services.tenant import relationships as relationships_service  # noqa: E402
 from app.models.tenant.tag import Tag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
     Task,
@@ -667,7 +671,7 @@ class IDTracker:
             "task_assignees": [],
             "documents": [],
             "document_permissions": [],
-            "document_links": [],
+            "content_references": [],
             "document_tags": [],
             "project_documents": [],
             "tags": [],
@@ -1616,24 +1620,31 @@ async def _create_recent_views(
 async def _create_document_links(
     session: AsyncSession,
     ids: IDTracker,
-    guild: Guild,
     docs: dict[str, Document],
     links: list[tuple[str, str]],
 ) -> None:
-    """Create wikilinks between documents (source -> target)."""
+    """Record what one document's body names in another (source -> target).
+
+    A wikilink is no longer a row of its own: it is a ``references`` edge with
+    ``content`` provenance, which is what the save-path sync writes when it
+    reads a body. Written through the same service for the same reason — it
+    orders the pair, skips one that is already there, and lets the database
+    derive the node ids and the guild.
+    """
     for source_title, target_title in links:
         source = docs.get(source_title)
         target = docs.get(target_title)
         if not source or not target:
             continue
-        dl = DocumentLink(
-            source_document_id=source.id,
-            target_document_id=target.id,
-            guild_id=guild.id,
+        await relationships_service.create(
+            session,
+            source=relationships_service.Endpoint(SearchEntityType.document, source.id),
+            relationship_type=RelationshipType.references,
+            target=relationships_service.Endpoint(SearchEntityType.document, target.id),
+            provenance=Provenance.content,
         )
-        session.add(dl)
         ids.add(
-            "document_links",
+            "content_references",
             {
                 "source_document_id": source.id,
                 "target_document_id": target.id,
@@ -4197,7 +4208,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g1,
             g1_docs,
             [
                 (
@@ -6376,7 +6386,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g2,
             g2_docs,
             [
                 (
@@ -7854,7 +7863,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g3,
             g3_docs,
             [
                 (
@@ -8944,7 +8952,7 @@ async def seed() -> None:
     )
     print(f"  {len(ids.data['comments'])} comments")
     print(
-        f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links"
+        f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['content_references'])} content references"
     )
     print(
         f"  {len(ids.data['access_grants'])} PAM access grants (pending/live/break-glass/denied/expired)"

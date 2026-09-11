@@ -21,12 +21,14 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.auth_provider_secret import AuthProviderSecret
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,45 @@ def is_login_ready(row: AuthProvider) -> bool:
     the non-secret client config discovery needs. The single predicate behind
     the login routes, the provider listing, and guild auth policies."""
     return bool(row.enabled and row.kind == "oidc" and row.issuer and row.client_id)
+
+
+def login_ready_clause() -> ColumnElement[bool]:
+    """:func:`is_login_ready` as a predicate over ``auth_providers``, for
+    queries that must ask it of rows they are not loading. Kept in step with
+    the row form by ``platform_provider_test``."""
+    return and_(
+        AuthProvider.enabled.is_(True),
+        AuthProvider.kind == "oidc",
+        AuthProvider.issuer.is_not(None),
+        AuthProvider.issuer != "",
+        AuthProvider.client_id.is_not(None),
+        AuthProvider.client_id != "",
+    )
+
+
+def can_serve_login_clause() -> ColumnElement[bool]:
+    """Whether a registry row could actually answer a login, as a predicate
+    over ``auth_providers``.
+
+    :func:`login_ready_clause` plus the platform row's extra condition: the
+    platform flow has always required a stored client secret, where a
+    PKCE-only public client is a guild-provider affordance (see
+    ``_active_platform_provider``). Row-form callers branch between the two
+    halves; a query that must ask of rows it is not loading needs them as one.
+    """
+    return and_(
+        login_ready_clause(),
+        or_(
+            AuthProvider.slug != PLATFORM_OIDC_SLUG,
+            select(AuthProviderSecret.provider_id)
+            .where(
+                AuthProviderSecret.provider_id == AuthProvider.id,
+                AuthProviderSecret.client_secret_encrypted.is_not(None),
+                AuthProviderSecret.client_secret_encrypted != "",
+            )
+            .exists(),
+        ),
+    )
 
 
 def scopes_list(row: AuthProvider) -> list[str]:

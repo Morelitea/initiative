@@ -2606,3 +2606,27 @@ async def test_search_users_says_where_each_member_stands(client, acting_user):
     roles = {item["username"]: item["guild_role"] for item in response.json()["items"]}
     assert roles[admin.user.username] == "admin"
     assert roles[member.user.username] == "member"
+
+
+async def test_changing_a_password_records_when_it_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+    user.password_set_at = None
+    session.add(user)
+    await session.commit()
+    user_id = user.id
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "current_password": "testpassword123",
+            "password": "a-new-and-longer-secret-1",
+        },
+    )
+    assert response.status_code == 200
+
+    session.expire_all()
+    refreshed = await session.get(User, user_id)
+    assert refreshed.password_set_at is not None

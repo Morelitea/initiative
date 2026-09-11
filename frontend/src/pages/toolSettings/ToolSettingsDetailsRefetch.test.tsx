@@ -35,6 +35,8 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   tags: [],
   grants: [],
   comments_enabled: true,
+  archived_at: null,
+  can_unarchive: false,
   ...overrides,
 });
 

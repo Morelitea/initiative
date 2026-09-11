@@ -326,5 +326,7 @@ const createFallbackSummary = (
   original_filename: null,
   smart_link_url: null,
   my_permission_level: null,
+  archived_at: null,
+  can_unarchive: false,
   yjs_updated_at: null,
 });

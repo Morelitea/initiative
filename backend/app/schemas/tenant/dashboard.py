@@ -6,7 +6,9 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services.fields.spec import FieldType
@@ -86,7 +88,7 @@ class DashboardUpdate(SanitizedBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
-class DashboardSummary(DashboardBase):
+class DashboardSummary(DashboardBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -280,7 +282,7 @@ def serialize_dashboard_summary(
     dashboard: "Dashboard", *, user_id: Optional[int] = None
 ) -> DashboardSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import compute_dashboard_permission, serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return DashboardSummary(
         id=dashboard.id,
@@ -293,11 +295,8 @@ def serialize_dashboard_summary(
         updated_at=dashboard.updated_at,
         listing_uid=dashboard.listing_uid,
         listing_version=dashboard.listing_version,
-        my_permission_level=(
-            compute_dashboard_permission(dashboard, user_id)
-            if user_id is not None
-            else None
-        ),
+        archived_at=dashboard.archived_at,
+        **client_access(Tool.dashboard, dashboard, user_id),
         comments_enabled=dashboard.comments_enabled,
         tags=annotated_tags(dashboard),
         grants=serialize_grants(dashboard),

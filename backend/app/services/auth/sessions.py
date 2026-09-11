@@ -20,11 +20,13 @@ in the next slice. This PR is the tested logic layer only (additive-first).
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -32,6 +34,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.auth_session import AuthSession
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "IssuedSession",
@@ -43,11 +47,26 @@ __all__ = [
     "revoke_session",
     "revoke_chain",
     "revoke_all_for_user",
+    "delete_all_for_user",
+    "purge_dead_sessions",
+    "process_dead_session_purge",
+    "SESSION_PURGE_POLL_SECONDS",
+    "SESSION_RETENTION_DAYS",
 ]
 
 # 256 bits of entropy — infeasible to guess, so the hash (not a slow KDF) is the
 # only thing that needs storing.
 _REFRESH_TOKEN_BYTES = 32
+
+#: How long a session row outlives its own usefulness. A row carries a user
+#: agent, an IP and a device label for the "your active sessions" screen; once
+#: the session can no longer be used, that is all it carries, so it is kept for
+#: a window and then removed.
+SESSION_RETENTION_DAYS = 30
+
+#: ``auth_sessions`` is app_admin-only, so the sweep runs on AdminSessionLocal
+#: with no guild routing — the same shape as the expired-token purge.
+SESSION_PURGE_POLL_SECONDS = 3600
 
 
 def _now() -> datetime:
@@ -104,6 +123,11 @@ class RotationResult:
 
     outcome: RefreshOutcome
     issued: IssuedSession | None = None  # present iff ``outcome is ROTATED``
+    #: Whose session the token belonged to. Set whenever the token resolved to
+    #: a row, so a ``REUSED`` rejection — where there is no ``issued`` — can
+    #: still say whose chain was killed. ``None`` for a token that matched
+    #: nothing at all.
+    user_id: int | None = None
 
     @property
     def ok(self) -> bool:
@@ -144,6 +168,7 @@ async def create_session(
     user_id: int,
     amr: list[str],
     satisfied_providers: list[int],
+    provider_auth: dict[str, Any] | None = None,
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
@@ -154,7 +179,9 @@ async def create_session(
 
     ``amr`` / ``satisfied_providers`` record which factors/providers this login
     satisfied — they are mirrored into the access token so the per-guild
-    auth-policy gate and step-up read them locally.
+    auth-policy gate and step-up read them locally. ``provider_auth`` carries
+    each satisfied provider's own account of its authentication event (see
+    ``services.auth.assurance``).
     """
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
@@ -164,6 +191,7 @@ async def create_session(
         refresh_token_hash=_hash_refresh_token(raw),
         amr=list(amr),
         satisfied_providers=list(satisfied_providers),
+        provider_auth=dict(provider_auth or {}),
         created_at=issued,
         expires_at=issued + ttl,
         user_agent=user_agent,
@@ -181,6 +209,7 @@ async def rotate_session(
     raw_refresh_token: str,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    provider_auth: dict[str, Any] | None = None,
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
@@ -189,8 +218,9 @@ async def rotate_session(
 ) -> RotationResult:
     """Single-use rotate: spend the presented refresh token, mint its successor.
 
-    Carries ``amr``/``satisfied_providers`` (and device metadata) forward from the
-    parent unless overridden — a step-up rotation passes the widened set.
+    Carries ``amr``/``satisfied_providers``/``provider_auth`` (and device
+    metadata) forward from the parent unless overridden — a step-up rotation
+    passes the widened set.
 
     **Returns** a :class:`RotationResult` (never raises for a bad token) —
     ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
@@ -218,10 +248,10 @@ async def rotate_session(
     # Already spent (rotated or explicitly revoked) ⇒ replay of a dead token.
     if row.revoked_at is not None:
         await revoke_chain(session, session_id=row.id, now=issued)
-        return RotationResult(RefreshOutcome.REUSED)
+        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
 
     if row.expires_at <= issued:
-        return RotationResult(RefreshOutcome.EXPIRED)
+        return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
@@ -237,7 +267,7 @@ async def rotate_session(
     if claimed is None:
         # Lost the race to a concurrent rotation — same danger as a replay.
         await revoke_chain(session, session_id=row.id, now=issued)
-        return RotationResult(RefreshOutcome.REUSED)
+        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
 
@@ -250,6 +280,11 @@ async def rotate_session(
             list(satisfied_providers)
             if satisfied_providers is not None
             else list(row.satisfied_providers)
+        ),
+        provider_auth=(
+            dict(provider_auth)
+            if provider_auth is not None
+            else dict(row.provider_auth)
         ),
         parent_id=row.id,
         created_at=issued,
@@ -339,3 +374,61 @@ async def revoke_all_for_user(
         params={"now": now or _now(), "uid": user_id},
     )
     return result.rowcount
+
+
+async def delete_all_for_user(session: AsyncSession, *, user_id: int) -> int:
+    """Remove every session row for a user. Returns the number removed.
+
+    The erasure counterpart to :func:`revoke_all_for_user`. A password change
+    revokes, because the rows are still the record of where somebody was
+    signed in. Erasing the account removes them, because by then the row is
+    only a user agent, an IP and a device label belonging to a person who
+    asked to be forgotten. A hard delete gets this from the ``users`` foreign
+    key; an anonymize keeps the row, so it comes through here.
+
+    Stages only — the caller commits, so this lands with the rest of the
+    erasure or not at all.
+    """
+    result = await session.exec(
+        text("DELETE FROM auth_sessions WHERE user_id = :uid"),
+        params={"uid": user_id},
+    )
+    return result.rowcount
+
+
+async def purge_dead_sessions(
+    session: AsyncSession,
+    *,
+    retention_days: int = SESSION_RETENTION_DAYS,
+    now: datetime | None = None,
+) -> int:
+    """Remove sessions that can no longer be used and are past the retention
+    window. Returns the number removed.
+
+    A row qualifies once it is expired, or was revoked, longer ago than
+    ``retention_days``. A live session matches neither. ``parent_id`` is a
+    plain uuid rather than a self-reference, so removing one end of a rotation
+    chain leaves the rest intact.
+    """
+    horizon = (now or _now()) - timedelta(days=retention_days)
+    result = await session.exec(
+        text(
+            "DELETE FROM auth_sessions "
+            "WHERE expires_at < :horizon "
+            "   OR (revoked_at IS NOT NULL AND revoked_at < :horizon)"
+        ),
+        params={"horizon": horizon},
+    )
+    await session.commit()
+    return result.rowcount
+
+
+async def process_dead_session_purge() -> None:
+    """Hourly background sweep over ``auth_sessions`` (see
+    :data:`SESSION_RETENTION_DAYS`)."""
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        removed = await purge_dead_sessions(session)
+        if removed:
+            logger.info("session purge removed %d dead session row(s)", removed)

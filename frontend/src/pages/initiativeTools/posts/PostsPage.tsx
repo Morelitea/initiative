@@ -8,6 +8,11 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreatePostDialog } from "@/components/initiativeTools/posts/CreatePostDialog";
 import { PostCard } from "@/components/initiativeTools/posts/PostCard";
 import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/posts/PostsFilterBar";
+import {
+  archivedParam,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
@@ -85,6 +90,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Which of the board's two states it is showing. An archived notice is off
+  // the feed, so this is the only place it can be reached.
+  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
   const search = useDebouncedValue(searchQuery, 300);
 
   // Where the board has been jumped to, if anywhere. Setting it re-anchors the
@@ -94,6 +102,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
 
   const filters = {
     initiative_id: fixedInitiativeId,
+    archived: archivedParam(archiveState),
     ...(search.trim() ? { search: search.trim() } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
   };
@@ -256,6 +265,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     <PostReadTrackerProvider>
       <div className="space-y-6">
         <ToolListToolbar
+          leading={
+            <ToolArchiveFilter tool={Tool.post} value={archiveState} onChange={setArchiveState} />
+          }
           // The panel below holds the fields; this is what opens it. Without
           // it the filters exist and nothing on the page reaches them.
           filters={{

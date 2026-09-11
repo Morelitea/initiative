@@ -90,6 +90,7 @@
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Connectez-vous vous-même avec ce fournisseur avant de l'exiger pour la communauté",
   "GUILD_AUTH_NOT_ENABLED": "L'authentification par communauté n'est pas activée sur cette plateforme",
   "AUTH_PROVIDER_IN_USE": "L'exigence de connexion d'une communauté utilise ce fournisseur ; modifiez d'abord cette exigence",
+  "AUTH_PROVIDER_SOLE_CREDENTIAL": "Certains comptes se connectent uniquement avec ce fournisseur ; ils ont besoin d'un mot de passe ou d'une autre méthode de connexion avant de pouvoir le supprimer",
   "SMTP_NOT_CONFIGURED": "Les paramètres SMTP sont incomplets.",
   "INVALID_OR_EXPIRED_TOKEN": "Jeton invalide ou expiré",
   "RESERVED_SIGIL_IN_NAME": "Les noms et les titres ne peuvent pas contenir # ni @.",

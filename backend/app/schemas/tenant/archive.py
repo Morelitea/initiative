@@ -28,3 +28,24 @@ class ArchiveResponse(SanitizedBaseModel):
     entity_type: ArchivableType
     entity_id: int
     archived_at: Optional[datetime] = None
+
+
+class ArchiveState(SanitizedBaseModel):
+    """What a read schema says about the archive, for every tool that has one.
+
+    Mixed into each tool's summary rather than written out on each, so a tool
+    cannot end up carrying the stamp without also carrying the way back out —
+    which is the state all but three of them were in.
+    """
+
+    #: When this was put away, or ``null`` while it is live.
+    archived_at: Optional[datetime] = None
+    #: Whether the caller may take it back out.
+    #:
+    #: Server-computed, and deliberately not derivable from the field beside it:
+    #: an archived row reports ``read`` for ``my_permission_level`` — the cap
+    #: that turns every edit affordance off at once — so the way out has to be
+    #: answered separately or it is capped away with everything else. False as
+    #: well for a row archived along with the thing above it, which comes back
+    #: with that thing rather than on its own.
+    can_unarchive: bool = False

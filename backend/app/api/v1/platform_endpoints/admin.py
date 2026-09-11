@@ -353,9 +353,9 @@ async def list_audit_events(
     # The rows hold ids, so a name is looked up now rather than stored then.
     # An account that has since been erased simply resolves to nothing, and the
     # record of what was done to it stays intact.
-    wanted = {event.actor_user_id for event in events} | {
-        event.target_user_id for event in events if event.target_user_id is not None
-    }
+    wanted = {
+        event.actor_user_id for event in events if event.actor_user_id is not None
+    } | {event.target_user_id for event in events if event.target_user_id is not None}
     handles: dict[int, User] = {}
     if wanted:
         rows = await session.exec(select(User).where(User.id.in_(wanted)))

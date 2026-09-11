@@ -295,7 +295,18 @@
     "hideFilters": "Hide filters",
     "updating": "Updating..."
   },
+  "outline": {
+    "title": "Contents",
+    "show": "Show contents",
+    "hide": "Hide contents",
+    "empty": "Headings you add appear here.",
+    "untitled": "Untitled heading",
+    "expand": "Show what is under {{heading}}",
+    "collapse": "Hide what is under {{heading}}"
+  },
   "page": {
+    "noArchivedDescription": "Documents you archive land here, read-only, until you take them back out.",
+    "noArchivedTitle": "Nothing archived",
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
     "newDocument": "New document",
@@ -607,7 +618,8 @@
   "status": {
     "label": "Show",
     "documents": "Documents",
-    "templates": "Templates"
+    "templates": "Templates",
+    "archived": "Archived"
   },
   "summary": {
     "aiNotEnabled": "AI features are not enabled. Configure AI settings to generate document summaries.",

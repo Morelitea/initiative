@@ -295,7 +295,18 @@
     "hideFilters": "Filter ausblenden",
     "updating": "Wird aktualisiert..."
   },
+  "outline": {
+    "title": "Inhalt",
+    "show": "Inhalt anzeigen",
+    "hide": "Inhalt ausblenden",
+    "empty": "Überschriften, die du hinzufügst, erscheinen hier.",
+    "untitled": "Überschrift ohne Titel",
+    "expand": "Zeigen, was unter {{heading}} steht",
+    "collapse": "Ausblenden, was unter {{heading}} steht"
+  },
   "page": {
+    "noArchivedDescription": "Archivierte Dokumente landen hier — schreibgeschützt, bis du sie zurückholst.",
+    "noArchivedTitle": "Nichts archiviert",
     "title": "Dokumente",
     "subtitle": "Halte das Wissen der Initiative organisiert und hänge Dokumente an Projekte an.",
     "newDocument": "Neues Dokument",
@@ -607,7 +618,8 @@
   "status": {
     "label": "Anzeigen",
     "documents": "Dokumente",
-    "templates": "Vorlagen"
+    "templates": "Vorlagen",
+    "archived": "Archiviert"
   },
   "summary": {
     "aiNotEnabled": "KI-Funktionen sind nicht aktiviert. Konfiguriere die KI-Einstellungen, um Dokumentzusammenfassungen zu generieren.",

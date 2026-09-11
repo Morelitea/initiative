@@ -9,7 +9,9 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
@@ -156,7 +158,7 @@ class CounterGroupDuplicateRequest(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
 
 
-class CounterGroupSummary(CounterGroupBase):
+class CounterGroupSummary(CounterGroupBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -245,10 +247,10 @@ def _active_counters(group: "CounterGroup") -> list:
 def serialize_counter_group_summary(
     group: "CounterGroup",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> CounterGroupSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return CounterGroupSummary(
         id=group.id,
@@ -258,7 +260,8 @@ def serialize_counter_group_summary(
         guild_id=group.guild_id,
         created_by=group.created_by,
         counter_count=len(_active_counters(group)),
-        my_permission_level=my_permission_level,
+        archived_at=group.archived_at,
+        **client_access(Tool.counter_group, group, user_id),
         created_at=group.created_at,
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,
@@ -270,11 +273,9 @@ def serialize_counter_group_summary(
 def serialize_counter_group(
     group: "CounterGroup",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> CounterGroupRead:
-    summary = serialize_counter_group_summary(
-        group, my_permission_level=my_permission_level
-    )
+    summary = serialize_counter_group_summary(group, user_id=user_id)
     counters = sorted(_active_counters(group), key=lambda c: c.position)
     return CounterGroupRead(
         **summary.model_dump(),

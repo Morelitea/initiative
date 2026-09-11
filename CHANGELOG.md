@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.2] - 2026-09-11
+
+### Added
+
+- **A document has a contents list** — a long page is easier to move around than to scroll, so every document now offers one: a panel listing its headings, nested the way they are written, that scrolls the page to a heading when you pick one and marks the one you are reading as you go. Sections with headings under them fold away, and a document that starts at a second-level heading is laid out from there rather than from an indent nobody wrote. It is closed until you open it, and then it stays open. Beside the document on a desktop; on a phone it takes the page over while it is open, because a column that narrow would be worse than no list at all.
+
+### Changed
+
+- **Signing in is written down** — the audit log kept moderator actions and nothing about authentication. Signing in, a refused sign-in and why it was refused, signing out, changing or resetting a password, an account linked to a single sign-on provider, and a replayed session token are all recorded now, with who and when. A refused attempt is recorded only when it matched a real account — an address nobody holds is not written down at all, and a refused attempt records the account it was aimed at rather than crediting that account with making it. This is the record an administrator needs to answer who got in and when, and it is what the existing audit log was built for.
+- **Accounts record when their password was set** — a stored password hash said a value was there, never whether anybody knew it. Accounts created through single sign-on before mid-2026 were given a throwaway password nobody ever held, which looks exactly like a real one. Setting or changing a password now records when, so the question stops being unanswerable for every account from here on, and the few stored values that could never have worked have been cleared. Nothing is guessed: an existing password is left alone, and how you sign in does not change.
+
+### Fixed
+
+- **Archived work can be brought back out again** — the last release made archiving mean something everywhere but left no way out of it: an archived project offered "you need write access" where its Unarchive button used to be, and seven of the eight tools had no archive control at all and nowhere to see what had been put away. Every tool now has an Archive section in its settings that both puts it away and takes it back, and every tool list has an Archived view to find it in — documents beside their templates, calendars in the community's tool table. Anything archived along with the initiative or project above it comes back when that one does.
+
+- **Upgrading no longer leaves the app unable to start** — on an existing deployment, the previous release's change to how archiving is recorded could not be applied, and the new version restarted into the same failure instead of coming up. Nothing was lost: the change is applied whole or not at all, so the database was left exactly as it was and the running version carried on serving throughout. Upgrading completes now, and a deployment already stuck this way recovers on its next restart with nothing to repair by hand.
+
+- **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
+
 ## [0.68.1] - 2026-09-11
 
 ### Changed
@@ -17,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Removing a sign-in provider no longer takes accounts with it** — deleting a provider from the registry removed the links of everyone who had signed in through it. For most people that was harmless: they still had a password, or a second provider to use. For someone who had only ever signed in through that one provider, it removed the only credential their account had. Deleting a provider is now refused while any account holds it as its only way in, naming that as the reason — those people set a password or link another provider, and then it deletes. A provider some community's sign-in requirement depends on was already refused, and still is.
 - **Hiding a spreadsheet row hides it** — a hidden row stopped taking up space but kept drawing its contents, which landed on top of the row beneath it: hide the row holding "Test2" and "Test2" and "Test3" ended up printed over each other on one line, with both row numbers crowded into the same place. A hidden row or column is no longer drawn at all, so the rows after it close up the way they should. Hiding a frozen row does the same.
 
 ## [0.68.0] - 2026-09-11

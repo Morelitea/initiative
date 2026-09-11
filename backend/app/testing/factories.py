@@ -342,37 +342,29 @@ async def create_guild_membership(
     return membership
 
 
-def get_auth_token(user: User) -> str:
-    """
-    Generate a valid JWT access token for a user.
-
-    Args:
-        user: User to generate token for
-
-    Returns:
-        JWT access token string
-
-    Example:
-        token = get_auth_token(test_user)
-        headers = {"Authorization": f"Bearer {token}"}
-        response = await client.get("/api/v1/users/me", headers=headers)
-    """
-    return create_access_token(subject=str(user.id), token_version=user.token_version)
-
-
-def get_new_access_token(
+def get_auth_token(
     user: User,
     *,
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
 ) -> str:
-    """Mint a *new-model* access token (aud ``initiative:access``) for a user.
+    """A session credential for ``user`` — the token the app actually issues.
 
-    Mirrors :func:`get_auth_token` but for the dual-verify path: exercises that
-    the session-JWT verifiers accept the new scheme. ``session_id``/``amr``/
-    ``sat`` default to a throwaway session with ``pwd`` since the verify path
-    only checks ``sub``/``ver``.
+    ``aud=initiative:access``, carrying ``sid``/``amr``/``sat``, so a test
+    authenticates through the same verification a signed-in browser does.
+    ``sid`` is a throwaway uuid: the access token is stateless and nothing on
+    the request path resolves it against an ``auth_sessions`` row.
+
+    ``sat`` defaults to empty, which is what a password sign-in carries — a
+    test that needs a guild's sign-in policy satisfied passes the provider ids.
+
+    Use :func:`get_legacy_auth_token` where the pre-session scheme is itself
+    the thing under test.
+
+    Example:
+        headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
+        response = await client.get("/api/v1/users/me", headers=headers)
     """
     token, _ = mint_access_token(
         user_id=user.id,
@@ -384,6 +376,22 @@ def get_new_access_token(
         else [],
     )
     return token
+
+
+def get_legacy_auth_token(user: User) -> str:
+    """A pre-session-model token: no ``aud``/``iss``, and none of
+    ``sid``/``amr``/``sat``.
+
+    ``decode_session_token`` accepts both schemes, and this is what exercises
+    that half. For tests about the legacy scheme itself — everything else wants
+    :func:`get_auth_token`.
+    """
+    return create_access_token(subject=str(user.id), token_version=user.token_version)
+
+
+def get_legacy_auth_headers(user: User) -> dict[str, str]:
+    """:func:`get_legacy_auth_token` as an Authorization header."""
+    return {"Authorization": f"Bearer {get_legacy_auth_token(user)}"}
 
 
 def get_auth_headers(user: User) -> dict[str, str]:
