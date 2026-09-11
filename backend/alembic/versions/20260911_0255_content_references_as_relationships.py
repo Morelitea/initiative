@@ -19,10 +19,11 @@ content, which is the honest attributor for what that save said.
 trigger. The trigger would resolve it from the same row and get the same answer,
 but a migration that states it pays one join instead of one lookup per row.
 
-The copy reads a table that has FORCE ROW LEVEL SECURITY, which binds even the
+The copy reads tables that have FORCE ROW LEVEL SECURITY, which binds even the
 owner the migration runs as, and the policies key on request GUCs a migration
-has no value for. So FORCE is lifted for the copy on both sides and restored on
-the destination, and the row counts are asserted to match.
+has no value for. So FORCE is lifted for the copy on the junction, on the
+destination and on ``documents`` — which the guild is read from — and restored
+on the two that survive. The row counts are asserted to match.
 
 The count assertion catches a partial copy and nothing else — both sides of it
 are read under the same policies, so a copy that reads zero compares zero to
@@ -32,7 +33,7 @@ replays this revision over a database that has rows in it. A fresh install has
 nothing to carry over, so every test that builds from empty passes either way.
 
 Revision ID: 20260911_0255
-Revises: 20260910_0253
+Revises: 20260911_0254
 Create Date: 2026-09-11
 """
 
@@ -42,7 +43,7 @@ from alembic import op
 from app.db.guild_migrations import run_for_each_guild_schema
 
 revision = "20260911_0255"
-down_revision = "20260910_0253"
+down_revision = "20260911_0254"
 branch_labels = None
 depends_on = None
 
@@ -90,9 +91,11 @@ def _copy_links() -> None:
     ).scalar():
         return
 
-    restore_destination = _forced(bind, "relationships")
-    if restore_destination:
-        op.execute("ALTER TABLE relationships NO FORCE ROW LEVEL SECURITY")
+    # The destination, and the table the copy reads the guild from. Both are
+    # put back as they were found.
+    restore = [t for t in ("relationships", "documents") if _forced(bind, t)]
+    for table in restore:
+        op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
     try:
         # Dropped immediately after, so there is nothing to restore it on.
         op.execute("ALTER TABLE document_links NO FORCE ROW LEVEL SECURITY")
@@ -134,8 +137,8 @@ def _copy_links() -> None:
             )
         op.execute("DROP TABLE document_links")
     finally:
-        if restore_destination:
-            op.execute("ALTER TABLE relationships FORCE ROW LEVEL SECURITY")
+        for table in restore:
+            op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
 
 def upgrade() -> None:

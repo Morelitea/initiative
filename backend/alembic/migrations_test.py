@@ -850,6 +850,9 @@ class TestMostRecentRevision:
 _PRE_RELATIONSHIPS = "20260910_0251"
 _RELATIONSHIPS = "20260910_0252"
 _TAGS_AS_RELATIONSHIPS = "20260910_0253"
+#: The revision the content-reference move follows, which is what one step back
+#: from it lands on.
+_BEFORE_CONTENT_REFERENCES = "20260911_0254"
 _CONTENT_REFERENCES = "20260911_0255"
 
 #: Enough of a guild schema to hang a junction row off. ``guild_template`` is a
@@ -1026,7 +1029,7 @@ class TestJunctionsMoveTheirRows:
         _run_alembic("upgrade", _CONTENT_REFERENCES)
 
         _run_alembic("downgrade", "-1")
-        assert _current_alembic_revision() == _TAGS_AS_RELATIONSHIPS
+        assert _current_alembic_revision() == _BEFORE_CONTENT_REFERENCES
         assert _table_exists("document_links", "guild_template")
         assert (
             _fetchval(
