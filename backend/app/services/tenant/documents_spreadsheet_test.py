@@ -144,3 +144,23 @@ def test_hidden_sheet_is_kept_when_another_is_shown() -> None:
         }
     )
     assert [sheet.get("hidden") for sheet in normalized["sheets"]] == [None, True]
+
+
+@pytest.mark.unit
+def test_a_cell_entry_keeps_its_wrapper() -> None:
+    content = normalize_spreadsheet_content(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {
+                    "id": "s1",
+                    "name": "S",
+                    "cells": {"0:0": 1},
+                    "cellStyles": {"0:0": {"style": {"italic": True}}},
+                }
+            ],
+        }
+    )
+
+    assert content["sheets"][0]["cellStyles"]["0:0"] == {"style": {"italic": True}}

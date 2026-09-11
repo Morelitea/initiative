@@ -583,7 +583,7 @@ async def test_document_export_spreadsheet_formats(
                 "1:0": "+not-a-formula",
                 "1:1": 42,
             },
-            "cellStyles": {"0:0": {"bold": True, "fill": "#ff0000"}},
+            "cellStyles": {"0:0": {"style": {"bold": True, "fill": "#ff0000"}}},
             "columns": {"0": {"width": 140}},
             "rows": {},
             "frozen": {"rows": 1, "cols": 0},
@@ -660,7 +660,7 @@ async def test_document_export_spreadsheet_survives_corrupt_snapshot(
             "dimensions": {"rows": 1, "cols": 1},
             "cells": {"0:0": "ok", "corrupt": "x", "1:2:3": "y", ":": "z"},
             "cellStyles": {
-                "0:0": {"fill": "#fff", "color": "not-a-color"},
+                "0:0": {"style": {"fill": "#fff", "color": "not-a-color"}},
             },
         },
     )
