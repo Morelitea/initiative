@@ -13,8 +13,17 @@
 import type { InitiativeRead, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { isToolEnabled, TOOLS } from "@/lib/tools";
 
-/** A tool, as the entity type a reference names it by. */
-const asEntityType = (tool: Tool): SearchEntityType => tool as unknown as SearchEntityType;
+/**
+ * A tool — or a task, a project's child rather than a tool of its own — as the
+ * entity type a reference names it by.
+ *
+ * The two vocabularies spell every one of them the same word, so this is the
+ * one place that says so rather than a cast at each call site. `references.test`
+ * holds them to it: a tool whose spellings drifted apart would still compile,
+ * and would quietly stop being excluded from its own comment thread's picker.
+ */
+export const referenceTypeFor = (tool: Tool | "task"): SearchEntityType =>
+  tool as unknown as SearchEntityType;
 
 /**
  * The tools `[[ ]]` may offer in one initiative.
@@ -30,7 +39,7 @@ const asEntityType = (tool: Tool): SearchEntityType => tool as unknown as Search
 export const linkableToolTypes = (
   initiative: InitiativeRead | null | undefined
 ): SearchEntityType[] =>
-  TOOLS.filter((tool) => !initiative || isToolEnabled(tool, initiative)).map(asEntityType);
+  TOOLS.filter((tool) => !initiative || isToolEnabled(tool, initiative)).map(referenceTypeFor);
 
 /** Whether `[[ ]]` can make one of these from a name alone. */
 export const isCreatableFromName = (

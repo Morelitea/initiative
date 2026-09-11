@@ -52,16 +52,33 @@ def format_ref(
     return REF_SEPARATOR.join(parts)
 
 
+#: The largest id a reference can name. Every id column here is a Postgres
+#: ``integer``, so a number past this names nothing that exists — and it is a
+#: number the database cannot be asked about, rather than one it answers "no"
+#: to.
+MAX_ENTITY_ID = 2_147_483_647
+
+#: The characters an id is written with. Checked explicitly because
+#: ``str.isdigit`` is true of more than these — a superscript is a digit by that
+#: measure and not a number ``int`` will read.
+_ID_DIGITS = frozenset("0123456789")
+
+
 def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
     """The thing a bare reference names, or ``None`` for a string that names none.
 
     The inverse of :func:`format_ref` without an aspect. A reference that does
     not parse is dropped rather than refused: stored content outlives the build
     that wrote it, and a kind this build no longer offers should cost a reader
-    the reference, not the page it is on.
+    the reference, not the page it is on. A reference arriving from a client is
+    read the same way, so a malformed one narrows nothing instead of failing
+    the request.
     """
     kind, separator, raw_id = ref.partition(REF_SEPARATOR)
-    if not separator or not raw_id.isdigit():
+    if not separator or not raw_id or not _ID_DIGITS.issuperset(raw_id):
+        return None
+    entity_id = int(raw_id)
+    if entity_id > MAX_ENTITY_ID:
         return None
     try:
         entity_type = SearchEntityType(kind)
@@ -69,4 +86,4 @@ def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
         return None
     if not is_referenceable(entity_type):
         return None
-    return entity_type, int(raw_id)
+    return entity_type, entity_id

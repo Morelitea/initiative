@@ -2,12 +2,7 @@ import { HelpCircle, MessageSquarePlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  CommentCreate,
-  CommentRead,
-  SearchEntityType,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -16,6 +11,7 @@ import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/us
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { entityMentionSyntax } from "@/lib/mentions";
+import { referenceTypeFor } from "@/lib/references";
 import { referenceRef } from "@/lib/smartChips";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -91,7 +87,7 @@ export const CommentSection = ({
   // the page it is written on, so no composer here offers it — the box at the
   // top, and every reply and edit below.
   const subject = useMemo(
-    () => referenceRef(entityType as SearchEntityType, entityId),
+    () => referenceRef(referenceTypeFor(entityType), entityId),
     [entityType, entityId]
   );
 
