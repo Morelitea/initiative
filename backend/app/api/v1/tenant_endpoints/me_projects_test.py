@@ -5,6 +5,7 @@ Tests GET /api/v1/me/projects which returns projects across all guilds
 the current user belongs to, filtered by DAC permissions.
 """
 
+from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -56,7 +57,7 @@ async def test_list_global_projects_excludes_archived(
     archived_project = await create_project(
         session, initiative, user, name="Archived Project"
     )
-    archived_project.is_archived = True
+    archived_project.archived_at = datetime.now(timezone.utc)
     session.add(archived_project)
     await session.commit()
 

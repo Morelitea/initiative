@@ -360,7 +360,7 @@ async def _overdue_task_in_new_guild(
         user,
         name=f"{label} Project",
         is_template=is_template,
-        is_archived=project_archived,
+        archived_at=datetime.now(timezone.utc) if project_archived else None,
     )
     status = TaskStatus(
         guild_id=guild.id,
@@ -380,7 +380,7 @@ async def _overdue_task_in_new_guild(
         title=f"{label} overdue",
         priority=TaskPriority.medium,
         due_date=datetime.now(timezone.utc) - timedelta(days=1),
-        is_archived=task_archived,
+        archived_at=datetime.now(timezone.utc) if task_archived else None,
     )
     session.add(task)
     await session.commit()

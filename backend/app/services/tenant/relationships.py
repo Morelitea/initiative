@@ -17,9 +17,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable, Sequence
+from typing import Iterable, Literal, Sequence
 
 from sqlalchemy import text, union_all
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,6 +41,10 @@ from app.models.tenant.relationship import EntityRelationship
 #: needs this even with the CYCLE clause below, because a mixed-type path can
 #: revisit a node the clause is not tracking.
 MAX_WALK_DEPTH = 10
+
+#: Which way an edge runs relative to the thing being asked about. ``inbound``
+#: is the "what links here" question a backlinks panel asks.
+Direction = Literal["inbound", "outbound", "both"]
 
 
 @dataclass(frozen=True)
@@ -124,6 +129,63 @@ async def create(
     return row
 
 
+async def create_many(
+    session: AsyncSession,
+    *,
+    source: Endpoint,
+    relationship_type: RelationshipType,
+    targets: Sequence[Endpoint],
+    provenance: Provenance,
+    created_by: int | None = None,
+) -> None:
+    """Record several edges from one thing, skipping any already there.
+
+    One statement, and the database decides what is new: two people saving at
+    the same moment can each read no edge and each go on to write it, and the
+    second one arriving is the answer being already correct rather than a
+    failure. :func:`create` answers one at a time and reports the clash, which
+    is what a person making a link by hand needs to be told.
+
+    Self-loops are dropped rather than refused, for the same reason: a body
+    naming its own page is ordinary.
+    """
+    rows = [
+        {
+            "source_type": source.kind.value,
+            "source_id": source.id,
+            "relationship_type": relationship_type.value,
+            "target_type": target.kind.value,
+            "target_id": target.id,
+            "provenance": provenance.value,
+            "created_at": datetime.now(timezone.utc),
+            "created_by": created_by,
+        }
+        for target in _ordered_many(source, relationship_type, targets)
+    ]
+    if not rows:
+        return
+    await session.exec(
+        pg_insert(EntityRelationship).values(rows).on_conflict_do_nothing()
+    )
+    await session.flush()
+
+
+def _ordered_many(
+    source: Endpoint, relationship_type: RelationshipType, targets: Sequence[Endpoint]
+) -> list[Endpoint]:
+    """The far ends worth writing — everything but the source itself.
+
+    A symmetric relation has no source to keep, so this is only for the
+    directional ones; :func:`create` is the door a symmetric edge comes through.
+    """
+    if is_symmetric(relationship_type):
+        raise ValueError(
+            f"{relationship_type.value} is stored in node-id order, so a batch "
+            "from one source is not how it is written"
+        )
+    return [target for target in targets if target.node != source.node]
+
+
 async def find(
     session: AsyncSession,
     *,
@@ -176,14 +238,19 @@ async def list_for_entity(
     *,
     relationship_type: RelationshipType | None = None,
     other_kind: SearchEntityType | None = None,
+    direction: Direction = "both",
 ) -> list[EntityRelationship]:
     """Every live edge touching this entity, from either side.
 
     Two anchored index seeks unioned, never ``WHERE source = x OR target = x``:
     the OR form can use neither index and degrades to a scan of the table, and a
     scan happens *before* the policy has narrowed anything. Both directions are
-    genuinely needed — a symmetric edge is stored in node-id order, so a given
-    document sits on whichever side sorted lower.
+    genuinely needed by default — a symmetric edge is stored in node-id order,
+    so a given document sits on whichever side sorted lower.
+
+    ``direction`` narrows to one side for the relations where the two sides are
+    different questions: what this document names is one list, and what names
+    it is another.
     """
 
     def arm(column, other_column):
@@ -199,13 +266,18 @@ async def list_for_entity(
             stmt = stmt.where(other_column == other_kind.value)
         return stmt
 
-    outbound = await session.exec(
-        arm(EntityRelationship.source_node, EntityRelationship.target_type)
-    )
-    inbound = await session.exec(
-        arm(EntityRelationship.target_node, EntityRelationship.source_type)
-    )
-    return [*outbound.all(), *inbound.all()]
+    rows: list[EntityRelationship] = []
+    if direction in ("outbound", "both"):
+        found = await session.exec(
+            arm(EntityRelationship.source_node, EntityRelationship.target_type)
+        )
+        rows.extend(found.all())
+    if direction in ("inbound", "both"):
+        found = await session.exec(
+            arm(EntityRelationship.target_node, EntityRelationship.source_type)
+        )
+        rows.extend(found.all())
+    return rows
 
 
 async def related_for_many(
@@ -483,11 +555,13 @@ __all__ = [
     "ENDPOINT_KINDS",
     "MAX_WALK_DEPTH",
     "SPECS",
+    "Direction",
     "Endpoint",
     "NotTransitive",
     "SelfLoop",
     "Related",
     "create",
+    "create_many",
     "find",
     "list_for_entity",
     "purge_for_entities",

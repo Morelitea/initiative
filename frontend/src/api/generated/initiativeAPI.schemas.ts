@@ -961,8 +961,38 @@ export interface AppWidgetCatalogResponse {
   items?: AppWidgetCatalogEntry[];
 }
 
+/**
+ * Things that can be archived.
+ */
+export type ArchivableType = (typeof ArchivableType)[keyof typeof ArchivableType];
+
+export const ArchivableType = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  task: "task",
+  initiative: "initiative",
+} as const;
+
 export interface ArchiveDoneResponse {
   archived_count: number;
+}
+
+/**
+ * What archiving or unarchiving answers with.
+ *
+ * The stamp, not the entity: one endpoint serves ten kinds, and a caller that
+ * wants the whole row reads it back from the route that already serves it.
+ */
+export interface ArchiveResponse {
+  entity_type: ArchivableType;
+  entity_id: number;
+  archived_at?: string | null;
 }
 
 export interface AttachmentUploadResponse {
@@ -1577,7 +1607,7 @@ export interface TaskListRead {
   updated_at: string;
   completed_at: string | null;
   position: number;
-  is_archived: boolean;
+  archived_at: string | null;
   created_by: number | null;
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
@@ -2744,16 +2774,6 @@ export interface DmSessionKeysResponse {
   devices: DmSessionKey[];
 }
 
-/**
- * Document that links to another document.
- */
-export interface DocumentBacklink {
-  id: number;
-  name: string;
-  updated_at: string;
-  initiative_id: number;
-}
-
 export interface DocumentCopyRequest {
   target_initiative_id: number;
   name?: string | null;
@@ -2877,7 +2897,7 @@ export interface InitiativeRead {
   id: number;
   guild_id: number;
   is_default: boolean;
-  is_archived: boolean;
+  archived_at: string | null;
   join_policy: InitiativeJoinPolicy;
   auto_join: boolean;
   created_at: string;
@@ -4322,7 +4342,6 @@ export interface InitiativeUpdate {
   name?: string | null;
   description?: string | null;
   color?: string | null;
-  is_archived?: boolean | null;
   join_policy?: InitiativeJoinPolicy | null;
   auto_join?: boolean | null;
 }
@@ -5260,7 +5279,6 @@ export interface ProjectRead {
   guild_id: number | null;
   created_at: string;
   updated_at: string;
-  is_archived: boolean;
   is_template: boolean;
   archived_at: string | null;
   pinned_at: string | null;
@@ -5883,6 +5901,7 @@ export interface RelatedEnd {
   id: number;
   title: string | null;
   initiative_id: number | null;
+  updated_at: string | null;
 }
 
 /**
@@ -5902,6 +5921,7 @@ export const RelationshipType = {
   depends_on: "depends_on",
   part_of: "part_of",
   tagged_with: "tagged_with",
+  references: "references",
   related_to: "related_to",
 } as const;
 
@@ -6420,7 +6440,7 @@ export interface TaskProjectSummary {
   icon: string | null;
   initiative_id: number | null;
   initiative: TaskProjectInitiativeSummary | null;
-  is_archived: boolean | null;
+  archived_at: string | null;
   is_template: boolean | null;
 }
 
@@ -6448,7 +6468,7 @@ export interface TaskRead {
   updated_at: string;
   completed_at: string | null;
   position: number;
-  is_archived: boolean;
+  archived_at: string | null;
   created_by: number | null;
   creator: UserPublic | null;
   assignees: UserPublic[];
@@ -6531,7 +6551,6 @@ export interface TaskUpdate {
   due_date?: string | null;
   recurrence?: TaskRecurrenceInput | null;
   recurrence_strategy?: TaskUpdateRecurrenceStrategy;
-  is_archived?: boolean | null;
   tag_ids?: number[] | null;
   property_values?: PropertyValueInput[] | null;
   checklist?: ChecklistItemInput[] | null;
@@ -8179,7 +8198,17 @@ export type ListRelationshipsApiV1GGuildIdRelationshipsGetParams = {
   entity: string;
   relationship_type?: RelationshipType | null;
   other_type?: SearchEntityType | null;
+  direction?: ListRelationshipsApiV1GGuildIdRelationshipsGetDirection;
 };
+
+export type ListRelationshipsApiV1GGuildIdRelationshipsGetDirection =
+  (typeof ListRelationshipsApiV1GGuildIdRelationshipsGetDirection)[keyof typeof ListRelationshipsApiV1GGuildIdRelationshipsGetDirection];
+
+export const ListRelationshipsApiV1GGuildIdRelationshipsGetDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+  both: "both",
+} as const;
 
 export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams = {
   /**

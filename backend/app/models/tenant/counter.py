@@ -7,6 +7,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, T
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -29,7 +30,9 @@ class CounterPermissionLevel(str, Enum):
     read = "read"
 
 
-class CounterGroup(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class CounterGroup(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """Initiative-scoped container for a set of related counters."""
 
     __tablename__ = "counter_groups"

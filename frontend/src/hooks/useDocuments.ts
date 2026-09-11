@@ -8,10 +8,8 @@ import {
   deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
   duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost,
-  getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet,
   getDocumentCountsApiV1GGuildIdDocumentsCountsGet,
   getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet,
-  getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey,
   getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey,
   getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
@@ -30,7 +28,6 @@ import {
 import type {
   BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost,
-  DocumentBacklink,
   DocumentCountsResponse,
   DocumentCreate,
   DocumentFileVersionRead,
@@ -125,21 +122,6 @@ export const useInitiativeDocuments = (
       });
       return response.items;
     },
-    ...options,
-  });
-};
-
-export const useDocumentBacklinks = (
-  documentId: number,
-  options?: QueryOpts<DocumentBacklink[]>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<DocumentBacklink[]>({
-    queryKey: getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey(
-      guildId,
-      documentId
-    ),
-    queryFn: () => getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet(guildId, documentId),
     ...options,
   });
 };
@@ -463,7 +445,9 @@ export const useUpdateDocument = (
         getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
         updated
       );
-      void invalidate(q.allDocuments());
+      // A save rewrites what the body refers to, which is what the other end's
+      // "linked from" panel is reading.
+      void invalidate(q.allDocuments(), q.relationships());
       onSuccess?.(...args);
     },
     onError: (...args) => {

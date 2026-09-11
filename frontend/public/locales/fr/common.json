@@ -168,5 +168,7 @@
     "permission": "Initiative a besoin d'accéder à votre appareil photo et à vos photos. Autorisez-le dans les réglages de l'appareil, puis réessayez.",
     "unavailable": "Cet appareil n'a pas d'appareil photo pour prendre une photo.",
     "failed": "Cette photo n'a pas pu être lue. Réessayez."
-  }
+  },
+  "archiveError": "Impossible d'archiver cet élément. Veuillez réessayer.",
+  "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer."
 }

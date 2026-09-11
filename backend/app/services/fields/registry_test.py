@@ -276,7 +276,7 @@ PREVIOUSLY_OFFERED = {
     "start_date": (["gt", "gte", "is_null", "lt", "lte"], False),
     "completed_at": (["gt", "gte", "is_null", "lt", "lte"], False),
     "created_at": (["gt", "gte", "lt", "lte"], False),
-    "is_archived": (["eq"], False),
+    "archived_at": (["gt", "gte", "is_null", "lt", "lte"], False),
     "title": (["ilike"], False),
 }
 

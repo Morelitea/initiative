@@ -23,6 +23,11 @@ class CommonMessages:
     #: bring it back first. See ``app.db.frozen``.
     CONTENT_IS_FROZEN = "CONTENT_IS_FROZEN"
 
+    #: The write was fine for the thing itself, but what it sits inside is
+    #: archived or in the trash — so it cannot come out on its own, and the
+    #: answer names the container rather than the row.
+    PARENT_IS_FROZEN = "PARENT_IS_FROZEN"
+
 
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
@@ -394,6 +399,10 @@ class RelationshipMessages:
     EXISTS = "RELATIONSHIP_EXISTS"
     NOT_FOUND = "RELATIONSHIP_NOT_FOUND"
     REMOVE_DENIED = "RELATIONSHIP_REMOVE_DENIED"
+    #: A link nobody made by hand, so there is none to make or take back here.
+    #: It is written when a body naming the other thing is saved, and withdrawn
+    #: by editing that body.
+    DERIVED = "RELATIONSHIP_DERIVED"
 
 
 class SettingsMessages:

@@ -54,6 +54,31 @@ class SoftDeleteMixin(SQLModel):
         return cls._display_field
 
 
+class ArchiveMixin(SQLModel):
+    """Mixin that adds the archive lifecycle column to a guild-scoped model.
+
+    Archiving says *this is finished*; the trash says *this is going away*. They
+    are different states with the same shape, so they carry the same shape of
+    column: one nullable timestamp, null while live, stamped when it happens.
+    ``archived_at`` reads beside ``deleted_at`` and answers "when?" as well as
+    "whether?", which a boolean never could.
+
+    Anything an initiative offers can be finished with, so every tool carries
+    it, and so do the two things that are not tools but are still worked
+    through and put away: a task and an initiative itself.
+
+    Archived content is read-only, down through everything inside it — the rule
+    is ``app.db.frozen``, which reads this column and ``deleted_at`` together
+    and derives the archivable tables from this mixin.
+    """
+
+    archived_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),
+        nullable=True,
+    )
+
+
 class CreatedByMixin(SQLModel):
     """Mixin that adds ``created_by`` to a guild-schema table.
 
@@ -139,6 +164,24 @@ class CommentsToggleMixin(SQLModel):
         nullable=False,
         sa_column_kwargs={"server_default": "true"},
     )
+
+
+def archive_models() -> list[type[ArchiveMixin]]:
+    """Every mapped model carrying :class:`ArchiveMixin`, by table name.
+
+    The single source for "which tables can be archived" — the freeze reads it
+    rather than keeping a list of its own, so a tool that becomes archivable is
+    archivable everywhere the moment it declares the mixin.
+    """
+    found: dict[str, type[ArchiveMixin]] = {}
+    stack = list(ArchiveMixin.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        table = getattr(cls, "__tablename__", None)
+        if table and getattr(cls, "__table__", None) is not None:
+            found[str(table)] = cls
+    return [found[name] for name in sorted(found)]
 
 
 def created_by_models() -> list[type[CreatedByMixin]]:

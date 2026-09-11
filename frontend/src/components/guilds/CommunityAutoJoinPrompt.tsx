@@ -41,7 +41,7 @@ export const CommunityAutoJoinPrompt = () => {
   const candidates = useMemo(
     () =>
       (initiativesQuery.data ?? [])
-        .filter((initiative) => !initiative.is_archived)
+        .filter((initiative) => initiative.archived_at === null)
         .sort((a, b) => a.name.localeCompare(b.name)),
     [initiativesQuery.data]
   );

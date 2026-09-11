@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -96,7 +96,7 @@ class TaskAssignee(SQLModel, table=True):
     )
 
 
-class Task(CreatedByMixin, SoftDeleteMixin, table=True):
+class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
     _display_field = "title"
 
@@ -142,10 +142,6 @@ class Task(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_column=Column(
             Numeric(20, 10, asdecimal=False), nullable=False, server_default="0"
         ),
-    )
-    is_archived: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     # When the task entered a ``done``-category status, cleared when it leaves
     # one. Kept in step with ``task_status.category`` by

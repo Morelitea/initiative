@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import {
+  archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost,
+  unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost,
+} from "@/api/generated/archive/archive";
 import type {
   InitiativeGroupedCountsResponse,
   ListMyProjectsApiV1MeProjectsGetParams,
@@ -17,7 +21,6 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
-  archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
   createProjectApiV1GGuildIdProjectsPost,
   deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
   duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
@@ -38,7 +41,6 @@ import {
   readProjectApiV1GGuildIdProjectsProjectIdGet,
   reorderProjectsApiV1GGuildIdProjectsReorderPost,
   setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut,
-  unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost,
   unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1GGuildIdProjectsProjectIdPatch,
 } from "@/api/generated/projects/projects";
@@ -258,7 +260,11 @@ export const useArchiveProject = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, projectId) => {
-        await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
+        await archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(
+          guildId,
+          "project",
+          projectId
+        );
       },
       invalidate: () => invalidate(q.allProjects()),
     },
@@ -269,7 +275,11 @@ export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, projectId) => {
-        await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
+        await unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost(
+          guildId,
+          "project",
+          projectId
+        );
       },
       invalidate: () => invalidate(q.allProjects()),
     },
