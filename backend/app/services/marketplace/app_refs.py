@@ -49,6 +49,7 @@ __all__ = [
     "resolve_app_guild_ref",
     "drop_guild_app_refs",
     "drop_install_refs",
+    "guild_for_app_ref",
     "ensure_app_ref",
     "reissue_app_ref",
     "reissue_install_refs",
@@ -172,6 +173,46 @@ async def reissue_install_refs(
         sector_guild_id=guild_id,
         sector_id=app_install_id,
     )
+
+
+async def guild_for_app_ref(*, ref: str, public_id: str) -> int | None:
+    """Which guild a reference names, if it was minted at ``public_id``'s install.
+
+    :func:`resolve_app_guild_ref` answers which install a reference belongs to;
+    this adds the question a caller naming one of its own references is really
+    asking — that it IS one of its own. A value minted at another app's install
+    resolves fine and is not an answer to this.
+    """
+    from sqlalchemy.exc import SQLAlchemyError
+    from sqlmodel import select
+
+    from app.models.tenant.guild_app import GuildApp
+
+    resolved = await resolve_app_guild_ref(ref=ref)
+    if resolved is None:
+        return None
+    guild_id, app_install_id = resolved
+
+    async with db_session.AdminSessionLocal() as session:
+        try:
+            # The install lives in the guild's own schema, so the read is
+            # routed there.
+            await db_session.set_rls_context(
+                session, guild_id=guild_id, guild_role="admin"
+            )
+            found = (
+                await session.exec(
+                    select(GuildApp.id).where(
+                        GuildApp.id == app_install_id,
+                        GuildApp.definition["app_kind"].astext == "service",
+                        GuildApp.definition["service"]["public_id"].astext == public_id,
+                    )
+                )
+            ).first()
+        except SQLAlchemyError:
+            logger.warning("app refs: install lookup could not read guild %s", guild_id)
+            return None
+    return None if found is None else guild_id
 
 
 async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:

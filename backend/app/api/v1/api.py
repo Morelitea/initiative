@@ -70,6 +70,7 @@ from app.api.v1.platform_endpoints import (
     config,
     contacts,
     delegation_exchange,
+    guild_reference,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -138,6 +139,9 @@ api_router.include_router(
 # sectors' references (history/opaque-identity-design.md §12).
 api_router.include_router(
     delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
+)
+api_router.include_router(
+    guild_reference.router, prefix="/app-platform", tags=["app-platform"]
 )
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —
