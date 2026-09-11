@@ -354,7 +354,7 @@ const KanbanCardContent = memo(
             {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
             {recurrenceText ? <p>{recurrenceText}</p> : null}
           </div>
-          <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
+          <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
         </button>
         <div className="flex min-w-0 flex-wrap gap-2">
           <Badge variant={priorityVariant[task.priority]}>

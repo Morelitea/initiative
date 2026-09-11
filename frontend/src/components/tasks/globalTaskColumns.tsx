@@ -210,7 +210,7 @@ export function globalTaskColumns({
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>
             <TaskChecklistProgress
-              progress={task.subtask_progress}
+              progress={task.checklist_progress}
               className="mt-2 max-w-[200px]"
             />
           </div>

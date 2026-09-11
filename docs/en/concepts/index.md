@@ -76,7 +76,7 @@ Learn how one works and you've learned how the next one works. That's the whole 
 
 **Projects** are boards. A project holds **tasks**, and shows them however you like — a **Table**, a drag-and-drop **Kanban** board, or a **Calendar**. Same work, three ways of looking at it, so the person who thinks in tidy lists and the person who thinks in columns can share a project without either of them quietly suffering.
 
-A **task** carries a description, a status, a priority, dates, the people doing it, subtasks and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
+A **task** carries a description, a status, a priority, dates, the people doing it, a checklist and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
 **Documents** hold the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described. Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can upload files as documents too. See [Documents](../guides/documents.md).
 

@@ -237,7 +237,7 @@ def _dac_via(
 
 def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     """Two hops to the governing resource: ``table.<fk> -> mid -> parent`` — a
-    subtask by its task's project, an attendee by its event's calendar."""
+    task's tag link by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
     return DacPath(
         predicate=lambda t, c, w: (
@@ -923,7 +923,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "gallery_image_versions": via_gallery_image("gallery_image_id"),
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
-    "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),
     "task_tags": via_task_project("task_id"),
     # Two hops -> queue_items -> queues

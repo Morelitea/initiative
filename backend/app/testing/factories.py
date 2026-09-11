@@ -72,7 +72,6 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
-    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
@@ -86,6 +85,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
 
@@ -1912,30 +1912,11 @@ async def create_tag(
     return tag
 
 
-async def create_subtask(
-    session: AsyncSession,
-    task: Task,
-    *,
-    content: str = "A test subtask",
-    commit: bool = True,
-    **overrides: Any,
-) -> Subtask:
-    """Create a subtask under ``task``."""
-    await route_session_to_guild(session, task.guild_id)
-
-    defaults = {
-        "guild_id": task.guild_id,
-        "task_id": task.id,
-        "content": content,
-    }
-    subtask = Subtask(**{**defaults, **overrides})
-    session.add(subtask)
-
-    if commit:
-        await session.commit()
-        await session.refresh(subtask)
-
-    return subtask
+def checklist_items(*texts: str, done: bool = False) -> list[dict]:
+    """A checklist for ``create_task(checklist=...)`` — one item per text."""
+    return [
+        {"id": mint_checklist_item_id(), "text": text, "done": done} for text in texts
+    ]
 
 
 async def create_task_status(

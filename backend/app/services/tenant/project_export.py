@@ -30,7 +30,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportProject,
     ProjectExportPropertyDefinition,
     ProjectExportPropertyValue,
-    ProjectExportSubtask,
+    ProjectExportChecklistItem,
     ProjectExportTag,
     ProjectExportTask,
     ProjectExportTaskStatus,
@@ -56,7 +56,6 @@ async def build_project_export(
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.tasks).selectinload(Task.task_status),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks).selectinload(Task.subtasks),
             selectinload(Project.tasks)
             .selectinload(Task.tag_links)
             .selectinload(TaskTag.tag),
@@ -113,14 +112,12 @@ async def build_project_export(
             )
             property_values.append(_serialize_property_value(pv, pd.type))
 
-        subtasks_sorted = sorted(task.subtasks or [], key=lambda s: s.position)
-        subtasks = [
-            ProjectExportSubtask(
-                content=s.content,
-                is_completed=s.is_completed,
-                position=s.position,
+        checklist = [
+            ProjectExportChecklistItem(
+                text=item.get("text", ""), done=bool(item.get("done"))
             )
-            for s in subtasks_sorted
+            for item in (task.checklist or [])
+            if item.get("text")
         ]
 
         task_tags: list[ProjectExportTag] = []
@@ -156,7 +153,7 @@ async def build_project_export(
                 status_name=status_name,
                 tags=task_tags,
                 assignee_handles=assignee_handles,
-                subtasks=subtasks,
+                checklist=checklist,
                 property_values=property_values,
             )
         )

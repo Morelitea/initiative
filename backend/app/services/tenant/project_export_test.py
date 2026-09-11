@@ -3,7 +3,7 @@
 The most valuable test is a full round-trip: export a populated project,
 import the envelope into a different initiative in the same guild, and
 verify the new project has equivalent tags, statuses, properties, tasks,
-subtasks, assignees, and property values.
+checklists, assignees, and property values.
 """
 
 import pytest
@@ -21,12 +21,14 @@ from app.models.tenant.property import (
     TaskPropertyValue,
 )
 from app.models.tenant.tag import ProjectTag, Tag, TaskTag
-from app.models.tenant.task import Subtask, Task, TaskAssignee, TaskStatusCategory
+from app.schemas.tenant.project_export import SCHEMA_VERSION
+from app.models.tenant.task import Task, TaskAssignee, TaskStatusCategory
 from app.services.tenant import project_export as export_service
 from app.services.tenant import project_import as import_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import ownership as ownership_service
 from app.testing import (
+    checklist_items,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -39,7 +41,7 @@ from app.testing import (
 
 async def _seed_populated_project(session: AsyncSession):
     """Build a project with statuses, tags, a property definition, and a
-    task that exercises subtasks, assignees, tags, and property values."""
+    task that exercises a checklist, assignees, tags, and property values."""
     owner = await create_user(session, email="owner@example.com")
     assignee = await create_user(session, email="alice@example.com")
     guild = await create_guild(session)
@@ -86,24 +88,16 @@ async def _seed_populated_project(session: AsyncSession):
         title="Fix the thing",
         description="Important",
         position=1024.0,
+        checklist=[
+            *checklist_items("step 1"),
+            *checklist_items("step 2", done=True),
+        ],
     )
     session.add(task)
     await session.commit()
     await session.refresh(task)
     session.add(TaskTag(task_id=task.id, tag_id=tag.id))
     session.add(TaskAssignee(task_id=task.id, user_id=assignee.id, guild_id=guild.id))
-    session.add(
-        Subtask(task_id=task.id, guild_id=guild.id, content="step 1", position=0)
-    )
-    session.add(
-        Subtask(
-            task_id=task.id,
-            guild_id=guild.id,
-            content="step 2",
-            position=1,
-            is_completed=True,
-        )
-    )
     session.add(
         TaskPropertyValue(
             task_id=task.id,
@@ -133,7 +127,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         exported_by_handle=handle_of(owner),
     )
 
-    assert envelope.schema_version == 1
+    assert envelope.schema_version == SCHEMA_VERSION
     assert envelope.project.name == "Source Project"
     assert envelope.project.icon == "🚀"
     assert {s.name for s in envelope.task_statuses} >= {
@@ -150,7 +144,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert [t.name for t in exported_task.tags] == ["blocker"]
     assert [t.color for t in exported_task.tags] == ["#FF0000"]
     assert exported_task.assignee_handles == [handle_of(assignee)]
-    assert {s.content for s in exported_task.subtasks} == {"step 1", "step 2"}
+    assert {i.text for i in exported_task.checklist} == {"step 1", "step 2"}
     assert exported_task.property_values[0].property_name == "Severity"
     assert exported_task.property_values[0].value_text == "high"
 
@@ -184,7 +178,6 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
             selectinload(Project.grants),
             selectinload(Project.task_statuses),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
-            selectinload(Project.tasks).selectinload(Task.subtasks),
             selectinload(Project.tasks).selectinload(Task.assignees),
             selectinload(Project.tasks)
             .selectinload(Task.tag_links)
@@ -202,7 +195,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert len(new_project.tasks) == 1
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"
-    assert {s.content for s in new_task.subtasks} == {"step 1", "step 2"}
+    assert {i["text"] for i in new_task.checklist} == {"step 1", "step 2"}
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
     assert {link.tag.name for link in new_task.tag_links} == {"blocker"}
     assert len(new_task.property_values) == 1
@@ -417,37 +410,3 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
         )
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
-
-
-@pytest.mark.unit
-def test_project_export_task_accepts_legacy_sort_order():
-    """Exports created before ``sort_order`` was renamed to ``position`` must
-    still import with their ordering intact, not silently default to 0.0."""
-    from app.schemas.tenant.project_export import ProjectExportTask
-
-    legacy = ProjectExportTask.model_validate(
-        {
-            "title": "Old export task",
-            "status_name": "To Do",
-            "sort_order": 1024.0,
-            "tags": [],
-            "assignee_handles": [],
-            "subtasks": [],
-            "property_values": [],
-        }
-    )
-    assert legacy.position == 1024.0
-
-    # A current export (already using ``position``) is unaffected.
-    current = ProjectExportTask.model_validate(
-        {
-            "title": "New export task",
-            "status_name": "To Do",
-            "position": 7.5,
-            "tags": [],
-            "assignee_handles": [],
-            "subtasks": [],
-            "property_values": [],
-        }
-    )
-    assert current.position == 7.5

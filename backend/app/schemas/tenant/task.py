@@ -1,5 +1,7 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from string import ascii_letters, digits
+from typing import Final, List, Literal, Optional
+from uuid import uuid4
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -8,7 +10,6 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.guild import GuildSummary
-from app.schemas.tenant.subtask import TaskSubtaskProgress
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.property import PropertySummary, PropertyValueInput
 
@@ -36,6 +37,66 @@ class TaskAssigneeSummary(GuildNameVisibility):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
+
+
+#: Characters a checklist item id may hold. The client mints one per item so a
+#: new line is addressable before it round-trips; anything arriving from an
+#: import or the AI batch is minted here instead.
+_ITEM_ID_CHARS: Final = frozenset(ascii_letters + digits + "-_")
+_MAX_ITEM_ID_LENGTH: Final = 36
+
+#: Flat code raised for an id outside that set, mapped in ``errors.json``.
+INVALID_CHECKLIST_ITEM_ID = "INVALID_CHECKLIST_ITEM_ID"
+
+
+def mint_checklist_item_id() -> str:
+    """A fresh item id, for an item that arrived without one."""
+    return uuid4().hex
+
+
+class ChecklistItemInput(SanitizedBaseModel):
+    """One checklist line as written. ``id`` is optional: an item that arrives
+    without one is given a fresh id."""
+
+    id: Optional[str] = Field(default=None, max_length=_MAX_ITEM_ID_LENGTH)
+    text: str = Field(min_length=1, max_length=2000)
+    done: bool = False
+
+    @field_validator("id")
+    def id_is_an_identifier(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and (not value or set(value) - _ITEM_ID_CHARS):
+            raise ValueError(INVALID_CHECKLIST_ITEM_ID)
+        return value
+
+
+class ChecklistItem(SanitizedBaseModel):
+    """One checklist line as stored and read back."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    text: str
+    done: bool = False
+
+
+class ChecklistProgress(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    completed: int = 0
+    total: int = 0
+
+
+class ChecklistItemToggle(SanitizedBaseModel):
+    """The one field a tick changes."""
+
+    done: bool
+
+
+#: Ceiling on a single task's checklist. A list past this is a project.
+#: Enforced in ``services.tenant.task_checklist.normalize``, which can see both
+#: the written list and the one it replaces — a longer list carried in by a
+#: migration or an import has to stay shrinkable.
+MAX_CHECKLIST_ITEMS: Final = 100
 
 
 WeekdayLiteral = Literal[
@@ -138,6 +199,7 @@ class TaskCreate(TaskBase):
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
     property_values: List[PropertyValueInput] = Field(default_factory=list)
+    checklist: List[ChecklistItemInput] = Field(default_factory=list)
 
 
 class TaskUpdate(SanitizedBaseModel):
@@ -154,6 +216,7 @@ class TaskUpdate(SanitizedBaseModel):
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
     property_values: Optional[List[PropertyValueInput]] = None
+    checklist: Optional[List[ChecklistItemInput]] = None
 
 
 class TaskMoveRequest(SanitizedBaseModel):
@@ -207,7 +270,8 @@ class TaskRead(TaskBase):
     comment_count: int = 0
     guild: Optional[GuildSummary] = None
     project: Optional[TaskProjectSummary] = None
-    subtask_progress: Optional[TaskSubtaskProgress] = None
+    checklist: List[ChecklistItem] = []
+    checklist_progress: Optional[ChecklistProgress] = None
     tags: List[TagSummary] = []
     properties: List[PropertySummary] = []
 
@@ -238,7 +302,7 @@ class TaskListRead(TaskBase):
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     initiative_color: Optional[str] = None
-    subtask_progress: Optional[TaskSubtaskProgress] = None
+    checklist_progress: Optional[ChecklistProgress] = None
     tags: List[TagSummary] = []
     properties: List[PropertySummary] = []
 

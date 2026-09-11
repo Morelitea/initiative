@@ -46,7 +46,7 @@ interface VikunjaParseResult {
 
 interface ImportResult {
   tasks_created: number;
-  subtasks_created: number;
+  checklist_items_created: number;
   tasks_failed: number;
   errors: string[];
 }

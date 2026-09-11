@@ -9,8 +9,8 @@ route for a resource type is derivable from the type itself:
     resource_type -> /g/{guild_id}/<kebab>/{id}
 
 Which is not a convention invented here — it is what the resources that already
-worked all do. Sub-resources with an id of their own (``subtasks``,
-``comments``) are flat for exactly this reason; a nested path would demand a
+worked all do. Sub-resources with an id of their own (``comments``,
+``queue_items``) are flat for exactly this reason; a nested path would demand a
 parent the envelope never carries.
 
 Anything that is a facet rather than a resource — a project's statuses, a

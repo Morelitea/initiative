@@ -1549,7 +1549,7 @@ export interface TaskAssigneeSummary {
   status: UserStatus;
 }
 
-export interface TaskSubtaskProgress {
+export interface ChecklistProgress {
   completed: number;
   total: number;
 }
@@ -1584,7 +1584,7 @@ export interface TaskListRead {
   initiative_id: number | null;
   initiative_name: string | null;
   initiative_color: string | null;
-  subtask_progress: TaskSubtaskProgress | null;
+  checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
 }
@@ -1782,6 +1782,36 @@ export const Channel = {
   email: "email",
   push: "push",
 } as const;
+
+/**
+ * One checklist line as stored and read back.
+ */
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+/**
+ * One checklist line as written. ``id`` is optional: an item that arrives
+ * without one is given a fresh id.
+ */
+export interface ChecklistItemInput {
+  id?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  text: string;
+  done?: boolean;
+}
+
+/**
+ * The one field a tick changes.
+ */
+export interface ChecklistItemToggle {
+  done: boolean;
+}
 
 /**
  * Who wrote a comment.
@@ -3384,6 +3414,13 @@ export interface GalleryUpdate {
 }
 
 /**
+ * Suggested checklist lines, as text — the caller decides which to keep.
+ */
+export interface GenerateChecklistResponse {
+  items: string[];
+}
+
+/**
  * Response schema for description generation.
  */
 export interface GenerateDescriptionResponse {
@@ -3395,13 +3432,6 @@ export interface GenerateDescriptionResponse {
  */
 export interface GenerateDocumentSummaryResponse {
   summary: string;
-}
-
-/**
- * Response schema for subtask generation.
- */
-export interface GenerateSubtasksResponse {
-  subtasks: string[];
 }
 
 /**
@@ -4016,8 +4046,8 @@ export interface ImportJobRead {
 export interface ImportResult {
   /** Number of tasks successfully created */
   tasks_created?: number;
-  /** Number of subtasks successfully created */
-  subtasks_created?: number;
+  /** Number of checklist lines successfully created */
+  checklist_items_created?: number;
   /** Number of tasks that failed to import */
   tasks_failed?: number;
   /** List of error messages */
@@ -6080,53 +6110,6 @@ export interface StorageTestResponse {
 }
 
 /**
- * Create multiple subtasks at once.
- */
-export interface SubtaskBatchCreate {
-  /**
-   * @minItems 1
-   * @maxItems 50
-   */
-  contents: string[];
-}
-
-export interface SubtaskCreate {
-  /**
-   * @minLength 1
-   * @maxLength 2000
-   */
-  content: string;
-}
-
-export interface SubtaskRead {
-  /**
-   * @minLength 1
-   * @maxLength 2000
-   */
-  content: string;
-  is_completed: boolean;
-  id: number;
-  task_id: number;
-  position: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SubtaskReorderItem {
-  id: number;
-  position: number;
-}
-
-export interface SubtaskReorderRequest {
-  items: SubtaskReorderItem[];
-}
-
-export interface SubtaskUpdate {
-  content?: string | null;
-  is_completed?: boolean | null;
-}
-
-/**
  * Entity types a bulk tag edit can address.
  */
 export type TagTarget = (typeof TagTarget)[keyof typeof TagTarget];
@@ -6325,6 +6308,7 @@ export interface TaskCreate {
   /** @maxItems 100 */
   tag_ids?: number[];
   property_values?: PropertyValueInput[];
+  checklist?: ChecklistItemInput[];
 }
 
 export interface TaskListResponse {
@@ -6390,7 +6374,8 @@ export interface TaskRead {
   comment_count: number;
   guild: GuildSummary | null;
   project: TaskProjectSummary | null;
-  subtask_progress: TaskSubtaskProgress | null;
+  checklist: ChecklistItem[];
+  checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
 }
@@ -6467,6 +6452,7 @@ export interface TaskUpdate {
   is_archived?: boolean | null;
   tag_ids?: number[] | null;
   property_values?: PropertyValueInput[] | null;
+  checklist?: ChecklistItemInput[] | null;
 }
 
 /**
@@ -6562,8 +6548,8 @@ export interface TodoistParseResult {
   sections?: TodoistSection[];
   /** Total number of tasks found */
   task_count?: number;
-  /** Whether any tasks have subtasks */
-  has_subtasks?: boolean;
+  /** Whether any tasks carry checklist lines */
+  has_checklist_items?: boolean;
 }
 
 export interface Token {
@@ -7537,7 +7523,7 @@ export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
   tz?: string | null;
   include_archived?: boolean;
   /**
-   * Report layout. Markdown: a table (default) or a GitHub-style task list (checklist). PDF: the default table, or 'detailed' for a one-task-per-page report with description, subtasks and comments. Ignored by csv/xlsx.
+   * Report layout. Markdown: a table (default) or a GitHub-style task list (checklist). PDF: the default table, or 'detailed' for a one-task-per-page report with description, checklist and comments. Ignored by csv/xlsx.
    */
   layout?: ExportTasksApiV1GGuildIdExportsTasksGetLayout;
 };

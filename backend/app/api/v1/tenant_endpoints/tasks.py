@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, func, or_
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -45,7 +45,6 @@ from app.models.tenant.task import (
     TaskPriority,
     TaskStatus,
     TaskStatusCategory,
-    Subtask,
 )
 from app.models.tenant.tag import TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
@@ -55,6 +54,8 @@ from app.models.tenant.comment import Comment
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.tenant.task import (
+    ChecklistItem,
+    ChecklistItemToggle,
     TaskCreate,
     TaskListRead,
     TaskListResponse,
@@ -64,16 +65,8 @@ from app.schemas.tenant.task import (
     TaskRecurrence,
     TaskUpdate,
 )
-from app.schemas.tenant.subtask import (
-    SubtaskBatchCreate,
-    SubtaskCreate,
-    SubtaskRead,
-    SubtaskReorderRequest,
-    SubtaskUpdate,
-    TaskSubtaskProgress,
-)
 from app.schemas.ai_generation import (
-    GenerateSubtasksResponse,
+    GenerateChecklistResponse,
     GenerateDescriptionResponse,
 )
 from app.schemas.tenant.tag import TagSetRequest
@@ -85,6 +78,7 @@ from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant import task_checklist as checklist_service
 from app.services import ai_generation as ai_generation_service
 from app.services import fields as fields_registry
 from app.services.fields.spec import FieldContext, SortContext
@@ -95,7 +89,7 @@ from app.core.messages import (
     ProjectMessages,
     QueryMessages,
     TaskMessages,
-    SubtaskMessages,
+    ChecklistMessages,
 )
 
 router = APIRouter()
@@ -226,7 +220,6 @@ def _build_task_filter_fields(
     )
 
 
-subtasks_router = APIRouter()
 # Cross-guild "my tasks" aggregates (My Tasks / Created Tasks pages). Mounted
 # under /api/v1/me; user-scoped (no guild context), routes per member guild
 # itself via gather_across_guilds.
@@ -310,65 +303,30 @@ async def _rebalance_if_needed(
 
 
 async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
-    """Annotate tasks with comment counts and subtask progress in a single query."""
+    """Annotate tasks with comment counts and checklist progress.
+
+    Checklist progress is read from the column the row already carries, so only
+    the comment count needs a query.
+    """
     task_ids = [task.id for task in tasks if task.id is not None]
     if not task_ids:
         return
 
     ids_tuple = tuple(task_ids)
 
-    # Single query: LEFT JOIN comments and subtasks aggregations via subqueries
-    comment_subq = (
-        select(
-            Comment.task_id.label("task_id"),
-            func.count(Comment.id).label("comment_count"),
-        )
+    stmt = (
+        select(Comment.task_id, func.count(Comment.id))
         .where(Comment.task_id.in_(ids_tuple))
         .group_by(Comment.task_id)
-        .subquery()
-    )
-    subtask_subq = (
-        select(
-            Subtask.task_id.label("task_id"),
-            func.count(Subtask.id).label("total"),
-            func.sum(case((Subtask.is_completed.is_(True), 1), else_=0)).label(
-                "completed"
-            ),
-        )
-        .where(Subtask.task_id.in_(ids_tuple))
-        .group_by(Subtask.task_id)
-        .subquery()
-    )
-
-    stmt = (
-        select(
-            Task.id,
-            func.coalesce(comment_subq.c.comment_count, 0),
-            subtask_subq.c.total,
-            subtask_subq.c.completed,
-        )
-        .outerjoin(comment_subq, comment_subq.c.task_id == Task.id)
-        .outerjoin(subtask_subq, subtask_subq.c.task_id == Task.id)
-        .where(Task.id.in_(ids_tuple))
     )
     result = await session.exec(stmt)
-    annotations: dict[int, tuple] = {
-        row[0]: (row[1], row[2], row[3]) for row in result.all()
-    }
+    comment_counts: dict[int, int] = {row[0]: row[1] for row in result.all()}
 
     for task in tasks:
-        comment_count, sub_total, sub_completed = annotations.get(
-            task.id, (0, None, None)
+        object.__setattr__(task, "comment_count", comment_counts.get(task.id, 0))
+        object.__setattr__(
+            task, "checklist_progress", checklist_service.progress(task.checklist)
         )
-        object.__setattr__(task, "comment_count", comment_count)
-        if sub_total is not None:
-            progress = TaskSubtaskProgress(
-                completed=int(sub_completed or 0),
-                total=int(sub_total),
-            )
-            object.__setattr__(task, "subtask_progress", progress)
-        else:
-            object.__setattr__(task, "subtask_progress", None)
 
 
 def _annotate_task_guild(tasks: list[Task]) -> None:
@@ -438,48 +396,10 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         initiative_id=initiative.id if initiative else None,
         initiative_name=initiative.name if initiative else None,
         initiative_color=initiative.color if initiative else None,
-        subtask_progress=getattr(task, "subtask_progress", None),
+        checklist_progress=getattr(task, "checklist_progress", None),
         tags=getattr(task, "tags", []),
         properties=getattr(task, "properties", []),
     )
-
-
-async def _list_subtasks_for_task(
-    session: SessionDep, task_id: int
-) -> Sequence[Subtask]:
-    stmt = (
-        select(Subtask)
-        .where(Subtask.task_id == task_id)
-        .order_by(Subtask.position.asc(), Subtask.id.asc())
-    )
-    result = await session.exec(stmt)
-    return result.all()
-
-
-async def _clone_subtasks(
-    session: SessionDep, source_task_id: int, target_task_id: int
-) -> None:
-    subtasks = await _list_subtasks_for_task(session, source_task_id)
-    if not subtasks:
-        return
-    clones = [
-        Subtask(
-            task_id=target_task_id,
-            content=subtask.content,
-            position=subtask.position,
-            is_completed=False,
-        )
-        for subtask in subtasks
-    ]
-    session.add_all(clones)
-
-
-async def _next_subtask_position(session: SessionDep, task_id: int) -> int:
-    result = await session.exec(
-        select(func.max(Subtask.position)).where(Subtask.task_id == task_id)
-    )
-    max_value = result.one_or_none()
-    return (max_value or 0) + 1
 
 
 def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
@@ -704,11 +624,11 @@ async def _advance_recurrence_if_needed(
         position=await _next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
         created_by=task.created_by,
+        checklist=checklist_service.cloned(task.checklist),
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
-    await _clone_subtasks(session, task.id, new_task.id)
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
     await tags_service.copy_entity_tags(
@@ -1315,7 +1235,7 @@ async def query_tasks_for_detailed_export(
 ) -> tuple[list[Task], dict[int, list[Comment]]]:
     """Detailed-report seam: the same ``list_tasks`` visibility/filter/sort
     pipeline as ``query_tasks_for_export``, but with the extra eager loads a
-    one-task-per-page report needs (subtasks, tags) plus each task's comments
+    one-task-per-page report needs (tags) plus each task's comments
     batch-loaded by id. Comments have no ``Task`` relationship, so they are
     fetched separately — under the caller's RLS session, scoped to the same
     initiatives the tasks came from (the tasks are already visibility-filtered,
@@ -1330,7 +1250,6 @@ async def query_tasks_for_detailed_export(
         selectinload(Task.project),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.subtasks),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
     statement = apply_sorting(
@@ -1713,7 +1632,13 @@ async def create_task(
         )
 
     task_data = task_in.model_dump(
-        exclude={"assignee_ids", "task_status_id", "tag_ids", "property_values"}
+        exclude={
+            "assignee_ids",
+            "task_status_id",
+            "tag_ids",
+            "property_values",
+            "checklist",
+        }
     )
 
     # Serialize recurrence to JSON if present
@@ -1730,6 +1655,7 @@ async def create_task(
         position=position,
         task_status_id=selected_status.id,
         created_by=current_user.id,
+        checklist=checklist_service.normalize(task_in.checklist),
     )
     sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
@@ -1840,6 +1766,7 @@ async def update_task(
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
     property_values = update_data.pop("property_values", None)
+    checklist_sent = update_data.pop("checklist", None) is not None
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
 
@@ -1873,6 +1800,10 @@ async def update_task(
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    if checklist_sent:
+        task.checklist = checklist_service.normalize(
+            task_in.checklist or [], existing=task.checklist
+        )
     now = datetime.now(timezone.utc)
     task.updated_at = now
     sync_completed_at(
@@ -2051,7 +1982,7 @@ async def duplicate_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
-    # Fetch the original task with its subtasks and tags
+    # Fetch the original task with its tags
     task_stmt = (
         select(Task)
         .options(
@@ -2080,13 +2011,6 @@ async def duplicate_task(
         guild_id=guild_context.guild_id,
     )
 
-    # Fetch subtasks
-    subtasks_stmt = (
-        select(Subtask).where(Subtask.task_id == task_id).order_by(Subtask.position)
-    )
-    subtasks_result = await session.exec(subtasks_stmt)
-    original_subtasks = list(subtasks_result.all())
-
     # Get next sort order for the new task
     position = await _next_position(session, original_task.project_id)
 
@@ -2103,6 +2027,7 @@ async def duplicate_task(
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,
+        checklist=checklist_service.cloned(original_task.checklist),
     )
     # The copy keeps the source's status, so a duplicated done task is complete
     # from the moment it exists — stamped now, not inherited: the copy was not
@@ -2118,16 +2043,6 @@ async def duplicate_task(
     # Copy assignees
     assignee_ids = [assignee.id for assignee in original_task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
-
-    # Copy subtasks
-    for original_subtask in original_subtasks:
-        new_subtask = Subtask(
-            task_id=new_task.id,
-            content=original_subtask.content,
-            is_completed=False,  # Reset completion status
-            position=original_subtask.position,
-        )
-        session.add(new_subtask)
 
     # Copy tags (active only — links to trashed tags are not carried forward)
     await tags_service.copy_entity_tags(
@@ -2397,41 +2312,25 @@ async def archive_done_tasks(
     return ArchiveDoneResponse(archived_count=len(tasks))
 
 
-@router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])
-async def list_subtasks(
-    task_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Sequence[Subtask]:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-        access="read",
-    )
-    return await _list_subtasks_for_task(session, task.id)
-
-
-@router.post(
-    "/{task_id}/subtasks",
-    response_model=SubtaskRead,
-    status_code=status.HTTP_201_CREATED,
+@router.patch(
+    "/{task_id}/checklist/{item_id}",
+    response_model=List[ChecklistItem],
 )
-async def create_subtask(
+async def toggle_checklist_item(
     task_id: int,
-    subtask_in: SubtaskCreate,
+    item_id: str,
+    toggle_in: ChecklistItemToggle,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Subtask:
+) -> List[ChecklistItem]:
+    """Tick or untick one checklist item.
+
+    Adding, renaming, reordering and deleting go through ``PATCH /tasks/{id}``
+    with the whole list. A tick gets its own route because it is the write
+    several people make to the same task at once: it names one item and rewrites
+    only that item, so two ticks on different items both land.
+    """
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(
@@ -2445,264 +2344,40 @@ async def create_subtask(
         guild_id=guild_context.guild_id,
     )
 
-    content = subtask_in.content.strip()
-    if not content:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=SubtaskMessages.CONTENT_EMPTY,
-        )
-
-    position = await _next_subtask_position(session, task.id)
-    subtask = Subtask(
-        task_id=task.id,
-        content=content,
-        position=position,
-    )
     now = datetime.now(timezone.utc)
-    subtask.updated_at = now
-    _touch_task(task, timestamp=now)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(subtask)
-    session.add(task)
-    await session.commit()
-    await session.refresh(subtask)
-    return subtask
-
-
-@router.post("/{task_id}/subtasks/batch", response_model=List[SubtaskRead])
-async def create_subtasks_batch(
-    task_id: int,
-    subtask_batch: SubtaskBatchCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[Subtask]:
-    """Create multiple subtasks at once."""
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    # Get current max position
-    existing = await _list_subtasks_for_task(session, task.id)
-    position = max((s.position for s in existing), default=-1) + 1
-
-    now = datetime.now(timezone.utc)
-    created_subtasks = []
-
-    for content in subtask_batch.contents:
-        content = content.strip()
-        if not content or len(content) > 2000:
-            continue  # Skip empty or too-long content
-
-        subtask = Subtask(
+    result = await session.exec(
+        checklist_service.toggle_statement(),
+        params=checklist_service.toggle_params(
             task_id=task.id,
-            content=content,
-            position=position,
-            updated_at=now,
-        )
-        session.add(subtask)
-        created_subtasks.append(subtask)
-        position += 1
-
-    if created_subtasks:
-        _touch_task(task, timestamp=now)
-        await _touch_project(session, task.project_id, timestamp=now)
-        session.add(task)
-        await session.commit()
-        for subtask in created_subtasks:
-            await session.refresh(subtask)
-
-    return created_subtasks
-
-
-@router.put("/{task_id}/subtasks/order", response_model=List[SubtaskRead])
-async def reorder_subtasks(
-    task_id: int,
-    reorder_in: SubtaskReorderRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Sequence[Subtask]:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
+            item_id=item_id,
+            done=toggle_in.done,
+            now=now,
+        ),
     )
-
-    if not reorder_in.items:
-        return await _list_subtasks_for_task(session, task.id)
-
-    subtask_ids = [item.id for item in reorder_in.items]
-    stmt = select(Subtask).where(
-        Subtask.task_id == task.id,
-        Subtask.id.in_(tuple(subtask_ids)),
-    )
-    result = await session.exec(stmt)
-    subtasks = result.all()
-    subtask_map = {subtask.id: subtask for subtask in subtasks}
-    if len(subtask_map) != len(subtask_ids):
+    row = result.one_or_none()
+    if row is None:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=SubtaskMessages.NOT_FOUND_FOR_TASK,
+            detail=ChecklistMessages.ITEM_NOT_FOUND,
         )
 
-    now = datetime.now(timezone.utc)
-    for item in reorder_in.items:
-        subtask = subtask_map[item.id]
-        subtask.position = item.position
-        subtask.updated_at = now
-        session.add(subtask)
-    _touch_task(task, timestamp=now)
     await _touch_project(session, task.project_id, timestamp=now)
-    session.add(task)
     await session.commit()
-    return await _list_subtasks_for_task(session, task.id)
-
-
-@subtasks_router.get("/subtasks/{subtask_id}", response_model=SubtaskRead)
-async def read_subtask(
-    subtask_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Subtask:
-    """One subtask by id — the read-back for a ``subtasks.*`` event. Gated by
-    read access on the parent task's project, like reading the task."""
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-    await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-        access="read",
-    )
-    return subtask
-
-
-@subtasks_router.patch("/subtasks/{subtask_id}", response_model=SubtaskRead)
-async def update_subtask(
-    subtask_id: int,
-    subtask_in: SubtaskUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Subtask:
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    update_data = subtask_in.model_dump(exclude_unset=True)
-    if not update_data:
-        return subtask
-
-    if "content" in update_data and update_data["content"] is not None:
-        content_value = update_data["content"].strip()
-        if not content_value:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SubtaskMessages.CONTENT_EMPTY,
-            )
-        subtask.content = content_value
-
-    if "is_completed" in update_data and update_data["is_completed"] is not None:
-        subtask.is_completed = bool(update_data["is_completed"])
-
-    now = datetime.now(timezone.utc)
-    subtask.updated_at = now
-    _touch_task(task, timestamp=now)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(subtask)
-    session.add(task)
-    await session.commit()
-    await session.refresh(subtask)
-    return subtask
-
-
-@subtasks_router.delete(
-    "/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_subtask(
-    subtask_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    await session.delete(subtask)
-    now = _touch_task(task)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(task)
-    await session.commit()
-    return None
+    # The statement wrote behind the ORM's back, so the loaded row is stale.
+    session.expire(task)
+    return checklist_service.read(row[0])
 
 
 # AI Generation endpoints
-@router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
-async def generate_task_subtasks(
+@router.post("/{task_id}/ai/checklist", response_model=GenerateChecklistResponse)
+async def generate_task_checklist(
     task_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> GenerateSubtasksResponse:
-    """Generate AI-powered subtask suggestions for a task."""
+) -> GenerateChecklistResponse:
+    """Suggest checklist steps for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(
@@ -2719,7 +2394,7 @@ async def generate_task_subtasks(
     )
 
     try:
-        subtasks = await ai_generation_service.generate_subtasks(
+        items = await ai_generation_service.generate_checklist(
             session,
             current_user,
             guild_context.guild_id,
@@ -2727,7 +2402,7 @@ async def generate_task_subtasks(
             initiative_name=project.initiative.name if project.initiative else None,
             project_name=project.name,
         )
-        return GenerateSubtasksResponse(subtasks=subtasks)
+        return GenerateChecklistResponse(items=items)
     except ai_generation_service.AIGenerationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -23,18 +23,16 @@ import type {
 import type {
   ArchiveDoneResponse,
   ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams,
+  ChecklistItem,
+  ChecklistItemToggle,
+  GenerateChecklistResponse,
   GenerateDescriptionResponse,
-  GenerateSubtasksResponse,
   HTTPValidationError,
   ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
   ListMyTasksApiV1MeTasksGetParams,
   ListTasksApiV1GGuildIdTasksGetParams,
   PropertyValuesSetRequest,
   ReadTaskApiV1GGuildIdTasksTaskIdGetParams,
-  SubtaskBatchCreate,
-  SubtaskCreate,
-  SubtaskRead,
-  SubtaskReorderRequest,
   TagSetRequest,
   TaskCreate,
   TaskListResponse,
@@ -1011,218 +1009,52 @@ export const useArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePost = <
   );
 };
 /**
- * @summary List Subtasks
+ * Tick or untick one checklist item.
+ *
+ * Adding, renaming, reordering and deleting go through ``PATCH /tasks/{id}``
+ * with the whole list. A tick gets its own route because it is the write
+ * several people make to the same task at once: it names one item and rewrites
+ * only that item, so two ticks on different items both land.
+ * @summary Toggle Checklist Item
  */
-export const listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet = (
+export const toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch = (
   guildId: number,
   taskId: number,
+  itemId: string,
+  checklistItemToggle: BodyType<ChecklistItemToggle>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<SubtaskRead[]>(
-    { url: `/api/v1/g/${guildId}/tasks/${taskId}/subtasks`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey = (
-  guildId: number,
-  taskId: number
-) => {
-  return [`/api/v1/g/${guildId}/tasks/${taskId}/subtasks`] as const;
-};
-
-export const getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  taskId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey(guildId, taskId);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>
-  > = ({ signal }) =>
-    listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet(guildId, taskId, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined && taskId !== null && taskId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>
->;
-export type ListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet<
-  TData = Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  taskId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet<
-  TData = Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  taskId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet<
-  TData = Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  taskId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Subtasks
- */
-
-export function useListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet<
-  TData = Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  taskId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryOptions(
-    guildId,
-    taskId,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * @summary Create Subtask
- */
-export const createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost = (
-  guildId: number,
-  taskId: number,
-  subtaskCreate: BodyType<SubtaskCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<SubtaskRead>(
+  return apiMutator<ChecklistItem[]>(
     {
-      url: `/api/v1/g/${guildId}/tasks/${taskId}/subtasks`,
-      method: "POST",
+      url: `/api/v1/g/${guildId}/tasks/${taskId}/checklist/${itemId}`,
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: subtaskCreate,
+      data: checklistItemToggle,
       signal,
     },
     options
   );
 };
 
-export const getCreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationOptions = <
+export const getToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>,
+    Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>,
     TError,
-    { guildId: number; taskId: number; data: BodyType<SubtaskCreate> },
+    { guildId: number; taskId: number; itemId: string; data: BodyType<ChecklistItemToggle> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>,
+  Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>,
   TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskCreate> },
+  { guildId: number; taskId: number; itemId: string; data: BodyType<ChecklistItemToggle> },
   TContext
 > => {
-  const mutationKey = ["createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost"];
+  const mutationKey = ["toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1230,108 +1062,15 @@ export const getCreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>,
-    { guildId: number; taskId: number; data: BodyType<SubtaskCreate> }
+    Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>,
+    { guildId: number; taskId: number; itemId: string; data: BodyType<ChecklistItemToggle> }
   > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
+    const { guildId, taskId, itemId, data } = props ?? {};
 
-    return createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost(guildId, taskId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>
->;
-export type CreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationBody = BodyType<SubtaskCreate>;
-export type CreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Create Subtask
- */
-export const useCreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>,
-      TError,
-      { guildId: number; taskId: number; data: BodyType<SubtaskCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost>>,
-  TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskCreate> },
-  TContext
-> => {
-  return useMutation(
-    getCreateSubtaskApiV1GGuildIdTasksTaskIdSubtasksPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Create multiple subtasks at once.
- * @summary Create Subtasks Batch
- */
-export const createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost = (
-  guildId: number,
-  taskId: number,
-  subtaskBatchCreate: BodyType<SubtaskBatchCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<SubtaskRead[]>(
-    {
-      url: `/api/v1/g/${guildId}/tasks/${taskId}/subtasks/batch`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: subtaskBatchCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>,
-    TError,
-    { guildId: number; taskId: number; data: BodyType<SubtaskBatchCreate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>,
-  TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskBatchCreate> },
-  TContext
-> => {
-  const mutationKey = ["createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>,
-    { guildId: number; taskId: number; data: BodyType<SubtaskBatchCreate> }
-  > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
-
-    return createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost(
+    return toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch(
       guildId,
       taskId,
+      itemId,
       data,
       requestOptions
     );
@@ -1340,176 +1079,77 @@ export const getCreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMutationResult =
+export type ToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>
+    Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>
   >;
-export type CreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMutationBody =
-  BodyType<SubtaskBatchCreate>;
-export type CreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMutationError =
+export type ToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatchMutationBody =
+  BodyType<ChecklistItemToggle>;
+export type ToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Create Subtasks Batch
+ * @summary Toggle Checklist Item
  */
-export const useCreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost = <
+export const useToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>,
+      Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>,
       TError,
-      { guildId: number; taskId: number; data: BodyType<SubtaskBatchCreate> },
+      { guildId: number; taskId: number; itemId: string; data: BodyType<ChecklistItemToggle> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost>>,
+  Awaited<ReturnType<typeof toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch>>,
   TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskBatchCreate> },
+  { guildId: number; taskId: number; itemId: string; data: BodyType<ChecklistItemToggle> },
   TContext
 > => {
   return useMutation(
-    getCreateSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPostMutationOptions(options),
+    getToggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
- * @summary Reorder Subtasks
+ * Suggest checklist steps for a task.
+ * @summary Generate Task Checklist
  */
-export const reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut = (
-  guildId: number,
-  taskId: number,
-  subtaskReorderRequest: BodyType<SubtaskReorderRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<SubtaskRead[]>(
-    {
-      url: `/api/v1/g/${guildId}/tasks/${taskId}/subtasks/order`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: subtaskReorderRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>,
-    TError,
-    { guildId: number; taskId: number; data: BodyType<SubtaskReorderRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>,
-  TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskReorderRequest> },
-  TContext
-> => {
-  const mutationKey = ["reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>,
-    { guildId: number; taskId: number; data: BodyType<SubtaskReorderRequest> }
-  > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
-
-    return reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut(
-      guildId,
-      taskId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>
->;
-export type ReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPutMutationBody =
-  BodyType<SubtaskReorderRequest>;
-export type ReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Reorder Subtasks
- */
-export const useReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>,
-      TError,
-      { guildId: number; taskId: number; data: BodyType<SubtaskReorderRequest> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut>>,
-  TError,
-  { guildId: number; taskId: number; data: BodyType<SubtaskReorderRequest> },
-  TContext
-> => {
-  return useMutation(
-    getReorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Generate AI-powered subtask suggestions for a task.
- * @summary Generate Task Subtasks
- */
-export const generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost = (
+export const generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost = (
   guildId: number,
   taskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GenerateSubtasksResponse>(
-    { url: `/api/v1/g/${guildId}/tasks/${taskId}/ai/subtasks`, method: "POST", signal },
+  return apiMutator<GenerateChecklistResponse>(
+    { url: `/api/v1/g/${guildId}/tasks/${taskId}/ai/checklist`, method: "POST", signal },
     options
   );
 };
 
-export const getGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutationOptions = <
+export const getGenerateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>,
+    Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>,
     TError,
     { guildId: number; taskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>,
+  Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>,
   TError,
   { guildId: number; taskId: number },
   TContext
 > => {
-  const mutationKey = ["generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost"];
+  const mutationKey = ["generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1517,12 +1157,12 @@ export const getGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>,
+    Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>,
     { guildId: number; taskId: number }
   > = (props) => {
     const { guildId, taskId } = props ?? {};
 
-    return generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost(
+    return generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost(
       guildId,
       taskId,
       requestOptions
@@ -1532,23 +1172,24 @@ export const getGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type GenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>
->;
+export type GenerateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>
+  >;
 
-export type GenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutationError =
+export type GenerateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Generate Task Subtasks
+ * @summary Generate Task Checklist
  */
-export const useGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost = <
+export const useGenerateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>,
+      Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>,
       TError,
       { guildId: number; taskId: number },
       TContext
@@ -1557,13 +1198,13 @@ export const useGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost>>,
+  Awaited<ReturnType<typeof generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost>>,
   TError,
   { guildId: number; taskId: number },
   TContext
 > => {
   return useMutation(
-    getGenerateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPostMutationOptions(options),
+    getGenerateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPostMutationOptions(options),
     queryClient
   );
 };

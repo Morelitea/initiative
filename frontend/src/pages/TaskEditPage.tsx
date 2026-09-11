@@ -807,7 +807,7 @@ export const TaskEditPage = () => {
         <div className="flex-1 space-y-4 sm:min-w-100">
           <TaskChecklist
             taskId={parsedTaskId}
-            projectId={task?.project_id ?? null}
+            items={task?.checklist ?? []}
             canEdit={!isReadOnly}
           />
         </div>

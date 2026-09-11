@@ -47,8 +47,9 @@
     "tasksFailed_other": "{{count}} tareas fallaron al importar",
     "tasksCreated_one": "{{count}} tarea creada",
     "tasksCreated_other": "{{count}} tareas creadas",
-    "subtasksCount_one": "{{count}} subtarea",
-    "subtasksCount_other": "{{count}} subtareas",
+    "checklistItemsCount_one": "{{count}} elemento de la lista",
+    "checklistItemsCount_other": "{{count}} elementos de la lista",
+    "includesChecklistItems": "Incluye listas de verificación",
     "failedCount_one": "{{count}} fallida",
     "failedCount_other": "{{count}} fallidas",
     "noTasksImported": "No se importaron tareas",
@@ -56,7 +57,6 @@
     "importFailed": "Importación fallida",
     "parseError": "No se pudo analizar el archivo",
     "errors": "Errores:",
-    "includesSubtasks": "Incluye subtareas",
     "done": "Listo"
   },
   "todoist": {
@@ -104,7 +104,7 @@
     "pasteLabel": "Pegar contenido CSV",
     "uploadButton": "Subir archivo CSV",
     "uploadFileLabel": "Subir archivo CSV",
-    "uploadHint": "Exportar desde Configuración de TickTick \u2192 Respaldo",
+    "uploadHint": "Exportar desde Configuración de TickTick → Respaldo",
     "parseButton": "Analizar CSV",
     "exportParsed": "Exportación analizada exitosamente",
     "noListsFound": "No se encontraron listas con tareas en la exportación",

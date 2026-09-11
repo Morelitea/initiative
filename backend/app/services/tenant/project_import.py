@@ -12,7 +12,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
    collision, create a new definition named ``<name>_<type>`` instead
    of mutating the target's existing one.
 7. Insert each task; resolve status / tag / assignee / property refs
-   via the maps; insert subtasks and property values.
+   via the maps; insert property values.
 8. Return :class:`ProjectImportResult` so the UI can warn about dropped
    assignees etc.
 """
@@ -35,7 +35,6 @@ from app.models.tenant.property import (
 )
 from app.models.tenant.tag import ProjectTag, TaskTag
 from app.models.tenant.task import (
-    Subtask,
     Task,
     TaskAssignee,
     TaskStatus,
@@ -49,6 +48,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectImportResult,
 )
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -265,7 +265,7 @@ async def _import_task(
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
 ) -> int:
-    """Insert one task, its subtasks, tags, assignees, and property
+    """Insert one task, its checklist, tags, assignees, and property
     values. Returns the number of distinct assignees matched & linked.
     """
     status_id = status_name_to_id.get(envelope_task.status_name) or default_status_id
@@ -293,6 +293,14 @@ async def _import_task(
         is_archived=envelope_task.is_archived,
         completed_at=envelope_task.completed_at,
         created_by=importer_id,
+        checklist=[
+            {
+                "id": mint_checklist_item_id(),
+                "text": item.text,
+                "done": item.done,
+            }
+            for item in envelope_task.checklist
+        ],
     )
     # A restore keeps the completion time the envelope carries; envelopes taken
     # before the field existed carry none, so it's derived from the restored
@@ -304,18 +312,6 @@ async def _import_task(
     )
     session.add(task)
     await session.flush()
-
-    # Subtasks
-    for sub in envelope_task.subtasks:
-        session.add(
-            Subtask(
-                task_id=task.id,
-                guild_id=guild_id,
-                content=sub.content,
-                is_completed=sub.is_completed,
-                position=sub.position,
-            )
-        )
 
     # Tag links — match-or-create against the target guild for any tag
     # that wasn't already in the project-level set (tasks can have tags
