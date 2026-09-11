@@ -330,6 +330,58 @@ def render_resource_frozen_fn() -> str:
     return _RESOURCE_FROZEN_TEMPLATE.format(arms="\n".join(arms), purging=_PURGING)
 
 
+_RESOURCE_FROZEN_FOR_GRANT_TEMPLATE = """
+CREATE OR REPLACE FUNCTION public.resource_frozen_for_grant(
+    kind text, rid bigint, trashed_ok boolean DEFAULT false
+) RETURNS boolean LANGUAGE plpgsql STABLE AS $resource_frozen_for_grant$
+BEGIN
+    IF rid IS NULL THEN
+        RETURN false;
+    END IF;
+    PERFORM 1 FROM resource_grants g
+     WHERE g.resource_type = kind AND g.resource_id = rid;
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+    CASE kind
+{arms}
+      ELSE
+        RETURN false;
+    END CASE;
+END;
+$resource_frozen_for_grant$;
+"""
+
+
+def render_resource_frozen_for_grant_fn() -> str:
+    """``public.resource_frozen_for_grant(tool, id, trashed_ok)`` — the freeze,
+    asked the way a grant has to ask it.
+
+    A grant is what makes a resource reachable, so the FIRST one is written
+    while the resource still answers to nobody. Asked the ordinary way — where
+    a row the caller cannot find is a row put away — no resource could ever be
+    created, because the question is about a row this very statement is about
+    to make visible.
+
+    What tells that state apart from every other invisible one is the grants
+    themselves: a resource with none is one being created, and a resource that
+    has any is an existing one being shared, which asks in full. Grants outlive
+    both lifecycles and carry no visibility rule of their own, so they answer
+    here whatever state the resource is in.
+
+    A function rather than the test written beside the call, because this leg is
+    rendered into trigger ``WHEN`` clauses as well as policies, and a ``WHEN``
+    takes no subquery.
+    """
+    arms = "\n".join(
+        f"      WHEN '{tool.value}' THEN\n"
+        f"        RETURN public.resource_frozen("
+        f"'{tool.plural}', rid, trashed_ok);"
+        for tool in Tool
+    )
+    return _RESOURCE_FROZEN_FOR_GRANT_TEMPLATE.format(arms=arms)
+
+
 def render_frozen_ancestor_fn() -> str:
     """``public.fn_frozen_ancestor_guard()`` — says no, and nothing else.
 
@@ -575,17 +627,20 @@ def _edge_leg(alias: str, trashed_ok: str) -> str:
 
 
 def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
-    """A grant freezes with the resource it shares.
+    """A grant freezes with the resource it shares, WHEN it can see it.
 
     Sharing an archived project is a change to the project, which is why the
     endpoint already refused it — this is the same rule, one layer down.
+
+    Asked through ``resource_frozen_for_grant``, which is what makes that rule
+    expressible here at all: the first grant on a resource is part of creating
+    it, and every later one is sharing. That function carries the whole of the
+    distinction, including the per-tool dispatch, so this leg is one call.
     """
-    arms = " ".join(
-        f"WHEN '{tool.value}' THEN public.resource_frozen("
-        f"'{tool.plural}', {alias}.resource_id, {trashed_ok})"
-        for tool in Tool
+    return (
+        f"COALESCE(public.resource_frozen_for_grant("
+        f"{alias}.resource_type, {alias}.resource_id, {trashed_ok}), false)"
     )
-    return f"COALESCE((CASE {alias}.resource_type {arms} ELSE false END), false)"
 
 
 #: Tables whose ancestors are a property of the ROW rather than of the table,

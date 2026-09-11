@@ -209,6 +209,105 @@ class TestAncestorFreeze:
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
+    async def test_an_archived_project_takes_no_new_sharing(
+        self, session, routed, workspace
+    ):
+        """Sharing an archived thing is a change to it. The endpoint refuses
+        this too; the point here is that the table does."""
+        user, guild, initiative, project, _t = workspace
+        await _archive(session, project)
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "INSERT INTO resource_grants "
+                    "(resource_type, resource_id, user_id, level, guild_id, "
+                    " initiative_id, created_at) "
+                    "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
+                ).bindparams(
+                    pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id
+                )
+            )
+        assert "frozen_ancestor_insert" in str(excinfo.value)
+
+    async def test_the_first_grant_on_a_new_resource_is_not_sharing(
+        self, session, routed, workspace
+    ):
+        """A grant is what makes a resource reachable, so the first one is
+        written while the resource still answers to nobody. Asked the way every
+        other ancestor is asked, no resource could ever be created."""
+        user, guild, initiative, project, _t = workspace
+        # The state a resource is in between its own INSERT and its owner
+        # grant: it exists, and it answers to nobody yet.
+        await session.exec(
+            text(
+                "DELETE FROM resource_grants "
+                "WHERE resource_type = 'project' AND resource_id = :pid"
+            ).bindparams(pid=project.id)
+        )
+        await session.commit()
+
+        await routed.exec(
+            text(
+                "INSERT INTO resource_grants "
+                "(resource_type, resource_id, user_id, level, guild_id, "
+                " initiative_id, created_at) "
+                "VALUES ('project', :pid, :uid, 'owner', :gid, :iid, now())"
+            ).bindparams(pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id)
+        )
+
+    async def test_a_trashed_project_takes_no_new_sharing(
+        self, session, role_session, workspace
+    ):
+        """Asked by somebody the trashed row is hidden from.
+
+        Sharing asks only for the initiative, so the lifecycle check is what
+        stands between a member and a grant naming a resource that is on its way
+        out. The resource is out of sight for them, which is not the same as
+        there being nothing to ask about.
+        """
+        owner, guild, initiative, project, _t = workspace
+        await _trash(session, project, by=owner.id)
+
+        bystander = await create_user(session)
+        await create_guild_membership(
+            session, user=bystander, guild=guild, role=GuildRole.member
+        )
+        await create_initiative_member(session, initiative=initiative, user=bystander)
+        await session.commit()
+
+        s = await role_session("app_user")
+        await set_rls_context(
+            s,
+            user_id=bystander.id,
+            guild_id=guild.id,
+            guild_role=GuildRole.member.value,
+        )
+        try:
+            hidden = await s.exec(
+                text("SELECT count(*) FROM projects WHERE id = :id").bindparams(
+                    id=project.id
+                )
+            )
+            assert hidden.one()[0] == 0, "the row has to be out of sight to ask this"
+
+            with pytest.raises(DBAPIError) as excinfo:
+                await s.exec(
+                    text(
+                        "INSERT INTO resource_grants "
+                        "(resource_type, resource_id, user_id, level, guild_id, "
+                        " initiative_id, created_at) "
+                        "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
+                    ).bindparams(
+                        pid=project.id,
+                        uid=bystander.id,
+                        gid=guild.id,
+                        iid=initiative.id,
+                    )
+                )
+            assert "frozen_ancestor_insert" in str(excinfo.value)
+        finally:
+            await s.rollback()
+
     async def test_a_refused_delete_says_so_rather_than_removing_nothing(
         self, session, admin_routed, workspace
     ):
