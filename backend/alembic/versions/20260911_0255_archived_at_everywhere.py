@@ -120,10 +120,21 @@ END $$;
 #: dropped: they cannot outlive it, so they are dropped and written again here
 #: against the new one. Spelled out rather than rendered from the registry — a
 #: revision has to keep saying the same thing after the renderer moves on.
+#:
+#: Only where there is something to put back. The guards and the function they
+#: call are provisioning's, applied at boot and therefore AFTER migrations; a
+#: fresh install reaches this line with neither, and gets both a moment later
+#: from the registry.
 _ROW_GUARD = """
-CREATE OR REPLACE TRIGGER tr_{table}_frozen_guard BEFORE UPDATE ON {table}
-    FOR EACH ROW WHEN (OLD.archived_at IS NOT NULL OR OLD.deleted_at IS NOT NULL)
-    EXECUTE FUNCTION public.fn_frozen_row_guard()
+DO $$
+BEGIN
+    IF to_regprocedure('public.fn_frozen_row_guard()') IS NOT NULL THEN
+        EXECUTE 'CREATE OR REPLACE TRIGGER tr_{table}_frozen_guard'
+             || ' BEFORE UPDATE ON {table} FOR EACH ROW'
+             || ' WHEN (OLD.archived_at IS NOT NULL OR OLD.deleted_at IS NOT NULL)'
+             || ' EXECUTE FUNCTION public.fn_frozen_row_guard()';
+    END IF;
+END $$;
 """
 
 
