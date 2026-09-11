@@ -257,26 +257,6 @@ OWN_ROW_TABLES: dict[str, str] = {
 # table is in neither bucket, so a new table forces the decision.
 CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
     {
-        # Junctions and link rows. Each already carries its own matched pair
-        # naming the relation rather than a row author — ``attached_by_id`` /
-        # ``attached_at`` on the document links, ``created_at`` on the tag
-        # links — and the thing that was authored is the entity at either end.
-        "calendar_event_documents",
-        "calendar_event_tags",
-        "calendar_tags",
-        "counter_group_tags",
-        "dashboard_tags",
-        "document_tags",
-        "post_tags",
-        "gallery_tags",
-        "gallery_image_tags",
-        "project_documents",
-        "project_tags",
-        "queue_item_documents",
-        "queue_item_tags",
-        "queue_item_tasks",
-        "queue_tags",
-        "task_tags",
         # Roster rows: the membership IS the fact, and ``user_id`` already names
         # whose it is.
         "calendar_event_attendees",

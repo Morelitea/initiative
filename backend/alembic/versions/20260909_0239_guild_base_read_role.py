@@ -91,13 +91,18 @@ def downgrade() -> None:
             EXECUTE format(
                 'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
                 'REVOKE SELECT ON TABLES FROM {ROLE}', current_user);
+            -- The member's name, from pg_roles, rather than its oid cast to
+            -- regrole: a membership whose role is already gone renders as a
+            -- bare number, which is not an identifier REVOKE can take. Joining
+            -- pg_roles drops those rows, and %I quotes what is left.
             FOR holder IN
-                SELECT m.member::regrole AS who
+                SELECT r.rolname AS who
                 FROM pg_auth_members m
                 JOIN pg_roles g ON g.oid = m.roleid
+                JOIN pg_roles r ON r.oid = m.member
                 WHERE g.rolname = '{ROLE}'
             LOOP
-                EXECUTE format('REVOKE {ROLE} FROM %s', holder.who);
+                EXECUTE format('REVOKE {ROLE} FROM %I', holder.who);
             END LOOP;
             REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {ROLE};
             -- Sequences are not granted on the way up. Revoked anyway, so a
