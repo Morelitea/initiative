@@ -97,9 +97,11 @@ async def _get_event_or_404(
             detail=CalendarEventMessages.NOT_FOUND,
         )
     # Feature gate + DAC, both resolved on the parent calendar: read to see the
-    # event, write for any mutation.
+    # event, write for any mutation. The parent's tool comes from the registry
+    # the event table's own policy is rendered from, so the two agree on what
+    # governs an event by construction.
     resource_access.authorize(
-        Tool.calendar,
+        resource_access.governing_tool("calendar_events"),
         event.calendar,
         user,
         access=access,

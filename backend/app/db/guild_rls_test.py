@@ -7,6 +7,10 @@ honest:
   ``INITIATIVE_SCOPED_TABLES`` table actually has ``FORCE`` RLS + all four
   ``initiative_member_*`` policies, and no ``GUILD_LEVEL_TABLES`` table does.
   So an initiative-level table cannot reach a live schema without its policies.
+- **Agreement** (pure): the governing tool the app layer reads out of the
+  registry is the one the rendered policy actually asks about. The endpoints
+  resolving a sub-resource's parent and the policy gating that sub-resource's
+  rows come from one declaration, and this is what keeps them there.
 """
 
 import pytest
@@ -251,3 +255,95 @@ async def test_soft_delete_tables_have_admin_only_purge_policy(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_PURGE)
+
+
+# ---------------------------------------------------------------------------
+# Agreement: one declaration, read two ways
+# ---------------------------------------------------------------------------
+
+
+#: Tables the app layer deliberately derives NO single governing tool for, and
+#: why. Stated rather than tolerated: a new sub-resource that the app cannot
+#: resolve a parent for has to be added here on purpose, which is the moment to
+#: notice it needs one.
+_NO_SINGLE_PARENT = {
+    # Polymorphic — the governing tool is a property of the row, and the policy
+    # is a CASE over the column naming it.
+    "comments": "one of eight tools, per row",
+    "reactions": "one of eight tools, per row",
+    "reaction_digest_items": "gated exactly like the reaction it describes",
+    "recent_views": "one of eight tools, per row",
+    "search_entries": "names its tool in dac_tool",
+    # One tool, two parents: a link must clear the gate on BOTH documents, so
+    # there is no single row to authorize against.
+    "document_links": "source and target must both clear it",
+    # No sharing leg at all — see the registry for each.
+    "event_outbox": "the change log is no tool's own table",
+    "property_definitions": "initiative configuration, not a tool's content",
+    "resource_grants": "sharing itself; resource_access reads this table",
+    "webhook_subscriptions": "integration config, gated by the initiative",
+}
+
+
+def test_the_app_reads_the_same_governing_tool_the_policy_asks_about():
+    """``governing_path`` must name the tool the rendered sharing leg calls.
+
+    The app layer asks this registry which tool governs a sub-resource — a
+    task's project, an event's calendar — and the DDL renderer asks the same
+    entry to build the policy. A table where those two answered differently
+    would be one where an endpoint authorized against one resource while the
+    database gated on another.
+    """
+    import re
+
+    from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
+
+    mismatches = []
+    for table, path in sorted(INITIATIVE_PATHS.items()):
+        derived = governing_path(table)
+        leg = path.dac.predicate(table, "SELECT", False) if path.dac else None
+        asked = set(re.findall(r"resource_access\('([a-z_]+)'", leg or ""))
+        if derived is None:
+            if table not in _NO_SINGLE_PARENT:
+                mismatches.append(
+                    f"{table}: policy asks {sorted(asked) or 'nothing'}, app derives "
+                    "nothing and the table is not in _NO_SINGLE_PARENT"
+                )
+            continue
+        if asked != {derived[0].value}:
+            mismatches.append(
+                f"{table}: policy asks {sorted(asked)}, app derives {derived[0].value}"
+            )
+    assert mismatches == [], mismatches
+
+
+def test_no_single_parent_names_only_real_tables():
+    """The exemption list cannot outlive the tables it names."""
+    from app.db.initiative_rls import INITIATIVE_PATHS
+
+    stale = sorted(set(_NO_SINGLE_PARENT) - set(INITIATIVE_PATHS))
+    assert stale == [], stale
+
+
+def test_every_declared_hop_is_a_real_column():
+    """``via`` names the FK chain an endpoint walks to reach the parent.
+
+    It is used to load a row, so a stale column name would be an attribute
+    error at request time rather than at import. Checked against the mapped
+    models, which is where the policy's join gets its columns too.
+    """
+    from sqlmodel import SQLModel
+
+    from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
+
+    tables = SQLModel.metadata.tables
+    missing = []
+    for table, path in sorted(INITIATIVE_PATHS.items()):
+        derived = governing_path(table)
+        if derived is None or not derived[1]:
+            continue
+        first_hop = derived[1][0]
+        mapped = tables.get(table)
+        if mapped is not None and first_hop not in mapped.columns:
+            missing.append(f"{table}.{first_hop}")
+    assert missing == [], missing

@@ -34,7 +34,7 @@ from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.calendar import (
@@ -49,7 +49,6 @@ from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -93,27 +92,6 @@ async def _get_initiative_for_calendar(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_calendars,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calendar:
@@ -331,7 +309,9 @@ async def create_calendar(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=CalendarMessages.FEATURE_DISABLED,
             )
-        await _check_create_permission(session, initiative, current_user, guild_context)
+        await resource_access.require_create(
+            session, Tool.calendar, initiative, current_user, guild_context
+        )
 
     initiative_id = initiative.id if initiative is not None else None
 

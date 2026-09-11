@@ -355,8 +355,8 @@ def _build_visible_docs_filters(
 ):
     """Build common WHERE conditions for visible-document queries.
 
-    Guild scope + RLS apply either way; ``dac_scope_clause`` adds the sharing
-    gate, resolving to a no-op for a request that reaches the whole guild.
+    Guild scope and the document table's own policies apply either way;
+    ``listing_scope_clause`` adds only what a list spanning initiatives needs.
     """
     conditions = [
         Initiative.guild_id == guild_id,

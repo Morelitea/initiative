@@ -110,15 +110,26 @@ _TOOL_BY_TABLE: dict[str, Tool] = {tool.plural: tool for tool in Tool}
 
 @dataclass(frozen=True)
 class DacPath:
-    """How a row names the tool that governs it — gates 3 and 4, as SQL.
+    """How a row names the tool that governs it — gates 3 and 4.
 
     ``predicate`` renders the tool gate that the table's policies AND onto the
     membership one, or None where no tool governs the table. Both gates come
     from the same declaration and the same join, so a child table asks its
     parent about its role and its sharing once rather than twice.
+
+    ``tool`` and ``via`` are the SAME declaration as data rather than SQL, so
+    the app layer can answer "which tool governs a task, and how does a task
+    reach it" from the registry the policies are rendered from instead of
+    restating it per endpoint. ``via`` is the foreign-key chain from this
+    table to the governing resource, outermost first — ``("project_id",)`` on
+    ``tasks``, ``("task_id", "project_id")`` on ``task_tags``, empty where the
+    row IS the resource. Both are None/empty for a polymorphic table, whose
+    governing tool is a property of the row rather than the table.
     """
 
     predicate: DacBuilder
+    tool: Tool | None = None
+    via: tuple[str, ...] = ()
 
 
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
@@ -207,7 +218,10 @@ def _dac_self(tool: Tool | None = None) -> DacPath:
             creating=command == "INSERT" and tool is None,
         )
 
-    return DacPath(predicate=build)
+    # ``tool`` here is only the explicitly-named one: without it the governing
+    # tool is read off the table name at render time, and the caller asking
+    # this registry knows its own table.
+    return DacPath(predicate=build, tool=tool)
 
 
 def _dac_via(
@@ -219,6 +233,8 @@ def _dac_via(
         return DacPath(predicate=lambda t, c, w: None)
 
     return DacPath(
+        tool=tool,
+        via=(fk,),
         predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
@@ -231,7 +247,7 @@ def _dac_via(
                 creating=False,
             )
             + ")"
-        )
+        ),
     )
 
 
@@ -240,12 +256,14 @@ def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     task's tag link by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
     return DacPath(
+        tool=tool,
+        via=(fk, mid_fk),
         predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
             + _tool_gate(tool, "dpar.id", "dpar.initiative_id", c, w, creating=False)
             + ")"
-        )
+        ),
     )
 
 
@@ -1042,6 +1060,33 @@ assert DAC_WRITE_COMMANDS.keys() <= INITIATIVE_SCOPED_TABLES, (
 assert all(
     commands <= ALL_WRITE_COMMANDS for commands in DAC_WRITE_COMMANDS.values()
 ), "DAC_WRITE_COMMANDS names a command that does not write"
+
+
+def governing_path(table: str) -> tuple[Tool, tuple[str, ...]] | None:
+    """The tool that governs ``table``'s rows and the FK chain that reaches it.
+
+    The app-layer half of the sharing leg the policies are rendered from — one
+    declaration, read two ways, so an endpoint resolving "which project does
+    this task belong to, and is it shared with me" cannot answer differently
+    from the policy that already decided it.
+
+    ``()`` as the chain means the row IS the resource (``projects`` → project).
+    ``None`` means no single tool governs the table: a polymorphic one, where
+    the answer is a property of the row, or a configuration table that no
+    tool's sharing governs.
+    """
+    path = INITIATIVE_PATHS.get(table)
+    if path is None or path.dac is None:
+        return None
+    tool = path.dac.tool
+    if tool is None:
+        # _dac_self reads it off the table name at render time rather than
+        # storing it; a table that is no tool's own has no answer here.
+        tool = _TOOL_BY_TABLE.get(table)
+        if tool is None:
+            return None
+        return tool, ()
+    return tool, path.dac.via
 
 
 def dac_asks_at_write(table: str, command: str) -> bool:

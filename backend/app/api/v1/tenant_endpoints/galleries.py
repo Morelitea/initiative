@@ -58,7 +58,7 @@ from app.core.messages import (
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.upload import Upload
 from app.schemas.tenant.gallery import (
@@ -83,7 +83,6 @@ from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
@@ -164,27 +163,6 @@ async def _get_initiative_for_gallery(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_galleries,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GalleryMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 async def _refetch_gallery(
@@ -568,7 +546,9 @@ async def create_gallery(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GalleryMessages.FEATURE_DISABLED,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+    await resource_access.require_create(
+        session, Tool.gallery, initiative, current_user, guild_context
+    )
 
     gallery = Gallery(
         guild_id=guild_context.guild_id,
