@@ -742,6 +742,22 @@ def relationships_path() -> InitiativePath:
     def _leg_for(endpoint: EndpointKind) -> InitiativePath | None:
         return INITIATIVE_PATHS.get(endpoint.table)
 
+    def _dac_for(endpoint: EndpointKind) -> DacPath | None:
+        """The sharing leg for one kind, with its tool NAMED.
+
+        Both ends are reached under an alias here, and ``_dac_self`` derives the
+        governing tool from the table name it is handed — which under an alias
+        is not a table name, so it would find no tool and render no gate at all.
+        Naming the tool is what ``reactions_path`` does for the same reason. A
+        kind whose rows are not a tool's keeps the leg its own entry declares,
+        which reaches its parent by name and so survives the alias.
+        """
+        try:
+            return _dac_self(Tool(endpoint.kind.value))
+        except ValueError:
+            path = _leg_for(endpoint)
+            return path.dac if path is not None else None
+
     def _end(t: str, side: str, write: bool) -> str:
         """One end's membership gate: a CASE over that end's kind."""
         arms = []
@@ -769,14 +785,11 @@ def relationships_path() -> InitiativePath:
         arms = []
         for kind, endpoint in ENDPOINT_KINDS.items():
             alias = f"rd_{side}"
-            path = _leg_for(endpoint)
-            # No governing tool (the guild's vocabulary) means no sharing gate
-            # to ask about; the membership leg above is the whole answer.
-            inner = (
-                path.dac.predicate(alias, command, write)
-                if path is not None and path.dac is not None
-                else "TRUE"
-            )
+            dac = _dac_for(endpoint)
+            # A kind the guild's own vocabulary governs (a tag) has no sharing
+            # question to ask, and the membership leg above is the whole answer.
+            inner = dac.predicate(alias, command, write) if dac is not None else None
+            inner = inner or "TRUE"
             arms.append(
                 f"WHEN '{kind.value}' THEN EXISTS ("
                 f"SELECT 1 FROM {endpoint.table} {alias} "  # noqa: S608
