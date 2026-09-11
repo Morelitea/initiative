@@ -6,7 +6,6 @@ loaders here eager-load the parent calendar with what the permission engine
 needs.
 """
 
-
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
