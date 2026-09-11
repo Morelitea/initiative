@@ -19,18 +19,14 @@ content, which is the honest attributor for what that save said.
 trigger. The trigger would resolve it from the same row and get the same answer,
 but a migration that states it pays one join instead of one lookup per row.
 
-The copy reads tables that have FORCE ROW LEVEL SECURITY, which binds even the
-owner the migration runs as, and the policies key on request GUCs a migration
-has no value for. So FORCE is lifted for the copy on the junction, on the
-destination and on ``documents`` — which the guild is read from — and restored
-on the two that survive. The row counts are asserted to match.
+The copy runs with ``FORCE ROW LEVEL SECURITY`` lifted on the junction, on the
+destination and on ``documents`` — which the guild is read from — and puts it
+back on the two that survive. Row counts are asserted to match.
 
-The count assertion catches a partial copy and nothing else — both sides of it
-are read under the same policies, so a copy that reads zero compares zero to
-zero and passes. What holds the lift itself is
-``TestDocumentLinksMoveTheirRows`` in ``alembic/migrations_test.py``, which
-replays this revision over a database that has rows in it. A fresh install has
-nothing to carry over, so every test that builds from empty passes either way.
+What proves the rows actually move is ``TestJunctionsMoveTheirRows`` in
+``alembic/migrations_test.py``, which replays this revision over a database that
+has rows in it. A fresh install has nothing to carry over, so a test built from
+empty tells you nothing either way.
 
 Revision ID: 20260911_0255
 Revises: 20260911_0254

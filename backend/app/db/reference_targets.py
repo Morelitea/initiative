@@ -127,10 +127,9 @@ async def live_ids(
 ) -> set[int]:
     """Which of these ids still exist and this session may read.
 
-    The session's own policies are the whole of the gate, which is what a
-    caller mid-save wants: it is asking what the person writing this content can
-    actually point at, and that is the same question their connection is already
-    answering for every other statement.
+    Asked as the session itself, which is what a caller mid-save wants: the
+    question is what the person writing this content can point at, and their
+    connection answers it the same way it answers every other statement.
     """
     wanted = [int(i) for i in dict.fromkeys(ids)]
     if not wanted:

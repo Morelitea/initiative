@@ -186,10 +186,8 @@ async def _live_targets(
 ) -> set[tuple[SearchEntityType, int]]:
     """The subset that still exists and this session may read.
 
-    RLS is the whole of the filter: the sync runs in the session that is saving
-    the content, so a reference to something out of that session's reach simply
-    does not resolve — and the row it would have written could not have been
-    inserted anyway.
+    Asked through the saving session, so a reference resolves to exactly what
+    the person writing the content can point at.
     """
     by_kind: dict[SearchEntityType, list[int]] = {}
     for kind, entity_id in wanted:
