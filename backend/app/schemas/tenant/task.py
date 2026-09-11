@@ -212,7 +212,6 @@ class TaskUpdate(SanitizedBaseModel):
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence | None] = None
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
-    is_archived: Optional[bool] = None
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
     property_values: Optional[List[PropertyValueInput]] = None
@@ -243,7 +242,7 @@ class TaskProjectSummary(SanitizedBaseModel):
     icon: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative: Optional[TaskProjectInitiativeSummary] = None
-    is_archived: Optional[bool] = None
+    archived_at: Optional[datetime] = None
     is_template: Optional[bool] = None
 
 
@@ -260,7 +259,7 @@ class TaskRead(TaskBase):
     updated_at: datetime
     completed_at: Optional[datetime] = None
     position: float
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     created_by: Optional[int] = None
     # Author summary — lets the detail view render "Created by …" without
     # fetching the whole guild roster to resolve ``created_by``.
@@ -291,7 +290,7 @@ class TaskListRead(TaskBase):
     updated_at: datetime
     completed_at: Optional[datetime] = None
     position: float
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     created_by: Optional[int] = None
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0

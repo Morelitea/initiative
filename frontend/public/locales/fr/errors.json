@@ -96,6 +96,8 @@
   "PROJECT_NOT_FOUND": "Projet introuvable",
   "PROJECT_INITIATIVE_NOT_FOUND": "Initiative introuvable",
   "PROJECT_IS_ARCHIVED": "Le projet est archivé",
+  "CONTENT_IS_FROZEN": "Cet élément est archivé ou dans la corbeille. Restaurez-le avant de le modifier.",
+  "PARENT_IS_FROZEN": "L'élément qui le contient est archivé ou dans la corbeille. Restaurez-le d'abord.",
   "PROJECT_OWNER_REQUIRED": "Permission de propriétaire du projet requise",
   "PROJECT_NO_ACCESS": "Vous n'avez pas accès à ce projet",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Accès en écriture requis",
@@ -611,5 +613,6 @@
   "RELATIONSHIP_EXISTS": "Ces éléments sont déjà liés",
   "RELATIONSHIP_NOT_FOUND": "Ce lien n'existe plus",
   "RELATIONSHIP_REMOVE_DENIED": "Vous ne pouvez retirer que les liens que vous avez créés, ou ceux portant sur un élément que vous pouvez modifier",
-  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Cet élément est archivé"
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Cet élément est archivé",
+  "RELATIONSHIP_DERIVED": "Ce type de lien se crée en mentionnant un élément et disparaît quand vous supprimez la mention"
 }

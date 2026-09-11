@@ -9,6 +9,8 @@ Tests the initiative API endpoints at /api/v1/initiatives including:
 - Managing initiative members (add, remove, update roles)
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -434,7 +436,7 @@ async def test_update_initiative_duplicate_name_fails(
 
 
 @pytest.mark.integration
-async def test_initiative_is_archived_defaults_false(
+async def test_initiative_is_not_archived_to_begin_with(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A freshly created initiative is not archived."""
@@ -446,27 +448,26 @@ async def test_initiative_is_archived_defaults_false(
     )
 
     assert response.status_code == 200
-    assert response.json()["is_archived"] is False
+    assert response.json()["archived_at"] is None
 
 
 @pytest.mark.integration
-async def test_archive_initiative_via_patch(
+async def test_archive_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A guild admin can archive (and unarchive) an initiative through PATCH; it
-    stays in the list either way (the settings table manages it there)."""
+    """A guild admin can archive (and unarchive) an initiative through the
+    polymorphic archive endpoint; it stays in the list either way (the settings
+    table manages it there)."""
     admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Archivable"
     )
 
-    archive = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"is_archived": True},
+    archive = await client.post(
+        admin.g(f"/archive/initiative/{initiative.id}"), headers=admin.headers
     )
     assert archive.status_code == 200
-    assert archive.json()["is_archived"] is True
+    assert archive.json()["archived_at"] is not None
 
     # Archived initiatives are NOT removed from the list — only the sidebar
     # filters them client-side; the settings table must still see them.
@@ -475,15 +476,13 @@ async def test_archive_initiative_via_patch(
     )
     assert listing.status_code == 200
     archived = next(i for i in listing.json() if i["id"] == initiative.id)
-    assert archived["is_archived"] is True
+    assert archived["archived_at"] is not None
 
-    unarchive = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"is_archived": False},
+    unarchive = await client.post(
+        admin.g(f"/unarchive/initiative/{initiative.id}"), headers=admin.headers
     )
     assert unarchive.status_code == 200
-    assert unarchive.json()["is_archived"] is False
+    assert unarchive.json()["archived_at"] is None
 
 
 @pytest.mark.integration
@@ -491,7 +490,7 @@ async def test_archive_initiative_as_manager_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Archiving is guild-admin only. A plain initiative manager (who may edit
-    other settings here) is rejected when toggling is_archived."""
+    other settings here) is rejected."""
     # Creator becomes the initiative's PM (manager) but is not a guild admin.
     manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
@@ -503,11 +502,10 @@ async def test_archive_initiative_as_manager_forbidden(
     )
     assert ok.status_code == 200
 
-    # ...but flipping is_archived is admin-only.
-    forbidden = await client.patch(
-        manager.g(f"/initiatives/{manager.initiative.id}"),
+    # ...but archiving is admin-only.
+    forbidden = await client.post(
+        manager.g(f"/archive/initiative/{manager.initiative.id}"),
         headers=manager.headers,
-        json={"is_archived": True},
     )
     assert forbidden.status_code == 403
     assert forbidden.json()["detail"] == "GUILD_ADMIN_REQUIRED"
@@ -1235,7 +1233,7 @@ async def test_directory_lists_only_joinable_initiatives(
         admin.user,
         name="Retired",
         join_policy="open",
-        is_archived=True,
+        archived_at=datetime.now(timezone.utc),
     )
 
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)

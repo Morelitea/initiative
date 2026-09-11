@@ -36,7 +36,12 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import RelationshipMessages
-from app.core.relationships import ENDPOINT_KINDS, RelationshipType
+from app.core.relationships import (
+    DERIVED_TYPES,
+    ENDPOINT_KINDS,
+    Provenance,
+    RelationshipType,
+)
 from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.models.platform.user import User
@@ -131,11 +136,25 @@ def _refuse_archived(*ends: reference_targets.Resolved) -> None:
     """An archived thing is finished with, and its links are part of what it
     says. Asked of both ends, and of a removal as much as an addition."""
     for end in ends:
-        if end.is_archived:
+        if end.archived:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=RelationshipMessages.ENDPOINT_ARCHIVED,
             )
+
+
+def _refuse_derived(relationship_type: RelationshipType) -> None:
+    """Some links are nobody's to make by hand.
+
+    A ``references`` edge is read out of a body when it is saved, so asserting
+    one here would state something no sentence says — and the next save would
+    take it straight back out. Writing the sentence is how you make one.
+    """
+    if relationship_type in DERIVED_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RelationshipMessages.DERIVED,
+        )
 
 
 def _endpoint_kind(value: SearchEntityType) -> SearchEntityType:
@@ -158,12 +177,19 @@ def _render(
     *,
     anchor: Endpoint,
     titles: dict[tuple[str, int], reference_targets.Resolved],
-) -> RelationshipRead:
-    """One edge from the asking entity's side."""
+) -> RelationshipRead | None:
+    """One edge from the asking entity's side, or None if its far end is gone.
+
+    A far end that does not resolve is one in the trash. A link to something
+    only the trash holds is nothing to offer, and the caller's next click would
+    404 on it.
+    """
     outbound = row.source_node == anchor.node
     other_type = row.target_type if outbound else row.source_type
     other_id = row.target_id if outbound else row.source_id
     found = titles.get((other_type, other_id))
+    if found is None:
+        return None
     return RelationshipRead(
         id=row.id,
         relationship_type=RelationshipType(row.relationship_type),
@@ -171,8 +197,9 @@ def _render(
         other=RelatedEnd(
             type=SearchEntityType(other_type),
             id=other_id,
-            title=found.title if found else None,
-            initiative_id=found.initiative_id if found else None,
+            title=found.title,
+            initiative_id=found.initiative_id,
+            updated_at=found.updated_at,
         ),
         provenance=row.provenance,
         confidence=row.confidence,
@@ -189,9 +216,8 @@ async def _titles_for(
 ) -> dict[tuple[str, int], reference_targets.Resolved]:
     """Resolve every far end named by a page of edges — one query per kind.
 
-    A far end the caller cannot open resolves to nothing and renders as a bare
-    reference: the edge cleared the gate on this side, and the other side
-    answers for itself.
+    A far end that resolves to nothing is one in the trash, and
+    :func:`_render` leaves the edge out.
     """
     wanted: dict[str, list[int]] = {}
     for row in rows:
@@ -218,8 +244,13 @@ async def list_relationships(
     entity: str = Query(description="The thing to list edges for, as `kind:id`"),
     relationship_type: Optional[RelationshipType] = Query(default=None),
     other_type: Optional[SearchEntityType] = Query(default=None),
+    direction: relationships_service.Direction = Query(default="both"),
 ) -> List[RelationshipRead]:
-    """Every live edge touching one thing, rendered from its side."""
+    """Every live edge touching one thing, rendered from its side.
+
+    ``direction=inbound`` is "what links here": the things naming this one,
+    rather than the things it names.
+    """
     ref = _parse_ref(entity)
     if other_type is not None:
         other_type = _endpoint_kind(other_type)
@@ -231,10 +262,15 @@ async def list_relationships(
         anchor,
         relationship_type=relationship_type,
         other_kind=other_type,
+        direction=direction,
     )
     rows.sort(key=lambda r: (r.created_at, r.id or 0))
     titles = await _titles_for(session, rows, anchor, current_user.id)
-    return [_render(row, anchor=anchor, titles=titles) for row in rows]
+    return [
+        rendered
+        for rendered in (_render(row, anchor=anchor, titles=titles) for row in rows)
+        if rendered is not None
+    ]
 
 
 @router.post("/", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED)
@@ -245,6 +281,7 @@ async def create_relationship(
     guild_context: GuildContextDep,
 ) -> RelationshipRead:
     """Record one edge. 409 if it is already there."""
+    _refuse_derived(body.relationship_type)
     source = await _resolve(session, body.source, current_user.id)
     target = await _resolve(session, body.target, current_user.id)
     _refuse_across_initiatives(source, target)
@@ -272,7 +309,15 @@ async def create_relationship(
 
     anchor = Endpoint(body.source.type, body.source.id)
     titles = await _titles_for(session, [row], anchor, current_user.id)
-    return _render(row, anchor=anchor, titles=titles)
+    made = _render(row, anchor=anchor, titles=titles)
+    if made is None:
+        # Both ends resolved a moment ago, so this is the far end having gone
+        # into the trash in between.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
+        )
+    return made
 
 
 @router.put("/", response_model=List[RelationshipRead])
@@ -292,6 +337,7 @@ async def replace_relationship_slice(
     remembered: a replace is the surface restating a set, not a person taking
     one link back.
     """
+    _refuse_derived(relationship_type)
     ref = _parse_ref(entity)
     other_type = _endpoint_kind(other_type)
     anchor_row = await _resolve(session, ref, current_user.id)
@@ -314,11 +360,9 @@ async def replace_relationship_slice(
     anchor = Endpoint(ref.type, ref.id)
 
     # A replace is a bulk removal, so everything it drops answers the same
-    # question a DELETE does. A symmetric edge is writable by anyone who can
-    # read both of its ends, so without this the slice would be a way to undo
-    # somebody else's curation that the single removal refuses. One edge the
-    # caller may not remove fails the whole request rather than being silently
-    # kept, which would leave the surface showing a set it did not ask for.
+    # question a single removal does. One edge the caller may not remove fails
+    # the whole request rather than being quietly kept, so the surface never
+    # shows a set it did not ask for.
     keeping = set(wanted)
     for row in await relationships_service.list_for_entity(
         session, anchor, relationship_type=relationship_type, other_kind=other_type
@@ -347,7 +391,11 @@ async def replace_relationship_slice(
     )
     rows.sort(key=lambda r: (r.created_at, r.id or 0))
     titles = await _titles_for(session, rows, anchor, current_user.id)
-    return [_render(row, anchor=anchor, titles=titles) for row in rows]
+    return [
+        rendered
+        for rendered in (_render(row, anchor=anchor, titles=titles) for row in rows)
+        if rendered is not None
+    ]
 
 
 @router.delete("/{relationship_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -359,10 +407,13 @@ async def remove_relationship(
 ) -> None:
     """Take an edge back.
 
-    Guarded here rather than by the policy, because a symmetric edge is
-    writable by anyone who can read both of its ends — which is the right rule
-    for making one and the wrong rule for undoing somebody else's. Your own
-    edge, or one on a thing you can edit.
+    Your own edge, or one on a thing you can edit. Guarded here rather than by
+    the policy, because the rule for making a link and the rule for undoing
+    somebody else's are different questions, and a policy answers per statement
+    rather than per author.
+
+    An edge derived from content is not one to take back at all: what it says
+    is what a body says, and the way to change that is to edit the body.
     """
     row = (
         await session.exec(
@@ -378,6 +429,11 @@ async def remove_relationship(
             detail=RelationshipMessages.NOT_FOUND,
         )
 
+    if row.provenance != Provenance.manual.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RelationshipMessages.DERIVED,
+        )
     if not await _may_remove(session, row, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

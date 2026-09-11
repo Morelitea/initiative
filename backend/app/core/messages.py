@@ -18,6 +18,16 @@ class CommonMessages:
     #: the zone is a real parameter rather than a formatting hint.
     UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
 
+    #: The write reached content that is archived or in the trash, or something
+    #: under it. One code for both, because the answer is the same either way:
+    #: bring it back first. See ``app.db.frozen``.
+    CONTENT_IS_FROZEN = "CONTENT_IS_FROZEN"
+
+    #: The write was fine for the thing itself, but what it sits inside is
+    #: archived or in the trash — so it cannot come out on its own, and the
+    #: answer names the container rather than the row.
+    PARENT_IS_FROZEN = "PARENT_IS_FROZEN"
+
 
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
@@ -389,6 +399,10 @@ class RelationshipMessages:
     EXISTS = "RELATIONSHIP_EXISTS"
     NOT_FOUND = "RELATIONSHIP_NOT_FOUND"
     REMOVE_DENIED = "RELATIONSHIP_REMOVE_DENIED"
+    #: A link nobody made by hand, so there is none to make or take back here.
+    #: It is written when a body naming the other thing is saved, and withdrawn
+    #: by editing that body.
+    DERIVED = "RELATIONSHIP_DERIVED"
 
 
 class SettingsMessages:
@@ -1000,6 +1014,35 @@ class DelegationExchangeMessages:
     #: Reached with something that is not a delegation, so there is nothing
     #: held to re-address.
     NOT_DELEGATED = "APP_DELEGATION_NOT_DELEGATED"
+
+
+class BundledChannelMessages:
+    """Codes for calls a service this deployment ships makes to it.
+
+    Machine-to-machine, read by that service's logs and retry logic rather than
+    ``errors.json`` — the same reasoning :class:`BillingMessages` gives. No
+    surface renders one to a person.
+    """
+
+    #: No bundled service is named, or its secret is unwired. The channel is
+    #: inert on a deployment that ships none.
+    NOT_CONFIGURED = "BUNDLED_NOT_CONFIGURED"
+    #: The envelope arrived without both halves of its signature.
+    MISSING_SIGNATURE = "BUNDLED_MISSING_SIGNATURE"
+    #: Outside the clock window, or not a timestamp at all.
+    STALE_TIMESTAMP = "BUNDLED_STALE_TIMESTAMP"
+    #: The signature is not one this deployment's secret produces.
+    BAD_SIGNATURE = "BUNDLED_BAD_SIGNATURE"
+    #: The reference names no guild, or names one through an install that is
+    #: not the caller's own.
+    UNKNOWN_GUILD = "BUNDLED_UNKNOWN_GUILD"
+    #: No reference has been minted for that guild in the sector asked about.
+    NO_SUCH_NAME = "BUNDLED_NO_SUCH_NAME"
+    #: The signed body is not the shape this route takes.
+    INVALID_PAYLOAD = "BUNDLED_INVALID_PAYLOAD"
+    #: That sector names something inside a guild, so it is not one a caller
+    #: holding only a guild reference can ask for.
+    SECTOR_NOT_ANSWERABLE = "BUNDLED_SECTOR_NOT_ANSWERABLE"
 
 
 class AppServiceMessages:

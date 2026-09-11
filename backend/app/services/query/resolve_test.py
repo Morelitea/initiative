@@ -218,7 +218,7 @@ class TestStructuralCost:
     def test_a_relating_predicate_alongside_a_filter_is_a_join(self):
         sql = (
             "SELECT t.id FROM tasks t JOIN projects p "
-            "ON t.project_id = p.id AND p.is_archived = false"
+            "ON t.project_id = p.id AND p.archived_at IS NULL"
         )
         assert resolve(sql).relations == ("projects", "tasks")
 
@@ -367,8 +367,8 @@ class TestTheFunctionSurface:
         """``AND`` and ``CASE`` are a kind of function to this parser, and
         they are plainly structure."""
         sql = (
-            "SELECT CASE WHEN is_archived THEN 'old' ELSE 'live' END AS bucket "
-            "FROM projects WHERE is_archived = false AND is_template = false"
+            "SELECT CASE WHEN archived_at IS NOT NULL THEN 'old' ELSE 'live' END AS bucket "
+            "FROM projects WHERE archived_at IS NULL AND is_template = false"
         )
         assert resolve(sql).sql
 
@@ -383,7 +383,7 @@ class TestShapesATileAsks:
             "FROM tasks GROUP BY m ORDER BY m",
             "SELECT p.name, count(*) AS n FROM projects p "
             "JOIN tasks k ON k.project_id = p.id "
-            "WHERE p.is_archived = false GROUP BY p.name ORDER BY n DESC LIMIT 10",
+            "WHERE p.archived_at IS NULL GROUP BY p.name ORDER BY n DESC LIMIT 10",
             "SELECT title FROM tasks WHERE title ILIKE '%bug%' LIMIT 50",
             "SELECT count(*) AS n FROM tasks "
             "WHERE due_date BETWEEN '2026-01-01' AND '2026-12-31'",

@@ -14,10 +14,12 @@ See ``history/opaque-identity-design.md``.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, exists, func, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -38,8 +40,11 @@ __all__ = [
     "billing_refs",
     "billing_user_ref",
     "drop_entity_refs",
+    "drop_guild_refs",
     "drop_sector_refs",
+    "forget_user",
     "ensure_ref",
+    "existing_ref",
     "mint_ref",
     "purge_orphaned_sector_refs",
     "purge_retired_refs",
@@ -48,6 +53,8 @@ __all__ = [
     "resolve_billing_guild",
     "resolve_ref",
 ]
+
+logger = logging.getLogger(__name__)
 
 #: How long a replaced reference keeps resolving. Long enough for the other
 #: party to pick up the new value and for anything already in flight to land.
@@ -163,6 +170,34 @@ async def billing_guild_ref(*, guild_id: int) -> str:
         )
         await session.commit()
     return ref
+
+
+async def existing_ref(
+    *,
+    entity_type: IdentityEntity,
+    entity_id: int,
+    purpose: IdentityPurpose,
+    sector_guild_id: int | None = None,
+    sector_id: int | None = None,
+) -> str | None:
+    """This entity's live reference for one sector, or None if it has none.
+
+    :func:`ensure_ref` for a caller that must not mint. Reporting which entity
+    a sector already names is one thing; letting a party outside that sector
+    create a row in it is another, and a reference that does not exist is an
+    answer rather than a gap to fill.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        row = await _live_ref(
+            session,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            purpose=purpose,
+            sector=(sector_guild_id, sector_id),
+        )
+    return None if row is None else row.ref
 
 
 async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
@@ -395,6 +430,46 @@ async def drop_sector_refs(
         clause = and_(clause, IdentityRef.purpose == purpose.value)
     result = await session.exec(delete(IdentityRef).where(clause))
     return result.rowcount or 0
+
+
+async def drop_guild_refs(session: AsyncSession, *, guild_id: int) -> int:
+    """Everything a deleted guild leaves in this table. Returns the count.
+
+    Two halves, because a guild appears here in two ways. The sectors INSIDE
+    it name its members to each app installed there. The guild itself is also
+    named — by billing, whose sector is the whole deployment and whose rows
+    therefore carry no ``sector_guild_id`` to find them by.
+    """
+    return await drop_sector_refs(
+        session, sector_guild_id=guild_id
+    ) + await drop_entity_refs(
+        session, entity_type=IdentityEntity.guild, entity_id=guild_id
+    )
+
+
+async def forget_user(*, user_id: int) -> int:
+    """Drop every reference to one person, reporting rather than raising.
+
+    Called once the account is erased and after the apps holding those
+    references have been told, so a revocation already on its way still names
+    somebody. Opens its own session for the reason ``billing_user_ref`` does —
+    the callers are request handlers routed to other roles — and runs after the
+    commit, where a failure must not undo the erasure.
+    """
+    from app.db.session import AdminSessionLocal
+
+    try:
+        async with AdminSessionLocal() as session:
+            dropped = await drop_entity_refs(
+                session, entity_type=IdentityEntity.user, entity_id=user_id
+            )
+            await session.commit()
+    except SQLAlchemyError:
+        logger.warning(
+            "identity refs: references for erased user %s were not removed", user_id
+        )
+        return 0
+    return dropped
 
 
 async def purge_orphaned_sector_refs(session: AsyncSession) -> int:

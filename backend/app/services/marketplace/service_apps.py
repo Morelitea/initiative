@@ -1451,6 +1451,23 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
             seen_public_ids.add(dashboard["public_id"])
         cleaned["dashboards"] = dashboards
 
+    # After the endpoints, because it names one of them. A summary is a read:
+    # it reports where this guild stands, and a deployment that renders it is
+    # drawing an answer, not asking the app to do anything.
+    summary = body.get("guild_summary")
+    if summary is not None:
+        summary_id = _endpoint_id(
+            summary,
+            service_public_id=service["public_id"],
+            what="service app: guild_summary",
+        )
+        if summary_id not in readable_ids:
+            fail(
+                f"service app: guild_summary names {summary_id!r}, which is not "
+                "an endpoint this app answers reads on"
+            )
+        cleaned["guild_summary"] = summary_id
+
     default_name = clean_text(
         body.get("default_name"),
         what="service app: default_name",

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -18,7 +19,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Post(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """One notice on an initiative's bulletin board.
 
     A post is a whole tool entity rather than a child row, which is what gives

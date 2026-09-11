@@ -57,6 +57,9 @@ class RelatedEnd(SanitizedBaseModel):
     id: int
     title: Optional[str] = None
     initiative_id: Optional[int] = None
+    #: When the far end last changed, for the surfaces that order by recency.
+    #: None for a kind that records no such moment.
+    updated_at: Optional[datetime] = None
 
 
 class RelationshipRead(SanitizedBaseModel):

@@ -180,7 +180,7 @@ export const CreateTaskWizard = () => {
       accumulatedProjects.items.filter(
         (p) =>
           p.initiative_id === selectedInitiativeId &&
-          !p.is_archived &&
+          p.archived_at === null &&
           hasWriteAccess(p.my_permission_level)
       ),
     [accumulatedProjects, selectedInitiativeId]

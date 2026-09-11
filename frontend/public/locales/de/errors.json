@@ -98,6 +98,8 @@
   "PROJECT_NOT_FOUND": "Projekt nicht gefunden",
   "PROJECT_INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
   "PROJECT_IS_ARCHIVED": "Projekt ist archiviert",
+  "CONTENT_IS_FROZEN": "Dies ist archiviert oder im Papierkorb. Stelle es wieder her, bevor du Änderungen vornimmst.",
+  "PARENT_IS_FROZEN": "Das übergeordnete Element ist archiviert oder im Papierkorb. Stelle es zuerst wieder her.",
   "PROJECT_OWNER_REQUIRED": "Eigentümerberechtigung für das Projekt erforderlich",
   "PROJECT_NO_ACCESS": "Du hast keinen Zugriff auf dieses Projekt",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Schreibzugriff erforderlich",
@@ -611,5 +613,6 @@
   "RELATIONSHIP_EXISTS": "Diese sind bereits verknüpft",
   "RELATIONSHIP_NOT_FOUND": "Diese Verknüpfung existiert nicht mehr",
   "RELATIONSHIP_REMOVE_DENIED": "Du kannst nur Verknüpfungen entfernen, die du erstellt hast, oder solche an etwas, das du bearbeiten darfst",
-  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Das wurde archiviert"
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Das wurde archiviert",
+  "RELATIONSHIP_DERIVED": "Solche Verknüpfungen entstehen durch eine Erwähnung und verschwinden, wenn du die Erwähnung entfernst"
 }

@@ -99,7 +99,7 @@ const PlainRowWrapper = ({
     <TableRow
       ref={measureRef}
       style={virtualStyle}
-      className={cn(row.original.is_archived && "opacity-50")}
+      className={cn(row.original.archived_at !== null && "opacity-50")}
       data-state={row.getIsSelected() && "selected"}
       data-index={virtualIndex}
     >
@@ -161,7 +161,10 @@ const SortableRowWrapperInner = ({
       <TableRow
         ref={setRefs}
         style={style}
-        className={cn(isDragging && "bg-muted/60", row.original.is_archived && "opacity-50")}
+        className={cn(
+          isDragging && "bg-muted/60",
+          row.original.archived_at !== null && "opacity-50"
+        )}
         data-state={row.getIsSelected() && "selected"}
         data-index={virtualIndex}
       >

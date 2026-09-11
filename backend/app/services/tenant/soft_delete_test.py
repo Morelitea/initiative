@@ -478,12 +478,16 @@ def _wikilink_content(target_document_id: int) -> dict:
 async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     session: AsyncSession,
 ):
-    """Purging a document rewrites wikilinks pointing at it in surviving
-    documents (documentId -> null, yjs_state cleared) and removes the
-    document_links rows, so nothing dangles after the row is gone."""
+    """Purging a document rewrites links pointing at it in surviving documents
+    (documentId -> null, yjs_state cleared) and takes the edges with it, so
+    nothing dangles after the row is gone."""
     from sqlmodel import select
 
-    from app.models.tenant.document import DocumentLink
+    from app.core.relationships import RelationshipType, node_id
+    from app.core.search import SearchEntityType
+    from app.models.tenant.relationship import EntityRelationship
+    from app.services.tenant import content_references
+    from app.services.tenant.relationships import Endpoint
     from app.services.tenant.soft_delete import hard_purge_entity
     from app.testing.factories import create_document
 
@@ -499,12 +503,11 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
         content=_wikilink_content(target.id),
         yjs_state=b"stale-collab-state",
     )
-    session.add(
-        DocumentLink(
-            source_document_id=linking.id,
-            target_document_id=target.id,
-            guild_id=guild.id,
-        )
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.document, linking.id),
+        body=linking.content,
+        author_id=user.id,
     )
     await session.commit()
 
@@ -524,20 +527,27 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     assert wikilink_node["documentId"] is None
     assert refreshed.yjs_state is None
 
-    links = (
+    edges = (
         await session.exec(
-            select(DocumentLink).where(DocumentLink.target_document_id == target.id)
+            select(EntityRelationship).where(
+                EntityRelationship.target_node
+                == node_id(SearchEntityType.document, target.id),
+                EntityRelationship.relationship_type
+                == RelationshipType.references.value,
+            )
         )
     ).all()
-    assert links == []
+    assert edges == []
 
 
 async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
     session: AsyncSession,
 ):
-    """A linking document sitting in the trash gets its wikilinks unresolved
-    too — restoring it after the purge must not bring back a dangling link."""
-    from app.models.tenant.document import DocumentLink
+    """A linking document sitting in the trash gets its links unresolved too —
+    restoring it after the purge must not bring back a dangling link."""
+    from app.core.search import SearchEntityType
+    from app.services.tenant import content_references
+    from app.services.tenant.relationships import Endpoint
     from app.services.tenant.soft_delete import hard_purge_entity
     from app.testing.factories import create_document
 
@@ -552,12 +562,11 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
         name="Trashed Linking",
         content=_wikilink_content(target.id),
     )
-    session.add(
-        DocumentLink(
-            source_document_id=linking.id,
-            target_document_id=target.id,
-            guild_id=guild.id,
-        )
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.document, linking.id),
+        body=linking.content,
+        author_id=user.id,
     )
     await session.commit()
 

@@ -168,7 +168,7 @@ async def list_initiative_statuses(
     """
     project_conditions = [
         Project.initiative_id == initiative_id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
 

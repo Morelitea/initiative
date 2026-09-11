@@ -432,7 +432,7 @@ const KanbanTaskCardSortable = memo(
         {...listeners}
         className={cn(
           "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-          task.is_archived && "opacity-50"
+          task.archived_at !== null && "opacity-50"
         )}
         data-kanban-scroll-lock="true"
       >
@@ -465,7 +465,7 @@ const KanbanTaskCardPlain = memo(
         data-index={dataIndex}
         className={cn(
           "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-          task.is_archived && "opacity-50"
+          task.archived_at !== null && "opacity-50"
         )}
         data-kanban-scroll-lock="true"
       >
@@ -518,7 +518,7 @@ const KanbanTaskCard = ({
       {...listeners}
       className={cn(
         "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-        task.is_archived && "opacity-50"
+        task.archived_at !== null && "opacity-50"
       )}
       data-kanban-scroll-lock="true"
     >

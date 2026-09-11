@@ -15,6 +15,7 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    archive,
     query,
     smart_chips,
     search as guild_search,
@@ -70,6 +71,7 @@ from app.api.v1.platform_endpoints import (
     config,
     contacts,
     delegation_exchange,
+    guild_reference,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -138,6 +140,9 @@ api_router.include_router(
 # sectors' references (history/opaque-identity-design.md §12).
 api_router.include_router(
     delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
+)
+api_router.include_router(
+    guild_reference.router, prefix="/app-platform", tags=["app-platform"]
 )
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —
@@ -259,6 +264,9 @@ guild_router.include_router(
     tags=["property-definitions"],
 )
 guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
+# No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},
+# one pair for every archivable kind (see tenant_endpoints/archive.py).
+guild_router.include_router(archive.router, tags=["archive"])
 # Guild member management (guild-admin). The /me/* + platform user endpoints
 # stay top-level on users.router.
 guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])

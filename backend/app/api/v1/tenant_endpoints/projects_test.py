@@ -237,7 +237,7 @@ async def test_list_projects_excludes_archived_by_default(
     project = await create_project(session, admin.initiative, admin.user)
 
     # Archive the project
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
@@ -256,7 +256,7 @@ async def test_list_projects_with_archived_filter(
     """Test listing projects with archived filter."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
@@ -1005,12 +1005,12 @@ async def test_archive_project(client: AsyncClient, session: AsyncSession, actin
     project = await create_project(session, owner.initiative, owner.user)
 
     response = await client.post(
-        owner.g(f"/projects/{project.id}/archive"), headers=owner.headers
+        owner.g(f"/archive/project/{project.id}"), headers=owner.headers
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_archived"] is True
+    assert data["archived_at"] is not None
 
 
 @pytest.mark.integration
@@ -1020,17 +1020,17 @@ async def test_unarchive_project(
     """Test unarchiving a project."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     project = await create_project(session, owner.initiative, owner.user)
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
     response = await client.post(
-        owner.g(f"/projects/{project.id}/unarchive"), headers=owner.headers
+        owner.g(f"/unarchive/project/{project.id}"), headers=owner.headers
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_archived"] is False
+    assert data["archived_at"] is None
 
 
 @pytest.mark.integration
@@ -1690,7 +1690,11 @@ async def test_project_counts_by_initiative(
     await create_project(session, admin.initiative, member.user, name="Member project")
     await create_project(session, admin.initiative, admin.user, name="Admin project")
     await create_project(
-        session, admin.initiative, admin.user, name="Archived", is_archived=True
+        session,
+        admin.initiative,
+        admin.user,
+        name="Archived",
+        archived_at=datetime.now(timezone.utc),
     )
     await create_project(
         session, admin.initiative, admin.user, name="Template", is_template=True

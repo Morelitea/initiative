@@ -338,6 +338,19 @@ async def apply_guild_tier(
     )
 
 
+async def guild_display_name(session: AsyncSession, guild_id: int) -> str | None:
+    """What one guild calls itself, or None if it is no longer there.
+
+    Read on the billing session rather than the system engine: the name is one
+    column of ``public.guilds``, and the billing role is granted it explicitly
+    (``20260911_0257``). Selecting columns rather than the model because that
+    role's grants are column-scoped — an ORM ``SELECT *`` would be refused.
+    """
+    return (
+        await session.exec(select(Guild.name).where(Guild.id == guild_id))
+    ).one_or_none()
+
+
 async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:
     """Current stored bytes for one guild, for the signed usage read.
 

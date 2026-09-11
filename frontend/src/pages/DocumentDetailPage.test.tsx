@@ -60,7 +60,7 @@ beforeEach(() => {
       return HttpResponse.json(stored);
     }),
     guildHttp.post("/recents/", () => HttpResponse.json({})),
-    guildHttp.get("/documents/:documentId/backlinks", () => HttpResponse.json([])),
+    guildHttp.get("/relationships/", () => HttpResponse.json([])),
     guildHttp.get("/properties/definitions", () => HttpResponse.json([]))
   );
 });

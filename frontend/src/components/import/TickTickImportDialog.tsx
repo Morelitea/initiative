@@ -195,7 +195,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   // PAM grants) instead of re-deriving from the raw permissions list on the client.
   const activeProjects =
     projectsQuery.data?.items?.filter((p) => {
-      if (p.is_archived || p.is_template) return false;
+      if (p.archived_at !== null || p.is_template) return false;
       return hasWriteAccess(p.my_permission_level);
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];

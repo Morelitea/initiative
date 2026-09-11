@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -39,7 +40,9 @@ class DocumentType(str, Enum):
     spreadsheet = "spreadsheet"  # Sparse cell map; collaborative via yjs
 
 
-class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Document(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     __tablename__ = "documents"
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and
@@ -183,19 +186,3 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     )
 
     document: Optional["Document"] = Relationship(back_populates="file_versions")
-
-
-class DocumentLink(CreatedByMixin, table=True):
-    """Tracks wikilinks between documents for backlinks queries."""
-
-    __tablename__ = "document_links"
-
-    source_document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    target_document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
