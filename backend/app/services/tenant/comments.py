@@ -50,6 +50,7 @@ from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
+from app.services.tenant import content_references
 from app.services import notifications
 from app.services import permissions as permissions_service
 from app.services import reachability
@@ -663,6 +664,9 @@ async def create_comment(
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
     _stamp_task_project(ctx, comment)
+    await content_references.sync_for_comment(
+        session, comment, author_id=cast(int, author.id)
+    )
 
     await _process_comment_notifications(
         session,
@@ -972,6 +976,11 @@ async def delete_comment(
         deleted_by_user_id=user.id,
         retention_days=retention_days,
     )
+    # A trashed comment is out of the conversation, so what it alone pointed at
+    # is no longer something this thing references.
+    await content_references.sync_for_comment(
+        session, comment, author_id=cast(int, user.id)
+    )
     return comment
 
 
@@ -1006,6 +1015,9 @@ async def update_comment(
     comment.updated_at = datetime.now(timezone.utc)
     session.add(comment)
     await session.flush()
+    await content_references.sync_for_comment(
+        session, comment, author_id=cast(int, user.id)
+    )
     await session.refresh(comment, attribute_names=["author"])
     # The edit reply is what the client writes back into its cache, so it must
     # carry the reactions the comment still has — serializing without them

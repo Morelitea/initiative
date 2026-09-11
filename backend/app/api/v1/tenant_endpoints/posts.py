@@ -80,7 +80,9 @@ from app.schemas.tenant.timeline import TimelineResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
+from app.core.search import SearchEntityType
 from app.services.tenant import comments as comments_service
+from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
@@ -89,6 +91,7 @@ from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
+from app.services.tenant.relationships import Endpoint
 
 #: How many notices a board hands over at once. A post carries its body and
 #: the client mounts an editor per body, so this is deliberately far below the
@@ -613,6 +616,14 @@ async def create_post(
         grants=post_in.grants,
     )
 
+    # What the new body points at becomes `references` edges.
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.post, post.id),
+        body=post.body,
+        author_id=current_user.id,
+    )
+
     if post_in.tag_ids:
         await tags_service.set_entity_tags(
             session,
@@ -668,8 +679,10 @@ async def update_post(
     if "name" in update_data and update_data["name"] is not None:
         post.name = update_data["name"].strip()
         updated = True
+    body_changed = False
     if "body" in update_data and update_data["body"] is not None:
         post.body = _validated_body(update_data["body"])
+        body_changed = True
         updated = True
     if "scheduled_for" in update_data:
         when = update_data["scheduled_for"]
@@ -695,6 +708,13 @@ async def update_post(
     if updated:
         post.updated_at = now
         session.add(post)
+        if body_changed:
+            await content_references.sync_for_entity(
+                session,
+                Endpoint(SearchEntityType.post, post.id),
+                body=post.body,
+                author_id=current_user.id,
+            )
         if publish_now:
             await _announce(session, post, current_user, guild_context)
         await session.commit()

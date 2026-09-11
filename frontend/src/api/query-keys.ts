@@ -273,8 +273,9 @@ const document = (documentId: number): Spec => ({
   guildExact: [`/api/v1/documents/${documentId}`],
 });
 
-const documentBacklinks = (documentId: number): Spec => ({
-  guildExact: [`/api/v1/documents/${documentId}/backlinks`],
+/** Every read of the graph. One path serves them all, so one bucket does. */
+const relationships = (): Spec => ({
+  guildPrefix: ["/api/v1/relationships"],
 });
 
 const documentVersions = (documentId: number): Spec => ({
@@ -649,7 +650,6 @@ export const q = {
   directMessages,
   dmSettings,
   document,
-  documentBacklinks,
   documentComments,
   documentVersions,
   emailSettings,
@@ -684,6 +684,7 @@ export const q = {
   queue,
   recentComments,
   recents,
+  relationships,
   resolvedAISettings,
   storageSettings,
   tag,

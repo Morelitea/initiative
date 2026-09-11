@@ -50,7 +50,10 @@ from app.services.tenant.collaboration import (
     room_roster,
     user_has_connection,
 )
+from app.core.search import SearchEntityType
+from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
+from app.services.tenant.relationships import Endpoint
 from app.services import permissions as permissions_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -508,16 +511,15 @@ async def sync_document_content(
 
     # Update the content column
     try:
-        # Sync wikilinks to document_links table, and fix any stale wikilinks
-        # that point to deleted documents
-        fixed_content = await documents_service.sync_document_links(
+        # Record what the new body points at, and repair any link whose target
+        # has since been deleted.
+        fixed_content = await content_references.sync_for_entity(
             session,
-            document_id=document_id,
-            content=content,
-            guild_id=guild_id,
+            Endpoint(SearchEntityType.document, document_id),
+            body=content,
+            author_id=user.id,
             fix_content=True,
         )
-        # Use the fixed content if wikilinks were corrected, otherwise use original
         document.content = fixed_content if fixed_content else content
         session.add(document)
         await session.commit()

@@ -380,7 +380,6 @@ NOT_SEARCHABLE: dict[str, str] = {
     "task_statuses": "column names, reached from the project",
     "document_file_versions": "history of a document already indexed",
     "gallery_image_versions": "history of a picture already indexed",
-    "document_links": "derived wikilink graph",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",

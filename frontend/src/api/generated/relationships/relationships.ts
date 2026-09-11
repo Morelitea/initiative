@@ -50,6 +50,9 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * Every live edge touching one thing, rendered from its side.
+ *
+ * ``direction=inbound`` is "what links here": the things naming this one,
+ * rather than the things it names.
  * @summary List Relationships
  */
 export const listRelationshipsApiV1GGuildIdRelationshipsGet = (
@@ -444,10 +447,13 @@ export const useReplaceRelationshipSliceApiV1GGuildIdRelationshipsPut = <
 /**
  * Take an edge back.
  *
- * Guarded here rather than by the policy, because a symmetric edge is
- * writable by anyone who can read both of its ends — which is the right rule
- * for making one and the wrong rule for undoing somebody else's. Your own
- * edge, or one on a thing you can edit.
+ * Your own edge, or one on a thing you can edit. Guarded here rather than by
+ * the policy, because the rule for making a link and the rule for undoing
+ * somebody else's are different questions, and a policy answers per statement
+ * rather than per author.
+ *
+ * An edge derived from content is not one to take back at all: what it says
+ * is what a body says, and the way to change that is to edit the body.
  * @summary Remove Relationship
  */
 export const removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete = (

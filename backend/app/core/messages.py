@@ -399,6 +399,10 @@ class RelationshipMessages:
     EXISTS = "RELATIONSHIP_EXISTS"
     NOT_FOUND = "RELATIONSHIP_NOT_FOUND"
     REMOVE_DENIED = "RELATIONSHIP_REMOVE_DENIED"
+    #: A link nobody made by hand, so there is none to make or take back here.
+    #: It is written when a body naming the other thing is saved, and withdrawn
+    #: by editing that body.
+    DERIVED = "RELATIONSHIP_DERIVED"
 
 
 class SettingsMessages:

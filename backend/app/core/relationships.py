@@ -51,6 +51,11 @@ class RelationshipType(str, Enum):
     #: X carries the label Y. Directional: a tag is a label, so the edge
     #: describes the thing carrying it.
     tagged_with = "tagged_with"
+    #: X's own words name Y. Directional, and the only primitive nobody asserts
+    #: by hand: it is read out of a body on save and withdrawn the same way.
+    #: Two things naming each other is ordinary rather than contradictory, which
+    #: is why this is not asymmetric.
+    references = "references"
     #: These belong together and there is no better word for it.
     related_to = "related_to"
 
@@ -97,6 +102,7 @@ SPECS: dict[RelationshipType, RelationshipSpec] = {
     RelationshipType.depends_on: RelationshipSpec(transitive=True, asymmetric=True),
     RelationshipType.part_of: RelationshipSpec(transitive=True, asymmetric=True),
     RelationshipType.tagged_with: RelationshipSpec(asymmetric=True),
+    RelationshipType.references: RelationshipSpec(),
     RelationshipType.related_to: RelationshipSpec(symmetric=True),
 }
 
@@ -110,6 +116,11 @@ TRANSITIVE_TYPES: frozenset[RelationshipType] = frozenset(
     t for t, spec in SPECS.items() if spec.transitive
 )
 
+#: Types nobody asserts by hand. They are read out of a body when it is saved
+#: and withdrawn when it is edited, so the manual surface neither makes one nor
+#: takes one back — editing the sentence is how you do both.
+DERIVED_TYPES: frozenset[RelationshipType] = frozenset({RelationshipType.references})
+
 #: What each primitive is called when a change to it is reported against the
 #: thing it describes — the label an outbox event carries in ``changed``.
 #:
@@ -122,6 +133,7 @@ FACETS: dict[RelationshipType, str] = {
     RelationshipType.depends_on: "dependencies",
     RelationshipType.part_of: "parts",
     RelationshipType.tagged_with: "tags",
+    RelationshipType.references: "references",
     RelationshipType.related_to: "relationships",
 }
 

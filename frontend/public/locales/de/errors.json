@@ -613,5 +613,6 @@
   "RELATIONSHIP_EXISTS": "Diese sind bereits verknüpft",
   "RELATIONSHIP_NOT_FOUND": "Diese Verknüpfung existiert nicht mehr",
   "RELATIONSHIP_REMOVE_DENIED": "Du kannst nur Verknüpfungen entfernen, die du erstellt hast, oder solche an etwas, das du bearbeiten darfst",
-  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Das wurde archiviert"
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Das wurde archiviert",
+  "RELATIONSHIP_DERIVED": "Solche Verknüpfungen entstehen durch eine Erwähnung und verschwinden, wenn du die Erwähnung entfernst"
 }

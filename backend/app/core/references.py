@@ -5,12 +5,18 @@ built on it — a `#` link, a `[[ ]]` link, an `@` mention, and the smart chips
 that add a fact about the thing on top.
 
 This module owns the vocabulary because it belongs to all of those shapes and
-to none of them in particular. What a reference RESOLVES to — the column
-holding the name, the resource whose sharing gates it — is derived from the
-search registry in :mod:`app.db.reference_targets`, which needs the models.
+to none of them in particular — including how one is READ back out of something
+somebody wrote, which is the same question whether the body is a Lexical editor
+state or the running text of a comment.
+
+What a reference RESOLVES to — the column holding the name, the resource whose
+sharing gates it — is derived from the search registry in
+:mod:`app.db.reference_targets`, which needs the models.
 """
 
+import re
 from enum import Enum
+from typing import Any, Callable
 
 from app.core.search import SearchEntityType
 
@@ -87,3 +93,115 @@ def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
     if not is_referenceable(entity_type):
         return None
     return entity_type, entity_id
+
+
+#: Node types in a Lexical body that name another thing, and the field holding
+#: its id.
+#:
+#: ``wikilink`` is what ``[[ ]]`` wrote before references were one thing;
+#: ``entity-mention`` is what both triggers write now. Both count, which is what
+#: stops "what links here" under-reporting the moment anyone uses ``#``.
+_REFERENCE_NODES: dict[str, str] = {
+    "wikilink": "documentId",
+    "entity-mention": "entityId",
+}
+
+#: A reference written into running text: ``#task[Fix the bug](12)``. The kind
+#: is part of the syntax, so one pattern reads every kind rather than one
+#: pattern per kind.
+_TEXT_REFERENCE = re.compile(r"#([a-z_]+)\[[^\]]*\]\((\d+)\)")
+
+
+def _kind(value: str) -> SearchEntityType | None:
+    """The kind a reference names, or None if nothing is called that."""
+    try:
+        return SearchEntityType(value)
+    except ValueError:
+        return None
+
+
+def references_in_body(content: Any) -> set[tuple[SearchEntityType, int]]:
+    """Every thing a Lexical body points at.
+
+    Walks the editor state for reference nodes. A smart chip is a reading of a
+    thing rather than a link to it and never counts — it is already excluded by
+    not being one of the node types above.
+    """
+    if not isinstance(content, dict):
+        return set()
+
+    found: set[tuple[SearchEntityType, int]] = set()
+
+    def walk(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        field = _REFERENCE_NODES.get(node.get("type"))
+        if field is not None:
+            # A reference names its kind; a legacy wikilink is a document by
+            # construction and carries none.
+            kind = _kind(node.get("entityType", SearchEntityType.document.value))
+            entity_id = node.get(field)
+            if kind is not None and isinstance(entity_id, int) and entity_id > 0:
+                found.add((kind, entity_id))
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                walk(child)
+
+    root = content.get("root")
+    if isinstance(root, dict):
+        walk(root)
+    return found
+
+
+def references_in_text(content: str | None) -> set[tuple[SearchEntityType, int]]:
+    """Every thing a plain-text body points at — what a comment is written in."""
+    if not content:
+        return set()
+    found: set[tuple[SearchEntityType, int]] = set()
+    for raw_kind, raw_id in _TEXT_REFERENCE.findall(content):
+        kind = _kind(raw_kind)
+        if kind is not None:
+            found.add((kind, int(raw_id)))
+    return found
+
+
+def unresolve_missing_wikilinks(
+    content: dict[str, Any], live_document_ids: set[int]
+) -> bool:
+    """Blank the target of every ``[[ ]]`` pointing at a document that is gone.
+
+    The node stays and renders as unresolved, which is what the editor shows for
+    a link whose target was never picked. Returns whether anything changed.
+    """
+    return _blank_wikilinks(content, lambda doc_id: doc_id not in live_document_ids)
+
+
+def unresolve_wikilinks_to(content: dict[str, Any], document_id: int) -> bool:
+    """:func:`unresolve_missing_wikilinks` for one document that is going away."""
+    return _blank_wikilinks(content, lambda doc_id: doc_id == document_id)
+
+
+def _blank_wikilinks(
+    content: dict[str, Any], should_blank: Callable[[int], bool]
+) -> bool:
+    changed = False
+
+    def walk(node: Any) -> None:
+        nonlocal changed
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == "wikilink":
+            doc_id = node.get("documentId")
+            if isinstance(doc_id, int) and doc_id > 0 and should_blank(doc_id):
+                node["documentId"] = None
+                changed = True
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                walk(child)
+
+    root = content.get("root")
+    if isinstance(root, dict):
+        walk(root)
+    return changed

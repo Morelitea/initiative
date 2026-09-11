@@ -151,7 +151,7 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
 #: shows on both ends — but not on DELETE: purging one end drops every edge that
 #: names it, and the surviving end may be an archived row that is not going
 #: anywhere.
-_EDGE_TABLES: frozenset[str] = frozenset({"relationships", "document_links"})
+_EDGE_TABLES: frozenset[str] = frozenset({"relationships"})
 
 
 def row_is_frozen(row: Any) -> bool:
@@ -574,15 +574,6 @@ def _edge_leg(alias: str, trashed_ok: str) -> str:
     return "(" + " OR ".join(ends) + ")"
 
 
-def _document_links_leg(alias: str, trashed_ok: str) -> str:
-    """Both ends again, but the kind is known: a link between two documents."""
-    return (
-        f"(public.resource_frozen('documents', {alias}.source_document_id, {trashed_ok})"
-        f" OR public.resource_frozen('documents', {alias}.target_document_id,"
-        f" {trashed_ok}))"
-    )
-
-
 def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
     """A grant freezes with the resource it shares.
 
@@ -605,7 +596,6 @@ _FREEZE_DEVIATIONS: dict[str, Callable[[str, str], str]] = {
     "comments": _comments_leg,
     "reactions": _reactions_leg,
     "relationships": _edge_leg,
-    "document_links": _document_links_leg,
     "resource_grants": _resource_grants_leg,
 }
 

@@ -33,6 +33,7 @@ from app.core.relationships import (
     FACETS,
     SYMMETRIC_TYPES,
     EndpointKind,
+    Provenance,
     RelationshipType,
 )
 from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
@@ -312,6 +313,9 @@ class InitiativePath:
 #: Types stored once per unordered pair, as a SQL list. A symmetric edge
 #: describes neither end, so it has no source for a write rule to key on.
 _SYMMETRIC_SQL = ", ".join(f"'{t.value}'" for t in sorted(SYMMETRIC_TYPES))
+
+#: Rows nobody asserted: the save path read them out of a body.
+_FROM_CONTENT = f"'{Provenance.content.value}'"
 
 #: The routed guild-admin leg, for rows that span every initiative in a guild.
 _GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
@@ -868,7 +872,7 @@ def relationships_path() -> InitiativePath:
     Polymorphic on both ends, so each end defers to :func:`render_endpoint_access_fn`
     — which asks that kind's OWN entry here for the membership predicate and
     the sharing leg. The two ends are ANDed: a row is invisible unless the
-    reader clears each of them, which is ``document_links_path`` made general. A
+    reader clears each of them. A
     link can therefore never widen access — it only ever surfaces for someone
     who already held both sides — and an edge naming something the reader cannot
     see is simply absent, indistinguishable from never having existed.
@@ -883,19 +887,27 @@ def relationships_path() -> InitiativePath:
     * symmetric (``attached``, ``related_to``) — the edge describes neither end,
       so creating one edits neither. READ on both, the way a table whose writes
       are responses rather than edits already asks. Removal is guarded by the
-      service instead, because read-level DELETE here would let anyone who can
-      see both ends undo somebody else's curation.
+      service instead: your own edge, or one on a thing you can edit.
+    * derived from content, whatever its type — nobody asserted it. The save
+      path read it out of a body, and the authority for it was the authority to
+      put those words there, which that body's own gate already asked. READ on
+      both, and the endpoint refuses to unlink one by hand at all.
 
-    That distinction is per TYPE, and it rides as the function's ``need_write``
-    argument — a plain boolean expression over the row's own column, where a
-    ``DAC_WRITE_COMMANDS`` entry could not say it: that registry answers per
-    command, and this question is not one a command can answer.
+    Those distinctions are per ROW, and they ride as the function's
+    ``need_write`` argument — plain boolean expressions over the row's own
+    columns, where a ``DAC_WRITE_COMMANDS`` entry could not say either: that
+    registry answers per command, and neither question is one a command can
+    answer.
     """
 
     def build(t: str, w: bool) -> str:
-        # A write asks write of the source only where the edge describes it.
+        # A write asks write of the source only where the edge describes it AND
+        # a person is the one saying so.
         need_write = (
-            f"{t}.relationship_type NOT IN ({_SYMMETRIC_SQL})" if w else "false"
+            f"({t}.relationship_type NOT IN ({_SYMMETRIC_SQL})"
+            f" AND {t}.provenance <> {_FROM_CONTENT})"
+            if w
+            else "false"
         )
         return (
             f"({ENDPOINT_ACCESS_FN}({t}.source_type, {t}.source_id, {need_write})"
@@ -1052,43 +1064,6 @@ def recent_views_path() -> InitiativePath:
     )
 
 
-def document_links_path() -> InitiativePath:
-    """A link must clear initiative access on BOTH endpoints. With only the
-    source checked, a write-member of one initiative could point
-    ``target_document_id`` at a document in an initiative they can't reach (and
-    on read a cross-initiative link would leak the other side's existence)."""
-
-    def _leg(fk: str, t: str, w: bool) -> str:
-        return (
-            f"EXISTS (SELECT 1 FROM documents WHERE documents.id = {t}.{fk} "
-            f"AND {_access('documents.initiative_id', w)})"
-        )
-
-    def _dac_leg(fk: str, t: str, command: str, w: bool) -> str:
-        return str(
-            _dac_via("documents", fk, alias=f"dac_{fk}").predicate(t, command, w)
-        )
-
-    return InitiativePath(
-        predicate=lambda t, w: (
-            f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
-        ),
-        dac=DacPath(
-            predicate=lambda t, c, w: (
-                f"({_dac_leg('source_document_id', t, c, w)} AND "
-                f"{_dac_leg('target_document_id', t, c, w)})"
-            )
-        ),
-        # Both endpoints clear the same gate to exist, so the source names the
-        # initiative the link belongs to — and the document it hangs off.
-        initiative_expr=lambda r: (
-            f"(SELECT documents.initiative_id FROM documents "  # noqa: S608
-            f"WHERE documents.id = {r}.source_document_id)"
-        ),
-        parents=lambda r: _one_parent("documents", f"{r}.source_document_id"),
-    )
-
-
 # table -> how its rows resolve an initiative for initiative_access(...). THE
 # source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
@@ -1122,7 +1097,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "project_filter_presets": via("projects", "project_id"),
     # One hop -> documents
     "document_file_versions": via("documents", "document_id"),
-    "document_links": document_links_path(),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
     # One hop -> counter_groups
