@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import (
     GuildContext,
@@ -40,12 +40,14 @@ from app.api.deps import (
 )
 from app.core.messages import WebhookSubscriptionMessages
 from app.models.platform.user import User
+from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionCreated,
     WebhookSubscriptionRead,
     WebhookSubscriptionUpdate,
 )
+from app.services.tenant import webhook_refs
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
     WebhookSubscriptionNotFoundError,
@@ -83,12 +85,39 @@ async def _validate_target_url(url: str) -> None:
         ) from exc
 
 
+async def _named(row: WebhookSubscription) -> WebhookSubscriptionRead:
+    """One subscription, with the guild and its creator named for its receiver.
+
+    Minted rather than stored, and in the same sector its deliveries use, so
+    what a receiver reads here is what it will be sent.
+    """
+    guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
+        guild_id=row.guild_id,
+        app_install_id=row.app_install_id,
+        subscription_id=row.id,
+        actor_ids=(row.created_by,),
+    )
+    return WebhookSubscriptionRead(
+        id=row.id,
+        guild_ref=guild_ref,
+        initiative_id=row.initiative_id,
+        created_by_ref=actor_refs[row.created_by],
+        target_url=row.target_url,
+        event_types=row.event_types,
+        fields=row.fields,
+        active=row.active,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
 @router.post(
     "/subscriptions",
     response_model=WebhookSubscriptionCreated,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_subscription(
+    request: Request,
     payload: WebhookSubscriptionCreate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -115,6 +144,9 @@ async def create_subscription(
             payload=payload,
             created_by=current_user.id,
             guild_id=guild_context.guild_id,
+            # Set when an app registered this through its delegation. The
+            # install decides which names its deliveries arrive under.
+            app_install_id=getattr(request.state, "delegating_install_id", None),
         )
     except WebhookSubscriptionVocabularyError as exc:
         raise HTTPException(
@@ -122,16 +154,7 @@ async def create_subscription(
         ) from exc
 
     return WebhookSubscriptionCreated(
-        id=subscription.id,
-        guild_id=subscription.guild_id,
-        initiative_id=subscription.initiative_id,
-        created_by=subscription.created_by,
-        target_url=subscription.target_url,
-        event_types=subscription.event_types,
-        fields=subscription.fields,
-        active=subscription.active,
-        created_at=subscription.created_at,
-        updated_at=subscription.updated_at,
+        **(await _named(subscription)).model_dump(),
         hmac_secret=secret,
     )
 
@@ -147,7 +170,7 @@ async def list_subscriptions(
     rows = await subscriptions_service.list_subscriptions(
         session, guild_id=guild_context.guild_id
     )
-    return [WebhookSubscriptionRead.model_validate(row) for row in rows]
+    return [await _named(row) for row in rows]
 
 
 @router.patch(
@@ -185,7 +208,7 @@ async def update_subscription(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
-    return WebhookSubscriptionRead.model_validate(row)
+    return await _named(row)
 
 
 @router.delete(
@@ -212,3 +235,10 @@ async def delete_subscription(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
         ) from exc
+
+    # The names this subscription minted for itself. Only its own sector: one an
+    # app registered is named in that app's, which belongs to the install and
+    # outlives any single subscription.
+    await webhook_refs.drop_subscription_refs(
+        guild_id=guild_context.guild_id, subscription_id=subscription_id
+    )

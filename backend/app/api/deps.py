@@ -174,7 +174,12 @@ async def _authenticate_auto_delegation(
     resolved_guild = await resolve_app_guild_ref(ref=claims.guild_ref)
     if resolved_guild is None:
         return None
-    guild_id, _install_id = resolved_guild
+    guild_id, install_id = resolved_guild
+    # Which install this delegate is, here. The reference it named the guild by
+    # was minted for exactly one, so the sector is already settled by the time
+    # the token verifies — and a handler that has to name something back to
+    # this delegate needs the same sector to name it in.
+    request.state.delegating_install_id = install_id
 
     # The token names its member by the reference the app was given, not by a
     # user id. Resolving it takes both the guild it was minted in and the app

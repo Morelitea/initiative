@@ -39,6 +39,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.marketplace.registration_lookup import any_delegate_registered
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
+from app.services.tenant import webhook_refs
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -201,7 +202,6 @@ async def dispatch_event(
     envelope_base = {
         "event_type": event_type,
         "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "guild_id": guild_id,
         "initiative_id": initiative_id,
         "payload": payload,
     }
@@ -212,12 +212,21 @@ async def dispatch_event(
     # event, and so future per-target retry logic can dedup retries
     # without colliding across subscriptions. ``subscription_id`` is included
     # for the receiver's routing.
+    #
+    # The guild is named per subscription rather than once, because a reference
+    # is pairwise: two subscribers hold two unrelated names for this guild.
     deliveries: list[asyncio.Task] = []
     for sub in rows:
+        guild_ref, _ = await webhook_refs.name_for_subscriber(
+            guild_id=guild_id,
+            app_install_id=sub.app_install_id,
+            subscription_id=sub.id,
+        )
         envelope = {
             **envelope_base,
             "event_id": str(uuid.uuid4()),
             "subscription_id": sub.id,
+            "guild_ref": guild_ref,
         }
         deliveries.append(
             asyncio.create_task(

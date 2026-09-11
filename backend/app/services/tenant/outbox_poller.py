@@ -62,6 +62,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.tenant import webhook_refs
 from app.services.tenant.webhook_dispatcher import deliver
 
 logger = logging.getLogger(__name__)
@@ -129,19 +130,30 @@ def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
 
 
 def _envelope(
-    subscription: WebhookSubscription, txn_id: int, rows: list[EventOutbox]
+    subscription: WebhookSubscription,
+    txn_id: int,
+    rows: list[EventOutbox],
+    *,
+    guild_ref: str,
+    actor_ref: str | None,
 ) -> dict[str, Any]:
     """One transaction's matching rows as a single envelope.
 
     Carries identifiers and changed column NAMES only. A consumer reads current
     state back through the REST API, where the gates apply to the read.
+
+    The guild and the actor arrive already named for this subscriber — minted
+    by the caller, which is where the session is. Everything else is a
+    per-guild-schema id, which says nothing without the guild;
+    ``subscription_id`` included, and that one is what a receiver matches a
+    delivery to its own record by.
     """
     first = rows[0]
     return {
         "event_id": _event_id(subscription.id, txn_id),
         "subscription_id": subscription.id,
-        "guild_id": subscription.guild_id,
-        "actor_user_id": first.actor_user_id,
+        "guild_ref": guild_ref,
+        "actor_ref": actor_ref,
         "occurred_at": first.occurred_at.isoformat(),
         "changes": [
             {
@@ -305,10 +317,27 @@ async def _drain_subscription(
             await _settle(session, subscription, txn_id, now=now, accepted=True)
             continue
 
+        # One transaction, one actor — the batch is what a single request
+        # touched. Named for this subscriber, in the sector its install or its
+        # own registration gives it.
+        actor_id = batch[0].actor_user_id
+        guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
+            guild_id=subscription.guild_id,
+            app_install_id=subscription.app_install_id,
+            subscription_id=subscription.id,
+            actor_ids=() if actor_id is None else (actor_id,),
+        )
+
         accepted = await deliver(
             target_url=subscription.target_url,
             secret=subscription.hmac_secret,
-            envelope=_envelope(subscription, txn_id, batch),
+            envelope=_envelope(
+                subscription,
+                txn_id,
+                batch,
+                guild_ref=guild_ref,
+                actor_ref=None if actor_id is None else actor_refs[actor_id],
+            ),
         )
         await _settle(session, subscription, txn_id, now=now, accepted=accepted)
         if not accepted:

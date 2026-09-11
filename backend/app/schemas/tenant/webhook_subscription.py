@@ -34,16 +34,25 @@ class WebhookSubscriptionUpdate(SanitizedBaseModel):
 class WebhookSubscriptionRead(SanitizedBaseModel):
     """Public view. Notably ``hmac_secret`` is NOT in here — once minted
     on create it never leaves the DB again. Receivers either store the
-    secret from the create response or rotate the subscription."""
+    secret from the create response or rotate the subscription.
+
+    The guild and the creator are named by reference, because this view is read
+    by whoever registered the subscription — which may be an app. ``id`` and
+    ``initiative_id`` are per-guild-schema and say nothing without the guild.
+    """
 
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
     id: int
-    guild_id: int
+    #: What this subscription's receiver calls the guild — the same name its
+    #: deliveries arrive under, so the two can be matched. Pairwise: another
+    #: subscriber holds an unrelated value for the same guild.
+    guild_ref: str
     initiative_id: int | None
-    created_by: int
+    #: Who registered it, named in the same sector as the guild.
+    created_by_ref: str
     target_url: str
     event_types: list[str]
     fields: list[str] | None

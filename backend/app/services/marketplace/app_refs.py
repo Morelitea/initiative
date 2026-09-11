@@ -184,14 +184,20 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     """
     async with db_session.AdminSessionLocal() as session:
         dropped = await identity_refs.drop_sector_refs(
-            session, sector_guild_id=guild_id, sector_id=app_install_id
+            session,
+            sector_guild_id=guild_id,
+            sector_id=app_install_id,
+            purpose=_PURPOSE,
         )
         await session.commit()
     return dropped
 
 
 async def drop_guild_app_refs(*, guild_id: int) -> int:
-    """Remove every app reference minted in one guild. Returns the count.
+    """Remove every reference minted in one guild. Returns the count.
+
+    Every purpose, not only this module's: the guild is going, so nothing
+    scoped to it has anything left to name.
 
     Called when the guild is deleted, for the same reason as
     ``drop_install_refs``, and like it opens its own session: guild deletion

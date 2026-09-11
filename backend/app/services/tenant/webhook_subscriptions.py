@@ -112,6 +112,7 @@ async def create_subscription(
     payload: WebhookSubscriptionCreate,
     created_by: int,
     guild_id: int,
+    app_install_id: int | None = None,
 ) -> tuple[WebhookSubscription, str]:
     """Persist a fresh subscription and return ``(row, plaintext_secret)``.
 
@@ -119,6 +120,11 @@ async def create_subscription(
     We persist it in the DB column too because we need it server-side
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
+
+    ``app_install_id`` is the install that registered this, when an app did. It
+    decides how a delivery names the guild and the actor: an app already holds
+    references for both at its install, and an envelope should arrive under
+    those (``webhook_refs``).
     """
     assert_vocabulary(list(payload.event_types), payload.fields)
 
@@ -129,6 +135,7 @@ async def create_subscription(
         guild_id=guild_id,
         initiative_id=payload.initiative_id,
         created_by=created_by,
+        app_install_id=app_install_id,
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),

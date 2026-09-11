@@ -6953,9 +6953,9 @@ export interface WebhookSubscriptionCreate {
  */
 export interface WebhookSubscriptionCreated {
   id: number;
-  guild_id: number;
+  guild_ref: string;
   initiative_id: number | null;
-  created_by: number;
+  created_by_ref: string;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
@@ -6969,12 +6969,16 @@ export interface WebhookSubscriptionCreated {
  * Public view. Notably ``hmac_secret`` is NOT in here — once minted
  * on create it never leaves the DB again. Receivers either store the
  * secret from the create response or rotate the subscription.
+ *
+ * The guild and the creator are named by reference, because this view is read
+ * by whoever registered the subscription — which may be an app. ``id`` and
+ * ``initiative_id`` are per-guild-schema and say nothing without the guild.
  */
 export interface WebhookSubscriptionRead {
   id: number;
-  guild_id: number;
+  guild_ref: string;
   initiative_id: number | null;
-  created_by: number;
+  created_by_ref: string;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
