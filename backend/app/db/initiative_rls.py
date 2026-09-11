@@ -1331,6 +1331,11 @@ class ReportsAs:
     #: depends on the row rather than on the table. ``facet`` stays the constant
     #: the rest of the registry reads; this is what the trigger evaluates.
     facet_expr: RowLocator | None = None
+    #: Every label ``facet_expr`` can yield. The static counterpart to the
+    #: expression, the way ``resource_types`` is to ``type_expr`` — a subscriber
+    #: names a field before any row exists, so the vocabulary has to be known without
+    #: evaluating anything. Empty where ``facet`` is the whole answer.
+    facet_values: frozenset[str] = frozenset()
     #: Row expression yielding the initiative THIS report is scoped to, where
     #: the table's own answer is not the one this report wants. A table
     #: reporting against two different resources answers this twice. The parent
@@ -1453,6 +1458,7 @@ def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
             # table; what the trigger evaluates is the expression below.
             facet=FACETS[RelationshipType.related_to],
             facet_expr=lambda r: f"(CASE {r}.relationship_type {facet_arms} END)",
+            facet_values=frozenset(FACETS.values()),
             type_expr=lambda r: f"(CASE {r}.{side}_type {type_arms} END)",
             initiative_expr=lambda r: _relationship_end(r, side, init),
             label=side,

@@ -32,7 +32,7 @@ from app.testing import (
 
 
 @pytest.mark.integration
-async def test_task_comment_access_honors_grant(session: AsyncSession):
+async def test_task_comment_access_honors_grant(session: AsyncSession, role_session):
     owner = await create_user(session, email="owner-cmt@example.com")
     grantee = await create_user(session, email="grantee-cmt@example.com")
     guild = await create_guild(session, creator=owner)
@@ -45,32 +45,41 @@ async def test_task_comment_access_honors_grant(session: AsyncSession):
     )
     assert ctx is not None
 
+    # Asked on a session that reaches Postgres as the app does. The sharing
+    # decision is the parent table's own policy now — selecting the id IS the
+    # question — so a session that bypasses row-level security cannot answer it,
+    # and would say yes to everything below.
+    reader = await role_session("app_user")
+    await set_rls_context(reader, user_id=grantee.id, guild_id=guild.id)
+
     try:
         # No grant: a non-member is denied.
         set_active_grant(None, None)
         with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(session, ctx, user=grantee, access="read")
+            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
 
-        # Read grant: may read comments, but not post.
+        # Read grant: may read comments.
         set_active_grant(guild.id, "read")
-        await _ensure_parent_access(session, ctx, user=grantee, access="read")
-        with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(session, ctx, user=grantee, access="write")
+        await _ensure_parent_access(reader, ctx, user=grantee, access="read")
 
         # Read-write grant: may post.
         set_active_grant(guild.id, "read_write")
-        await _ensure_parent_access(session, ctx, user=grantee, access="write")
+        await _ensure_parent_access(reader, ctx, user=grantee, access="write")
 
         # A grant for a different guild doesn't apply.
         set_active_grant(guild.id + 999, "read_write")
         with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(session, ctx, user=grantee, access="read")
+            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
     finally:
         set_active_grant(None, None)
 
 
 @pytest.mark.integration
-async def test_document_comment_access_honors_grant(session: AsyncSession):
+async def test_document_comment_access_honors_grant(
+    session: AsyncSession, role_session
+):
+    """The other branch of the parent check: a tool entity answers for itself,
+    where a task answers through its project."""
     owner = await create_user(session, email="owner-cmt2@example.com")
     grantee = await create_user(session, email="grantee-cmt2@example.com")
     guild = await create_guild(session, creator=owner)
@@ -91,16 +100,79 @@ async def test_document_comment_access_honors_grant(session: AsyncSession):
     )
     assert ctx is not None
 
+    reader = await role_session("app_user")
+    await set_rls_context(reader, user_id=grantee.id, guild_id=guild.id)
+
     try:
-        set_active_grant(guild.id, "read")
-        await _ensure_parent_access(session, ctx, user=grantee, access="read")
+        set_active_grant(None, None)
         with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(session, ctx, user=grantee, access="write")
+            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+
+        set_active_grant(guild.id, "read")
+        await _ensure_parent_access(reader, ctx, user=grantee, access="read")
 
         set_active_grant(guild.id, "read_write")
-        await _ensure_parent_access(session, ctx, user=grantee, access="write")
+        await _ensure_parent_access(reader, ctx, user=grantee, access="write")
     finally:
         set_active_grant(None, None)
+
+
+@pytest.mark.integration
+async def test_a_read_only_grant_cannot_post(session: AsyncSession, role_session):
+    """The half of the rule the parent check no longer answers.
+
+    Reaching a thread and adding to it are different questions, and only the
+    first is "can this request see the parent". Posting is a write, and a
+    read-only window is routed into the SELECT-only guild role — so the refusal
+    is the insert's, and this is where it has to be asked.
+
+    Under the real ``app_user`` login, like the RLS legs below: a session that
+    reaches Postgres as a superuser would accept the insert whatever the
+    window said.
+
+    The assertion is on the outcome rather than on which layer produced it.
+    Both are real refusals, and pinning the message would make this fail the
+    day the grant layer changes without the rule changing.
+    """
+    owner = await create_user(session, email="owner-cmt-ro@example.com")
+    support = await create_user(session, email="support-cmt-ro@example.com")
+    guild = await create_guild(session, creator=owner)
+    init = await create_initiative(session, guild, owner)
+    project = await create_project(session, init, owner, name="P")
+    task = await create_task(session, project)
+
+    insert = text(
+        "INSERT INTO comments (task_id, content, created_by, guild_id,"
+        " created_at, updated_at)"
+        " VALUES (:t, 'let me in', :u, :g, now(), now())"
+    ).bindparams(t=task.id, u=support.id, g=guild.id)
+
+    # A grantee is scoped by pam_guild_id and leaves current_guild_id unset —
+    # a matching current_guild_id reads as proof of membership, which is the
+    # one thing a grantee does not have.
+    reader = await role_session("app_user")
+    await set_rls_context(
+        reader, user_id=support.id, pam_guild_id=guild.id, pam_read=True
+    )
+    with pytest.raises(Exception) as refused:
+        await reader.exec(insert)
+    message = str(refused.value).lower()
+    assert "permission denied" in message or "row-level security" in message, (
+        refused.value
+    )
+    await reader.rollback()
+
+    # The same window at write level is what posting takes.
+    writer = await role_session("app_user")
+    await set_rls_context(
+        writer,
+        user_id=support.id,
+        pam_guild_id=guild.id,
+        pam_read=True,
+        pam_write=True,
+    )
+    await writer.exec(insert)
+    await writer.rollback()
 
 
 # The canonical per-tool factory registry rather than a copy of it: that one

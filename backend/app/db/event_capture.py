@@ -125,6 +125,9 @@ class CaptureSpec:
     #: the row holds. ``None`` everywhere else, and then ``facet`` is the whole
     #: answer and no per-row lookup is paid for.
     facet_expr: str | None = None
+    #: Every label ``facet_expr`` can yield, for the vocabularies that have to
+    #: know the names before a row exists. Empty where ``facet`` is the answer.
+    facet_values: frozenset[str] = frozenset()
     #: Row expression yielding the initiative this trigger's events are scoped
     #: to, where the table's own answer is not this report's. ``None`` leaves
     #: the table's registry entry to answer, which is the ordinary case.
@@ -326,6 +329,7 @@ def build_specs() -> list[CaptureSpec]:
                             if report.facet_expr is not None
                             else None
                         ),
+                        facet_values=report.facet_values,
                         initiative_expr=(
                             report.initiative_expr(ROW)
                             if report.initiative_expr is not None
