@@ -257,10 +257,36 @@ class TestRemoval:
             guild_id=there.id, app_install_id=app_there.id, user_id=user.id
         )
 
-        assert await drop_guild_app_refs(session, guild_id=here.id) == 1
+        assert await drop_guild_app_refs(guild_id=here.id) == 1
         await session.commit()
         assert await resolve_app_ref(session, ref=gone, guild_id=here.id) is None
         assert await resolve_app_ref(session, ref=kept, guild_id=there.id) is not None
+
+    @pytest.mark.integration
+    async def test_deleting_a_guild_through_the_service_removes_them(self, session):
+        """Through ``delete_guild``, not the helper it calls.
+
+        Guild deletion reaches this from three call sites holding three
+        different sessions — one of them routed into the guild role being
+        deleted, which holds nothing on ``identity_refs``. The cleanup opens
+        its own session so it does not depend on which one it was handed.
+        """
+        from app.services.platform import guilds as guilds_service
+
+        user = await create_user(session)
+        guild = await create_guild(session, creator=user)
+        app = await _install(session, guild, user)
+        await session.commit()
+
+        ref = await ensure_app_ref(
+            guild_id=guild.id, app_install_id=app.id, user_id=user.id
+        )
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild.id) is not None
+
+        await guilds_service.delete_guild(session, guild)
+        await session.commit()
+
+        assert await resolve_app_ref(session, ref=ref, guild_id=guild.id) is None
 
     @pytest.mark.unit
     def test_the_grace_window_is_the_shared_one(self):

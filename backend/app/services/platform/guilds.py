@@ -7,6 +7,7 @@ import secrets
 
 from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -1043,8 +1044,14 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     await _signal_members_present(session, guild_id=guild.id, action="membership")
     # What this guild's installed apps called its members. A platform-wide
     # table, so the guild row's cascade does not reach it and the schema drop
-    # does not either.
-    await app_refs.drop_guild_app_refs(session, guild_id=guild.id)
+    # does not either. On its own system-engine session, because this is
+    # reached with three different sessions and one of them is routed into the
+    # guild role being deleted; best-effort for the same reason the schema drop
+    # is, so the guild still goes.
+    try:
+        await app_refs.drop_guild_app_refs(guild_id=guild.id)
+    except SQLAlchemyError:
+        logger.warning("app refs: references for guild %s were not removed", guild.id)
     await session.exec(delete(Guild).where(Guild.id == guild.id))
 
 

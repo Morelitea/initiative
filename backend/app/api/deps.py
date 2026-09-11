@@ -165,10 +165,9 @@ async def _authenticate_auto_delegation(
     if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
         return None
 
-    # The token names its member by the pairwise subject the app was given, not
-    # by a user id — an app never learns which Initiative user it is acting for.
-    # Resolving it needs the guild, and it is scoped to the app that signed:
-    # a subject minted for one install must not resolve for another.
+    # The token names its member by the reference the app was given, not by a
+    # user id. Resolving it takes both the guild it was minted in and the app
+    # that signed, which together are the sector it belongs to.
     resolved = await registration_lookup.resolve_delegated_member(
         claims.guild_id, signer.registration.public_id, claims.subject
     )
