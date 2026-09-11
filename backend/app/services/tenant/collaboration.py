@@ -71,6 +71,10 @@ class DocumentRoom:
         self._revision = 0
         self._persisted_revision = 0
         self._content: Optional[dict] = None
+        # The revision the held rendering was made from. Below ``_revision``
+        # means the document has moved since, and a live tab has a newer
+        # rendering on the way.
+        self._content_revision = -1
 
     @property
     def is_loaded(self) -> bool:
@@ -210,11 +214,26 @@ class DocumentRoom:
             return False
         self._content = content
         self._revision += 1
+        self._content_revision = self._revision
         return True
 
     def snapshot(self) -> Tuple[int, bytes, Optional[dict]]:
-        """The revision being written, and both views of it."""
-        return self._revision, self.get_state(), self._content
+        """The revision being written, and the views of it that are current.
+
+        A rendering older than the document is held back while editors are
+        here: the one that moved the document reports a fresh rendering on its
+        next pass, and that is the one worth pairing with this state. Once the
+        room is empty no fresher rendering is coming, so the best one held is
+        written.
+        """
+        content = self._content
+        if (
+            content is not None
+            and self._content_revision < self._revision
+            and not self.is_empty()
+        ):
+            content = None
+        return self._revision, self.get_state(), content
 
     def mark_persisted(self, revision: int) -> None:
         """Record that ``revision`` reached the database.

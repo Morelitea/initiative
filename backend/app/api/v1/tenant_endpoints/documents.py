@@ -99,10 +99,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
-from app.services.tenant.collaboration import (
-    collaboration_manager,
-    user_has_connection,
-)
+from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
 
@@ -1487,19 +1484,18 @@ async def update_document(
     if "content" in update_data and collaboration_manager.has_active_collaborators(
         guild_context.guild_id, document.id
     ):
-        if user_has_connection(guild_context.guild_id, document.id, current_user.id):
-            # This caller is in the session, and is reporting the same content
-            # to it over the socket. Dropping the duplicate leaves the room's
-            # copy, which carries every editor's work rather than one tab's.
-            update_data.pop("content")
-        else:
-            # This caller is editing outside the session. Its content is of the
-            # document as it stood before the session, so it is refused rather
-            # than taken and reported as saved.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
-            )
+        # An editor inside the session reports its content to the room over its
+        # own socket, which is what ties a rendering to the state it was made
+        # from. A rendering arriving here belongs to a tab outside the session,
+        # whose view of the document the session has moved on from — and a
+        # request carries no connection, so one of an account's tabs cannot be
+        # told from another here. It is refused rather than taken and reported
+        # as saved; reconnecting is what gets that tab's work in, and the
+        # handshake carries it.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
+        )
     if "content" in update_data:
         try:
             document.content = documents_service.normalize_document_content(

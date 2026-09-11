@@ -507,15 +507,12 @@ async def sync_document_content(
     # come from a tab that has been disconnected for some time, and its idea
     # of the content is that old. With no room, this is the only writer.
     if collaboration_manager.has_active_collaborators(guild_id, document_id):
-        if user_has_connection(guild_id, document_id, user.id):
-            logger.info(
-                f"Sync content: document {document_id} is live; leaving the "
-                "content column to its room"
-            )
-            return {"status": "ok", "deferred": True}
+        # The room owns the content column while it is live and takes its
+        # rendering from the connection that made it. This request carries no
+        # connection, so it is not applied.
         logger.info(
-            f"Sync content: user {user.id} is outside document {document_id}'s "
-            "live session; not applying their content"
+            f"Sync content: document {document_id} is live; leaving the "
+            "content column to its room"
         )
         return {
             "status": "error",

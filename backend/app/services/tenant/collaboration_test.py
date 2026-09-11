@@ -456,3 +456,35 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
 
     assert max(concurrent) == 1
     assert room.is_dirty is False
+
+
+@pytest.mark.unit
+async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
+    authority,
+) -> None:
+    """A rendering made before the document moved is held back while editors
+    are still here — the tab that moved it reports a current one next pass."""
+    room = loaded_room(1, 5)
+    tab = object()
+    room.apply_update(_an_update(), connection=tab)
+    assert room.offer_content({"root": "as it stood"}, connection=tab) is True
+    assert room.snapshot()[2] == {"root": "as it stood"}
+
+    # The document moves again; the held rendering is now of an older state.
+    authority.add(1, 5, member(7))
+    room.apply_update(_an_update(), connection=tab)
+
+    assert room.snapshot()[2] is None
+
+
+@pytest.mark.unit
+async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
+    """With nobody left to send a fresher one, the best held is what is saved."""
+    room = loaded_room(1, 5)
+    tab = object()
+    room.apply_update(_an_update(), connection=tab)
+    room.offer_content({"root": "the last thing seen"}, connection=tab)
+    room.apply_update(_an_update(), connection=tab)
+
+    assert room.is_empty() is True
+    assert room.snapshot()[2] == {"root": "the last thing seen"}
