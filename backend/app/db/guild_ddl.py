@@ -40,7 +40,7 @@ from app.db.initiative_rls import (
 from app.db.frozen import (
     FROZEN_TABLES,
     freeze_leg,
-    frozen_ancestor_trigger,
+    frozen_ancestor_triggers,
     frozen_guard_trigger,
     render_frozen_ancestor_fn,
     render_frozen_guard_fn,
@@ -117,13 +117,12 @@ _HEADER = """\
 -- the guard via the dedicated section at the bottom of this file.
 --
 -- Write commands additionally carry the LIFECYCLE freeze (app.db.frozen):
--- archived and trashed content is read-only, and so is everything under it. The
--- ancestor half is a RESTRICTIVE policy per write command, deferring to one
--- function, public.resource_frozen(kind, id, trashed_ok), which walks the same
--- join chains the sharing legs are rendered from. The row's OWN half cannot be a
--- policy — a policy sees the old row and the new row in separate clauses and
--- never both — so it is a BEFORE UPDATE trigger, attached with a WHEN clause
--- naming the frozen state so a live row never calls it. SELECT carries neither.
+-- archived and trashed content is read-only, and so is everything under it.
+-- INSERT carries a RESTRICTIVE policy deferring to one function,
+-- public.resource_frozen(kind, id, trashed_ok), which walks the same join chains
+-- the sharing legs are rendered from. UPDATE and DELETE are triggers, at the
+-- bottom of this file — telling an edit from an unarchive needs the old row and
+-- the new row together, which a policy never has. SELECT carries neither.
 """
 
 # Header for the guild-level guard section (initiatives, tags).
@@ -232,18 +231,17 @@ def _table_block(table: str, path: InitiativePath) -> str:
 
 
 def _freeze_policies(table: str) -> list[str]:
-    """The lifecycle freeze for one table on INSERT and UPDATE: a RESTRICTIVE
-    policy refusing a row whose ancestors are archived or trashed.
+    """The lifecycle freeze for one table on INSERT: a RESTRICTIVE policy
+    refusing a row whose ancestors are archived or trashed.
 
-    RESTRICTIVE, so it AND-combines with the permissive access policies — a
-    member who clears every gate is still refused. ``WITH CHECK`` on both, and
-    no ``USING`` on the UPDATE: a check that fails RAISES, where a ``USING``
-    would drop the row from the statement and let an update that changed
-    nothing report success. DELETE has no ``WITH CHECK`` to use and takes the
-    trigger instead (see ``app.db.frozen``); SELECT takes neither.
+    RESTRICTIVE, so it AND-combines with the permissive access policies.
+    ``WITH CHECK``, so a failure is raised rather than filtered out of the
+    statement. UPDATE and DELETE are triggers (see ``app.db.frozen``) — they
+    need the old row and the new row together, which a policy never has —
+    and SELECT takes neither.
     """
     lines: list[str] = []
-    for command in ("INSERT", "UPDATE"):
+    for command in ("INSERT",):
         leg = freeze_leg(table, command)
         name = f"frozen_ancestor_{command.lower()}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
@@ -251,7 +249,8 @@ def _freeze_policies(table: str) -> list[str]:
             continue
         lines.append(f"CREATE POLICY {name} ON {table} AS RESTRICTIVE FOR {command}")
         lines.append(f"  WITH CHECK (NOT {leg});")
-    # The old shape carried a DELETE policy; drop it wherever one was left.
+    # Earlier shapes carried these; drop them wherever one was left.
+    lines.append(f"DROP POLICY IF EXISTS frozen_ancestor_update ON {table};")
     lines.append(f"DROP POLICY IF EXISTS frozen_ancestor_delete ON {table};")
     return lines
 
@@ -298,16 +297,19 @@ def _guild_level_guard_block(table: str) -> str:
 
 _FREEZE_SECTION = """\
 -- ===========================================================================
--- The lifecycle freeze, where a policy cannot say it.
+-- The lifecycle freeze: the parts that need the old row and the new row
+-- together, which a policy never has.
 --
--- tr_<t>_frozen_guard: a frozen row may change only the columns that describe
--- the freeze — unarchive, restore, re-stamp a purge date. The WHEN clause keeps
--- a live row from reaching the function at all.
+-- tr_<t>_frozen_guard: the row is itself archived or trashed.
+-- tr_<t>_frozen_ancestor_update: it hangs off something that is, or is being
+--   moved to hang off something that is.
+-- Both permit a change to the lifecycle columns and nothing else, so a frozen
+-- row can still be unarchived, restored, or given a new purge date. Their WHEN
+-- clauses keep an ordinary write on live content from reaching the function.
 --
--- tr_<t>_frozen_ancestor: DELETE under a frozen parent. DELETE has no WITH
--- CHECK, so RLS could only refuse it by returning no rows, and a delete that
--- silently removed nothing would report success. Asked with trashed_ok, so a
--- purge cascade — the one delete a trashed parent is FOR — runs.
+-- tr_<t>_frozen_ancestor_delete: DELETE under a frozen parent, asked with
+-- trashed_ok so a purge cascade — the one delete a trashed parent is FOR —
+-- runs.
 -- ==========================================================================="""
 
 
@@ -339,7 +341,7 @@ def render_guild_rls_ddl() -> str:
     guards += [
         f"{trigger};"
         for table in sorted(INITIATIVE_PATHS)
-        if (trigger := frozen_ancestor_trigger(table)) is not None
+        for trigger in frozen_ancestor_triggers(table)
     ]
     out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
     return out + "\n"

@@ -20,8 +20,7 @@ class CommonMessages:
 
     #: The write reached content that is archived or in the trash, or something
     #: under it. One code for both, because the answer is the same either way:
-    #: bring it back first. Raised by the database (see ``app.db.frozen``), so it
-    #: covers every path rather than the ones somebody remembered to check.
+    #: bring it back first. See ``app.db.frozen``.
     CONTENT_IS_FROZEN = "CONTENT_IS_FROZEN"
 
 

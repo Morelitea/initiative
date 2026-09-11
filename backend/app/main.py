@@ -408,10 +408,9 @@ async def insufficient_privilege_handler(
 ) -> JSONResponse:
     """Map a database-layer refusal to the answer it deserves.
 
-    The lifecycle freeze comes first, because it is not an authorization denial
-    and must not read as one: the content is archived or in the trash, the
-    caller may well be its owner, and the thing to do is bring it back. 409,
-    naming the state.
+    The lifecycle freeze comes first: the content is archived or in the trash,
+    the caller may well be its owner, and the thing to do is bring it back. 409,
+    naming the state, rather than a permission answer.
 
     Otherwise, map Postgres ``insufficient_privilege`` (42501) to a generic 403.
 

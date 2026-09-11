@@ -9,38 +9,27 @@ A row is **frozen** when it is archived (``is_archived``), in the trash
 writes; the only writes it accepts are the ones that end the state or move it
 along — unarchive, restore, purge.
 
-Freeze is a **lifecycle** state, not an authorization gate. It sits beside the
-six gates rather than inside them: clearing all six still leaves a frozen row
-read-only, and a guild admin or a break-glass session is frozen out exactly like
-a member — they unarchive first, then edit, which is the point. Only the system
-engine (``app_admin``, BYPASSRLS) is unaffected, so the auto-purge worker and
-the digest jobs keep running.
+Freeze is a **lifecycle** state, and it is orthogonal to who may do what: a
+frozen row is read-only for everybody, so the way to edit one is to bring it
+back first.
 
-Three parts, each the mechanism that can actually say the thing:
+Where each command is caught:
 
-* **Ancestors, on INSERT and UPDATE — RESTRICTIVE RLS with a WITH CHECK.** The
-  new row is tested and a failure RAISES, naming the policy. A ``USING`` leg
-  would instead filter the row out of the statement, and an UPDATE that quietly
-  matches nothing reports success while changing nothing, so the UPDATE policy
-  deliberately carries no ``USING``.
-* **Ancestors, on DELETE — a BEFORE DELETE trigger.** ``DELETE`` has no
-  ``WITH CHECK``, so RLS can only refuse it by silence. A trigger says no out
-  loud. The consequence worth knowing: a trigger binds the system engine too,
-  where a policy does not — see ``trashed_ok`` below, which is what keeps every
-  purge path open.
-* **The row itself — a BEFORE UPDATE trigger.** A policy sees the old row and
-  the new row in separate clauses and never both, so it can say "this row is
-  frozen" but not "this change only unfreezes it".
-  ``public.fn_frozen_row_guard`` sees both. It is attached with a ``WHEN``
-  clause naming the frozen state, so a live row never calls it.
+* **INSERT, against the row's ancestors** — a RESTRICTIVE policy with a
+  ``WITH CHECK``.
+* **UPDATE** — BEFORE UPDATE triggers: one for the row's own state, one for its
+  ancestors, the latter asking about both the ancestry the row has and the one
+  it would end up under. Telling an edit from an unarchive needs the old row and
+  the new row together, which a policy never has, so all of it is trigger work.
+  Each is attached with a ``WHEN`` clause naming the state it cares about, so an
+  ordinary write on live content calls nothing.
+* **DELETE** — a BEFORE DELETE trigger.
+* **SELECT** — nothing. Reading frozen content is the point of keeping it.
 
-SELECT carries none of it: reading frozen content is the whole point of keeping
-it.
-
-Both halves walk the SAME declaration: ``public.resource_frozen(kind, id)``,
+All of them walk the same declaration, ``public.resource_frozen(kind, id)``,
 rendered below from the join chains already in ``app.db.initiative_rls``. A
-table reaches its first ancestor and the function walks the rest, so a policy
-carries one call rather than a chain of its own.
+table names its first ancestor and the function walks the rest, so each policy
+and trigger carries one call rather than a chain of its own.
 """
 
 from __future__ import annotations
@@ -70,21 +59,18 @@ from app.db.tenancy import GUILD_SCOPED_TABLES
 FROZEN_SQLSTATE = "55000"
 FROZEN_CONSTRAINT = "frozen_row_guard"
 
-#: Transaction-local flag saying this transaction is a purge.
+#: Transaction-local flag marking a transaction as a purge.
 #:
-#: Purge is the one lifecycle step that has to WRITE frozen content rather than
-#: only remove it: a document being purged leaves wikilinks behind in the
-#: documents that pointed at it, and those have to be unresolved before the row
-#: goes — including in documents that are themselves in the trash, which would
-#: otherwise be restored holding a link to nothing.
+#: Purge is the one lifecycle step that writes frozen content rather than only
+#: removing it: a document being purged leaves wikilinks behind in the documents
+#: that pointed at it, and those are unresolved before the row goes — including
+#: in documents that are themselves in the trash, which would otherwise be
+#: restored holding a link to nothing.
 #:
-#: Set with ``SET LOCAL`` by ``hard_purge_entity`` and by nothing else, so it
-#: lasts one transaction and never reaches a pooled connection. It lifts the
-#: freeze, which is a lifecycle rule; it lifts no gate — the purge still answers
-#: to ``soft_delete_admin_purge`` and to every policy above it.
+#: Set with ``SET LOCAL`` by ``hard_purge_entity``, so it lasts one transaction
+#: and never reaches a pooled connection.
 PURGE_GUC = "app.purging"
 
-#: Reads it, NULLIF-free because the comparison is against a literal.
 _PURGING = f"current_setting('{PURGE_GUC}'::text, true) = 'true'::text"
 
 #: What a frozen row may still change: the columns that describe the freeze
@@ -154,10 +140,10 @@ def row_is_frozen(row: Any) -> bool:
     """Whether a loaded resource is archived or in the trash — or sits in an
     initiative that is.
 
-    The database is the boundary; this is what lets the app answer in its own
-    words before reaching it, and what the client-facing permission level is
-    capped by so an archived thing arrives with its edit affordances already
-    off. The two have to agree, which is why both read the same columns.
+    Read by the app so it can answer in its own words, and so the client-facing
+    permission level is capped and an archived thing arrives with its edit
+    affordances already off. It reads the same columns the database does, so the
+    two answers agree.
 
     The initiative is consulted only when it is already loaded: this runs on the
     request path, a lazy load there would be a second round trip at best and an
@@ -179,20 +165,18 @@ def row_is_frozen(row: Any) -> bool:
     return row_is_frozen(getattr(row, "initiative", None))
 
 
-#: The prefix every ancestor policy's name carries. Postgres puts the policy
-#: name in the message it raises, and that is the only place it appears, so a
-#: refusal by the freeze can be told from any other privilege error.
+#: The prefix every ancestor policy's name carries; Postgres puts it in the
+#: message it raises.
 _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"
 
 
 def is_frozen_write(exc: DBAPIError) -> bool:
     """Whether this error is the freeze refusing a write.
 
-    Two shapes, because the rule is enforced two ways. The triggers raise with a
-    constraint name of their own. The RESTRICTIVE policies raise Postgres's own
-    insufficient_privilege, which names the policy that refused — so the name is
-    what separates a frozen write from a role-layer denial, which answers 403
-    and means something else entirely.
+    Two shapes, because the rule is enforced two ways: the triggers raise with a
+    constraint name of their own, and the policies raise with the name of the
+    policy that refused. Matching on both is what lets a frozen write answer 409
+    where a role-layer denial answers 403.
     """
     sqlstate = dbapi_sqlstate(exc)
     if sqlstate == FROZEN_SQLSTATE:
@@ -268,7 +252,7 @@ def render_resource_frozen_fn() -> str:
 
     Created in ``public`` with no ``SET search_path``, like
     ``public.initiative_access``, so it resolves the guild-local tables of
-    whoever calls it. Not ``SECURITY DEFINER``.
+    whoever calls it.
     """
     arms = []
     for table in _dispatch_tables():
@@ -315,21 +299,37 @@ $frozen_ancestor$;
 """
 
 
-def frozen_ancestor_trigger(table: str) -> str | None:
-    """The BEFORE DELETE attachment for one table, or None where the freeze
-    does not reach it.
+def frozen_ancestor_triggers(table: str) -> list[str]:
+    """The ancestor attachments for one table, or none where the freeze does
+    not reach it.
 
-    ``OLD`` is the row being removed, asked with ``trashed_ok``: under a trashed
-    parent the delete IS the lifecycle, which is what lets a purge cascade run.
+    UPDATE asks about BOTH ancestries — the one the row has and the one it would
+    end up under — so neither editing under a frozen parent nor moving into one
+    gets through, and reparenting is covered by the database rather than by each
+    endpoint that does it. It runs the row guard, so the lifecycle columns may
+    still change: a trashed task under an archived project can be restored.
+
+    DELETE asks only about the ancestry the row has, with ``trashed_ok`` so a
+    purge cascade runs.
     """
-    leg = freeze_leg(table, "DELETE", alias="OLD")
-    if leg is None:
-        return None
-    return (
-        f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor "
-        f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({leg}) "
-        f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
-    )
+    out: list[str] = []
+    prior = freeze_leg(table, "UPDATE", alias="OLD")
+    proposed = freeze_leg(table, "UPDATE", alias="NEW")
+    if prior is not None and proposed is not None:
+        out.append(
+            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
+            f"BEFORE UPDATE ON {table} FOR EACH ROW "
+            f"WHEN ({prior} OR {proposed}) "
+            f"EXECUTE FUNCTION public.fn_frozen_row_guard()"
+        )
+    doomed = freeze_leg(table, "DELETE", alias="OLD")
+    if doomed is not None:
+        out.append(
+            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
+            f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({doomed}) "
+            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+        )
+    return out
 
 
 def render_frozen_guard_fn() -> str:
@@ -365,8 +365,8 @@ def frozen_guard_trigger(table: str) -> str:
 
     The ``WHEN`` clause is the whole of the fast path: the executor evaluates it
     against the old row and calls nothing for a live one. Named so it sorts
-    before the other row triggers, which is what keeps it judging the statement
-    rather than another trigger's edit of it.
+    before the other row triggers, so what it compares is the statement's own
+    change rather than another trigger's edit of it.
     """
     when = _own_frozen("OLD", table)
     if when is None:  # pragma: no cover — FROZEN_TABLES is built from these

@@ -168,7 +168,22 @@ class TestAncestorFreeze:
                     id=task.id
                 )
             )
-        assert "frozen_ancestor_update" in str(excinfo.value)
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
+    async def test_a_task_cannot_be_moved_into_an_archived_project(
+        self, session, routed, workspace
+    ):
+        user, _g, initiative, project, _t = workspace
+        elsewhere = await create_project(session, initiative=initiative, owner=user)
+        loose = await create_task(session, project=elsewhere)
+        await _archive(session, "projects", project.id)
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text("UPDATE tasks SET project_id = :dest WHERE id = :id").bindparams(
+                    dest=project.id, id=loose.id
+                )
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 
     async def test_a_task_cannot_be_added_to_an_archived_project(
         self, session, routed, workspace
@@ -207,6 +222,38 @@ class TestAncestorFreeze:
         )
         assert result.rowcount == 1
         await admin_routed.commit()
+
+    async def test_a_task_cannot_be_moved_out_of_an_archived_project(
+        self, session, routed, workspace
+    ):
+        """Both ancestries are asked about: the one the row has as well as the
+        one it would end up under."""
+        user, _g, initiative, project, task = workspace
+        elsewhere = await create_project(session, initiative=initiative, owner=user)
+        await _archive(session, "projects", project.id)
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text("UPDATE tasks SET project_id = :dest WHERE id = :id").bindparams(
+                    dest=elsewhere.id, id=task.id
+                )
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
+    async def test_a_task_under_an_archived_project_can_still_be_restored(
+        self, session, routed, workspace
+    ):
+        """A lifecycle change is the one write a frozen ancestor still admits —
+        restoring a trashed project's tasks would be impossible otherwise."""
+        _u, _g, _i, project, task = workspace
+        await _trash(session, "tasks", task.id)
+        await _archive(session, "projects", project.id)
+        await routed.exec(
+            text(
+                "UPDATE tasks SET deleted_at = NULL, deleted_by = NULL, "
+                "purge_at = NULL WHERE id = :id"
+            ).bindparams(id=task.id)
+        )
+        await routed.commit()
 
     async def test_live_content_is_untouched(self, routed, workspace):
         _u, _g, _i, _p, task = workspace

@@ -687,11 +687,9 @@ def require_access(
     does not arrive to be checked. What is left is the part the policies do not
     do: saying which refusal it is.
 
-    ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving.
-    It asks for write on a row that is archived by definition, so the freeze
-    cap would refuse the one action that lifts it. It exempts nothing else: the
-    caller still needs the write level, and the database still holds the row to
-    a lifecycle-only change."""
+    ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving,
+    which asks for write on a row that is archived by definition. The caller
+    still needs the write level."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
     # A frozen guild (read_only lifecycle status) caps EVERY real member at
@@ -705,10 +703,8 @@ def require_access(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
         )
     # Archived or trashed content is read-only, and so is everything under it.
-    # Not a permission answer — the caller may well own it — so it is its own
-    # code and its own status, and it sits before the bypass legs because a
-    # guild admin unarchives first like anybody else. The database refuses the
-    # write regardless (app.db.frozen); this is what makes the refusal legible.
+    # Not a permission answer — the caller may well own it — so it carries its
+    # own code and its own status, and the thing to do is bring it back first.
     if not allow_frozen and row_is_frozen(row) and (access != "read" or require_owner):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

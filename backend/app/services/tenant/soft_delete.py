@@ -326,8 +326,7 @@ async def hard_purge_entity(
 
     # Purge is the one lifecycle step that writes frozen content instead of only
     # removing it — the wikilink unresolve below reaches documents that are
-    # themselves in the trash. Transaction-local, set here and nowhere else; it
-    # lifts the freeze and no gate (see app.db.frozen.PURGE_GUC).
+    # themselves in the trash. Transaction-local (see app.db.frozen.PURGE_GUC).
     await session.exec(
         text("SELECT set_config(:name, 'true', true)").bindparams(name=PURGE_GUC)
     )
