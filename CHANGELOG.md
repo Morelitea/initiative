@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Upgrading no longer leaves the app unable to start** — on an existing deployment, the previous release's change to how archiving is recorded could not be applied, and the new version restarted into the same failure instead of coming up. Nothing was lost: the change is applied whole or not at all, so the database was left exactly as it was and the running version carried on serving throughout. Upgrading completes now, and a deployment already stuck this way recovers on its next restart with nothing to repair by hand.
+
 - **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
 
 ## [0.68.1] - 2026-09-11
