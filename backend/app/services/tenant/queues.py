@@ -11,7 +11,6 @@ This module handles:
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -29,12 +28,13 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
-    QueueItemDocument,
     QueueItemTag,
-    QueueItemTask,
 )
 from app.models.tenant.resource_grant import ResourceGrant
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.models.tenant.task import Task
+from app.services.tenant import relationships
 from app.models.platform.user import User
 
 
@@ -100,12 +100,6 @@ async def get_queue(
             selectinload(Queue.items)
             .selectinload(QueueItem.tag_links)
             .selectinload(QueueItemTag.tag),
-            selectinload(Queue.items)
-            .selectinload(QueueItem.document_links)
-            .selectinload(QueueItemDocument.document),
-            selectinload(Queue.items)
-            .selectinload(QueueItem.task_links)
-            .selectinload(QueueItemTask.task),
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
@@ -187,10 +181,6 @@ async def get_queue_item(
         .where(QueueItem.id == item_id)
         .options(
             selectinload(QueueItem.tag_links).selectinload(QueueItemTag.tag),
-            selectinload(QueueItem.document_links).selectinload(
-                QueueItemDocument.document
-            ),
-            selectinload(QueueItem.task_links).selectinload(QueueItemTask.task),
             selectinload(QueueItem.user),
         )
     )
@@ -563,23 +553,14 @@ async def set_queue_item_documents(
                 detail=QueueMessages.ITEM_NOT_FOUND,
             )
 
-    # Remove existing document links
-    delete_stmt = sa_delete(QueueItemDocument).where(
-        QueueItemDocument.queue_item_id == item.id,
+    await relationships.set_related(
+        session,
+        relationships.Endpoint(SearchEntityType.queue_item, item.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        ids=document_ids,
+        created_by=user_id,
     )
-    await session.exec(delete_stmt)
-
-    # Add new document links
-    now = datetime.now(timezone.utc)
-    for doc_id in document_ids:
-        link = QueueItemDocument(
-            queue_item_id=item.id,
-            document_id=doc_id,
-            guild_id=guild_id,
-            attached_by_id=user_id,
-            attached_at=now,
-        )
-        session.add(link)
 
 
 async def set_queue_item_tasks(
@@ -606,20 +587,11 @@ async def set_queue_item_tasks(
                 detail=QueueMessages.ITEM_NOT_FOUND,
             )
 
-    # Remove existing task links
-    delete_stmt = sa_delete(QueueItemTask).where(
-        QueueItemTask.queue_item_id == item.id,
+    await relationships.set_related(
+        session,
+        relationships.Endpoint(SearchEntityType.queue_item, item.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        ids=task_ids,
+        created_by=user_id,
     )
-    await session.exec(delete_stmt)
-
-    # Add new task links
-    now = datetime.now(timezone.utc)
-    for task_id in task_ids:
-        link = QueueItemTask(
-            queue_item_id=item.id,
-            task_id=task_id,
-            guild_id=guild_id,
-            attached_by_id=user_id,
-            attached_at=now,
-        )
-        session.add(link)

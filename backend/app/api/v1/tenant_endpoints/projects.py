@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, func
@@ -8,6 +8,9 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.services.tenant import relationships
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -42,7 +45,7 @@ from app.models.tenant.initiative import (
 from app.core import usernames
 from app.models.platform.user import User, UserStatus
 from app.models.platform.guild import GuildRole
-from app.models.tenant.document import Document, ProjectDocument
+from app.models.tenant.document import Document
 from app.models.tenant.tag import ProjectTag
 from app.api import resource_access
 from app.core.user_display import handle_of
@@ -116,24 +119,33 @@ GuildAdminContext = Annotated[
 MAX_RECENT_PROJECTS = 20
 
 
-def _project_documents(
-    project: Project,
-    *,
-    user_id: int | None = None,
-) -> List[ProjectDocumentSummary]:
-    """Serialize project document links, filtering by DAC permission.
+async def _documents_for_projects(
+    session: AsyncSession, projects: Sequence[Project]
+) -> dict[int, list[Related]]:
+    """Attached documents for a whole page of projects, in two queries."""
+    return await relationships.related_for_many(
+        session,
+        SearchEntityType.project,
+        [p.id for p in projects if p.id is not None],
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
 
-    Pass ``user_id`` so only documents the user can access are included.
+
+def _project_documents(
+    attached: Sequence[Related],
+) -> List[ProjectDocumentSummary]:
+    """Serialize a project's attached documents.
+
+    No sharing check here. The edge row carries the document's own gate 4 —
+    ``relationships`` asks ``resource_access`` of BOTH ends — so a document this
+    reader holds no grant on never arrives, and the entity query behind
+    ``Related`` passes the documents' policies a second time. Restating it here
+    would be a rule said twice, which can only agree or drift.
     """
     documents: List[ProjectDocumentSummary] = []
-    for link in getattr(project, "document_links", []) or []:
-        doc = getattr(link, "document", None)
-        if user_id is not None and doc is not None:
-            # Single source of truth: the document DAC engine (per-user / per-role /
-            # all-initiative-members grants, plus guild-admin, Full-access, and PAM
-            # overrides) — no re-implementation here.
-            if permissions_service.compute_document_permission(doc, user_id) is None:
-                continue
+    for link in attached:
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
@@ -192,14 +204,6 @@ async def _get_project_or_404(
                 selectinload(InitiativeMember.role_ref).selectinload(
                     InitiativeRoleModel.permissions
                 ),
-            ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.task_statuses),
@@ -473,14 +477,6 @@ def _full_project_load_options() -> list:
                 InitiativeRoleModel.permissions
             ),
         ),
-        selectinload(Project.document_links)
-        .selectinload(ProjectDocument.document)
-        .options(
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            # Linked-doc visibility defers to the shared document DAC, which
-            # reads the doc's own initiative memberships (all-members grants).
-            selectinload(Document.initiative).selectinload(Initiative.memberships),
-        ),
         selectinload(Project.tag_links).selectinload(ProjectTag.tag),
     ]
 
@@ -603,6 +599,7 @@ async def _project_reads_with_order(
 
         sorted_projects = sorted(projects, key=sort_key)
 
+    attached = await _documents_for_projects(session, sorted_projects)
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
         my_level = _compute_my_permission_level(project, current_user.id)
@@ -614,6 +611,7 @@ async def _project_reads_with_order(
                 view_map=view_map,
                 my_permission_level=my_level,
                 user_id=current_user.id,
+                attached_documents=attached.get(project.id, []),
             )
         )
     return payloads
@@ -745,14 +743,6 @@ async def _projects_by_ids(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
@@ -800,6 +790,7 @@ def _build_project_payload(
     view_map: dict[int, datetime],
     my_permission_level: str | None = None,
     user_id: int | None = None,
+    attached_documents: Sequence[Related] = (),
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
@@ -813,7 +804,7 @@ def _build_project_payload(
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
-            "documents": _project_documents(project, user_id=user_id),
+            "documents": _project_documents(attached_documents),
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
             "tags": tags_service.tag_summaries(project.tag_links),
@@ -954,16 +945,6 @@ async def _list_global_projects(
                     selectinload(InitiativeMember.user),
                     selectinload(InitiativeMember.role_ref).selectinload(
                         InitiativeRoleModel.permissions
-                    ),
-                ),
-                selectinload(Project.document_links)
-                .selectinload(ProjectDocument.document)
-                .options(
-                    selectinload(Document.grants).selectinload(ResourceGrant.role),
-                    # Linked-doc visibility defers to the shared document DAC, which
-                    # reads the doc's own initiative memberships (all-members grants).
-                    selectinload(Document.initiative).selectinload(
-                        Initiative.memberships
                     ),
                 ),
                 selectinload(Project.tag_links).selectinload(ProjectTag.tag),
@@ -1614,6 +1595,7 @@ async def favorite_projects(
     favorite_ids, view_map = await _project_meta_for_user(
         session, current_user.id, project_ids
     )
+    attached = await _documents_for_projects(session, list(project_map.values()))
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:
@@ -1640,6 +1622,7 @@ async def favorite_projects(
                     current_user.id,
                 ),
                 user_id=current_user.id,
+                attached_documents=attached.get(project.id, []),
             )
         )
     return payloads

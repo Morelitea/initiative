@@ -29,7 +29,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
-    ProjectDocument,
     DocumentLink,
 )
 from app.models.platform.notification import Notification
@@ -44,15 +43,12 @@ from app.models.tenant.queue import (
     Queue,
     QueueItem,
     QueueItemTag,
-    QueueItemDocument,
-    QueueItemTask,
 )
 from app.models.tenant.calendar import Calendar, CalendarTag
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
     CalendarEventTag,
-    CalendarEventDocument,
 )
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.search_entry import SearchEntry
@@ -105,6 +101,7 @@ from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.reaction_digest import ReactionDigestItem
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
@@ -159,7 +156,6 @@ __all__ = [
     "Comment",
     "Document",
     "DocumentFileVersion",
-    "ProjectDocument",
     "DocumentLink",
     "Notification",
     "OIDCClaimMapping",
@@ -173,14 +169,11 @@ __all__ = [
     "Queue",
     "QueueItem",
     "QueueItemTag",
-    "QueueItemDocument",
-    "QueueItemTask",
     "Calendar",
     "CalendarTag",
     "CalendarEvent",
     "CalendarEventAttendee",
     "CalendarEventTag",
-    "CalendarEventDocument",
     "EventOutbox",
     "SearchEntry",
     "EventReminderDispatch",
@@ -221,6 +214,7 @@ __all__ = [
     "TaskAssignmentDigestItem",
     "Reaction",
     "ReactionDigestItem",
+    "EntityRelationship",
     "WebhookDelivery",
     "WebhookSubscription",
     "AppServiceRegistration",

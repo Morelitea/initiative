@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.core.reactions import ReactionTarget
+from app.core.relationships import ENDPOINT_KINDS, SYMMETRIC_TYPES, EndpointKind
 from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
@@ -301,6 +302,10 @@ class InitiativePath:
     #: so it is never a second list to keep in step.
     dac: DacPath | None = None
 
+
+#: Types stored once per unordered pair, as a SQL list. A symmetric edge
+#: describes neither end, so it has no source for a write rule to key on.
+_SYMMETRIC_SQL = ", ".join(f"'{t.value}'" for t in sorted(SYMMETRIC_TYPES))
 
 #: The routed guild-admin leg, for rows that span every initiative in a guild.
 _GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
@@ -730,6 +735,164 @@ def reactions_path() -> InitiativePath:
     )
 
 
+def relationships_path() -> InitiativePath:
+    """An edge is reached by whoever can reach BOTH of the things it connects.
+
+    Polymorphic on both ends, so each end renders one EXISTS leg per kind into
+    that kind's table, deferring to the kind's OWN entry here for the membership
+    predicate and the sharing leg. The two ends are ANDed: a row is invisible
+    unless the reader clears each of them, which is ``document_links_path`` made
+    general. A link can therefore never widen access — it only ever surfaces for
+    someone who already held both sides — and an edge naming something the
+    reader cannot see is simply absent, indistinguishable from never having
+    existed.
+
+    **What a write asks depends on what the edge describes.** Direction is
+    chosen so the source is the end an edge describes, which makes this
+    derivable rather than declared:
+
+    * asymmetric (``depends_on``, ``part_of``, ``tagged_with``) — the edge is
+      part of the source's own description, so making one is editing that thing:
+      WRITE on the source, read on the target.
+    * symmetric (``attached``, ``related_to``) — the edge describes neither end,
+      so creating one edits neither. READ on both, the way a table whose writes
+      are responses rather than edits already asks. Removal is guarded by the
+      service instead, because read-level DELETE here would let anyone who can
+      see both ends undo somebody else's curation.
+
+    That distinction is per TYPE, which is why it renders as a CASE on
+    ``relationship_type`` inside the predicate rather than as a
+    ``DAC_WRITE_COMMANDS`` entry: that registry answers per command, and this
+    question is not one a command can answer.
+    """
+
+    # Resolved lazily: INITIATIVE_PATHS is still being built at import time, and
+    # the builders below only run when the DDL is rendered.
+    def _leg_for(endpoint: EndpointKind) -> InitiativePath | None:
+        return INITIATIVE_PATHS.get(endpoint.table)
+
+    def _dac_for(endpoint: EndpointKind) -> DacPath | None:
+        """The sharing leg for one kind, with its tool NAMED.
+
+        Both ends are reached under an alias here. Where the row IS the
+        governing resource (``via`` empty), ``_dac_self`` reads the tool off the
+        name it is handed — which under an alias is not a table name, so it
+        would find no tool and render no gate at all. The lookup it wants is the
+        same one, against the real table; naming the tool is what
+        ``reactions_path`` does for the same reason.
+
+        A kind that reaches its resource through a parent keeps the leg its own
+        entry declares: that walk names each table, so it survives the alias.
+        """
+        path = _leg_for(endpoint)
+        dac = path.dac if path is not None else None
+        if dac is None or dac.via:
+            return dac
+        tool = dac.tool or _TOOL_BY_TABLE.get(endpoint.table)
+        return _dac_self(tool) if tool is not None else None
+
+    def _end(t: str, side: str, write: bool) -> str:
+        """One end's membership gate: a CASE over that end's kind."""
+        arms = []
+        for kind, endpoint in ENDPOINT_KINDS.items():
+            alias = f"re_{side}"
+            path = _leg_for(endpoint)
+            if path is None:
+                # Guild-level, and stated rather than defaulted. A tag is the
+                # guild's own vocabulary: every member already sees every tag,
+                # so existence inside the routed schema IS the gate. A kind with
+                # no entry and no statement here is not an endpoint at all —
+                # ENDPOINT_KINDS refuses it, because the permissive reading of a
+                # missing initiative admits any member rather than nobody.
+                inner = "TRUE"
+            else:
+                inner = path.predicate(alias, write)
+            arms.append(
+                f"WHEN '{kind.value}' THEN EXISTS ("
+                f"SELECT 1 FROM {endpoint.table} {alias} "  # noqa: S608
+                f"WHERE {alias}.id = {t}.{side}_id AND {inner})"
+            )
+        return f"(CASE {t}.{side}_type {' '.join(arms)} ELSE FALSE END)"
+
+    def _end_dac(t: str, side: str, command: str, write: bool) -> str:
+        arms = []
+        for kind, endpoint in ENDPOINT_KINDS.items():
+            alias = f"rd_{side}"
+            dac = _dac_for(endpoint)
+            # A kind the guild's own vocabulary governs (a tag) has no sharing
+            # question to ask, and the membership leg above is the whole answer.
+            inner = dac.predicate(alias, command, write) if dac is not None else None
+            inner = inner or "TRUE"
+            arms.append(
+                f"WHEN '{kind.value}' THEN EXISTS ("
+                f"SELECT 1 FROM {endpoint.table} {alias} "  # noqa: S608
+                f"WHERE {alias}.id = {t}.{side}_id AND {inner})"
+            )
+        return f"(CASE {t}.{side}_type {' '.join(arms)} ELSE FALSE END)"
+
+    def _source_write(t: str) -> str:
+        """Whether THIS row's type makes the source the end being edited."""
+        return f"{t}.relationship_type NOT IN ({_SYMMETRIC_SQL})"
+
+    def build(t: str, w: bool) -> str:
+        if not w:
+            return f"({_end(t, 'source', False)} AND {_end(t, 'target', False)})"
+        # A write: the source leg asks write only where the edge describes it.
+        source = (
+            f"(CASE WHEN {_source_write(t)} "
+            f"THEN {_end(t, 'source', True)} ELSE {_end(t, 'source', False)} END)"
+        )
+        return f"({source} AND {_end(t, 'target', False)})"
+
+    def build_dac(t: str, command: str, w: bool) -> str:
+        if not w:
+            return (
+                f"({_end_dac(t, 'source', command, False)} "
+                f"AND {_end_dac(t, 'target', command, False)})"
+            )
+        source = (
+            f"(CASE WHEN {_source_write(t)} "
+            f"THEN {_end_dac(t, 'source', command, True)} "
+            f"ELSE {_end_dac(t, 'source', command, False)} END)"
+        )
+        return f"({source} AND {_end_dac(t, 'target', command, False)})"
+
+    def locate(r: str) -> str:
+        """The initiative an event about this edge is scoped to.
+
+        Either end answers, so the first non-NULL wins: a guild-level endpoint
+        (a tag) has no initiative to give, and the other end's is the one that
+        decides who hears about the change.
+        """
+
+        def side(name: str) -> str:
+            arms = " ".join(
+                f"WHEN '{kind.value}' THEN (SELECT {path.initiative_expr('rl')} "  # noqa: S608
+                f"FROM {endpoint.table} rl WHERE rl.id = {r}.{name}_id)"
+                for kind, endpoint in ENDPOINT_KINDS.items()
+                if (path := _leg_for(endpoint)) is not None
+            )
+            return f"(CASE {r}.{name}_type {arms} ELSE NULL END)"
+
+        return f"COALESCE({side('source')}, {side('target')})"
+
+    def chain(r: str) -> str:
+        arms = " ".join(
+            f"WHEN '{kind.value}' THEN (SELECT {path.parents('rl')} "  # noqa: S608
+            f"FROM {endpoint.table} rl WHERE rl.id = {r}.source_id)"
+            for kind, endpoint in ENDPOINT_KINDS.items()
+            if (path := _leg_for(endpoint)) is not None
+        )
+        return f"COALESCE((CASE {r}.source_type {arms} ELSE NULL END), {NO_PARENTS})"
+
+    return InitiativePath(
+        predicate=build,
+        initiative_expr=locate,
+        parents=chain,
+        dac=DacPath(predicate=build_dac),
+    )
+
+
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
 # point at is an initiative-scoped table with a direct initiative_id, so the path
 # is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
@@ -924,7 +1087,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_filter_presets": via("projects", "project_id"),
-    "project_documents": via("projects", "project_id"),
     "project_tags": via("projects", "project_id"),
     # One hop -> documents
     "document_tags": via("documents", "document_id"),
@@ -955,15 +1117,12 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "task_assignees": via_task_project("task_id"),
     "task_tags": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
-    "queue_item_documents": via_queue_item("queue_item_id"),
     "queue_item_tags": via_queue_item("queue_item_id"),
-    "queue_item_tasks": via_queue_item("queue_item_id"),
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
     "post_poll_votes": via_post_poll("poll_id"),
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
-    "calendar_event_documents": via_event_calendar("calendar_event_id"),
     "calendar_event_tags": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
@@ -1003,6 +1162,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "comments": comments_path(),
     # Polymorphic over what it is on; gated by that thing's own path.
     "reactions": reactions_path(),
+    "relationships": relationships_path(),
     # Per-user state, scoped via the entity it points at
     "project_orders": via("projects", "project_id"),
     "project_favorites": via("projects", "project_id"),
@@ -1142,6 +1302,10 @@ class ReportsAs:
     #: Row expression yielding the resource TYPE, for the polymorphic case.
     #: ``None`` when ``resource_types`` holds the single constant answer.
     type_expr: RowLocator | None = None
+    #: Distinguishes this report from the others a table declares, in the
+    #: trigger's name. ``None`` for the ordinary one-report table, which keeps
+    #: every existing trigger named exactly as it is today.
+    label: str | None = None
 
 
 def reports_as(parent: str, fk: str, facet: str) -> ReportsAs:
@@ -1191,6 +1355,40 @@ def reactions_report_on_their_target() -> ReportsAs:
         facet="reactions",
         type_expr=lambda r: f"(CASE {r}.target_type {arms} END)",
     )
+
+
+def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
+    """An edge is a facet of BOTH things it connects, so it reports twice.
+
+    One event would leave the other end's watchers unaware — and for a symmetric
+    type there is no "main" end to pick, because the stored source is whichever
+    node id sorted lower. Each event names only its own end and is scoped to
+    that end's initiative, so nothing crosses a boundary: a subscriber is told
+    that something it can see changed, and re-reads it through RLS, which ANDs
+    both ends and hands back only what that reader may have.
+
+    The facet is the table's own name rather than the other end's kind, because
+    a facet label is one static trigger argument and the other end's kind varies
+    per row. Nothing keys on the label — the signal is content-free and the
+    refetch is what carries the answer.
+    """
+
+    def one(side: str) -> ReportsAs:
+        arms = " ".join(
+            f"WHEN '{kind.value}' THEN '{endpoint.table}'"
+            for kind, endpoint in ENDPOINT_KINDS.items()
+        )
+        return ReportsAs(
+            resource_types=frozenset(
+                endpoint.table for endpoint in ENDPOINT_KINDS.values()
+            ),
+            id_expr=lambda r, s=side: f"{r}.{s}_id",
+            facet="relationships",
+            type_expr=lambda r, s=side, a=arms: f"(CASE {r}.{s}_type {a} END)",
+            label=side,
+        )
+
+    return (one("source"), one("target"))
 
 
 def poll_options_report_on_their_post() -> ReportsAs:
@@ -1253,8 +1451,10 @@ class Emit:
     #: The row belongs to no initiative at all and a NULL is EXPECTED. Only ever
     #: correct for a table every guild member can already read.
     guild_wide: bool = False
-    #: Report against a parent resource instead of naming this table.
-    reports_as: ReportsAs | None = None
+    #: Report against a parent resource instead of naming this table. A tuple
+    #: emits one event per entry — for a row that is a facet of more than one
+    #: thing, so every surface it shows on is told to re-read.
+    reports_as: ReportsAs | tuple[ReportsAs, ...] | None = None
     #: Publish this table's own events under this resource type instead of the
     #: table's name, for a table whose API segment differs from it. Keeps the
     #: readback rule (``resource_type`` -> the detail route that serves the id)
@@ -1369,6 +1569,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         reports_as=poll_options_report_on_their_post(), anonymous=True
     ),
     "reactions": Emit(reports_as=reactions_report_on_their_target()),
+    "relationships": Emit(reports_as=relationships_report_on_both_ends()),
 }
 
 _SILENT: frozenset[str] = frozenset(

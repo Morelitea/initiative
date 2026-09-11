@@ -23,6 +23,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.document import Document
+from app.models.tenant.task import Task
+from app.services.tenant import relationships
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     IncludeDeletedDep,
@@ -73,6 +80,35 @@ from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
+
+
+async def _queue_item_attachments(
+    session: AsyncSession, item: QueueItem
+) -> tuple[list[Related], list[Related]]:
+    """The documents and tasks pinned to one queue item."""
+    endpoint = relationships.Endpoint(SearchEntityType.queue_item, item.id)
+    documents = await relationships.related_for(
+        session,
+        endpoint,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+    tasks = await relationships.related_for(
+        session,
+        endpoint,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        model=Task,
+    )
+    return documents, tasks
+
+
+async def _serialized_queue_item(
+    session: AsyncSession, item: QueueItem
+) -> QueueItemRead:
+    documents, tasks = await _queue_item_attachments(session, item)
+    return serialize_queue_item(item, documents=documents, tasks=tasks)
 
 
 router = APIRouter()
@@ -222,7 +258,7 @@ async def read_queue_item(
     await _get_queue_with_access(
         session, item.queue_id, current_user, guild_context, access="read"
     )
-    return serialize_queue_item(item)
+    return await _serialized_queue_item(session, item)
 
 
 @router.get("/", response_model=QueueListResponse)
@@ -601,7 +637,7 @@ async def add_queue_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "item_added", result.model_dump(mode="json"))
     return result
 
@@ -641,7 +677,7 @@ async def update_queue_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "item_updated", result.model_dump(mode="json"))
     return result
 
@@ -975,7 +1011,7 @@ async def set_queue_item_tags(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "tags_changed", result.model_dump(mode="json"))
     return result
 
@@ -1017,7 +1053,7 @@ async def set_queue_item_documents(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(
         session, queue_id, "documents_changed", result.model_dump(mode="json")
     )
@@ -1056,7 +1092,7 @@ async def set_queue_item_tasks(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(
         session, queue_id, "tasks_changed", result.model_dump(mode="json")
     )

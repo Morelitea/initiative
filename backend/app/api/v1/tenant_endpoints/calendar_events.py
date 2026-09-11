@@ -14,6 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.document import Document
+from app.services.tenant import relationships
 from sqlmodel import select
 
 from app.api.deps import (
@@ -28,7 +33,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
     CalendarEventTag,
     RSVPStatus,
 )
@@ -289,14 +293,12 @@ async def export_my_calendar_events_ics(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user
                 ),
-                # event_export_dict reads tags, linked-document titles, and
-                # custom properties too — async lazy loads would raise, so
-                # load them here.
+                # event_export_dict reads tags and custom properties too —
+                # async lazy loads would raise, so load them here. Attached
+                # documents are not on the row any more and are gathered per
+                # guild below, where the session is routed to read them.
                 selectinload(CalendarEvent.tag_links).selectinload(
                     CalendarEventTag.tag
-                ),
-                selectinload(CalendarEvent.document_links).selectinload(
-                    CalendarEventDocument.document
                 ),
                 selectinload(CalendarEvent.property_values).selectinload(
                     CalendarEventPropertyValue.property_definition
@@ -306,15 +308,24 @@ async def export_my_calendar_events_ics(
                 ),
             )
         )
-        return _exec_events(guild_session, stmt)
+
+        async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
+            found = await _exec_events(guild_session, stmt)
+            # Read while this session is still routed to THIS guild — edges live
+            # in its schema — and paired with their event on the way out, so
+            # nothing downstream has to key them. Ids repeat across schemas.
+            documents = await ical_service.documents_for_events(guild_session, found)
+            return [(event, documents.get(event.id, [])) for event in found]
+
+        return _run()
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
+    events.sort(key=lambda pair: (pair[0].start_at, pair[0].guild_id, pair[0].id))
 
-    ics_bytes = ical_service.events_to_ical(list(events))
+    ics_bytes = ical_service.events_to_ical(events)
     return Response(
         content=ics_bytes,
         media_type="text/calendar",
@@ -574,6 +585,32 @@ async def list_calendar_events(
     )
 
 
+async def _event_documents(
+    session: AsyncSession, event: CalendarEvent
+) -> list[Related]:
+    """The documents attached to one event.
+
+    Its own function so every response below goes through one place: the edges
+    moved out of the event's own row, and a fetch scattered across nine handlers
+    is how a page ends up doing nine of them.
+    """
+    return await relationships.related_for(
+        session,
+        relationships.Endpoint(SearchEntityType.calendar_event, event.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+
+
+async def _serialized_event(
+    session: AsyncSession, event: CalendarEvent, user_id: int
+) -> CalendarEventRead:
+    return serialize_calendar_event(
+        event, user_id=user_id, documents=await _event_documents(session, event)
+    )
+
+
 @router.get("/{event_id}", response_model=CalendarEventRead)
 async def read_calendar_event(
     event_id: int,
@@ -583,7 +620,7 @@ async def read_calendar_event(
     include_deleted: IncludeDeletedDep = False,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    return serialize_calendar_event(event, user_id=current_user.id)
+    return await _serialized_event(session, event, current_user.id)
 
 
 @router.post("/", response_model=CalendarEventRead, status_code=status.HTTP_201_CREATED)
@@ -657,7 +694,7 @@ async def create_calendar_event(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.patch("/{event_id}", response_model=CalendarEventRead)
@@ -771,7 +808,7 @@ async def update_calendar_event(
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -851,7 +888,7 @@ async def set_attendees(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.patch("/{event_id}/rsvp", response_model=CalendarEventRead)
@@ -897,7 +934,7 @@ async def update_rsvp(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -925,7 +962,7 @@ async def set_documents(
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.put("/{event_id}/tags", response_model=CalendarEventRead)
@@ -953,7 +990,7 @@ async def set_event_tags(
     session.add(event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -992,4 +1029,4 @@ async def set_event_properties(
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)

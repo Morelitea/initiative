@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -11,12 +10,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
+from app.services.tenant import relationships
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
     DocumentLink,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
@@ -156,7 +157,6 @@ async def get_document(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
@@ -257,32 +257,30 @@ async def get_document_for_grants(
     return (await session.exec(statement)).one_or_none()
 
 
+def _document_endpoint(document_id: int) -> relationships.Endpoint:
+    return relationships.Endpoint(SearchEntityType.document, document_id)
+
+
+def _project_endpoint(project_id: int) -> relationships.Endpoint:
+    return relationships.Endpoint(SearchEntityType.project, project_id)
+
+
 async def attach_document_to_project(
     session: AsyncSession,
     *,
     document: Document,
     project: Project,
     user_id: int,
-) -> ProjectDocument:
-    stmt = select(ProjectDocument).where(
-        ProjectDocument.project_id == project.id,
-        ProjectDocument.document_id == document.id,
+) -> None:
+    """Put a document on a project. Idempotent, as the junction was."""
+    await relationships.create(
+        session,
+        source=_document_endpoint(document.id),
+        relationship_type=RelationshipType.attached,
+        target=_project_endpoint(project.id),
+        created_by=user_id,
     )
-    result = await session.exec(stmt)
-    link = result.one_or_none()
-    if link:
-        return link
-
-    link = ProjectDocument(
-        project_id=project.id,
-        document_id=document.id,
-        attached_by_id=user_id,
-        attached_at=datetime.now(timezone.utc),
-    )
-    session.add(link)
     await session.commit()
-    await session.refresh(link)
-    return link
 
 
 async def detach_document_from_project(
@@ -290,15 +288,22 @@ async def detach_document_from_project(
     *,
     document_id: int,
     project_id: int,
+    removed_by: int | None = None,
 ) -> None:
-    stmt = select(ProjectDocument).where(
-        ProjectDocument.project_id == project_id,
-        ProjectDocument.document_id == document_id,
+    """Take a document off a project.
+
+    Tombstoned rather than deleted: somebody attached these two things and has
+    now said they do not belong together, which is the one negative signal
+    nothing else in the schema records.
+    """
+    row = await relationships.find(
+        session,
+        source=_document_endpoint(document_id),
+        relationship_type=RelationshipType.attached,
+        target=_project_endpoint(project_id),
     )
-    result = await session.exec(stmt)
-    link = result.one_or_none()
-    if link:
-        await session.delete(link)
+    if row is not None:
+        await relationships.remove(session, row, removed_by=removed_by)
         await session.commit()
 
 

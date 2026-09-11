@@ -21,6 +21,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Provenance, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.relationship import EntityRelationship
+from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
     hash_email,
@@ -2189,6 +2193,51 @@ async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Ini
     await session.commit()
     await session.refresh(fresh)
     return fresh
+
+
+async def create_relationship(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    source: tuple[SearchEntityType, int],
+    target: tuple[SearchEntityType, int],
+    relationship_type: RelationshipType = RelationshipType.attached,
+    provenance: Provenance = Provenance.manual,
+    created_by: int | None = None,
+    commit: bool = True,
+) -> EntityRelationship:
+    """Create one edge between two things.
+
+    Endpoints are ``(kind, id)`` pairs, and a symmetric type is stored in the
+    order the constraint requires, so a test may name its two ends in whichever
+    order reads better.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    source_endpoint = relationships_service.Endpoint(*source)
+    target_endpoint = relationships_service.Endpoint(*target)
+    row = await relationships_service.create(
+        session,
+        source=source_endpoint,
+        relationship_type=relationship_type,
+        target=target_endpoint,
+        provenance=provenance,
+        created_by=created_by,
+    )
+    if row is None:  # already present — hand back the live one
+        row = await relationships_service.find(
+            session,
+            source=source_endpoint,
+            relationship_type=relationship_type,
+            target=target_endpoint,
+        )
+    assert row is not None
+
+    if commit:
+        await session.commit()
+        await session.refresh(row)
+
+    return row
 
 
 async def billing_guild_ref(guild_id: int) -> str:
