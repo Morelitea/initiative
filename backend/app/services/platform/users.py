@@ -17,6 +17,7 @@ from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
+from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
@@ -508,6 +509,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # revocation either all succeed or all roll back together.
     await session.commit()
     await _dispatch_queued_revocations(session)
+    # Last, because the revocations above name this person to each app by the
+    # very references this removes.
+    await identity_refs.forget_user(user_id=user_id)
 
 
 async def _dispatch_queued_revocations(session: AsyncSession) -> None:
@@ -774,6 +778,9 @@ async def hard_delete_user(
     await session.delete(user)
 
     await session.commit()
+    # After the commit: the row is gone, so what outside parties were given to
+    # name this person by should stop resolving to anybody.
+    await identity_refs.forget_user(user_id=user_id)
 
 
 # The member-lookup helpers below bind to ``MemberProfile`` — the guild

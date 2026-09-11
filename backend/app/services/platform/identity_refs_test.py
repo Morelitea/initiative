@@ -22,6 +22,7 @@ from app.models.platform.identity_ref import (
 from app.services.platform.identity_refs import (
     REF_GRACE_PERIOD,
     drop_entity_refs,
+    drop_guild_refs,
     ensure_ref,
     mint_ref,
     purge_retired_refs,
@@ -339,6 +340,36 @@ class TestRemoval:
         assert dropped == 2
         assert await resolve_ref(session, ref=billing) is None
         assert await resolve_ref(session, ref=at_app) is None
+
+    @pytest.mark.integration
+    async def test_a_deleted_guild_leaves_neither_half(self, session):
+        """A guild is in this table twice and both have to go.
+
+        Its members are named to each app installed there, in sectors the guild
+        owns. The guild itself is named by billing, whose sector is the whole
+        deployment — so those rows carry no ``sector_guild_id`` and a sweep
+        looking for one never finds them.
+        """
+        own = await ensure_ref(
+            session, entity_type=IdentityEntity.guild, entity_id=5, purpose=BILLING
+        )
+        member = await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=9,
+            purpose=IdentityPurpose.app,
+            sector_guild_id=5,
+            sector_id=2,
+        )
+        elsewhere = await ensure_ref(
+            session, entity_type=IdentityEntity.guild, entity_id=6, purpose=BILLING
+        )
+
+        assert await drop_guild_refs(session, guild_id=5) == 2
+        assert await resolve_ref(session, ref=own) is None
+        assert await resolve_ref(session, ref=member) is None
+        # Another guild's name is not this guild's to take.
+        assert await resolve_ref(session, ref=elsewhere) is not None
 
     @pytest.mark.integration
     async def test_the_sweep_takes_only_what_has_stopped_resolving(self, session):

@@ -318,6 +318,55 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_erasing_a_user_stops_their_references_resolving(
+    session: AsyncSession,
+):
+    """The names outside parties know somebody by are part of the erasure.
+
+    Billing holds one and keeps it — it is the key an account's history hangs
+    on — and each installed app holds its own. Once the person is gone, none of
+    them has anyone left to resolve to, and the mapping is the only thing that
+    could still join them back to a row.
+
+    Anonymizing counts: the row survives so old content stays legible, but the
+    person does not, and a reference is a name for the person.
+    """
+    from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+    from app.services.platform.identity_refs import ensure_ref, resolve_ref
+
+    victim = await create_user(session, email="forgetme@example.com")
+    bystander = await create_user(session, email="stays@example.com")
+
+    billing_ref = await ensure_ref(
+        session,
+        entity_type=IdentityEntity.user,
+        entity_id=victim.id,
+        purpose=IdentityPurpose.billing,
+    )
+    app_ref = await ensure_ref(
+        session,
+        entity_type=IdentityEntity.user,
+        entity_id=victim.id,
+        purpose=IdentityPurpose.app,
+        sector_guild_id=1,
+        sector_id=1,
+    )
+    kept = await ensure_ref(
+        session,
+        entity_type=IdentityEntity.user,
+        entity_id=bystander.id,
+        purpose=IdentityPurpose.billing,
+    )
+    await session.commit()
+
+    await user_service.soft_delete_user(session, victim.id)
+
+    assert await resolve_ref(session, ref=billing_ref) is None
+    assert await resolve_ref(session, ref=app_ref) is None
+    # One person's erasure is not everybody's.
+    assert await resolve_ref(session, ref=kept) is not None
+
+
 async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     """Anonymizing a user must erase their address from any guild invite bound
     to it — a lingering invite otherwise keeps a reversible copy of the very
