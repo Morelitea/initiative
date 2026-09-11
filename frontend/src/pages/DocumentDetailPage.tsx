@@ -195,6 +195,7 @@ export const DocumentDetailPage = () => {
     null
   );
   const collaboratingRef = useRef(false);
+  const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
 
   // Wikilink dialog state
@@ -498,7 +499,8 @@ export const DocumentDetailPage = () => {
 
   useEffect(() => {
     collaboratingRef.current = collaboration.isCollaborating;
-  }, [collaboration.isCollaborating]);
+    sendContentRef.current = collaboration.sendContent;
+  }, [collaboration.isCollaborating, collaboration.sendContent]);
 
   // Extract the Yjs doc from the collaboration provider for whiteboards.
   // Mirrors what Lexical's CollaborationPlugin does internally — we call the
@@ -595,10 +597,14 @@ export const DocumentDetailPage = () => {
     if (collaboration.isCollaborating) {
       const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
+        // The room is the writer of this document's content column while it
+        // is live: it saves the JSON and the Yjs state from one snapshot, so
+        // the two always describe the same moment. Every tab reports to it,
+        // and it reconciles them.
+        collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
           name: title?.trim(),
-          content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
@@ -627,6 +633,7 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
+    collaboration.sendContent,
     isOnline,
     document?.document_type,
   ]);
@@ -794,6 +801,12 @@ export const DocumentDetailPage = () => {
       const syncUrl = resolveHeaderlessApiUrl(
         `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
       );
+
+      // Push it to the room first, over the socket that is still open. The
+      // REST call below stays as the fallback for a socket that has already
+      // gone: the server applies it only when no room is live, so whichever
+      // of the two is the redundant one is the one it drops.
+      sendContentRef.current?.(stored.content);
 
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {

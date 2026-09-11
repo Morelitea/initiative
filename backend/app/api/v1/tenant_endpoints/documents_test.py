@@ -1107,3 +1107,60 @@ async def test_reading_a_document_can_leave_the_body_out(
     assert body["id"] == document_id
     assert body["name"] == full.json()["name"]
     assert body["updated_at"] == full.json()["updated_at"]
+
+
+@pytest.mark.integration
+async def test_a_content_patch_against_a_live_document_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+) -> None:
+    """A document being edited live has its room as the writer of its content.
+
+    Editors inside the session report their rendering to the room over their
+    own sockets. A rendering arriving over REST belongs to a tab outside it,
+    and is refused rather than taken and reported as saved.
+    """
+    from app.services.tenant.collaboration import collaboration_manager
+
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
+    original = doc.content
+
+    monkeypatch.setattr(
+        collaboration_manager, "has_active_collaborators", lambda *_a: True
+    )
+
+    response = await client.patch(
+        owner.g(f"/documents/{doc.id}"),
+        headers=owner.headers,
+        json={"content": {"root": "written outside the session"}},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
+    await session.refresh(doc)
+    assert doc.content == original
+
+
+@pytest.mark.integration
+async def test_a_live_document_can_still_be_renamed(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+) -> None:
+    """Only the content column belongs to the room; the rest of a document
+    is unrelated to what its editors are doing and still applies."""
+    from app.services.tenant.collaboration import collaboration_manager
+
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
+
+    monkeypatch.setattr(
+        collaboration_manager, "has_active_collaborators", lambda *_a: True
+    )
+
+    response = await client.patch(
+        owner.g(f"/documents/{doc.id}"),
+        headers=owner.headers,
+        json={"name": "Renamed while live"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Renamed while live"
