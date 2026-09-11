@@ -371,6 +371,26 @@ class ReactionMessages:
     DISABLED = "REACTION_DISABLED"
 
 
+class RelationshipMessages:
+    """One vocabulary for links, whatever two kinds a link is between.
+
+    ``CROSS_INITIATIVE`` is the rule the per-tool attach endpoints stated as
+    ``PROJECT_DOCUMENT_WRONG_INITIATIVE``. It was never about documents or
+    projects — it is that a link made from a picker stays inside one
+    initiative — so it is named for the rule rather than for the first pair of
+    kinds it applied to.
+    """
+
+    BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"
+    ENDPOINT_NOT_FOUND = "RELATIONSHIP_ENDPOINT_NOT_FOUND"
+    CROSS_INITIATIVE = "RELATIONSHIP_CROSS_INITIATIVE"
+    ENDPOINT_ARCHIVED = "RELATIONSHIP_ENDPOINT_ARCHIVED"
+    SELF = "RELATIONSHIP_SELF"
+    EXISTS = "RELATIONSHIP_EXISTS"
+    NOT_FOUND = "RELATIONSHIP_NOT_FOUND"
+    REMOVE_DENIED = "RELATIONSHIP_REMOVE_DENIED"
+
+
 class SettingsMessages:
     PROVIDE_TEST_EMAIL = "SETTINGS_PROVIDE_TEST_EMAIL"
     SMTP_INCOMPLETE = "SETTINGS_SMTP_INCOMPLETE"

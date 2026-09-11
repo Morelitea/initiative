@@ -603,5 +603,13 @@
   "GALLERY_COVER_NOT_IN_GALLERY": "The cover has to be one of this gallery's own pictures",
   "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "This document is being edited live. Reconnect to the editing session to save your changes.",
   "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "That file could not be read as a spreadsheet. Import accepts .csv, .tsv and .xlsx files.",
-  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "That file is too large to import. It holds more sheets or cells than a spreadsheet here can take."
+  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "That file is too large to import. It holds more sheets or cells than a spreadsheet here can take.",
+  "RELATIONSHIP_BAD_ENDPOINT": "That is not something links can name",
+  "RELATIONSHIP_ENDPOINT_NOT_FOUND": "One of these no longer exists, or is not shared with you",
+  "RELATIONSHIP_CROSS_INITIATIVE": "Both of these must be in the same initiative",
+  "RELATIONSHIP_SELF": "Something cannot be linked to itself",
+  "RELATIONSHIP_EXISTS": "These are already linked",
+  "RELATIONSHIP_NOT_FOUND": "That link no longer exists",
+  "RELATIONSHIP_REMOVE_DENIED": "You can only remove links you made, or links on something you can edit",
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "That has been archived"
 }

@@ -659,31 +659,43 @@ async def _load_guild_context(
     )
 
 
+def addressed_guild_id(request: Request, path_guild_id: int) -> int:
+    """Which guild this request operates in.
+
+    Two kinds of caller say it two ways.
+
+    A **browser** says it in the path, and has to: a tab, a download, an
+    ``<img>``, an SSE stream and a WebSocket all carry the guild, and the URL is
+    the only thing all of them can carry (#680 removed the header version).
+
+    A **delegate** says it in its token, and only there. It holds one
+    credential, that credential is for one guild, and which guild was settled
+    when the call authenticated. Our id is an index and its reference is minted
+    for it alone, so neither is a name it should be spelling into a URL — the
+    segment it writes is its own business, and this does not read it.
+
+    See ``history/opaque-identity-design.md`` §13.
+    """
+    delegated = getattr(request.state, "delegated_guild_id", None)
+    return path_guild_id if delegated is None else delegated
+
+
 async def get_guild_membership(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Annotated[int, Path(description="Guild this request operates in")],
 ) -> GuildContext:
-    """Strict guild context resolved from the ``/g/{guild_id}`` path segment.
+    """Strict guild context for the guild this request addresses.
 
-    Every guild-scoped router mounts under that prefix, so FastAPI injects
-    ``guild_id`` from the path into this dependency. Membership (or a live PAM
-    grant) is validated fresh; a non-member or stale grant gets 403. A
+    Every guild-scoped router mounts under ``/g/{guild_id}``, so FastAPI injects
+    the segment here; :func:`addressed_guild_id` decides whether that is the
+    answer or whether the call's delegation already gave one. Membership (or a
+    live PAM grant) is validated fresh; a non-member or stale grant gets 403. A
     guild-scoped route mounted *outside* the prefix fails at startup (missing
     path param) — a useful guard that every such route is path-addressed.
     """
-    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
-    # path addresses a different guild than the token was minted for. This is a
-    # REST/token-only guard (a delegation token can only arrive over HTTP), so it
-    # lives here — the one place that sees both the token's guild and the path's —
-    # not in the shared resolver that the WebSocket/keepalive callers also use.
-    delegated = getattr(request.state, "delegated_guild_id", None)
-    if delegated is not None and delegated != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
+    guild_id = addressed_guild_id(request, guild_id)
     # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
     # the path addresses a different guild than the key was scoped to.
     key_guild = getattr(request.state, "api_key_guild_id", None)

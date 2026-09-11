@@ -3038,6 +3038,34 @@ export interface EmailTestResponse {
   status: string;
 }
 
+export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
+
+export const SearchEntityType = {
+  calendar: "calendar",
+  calendar_event: "calendar_event",
+  comment: "comment",
+  counter: "counter",
+  counter_group: "counter_group",
+  dashboard: "dashboard",
+  document: "document",
+  gallery: "gallery",
+  gallery_image: "gallery_image",
+  post: "post",
+  project: "project",
+  queue: "queue",
+  queue_item: "queue_item",
+  tag: "tag",
+  task: "task",
+} as const;
+
+/**
+ * One end of an edge: what kind of thing, and which one.
+ */
+export interface EndpointRef {
+  type: SearchEntityType;
+  id: number;
+}
+
 /**
  * Entity types the trash can holds.
  */
@@ -5848,6 +5876,63 @@ export interface RegistryStatusRead {
 }
 
 /**
+ * The far end of an edge, as the caller's side sees it.
+ */
+export interface RelatedEnd {
+  type: SearchEntityType;
+  id: number;
+  title: string | null;
+  initiative_id: number | null;
+}
+
+/**
+ * The primitives. Small, stable, and each one carries a rule or a weight.
+ *
+ * A member earns its place by something depending on telling it apart from
+ * its neighbours — a read, a rule, an adjacency weight — not by a model being
+ * able to learn it. Finer words that obey an existing primitive's rule are
+ * :data:`SUBTYPES`, not members here: splitting a primitive later is
+ * impossible, because the fact that would distinguish the halves was never
+ * recorded, while merging two is one UPDATE.
+ */
+export type RelationshipType = (typeof RelationshipType)[keyof typeof RelationshipType];
+
+export const RelationshipType = {
+  attached: "attached",
+  depends_on: "depends_on",
+  part_of: "part_of",
+  tagged_with: "tagged_with",
+  related_to: "related_to",
+} as const;
+
+/**
+ * Make one edge. Provenance is not here — it is the code path's to state,
+ * never a request's, because it is the weight any later scoring reads.
+ */
+export interface RelationshipCreate {
+  source: EndpointRef;
+  relationship_type: RelationshipType;
+  target: EndpointRef;
+}
+
+/**
+ * One edge, rendered from the asking entity's side.
+ *
+ * ``direction`` is which way it runs relative to the entity asked about, so a
+ * caller never has to know that a symmetric edge is stored in node-id order.
+ */
+export interface RelationshipRead {
+  id: number;
+  relationship_type: RelationshipType;
+  direction: string;
+  other: RelatedEnd;
+  provenance: string;
+  confidence: number | null;
+  created_by: number | null;
+  created_at: string;
+}
+
+/**
  * Resolved settings for the frontend — never exposes the API key.
  */
 export interface ResolvedAISettingsResponse {
@@ -5914,26 +5999,6 @@ export interface ResourceGrantBulkResponse {
 export interface RestoreResponse {
   restored: boolean;
 }
-
-export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
-
-export const SearchEntityType = {
-  calendar: "calendar",
-  calendar_event: "calendar_event",
-  comment: "comment",
-  counter: "counter",
-  counter_group: "counter_group",
-  dashboard: "dashboard",
-  document: "document",
-  gallery: "gallery",
-  gallery_image: "gallery_image",
-  post: "post",
-  project: "project",
-  queue: "queue",
-  queue_item: "queue_item",
-  tag: "tag",
-  task: "task",
-} as const;
 
 /**
  * One thing found.
@@ -8101,6 +8166,24 @@ export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type ListRelationshipsApiV1GGuildIdRelationshipsGetParams = {
+  /**
+   * The thing to list edges for, as `kind:id`
+   */
+  entity: string;
+  relationship_type?: RelationshipType | null;
+  other_type?: SearchEntityType | null;
+};
+
+export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams = {
+  /**
+   * The thing whose edges are being set
+   */
+  entity: string;
+  relationship_type: RelationshipType;
+  other_type: SearchEntityType;
 };
 
 export type GetTagApiV1GGuildIdTagsTagIdGetParams = {

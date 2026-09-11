@@ -943,29 +943,6 @@ async def update_rsvp(
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{event_id}/documents", response_model=CalendarEventRead)
-async def set_documents(
-    event_id: int,
-    document_ids: List[int],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CalendarEventRead:
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
-    )
-    await events_service.set_event_documents(
-        session,
-        event,
-        document_ids,
-        guild_context.guild_id,
-        current_user.id,
-    )
-    await session.commit()
-    hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
-
-
 @router.put("/{event_id}/tags", response_model=CalendarEventRead)
 async def set_event_tags(
     event_id: int,

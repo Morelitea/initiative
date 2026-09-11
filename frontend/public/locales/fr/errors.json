@@ -603,5 +603,13 @@
   "GALLERY_COVER_NOT_IN_GALLERY": "La couverture doit être l’une des images de cette galerie",
   "DOCUMENT_LIVE_SESSION_OWNS_CONTENT": "Ce document est en cours d'édition en direct. Reconnecte-toi à la session d'édition pour enregistrer tes modifications.",
   "DOCUMENT_SPREADSHEET_UNREADABLE_FILE": "Ce fichier n'a pas pu être lu comme un tableur. L'import accepte les fichiers .csv, .tsv et .xlsx.",
-  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Ce fichier est trop volumineux pour être importé. Il contient plus de feuilles ou de cellules qu'un tableur ne peut en accueillir ici."
+  "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE": "Ce fichier est trop volumineux pour être importé. Il contient plus de feuilles ou de cellules qu'un tableur ne peut en accueillir ici.",
+  "RELATIONSHIP_BAD_ENDPOINT": "Cet élément ne peut pas être lié",
+  "RELATIONSHIP_ENDPOINT_NOT_FOUND": "L'un de ces éléments n'existe plus ou n'est pas partagé avec vous",
+  "RELATIONSHIP_CROSS_INITIATIVE": "Les deux doivent appartenir à la même initiative",
+  "RELATIONSHIP_SELF": "Un élément ne peut pas être lié à lui-même",
+  "RELATIONSHIP_EXISTS": "Ces éléments sont déjà liés",
+  "RELATIONSHIP_NOT_FOUND": "Ce lien n'existe plus",
+  "RELATIONSHIP_REMOVE_DENIED": "Vous ne pouvez retirer que les liens que vous avez créés, ou ceux portant sur un élément que vous pouvez modifier",
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Cet élément est archivé"
 }

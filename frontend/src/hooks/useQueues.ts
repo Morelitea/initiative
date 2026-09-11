@@ -19,6 +19,7 @@ import type {
   QueueUpdate,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
+import { type RelationshipRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost,
   advanceTurnApiV1GGuildIdQueuesQueueIdNextPost,
@@ -38,15 +39,14 @@ import {
   resetQueueApiV1GGuildIdQueuesQueueIdResetPost,
   setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost,
   setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut,
-  setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut,
   setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut,
-  setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut,
   startQueueApiV1GGuildIdQueuesQueueIdStartPost,
   stopQueueApiV1GGuildIdQueuesQueueIdStopPost,
   updateQueueApiV1GGuildIdQueuesQueueIdPatch,
   updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
+import { setRelated } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -676,15 +676,15 @@ export const useSetQueueItemTags = (
 
 export const useSetQueueItemDocuments = (
   queueId: number,
-  options?: MutationOpts<QueueItemRead, { itemId: number; documentIds: number[] }>
+  options?: MutationOpts<RelationshipRead[], { itemId: number; documentIds: number[] }>
 ) =>
-  useGuildMutation<QueueItemRead, { itemId: number; documentIds: number[] }>(
+  useGuildMutation<RelationshipRead[], { itemId: number; documentIds: number[] }>(
     {
       mutationFn: (guildId, { itemId, documentIds }) =>
-        setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut(
+        setRelated(
           guildId,
-          queueId,
-          itemId,
+          { type: SearchEntityType.queue_item, id: itemId },
+          SearchEntityType.document,
           documentIds
         ),
       invalidate: () => invalidateQueueAndList(queueId),
@@ -695,15 +695,15 @@ export const useSetQueueItemDocuments = (
 
 export const useSetQueueItemTasks = (
   queueId: number,
-  options?: MutationOpts<QueueItemRead, { itemId: number; taskIds: number[] }>
+  options?: MutationOpts<RelationshipRead[], { itemId: number; taskIds: number[] }>
 ) =>
-  useGuildMutation<QueueItemRead, { itemId: number; taskIds: number[] }>(
+  useGuildMutation<RelationshipRead[], { itemId: number; taskIds: number[] }>(
     {
       mutationFn: (guildId, { itemId, taskIds }) =>
-        setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut(
+        setRelated(
           guildId,
-          queueId,
-          itemId,
+          { type: SearchEntityType.queue_item, id: itemId },
+          SearchEntityType.task,
           taskIds
         ),
       invalidate: () => invalidateQueueAndList(queueId),

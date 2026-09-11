@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.security import create_upload_token
 from app.models.tenant.document import (
     Document,
+    DocumentFileVersion,
     DocumentType,
 )
 from app.models.platform.guild import GuildRole
@@ -1164,3 +1165,114 @@ async def test_a_live_document_can_still_be_renamed(
 
     assert response.status_code == 200
     assert response.json()["name"] == "Renamed while live"
+
+
+# ── downloads on a delegated call ────────────────────────────────────────────
+#
+# These two routes resolve the guild themselves rather than through
+# ``get_guild_membership`` — they establish access, route the session and pick
+# the guild's storage by hand — so the rule that a delegation names its own
+# guild has to be asserted against them directly. See
+# ``history/opaque-identity-design.md`` §13.
+
+
+@pytest.fixture
+async def _delegation_enabled(session: AsyncSession):
+    """Register the delegate whose tokens these two tests present."""
+    from app.core import config as config_module
+    from app.services.marketplace.registration_lookup import invalidate_registrations
+    from app.testing.delegation import register_delegate
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            config_module.settings,
+            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+            "-----BEGIN PRIVATE KEY-----",
+        )
+        await register_delegate(session)
+        yield
+    invalidate_registrations()
+
+
+async def _delegated_headers(session: AsyncSession, *, guild, user) -> dict[str, str]:
+    """A delegation this app may present for this member in this guild."""
+    from app.testing.delegation import (
+        authorize_delegate,
+        delegate_guild_ref,
+        delegate_subject,
+        mint_delegation_token,
+    )
+
+    await authorize_delegate(session, guild, user)
+    token = mint_delegation_token(
+        subject=await delegate_subject(session, guild, user),
+        guild_ref=await delegate_guild_ref(session, guild),
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.integration
+async def test_a_delegated_download_reads_the_guild_its_token_names(
+    client: AsyncClient, session: AsyncSession, acting_user, _delegation_enabled
+) -> None:
+    """The path names the other guild this person belongs to. The file served
+    is the one in the guild the delegation was minted for."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    elsewhere = await acting_user(
+        guild_role=GuildRole.member, initiative=True, user=a.user
+    )
+
+    doc = await _create_file_document(
+        session, initiative=a.initiative, owner=a.user, filename="dl_delegated.pdf"
+    )
+    headers = await _delegated_headers(session, guild=a.guild, user=a.user)
+
+    try:
+        response = await client.get(
+            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}/download",
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.content == b"%PDF-1.4 test"
+    finally:
+        (_uploads_dir() / "dl_delegated.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_a_delegated_version_download_reads_the_same_guild(
+    client: AsyncClient, session: AsyncSession, acting_user, _delegation_enabled
+) -> None:
+    """The version route loads the document the same way, so it answers the
+    same — asserted separately because it resolves the guild separately."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    elsewhere = await acting_user(
+        guild_role=GuildRole.member, initiative=True, user=a.user
+    )
+
+    doc = await _create_file_document(
+        session, initiative=a.initiative, owner=a.user, filename="dl_delegated_v.pdf"
+    )
+    version = DocumentFileVersion(
+        document_id=doc.id,
+        guild_id=a.guild.id,
+        version_number=1,
+        file_url=doc.file_url,
+        original_filename=doc.original_filename,
+        file_content_type="application/pdf",
+        file_size=13,
+        created_by=a.user.id,
+    )
+    session.add(version)
+    await session.commit()
+    headers = await _delegated_headers(session, guild=a.guild, user=a.user)
+
+    try:
+        response = await client.get(
+            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}"
+            f"/versions/{version.id}/download",
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.content == b"%PDF-1.4 test"
+    finally:
+        (_uploads_dir() / "dl_delegated_v.pdf").unlink(missing_ok=True)

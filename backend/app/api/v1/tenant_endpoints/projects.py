@@ -53,7 +53,6 @@ from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
-from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import my_tools as my_tools_service
@@ -1953,105 +1952,6 @@ async def update_project(
         session,
         current_user,
         project,
-    )
-
-
-@router.post("/{project_id}/documents/{document_id}", response_model=ProjectRead)
-async def attach_project_document(
-    project_id: int,
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    _ensure_not_archived(project)
-    document = await documents_service.get_document(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.DOCUMENT_NOT_FOUND,
-        )
-    if document.initiative_id != project.initiative_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE,
-        )
-    await documents_service.attach_document_to_project(
-        session,
-        document=document,
-        project=project,
-        user_id=current_user.id,
-    )
-    updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated_project])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated_project,
-    )
-
-
-@router.delete("/{project_id}/documents/{document_id}", response_model=ProjectRead)
-async def detach_project_document(
-    project_id: int,
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    _ensure_not_archived(project)
-    document = await documents_service.get_document(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.DOCUMENT_NOT_FOUND,
-        )
-    if document.initiative_id != project.initiative_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE,
-        )
-    await documents_service.detach_document_from_project(
-        session,
-        document_id=document.id,
-        project_id=project.id,
-    )
-    updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated_project])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated_project,
     )
 
 
