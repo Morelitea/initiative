@@ -17,7 +17,6 @@ from app.models.platform.identity_ref import (
     REF_RANDOM_LENGTH,
     IdentityEntity,
     IdentityPurpose,
-    app_purpose,
     ref_prefix,
 )
 from app.services.platform.identity_refs import (
@@ -31,7 +30,7 @@ from app.services.platform.identity_refs import (
     resolve_ref,
 )
 
-BILLING = IdentityPurpose.billing.value
+BILLING = IdentityPurpose.billing
 
 
 class TestTheRenderedValue:
@@ -52,7 +51,7 @@ class TestTheRenderedValue:
     def test_the_prefix_names_the_entity_and_the_purpose(self):
         assert ref_prefix(IdentityEntity.user, BILLING) == "ubil"
         assert ref_prefix(IdentityEntity.guild, BILLING) == "gbil"
-        assert ref_prefix(IdentityEntity.user, app_purpose(7)) == "uapp"
+        assert ref_prefix(IdentityEntity.user, IdentityPurpose.app) == "uapp"
 
     @pytest.mark.unit
     def test_two_mints_never_agree(self):
@@ -111,7 +110,9 @@ class TestMintingAndResolving:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=app_purpose(7),
+            purpose=IdentityPurpose.app,
+            sector_guild_id=3,
+            sector_id=7,
         )
         assert billing != at_app
 
@@ -191,7 +192,9 @@ class TestReissuingOne:
             session,
             entity_type=IdentityEntity.guild,
             entity_id=1,
-            purpose=app_purpose(7),
+            purpose=IdentityPurpose.app,
+            sector_guild_id=3,
+            sector_id=7,
         )
         await reissue_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -208,7 +211,9 @@ class TestReissuingOne:
                 session,
                 entity_type=IdentityEntity.guild,
                 entity_id=1,
-                purpose=app_purpose(7),
+                purpose=IdentityPurpose.app,
+                sector_guild_id=3,
+                sector_id=7,
             )
             == other_purpose
         )
@@ -255,7 +260,9 @@ class TestReissuingEvery:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=app_purpose(7),
+            purpose=IdentityPurpose.app,
+            sector_guild_id=3,
+            sector_id=7,
         )
         a_guild = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -273,7 +280,9 @@ class TestReissuingEvery:
                 session,
                 entity_type=IdentityEntity.user,
                 entity_id=1,
-                purpose=app_purpose(7),
+                purpose=IdentityPurpose.app,
+                sector_guild_id=3,
+                sector_id=7,
             )
             == at_app
         )
@@ -319,7 +328,9 @@ class TestRemoval:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=app_purpose(7),
+            purpose=IdentityPurpose.app,
+            sector_guild_id=3,
+            sector_id=7,
         )
 
         dropped = await drop_entity_refs(

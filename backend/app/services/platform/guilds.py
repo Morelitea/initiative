@@ -1038,7 +1038,13 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     the three call sites, so deleting a guild announces itself however it is
     reached.
     """
+    from app.services.marketplace import app_refs
+
     await _signal_members_present(session, guild_id=guild.id, action="membership")
+    # What this guild's installed apps called its members. A platform-wide
+    # table, so the guild row's cascade does not reach it and the schema drop
+    # does not either.
+    await app_refs.drop_guild_app_refs(session, guild_id=guild.id)
     await session.exec(delete(Guild).where(Guild.id == guild.id))
 
 
