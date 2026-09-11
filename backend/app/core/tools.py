@@ -130,9 +130,9 @@ TRASHABLE_EXTRAS: tuple[str, ...] = (
 TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 
 #: Archivable things that are not tools. Archiving says "this is finished with",
-#: which is true of anything an initiative offers — so every Tool is archivable —
-#: and of these two, which are worked through and put away without being tools:
-#: a task, and an initiative itself.
+#: which is true of anything an initiative offers — so every Tool is archivable,
+#: with no exceptions — and of these two, which are worked through and put away
+#: without being tools: a task, and an initiative itself.
 ARCHIVABLE_EXTRAS: tuple[str, ...] = ("task", "initiative")
 ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXTRAS
 
