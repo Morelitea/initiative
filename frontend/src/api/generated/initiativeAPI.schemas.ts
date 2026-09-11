@@ -1020,7 +1020,7 @@ export interface AuditEventRead {
   category: string;
   tier: number;
   occurred_at: string;
-  actor: AuditActor;
+  actor: AuditActor | null;
   target_user: AuditActor | null;
   guild_id: number | null;
   target_type: string | null;

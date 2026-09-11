@@ -56,6 +56,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_refresh_cookie,
     set_session_cookie,
 )
+from app.core.audit_events import AuditEventType
 from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -77,6 +78,7 @@ from app.schemas.platform.auth import (
 )
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
+from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
 from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
@@ -396,6 +398,31 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     }
 
 
+async def _record_sign_in_failure(
+    admin_session: AsyncSession, user: User, *, reason: str
+) -> None:
+    """Write down a refused sign-in and commit it.
+
+    The account is the **target**, and there is no actor: the request that made
+    the attempt is unauthenticated, so the account named by the address is what
+    the attempt was against rather than who made it.
+
+    Its own commit because the request is about to raise, and ``audit_events``
+    is reached on the system engine — the request-path role holds nothing on
+    that table.
+    """
+    await audit_service.record(
+        admin_session,
+        event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
+        actor_user_id=None,
+        target_user_id=user.id,
+        target_type="user",
+        target_id=user.id,
+        detail={"method": "password", "reason": reason},
+    )
+    await admin_session.commit()
+
+
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -410,16 +437,23 @@ async def login_access_token(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
+        # Only a refusal that resolved to an account is recorded: an address
+        # nobody holds is not an action on anybody, and the log is no place to
+        # keep one. Those attempts are bounded by the rate limit above.
+        if user is not None:
+            await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
     if user.status != UserStatus.active:
+        await _record_sign_in_failure(admin_session, user, reason="inactive")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     if not user.email_verified:
+        await _record_sign_in_failure(admin_session, user, reason="email_unverified")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -447,6 +481,12 @@ async def login_access_token(
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=user.id,
+            detail={"method": "password"},
         )
         await admin_session.commit()
     except Exception:
@@ -510,6 +550,19 @@ async def refresh_access_token(
         user_agent=request.headers.get("user-agent"),
         ip=get_inet_client_ip(request),
     )
+    if result.outcome is RefreshOutcome.REUSED and result.user_id is not None:
+        # No actor, for the same reason a refused sign-in has none, and more
+        # sharply: this endpoint is authorised by possession of the cookie
+        # alone, and the credential has just been rejected. The account that
+        # owned the chain is what the replay was against.
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_REFRESH_REUSE_DETECTED,
+            actor_user_id=None,
+            target_user_id=result.user_id,
+            target_type="user",
+            target_id=result.user_id,
+        )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
     # uncommitted (see RotationResult).
@@ -605,6 +658,11 @@ async def logout(
         # everywhere".
         await session_service.revoke_all_for_user(
             admin_session, user_id=current_user.id
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SIGNED_OUT,
+            actor_user_id=current_user.id,
         )
         await admin_session.commit()
     response.delete_cookie(
@@ -1190,6 +1248,17 @@ async def _complete_provider_login(
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
+        # Staged before the link, which commits: the two land together rather
+        # than the record trailing a link already durable.
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_IDENTITY_LINKED,
+            actor_user_id=user.id,
+            guild_id=provider_row.guild_id,
+            target_type="auth_provider",
+            target_id=provider_row.id,
+            detail={"provider": provider_row.slug, "matched_by": "verified_email"},
+        )
         identity = await link_identity(
             admin_session,
             user=user,
@@ -1342,6 +1411,19 @@ async def _complete_provider_login(
             satisfied_providers=satisfied,
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=user_id,
+            guild_id=provider_row.guild_id,
+            detail={
+                "method": "oidc",
+                "provider": provider_slug,
+                # A step-up carries the interrupted session's factors forward
+                # rather than starting a new login.
+                "step_up": prior is not None,
+            },
         )
         if prior is not None:
             # Chain-revoke, not single-revoke: a concurrent /auth/refresh may
@@ -1567,6 +1649,15 @@ async def reset_password(
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
+    # Staged before ``revoke_user_sessions`` below, which commits this session:
+    # ``user`` is bound to it, so the new password and this record land on the
+    # same commit rather than the record trailing a change already durable.
+    await audit_service.record(
+        admin_session,
+        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
+        actor_user_id=user.id,
+        detail={"via": "reset"},
+    )
     # Bump token_version and revoke API keys / refresh sessions so no stale
     # credential (JWT or captured refresh) survives either. ``token_version``
     # is bumped on ``user``, which is bound to the system engine here, so that
