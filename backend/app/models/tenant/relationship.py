@@ -14,7 +14,9 @@ from sqlalchemy import (
     String,
     text,
 )
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from app.models.tenant._mixins import CreatedByMixin
 
 from app.core.relationships import (
     ENDPOINT_KIND_VALUES,
@@ -52,7 +54,7 @@ def _node_expression(side: str) -> str:
     return f"(public.relationship_kind_code({side}_type) << 32) | {side}_id::bigint"
 
 
-class EntityRelationship(SQLModel, table=True):
+class EntityRelationship(CreatedByMixin, table=True):
     """One edge: ``source -> relationship_type -> target``.
 
     Polymorphic on both ends, like ``resource_grants`` and ``reactions``, so a
@@ -129,7 +131,7 @@ class EntityRelationship(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(
-        default=None, sa_column=Column(BigInteger, primary_key=True)
+        default=None, sa_column=Column(BigInteger, primary_key=True, autoincrement=True)
     )
     #: Filled by trigger from the source endpoint. RLS does not read it — the
     #: schema is the tenant boundary — but cross-guild reads filter on it, so it
@@ -176,11 +178,10 @@ class EntityRelationship(SQLModel, table=True):
         default=None, sa_column=Column(REAL, nullable=True)
     )
 
-    created_by: int = Field(
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
-    )
+    #: ``created_by`` comes from the mixin: nullable, and filled by the
+    #: ``fn_set_created_by`` trigger from the request's user. A row copied in by
+    #: a migration has nobody to name and keeps NULL, which is the honest answer
+    #: — the junctions it came from recorded no attributor either.
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -194,9 +195,9 @@ class EntityRelationship(SQLModel, table=True):
     removed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    removed_by: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-        ),
-    )
+    #: No ``foreign_key=`` here, for the reason ``SoftDeleteMixin.deleted_by``
+    #: gives: a second declared FK to ``users`` leaves SQLAlchemy unable to
+    #: auto-determine the join for relationships that already reach it through
+    #: ``created_by``. Removal is read through the service, never an ORM
+    #: relationship.
+    removed_by: Optional[int] = Field(default=None, nullable=True)
