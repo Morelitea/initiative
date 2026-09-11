@@ -118,19 +118,24 @@ async def test_a_reference_that_is_not_the_callers_own_is_refused(
     assert response.json()["detail"] == BundledChannelMessages.UNKNOWN_GUILD
 
 
-async def test_an_app_sector_is_never_translated_to(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize("purpose", ["app", "webhook"])
+async def test_a_sector_inside_a_guild_is_not_answerable(
+    client: AsyncClient, session: AsyncSession, purpose: str
 ):
-    """An app sector belongs to one install, so answering here would be handing
-    one app another app's name for a guild."""
-    user = await create_user(session, email="app-sector@example.com")
+    """Both name something inside a guild — an install, a subscription — and
+    take that thing's id as well. A caller holding one guild reference has no
+    way to say which one it means, so neither is asked for here.
+
+    Refused rather than searched: looking without the id matches references
+    that carry none, which is none of these."""
+    user = await create_user(session, email=f"sector-{purpose}@example.com")
     guild = await create_guild(session, creator=user)
     own = await _callers_own_ref(session, guild)
 
-    response = await _ask(client, {"guild_ref": own, "purpose": "app"})
+    response = await _ask(client, {"guild_ref": own, "purpose": purpose})
 
-    assert response.status_code == 404
-    assert response.json()["detail"] == BundledChannelMessages.NO_SUCH_NAME
+    assert response.status_code == 400
+    assert response.json()["detail"] == BundledChannelMessages.SECTOR_NOT_ANSWERABLE
 
 
 async def test_a_sector_that_has_never_named_the_guild_is_not_minted_one(
@@ -205,3 +210,24 @@ async def test_a_deployment_that_ships_no_bundled_service_is_inert(
 
     assert response.status_code == 503
     assert response.json()["detail"] == BundledChannelMessages.NOT_CONFIGURED
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param(b"not json at all", id="not-json"),
+        pytest.param(b'{"purpose": "billing"}', id="no-reference"),
+        pytest.param(
+            b'{"guild_ref": "gapp_x", "purpose": "sideways"}', id="no-such-sector"
+        ),
+    ],
+)
+async def test_a_signed_body_of_the_wrong_shape_is_answered(
+    client: AsyncClient, payload: bytes
+):
+    """Signed and still unreadable. A caller that got the envelope right and
+    the body wrong is told so, rather than being handed a fault to retry."""
+    response = await client.post(ROUTE, content=payload, headers=_headers(payload))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == BundledChannelMessages.INVALID_PAYLOAD

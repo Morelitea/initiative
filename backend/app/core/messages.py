@@ -1029,6 +1029,11 @@ class BundledChannelMessages:
     UNKNOWN_GUILD = "BUNDLED_UNKNOWN_GUILD"
     #: No reference has been minted for that guild in the sector asked about.
     NO_SUCH_NAME = "BUNDLED_NO_SUCH_NAME"
+    #: The signed body is not the shape this route takes.
+    INVALID_PAYLOAD = "BUNDLED_INVALID_PAYLOAD"
+    #: That sector names something inside a guild, so it is not one a caller
+    #: holding only a guild reference can ask for.
+    SECTOR_NOT_ANSWERABLE = "BUNDLED_SECTOR_NOT_ANSWERABLE"
 
 
 class AppServiceMessages:

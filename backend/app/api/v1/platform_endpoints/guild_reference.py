@@ -8,10 +8,9 @@ deployment is the only party holding both.
 So it asks, presenting a reference **of its own**. What it gets back is the
 same guild in the sector it named. It records the pair and does not ask again.
 
-Reached on the bundled-service channel: the caller is established by a secret
-with one holder, which an operator names and wires. No member is involved
-anywhere — this is a fact about a guild, asked for by a service, and a member's
-credential is never a way to learn it.
+Reached on the bundled-service channel, which an operator names and wires. No
+member is involved anywhere — this is a fact about a guild, asked for by a
+service, and a member's credential is never a way to learn it.
 
 Nothing is minted. A sector that has never named this guild has nothing to
 report, which is a 404 and not a reason to create one.
@@ -22,6 +21,7 @@ See ``history/opaque-identity-design.md`` §15.
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.messages import BundledChannelMessages
@@ -36,6 +36,15 @@ from app.services.marketplace.bundled_channel import (
     verify_bundled_envelope,
 )
 from app.services.platform import identity_refs
+
+#: Sectors this can be asked for.
+#:
+#: A sector that names something inside a guild — an install, a subscription —
+#: takes that thing's id as well, and a caller holding one reference has no way
+#: to say which of the others it means. Those are asked for where the thing
+#: itself is known, not here. Everything not listed is refused, so a sector
+#: added later is answerable only once somebody decides it should be.
+ANSWERABLE_PURPOSES: frozenset[IdentityPurpose] = frozenset({IdentityPurpose.billing})
 
 #: Not part of the OpenAPI schema: service-to-service, and no browser calls it.
 router = APIRouter(include_in_schema=False)
@@ -64,13 +73,18 @@ async def read_guild_reference(request: Request) -> GuildReferenceRead:
             detail=exc.code,
         ) from exc
 
-    payload = GuildReferenceRequest.model_validate_json(body)
-    if payload.purpose is IdentityPurpose.app:
-        # An app sector belongs to one install. Translating between two of them
-        # is the one question this must not answer.
+    try:
+        payload = GuildReferenceRequest.model_validate_json(body)
+    except ValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=BundledChannelMessages.NO_SUCH_NAME,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=BundledChannelMessages.INVALID_PAYLOAD,
+        ) from exc
+
+    if payload.purpose not in ANSWERABLE_PURPOSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=BundledChannelMessages.SECTOR_NOT_ANSWERABLE,
         )
 
     # The reference must be one of the CALLER's own. Resolving says which

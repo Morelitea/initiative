@@ -747,8 +747,7 @@ class Settings(BaseSettings):
     # bundled service that has to reconcile two of them asks here.
     #
     # Named rather than inferred from a grant: ``delegation`` says an app may
-    # act for a member, which is a different question, and an app from the
-    # marketplace must not reach this by holding one. Either value unset ⇒ the
+    # act for a member, which is a different question. Either value unset ⇒ the
     # channel answers 503 and nothing on it is reachable.
     BUNDLED_SERVICE_PUBLIC_ID: str | None = None
     BUNDLED_SERVICE_SHARED_SECRET: str | None = None
