@@ -36,6 +36,7 @@ from app.core.security import (
     resolve_app_platform_signing_material,
 )
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 
@@ -57,6 +58,34 @@ class DelegationExchangeError(Exception):
         super().__init__(code)
         self.code = code
         self.status_code = status_code
+
+
+async def _member_connection_refs(
+    session: AsyncSession, *, install: GuildApp, user_id: int
+) -> dict[str, str]:
+    """The handles the target knows this member's own credentials by.
+
+    The same claim a context token carries, and for the same reason: a call
+    made for a member is usually a call made *with* their credential, and an
+    app that had to ask for the handle separately would make a round trip to
+    learn something this token could have said.
+
+    Not narrowed to an endpoint, because an exchange does not know which one is
+    coming — every live connection travels and the app picks the one it needs.
+    Blocked and half-finished connections are left out: a handle is offered
+    only where there is something behind it.
+    """
+    rows = (
+        await session.exec(
+            select(GuildAppUserConnection).where(
+                GuildAppUserConnection.app_id == install.id,
+                GuildAppUserConnection.user_id == user_id,
+                GuildAppUserConnection.blocked_at.is_(None),
+                GuildAppUserConnection.status == "connected",
+            )
+        )
+    ).all()
+    return {row.connection_id: row.connection_ref for row in rows}
 
 
 async def _target_install(
@@ -118,6 +147,8 @@ async def exchange_for_app(
     )
     guild_ref = await ensure_app_guild_ref(guild_id=guild_id, app_install_id=install.id)
 
+    refs = await _member_connection_refs(session, install=install, user_id=user_id)
+
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
@@ -134,6 +165,11 @@ async def exchange_for_app(
         # offers this delegate; this says only who asked.
         "act": {"public_id": delegate_public_id},
     }
+    # Present only where there is one, so an app reads presence rather than
+    # telling an empty object from an absent key — the same shape a context
+    # token uses.
+    if refs:
+        payload["connection_refs"] = refs
 
     key, algorithm, kid = resolve_app_platform_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
