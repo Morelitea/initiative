@@ -28,6 +28,20 @@ def _url(a) -> str:
     return a.g("/relationships/")
 
 
+def _wikilink_body(document_id: int) -> dict:
+    """A document body holding one ``[[ ]]`` link."""
+    return {
+        "root": {
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "wikilink", "documentId": document_id}],
+                }
+            ]
+        }
+    }
+
+
 async def test_a_link_is_made_and_read_back_from_either_side(
     client: AsyncClient, acting_user, session
 ):
@@ -45,12 +59,10 @@ async def test_a_link_is_made_and_read_back_from_either_side(
     )
     assert created.status_code == 201, created.text
     body = created.json()
-    assert body["other"] == {
-        "type": "document",
-        "id": doc.id,
-        "title": doc.name,
-        "initiative_id": a.initiative.id,
-    }
+    assert body["other"]["type"] == "document"
+    assert body["other"]["id"] == doc.id
+    assert body["other"]["title"] == doc.name
+    assert body["other"]["initiative_id"] == a.initiative.id
 
     # The same edge, asked for from the document. ``attached`` is symmetric and
     # stored once in node-id order, which the caller never has to know.
@@ -387,3 +399,122 @@ async def test_an_archived_project_takes_no_new_links(
     )
     assert response.status_code == 400, response.text
     assert response.json()["detail"] == RelationshipMessages.ENDPOINT_ARCHIVED
+
+
+async def test_a_link_read_out_of_a_body_is_not_one_to_assert_by_hand(
+    client: AsyncClient, acting_user, session
+):
+    """Writing the sentence is how you make one."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_document(session, a.initiative, a.user)
+
+    refused = await client.post(
+        _url(a),
+        headers=a.headers,
+        json={
+            "source": {"type": "document", "id": doc.id},
+            "relationship_type": "references",
+            "target": {"type": "document", "id": other.id},
+        },
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == RelationshipMessages.DERIVED
+
+
+async def test_a_slice_of_derived_links_is_not_one_to_restate(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+
+    refused = await client.put(
+        _url(a),
+        headers=a.headers,
+        params={
+            "entity": f"document:{doc.id}",
+            "relationship_type": "references",
+            "other_type": "document",
+        },
+        json=[],
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == RelationshipMessages.DERIVED
+
+
+async def test_a_link_read_out_of_a_body_is_not_one_to_unlink_by_hand(
+    client: AsyncClient, acting_user, session
+):
+    """Editing the body is how it goes away, so the button does not offer to."""
+    from app.core.search import SearchEntityType
+    from app.services.tenant import content_references
+    from app.services.tenant.relationships import Endpoint
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_document(session, a.initiative, a.user)
+
+    await route_session_to_guild(session, a.guild.id)
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.document, doc.id),
+        body=_wikilink_body(other.id),
+        author_id=a.user.id,
+    )
+    await session.commit()
+
+    listed = await client.get(
+        _url(a),
+        headers=a.headers,
+        params={"entity": f"document:{doc.id}", "relationship_type": "references"},
+    )
+    assert listed.status_code == 200, listed.text
+    (edge,) = listed.json()
+    assert edge["provenance"] == "content"
+
+    refused = await client.delete(
+        a.g(f"/relationships/{edge['id']}"), headers=a.headers
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == RelationshipMessages.DERIVED
+
+
+async def test_inbound_asks_what_links_here(client: AsyncClient, acting_user, session):
+    """The two sides of a reference are different questions, and the backlinks
+    panel asks only one of them."""
+    from app.core.search import SearchEntityType
+    from app.services.tenant import content_references
+    from app.services.tenant.relationships import Endpoint
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_document(session, a.initiative, a.user)
+
+    await route_session_to_guild(session, a.guild.id)
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.document, doc.id),
+        body=_wikilink_body(other.id),
+        author_id=a.user.id,
+    )
+    await session.commit()
+
+    def ask(entity: int, direction: str):
+        return client.get(
+            _url(a),
+            headers=a.headers,
+            params={
+                "entity": f"document:{entity}",
+                "relationship_type": "references",
+                "direction": direction,
+            },
+        )
+
+    into = await ask(other.id, "inbound")
+    assert [row["other"]["id"] for row in into.json()] == [doc.id]
+    assert into.json()[0]["other"]["updated_at"] is not None, (
+        "a list ordered by recency needs the far end's own moment"
+    )
+
+    out_of = await ask(other.id, "outbound")
+    assert out_of.json() == [], "the target names nothing; it is named"

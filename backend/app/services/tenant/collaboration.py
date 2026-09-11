@@ -397,21 +397,22 @@ class CollaborationManager:
             "yjs_updated_at": datetime.now(timezone.utc),
         }
         if content is not None:
-            # Imported here rather than at module scope: the documents service
-            # reaches back into this registry to retire idle rooms.
-            from app.services.tenant import documents as documents_service
+            # Imported here rather than at module scope: the sync reaches back
+            # into this registry to retire idle rooms.
+            from app.core.search import SearchEntityType
+            from app.services.tenant import content_references
+            from app.services.tenant.relationships import Endpoint
 
             try:
-                fixed = await documents_service.sync_document_links(
+                fixed = await content_references.sync_for_entity(
                     session,
-                    document_id=room.document_id,
-                    content=content,
-                    guild_id=room.guild_id,
+                    Endpoint(SearchEntityType.document, room.document_id),
+                    body=content,
                     fix_content=True,
                 )
             except Exception:
                 logger.exception(
-                    f"Failed to sync links for document {room.document_id}"
+                    f"Failed to sync references for document {room.document_id}"
                 )
                 fixed = None
             values["content"] = fixed if fixed else content

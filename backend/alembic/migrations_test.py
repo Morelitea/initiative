@@ -850,6 +850,7 @@ class TestMostRecentRevision:
 _PRE_RELATIONSHIPS = "20260910_0251"
 _RELATIONSHIPS = "20260910_0252"
 _TAGS_AS_RELATIONSHIPS = "20260910_0253"
+_CONTENT_REFERENCES = "20260911_0255"
 
 #: Enough of a guild schema to hang a junction row off. ``guild_template`` is a
 #: real guild schema for these purposes — ``run_for_each_guild_schema`` visits
@@ -885,6 +886,7 @@ ALTER TABLE documents NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE tags NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE project_documents NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE project_tags NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE document_links NO FORCE ROW LEVEL SECURITY;
 
 INSERT INTO initiatives (id, guild_id, name, is_default, created_at, updated_at)
 VALUES (1, 1, 'Seed initiative', true, now(), now());
@@ -895,7 +897,9 @@ INSERT INTO projects (
 
 INSERT INTO documents (
     id, initiative_id, guild_id, name, created_by, is_template, created_at, updated_at
-) VALUES (1, 1, 1, 'Seed document', 1, false, now(), now());
+) VALUES
+    (1, 1, 1, 'Seed document', 1, false, now(), now()),
+    (2, 1, 1, 'Seed target', 1, false, now(), now());
 
 INSERT INTO tags (id, guild_id, name, created_at, updated_at)
 VALUES (1, 1, 'seed-tag', now(), now());
@@ -906,12 +910,17 @@ VALUES (1, 1, now());
 INSERT INTO project_tags (project_id, tag_id, created_at)
 VALUES (1, 1, now());
 
+INSERT INTO document_links (
+    source_document_id, target_document_id, guild_id, created_by, created_at
+) VALUES (1, 2, 1, 1, now());
+
 ALTER TABLE initiatives FORCE ROW LEVEL SECURITY;
 ALTER TABLE projects FORCE ROW LEVEL SECURITY;
 ALTER TABLE documents FORCE ROW LEVEL SECURITY;
 ALTER TABLE tags FORCE ROW LEVEL SECURITY;
 ALTER TABLE project_documents FORCE ROW LEVEL SECURITY;
 ALTER TABLE project_tags FORCE ROW LEVEL SECURITY;
+ALTER TABLE document_links FORCE ROW LEVEL SECURITY;
 """
 
 #: ``(kind_code << 32) | id`` for the seeded rows — the node ids the copies must
@@ -919,15 +928,16 @@ ALTER TABLE project_tags FORCE ROW LEVEL SECURITY;
 #: themselves spell their codes out.
 _NODE_PROJECT = (10 << 32) | 1
 _NODE_DOCUMENT = (6 << 32) | 1
+_NODE_LINKED_DOCUMENT = (6 << 32) | 2
 _NODE_TAG = (13 << 32) | 1
 
 
 @pytest.mark.database
 @pytest.mark.slow
 class TestJunctionsMoveTheirRows:
-    """The two junction moves, replayed over a database that has rows.
+    """The junction moves, replayed over a database that has rows.
 
-    Both revisions copy junction rows into ``relationships`` and then DROP the
+    Each revision copies junction rows into ``relationships`` and then DROPs the
     junction. The copy reads tables the request path locks down, and a copy that
     matches nothing reports success and drops the source anyway — so what these
     assert is not that the migration runs, but that the rows came out the other
@@ -976,6 +986,66 @@ class TestJunctionsMoveTheirRows:
             )
             == 1
         ), "the edge did not take the guild from the tag it names"
+
+    def test_content_references_survive_the_move(
+        self, fresh_migrations_db: str
+    ) -> None:
+        self._stage()
+        _run_alembic("upgrade", _CONTENT_REFERENCES)
+
+        assert not _table_exists("document_links", "guild_template")
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.relationships "
+                "WHERE relationship_type = 'references' "
+                f"AND source_node = {_NODE_DOCUMENT} "
+                f"AND target_node = {_NODE_LINKED_DOCUMENT}"
+            )
+            == 1
+        ), "the wikilink did not arrive as an edge"
+        assert (
+            _fetchval(
+                "SELECT provenance FROM guild_template.relationships "
+                "WHERE relationship_type = 'references'"
+            )
+            == "content"
+        ), "a link read out of a body is not something a person asserted"
+        assert (
+            _fetchval(
+                "SELECT created_by FROM guild_template.relationships "
+                "WHERE relationship_type = 'references'"
+            )
+            == 1
+        ), "the edge did not keep whoever saved the content that made it"
+
+    def test_content_references_survive_a_round_trip(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Down and back up again, with the rows still there at each end."""
+        self._stage()
+        _run_alembic("upgrade", _CONTENT_REFERENCES)
+
+        _run_alembic("downgrade", "-1")
+        assert _current_alembic_revision() == _TAGS_AS_RELATIONSHIPS
+        assert _table_exists("document_links", "guild_template")
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.document_links "
+                "WHERE source_document_id = 1 AND target_document_id = 2"
+            )
+            == 1
+        ), "the rollback left the link behind"
+
+        _run_alembic("upgrade", _CONTENT_REFERENCES)
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.relationships "
+                "WHERE relationship_type = 'references' "
+                f"AND source_node = {_NODE_DOCUMENT} "
+                f"AND target_node = {_NODE_LINKED_DOCUMENT}"
+            )
+            == 1
+        ), "the re-upgrade did not carry the link back"
 
     def test_tag_assignments_survive_a_round_trip(
         self, fresh_migrations_db: str

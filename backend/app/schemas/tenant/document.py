@@ -72,19 +72,6 @@ class DocumentCopyRequest(SanitizedBaseModel):
     name: Optional[str] = None
 
 
-class DocumentBacklink(SanitizedBaseModel):
-    """Document that links to another document."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    updated_at: datetime
-    # The initiative the document lives in — its URL addresses it, so a
-    # backlink can link straight there instead of resolving the id first.
-    initiative_id: int
-
-
 class DocumentSummary(DocumentBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True

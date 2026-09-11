@@ -29,7 +29,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
-    DocumentLink,
 )
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
@@ -152,7 +151,6 @@ __all__ = [
     "Comment",
     "Document",
     "DocumentFileVersion",
-    "DocumentLink",
     "Notification",
     "OIDCClaimMapping",
     "Tag",

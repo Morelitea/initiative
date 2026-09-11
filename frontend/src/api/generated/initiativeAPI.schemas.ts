@@ -2744,16 +2744,6 @@ export interface DmSessionKeysResponse {
   devices: DmSessionKey[];
 }
 
-/**
- * Document that links to another document.
- */
-export interface DocumentBacklink {
-  id: number;
-  name: string;
-  updated_at: string;
-  initiative_id: number;
-}
-
 export interface DocumentCopyRequest {
   target_initiative_id: number;
   name?: string | null;
@@ -5883,6 +5873,7 @@ export interface RelatedEnd {
   id: number;
   title: string | null;
   initiative_id: number | null;
+  updated_at: string | null;
 }
 
 /**
@@ -5902,6 +5893,7 @@ export const RelationshipType = {
   depends_on: "depends_on",
   part_of: "part_of",
   tagged_with: "tagged_with",
+  references: "references",
   related_to: "related_to",
 } as const;
 
@@ -8179,7 +8171,17 @@ export type ListRelationshipsApiV1GGuildIdRelationshipsGetParams = {
   entity: string;
   relationship_type?: RelationshipType | null;
   other_type?: SearchEntityType | null;
+  direction?: ListRelationshipsApiV1GGuildIdRelationshipsGetDirection;
 };
+
+export type ListRelationshipsApiV1GGuildIdRelationshipsGetDirection =
+  (typeof ListRelationshipsApiV1GGuildIdRelationshipsGetDirection)[keyof typeof ListRelationshipsApiV1GGuildIdRelationshipsGetDirection];
+
+export const ListRelationshipsApiV1GGuildIdRelationshipsGetDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+  both: "both",
+} as const;
 
 export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams = {
   /**

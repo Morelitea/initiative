@@ -24,7 +24,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
+from app.services.tenant import content_references
 from app.services.tenant import relationships
+from app.services.tenant.relationships import Endpoint
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -65,7 +67,6 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
-    DocumentBacklink,
     DocumentCopyRequest,
     DocumentCountsResponse,
     DocumentCreate,
@@ -923,12 +924,12 @@ async def create_document(
         grants=document_in.grants,
     )
 
-    # Sync wikilinks to document_links table
-    await documents_service.sync_document_links(
+    # What the new body points at becomes `references` edges.
+    await content_references.sync_for_entity(
         session,
-        document_id=document.id,
-        content=document.content,
-        guild_id=guild_context.guild_id,
+        Endpoint(SearchEntityType.document, document.id),
+        body=document.content,
+        author_id=current_user.id,
     )
 
     await session.commit()
@@ -1406,43 +1407,6 @@ async def read_document(
     )
 
 
-@router.get("/{document_id}/backlinks", response_model=List[DocumentBacklink])
-async def get_backlinks(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[DocumentBacklink]:
-    """Get documents that link to this document via wikilinks.
-
-    Only returns documents the current user has permission to access.
-    """
-    document = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    _require_document_access(document, current_user, access="read")
-
-    backlinks = await documents_service.get_backlinks(
-        session,
-        document_id=document_id,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
-
-    return [
-        DocumentBacklink(
-            id=doc.id,
-            name=doc.name,
-            updated_at=doc.updated_at,
-            initiative_id=doc.initiative_id,
-        )
-        for doc in backlinks
-    ]
-
-
 @router.patch("/{document_id}", response_model=DocumentRead)
 async def update_document(
     document_id: int,
@@ -1537,13 +1501,12 @@ async def update_document(
     if updated:
         document.updated_at = datetime.now(timezone.utc)
         session.add(document)
-        # Sync wikilinks if content was updated
         if content_updated:
-            await documents_service.sync_document_links(
+            await content_references.sync_for_entity(
                 session,
-                document_id=document.id,
-                content=document.content,
-                guild_id=guild_context.guild_id,
+                Endpoint(SearchEntityType.document, document.id),
+                body=document.content,
+                author_id=current_user.id,
             )
         if removed_upload_urls:
             filenames = [url.split("/")[-1] for url in removed_upload_urls]

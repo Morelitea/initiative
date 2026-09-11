@@ -24,17 +24,28 @@ import {
 /** A thing, as a reference names it: `task:12`. */
 const ref = (end: EndpointRef) => `${end.type}:${end.id}`;
 
+/**
+ * Which way a link runs relative to the thing being asked about.
+ *
+ * `both` is what an attach section wants — a link either way is the same
+ * attachment. The two sides are separate questions only for the relations where
+ * direction carries meaning: what this page names, and what names it.
+ */
+export type Direction = "inbound" | "outbound" | "both";
+
 /** Every live link of one type between a thing and one other kind. */
 export const listRelated = (
   guildId: number,
   entity: EndpointRef,
   otherType: SearchEntityType,
-  relationshipType: RelationshipType = RelationshipType.attached
+  relationshipType: RelationshipType = RelationshipType.attached,
+  direction: Direction = "both"
 ): Promise<RelationshipRead[]> =>
   listRelationshipsApiV1GGuildIdRelationshipsGet(guildId, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
+    direction,
   });
 
 /** Link two things. */

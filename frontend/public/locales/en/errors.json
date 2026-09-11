@@ -611,5 +611,6 @@
   "RELATIONSHIP_EXISTS": "These are already linked",
   "RELATIONSHIP_NOT_FOUND": "That link no longer exists",
   "RELATIONSHIP_REMOVE_DENIED": "You can only remove links you made, or links on something you can edit",
-  "RELATIONSHIP_ENDPOINT_ARCHIVED": "That has been archived"
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "That has been archived",
+  "RELATIONSHIP_DERIVED": "Links like this are written by mentioning something, and removed by editing the mention out"
 }

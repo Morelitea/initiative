@@ -328,11 +328,6 @@ async def hard_purge_entity(
     if doomed_comments:
         await purge_comment_reactions(session, doomed_comments)
 
-    # Edges name both ends polymorphically, so nothing carries them out with
-    # the thing they connect. Tombstones go too: what one remembers is a link
-    # between two things, and one of them is about to stop existing.
-    await _purge_relationships(session, all_doomed)
-
     # A picture's blobs — every version and its thumbnail — go with it, the
     # way a file document's do.
     doomed_images = [i for i in all_doomed if isinstance(i, GalleryImage)]
@@ -342,12 +337,19 @@ async def hard_purge_entity(
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
         await purge_document_uploads(session, doomed_documents)
-        # Wikilinks in surviving documents that point at a doomed one must be
-        # unresolved (documentId → null) before the row disappears, or they'd
-        # dangle forever. Runs before the DELETEs — the document_links rows
-        # are still present to find the linking documents.
+        # Links in surviving documents that point at a doomed one are blanked
+        # before the row disappears, so they render as unresolved rather than
+        # pointing at nothing. Runs before the DELETEs, while the edges naming
+        # it are still there to find the documents carrying those links.
         for doc in doomed_documents:
             await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
+
+    # Edges name both ends polymorphically, so nothing carries them out with
+    # the thing they connect. Tombstones go too: what one remembers is a link
+    # between two things, and one of them is about to stop existing. Last of
+    # the sweeps, because the step above reads the edges pointing at a doomed
+    # document to find the documents whose links have to be blanked.
+    await _purge_relationships(session, all_doomed)
 
     # Reverse so we delete leaves before parents — needed because most FKs
     # in this codebase don't use DB-level ON DELETE CASCADE.

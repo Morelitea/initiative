@@ -19,6 +19,7 @@ derivation, and the two kinds that are deliberately not referenceable.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Sequence
 
 from sqlalchemy import Select, Table, func, literal, null, select, text
@@ -121,6 +122,27 @@ def visible_ids(
     )
 
 
+async def live_ids(
+    session, entity_type: SearchEntityType, ids: Sequence[int]
+) -> set[int]:
+    """Which of these ids still exist and this session may read.
+
+    The session's own policies are the whole of the gate, which is what a
+    caller mid-save wants: it is asking what the person writing this content can
+    actually point at, and that is the same question their connection is already
+    answering for every other statement.
+    """
+    wanted = [int(i) for i in dict.fromkeys(ids)]
+    if not wanted:
+        return set()
+    table = SQLModel.metadata.tables[_table_for(entity_type)]
+    statement = select(table.c["id"]).where(table.c["id"].in_(wanted))
+    live = _live(table)
+    if live is not None:
+        statement = statement.where(live)
+    return {row[0] for row in (await session.exec(statement)).all()}
+
+
 @dataclass(frozen=True)
 class Resolved:
     """What a reference turned out to name."""
@@ -141,6 +163,9 @@ class Resolved:
     #: kind reports False, which is the honest answer for a kind with no such
     #: state rather than a default standing in for one.
     is_archived: bool
+    #: When the row last changed, for the surfaces that order by recency. None
+    #: for a kind that records no such moment.
+    updated_at: datetime | None = None
 
 
 async def resolve_many(
@@ -162,6 +187,7 @@ async def resolve_many(
     path = INITIATIVE_PATHS.get(table_name)
     initiative = text(path.initiative_expr(table_name)) if path is not None else null()
     archived = table.c["is_archived"] if "is_archived" in table.c else literal(False)
+    updated = table.c["updated_at"] if "updated_at" in table.c else null()
 
     rows = await session.exec(
         select(
@@ -169,6 +195,7 @@ async def resolve_many(
             title_column(entity_type),
             initiative,
             archived,
+            updated,
         ).where(
             table.c["id"].in_(wanted),
             table.c["id"].in_(visible_ids(entity_type, user_id)),
@@ -182,6 +209,7 @@ async def resolve_many(
             initiative_id=row[2],
             scoped_kind=path is not None,
             is_archived=bool(row[3]),
+            updated_at=row[4],
         )
         for row in rows.all()
     }

@@ -611,5 +611,6 @@
   "RELATIONSHIP_EXISTS": "Ya están vinculados",
   "RELATIONSHIP_NOT_FOUND": "Ese vínculo ya no existe",
   "RELATIONSHIP_REMOVE_DENIED": "Solo puedes quitar vínculos que hayas creado, o vínculos en algo que puedas editar",
-  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Eso está archivado"
+  "RELATIONSHIP_ENDPOINT_ARCHIVED": "Eso está archivado",
+  "RELATIONSHIP_DERIVED": "Los vínculos de este tipo se crean al mencionar algo y se quitan al borrar la mención"
 }
