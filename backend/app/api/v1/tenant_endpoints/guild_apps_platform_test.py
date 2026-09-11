@@ -1045,3 +1045,108 @@ class TestConnectLaunch:
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildAppMessages.SERVICE_NOT_REGISTERED
+
+
+class TestUninstallStopsDeliveries:
+    """An install is what makes an app present in a guild, so removing it ends
+    what that app is sent.
+
+    The subscription outlives the install as a record of what was going where,
+    and a reinstall registers afresh — but it stops matching events, and it
+    stops minting the names its deliveries would have arrived under.
+    """
+
+    async def test_uninstalling_switches_off_what_that_install_registered(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        from datetime import datetime, timezone
+
+        from app.models.tenant.webhook_subscription import WebhookSubscription
+
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        now = datetime.now(timezone.utc)
+        theirs = WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+            created_by=a.user.id,
+            app_install_id=app.id,
+            target_url="https://widgetco.example/in",
+            hmac_secret="s" * 40,
+            event_types=["tasks.created"],
+            active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        # A member's own, registered against a URL of their own: nothing to do
+        # with this install, and untouched by its removal.
+        mine = WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+            created_by=a.user.id,
+            app_install_id=None,
+            target_url="https://mine.example/in",
+            hmac_secret="m" * 40,
+            event_types=["tasks.created"],
+            active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(theirs)
+        session.add(mine)
+        await session.commit()
+
+        removed = await client.delete(a.g(f"/apps/{app.id}"), headers=a.headers)
+        assert removed.status_code in (200, 204), removed.text
+
+        await session.refresh(theirs)
+        await session.refresh(mine)
+        assert theirs.active is False
+        assert mine.active is True
+
+    async def test_switching_them_off_is_staged_with_the_rest_of_the_uninstall(
+        self, acting_user, session: AsyncSession
+    ):
+        """Uninstall removes connections, delegations, these and the install in
+        one transaction, and commits once at the end.
+
+        A commit in the middle would make everything staged before it durable
+        while the install is still there to fail on — leaving an app installed
+        with its credentials and deliveries already gone.
+        """
+        from datetime import datetime, timezone
+
+        from app.models.tenant.webhook_subscription import WebhookSubscription
+        from app.services.tenant import (
+            webhook_subscriptions as webhook_subscriptions_service,
+        )
+
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        now = datetime.now(timezone.utc)
+        sub = WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+            created_by=a.user.id,
+            app_install_id=app.id,
+            target_url="https://widgetco.example/staged",
+            hmac_secret="s" * 40,
+            event_types=["tasks.created"],
+            active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(sub)
+        await session.commit()
+
+        switched = await webhook_subscriptions_service.deactivate_for_install(
+            session, guild_id=a.guild.id, app_install_id=app.id
+        )
+        assert switched == 1
+
+        # Nothing committed it, so abandoning the transaction abandons it.
+        await session.rollback()
+        await session.refresh(sub)
+        assert sub.active is True
