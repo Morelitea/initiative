@@ -295,6 +295,15 @@
     "hideFilters": "Masquer les filtres",
     "updating": "Mise à jour..."
   },
+  "outline": {
+    "title": "Sommaire",
+    "show": "Afficher le sommaire",
+    "hide": "Masquer le sommaire",
+    "empty": "Les titres que vous ajoutez apparaissent ici.",
+    "untitled": "Titre sans intitulé",
+    "expand": "Afficher ce qui se trouve sous {{heading}}",
+    "collapse": "Masquer ce qui se trouve sous {{heading}}"
+  },
   "page": {
     "title": "Documents",
     "subtitle": "Gardez les connaissances de l'initiative organisées et attachez des documents aux projets.",

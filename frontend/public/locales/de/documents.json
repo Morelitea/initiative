@@ -295,6 +295,15 @@
     "hideFilters": "Filter ausblenden",
     "updating": "Wird aktualisiert..."
   },
+  "outline": {
+    "title": "Inhalt",
+    "show": "Inhalt anzeigen",
+    "hide": "Inhalt ausblenden",
+    "empty": "Überschriften, die du hinzufügst, erscheinen hier.",
+    "untitled": "Überschrift ohne Titel",
+    "expand": "Zeigen, was unter {{heading}} steht",
+    "collapse": "Ausblenden, was unter {{heading}} steht"
+  },
   "page": {
     "title": "Dokumente",
     "subtitle": "Halte das Wissen der Initiative organisiert und hänge Dokumente an Projekte an.",

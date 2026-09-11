@@ -10,6 +10,7 @@ import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -154,6 +155,10 @@ export function Editor({
               onWikilinkNavigate={onWikilinkNavigate}
               onCreateReferencedThing={onCreateReferencedThing}
             />
+
+            {/* Publishes the headings to a `DocumentOutlineScope`, where the
+                page's contents list reads them. Inert without one. */}
+            <DocumentOutlineTracker />
 
             {useCollaborativeMode && providerFactory && (
               <LexicalCollaboration>

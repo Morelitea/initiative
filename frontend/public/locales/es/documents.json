@@ -295,6 +295,15 @@
     "hideFilters": "Ocultar filtros",
     "updating": "Actualizando..."
   },
+  "outline": {
+    "title": "Contenido",
+    "show": "Mostrar contenido",
+    "hide": "Ocultar contenido",
+    "empty": "Los encabezados que añadas aparecerán aquí.",
+    "untitled": "Encabezado sin título",
+    "expand": "Mostrar lo que hay bajo {{heading}}",
+    "collapse": "Ocultar lo que hay bajo {{heading}}"
+  },
   "page": {
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
