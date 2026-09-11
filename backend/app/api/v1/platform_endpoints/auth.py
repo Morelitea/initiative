@@ -255,6 +255,7 @@ async def register_user(
             username_chosen=True,
             full_name=user_in.full_name,
             hashed_password=get_password_hash(user_in.password),
+            password_set_at=datetime.now(timezone.utc),
             role=user_role,
             status=UserStatus.active,
             email_verified=is_first_user or not smtp_configured,
@@ -1565,6 +1566,7 @@ async def reset_password(
     await session.commit()
 
     user.hashed_password = get_password_hash(payload.password)
+    user.password_set_at = datetime.now(timezone.utc)
     # Bump token_version and revoke API keys / refresh sessions so no stale
     # credential (JWT or captured refresh) survives either. ``token_version``
     # is bumped on ``user``, which is bound to the system engine here, so that

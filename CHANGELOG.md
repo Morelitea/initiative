@@ -11,7 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A document has a contents list** — a long page is easier to move around than to scroll, so every document now offers one: a panel listing its headings, nested the way they are written, that scrolls the page to a heading when you pick one and marks the one you are reading as you go. Sections with headings under them fold away, and a document that starts at a second-level heading is laid out from there rather than from an indent nobody wrote. It is closed until you open it, and then it stays open. Beside the document on a desktop; on a phone it takes the page over while it is open, because a column that narrow would be worse than no list at all.
 
+### Changed
+
+- **Accounts record when their password was set** — a stored password hash said a value was there, never whether anybody knew it. Accounts created through single sign-on before mid-2026 were given a throwaway password nobody ever held, which looks exactly like a real one. Setting or changing a password now records when, so the question stops being unanswerable for every account from here on, and the few stored values that could never have worked have been cleared. Nothing is guessed: an existing password is left alone, and how you sign in does not change.
+
 ### Fixed
+
+- **Upgrading no longer leaves the app unable to start** — on an existing deployment, the previous release's change to how archiving is recorded could not be applied, and the new version restarted into the same failure instead of coming up. Nothing was lost: the change is applied whole or not at all, so the database was left exactly as it was and the running version carried on serving throughout. Upgrading completes now, and a deployment already stuck this way recovers on its next restart with nothing to repair by hand.
 
 - **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
 
