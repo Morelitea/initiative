@@ -5,9 +5,9 @@ JWTs minted by initiative-auto:
 
 * signature, audience, issuer (negative tests against tampered tokens)
 * one-shot replay rejection via the jti blocklist
-* the guild_ref JWT claim pins the request's guild context (validated against
-  the user's memberships, and refused if it disagrees with the ``/g/{guild_id}``
-  path)
+* the guild_ref JWT claim IS the request's guild context (validated against the
+  user's memberships; the ``/g/{guild_id}`` segment is not read on a delegated
+  call — see ``history/opaque-identity-design.md`` §13)
 * deactivated users can't be impersonated even with a valid token
 
 These don't repeat the unit tests on token issuance — those live in
@@ -30,6 +30,7 @@ from app.services.marketplace.registration_lookup import invalidate_registration
 from app.testing import (
     create_guild,
     create_guild_membership,
+    create_initiative,
     create_user,
 )
 from app.testing.delegation import (
@@ -112,33 +113,44 @@ async def test_delegation_token_is_one_shot(
 
 
 @pytest.mark.integration
-async def test_delegation_token_guild_claim_pins_context(
+async def test_delegation_reaches_the_guild_its_token_names_whatever_the_path_says(
     client: AsyncClient, session: AsyncSession, delegate_guild
 ):
-    """The token's guild_ref claim IS the request's guild context — it takes
-    precedence over whatever guild the human happens to be in, and it is
-    validated against the user's memberships like any other context. A token
-    minted for a guild the user can't access must not reach guild data even
-    while the user's own flag points at a guild they CAN access. Stops
-    cross-guild lateral movement using a single delegation."""
+    """The token's guild_ref claim IS the request's guild context.
+
+    A delegate holds one credential for one guild, so it addresses nothing: the
+    ``/g/{guild_id}`` segment exists for browsers, which have nowhere else to
+    carry a guild, and a delegated call does not read it. Here the path names
+    the OTHER guild this person belongs to, and the call still answers about
+    the one the token was minted for.
+
+    The human is legitimately in both, which is what makes this worth pinning:
+    a single delegation reaches exactly one of them.
+    """
     user = await create_user(session, email="cross-guild@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild)
+    other_guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=other_guild)
+    await create_guild_membership(session, user=user, guild=delegate_guild)
     await authorize_delegate(session, delegate_guild, user)
     subject = await delegate_subject(session, delegate_guild, user)
-    # The human is legitimately in their own guild, and the app is installed in
-    # the guild its token names — so what refuses this is the pin itself, not a
-    # missing install or an unknown guild.
+
+    named = await create_initiative(session, delegate_guild, user, name="In the token")
+    await create_initiative(session, other_guild, user, name="In the path")
+
     token = _mint_delegation(
         subject=subject, guild_ref=await delegate_guild_ref(session, delegate_guild)
     )
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/g/{other_guild.id}/initiatives/",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
+
+    assert response.status_code == 200
+    names = {row["name"] for row in response.json()}
+    assert "In the token" in names
+    assert "In the path" not in names
+    assert named.guild_id == delegate_guild.id
 
 
 @pytest.mark.integration
