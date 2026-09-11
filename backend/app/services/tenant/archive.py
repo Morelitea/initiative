@@ -15,6 +15,12 @@ The tree is derived — the trash can's ``CASCADE_CHILDREN`` narrowed to the
 models that can be archived — so a tool that becomes archivable joins the
 cascade by declaring the mixin, and the two lifecycles cannot disagree about
 what is inside what.
+
+Both walks go a level at a time, shallowest first, with a flush between: a row
+may not clear a stamp the thing above it still carries, so a child written
+before its parent was brought back would be refused. The unit of work orders
+UPDATEs by mapper rather than by the order they were added, so the levels are
+flushed explicitly rather than assumed.
 """
 
 from datetime import datetime, timezone
@@ -47,39 +53,36 @@ def _archivable_tree() -> dict[
 ARCHIVE_CHILDREN = _archivable_tree()
 
 
-async def _stamp_descendants(
+async def _descendant_levels(
     session: AsyncSession,
     parent: ArchiveMixin,
     *,
-    archived_at: Optional[datetime],
-    matching: Optional[datetime] = None,
-) -> int:
-    """Walk down, stamping or clearing. Returns how many rows were touched.
+    matching: Optional[datetime],
+) -> list[list[ArchiveMixin]]:
+    """Every archivable descendant, grouped by how far down it sits.
 
-    ``matching`` is the unarchive side: only descendants carrying that exact
-    timestamp are cleared, so one archived on its own stays archived.
-
-    No flushing between levels. A lifecycle column is the one thing a row under
-    an archived parent may still change, so the order these reach the database
-    in does not matter — which is the whole point of the guard being a trigger
-    that compares the old row with the new one.
+    ``matching`` picks the set: ``None`` takes the ones still live (what
+    archiving stamps), a timestamp takes the ones this archiving stamped (what
+    unarchiving brings back).
     """
-    touched = 0
-    for child_model, fk_col in ARCHIVE_CHILDREN.get(type(parent), []):
-        fk = getattr(child_model, fk_col)
-        stmt = select_including_deleted(child_model).where(fk == parent.id)
-        if matching is None:
-            stmt = stmt.where(child_model.archived_at.is_(None))
-        else:
-            stmt = stmt.where(child_model.archived_at == matching)
-        for child in (await session.exec(stmt)).all():
-            child.archived_at = archived_at
-            session.add(child)
-            touched += 1
-            touched += await _stamp_descendants(
-                session, child, archived_at=archived_at, matching=matching
-            )
-    return touched
+    levels: list[list[ArchiveMixin]] = []
+    frontier: list[ArchiveMixin] = [parent]
+    while frontier:
+        level: list[ArchiveMixin] = []
+        for node in frontier:
+            for child_model, fk_col in ARCHIVE_CHILDREN.get(type(node), []):
+                fk = getattr(child_model, fk_col)
+                stmt = select_including_deleted(child_model).where(fk == node.id)
+                if matching is None:
+                    stmt = stmt.where(child_model.archived_at.is_(None))
+                else:
+                    stmt = stmt.where(child_model.archived_at == matching)
+                level.extend((await session.exec(stmt)).all())
+        if not level:
+            break
+        levels.append(level)
+        frontier = level
+    return levels
 
 
 async def archive_entity(session: AsyncSession, entity: ArchiveMixin) -> datetime:
@@ -89,9 +92,16 @@ async def archive_entity(session: AsyncSession, entity: ArchiveMixin) -> datetim
     if entity.archived_at is not None:
         return entity.archived_at
     archived_at = datetime.now(timezone.utc)
+    levels = await _descendant_levels(session, entity, matching=None)
+
     entity.archived_at = archived_at
     session.add(entity)
-    await _stamp_descendants(session, entity, archived_at=archived_at)
+    await session.flush()
+    for level in levels:
+        for child in level:
+            child.archived_at = archived_at
+            session.add(child)
+        await session.flush()
     return archived_at
 
 
@@ -101,6 +111,15 @@ async def unarchive_entity(session: AsyncSession, entity: ArchiveMixin) -> None:
     if entity.archived_at is None:
         return
     matching = entity.archived_at
+    # Collected before anything is cleared, because the set is defined by the
+    # timestamp being cleared.
+    levels = await _descendant_levels(session, entity, matching=matching)
+
     entity.archived_at = None
     session.add(entity)
-    await _stamp_descendants(session, entity, archived_at=None, matching=matching)
+    await session.flush()
+    for level in levels:
+        for child in level:
+            child.archived_at = None
+            session.add(child)
+        await session.flush()

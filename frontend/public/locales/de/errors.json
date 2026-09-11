@@ -99,6 +99,7 @@
   "PROJECT_INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
   "PROJECT_IS_ARCHIVED": "Projekt ist archiviert",
   "CONTENT_IS_FROZEN": "Dies ist archiviert oder im Papierkorb. Stelle es wieder her, bevor du Änderungen vornimmst.",
+  "PARENT_IS_FROZEN": "Das übergeordnete Element ist archiviert oder im Papierkorb. Stelle es zuerst wieder her.",
   "PROJECT_OWNER_REQUIRED": "Eigentümerberechtigung für das Projekt erforderlich",
   "PROJECT_NO_ACCESS": "Du hast keinen Zugriff auf dieses Projekt",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Schreibzugriff erforderlich",

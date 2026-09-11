@@ -122,3 +122,38 @@ async def test_unarchiving_leaves_what_was_archived_on_its_own(
     assert a.initiative.archived_at is None
     assert a.project.archived_at is None
     assert queue.archived_at is not None
+
+
+async def test_a_task_cannot_be_taken_out_from_under_an_archived_project(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Otherwise it is live inside a finished thing — and a live row is not
+    asked about its ancestry again, so it could then be moved or deleted out."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    await client.post(a.g(f"/archive/project/{a.project.id}"), headers=a.headers)
+    response = await client.post(a.g(f"/unarchive/task/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PARENT_IS_FROZEN"
+    await session.refresh(task)
+    assert task.archived_at is not None
+
+
+async def test_the_project_going_back_takes_its_tasks_with_it(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The way out is the parent, and it still works — the cascade clears the
+    parent before the children, which is the order the guard requires."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    await client.post(a.g(f"/archive/project/{a.project.id}"), headers=a.headers)
+    back = await client.post(
+        a.g(f"/unarchive/project/{a.project.id}"), headers=a.headers
+    )
+
+    assert back.status_code == 200
+    await session.refresh(task)
+    assert task.archived_at is None

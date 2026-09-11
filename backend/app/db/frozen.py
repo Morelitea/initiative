@@ -49,7 +49,11 @@ from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     governing_path,
 )
-from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
+from app.db.errors import (
+    INSUFFICIENT_PRIVILEGE_SQLSTATE,
+    dbapi_constraint,
+    dbapi_sqlstate,
+)
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.models.tenant._mixins import archive_models
 
@@ -58,6 +62,10 @@ from app.models.tenant._mixins import archive_models
 #: own code for "the object is not in the state this operation needs".
 FROZEN_SQLSTATE = "55000"
 FROZEN_CONSTRAINT = "frozen_row_guard"
+
+#: The refusal that names the thing ABOVE the row: it is archived or in the
+#: trash, so this one cannot come out from under it on its own.
+FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
 
 #: Transaction-local flag marking a transaction as a purge.
 #:
@@ -179,18 +187,35 @@ def row_is_frozen(row: Any) -> bool:
 #: message it raises.
 _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"
 
+#: The constraint names the guards raise under.
+_FROZEN_CONSTRAINTS = frozenset({FROZEN_CONSTRAINT, FROZEN_PARENT_CONSTRAINT})
+
+
+def frozen_refusal(exc: DBAPIError) -> str | None:
+    """Which freeze refused this write — its constraint name, or None.
+
+    The two answer differently: one says the thing you wrote is archived or in
+    the trash, the other says what it sits inside is, and the caller is told to
+    bring back a different thing in each case.
+    """
+    if not is_frozen_write(exc):
+        return None
+    named = dbapi_constraint(exc)
+    return named if named in _FROZEN_CONSTRAINTS else FROZEN_CONSTRAINT
+
 
 def is_frozen_write(exc: DBAPIError) -> bool:
     """Whether this error is the freeze refusing a write.
 
-    Two shapes, because the rule is enforced two ways: the triggers raise with a
-    constraint name of their own, and the policies raise with the name of the
-    policy that refused. Matching on both is what lets a frozen write answer 409
-    where a role-layer denial answers 403.
+    Two shapes, because the rule is enforced two ways: the triggers raise under
+    a constraint name of their own, carried as an attribute of the error rather
+    than in its text, and the policies raise with the name of the policy that
+    refused, which Postgres does put in the message. Matching on both is what
+    lets a frozen write answer 409 where a role-layer denial answers 403.
     """
     sqlstate = dbapi_sqlstate(exc)
     if sqlstate == FROZEN_SQLSTATE:
-        return FROZEN_CONSTRAINT in str(getattr(exc, "orig", exc))
+        return dbapi_constraint(exc) in _FROZEN_CONSTRAINTS
     if sqlstate == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         return _ANCESTOR_POLICY_PREFIX in str(getattr(exc, "orig", exc))
     return False
@@ -350,11 +375,14 @@ def frozen_write_triggers(table: str) -> list[str]:
             f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
         )
         moving_into = freeze_leg(table, "UPDATE", alias="NEW")
+        prior = freeze_leg(table, "UPDATE", alias="OLD")
+        if moving_into is not None and prior is not None:
+            moving_into = f"{prior} OR {moving_into}"
         if moving_into is not None:
             out.append(
                 f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
                 f"BEFORE UPDATE ON {table} FOR EACH ROW WHEN ({moving_into}) "
-                f"EXECUTE FUNCTION public.fn_frozen_row_guard()"
+                f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
         return out
 
@@ -365,7 +393,7 @@ def frozen_write_triggers(table: str) -> list[str]:
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
             f"WHEN ({prior} OR {proposed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_row_guard()"
+            f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
         )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
     if doomed is not None:
@@ -375,6 +403,51 @@ def frozen_write_triggers(table: str) -> list[str]:
             f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
         )
     return out
+
+
+def render_frozen_parent_guard_fn() -> str:
+    """``public.fn_frozen_parent_guard()`` — the row guard, plus one rule.
+
+    A row under something archived or trashed may still change its lifecycle
+    columns: that is what lets a whole tree be stamped, and a trashed task in an
+    archived project be taken out of the trash — it stays archived, with its
+    project, which is the state it should be in.
+
+    What it may not do is end up with NO stamp at all while the thing above it
+    still carries one. It would then be live inside a finished thing, and a row
+    that carries its own stamp is not asked about its ancestry again once it is
+    live — so it could be moved or deleted straight out.
+
+    Read through ``to_jsonb`` rather than by column, because one function serves
+    tables that have both lifecycle columns and tables that have neither.
+    """
+    cols = ", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)
+    return f"""
+CREATE OR REPLACE FUNCTION public.fn_frozen_parent_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $frozen_parent$
+DECLARE
+    lifecycle text[] := ARRAY[{cols}];
+    was jsonb := to_jsonb(OLD);
+    now_ jsonb := to_jsonb(NEW);
+BEGIN
+    IF {_PURGING} THEN
+        RETURN NEW;
+    END IF;
+    IF (was ? 'archived_at' OR was ? 'deleted_at')
+       AND now_ ->> 'archived_at' IS NULL
+       AND now_ ->> 'deleted_at' IS NULL THEN
+        RAISE EXCEPTION 'what this is inside is archived or in the trash'
+            USING ERRCODE = '{FROZEN_SQLSTATE}',
+                  CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
+    END IF;
+    IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
+        RAISE EXCEPTION 'archived or trashed content is read-only'
+            USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
+    END IF;
+    RETURN NEW;
+END;
+$frozen_parent$;
+"""
 
 
 def render_frozen_guard_fn() -> str:
