@@ -46,6 +46,7 @@ from app.db.frozen import (
     render_frozen_guard_fn,
     render_frozen_parent_guard_fn,
     render_resource_frozen_fn,
+    render_resource_known_frozen_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
@@ -354,6 +355,8 @@ def render_guild_rls_ddl() -> str:
         + render_endpoint_access_fn()
         + "\n"
         + render_resource_frozen_fn()
+        + "\n"
+        + render_resource_known_frozen_fn()
         + "\n"
         + render_frozen_guard_fn()
         + "\n"

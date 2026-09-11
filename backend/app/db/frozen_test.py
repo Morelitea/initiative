@@ -209,6 +209,52 @@ class TestAncestorFreeze:
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
+    async def test_an_archived_project_takes_no_new_sharing(
+        self, session, routed, workspace
+    ):
+        """Sharing an archived thing is a change to it. The endpoint refuses
+        this too; the point here is that the table does."""
+        user, guild, initiative, project, _t = workspace
+        await _archive(session, project)
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "INSERT INTO resource_grants "
+                    "(resource_type, resource_id, user_id, level, guild_id, "
+                    " initiative_id, created_at) "
+                    "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
+                ).bindparams(
+                    pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id
+                )
+            )
+        assert "frozen_ancestor_insert" in str(excinfo.value)
+
+    async def test_the_first_grant_on_a_new_resource_is_not_sharing(
+        self, session, routed, workspace
+    ):
+        """A grant is what makes a resource reachable, so the first one is
+        written while the resource still answers to nobody. Asked the way every
+        other ancestor is asked, no resource could ever be created."""
+        user, guild, initiative, project, _t = workspace
+        # The state a resource is in between its own INSERT and its owner
+        # grant: it exists, and it answers to nobody yet.
+        await session.exec(
+            text(
+                "DELETE FROM resource_grants "
+                "WHERE resource_type = 'project' AND resource_id = :pid"
+            ).bindparams(pid=project.id)
+        )
+        await session.commit()
+
+        await routed.exec(
+            text(
+                "INSERT INTO resource_grants "
+                "(resource_type, resource_id, user_id, level, guild_id, "
+                " initiative_id, created_at) "
+                "VALUES ('project', :pid, :uid, 'owner', :gid, :iid, now())"
+            ).bindparams(pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id)
+        )
+
     async def test_a_refused_delete_says_so_rather_than_removing_nothing(
         self, session, admin_routed, workspace
     ):

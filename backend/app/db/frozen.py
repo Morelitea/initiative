@@ -330,6 +330,51 @@ def render_resource_frozen_fn() -> str:
     return _RESOURCE_FROZEN_TEMPLATE.format(arms="\n".join(arms), purging=_PURGING)
 
 
+_RESOURCE_KNOWN_FROZEN_TEMPLATE = """
+CREATE OR REPLACE FUNCTION public.resource_known_frozen(
+    kind text, rid bigint, trashed_ok boolean DEFAULT false
+) RETURNS boolean LANGUAGE plpgsql STABLE AS $resource_known_frozen$
+BEGIN
+    IF rid IS NULL THEN
+        RETURN false;
+    END IF;
+    CASE kind
+{arms}
+      ELSE
+        RETURN false;
+    END CASE;
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+    RETURN public.resource_frozen(kind, rid, trashed_ok);
+END;
+$resource_known_frozen$;
+"""
+
+
+def render_resource_known_frozen_fn() -> str:
+    """``public.resource_known_frozen(kind, id, trashed_ok)`` — the same answer
+    as :func:`render_resource_frozen_fn`, for callers that have to tell a row
+    they cannot see from a row that is put away.
+
+    ``resource_frozen`` answers "frozen" for a row it cannot find, which is the
+    right answer for a child being written under an ancestor. It is the wrong
+    one where the write is what will make the row reachable in the first place
+    — the first grant on a resource — so this one says no instead and leaves
+    the decision to the permissive policies.
+
+    A function rather than an ``EXISTS`` beside the call, because these legs are
+    rendered into trigger ``WHEN`` clauses as well as policies, and a ``WHEN``
+    takes no subquery.
+    """
+    arms = "\n".join(
+        f"      WHEN '{tool.plural}' THEN\n"
+        f"        PERFORM 1 FROM {tool.plural} WHERE id = rid;"  # noqa: S608
+        for tool in Tool
+    )
+    return _RESOURCE_KNOWN_FROZEN_TEMPLATE.format(arms=arms)
+
+
 def render_frozen_ancestor_fn() -> str:
     """``public.fn_frozen_ancestor_guard()`` — says no, and nothing else.
 
@@ -575,13 +620,22 @@ def _edge_leg(alias: str, trashed_ok: str) -> str:
 
 
 def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
-    """A grant freezes with the resource it shares.
+    """A grant freezes with the resource it shares, WHEN it can see it.
 
     Sharing an archived project is a change to the project, which is why the
     endpoint already refused it — this is the same rule, one layer down.
+
+    Asked through ``resource_known_frozen`` rather than ``resource_frozen``,
+    which is what makes that rule expressible here at all. A grant is what makes
+    a resource reachable, so the FIRST one is written while the resource still
+    answers to nobody: asked the ordinary way, every creation would be refused.
+    A row this statement cannot see is therefore not an answer here, and the
+    permissive policies stay the ones deciding whether it may be named at all.
+
+    Archiving hides nothing, so the case this leg exists for still reaches it.
     """
     arms = " ".join(
-        f"WHEN '{tool.value}' THEN public.resource_frozen("
+        f"WHEN '{tool.value}' THEN public.resource_known_frozen("
         f"'{tool.plural}', {alias}.resource_id, {trashed_ok})"
         for tool in Tool
     )
