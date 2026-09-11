@@ -43,8 +43,10 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
 from app.services.tenant.collaboration import (
-    CollaboratorInfo,
+    RESOURCE_TYPE,
+    broadcast_awareness,
     collaboration_manager,
+    room_roster,
 )
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
@@ -62,6 +64,7 @@ MSG_UPDATE = 2  # Incremental Yjs update
 MSG_AWARENESS = 3  # Cursor/selection awareness (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 MSG_AUTH = 5  # Authentication message (JSON: {token, guild_id})
+MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
 
 
 async def _get_user_from_token(token: str, session) -> Optional[User]:
@@ -223,17 +226,7 @@ async def websocket_collaborate(
         f"Collaboration: user {user.id} authenticated for document {document_id}"
     )
 
-    # Create collaborator info
-    collaborator = CollaboratorInfo(
-        user_id=user.id,
-        name=display_name(user),
-        websocket=websocket,
-        can_write=can_write,
-        avatar_url=user.avatar_url,
-    )
-
-    # Add to room
-    await room.add_collaborator(collaborator)
+    collaborator_name = display_name(user)
 
     # Govern this socket with continuous, every-level re-authorization. A
     # grant / membership / role / PAM change disconnects it — immediately for
@@ -267,37 +260,43 @@ async def websocket_collaborate(
         resource_id=document_id,
         authorize=_authorize,
         satisfied_providers=satisfied_provider_ids(),
+        meta={
+            "name": collaborator_name,
+            "can_write": can_write,
+            "avatar_url": user.avatar_url,
+        },
     )
 
     try:
-        # Send initial sync state
-        state = room.get_state()
-        sync_message = bytes([MSG_SYNC_STEP2]) + state
-        logger.info(
-            f"Collaboration: Sending initial sync to {handle_of(user)}, state size: {len(state)} bytes"
-        )
-        await websocket.send_bytes(sync_message)
+        # Ask what this connection has that the room does not. A client that
+        # reconnects holding work the room never saw — because the room was
+        # rebuilt from the row while it was away — can only hand it over if it
+        # is asked. It answers with SYNC_STEP2, and sends its own SYNC_STEP1
+        # for the other direction, so one connect settles both ways.
+        await websocket.send_bytes(bytes([MSG_SYNC_STEP1]) + room.state_vector())
 
         # Send current collaborator list
         collaborators_message = json.dumps(
             {
                 "type": "collaborators",
-                "data": room.get_collaborator_list(),
+                "data": room_roster(guild_id, document_id),
             }
         ).encode()
         await websocket.send_bytes(bytes([MSG_AWARENESS]) + collaborators_message)
 
         # Broadcast that a new user joined
-        await room.broadcast_awareness(
+        await broadcast_awareness(
+            guild_id,
+            document_id,
             {
                 "type": "join",
                 "user": {
                     "user_id": user.id,
-                    "name": collaborator.name,
+                    "name": collaborator_name,
                     "avatar_url": user.avatar_url,
                 },
             },
-            origin_user_id=user.id,
+            exclude=websocket,
         )
 
         # Main message loop
@@ -322,50 +321,77 @@ async def websocket_collaborate(
                 )
                 await websocket.send_bytes(sync_message)
 
-            elif msg_type == MSG_UPDATE:
-                # Yjs update from client
+            elif msg_type in (MSG_UPDATE, MSG_SYNC_STEP2):
+                # An edit, or the answer to the room's opening SYNC_STEP1 —
+                # both are Yjs updates and both are writes, so both need the
+                # write level. A reader answering the handshake is still a
+                # reader.
                 if not can_write:
                     logger.warning(
                         f"Collaboration: Read-only user {handle_of(user)} tried to send update"
                     )
                     continue
+                if not payload:
+                    continue
 
                 try:
-                    logger.info(
-                        f"Collaboration: Received MSG_UPDATE from {handle_of(user)}, payload size: {len(payload)}"
-                    )
                     room.apply_update(payload, origin=user.id)
-                    logger.info(
-                        f"Collaboration: Applied update, broadcasting to {len(room.collaborators) - 1} other clients"
-                    )
-                    # Broadcast to other clients
-                    await room.broadcast_update(
+                    # Relayed under MSG_UPDATE whichever it arrived as: to every
+                    # other connection this is simply state they do not have.
+                    await stream_authority.emit_bytes(
+                        guild_id,
+                        RESOURCE_TYPE,
+                        document_id,
                         bytes([MSG_UPDATE]) + payload,
-                        origin_user_id=user.id,
+                        exclude=websocket,
                     )
                 except Exception as e:
                     logger.warning(f"Failed to apply Yjs update: {e}")
+
+            elif msg_type == MSG_CONTENT:
+                # The editor's JSON rendering of what it just wrote. Held on
+                # the room and written alongside the Yjs state, so the two
+                # views of the document are always saved from one moment.
+                if not can_write:
+                    continue
+                try:
+                    room.offer_content(
+                        documents_service.normalize_document_content(
+                            json.loads(payload.decode()),
+                            document_type=document.document_type,
+                        )
+                    )
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    logger.warning(
+                        f"Collaboration: unreadable content frame from {handle_of(user)}"
+                    )
+                except documents_service.DocumentContentError as exc:
+                    logger.warning(
+                        f"Collaboration: rejected content frame from "
+                        f"{handle_of(user)}: {exc.code}"
+                    )
 
             elif msg_type == MSG_AWARENESS:
                 # Awareness update (cursor position, etc.) - JSON format
                 try:
                     awareness_data = json.loads(payload.decode())
-                    collaborator.cursor_position = awareness_data.get("cursor")
-                    await room.broadcast_awareness(
+                    await broadcast_awareness(
+                        guild_id,
+                        document_id,
                         {"type": "cursor", "user_id": user.id, **awareness_data},
-                        origin_user_id=user.id,
+                        exclude=websocket,
                     )
                 except json.JSONDecodeError:
                     pass
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
-                logger.debug(
-                    f"Collaboration: Relaying awareness update from {handle_of(user)}, size: {len(payload)}"
-                )
-                await room.broadcast_update(
+                await stream_authority.emit_bytes(
+                    guild_id,
+                    RESOURCE_TYPE,
+                    document_id,
                     bytes([MSG_AWARENESS_BINARY]) + payload,
-                    origin_user_id=user.id,
+                    exclude=websocket,
                 )
 
     except WebSocketDisconnect:
@@ -380,16 +406,19 @@ async def websocket_collaborate(
         # Stop governing this socket (idempotent if the spine already closed it).
         await stream_authority.leave(websocket)
 
-        # Remove from room
-        await room.remove_collaborator(user.id)
-
-        # Broadcast that user left
-        await room.broadcast_awareness(
+        # Tell the rest of the room this connection is gone. ``leave`` above
+        # has already taken it out of the register, so the roster the others
+        # rebuild from it is right.
+        await broadcast_awareness(
+            guild_id,
+            document_id,
             {"type": "leave", "user_id": user.id},
-            origin_user_id=user.id,
+            exclude=websocket,
         )
 
-        # Persist and potentially clean up room (using a new short-lived session)
+        # Save what this session added. The room is only retired afterwards,
+        # and only once nothing is connected to it — another tab of the same
+        # account is another connection, and keeps it.
         async with AsyncSessionLocal() as session:
             await set_rls_context(session, user_id=user.id, guild_id=guild_id)
             await collaboration_manager.persist_room(guild_id, document_id, session)
@@ -404,10 +433,7 @@ async def get_document_collaborators(
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> list[dict]:
     """Get the list of current collaborators on a document."""
-    room = collaboration_manager.get_room(guild_context.guild_id, document_id)
-    if not room:
-        return []
-    return room.get_collaborator_list()
+    return room_roster(guild_context.guild_id, document_id)
 
 
 @router.post("/documents/{document_id}/sync-content")
@@ -465,6 +491,17 @@ async def sync_document_content(
             f"Sync content: User {handle_of(user)} has no write access to document {document_id}"
         )
         return {"status": "error", "message": "No write access"}
+
+    # A live room owns both views of the document and writes them together,
+    # so a snapshot arriving beside it is not applied here: this beacon can
+    # come from a tab that has been disconnected for some time, and its idea
+    # of the content is that old. With no room, this is the only writer.
+    if collaboration_manager.has_active_collaborators(guild_id, document_id):
+        logger.info(
+            f"Sync content: document {document_id} is live; leaving the "
+            "content column to its room"
+        )
+        return {"status": "ok", "deferred": True}
 
     # Update the content column
     try:

@@ -315,9 +315,17 @@ async def lifespan(app: FastAPI):
     )
     await notify_bus.start()
 
+    # Write collaborative documents that have changed on an interval, so what a
+    # live editing session has produced does not depend on its last connection
+    # closing cleanly to reach the database.
+    from app.services.tenant.collaboration import collaboration_manager
+
+    collaboration_manager.ensure_persistence_loop()
+
     try:
         yield
     finally:
+        await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])

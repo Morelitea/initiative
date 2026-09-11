@@ -59,6 +59,10 @@ export interface UseCollaborationResult {
   connect: () => void;
   /** Manually disconnect from the collaboration session */
   disconnect: () => void;
+  /** Hand the document's room the editor's JSON rendering of it, so the room
+   *  writes that and the Yjs state together. No-op when not collaborating —
+   *  the caller then saves it over REST instead. */
+  sendContent: (content: unknown) => void;
 }
 
 export function useCollaboration({
@@ -322,6 +326,10 @@ export function useCollaboration({
     providerRef.current?.disconnect();
   }, []);
 
+  const sendContent = useCallback((content: unknown) => {
+    providerRef.current?.sendContent(content);
+  }, []);
+
   const isCollaborating = connectionStatus === "connected" && isSynced;
 
   return useMemo(
@@ -335,6 +343,7 @@ export function useCollaboration({
       isReady,
       connect,
       disconnect,
+      sendContent,
     }),
     [
       providerFactory,
@@ -346,6 +355,7 @@ export function useCollaboration({
       isReady,
       connect,
       disconnect,
+      sendContent,
     ]
   );
 }

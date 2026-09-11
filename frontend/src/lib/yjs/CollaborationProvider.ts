@@ -22,6 +22,12 @@ const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
 const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
 const MSG_AUTH = 5; // Authentication message (sent first after connect)
+const MSG_CONTENT = 6; // The editor's JSON rendering, for the document's content column
+
+/** What ``Y.encodeStateAsUpdate`` produces for a document with nothing in it.
+ *  An answer to the server's SYNC_STEP1 that is this long carries no data, and
+ *  sending one would mark the room unsaved over nothing. */
+const EMPTY_UPDATE_LENGTH = Y.encodeStateAsUpdate(new Y.Doc()).length;
 
 export interface CollaboratorInfo {
   user_id: number;
@@ -530,6 +536,21 @@ export class CollaborationProvider implements Provider {
     const payload = data.slice(1);
 
     switch (msgType) {
+      case MSG_SYNC_STEP1: {
+        // The server is asking for whatever we have that it doesn't. This is
+        // the other half of the handshake, and the one path by which state
+        // this client already holds travels upstream — every other frame we
+        // send is an increment on top of state the server is known to have.
+        const update =
+          payload.length > 0
+            ? Y.encodeStateAsUpdate(this.doc, payload)
+            : Y.encodeStateAsUpdate(this.doc);
+        if (update.length > EMPTY_UPDATE_LENGTH) {
+          this.sendMessage(MSG_SYNC_STEP2, update);
+        }
+        break;
+      }
+
       case MSG_SYNC_STEP2:
         // Apply server state - always call applyUpdate, Yjs handles empty updates gracefully
         Y.applyUpdate(this.doc, payload, this);
@@ -690,6 +711,18 @@ export class CollaborationProvider implements Provider {
         // Cursor position update - handled by Lexical's built-in cursor support
         break;
     }
+  }
+
+  /**
+   * Report the editor's JSON rendering of the document to its room.
+   *
+   * The room writes this alongside the Yjs state, from one snapshot, so the
+   * document's two stored views always describe the same moment. Only sent
+   * once synced: before that this client's doc is not yet the room's.
+   */
+  sendContent(content: unknown): void {
+    if (!this._synced) return;
+    this.sendMessage(MSG_CONTENT, new TextEncoder().encode(JSON.stringify(content)));
   }
 
   private sendMessage(type: number, payload: Uint8Array): void {

@@ -1477,6 +1477,16 @@ async def update_document(
         updated = True
 
     content_updated = False
+    # A document with a live collaboration room has that room as the writer of
+    # both its views — it saves ``content`` and ``yjs_state`` from one snapshot,
+    # on an interval and at teardown. A content field arriving here beside it is
+    # one editor's idea of the document, which is what the room is there to
+    # reconcile, so it is left to the room. Everything else in the patch (the
+    # name, the featured image) is unrelated to that and still applies.
+    if "content" in update_data and collaboration_manager.has_active_collaborators(
+        guild_context.guild_id, document.id
+    ):
+        update_data.pop("content")
     if "content" in update_data:
         try:
             document.content = documents_service.normalize_document_content(
@@ -1489,24 +1499,11 @@ async def update_document(
             ) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
-        # Clear yjs_state ONLY if there is no active collaboration room.
-        # Rationale: when users are actively collaborating, the in-memory
-        # room is the source of truth for Yjs state, and its full snapshot
-        # will be written back to yjs_state on the last disconnect via
-        # persist_room. Clearing yjs_state here while a room is active
-        # creates a data-loss window: if the REST PATCH lands right before
-        # all users disconnect, and the disconnect's persist_room fails or
-        # races with cleanup, yjs_state stays None and the next session
-        # bootstraps from the (potentially stale) PATCHed content column,
-        # losing any edits that were made between the PATCH and disconnect.
-        #
-        # Clearing only when the room is inactive still solves PR #347's
-        # original problem: non-collab edits need to override any stale
-        # pre-existing yjs_state the next time the user re-enables collab.
-        if not collaboration_manager.has_active_collaborators(
-            guild_context.guild_id, document.id
-        ):
-            document.yjs_state = None
+        # Reaching here means no room is live, so this edit is the newest
+        # thing about the document and any stored Yjs state predates it. It is
+        # cleared so the next collaborative session bootstraps from this
+        # content rather than from state that never saw it.
+        document.yjs_state = None
         content_updated = True
         updated = True
 
