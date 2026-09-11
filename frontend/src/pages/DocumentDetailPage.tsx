@@ -408,15 +408,14 @@ export const DocumentDetailPage = () => {
     // frozen (read_only lifecycle status) or access is via a read-level grant.
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
-  const isDirty =
-    canEditDocument &&
-    ((document && title?.trim() !== document?.name?.trim()) ||
-      documentContentJson !== currentContentJson ||
-      normalizedDocumentFeatured !== featuredImageUrl);
+  // Split by what a save would carry: a rename and the rest of the document
+  // are committed on different terms — see the autosave effect.
+  const nameIsDirty = Boolean(document) && title?.trim() !== document?.name?.trim();
+  const bodyIsDirty =
+    documentContentJson !== currentContentJson || normalizedDocumentFeatured !== featuredImageUrl;
+  const isDirty = canEditDocument && (nameIsDirty || bodyIsDirty);
 
-  const titleIsDirty = Boolean(
-    canEditDocument && document && title?.trim() !== document?.name?.trim()
-  );
+  const titleIsDirty = canEditDocument && nameIsDirty;
 
   const commentsCanModerate = useMemo(() => {
     if (!document || !user) {
@@ -477,8 +476,12 @@ export const DocumentDetailPage = () => {
     suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
-      // that started before the last keystroke must not mark it saved.
-      titleField.settle({ title: sent.name ?? "" });
+      // that started before the last keystroke must not mark it saved. A save
+      // that carried no name at all (one made while the field was being typed
+      // in) settles nothing.
+      if (typeof sent.name === "string") {
+        titleField.settle({ title: sent.name });
+      }
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
@@ -614,17 +617,15 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
-    // Nothing to write. The collaborating branch below checks this too: the
-    // room owns the content column while it is live, but an open document
-    // nobody is editing has no rendering to report and no name to send.
-    if (!isDirty) {
-      return;
-    }
-    // A rename in progress belongs to the person typing it. Saving it out from
-    // under them retires the Save button beside the field mid-reach, so the
-    // debounce waits for the field to be let go — leaving the page still
-    // flushes it (see the unmount/unload flush below).
-    if (titleHasFocus) {
+    // A rename in progress belongs to the person typing it: taking it retires
+    // the Save button beside the field mid-reach. The name waits for the field
+    // to be let go — leaving the page still flushes it (see the unmount/unload
+    // flush below) — while the body carries on saving on its own schedule.
+    const savesName = nameIsDirty && !titleHasFocus;
+    // Nothing this pass would write. The collaborating branch below checks
+    // this too: the room owns the content column while it is live, but an open
+    // document nobody is editing has no rendering to report and no name to send.
+    if (!savesName && !bodyIsDirty) {
       return;
     }
     // When collaborating, sync content periodically to keep the content
@@ -644,7 +645,7 @@ export const DocumentDetailPage = () => {
         collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
@@ -653,7 +654,7 @@ export const DocumentDetailPage = () => {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -662,7 +663,8 @@ export const DocumentDetailPage = () => {
     }
   }, [
     autosaveEnabled,
-    isDirty,
+    nameIsDirty,
+    bodyIsDirty,
     canEditDocument,
     saveDocument,
     parsedId,
