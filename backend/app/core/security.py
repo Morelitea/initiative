@@ -358,8 +358,6 @@ BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 def create_billing_portal_handoff_token(
     *,
-    user_id: int,
-    guild_id: int,
     guild_role: str,
     user_ref: str,
     guild_ref: str,
@@ -367,19 +365,20 @@ def create_billing_portal_handoff_token(
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured).
 
-    ``user_ref`` / ``guild_ref`` are what the receiver names the pair by — see
-    ``services.platform.identity_refs.billing_refs``. The row ids travel
-    alongside them until the receiver reads the references instead.
+    ``user_ref`` / ``guild_ref`` are the only names for the pair that cross —
+    see ``services.platform.identity_refs.billing_refs``. ``sub`` carries the
+    user's, which is what a pairwise pseudonymous identifier is for (OpenID
+    Connect Core §8.1); no row id of ours is a parameter here, so none can
+    reach the claims.
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
+        "sub": user_ref,
         "aud": BILLING_PORTAL_AUDIENCE,
         "iss": "initiative",
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
-        "guild_id": guild_id,
         "guild_role": guild_role,
         "user_ref": user_ref,
         "guild_ref": guild_ref,
@@ -444,20 +443,20 @@ def billing_support_handoff_enabled() -> bool:
 
 def create_billing_support_handoff_token(
     *,
-    user_id: int,
-    guild_id: int,
     grant_id: int | str,
     user_ref: str,
     guild_ref: str,
-    approver_id: int | str | None = None,
+    approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-support handoff token.
 
     ``grant_id`` names the ``access_grants`` row that authorises the visit, so
-    both sides log the same grant. ``user_ref`` / ``guild_ref`` are what the
-    receiver names the pair by — see
-    ``services.platform.identity_refs.billing_refs``.
+    both sides log the same grant. Everyone else on it is named by reference —
+    the operator visiting, the guild visited, and whoever approved the visit —
+    see ``services.platform.identity_refs.billing_refs``. ``sub`` carries the
+    operator's, which is what a pairwise pseudonymous identifier is for
+    (OpenID Connect Core §8.1).
     """
     if not billing_support_handoff_enabled():
         raise BillingSupportHandoffNotConfiguredError(
@@ -468,18 +467,17 @@ def create_billing_support_handoff_token(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
+        "sub": user_ref,
         "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
         "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
-        "guild_id": int(guild_id),
         "grant_id": str(grant_id),
         "user_ref": user_ref,
         "guild_ref": guild_ref,
     }
-    if approver_id is not None:
-        payload["approver"] = str(approver_id)
+    if approver_ref is not None:
+        payload["approver"] = approver_ref
     token = jwt.encode(
         payload,
         settings.BILLING_SUPPORT_HANDOFF_SECRET,

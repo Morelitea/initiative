@@ -235,9 +235,13 @@ async def _member_count(session: AsyncSession, guild_id: int) -> int:
 
 
 async def apply_guild_tier(
-    session: AsyncSession, payload: BillingGuildTierApply
+    session: AsyncSession, payload: BillingGuildTierApply, *, guild_id: int
 ) -> BillingGuildTierRead:
     """Apply a tier-metadata write, exactly once per ``event_id``.
+
+    The payload names its guild by the reference billing holds; ``guild_id`` is
+    what that resolved to at the edge, and is the only name for the guild used
+    from here in.
 
     Sequence: existence check (404 before consuming the event id), then the
     source/state restriction (a refused write consumes nothing — the whole
@@ -247,9 +251,9 @@ async def apply_guild_tier(
     ``model_fields_set`` sentinel semantics (omit = leave, null = unlimited).
     """
     provided = payload.model_fields_set
-    row = await _select_tier_row(session, payload.guild_id)
+    row = await _select_tier_row(session, guild_id)
     if row is None:
-        raise BillingGuildNotFoundError(payload.guild_id)
+        raise BillingGuildNotFoundError(guild_id)
 
     # support_manual may only RAISE the storage cap. The payload validator
     # already forbids it every other field; the lower-vs-raise half needs the
@@ -274,7 +278,7 @@ async def apply_guild_tier(
     # transaction survive.
     claim = insert(BillingEventLog.__table__).values(
         event_id=payload.event_id,
-        guild_id=payload.guild_id,
+        guild_id=guild_id,
         op=BillingOp.guild_tier.value,
         source=payload.source.value,
         actor=payload.actor,
@@ -301,7 +305,7 @@ async def apply_guild_tier(
             guild_values["status_changed_at"] = now
             logger.info(
                 "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
-                payload.guild_id,
+                guild_id,
                 row.status,
                 payload.status.value,
                 payload.source.value,
@@ -312,24 +316,24 @@ async def apply_guild_tier(
             if administration_values:
                 await session.exec(
                     update(GuildAdministration)
-                    .where(GuildAdministration.guild_id == payload.guild_id)
+                    .where(GuildAdministration.guild_id == guild_id)
                     .values(**administration_values)
                 )
             # Stamp the guild whichever row moved: "when did this guild last
             # change" stays a fact about the guild.
             guild_values["updated_at"] = now
             await session.exec(
-                update(Guild).where(Guild.id == payload.guild_id).values(**guild_values)
+                update(Guild).where(Guild.id == guild_id).values(**guild_values)
             )
-            row = await _select_tier_row(session, payload.guild_id)
+            row = await _select_tier_row(session, guild_id)
 
     return BillingGuildTierRead(
-        guild_id=row.id,
+        guild_ref=payload.guild_ref,
         tier_name=row.tier_name,
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,
         status=GuildStatus(row.status),
-        member_count=await _member_count(session, payload.guild_id),
+        member_count=await _member_count(session, guild_id),
         applied=applied,
     )
 

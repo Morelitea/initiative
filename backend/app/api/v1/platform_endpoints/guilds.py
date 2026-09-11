@@ -915,8 +915,6 @@ async def create_guild_billing_handoff(
             user_id=current_user.id, guild_id=guild_id
         )
         token, expires_in_seconds = create_billing_portal_handoff_token(
-            user_id=current_user.id,
-            guild_id=guild_id,
             guild_role=GuildRole.admin.value,
             user_ref=user_ref,
             guild_ref=guild_ref,
