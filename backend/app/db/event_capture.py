@@ -116,10 +116,15 @@ class CaptureSpec:
     #: Row expression yielding the resource type, for the polymorphic case.
     #: ``None`` when ``resource_types`` holds the single constant answer.
     resource_type_expr: str | None = None
+    #: Set only where a table reports against more than one resource and so
+    #: carries more than one trigger. ``None`` everywhere else, which keeps
+    #: every existing trigger's name unchanged.
+    label: str | None = None
 
     @property
     def trigger_name(self) -> str:
-        return f"capture_{self.table}"
+        suffix = f"_{self.label}" if self.label else ""
+        return f"capture_{self.table}{suffix}"
 
     @property
     def static_resource_type(self) -> str:
@@ -291,19 +296,24 @@ def build_specs() -> list[CaptureSpec]:
         source = event_source(table_name)
         declared = source.reports_as
         if declared is not None:
-            specs.append(
-                CaptureSpec(
-                    table=table_name,
-                    resource_types=declared.resource_types,
-                    resource_id_expr=declared.id_expr(ROW),
-                    facet=declared.facet,
-                    resource_type_expr=(
-                        declared.type_expr(ROW)
-                        if declared.type_expr is not None
-                        else None
-                    ),
+            # A tuple reports the row against several resources — one trigger
+            # each, so the capture function itself needs to know nothing about
+            # the case: it is the same per-table arguments, twice.
+            for report in declared if isinstance(declared, tuple) else (declared,):
+                specs.append(
+                    CaptureSpec(
+                        table=table_name,
+                        resource_types=report.resource_types,
+                        resource_id_expr=report.id_expr(ROW),
+                        facet=report.facet,
+                        resource_type_expr=(
+                            report.type_expr(ROW)
+                            if report.type_expr is not None
+                            else None
+                        ),
+                        label=report.label,
+                    )
                 )
-            )
             continue
 
         pk = list(table.primary_key.columns)
