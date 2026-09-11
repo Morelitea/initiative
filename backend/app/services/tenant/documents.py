@@ -501,11 +501,11 @@ async def sync_document_links(
 
     This extracts all wikilink document IDs from the content and updates
     the document_links table to reflect the current state:
-    - Adds new links (only to documents that exist)
+    - Adds new links (only to documents a link may point at)
     - Removes links that no longer exist in the content
 
-    If fix_content=True, also unresolves any wikilinks pointing to deleted
-    documents and returns the fixed content. Otherwise returns None.
+    If fix_content=True, also unresolves any wikilinks pointing to somewhere
+    a link may not go and returns the fixed content. Otherwise returns None.
 
     Called on document save to keep backlinks up to date.
     """
@@ -524,13 +524,20 @@ async def sync_document_links(
     else:
         valid_target_ids = set()
 
+    # Where a link may go: a document that exists, and is not this one. A
+    # document does not link to itself — the page the link opens is the page it
+    # was written on, and a row for it would list the document among the ones
+    # that link to it. Older content can still hold one, so this is what
+    # removes it rather than only what stops writing it.
+    linkable_target_ids = valid_target_ids - {document_id}
+
     # Optionally fix stale wikilinks in the content
     fixed_content = None
     if fix_content and current_target_ids:
-        invalid_ids = current_target_ids - valid_target_ids
+        invalid_ids = current_target_ids - linkable_target_ids
         if invalid_ids:
             fixed_content = deepcopy(content)
-            unresolve_invalid_wikilinks(fixed_content, valid_target_ids)
+            unresolve_invalid_wikilinks(fixed_content, linkable_target_ids)
 
     # Get existing links from database
     stmt = select(DocumentLink).where(DocumentLink.source_document_id == document_id)
@@ -538,9 +545,9 @@ async def sync_document_links(
     existing_links = result.all()
     existing_target_ids = {link.target_document_id for link in existing_links}
 
-    # Determine adds and removes (only add links to valid documents)
-    to_add = valid_target_ids - existing_target_ids
-    to_remove = existing_target_ids - valid_target_ids
+    # Determine adds and removes (only add links a document may hold)
+    to_add = linkable_target_ids - existing_target_ids
+    to_remove = existing_target_ids - linkable_target_ids
 
     # Remove old links (including links to documents that no longer exist)
     for link in existing_links:

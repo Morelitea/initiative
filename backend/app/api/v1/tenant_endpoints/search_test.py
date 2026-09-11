@@ -602,3 +602,69 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
 
     body = await _search(client, a, q="embargoed")
     assert [h["entity_id"] for h in body["items"]] == [draft.id]
+
+
+async def test_a_picker_is_not_offered_the_thing_it_is_writing_in(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A comment on a document, and the document itself, both compose inside
+    something. Naming it would point at the page the words are already on."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    subject = await create_document(session, a.initiative, a.user, name="the page")
+    other = await create_document(session, a.initiative, a.user, name="another page")
+
+    offered = await _recent(
+        client, a, types="document", subject=f"document:{subject.id}"
+    )
+    assert [item["entity_id"] for item in offered] == [other.id]
+
+
+async def test_typing_its_name_does_not_find_it_either(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The list a picker opens with and what typing finds are the same set of
+    things, so both leave the subject out."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    subject = await create_document(session, a.initiative, a.user, name="riverside")
+    other = await create_document(session, a.initiative, a.user, name="riverside annex")
+
+    response = await client.get(
+        a.g("/search/suggest"),
+        headers=a.headers,
+        params={
+            "q": "riverside",
+            "types": ["document"],
+            "subject": f"document:{subject.id}",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert [r["entity_id"] for r in response.json()] == [other.id]
+
+
+async def test_only_the_subject_itself_is_left_out(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Its kind and its id together — a task numbered the same as the document
+    being written in is a different thing and still offered."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user, name="the page")
+    task = await create_task(session, a.project, title="the job")
+
+    offered = await _recent(
+        client, a, types=["document", "task"], subject=f"document:{doc.id}"
+    )
+    assert [(item["entity_type"], item["entity_id"]) for item in offered] == [
+        ("task", task.id)
+    ]
+
+
+async def test_a_subject_that_names_nothing_narrows_nothing(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Stored content outlives the build that wrote it. A reference this build
+    cannot read costs the exclusion, not the answer."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user, name="the page")
+
+    offered = await _recent(client, a, types="document", subject="sandwich:3")
+    assert [item["entity_id"] for item in offered] == [doc.id]

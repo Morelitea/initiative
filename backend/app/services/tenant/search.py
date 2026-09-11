@@ -152,6 +152,9 @@ class Filters:
     #: Archived work is indexed and left out unless it is asked for.
     include_archived: bool = False
     template: Optional[bool] = None
+    #: The thing being written in, which a reference may not name — see
+    #: :meth:`clause`. A results page has no subject and leaves this unset.
+    subject: Optional[tuple[SearchEntityType, int]] = None
 
     @property
     def entity_types(self) -> tuple[SearchEntityType, ...]:
@@ -169,6 +172,16 @@ class Filters:
             clause = clause & SearchEntry.archived.is_(False)
         if self.template is not None:
             clause = clause & SearchEntry.template.is_(self.template)
+        if self.subject is not None:
+            # A thing does not point at itself: the page a reference would open
+            # is the page it was written on. Removed here rather than by the
+            # caller so it comes off before ``limit``, and a picker that asks
+            # for five rows is offered five.
+            subject_type, subject_id = self.subject
+            clause = clause & ~(
+                (SearchEntry.entity_type == subject_type)
+                & (SearchEntry.entity_id == subject_id)
+            )
         return clause
 
 
