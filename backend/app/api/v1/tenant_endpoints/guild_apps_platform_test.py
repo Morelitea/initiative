@@ -362,7 +362,12 @@ class TestHandoff:
             options={"verify_signature": False},
             audience=body["audience"],
         )
-        assert claims["guild_id"] == a.guild.id
+        # The guild by reference for the same reason as the subject below: an
+        # index names a row to us, not an entity to somebody else.
+        assert claims["guild_ref"] == await ensure_app_guild_ref(
+            guild_id=a.guild.id, app_install_id=app.id
+        )
+        assert "guild_id" not in claims
         assert claims["app_install_id"] == app.id
         assert claims["surface_id"] == "board"
         assert claims["jti"]
@@ -568,7 +573,10 @@ class TestInitiativeHandoff:
         ).json()
         claims = self._claims(body)
         assert claims["initiative_id"] == a.initiative.id
-        assert claims["guild_id"] == a.guild.id
+        assert claims["guild_ref"] == await ensure_app_guild_ref(
+            guild_id=a.guild.id, app_install_id=app.id
+        )
+        assert "guild_id" not in claims
         assert claims["app_install_id"] == app.id
         assert claims["surface_id"] == "runs"
 
