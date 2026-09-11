@@ -17,7 +17,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventTag,
 )
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -26,6 +25,7 @@ from app.services.tenant import relationships
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import tags as tags_service
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,6 @@ async def get_event(
             selectinload(CalendarEvent.attendees).selectinload(
                 CalendarEventAttendee.user
             ),
-            selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
             selectinload(CalendarEvent.calendar)
             .selectinload(Calendar.grants)
             .selectinload(ResourceGrant.role),
@@ -65,7 +64,10 @@ async def get_event(
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    event = result.one_or_none()
+    if event is not None:
+        await tags_service.annotate_tags(session, [event])
+    return event
 
 
 # ---------------------------------------------------------------------------

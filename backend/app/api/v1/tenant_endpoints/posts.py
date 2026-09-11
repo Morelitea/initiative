@@ -406,6 +406,7 @@ async def list_posts(
     posts = result.unique().all()
     # One grouped query each for the page, so a board of twenty asks twice
     # rather than forty times.
+    await tags_service.annotate_tags(session, posts)
     await comments_service.annotate_comment_counts(session, posts, column="post_id")
     await posts_service.attach_reactions(session, *posts)
     await posts_service.annotate_read_state(session, posts, user_id=current_user.id)

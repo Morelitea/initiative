@@ -379,6 +379,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "task_assignment_digest_items": "scheduler bookkeeping",
     "reaction_digest_items": "scheduler bookkeeping",
     "reactions": "a gesture with no text of its own",
+    "relationships": "an edge between two things, each indexed on its own",
 }
 
 

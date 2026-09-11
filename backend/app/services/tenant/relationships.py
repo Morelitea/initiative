@@ -371,6 +371,35 @@ async def set_related(
         )
 
 
+def _walk_sql(frm: str, to: str) -> str:
+    """The recursive walk, one direction of it.
+
+    Written out per direction rather than interpolated: the request path builds
+    no SQL text, and a walk has exactly two directions, so there is nothing a
+    format string would save.
+    """
+    return f"""
+        WITH RECURSIVE reachable(node, depth) AS (
+            SELECT CAST(:start AS bigint), 0
+          UNION ALL
+            SELECT r.{to}, w.depth + 1
+            FROM reachable w
+            JOIN relationships r
+              ON r.{frm} = w.node
+             AND r.relationship_type = :rtype
+             AND r.removed_at IS NULL
+            WHERE w.depth < :depth
+        ) CYCLE node SET is_cycle USING path
+        SELECT node, depth, is_cycle FROM reachable WHERE depth > 0
+    """
+
+
+#: The two walks, rendered once at import. ``CYCLE … SET … USING path`` is the
+#: SQL-standard clause (PG14+), so a cyclic graph terminates on its own.
+_WALK_OUTBOUND = _walk_sql("source_node", "target_node")
+_WALK_INBOUND = _walk_sql("target_node", "source_node")
+
+
 async def walk(
     session: AsyncSession,
     start: Endpoint,
@@ -397,25 +426,9 @@ async def walk(
             "than one hop has no meaning"
         )
     bounded = max(1, min(depth, MAX_WALK_DEPTH))
-    frm, to = (
-        ("source_node", "target_node") if outbound else ("target_node", "source_node")
-    )
 
     rows = await session.exec(
-        text(f"""
-            WITH RECURSIVE reachable(node, depth) AS (
-                SELECT CAST(:start AS bigint), 0
-              UNION ALL
-                SELECT r.{to}, w.depth + 1
-                FROM reachable w
-                JOIN relationships r
-                  ON r.{frm} = w.node
-                 AND r.relationship_type = :rtype
-                 AND r.removed_at IS NULL
-                WHERE w.depth < :depth
-            ) CYCLE node SET is_cycle USING path
-            SELECT node, depth, is_cycle FROM reachable WHERE depth > 0
-        """).bindparams(  # noqa: S608 — column names come from a literal pair above
+        text(_WALK_OUTBOUND if outbound else _WALK_INBOUND).bindparams(
             start=start.node, rtype=relationship_type.value, depth=bounded
         )
     )

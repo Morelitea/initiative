@@ -34,6 +34,7 @@ from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
+    render_endpoint_access_fn,
     InitiativePath,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
@@ -253,7 +254,10 @@ def _guild_level_guard_block(table: str) -> str:
 
 def render_guild_rls_ddl() -> str:
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
-    out = _HEADER + "\n\n" + "\n\n".join(blocks)
+    # Shared, and written before the policies that call it. Re-rendered on every
+    # provisioning run from the same registry the policies come from, so a kind
+    # added to the graph reaches the gate the moment its entry does.
+    out = _HEADER + "\n" + render_endpoint_access_fn() + "\n" + "\n\n".join(blocks)
     guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
     if guards:
         out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)

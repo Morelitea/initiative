@@ -199,6 +199,7 @@ async def list_calendars(
     )
     result = await session.exec(stmt)
     calendars = result.unique().all()
+    await tags_service.annotate_tags(session, calendars)
 
     items = [serialize_calendar_summary(c, user_id=current_user.id) for c in calendars]
     has_next = page * page_size < total_count
@@ -527,9 +528,11 @@ async def list_my_calendars(
 
 
 async def _exec_calendars(session, stmt) -> list[Calendar]:
-    """Run a Calendar select and return de-duplicated rows as a list."""
+    """Run a Calendar select, de-duplicate, and carry each row's tags."""
     result = await session.exec(stmt)
-    return list(result.unique().all())
+    calendars = list(result.unique().all())
+    await tags_service.annotate_tags(session, calendars)
+    return calendars
 
 
 # ---------------------------------------------------------------------------

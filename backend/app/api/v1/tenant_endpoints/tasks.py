@@ -46,7 +46,6 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.tenant.tag import TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -444,7 +443,6 @@ async def _fetch_task(
             selectinload(Task.assignees),
             selectinload(Task.creator),
             selectinload(Task.task_status),
-            selectinload(Task.tag_links).selectinload(TaskTag.tag),
             selectinload(Task.property_values).selectinload(
                 TaskPropertyValue.property_definition
             ),
@@ -464,7 +462,7 @@ async def _fetch_task(
     if task:
         await _annotate_tasks(session, [task])
         _annotate_task_guild([task])
-        tags_service.annotate_tags([task])
+        await tags_service.annotate_tags(session, [task])
         _annotate_task_properties([task])
     return task
 
@@ -640,20 +638,18 @@ async def _advance_recurrence_if_needed(
     )
     await session.flush()
     # Reload through a select rather than ``session.refresh``: refresh takes no
-    # loader options, so it would populate ``tag_links`` while leaving each
-    # link's ``tag`` unloaded — and the annotation below reads ``link.tag``,
-    # which then has to emit IO from sync context. ``populate_existing`` applies
-    # the freshly loaded rows to the identity-mapped instance.
+    # loader options, so the assignees would come back unloaded and the
+    # serializer would have to emit IO from sync context. ``populate_existing``
+    # applies the freshly loaded rows to the identity-mapped instance.
     await session.exec(
         select(Task)
         .where(Task.id == new_task.id)
         .options(
             selectinload(Task.assignees),
-            tags_service.TAG_LINKS["task"].load_options(),
         )
         .execution_options(populate_existing=True)
     )
-    tags_service.annotate_tags([new_task])
+    await tags_service.annotate_tags(session, [new_task])
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
@@ -804,7 +800,6 @@ def _global_task_options():
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -843,7 +838,7 @@ async def _gather_global_task_reads(
         rows = list((await guild_session.exec(build_query(_guild_id))).all())
         tasks = [row[0] for row in rows]
         await _annotate_tasks(guild_session, tasks)
-        tags_service.annotate_tags(tasks)
+        await tags_service.annotate_tags(guild_session, tasks)
         _annotate_task_properties(tasks)
         # row[1] is the SQL-computed date_group, carried for the global sort.
         return [(_task_to_list_read(task), row[1]) for task, row in zip(tasks, rows)]
@@ -1225,7 +1220,9 @@ async def query_tasks_for_export(
         allowed_fields=_task_sort_fields(q.tz),
         default_sort=TASK_DEFAULT_SORT,
     )
-    return list(await session.exec(statement.limit(max_rows)))
+    tasks = list(await session.exec(statement.limit(max_rows)))
+    await tags_service.annotate_tags(session, tasks)
+    return tasks
 
 
 async def query_tasks_for_detailed_export(
@@ -1256,7 +1253,6 @@ async def query_tasks_for_detailed_export(
         selectinload(Task.project),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
     statement = apply_sorting(
         statement,
@@ -1266,6 +1262,7 @@ async def query_tasks_for_detailed_export(
         default_sort=TASK_DEFAULT_SORT,
     )
     tasks = list(await session.exec(statement.limit(max_rows)))
+    await tags_service.annotate_tags(session, tasks)
     comments = await _load_comments_for_tasks(session, [t.id for t in tasks if t.id])
     return tasks, comments
 
@@ -1442,7 +1439,6 @@ async def query_guild_tasks(
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -1458,7 +1454,7 @@ async def query_guild_tasks(
     result = await session.exec(statement)
     tasks = list(result.unique().all())
     await _annotate_tasks(session, tasks)
-    tags_service.annotate_tags(tasks)
+    await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
     return [_task_to_list_read(task) for task in tasks]
 
@@ -1566,7 +1562,6 @@ async def list_tasks(
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -1584,7 +1579,7 @@ async def list_tasks(
         session, statement, count_stmt, page, page_size
     )
     await _annotate_tasks(session, tasks)
-    tags_service.annotate_tags(tasks)
+    await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
     items = [_task_to_list_read(task) for task in tasks]
     return TaskListResponse(
@@ -1878,12 +1873,10 @@ async def update_task(
         await session.rollback()
         raise
 
-    # The services above issue bulk DELETEs on the junction/value rows, leaving
-    # the ORM-loaded collections stale. Expire them so ``session.add(task)``
-    # below doesn't cascade the now-deleted instances (they reload fresh in the
+    # The property service issues a bulk DELETE on the value rows, leaving the
+    # ORM-loaded collection stale. Expire it so ``session.add(task)`` below
+    # doesn't cascade the now-deleted instances (they reload fresh in the
     # populate_existing fetch that builds the response).
-    if tag_ids is not None:
-        session.expire(task, ["tag_links"])
     if property_values is not None:
         session.expire(task, ["property_values"])
 
@@ -1993,7 +1986,6 @@ async def duplicate_task(
         select(Task)
         .options(
             selectinload(Task.assignees),
-            selectinload(Task.tag_links),
             selectinload(Task.task_status),
         )
         .join(Task.project)
@@ -2491,8 +2483,8 @@ async def set_task_tags(
     await session.commit()
 
     # Single fetch with all relationships for the response —
-    # populate_existing so the identity-mapped task's tag_links refresh
-    # (expire_on_commit=False keeps the pre-write collection otherwise).
+    # populate_existing so the identity-mapped task's collections refresh
+    # (expire_on_commit=False keeps the pre-write ones otherwise).
     task = await _fetch_task(
         session, task_id_to_update, guild_context.guild_id, populate_existing=True
     )

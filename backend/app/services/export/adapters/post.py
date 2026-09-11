@@ -102,9 +102,7 @@ def _envelope(post: Post) -> dict[str, Any]:
         "schema_version": 1,
         "name": post.name,
         "body": post.body or {},
-        "tags": sorted(
-            link.tag.name for link in post.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in post.tags or []),
         "poll": _poll_envelope(post),
     }
 

@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -12,7 +11,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
     from app.models.tenant.property import CalendarEventPropertyValue
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.tag import Tag
 
 
 class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
@@ -68,10 +66,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    tag_links: List["CalendarEventTag"] = Relationship(
-        back_populates="calendar_event",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     property_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -121,21 +115,3 @@ class CalendarEventAttendee(SQLModel, table=True):
             "viewonly": True,
         }
     )
-
-
-class CalendarEventTag(SQLModel, table=True):
-    """Junction table linking calendar events to tags."""
-
-    __tablename__ = "calendar_event_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    calendar_event_id: int = Field(foreign_key="calendar_events.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    calendar_event: Optional[CalendarEvent] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="calendar_event_links")

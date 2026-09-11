@@ -33,7 +33,6 @@ from app.models.tenant.property import (
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.tenant.tag import ProjectTag, TaskTag
 from app.models.tenant.task import (
     Task,
     TaskAssignee,
@@ -57,6 +56,7 @@ from app.services.import_engine.common import (
     handle_key,
     resolve_property_definitions,
 )
+from app.services.tenant import tags as tags_service
 
 
 async def import_project(
@@ -178,7 +178,11 @@ async def import_project(
         else:
             tag_match_count += 1
         tag_name_to_id[t.name] = tag_id.id
-        session.add(ProjectTag(project_id=project.id, tag_id=tag_id.id))
+        session.add(
+            tags_service.tag_edge(
+                tags_service.TAG_LINKS["project"], project.id, tag_id.id
+            )
+        )
 
     # 4. Property definitions → (name, type) → id map (shared conventions:
     # match by name+type with option compatibility, rename on collision).
@@ -327,7 +331,7 @@ async def _import_task(
             )
             tid = resolved.id
             tag_name_to_id[task_tag.name] = tid
-        session.add(TaskTag(task_id=task.id, tag_id=tid))
+        session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
 
     # Assignees: match by handle against initiative members; drop misses
     seen_user_ids: set[int] = set()

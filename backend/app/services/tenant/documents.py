@@ -27,7 +27,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.tag import DocumentTag
 from app.models.tenant.project import Project
 from app.core.config import settings
 from app.core.tools import Tool
@@ -158,7 +157,6 @@ async def get_document(
                 ),
             ),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
             ),
@@ -176,6 +174,7 @@ async def get_document(
     result = await session.exec(statement)
     document = result.one_or_none()
     if document:
+        await tags_service.annotate_tags(session, [document])
         await annotate_comment_counts(session, [document])
     return document
 

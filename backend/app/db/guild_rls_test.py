@@ -277,6 +277,9 @@ _NO_SINGLE_PARENT = {
     # One tool, two parents: a link must clear the gate on BOTH documents, so
     # there is no single row to authorize against.
     "document_links": "source and target must both clear it",
+    # Two parents of any kind: an edge clears the gate on each end through
+    # relationship_endpoint_access, which asks each end's own entry here.
+    "relationships": "source and target must both clear it, whatever they are",
     # No sharing leg at all — see the registry for each.
     "event_outbox": "the change log is no tool's own table",
     "property_definitions": "initiative configuration, not a tool's content",

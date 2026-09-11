@@ -33,7 +33,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventTag,
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative
@@ -157,9 +156,15 @@ async def _notify_targets(user_ids: list[int]) -> list[User]:
 
 
 async def _exec_events(session, stmt) -> list[CalendarEvent]:
-    """Run a CalendarEvent select and return de-duplicated rows as a list."""
+    """Run a CalendarEvent select, de-duplicate, and carry each row's tags.
+
+    Every select of events goes through here, so this is the one place that
+    has to remember them — and it costs the page two queries, not one per row.
+    """
     result = await session.exec(stmt)
-    return list(result.unique().all())
+    events = list(result.unique().all())
+    await tags_service.annotate_tags(session, events)
+    return events
 
 
 def _cross_guild_event_dac_clause(guild_id: int, user_id: int) -> ColumnElement[bool]:
@@ -297,9 +302,6 @@ async def export_my_calendar_events_ics(
                 # async lazy loads would raise, so load them here. Attached
                 # documents are not on the row any more and are gathered per
                 # guild below, where the session is routed to read them.
-                selectinload(CalendarEvent.tag_links).selectinload(
-                    CalendarEventTag.tag
-                ),
                 selectinload(CalendarEvent.property_values).selectinload(
                     CalendarEventPropertyValue.property_definition
                 ),
@@ -311,6 +313,7 @@ async def export_my_calendar_events_ics(
 
         async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
             found = await _exec_events(guild_session, stmt)
+            await tags_service.annotate_tags(guild_session, found)
             # Read while this session is still routed to THIS guild — edges live
             # in its schema — and paired with their event on the way out, so
             # nothing downstream has to key them. Ids repeat across schemas.
@@ -421,7 +424,6 @@ def _calendar_event_loader_options():
         selectinload(CalendarEvent.calendar)
         .selectinload(Calendar.initiative)
         .selectinload(Initiative.memberships),
-        selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
         selectinload(CalendarEvent.property_values).selectinload(
             CalendarEventPropertyValue.property_definition
         ),
@@ -541,8 +543,7 @@ async def query_guild_calendar_events(
     )
     if limit is not None:
         stmt = stmt.limit(limit)
-    result = await session.exec(stmt)
-    return list(result.unique().all()), total_count
+    return await _exec_events(session, stmt), total_count
 
 
 @router.get("/", response_model=CalendarEventListResponse)

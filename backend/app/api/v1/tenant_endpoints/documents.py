@@ -15,7 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import delete as sa_delete, exists, func, text
+from sqlalchemy import delete as sa_delete, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -61,7 +61,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.tag import Tag, DocumentTag
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
@@ -93,6 +92,7 @@ from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import my_tools as my_tools_service
+from app.services.tenant import tags as tags_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
@@ -410,28 +410,16 @@ def _build_visible_docs_filters(
     if name_match is not None:
         conditions.append(name_match)
 
+    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
     if tag_ids:
-        tag_subquery = (
-            select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(
-                DocumentTag.tag_id.in_(tuple(tag_ids)),
-                Tag.guild_id == guild_id,
+        conditions.append(
+            Document.id.in_(
+                tags_service.tagged_entity_ids(spec, tuple(tag_ids), guild_id=guild_id)
             )
-            .distinct()
         )
-        conditions.append(Document.id.in_(tag_subquery))
 
     if untagged:
-        # Join Tag so a document whose only tags are trashed counts as
-        # untagged — consistent with every read path that joins Tag.
-        tagged_subquery = (
-            select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(DocumentTag.document_id == Document.id)
-            .correlate(Document)
-        )
-        conditions.append(~exists(tagged_subquery))
+        conditions.append(tags_service.untagged_clause(spec, Document.id))
 
     return conditions
 
@@ -508,7 +496,6 @@ async def _list_global_documents(
                     ),
                 ),
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
-                selectinload(Document.tag_links).selectinload(DocumentTag.tag),
                 selectinload(Document.property_values).selectinload(
                     DocumentPropertyValue.property_definition
                 ),
@@ -518,6 +505,7 @@ async def _list_global_documents(
             )
         )
         documents = list((await guild_session.exec(statement)).unique().all())
+        await tags_service.annotate_tags(guild_session, documents)
         await documents_service.annotate_comment_counts(guild_session, documents)
         attached = await _document_projects(guild_session, documents)
         return [
@@ -584,30 +572,21 @@ async def get_document_counts(
     total_stmt = select(func.count()).select_from(visible_docs_subq)
     total_count = (await session.exec(total_stmt)).one()
 
-    # Per-tag counts (join Tag to enforce guild scoping)
-    tag_count_stmt = (
-        select(DocumentTag.tag_id, func.count(DocumentTag.document_id))
-        .join(Tag, Tag.id == DocumentTag.tag_id)
-        .where(
-            DocumentTag.document_id.in_(select(visible_docs_subq.c.id)),
-            Tag.guild_id == guild_context.guild_id,
+    # Per-tag counts. Guild scoping needs no clause of its own — a tag of
+    # another guild lives in another schema, which this query cannot reach.
+    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
+    tag_rows = (
+        await session.exec(
+            tags_service.tag_counts_for(spec, select(visible_docs_subq.c.id))
         )
-        .group_by(DocumentTag.tag_id)
-    )
-    tag_rows = (await session.exec(tag_count_stmt)).all()
+    ).all()
     tag_counts = {tag_id: count for tag_id, count in tag_rows}
 
     # Untagged count
     untagged_stmt = (
         select(func.count())
         .select_from(visible_docs_subq)
-        .where(
-            ~select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(DocumentTag.document_id == visible_docs_subq.c.id)
-            .correlate(visible_docs_subq)
-            .exists()
-        )
+        .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
     )
     untagged_count = (await session.exec(untagged_stmt)).one()
 
@@ -793,7 +772,6 @@ async def list_documents(
                 ),
             ),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
             ),
@@ -812,6 +790,7 @@ async def list_documents(
     result = await session.exec(stmt)
     documents = result.unique().all()
 
+    await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     attached = await _document_projects(session, documents)
     items = [

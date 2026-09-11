@@ -9,7 +9,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
@@ -109,7 +109,7 @@ def serialize_calendar_summary(
             else None
         ),
         comments_enabled=calendar.comments_enabled,
-        tags=tag_summaries(getattr(calendar, "tag_links", None)),
+        tags=annotated_tags(calendar),
         grants=serialize_grants(calendar),
     )
 

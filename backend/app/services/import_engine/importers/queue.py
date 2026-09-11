@@ -14,11 +14,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.queue import Queue, QueueItem, QueueItemTag
+from app.models.tenant.queue import Queue, QueueItem
 from app.schemas.tenant.import_envelopes import QueueEnvelope
 from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.importers._base import parse_envelope
+from app.services.tenant import tags as tags_service
 
 
 class QueueImporter:
@@ -112,7 +113,11 @@ class QueueImporter:
                     tags_created += 1
                 else:
                     tags_matched += 1
-                session.add(QueueItemTag(queue_item_id=row.id, tag_id=resolved.id))
+                session.add(
+                    tags_service.tag_edge(
+                        tags_service.TAG_LINKS["queue_item"], row.id, resolved.id
+                    )
+                )
 
         if current_item_id is not None:
             queue.current_item_id = current_item_id

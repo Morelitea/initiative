@@ -22,7 +22,6 @@ from app.core.user_display import handle_of
 from app.core.version import get_version
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyType, TaskPropertyValue
-from app.models.tenant.tag import ProjectTag, TaskTag
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
@@ -35,6 +34,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectExportTaskStatus,
 )
+from app.services.tenant import tags as tags_service
 
 
 async def build_project_export(
@@ -53,12 +53,8 @@ async def build_project_export(
         .where(Project.id == project_id)
         .options(
             selectinload(Project.task_statuses),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.tasks).selectinload(Task.task_status),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks)
-            .selectinload(Task.tag_links)
-            .selectinload(TaskTag.tag),
             selectinload(Project.tasks)
             .selectinload(Task.property_values)
             .selectinload(TaskPropertyValue.property_definition),
@@ -68,13 +64,14 @@ async def build_project_export(
         )
     )
     project = (await session.exec(stmt)).one()
+    await tags_service.annotate_tags(session, [project])
+    await tags_service.annotate_tags(session, project.tasks or [])
 
     # Project-level tag set
     project_tags: list[ProjectExportTag] = []
     seen_tag_names: set[str] = set()
-    for link in project.tag_links or []:
-        tag = link.tag
-        if tag is None or tag.name in seen_tag_names:
+    for tag in project.tags or []:
+        if tag.name in seen_tag_names:
             continue
         seen_tag_names.add(tag.name)
         project_tags.append(ProjectExportTag(name=tag.name, color=tag.color))
@@ -122,12 +119,10 @@ async def build_project_export(
 
         task_tags: list[ProjectExportTag] = []
         seen_task_tags: set[str] = set()
-        for link in task.tag_links or []:
-            if link.tag and link.tag.name not in seen_task_tags:
-                seen_task_tags.add(link.tag.name)
-                task_tags.append(
-                    ProjectExportTag(name=link.tag.name, color=link.tag.color)
-                )
+        for tag in task.tags or []:
+            if tag.name not in seen_task_tags:
+                seen_task_tags.add(tag.name)
+                task_tags.append(ProjectExportTag(name=tag.name, color=tag.color))
 
         assignee_handles = [handle_of(u) for u in (task.assignees or [])]
 

@@ -305,6 +305,7 @@ async def list_dashboards(
     )
     result = await session.exec(stmt)
     dashboards = result.unique().all()
+    await tags_service.annotate_tags(session, dashboards)
 
     items = [
         serialize_dashboard_summary(d, user_id=current_user.id) for d in dashboards

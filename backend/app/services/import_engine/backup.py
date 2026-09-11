@@ -53,6 +53,7 @@ from app.schemas.tenant.import_job import (
 )
 from app.services.import_engine.common import unique_name
 from app.services.import_engine.contract import ImportEngineError
+from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
@@ -369,7 +370,6 @@ async def _apply_file_entry(
     from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-    from app.models.tenant.tag import DocumentTag
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
     from app.services.import_engine.common import (
@@ -432,7 +432,13 @@ async def _apply_file_entry(
                     name=tag_name,
                     color="#6b7280",
                 )
-                session.add(DocumentTag(document_id=document.id, tag_id=resolved.id))
+                session.add(
+                    tags_service.tag_edge(
+                        tags_service.TAG_LINKS["document"],
+                        document.id,
+                        resolved.id,
+                    )
+                )
             if entry.properties:
                 values = [
                     EnvelopePropertyValue.model_validate(p) for p in entry.properties

@@ -9,7 +9,7 @@ from app.core.relationships import Related
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -226,7 +226,7 @@ def serialize_queue_item(
         notes=item.notes,
         is_visible=item.is_visible,
         held_at_round=item.held_at_round,
-        tags=tag_summaries(getattr(item, "tag_links", None)),
+        tags=annotated_tags(item),
         documents=_serialize_queue_item_documents(documents),
         tasks=_serialize_queue_item_tasks(tasks),
         created_at=item.created_at,
@@ -256,7 +256,7 @@ def serialize_queue_summary(
         updated_at=queue.updated_at,
         my_permission_level=my_permission_level,
         comments_enabled=queue.comments_enabled,
-        tags=tag_summaries(getattr(queue, "tag_links", None)),
+        tags=annotated_tags(queue),
         grants=serialize_grants(queue),
     )
 

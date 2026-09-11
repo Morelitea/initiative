@@ -110,6 +110,22 @@ TRANSITIVE_TYPES: frozenset[RelationshipType] = frozenset(
     t for t, spec in SPECS.items() if spec.transitive
 )
 
+#: What each primitive is called when a change to it is reported against the
+#: thing it describes — the label an outbox event carries in ``changed``.
+#:
+#: The name comes from the PRIMITIVE rather than from the table, which is what
+#: lets storage move without a subscriber noticing: a junction named
+#: ``task_tags`` derived ``tags`` from its own name, and a ``tagged_with`` edge
+#: says ``tags`` because that is what the relation is, wherever it is kept.
+FACETS: dict[RelationshipType, str] = {
+    RelationshipType.attached: "attachments",
+    RelationshipType.depends_on: "dependencies",
+    RelationshipType.part_of: "parts",
+    RelationshipType.tagged_with: "tags",
+    RelationshipType.related_to: "relationships",
+}
+
+
 #: Finer words for an edge that obeys its primitive's rule — ``impeded_by``
 #: under ``depends_on``, ``uses`` under ``attached``. A subtype is a word the UI
 #: may show and a feature a scorer may read; rules, adjacency weights and the
@@ -220,6 +236,16 @@ def node_id(kind: SearchEntityType, entity_id: int) -> int:
     Python agree by construction rather than by convention.
     """
     return (ENDPOINT_KINDS[kind].code << NODE_ID_SHIFT) | entity_id
+
+
+def node_base(kind: SearchEntityType) -> int:
+    """The high half of every node id of one kind.
+
+    What a SQL expression adds an id column to, so a query can ask the indexed
+    ``*_node`` column about a whole table's worth of rows without the database
+    having to see through a two-column encoding it has no index for.
+    """
+    return ENDPOINT_KINDS[kind].code << NODE_ID_SHIFT
 
 
 def decode_node_id(value: int) -> tuple[SearchEntityType, int]:

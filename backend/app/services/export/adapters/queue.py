@@ -268,4 +268,4 @@ def _member(item: QueueItem) -> str | None:
 
 
 def _tags(item: QueueItem) -> list[str]:
-    return sorted(link.tag.name for link in item.tag_links if link.tag is not None)
+    return sorted(tag.name for tag in item.tags or [])

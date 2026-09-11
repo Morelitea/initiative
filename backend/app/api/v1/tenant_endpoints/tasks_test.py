@@ -1539,9 +1539,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     # Eager-load every relationship the helper touches so the
     # subsequent ``_advance_recurrence_if_needed`` call doesn't trip
     # SQLAlchemy's async-greenlet guard on a lazy load.
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     # Simulate the user completing the task at ~9pm Los Angeles on the
     # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
@@ -1630,9 +1628,7 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     )
     session.add(task)
     await session.commit()
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     # Complete on Sunday 2026-03-08 (US spring-forward day), late
     # morning LA so ``now_local`` is firmly in PDT. The composed
@@ -1694,7 +1690,6 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     from datetime import datetime, timezone
 
     from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-    from app.models.tenant.tag import TaskTag
     from app.models.tenant.task import Task, TaskStatusCategory
     from app.services.tenant import tags as tags_service
     from app.testing.factories import create_tag, create_task, create_task_status
@@ -1723,9 +1718,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         tag_ids=[tag.id],
     )
     await session.commit()
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
@@ -1757,12 +1750,10 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         )
     ).first()
     assert new_task is not None
-    copied = (
-        await session.exec(
-            _select(TaskTag.tag_id).where(TaskTag.task_id == new_task.id)
-        )
-    ).all()
-    assert list(copied) == [tag_id]
+    copied = await tags_service.active_tag_ids(
+        session, tags_service.TAG_LINKS["task"], new_task.id
+    )
+    assert copied == [tag_id]
 
 
 @pytest.mark.integration
