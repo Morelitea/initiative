@@ -68,8 +68,6 @@ from app.models.tenant.calendar import (  # noqa: E402
 from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
-    CalendarEventTag,
     RSVPStatus,
 )
 from app.models.tenant.comment import Comment  # noqa: E402
@@ -83,7 +81,6 @@ from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.platform.access_grant import (  # noqa: E402
     AccessGrant,
@@ -99,7 +96,6 @@ from app.models.platform.guild import (  # noqa: E402
 from app.models.tenant.queue import (  # noqa: E402
     Queue,
     QueueItem,
-    QueueItemTag,
 )
 from app.models.tenant.guild_setting import GuildSetting  # noqa: E402
 from app.models.tenant.initiative import (  # noqa: E402
@@ -124,7 +120,7 @@ from app.models.tenant.property import (  # noqa: E402
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.tenant.post import Post, PostTag  # noqa: E402
+from app.models.tenant.post import Post  # noqa: E402
 from app.models.tenant.post_poll import (  # noqa: E402
     PostPoll,
     PostPollOption,
@@ -134,15 +130,16 @@ from app.models.tenant.post_read import PostRead  # noqa: E402
 from app.models.tenant.gallery import (  # noqa: E402
     Gallery,
     GalleryImage,
-    GalleryImageTag,
     GalleryImageVersion,
-    GalleryTag,
 )
 from app.models.tenant.upload import Upload  # noqa: E402
 from app.services.storage import get_guild_storage  # noqa: E402
 from app.services.tenant import galleries as galleries_service  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
-from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
+from app.core.relationships import node_id  # noqa: E402
+from app.core.search import SearchEntityType  # noqa: E402
+from app.models.tenant.relationship import EntityRelationship  # noqa: E402
+from app.models.tenant.tag import Tag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
     Task,
     TaskAssignee,
@@ -172,6 +169,56 @@ STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids
 
 # Consistent "now" for seeding
 NOW = datetime.now(timezone.utc)
+
+
+def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
+    """A tag assignment, as the edge the app stores.
+
+    ``tagged_with`` is directional — a tag is a label, so the edge describes the
+    thing carrying it — which is why the tagged entity is always the source.
+    ``guild_id`` is stated rather than left to the table's trigger: a tenant
+    write has to be routable when it is added, and the tag knows its guild.
+    """
+    return EntityRelationship(
+        source_type=kind,
+        source_id=entity_id,
+        relationship_type="tagged_with",
+        target_type="tag",
+        target_id=tag.id,
+        provenance="manual",
+        guild_id=tag.guild_id,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def _attachment_edge(
+    first: tuple[str, int],
+    second: tuple[str, int],
+    *,
+    guild_id: int,
+    created_by: int | None = None,
+) -> EntityRelationship:
+    """Two things placed together, as the edge the app stores.
+
+    ``attached`` is symmetric — it describes the pair, not either end — so it is
+    stored once with the lower node id as source, which is what the table's own
+    CHECK constraint requires. Ordering here rather than at the call sites keeps
+    every one of them free to name its two ends in whichever order reads best.
+    """
+    source, target = sorted(
+        (first, second), key=lambda end: node_id(SearchEntityType(end[0]), end[1])
+    )
+    return EntityRelationship(
+        source_type=source[0],
+        source_id=source[1],
+        relationship_type="attached",
+        target_type=target[0],
+        target_id=target[1],
+        provenance="manual",
+        guild_id=guild_id,
+        created_by=created_by,
+        created_at=datetime.now(timezone.utc),
+    )
 
 
 def _round(days: int) -> datetime:
@@ -1329,8 +1376,7 @@ async def _link_task_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            tt = TaskTag(task_id=task.id, tag_id=tag.id)
-            session.add(tt)
+            session.add(_tag_edge("task", task.id, tag))
             ids.add("task_tags", {"task_id": task.id, "tag_id": tag.id})
     await session.flush()
 
@@ -1346,8 +1392,7 @@ async def _link_project_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            pt = ProjectTag(project_id=proj_id, tag_id=tag.id)
-            session.add(pt)
+            session.add(_tag_edge("project", proj_id, tag))
             ids.add("project_tags", {"project_id": proj_id, "tag_id": tag.id})
     await session.flush()
 
@@ -1467,13 +1512,14 @@ async def _link_doc_projects(
     links: list[tuple[int, int, User]],
 ) -> None:
     for proj_id, doc_id, user in links:
-        pd = ProjectDocument(
-            project_id=proj_id,
-            document_id=doc_id,
-            guild_id=guild.id,
-            attached_by_id=user.id,
+        session.add(
+            _attachment_edge(
+                ("project", proj_id),
+                ("document", doc_id),
+                guild_id=guild.id,
+                created_by=user.id,
+            )
         )
-        session.add(pd)
         ids.add("project_documents", {"project_id": proj_id, "document_id": doc_id})
     await session.flush()
 
@@ -1493,8 +1539,7 @@ async def _link_doc_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            dt = DocumentTag(document_id=doc.id, tag_id=tag.id)
-            session.add(dt)
+            session.add(_tag_edge("document", doc.id, tag))
             ids.add("document_tags", {"document_id": doc.id, "tag_id": tag.id})
     await session.flush()
 
@@ -1818,11 +1863,7 @@ async def _create_queues(
             for tag_name in item_def.get("tags", []):
                 tag = tags.get(tag_name)
                 if tag:
-                    qit = QueueItemTag(
-                        queue_item_id=qi.id,
-                        tag_id=tag.id,
-                    )
-                    session.add(qit)
+                    session.add(_tag_edge("queue_item", qi.id, tag))
                     ids.add(
                         "queue_item_tags",
                         {
@@ -2303,11 +2344,7 @@ async def _create_calendar_events(
             tag = tags.get(tag_name)
             if tag is None:
                 continue
-            link = CalendarEventTag(
-                calendar_event_id=event.id,
-                tag_id=tag.id,
-            )
-            session.add(link)
+            session.add(_tag_edge("calendar_event", event.id, tag))
             ids.add(
                 "calendar_event_tags",
                 {
@@ -2321,13 +2358,14 @@ async def _create_calendar_events(
             doc = documents.get(doc_title)
             if doc is None:
                 continue
-            link = CalendarEventDocument(
-                calendar_event_id=event.id,
-                document_id=doc.id,
-                guild_id=guild.id,
-                attached_by_id=creator.id,
+            session.add(
+                _attachment_edge(
+                    ("calendar_event", event.id),
+                    ("document", doc.id),
+                    guild_id=guild.id,
+                    created_by=creator.id,
+                )
             )
-            session.add(link)
             ids.add(
                 "calendar_event_documents",
                 {
@@ -2430,7 +2468,7 @@ async def _create_posts(
         for tag_name in pd.get("tags", []):
             tag = tags.get(tag_name)
             if tag is not None:
-                session.add(PostTag(post_id=post.id, tag_id=tag.id))
+                session.add(_tag_edge("post", post.id, tag))
                 ids.add("post_tags", (post.id, tag.id))
 
         # Receipts. Never the author's — the roster counts who a notice
@@ -2555,7 +2593,7 @@ async def _create_galleries(
         for tag_name in gd.get("tags", []):
             tag = tags.get(tag_name)
             if tag is not None:
-                session.add(GalleryTag(gallery_id=gallery.id, tag_id=tag.id))
+                session.add(_tag_edge("gallery", gallery.id, tag))
                 ids.add("gallery_tags", (gallery.id, tag.id))
 
         cover_title = gd.get("cover")
@@ -2665,9 +2703,7 @@ async def _create_galleries(
             for tag_name in im.get("tags", []):
                 tag = tags.get(tag_name)
                 if tag is not None:
-                    session.add(
-                        GalleryImageTag(gallery_image_id=image.id, tag_id=tag.id)
-                    )
+                    session.add(_tag_edge("gallery_image", image.id, tag))
                     ids.add("gallery_image_tags", (image.id, tag.id))
             if cover_title and im.get("title") == cover_title:
                 gallery.cover_image_id = image.id
