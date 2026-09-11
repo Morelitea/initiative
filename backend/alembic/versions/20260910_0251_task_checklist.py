@@ -16,8 +16,8 @@ Item ids are minted here rather than derived from the old row ids: an id is
 addressed by a tick, and a small integer that used to mean something else is a
 worse name for that than a fresh one.
 
-Revision ID: 20260910_0250
-Revises: 20260910_0249
+Revision ID: 20260910_0251
+Revises: 20260910_0250
 Create Date: 2026-09-10
 """
 
@@ -28,8 +28,8 @@ from alembic import op
 
 from app.db.guild_migrations import guild_schema_names
 
-revision = "20260910_0250"
-down_revision = "20260910_0249"
+revision = "20260910_0251"
+down_revision = "20260910_0250"
 branch_labels = None
 depends_on = None
 
@@ -71,6 +71,34 @@ _CARRY_BACK = """
                       WITH ORDINALITY AS entry(elem, ord)
      WHERE entry.elem->>'text' IS NOT NULL
 """
+
+
+#: The request's user, as the shared-table policies spell it.
+_USER_ID = "NULLIF(current_setting('app.current_user_id', true), '')::integer"
+
+
+def _member_policy(*, write: bool) -> str:
+    """The predicate the four `initiative_member_*` policies on ``subtasks``
+    carried, for the downgrade to put back.
+
+    A line is reachable through its task's project: the initiative gate, then
+    that initiative's tool setting and the project's own sharing. Written out
+    rather than rendered from the registry, because a migration has to keep
+    saying the same thing after the renderer moves on. Names are unqualified
+    and resolve through the per-schema ``search_path``, as the rendered ones do.
+    """
+    need = "true" if write else "false"
+    return (
+        "(EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
+        f"WHERE tk.id = subtasks.task_id "
+        f"AND initiative_access(pr.initiative_id, {_USER_ID}, {need}))) "
+        "AND (EXISTS (SELECT 1 FROM tasks dmid JOIN projects dpar "
+        "ON dpar.id = dmid.project_id WHERE dmid.id = subtasks.task_id "
+        f"AND initiative_role_permits(dpar.initiative_id, {_USER_ID}, "
+        "'projects_enabled', true) "
+        f"AND resource_access('project', dpar.id, {_USER_ID}, "
+        f"dpar.initiative_id, {need})))"
+    )
 
 
 def _route(connection, schema: str) -> None:
@@ -134,10 +162,12 @@ def downgrade() -> None:
     without them, and ``guild_id`` is ``NOT NULL``. The capture trigger is
     rendered from the registry instead and does come back on its own.
 
-    Row-level security is enabled here for the same reason and its policies
-    arrive on the next boot, from the registry that names ``subtasks`` again in
-    the code being downgraded to. Per-item authorship does not come back — the
-    column never carried it.
+    Row-level security and its four ``initiative_member_*`` policies are put
+    back here too, rather than left to the next boot's provisioning sweep: a
+    table with row-level security enabled and no policy on it is readable by
+    nobody, and a downgrade has to leave a working database rather than one
+    that works after the next restart. Per-item authorship does not come back —
+    the column never carried it.
     """
     connection = op.get_bind()
     lines_carried = 0
@@ -206,6 +236,24 @@ def downgrade() -> None:
         # is the role this runs as.
         op.execute("ALTER TABLE subtasks ENABLE ROW LEVEL SECURITY")
         op.execute("ALTER TABLE subtasks FORCE ROW LEVEL SECURITY")
+        for command, using, check in (
+            ("SELECT", _member_policy(write=False), None),
+            ("INSERT", None, _member_policy(write=True)),
+            ("UPDATE", _member_policy(write=True), _member_policy(write=True)),
+            ("DELETE", _member_policy(write=True), None),
+        ):
+            name = f"initiative_member_{command.lower()}"
+            clauses = "".join(
+                part
+                for part in (
+                    f" USING ({using})" if using else "",
+                    f" WITH CHECK ({check})" if check else "",
+                )
+            )
+            op.execute(
+                f"CREATE POLICY {name} ON subtasks AS PERMISSIVE "
+                f"FOR {command} TO PUBLIC{clauses}"
+            )
 
         op.execute("ALTER TABLE tasks DROP COLUMN checklist")
 
