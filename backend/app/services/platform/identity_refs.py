@@ -17,11 +17,12 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.guild import Guild
 from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
     REF_MAX_LENGTH,
@@ -38,6 +39,7 @@ __all__ = [
     "drop_sector_refs",
     "ensure_ref",
     "mint_ref",
+    "purge_orphaned_sector_refs",
     "purge_retired_refs",
     "reissue_all_refs",
     "reissue_ref",
@@ -313,6 +315,23 @@ async def drop_sector_refs(
     if sector_id is not None:
         clause = and_(clause, IdentityRef.sector_id == sector_id)
     result = await session.exec(delete(IdentityRef).where(clause))
+    return result.rowcount or 0
+
+
+async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
+    """Drop references whose sector guild no longer exists. Returns the count.
+
+    The sector columns cannot be foreign keys, so a guild's references are
+    removed by the deletion path rather than by a cascade. This reclaims the
+    ones that path did not manage to remove — it runs after the deletion has
+    committed, where there is nothing left to roll back.
+    """
+    result = await session.exec(
+        delete(IdentityRef).where(
+            IdentityRef.sector_guild_id.is_not(None),
+            ~exists(select(Guild.id).where(Guild.id == IdentityRef.sector_guild_id)),
+        )
+    )
     return result.rowcount or 0
 
 

@@ -28,6 +28,10 @@ its caller composes it with a guild-routed read in the same transaction.
 
 from __future__ import annotations
 
+import logging
+
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.db import session as db_session
 from app.models.platform.identity_ref import (
     REF_MAX_LENGTH,
@@ -40,6 +44,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 __all__ = [
     "REF_MAX_LENGTH",
+    "forget_guild",
     "ensure_app_guild_ref",
     "resolve_app_guild_ref",
     "drop_guild_app_refs",
@@ -49,6 +54,8 @@ __all__ = [
     "reissue_install_refs",
     "resolve_app_ref",
 ]
+
+logger = logging.getLogger(__name__)
 
 _PURPOSE = IdentityPurpose.app
 
@@ -190,3 +197,21 @@ async def drop_guild_app_refs(*, guild_id: int) -> int:
         )
         await session.commit()
     return dropped
+
+
+async def forget_guild(*, guild_id: int) -> None:
+    """Drop a deleted guild's references, reporting rather than raising.
+
+    Called after the deletion has committed, so there is nothing left to roll
+    back and a failure here must not fail the request. It is logged with the
+    guild, and what it leaves behind is reclaimed by
+    ``identity_refs.purge_orphaned_sector_refs``.
+    """
+    try:
+        await drop_guild_app_refs(guild_id=guild_id)
+    except SQLAlchemyError:
+        logger.warning(
+            "app refs: references for deleted guild %s were not removed; "
+            "the orphan sweep will reclaim them",
+            guild_id,
+        )

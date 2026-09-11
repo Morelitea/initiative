@@ -4,7 +4,6 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from sqlalchemy.exc import SQLAlchemyError
 from fastapi import (
     APIRouter,
     Depends,
@@ -518,8 +517,7 @@ async def create_guild(
             stale_id = stale.id
             await guilds_service.delete_guild(session, stale)
             await session.commit()
-            with suppress(SQLAlchemyError):
-                await app_refs.drop_guild_app_refs(guild_id=stale_id)
+            await app_refs.forget_guild(guild_id=stale_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
@@ -1124,8 +1122,7 @@ async def delete_guild(
     await session.commit()
     # See delete_guild: these live on another connection, so they go after the
     # commit that made the deletion real.
-    with suppress(SQLAlchemyError):
-        await app_refs.drop_guild_app_refs(guild_id=guild_id)
+    await app_refs.forget_guild(guild_id=guild_id)
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )

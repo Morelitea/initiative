@@ -117,12 +117,14 @@ async def _authenticate_auto_delegation(
       1. Token verifies (signature, audience, issuer, required claims).
       2. ``jti`` is not in the blocklist — first presentation only.
 
-    A verified token also pins the request's guild context to the token's
-    ``guild_id`` claim (via ``request.state.delegated_guild_id``): delegation
-    tokens are minted for exactly one guild, and a machine caller has no
-    guild context of its own to resolve from. The claim is validated against
-    the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
-    auto workflow always acts in the guild its token was issued for.
+    A verified token also pins the request's guild context. The token names its
+    guild by a ``guild_ref`` claim — the reference the app was given, not a row
+    id — which is resolved here to the guild it stands for and put on
+    ``request.state.delegated_guild_id``: delegation tokens are minted for
+    exactly one guild, and a machine caller has no guild context of its own to
+    resolve from. The resolved guild is validated against the user's memberships
+    and must agree with the ``/g/{guild_id}`` path, so an auto workflow always
+    acts in the guild its token was issued for.
     """
     if not delegation_possible():
         return None  # no app platform here — let other auth paths run
