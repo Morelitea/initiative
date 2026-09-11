@@ -43,6 +43,7 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -141,6 +142,15 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     )
 
 
+async def _install_guild_ref(app: GuildApp) -> str:
+    """What this install calls the guild it is in.
+
+    Every payload on this channel names the guild by it, because it is the only
+    name the app on the other end has for it.
+    """
+    return await ensure_app_guild_ref(guild_id=app.guild_id, app_install_id=app.id)
+
+
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
     await set_rls_context(session)
     return (await session.exec(select(Guild).where(Guild.id == guild_id))).first()
@@ -173,15 +183,19 @@ async def install_summaries(
             )
         ).all()
         summaries.extend(
-            _summarize(app) for app in rows if owns_install(app, registration)
+            [
+                _summarize(app, await _install_guild_ref(app))
+                for app in rows
+                if owns_install(app, registration)
+            ]
         )
     return summaries
 
 
-def _summarize(app: GuildApp) -> dict[str, Any]:
+def _summarize(app: GuildApp, guild_ref: str) -> dict[str, Any]:
     """One install as the app is told about it.
 
-    Ids and state only: which guild, which install, which version it is pinned
+    Names and state only: which guild, which install, which version it is pinned
     to, and whether it is live. Nothing about who is in the guild, and nothing
     about what anyone configured — those are the config and connections
     channels, addressed one guild at a time.
@@ -189,7 +203,7 @@ def _summarize(app: GuildApp) -> dict[str, Any]:
     state = app_config_service.config_state(app)
     return {
         "install_id": app.id,
-        "guild_id": app.guild_id,
+        "guild_ref": guild_ref,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
         "name": app.name,
@@ -296,7 +310,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
 
     state = app_config_service.config_state(app)
     return {
-        "guild_id": app.guild_id,
+        "guild_ref": await _install_guild_ref(app),
         "install_id": app.id,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
@@ -463,7 +477,7 @@ async def report_config_state(
     await session.commit()
     await session.refresh(app)
     return {
-        "guild_id": app.guild_id,
+        "guild_ref": await _install_guild_ref(app),
         "install_id": app.id,
         "config_state": app.config_state,
         "config_state_detail": app.config_state_detail,

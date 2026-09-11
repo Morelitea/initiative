@@ -173,6 +173,22 @@ async def _member_connection(
     return row
 
 
+#: A reference this deployment never minted, for the routes that must not
+#: answer to one.
+UNKNOWN_REF = "gapp_noinstallholdsthis"
+
+
+async def _ref(guild, app) -> str:
+    """What this install calls its guild — how an app addresses these routes.
+
+    An app never holds our row id, so a test that calls the channel has to
+    address it the way a real caller does.
+    """
+    from app.services.marketplace.app_refs import ensure_app_guild_ref
+
+    return await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
+
+
 async def _get(client: AsyncClient, path: str, *, query: str = "", **kwargs):
     """A signed GET. ``query`` is given without its ``?`` and is signed along
     with the path, the way a caller sending parameters would."""
@@ -243,7 +259,7 @@ class TestInstalls:
         assert response.status_code == 200, response.text
         items = response.json()["items"]
         assert len(items) == 1
-        assert items[0]["guild_id"] == guild.id
+        assert items[0]["guild_ref"] == await _ref(guild, app)
         assert items[0]["install_id"] == app.id
         assert items[0]["listing_version"] == "1.0.0"
         assert items[0]["enabled"] is True
@@ -255,7 +271,7 @@ class TestInstalls:
         self, client: AsyncClient, session: AsyncSession
     ):
         await register_app_service(session, listing_uid=SHOP_UID)
-        mine, _, _ = await _install(session)
+        mine, _, mine_app = await _install(session)
         await _install(
             session,
             definition=_definition("tests.other"),
@@ -265,7 +281,9 @@ class TestInstalls:
         response = await _get(client, f"{BASE}/installs")
 
         assert response.status_code == 200, response.text
-        assert [item["guild_id"] for item in response.json()["items"]] == [mine.id]
+        assert [item["guild_ref"] for item in response.json()["items"]] == [
+            await _ref(mine, mine_app)
+        ]
 
     async def test_an_install_pinning_another_apps_definition_is_not_ours(
         self, client: AsyncClient, session: AsyncSession
@@ -308,7 +326,9 @@ class TestConfigChannel:
         guild, user, app = await _install(session, with_values=True)
         await _member_connection(session, guild=guild, app=app, user=user)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/config"
+        )
 
         assert response.status_code == 200, response.text
         body = response.json()
@@ -332,7 +352,9 @@ class TestConfigChannel:
         guild, user, app = await _install(session, with_values=True)
         await _member_connection(session, guild=guild, app=app, user=user, blocked=True)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/config"
+        )
 
         assert response.status_code == 200, response.text
         assert response.json()["member_connections"] == []
@@ -343,14 +365,16 @@ class TestConfigChannel:
         """The whole point of the channel: one app's credentials are not
         reachable by another, and the refusal says nothing about what is there."""
         await register_app_service(session, listing_uid=SHOP_UID)
-        theirs, _, _ = await _install(
+        theirs, _, theirs_app = await _install(
             session,
             definition=_definition("tests.other"),
             listing_uid=OTHER_UID,
             with_values=True,
         )
 
-        response = await _get(client, f"{BASE}/installs/{theirs.id}/config")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(theirs, theirs_app)}/config"
+        )
 
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
@@ -361,9 +385,9 @@ class TestConfigChannel:
     ):
         await register_app_service(session, listing_uid=SHOP_UID)
         user = await create_user(session)
-        bare = await create_guild(session, creator=user)
+        await create_guild(session, creator=user)
 
-        response = await _get(client, f"{BASE}/installs/{bare.id}/config")
+        response = await _get(client, f"{BASE}/installs/{UNKNOWN_REF}/config")
 
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
@@ -373,7 +397,7 @@ class TestConfigChannel:
     ):
         await register_app_service(session, listing_uid=SHOP_UID)
 
-        response = await _get(client, f"{BASE}/installs/999999/config")
+        response = await _get(client, f"{BASE}/installs/{UNKNOWN_REF}/config")
 
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
@@ -384,9 +408,11 @@ class TestConfigChannel:
         """The guild's own switch stops the pull, exactly as the operator's
         does — a disabled app holds no live credential channel."""
         await register_app_service(session, listing_uid=SHOP_UID)
-        guild, _, _ = await _install(session, with_values=True, enabled=False)
+        guild, _, app = await _install(session, with_values=True, enabled=False)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/config"
+        )
 
         assert response.status_code == 409
         assert response.json()["detail"] == AppChannelMessages.INSTALL_DISABLED
@@ -396,9 +422,11 @@ class TestConfigChannel:
         self, client: AsyncClient, session: AsyncSession
     ):
         await register_app_service(session, listing_uid=SHOP_UID, enabled=False)
-        guild, _, _ = await _install(session, with_values=True)
+        guild, _, app = await _install(session, with_values=True)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/config"
+        )
 
         assert response.status_code == 403
         assert response.json()["detail"] == AppChannelMessages.APP_DISABLED
@@ -418,7 +446,9 @@ class TestConnectionsChannel:
         guild, user, app = await _install(session, with_values=True)
         await _member_connection(session, guild=guild, app=app, user=user)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/connections")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/connections"
+        )
 
         assert response.status_code == 200, response.text
         items = response.json()["items"]
@@ -439,7 +469,9 @@ class TestConnectionsChannel:
         guild, user, app = await _install(session)
         await _member_connection(session, guild=guild, app=app, user=user)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/connections")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/connections"
+        )
 
         assert response.status_code == 200, response.text
         assert "user_id" not in response.text
@@ -457,7 +489,9 @@ class TestConnectionsChannel:
         guild, user, app = await _install(session)
         await _member_connection(session, guild=guild, app=app, user=user, blocked=True)
 
-        response = await _get(client, f"{BASE}/installs/{guild.id}/connections")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(guild, app)}/connections"
+        )
 
         assert response.status_code == 200, response.text
         assert response.json()["items"][0]["blocked"] is True
@@ -471,7 +505,9 @@ class TestConnectionsChannel:
         )
         await _member_connection(session, guild=theirs, app=app, user=user)
 
-        response = await _get(client, f"{BASE}/installs/{theirs.id}/connections")
+        response = await _get(
+            client, f"{BASE}/installs/{await _ref(theirs, app)}/connections"
+        )
 
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
@@ -522,17 +558,17 @@ class TestResolveDelegatedConnection:
             )
         return guild, app, member, subject
 
-    def _path(self, guild_id: int) -> str:
-        return f"{BASE}/installs/{guild_id}/connections/resolve"
+    def _path(self, guild_ref: str) -> str:
+        return f"{BASE}/installs/{guild_ref}/connections/resolve"
 
     async def test_a_subject_resolves_to_this_apps_own_reference(
         self, client: AsyncClient, session: AsyncSession
     ):
-        guild, _, _, subject = await self._delegated(session)
+        guild, app, _, subject = await self._delegated(session)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -547,11 +583,11 @@ class TestResolveDelegatedConnection:
     ):
         """The app learns one thing: that it already knew this person by that
         reference. Not a name, not an address, not a user id."""
-        guild, _, member, subject = await self._delegated(session)
+        guild, app, member, subject = await self._delegated(session)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -565,11 +601,11 @@ class TestResolveDelegatedConnection:
     ):
         """The ordinary steady state for somebody who never connected an
         account, and it reads the same as every other miss."""
-        guild, _, _, subject = await self._delegated(session, connected=False)
+        guild, app, _, subject = await self._delegated(session, connected=False)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -581,11 +617,11 @@ class TestResolveDelegatedConnection:
     ):
         """A block ended that member's access. The tombstone must not hand back
         a handle for the app to act with."""
-        guild, _, _, subject = await self._delegated(session, blocked=True)
+        guild, app, _, subject = await self._delegated(session, blocked=True)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -598,11 +634,11 @@ class TestResolveDelegatedConnection:
         """Installing the delegate is the guild's decision; carrying one
         person's name is that person's, and it is asked here rather than
         assumed from the subject existing."""
-        guild, _, _, subject = await self._delegated(session, authorize=False)
+        guild, app, _, subject = await self._delegated(session, authorize=False)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -613,12 +649,12 @@ class TestResolveDelegatedConnection:
     ):
         """The operator's kill switch reaches this the way it reaches the
         published key set: an edit, not a key rotation."""
-        guild, _, _, subject = await self._delegated(session)
+        guild, app, _, subject = await self._delegated(session)
         await _disable_delegate(session)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -638,7 +674,7 @@ class TestResolveDelegatedConnection:
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -649,11 +685,11 @@ class TestResolveDelegatedConnection:
     ):
         """A subject is pairwise: it resolves for the delegate it was minted
         for and for no other, so the delegate named has to be that one."""
-        guild, _, _, subject = await self._delegated(session)
+        guild, app, _, subject = await self._delegated(session)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate=tests.shop&subject={subject}",
         )
 
@@ -662,11 +698,11 @@ class TestResolveDelegatedConnection:
     async def test_an_unknown_subject_is_a_miss(
         self, client: AsyncClient, session: AsyncSession
     ):
-        guild, _, _, _ = await self._delegated(session)
+        guild, app, _, _ = await self._delegated(session)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject=notasubjectatall",
         )
 
@@ -688,7 +724,7 @@ class TestResolveDelegatedConnection:
 
         response = await _get(
             client,
-            self._path(theirs.id),
+            self._path(await _ref(theirs, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -716,7 +752,7 @@ class TestResolveDelegatedConnection:
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -731,11 +767,11 @@ class TestResolveDelegatedConnection:
         connect the second, so what an install declares is what decides."""
         definition = _definition()
         definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
-        guild, _, _, subject = await self._delegated(session, definition=definition)
+        guild, app, _, subject = await self._delegated(session, definition=definition)
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -748,13 +784,13 @@ class TestResolveDelegatedConnection:
         """Nothing to name, and nothing a member could have connected."""
         definition = _definition()
         definition["connections"] = [ADMIN_CONNECTION]
-        guild, _, _, subject = await self._delegated(
+        guild, app, _, subject = await self._delegated(
             session, definition=definition, connected=False
         )
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
@@ -780,7 +816,7 @@ class TestResolveDelegatedConnection:
 
         response = await _get(
             client,
-            self._path(guild.id),
+            self._path(await _ref(guild, app)),
             query=(
                 f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}&connection=gitlab"
             ),
@@ -808,7 +844,7 @@ class TestResolveDelegatedConnection:
             user=theirs_member,
             connection_ref="cr_member_two",
         )
-        path = self._path(guild.id)
+        path = self._path(await _ref(guild, app))
         signed = f"delegate={DELEGATE_PUBLIC_ID}&subject={mine}"
         sent = f"delegate={DELEGATE_PUBLIC_ID}&subject={theirs}"
 
@@ -831,8 +867,8 @@ class TestResolveDelegatedConnection:
     ):
         """The caller is established before anything is read — the query names
         what to look up, never who is asking."""
-        guild, _, _, subject = await self._delegated(session)
-        path = self._path(guild.id)
+        guild, app, _, subject = await self._delegated(session)
+        path = self._path(await _ref(guild, app))
 
         response = await client.get(
             f"{path}?delegate={DELEGATE_PUBLIC_ID}&subject={subject}"
@@ -858,7 +894,7 @@ class TestConnectionWriteBack:
 
         written = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/{row.connection_ref}",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/{row.connection_ref}",
             {
                 "values": {"access_token": "gho_freshly_minted"},
                 "account_label": "@alice",
@@ -872,7 +908,7 @@ class TestConnectionWriteBack:
         # values are meant to.
         assert "gho_freshly_minted" not in written.text
 
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert config.status_code == 200, config.text
         assert config.json()["member_connections"][0]["values"] == {
             "access_token": "gho_freshly_minted"
@@ -892,11 +928,12 @@ class TestConnectionWriteBack:
         row = await _member_connection(
             session, guild=guild, app=app, user=user, with_secret=False
         )
-        other_guild, _other_user, _other_app = await _install(session)
+        other_guild, _other_user, other_app = await _install(session)
 
         written = await _put(
             client,
-            f"{BASE}/installs/{other_guild.id}/connections/{row.connection_ref}",
+            f"{BASE}/installs/{await _ref(other_guild, other_app)}"
+            f"/connections/{row.connection_ref}",
             {"values": {"access_token": "gho_written_to_the_wrong_guild"}},
         )
 
@@ -906,7 +943,7 @@ class TestConnectionWriteBack:
         assert written.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
 
         # And the row it named is unchanged where that handle does live.
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert config.json()["member_connections"][0]["values"] == {}
 
     async def test_a_refresh_replaces_the_stored_value(
@@ -917,13 +954,15 @@ class TestConnectionWriteBack:
         await register_app_service(session, listing_uid=SHOP_UID)
         guild, user, app = await _install(session)
         row = await _member_connection(session, guild=guild, app=app, user=user)
-        path = f"{BASE}/installs/{guild.id}/connections/{row.connection_ref}"
+        path = (
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/{row.connection_ref}"
+        )
 
         assert (
             await _put(client, path, {"values": {"access_token": "gho_rotated"}})
         ).status_code == 200
 
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert config.json()["member_connections"][0]["values"] == {
             "access_token": "gho_rotated"
         }
@@ -939,7 +978,7 @@ class TestConnectionWriteBack:
 
         response = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/{row.connection_ref}",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/{row.connection_ref}",
             {"values": {"access_token": "gho_sneaking_back"}},
         )
 
@@ -950,11 +989,11 @@ class TestConnectionWriteBack:
         self, client: AsyncClient, session: AsyncSession
     ):
         await register_app_service(session, listing_uid=SHOP_UID)
-        guild, _, _ = await _install(session)
+        guild, _, app = await _install(session)
 
         response = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/cr_not_a_handle",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/cr_not_a_handle",
             {"values": {"access_token": "x"}},
         )
 
@@ -970,7 +1009,7 @@ class TestConnectionWriteBack:
 
         response = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/{row.connection_ref}",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/{row.connection_ref}",
             {"values": {"not_a_field": "x"}},
         )
 
@@ -1003,7 +1042,7 @@ class TestGuildConnectionWriteBack:
 
         written = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/gcr_workspace",
             {"values": {"owner": "morelitea"}},
         )
 
@@ -1013,7 +1052,7 @@ class TestGuildConnectionWriteBack:
 
         # Beside the values an admin types, which is what makes clearing the
         # connection, uninstalling, or moving version take this with them.
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert config.json()["connections"]["workspace"] == {"owner": "morelitea"}
         # And it is the guild's, so there is no member row anywhere in it.
         assert config.json()["member_connections"] == []
@@ -1038,7 +1077,7 @@ class TestGuildConnectionWriteBack:
 
         await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/gcr_workspace",
             {"values": {"owner": "morelitea"}},
         )
 
@@ -1068,12 +1107,12 @@ class TestGuildConnectionWriteBack:
 
         refused = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/gcr_workspace",
             {"values": {"owner": "morelitea"}},
         )
         assert refused.status_code == 404
 
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert "workspace" not in config.json()["connections"]
 
     async def test_a_handle_nobody_minted_is_refused(
@@ -1082,18 +1121,18 @@ class TestGuildConnectionWriteBack:
         """A write-back is accepted for a handle this install minted, and only
         for one it minted — naming the connection is not enough."""
         await register_app_service(session, listing_uid=SHOP_UID)
-        guild, _user, _app = await _install(session, definition=_workspace_definition())
+        guild, _user, app = await _install(session, definition=_workspace_definition())
 
         response = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/gcr_never_minted",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/gcr_never_minted",
             {"values": {"owner": "somebody-elses-org"}},
         )
 
         assert response.status_code == 404
         assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
 
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         assert config.json()["connections"] == {}
 
     async def test_clearing_the_values_leaves_the_connection_unsatisfied(
@@ -1115,13 +1154,13 @@ class TestGuildConnectionWriteBack:
 
         written = await _put(
             client,
-            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            f"{BASE}/installs/{await _ref(guild, app)}/connections/gcr_workspace",
             {"values": {"owner": None}},
         )
 
         assert written.status_code == 200, written.text
         assert written.json()["status"] == "pending"
-        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        config = await _get(client, f"{BASE}/installs/{await _ref(guild, app)}/config")
         # Absent rather than an empty map, so "is anything configured here?"
         # has one shape.
         assert config.json()["connections"] == {}
@@ -1143,7 +1182,7 @@ class TestStatusReport:
         assert app.config_state == "unverified"
 
         response = await _post(
-            client, f"{BASE}/installs/{guild.id}/status", {"state": "ok"}
+            client, f"{BASE}/installs/{await _ref(guild, app)}/status", {"state": "ok"}
         )
 
         assert response.status_code == 200, response.text
@@ -1162,7 +1201,7 @@ class TestStatusReport:
 
         response = await _post(
             client,
-            f"{BASE}/installs/{guild.id}/status",
+            f"{BASE}/installs/{await _ref(guild, app)}/status",
             {"state": "invalid", "detail": "missing_read_orders"},
         )
 
@@ -1178,7 +1217,9 @@ class TestStatusReport:
         guild, _, app = await _install(session)
 
         response = await _post(
-            client, f"{BASE}/installs/{guild.id}/status", {"state": "wonderful"}
+            client,
+            f"{BASE}/installs/{await _ref(guild, app)}/status",
+            {"state": "wonderful"},
         )
 
         assert response.status_code == 422
@@ -1195,7 +1236,7 @@ class TestStatusReport:
         )
 
         response = await _post(
-            client, f"{BASE}/installs/{theirs.id}/status", {"state": "ok"}
+            client, f"{BASE}/installs/{await _ref(theirs, app)}/status", {"state": "ok"}
         )
 
         assert response.status_code == 404

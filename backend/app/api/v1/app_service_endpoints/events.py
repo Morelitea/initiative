@@ -29,6 +29,7 @@ from app.api.v1.app_service_endpoints.deps import (
     to_http,
 )
 from app.core.messages import AppChannelMessages
+from app.api.v1.app_service_endpoints.installs import _resolve_guild
 from app.schemas.tenant.app_channel import AppEventIngest
 from app.services.tenant import app_channels as channels_service
 from app.services.tenant.app_channels import (
@@ -70,7 +71,7 @@ async def ingest_event(
     payload = parse_body(request, AppEventIngest)
     try:
         app = await channels_service.load_install(
-            session, caller.registration, payload.guild_id
+            session, caller.registration, await _resolve_guild(payload.guild_ref)
         )
         await channels_service.emit_event(
             session,
