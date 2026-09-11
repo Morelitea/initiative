@@ -40,7 +40,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
-from app.services.auth.platform_provider import login_ready_clause
+from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
 
@@ -242,8 +242,9 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
     value indistinguishable from a chosen one; that account is not counted here
     and reaches its account through password reset instead.
 
-    An alternate link only counts when its provider could actually serve a
-    login — a disabled or half-configured row is not a way in.
+    An alternate link only counts when its provider could actually answer a
+    login — a disabled or half-configured row is not a way in, and neither is
+    the platform row without its client secret.
     """
     holds_this = select(FederatedIdentity.id).where(
         FederatedIdentity.user_id == User.id,
@@ -255,7 +256,7 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
         .where(
             FederatedIdentity.user_id == User.id,
             FederatedIdentity.provider_id != provider_id,
-            login_ready_clause(),
+            can_serve_login_clause(),
         )
     )
     no_usable_password = or_(

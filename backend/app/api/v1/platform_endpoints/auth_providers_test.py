@@ -285,6 +285,49 @@ async def test_delete_refused_when_the_only_other_provider_is_disabled(
     assert response.json()["detail"] == "AUTH_PROVIDER_SOLE_CREDENTIAL"
 
 
+async def test_delete_refused_when_the_only_other_provider_is_the_secretless_platform_row(
+    client: AsyncClient, session: AsyncSession
+):
+    """The platform login has always needed a stored client secret — PKCE-only
+    is a guild-provider affordance — so a platform row without one cannot
+    answer a login and is not a second way in."""
+    from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    platform = await create_auth_provider(session, slug=PLATFORM_OIDC_SLUG)
+    sso_only = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, sso_only, provider=provider)
+    await create_federated_identity(session, sso_only, provider=platform)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "AUTH_PROVIDER_SOLE_CREDENTIAL"
+
+
+async def test_delete_allowed_when_the_platform_row_carries_its_secret(
+    client: AsyncClient, session: AsyncSession
+):
+    """With the secret stored, the platform row can answer a login, so it is a
+    real alternative and the delete goes ahead."""
+    from app.services.auth import provider_registry
+    from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session, slug="corp")
+    platform = await create_auth_provider(session, slug=PLATFORM_OIDC_SLUG)
+    await provider_registry.set_provider_secret(session, platform.id, "s3cret")
+    await session.commit()
+    sso_only = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, sso_only, provider=provider)
+    await create_federated_identity(session, sso_only, provider=platform)
+    provider_id = provider.id
+
+    response = await client.delete(f"{BASE}{provider_id}", headers=headers)
+    assert response.status_code == 204
+
+
 async def test_created_provider_reaches_login_page_listing(
     client: AsyncClient, session: AsyncSession
 ):
