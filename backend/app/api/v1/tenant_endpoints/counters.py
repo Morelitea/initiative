@@ -61,6 +61,7 @@ from app.schemas.tenant.counter import (
     serialize_counter_group_summary,
     _validate_counter_constraints,
 )
+from app.services.tenant import archive as archive_service
 from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
@@ -181,10 +182,6 @@ async def _get_counter_for_group(
     return counter
 
 
-def _compute_my_permission(group: CounterGroup, user: User) -> str | None:
-    return resource_access.my_permission_level(group, Tool.counter_group, user)
-
-
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
     group = await counters_service.get_counter_group(
         session, group_id, populate_existing=True
@@ -224,10 +221,16 @@ async def list_counter_groups(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> CounterGroupListResponse:
-    conditions = [CounterGroup.guild_id == guild_context.guild_id]
+    conditions = [
+        CounterGroup.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(CounterGroup, archived),
+    ]
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
@@ -290,7 +293,7 @@ async def list_counter_groups(
     items = [
         serialize_counter_group_summary(
             g,
-            my_permission_level=_compute_my_permission(g, current_user),
+            user_id=current_user.id,
         )
         for g in groups
     ]
@@ -356,7 +359,7 @@ async def read_counter_group(
     )
     return serialize_counter_group(
         group,
-        my_permission_level=_compute_my_permission(group, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -417,7 +420,7 @@ async def create_counter_group(
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -454,7 +457,7 @@ async def duplicate_counter_group(
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -487,7 +490,7 @@ async def update_counter_group(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     if updated:
         await _emit_counter(
@@ -844,7 +847,7 @@ async def reset_all_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session, group_id, "counters_reset", result.model_dump(mode="json")
@@ -871,7 +874,7 @@ async def sort_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session, group_id, "counters_reordered", result.model_dump(mode="json")
@@ -905,7 +908,7 @@ async def set_counter_group_grants(
     hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session,

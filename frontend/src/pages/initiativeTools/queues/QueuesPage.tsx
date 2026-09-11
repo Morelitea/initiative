@@ -14,6 +14,11 @@ import {
   QueuesFilterBar,
   type StatusFilter,
 } from "@/components/initiativeTools/queues/QueuesFilterBar";
+import {
+  archivedParam,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
@@ -67,8 +72,13 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     [router]
   );
 
+  // Which of the tool's two states the list is showing. Archived rows are
+  // off the live list, so this is the only place they can be reached.
+  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+
   const queuesQuery = useQueuesList({
     initiative_id: fixedInitiativeId,
+    archived: archivedParam(archiveState),
     page,
     page_size: pageSize,
   });
@@ -138,6 +148,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   return (
     <div className="space-y-6">
       <ToolListToolbar
+        leading={
+          <ToolArchiveFilter tool={Tool.queue} value={archiveState} onChange={setArchiveState} />
+        }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,

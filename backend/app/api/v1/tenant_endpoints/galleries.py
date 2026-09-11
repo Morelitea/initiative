@@ -84,6 +84,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import permissions as permissions_service
 from app.services import storage_config
+from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
@@ -442,6 +443,9 @@ async def list_galleries(
         description="Order by one of: name, initiative, updated_at. Omit for newest first.",
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=0, le=500),
 ) -> GalleryListResponse:
@@ -454,6 +458,7 @@ async def list_galleries(
             items=[], total_count=0, page=page, page_size=page_size, has_next=False
         )
 
+    scope = [*scope, archive_service.archive_filter_clause(Gallery, archived)]
     count_subq = select(Gallery.id).where(*scope).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))

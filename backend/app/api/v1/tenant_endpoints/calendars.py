@@ -49,6 +49,7 @@ from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -134,6 +135,9 @@ async def list_calendars(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> CalendarListResponse:
@@ -144,7 +148,10 @@ async def list_calendars(
     unfiltered list, which is everything in scope, so it is asked for by name
     rather than inferred from an absent ``initiative_id``.
     """
-    conditions = [Calendar.guild_id == guild_context.guild_id]
+    conditions = [
+        Calendar.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(Calendar, archived),
+    ]
 
     if scope == "guild":
         conditions.append(Calendar.initiative_id.is_(None))

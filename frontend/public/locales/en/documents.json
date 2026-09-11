@@ -296,6 +296,8 @@
     "updating": "Updating..."
   },
   "page": {
+    "noArchivedDescription": "Documents you archive land here, read-only, until you take them back out.",
+    "noArchivedTitle": "Nothing archived",
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
     "newDocument": "New document",
@@ -607,7 +609,8 @@
   "status": {
     "label": "Show",
     "documents": "Documents",
-    "templates": "Templates"
+    "templates": "Templates",
+    "archived": "Archived"
   },
   "summary": {
     "aiNotEnabled": "AI features are not enabled. Configure AI settings to generate document summaries.",

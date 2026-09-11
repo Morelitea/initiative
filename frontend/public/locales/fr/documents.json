@@ -296,6 +296,8 @@
     "updating": "Mise à jour..."
   },
   "page": {
+    "noArchivedDescription": "Les documents que vous archivez arrivent ici, en lecture seule, jusqu'à ce que vous les restauriez.",
+    "noArchivedTitle": "Rien d'archivé",
     "title": "Documents",
     "subtitle": "Gardez les connaissances de l'initiative organisées et attachez des documents aux projets.",
     "newDocument": "Nouveau document",
@@ -607,7 +609,8 @@
   "status": {
     "label": "Afficher",
     "documents": "Documents",
-    "templates": "Modèles"
+    "templates": "Modèles",
+    "archived": "Archivés"
   },
   "summary": {
     "aiNotEnabled": "Les fonctionnalités IA ne sont pas activées. Configurez les paramètres IA pour générer des résumés de documents.",

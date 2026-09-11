@@ -23,6 +23,8 @@ export function buildGallery(overrides: Partial<GalleryRead> = {}): GalleryRead 
     cover_image_id: null,
     cover: null,
     preview: [],
+    archived_at: null,
+    can_unarchive: false,
     my_permission_level: "owner",
     comments_enabled: true,
     comment_count: 0,

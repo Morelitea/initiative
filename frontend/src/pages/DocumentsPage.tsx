@@ -172,6 +172,9 @@ export const DocumentsView = ({
   const status: DocumentStatus =
     !fixedTagIds && isDocumentStatus(searchParams.status) ? searchParams.status : "documents";
   const isTemplateView = status === "templates";
+  // An archived document is off the live list, so the archived state is the one
+  // place it can be found — and the only place it can be taken back out.
+  const isArchivedView = status === "archived";
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSizeState] = useState(20);
@@ -352,6 +355,7 @@ export const DocumentsView = ({
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
     is_template: isTemplateView,
+    ...(isArchivedView ? { archived: true } : {}),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -366,6 +370,7 @@ export const DocumentsView = ({
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
     is_template: isTemplateView,
+    ...(isArchivedView ? { archived: true } : {}),
   };
 
   const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
@@ -383,9 +388,14 @@ export const DocumentsView = ({
     { ...statusCountsBase, is_template: true },
     { enabled: !fixedTagIds }
   );
+  const archivedCountQuery = useDocumentCounts(
+    { ...statusCountsBase, is_template: false, archived: true },
+    { enabled: !fixedTagIds }
+  );
   const statusCounts = {
     documents: documentsCountQuery.data?.total_count,
     templates: templatesCountQuery.data?.total_count,
+    archived: archivedCountQuery.data?.total_count,
   };
 
   // Prefetch adjacent page on hover
@@ -400,6 +410,7 @@ export const DocumentsView = ({
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
         is_template: isTemplateView,
+        ...(isArchivedView ? { archived: true } : {}),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -842,6 +853,15 @@ export const DocumentsView = ({
           <CardHeader>
             <CardTitle>{t("page.noTemplatesTitle")}</CardTitle>
             <CardDescription>{t("page.noTemplatesDescription")}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : isArchivedView ? (
+        // Nothing is created here either: this state is where documents arrive
+        // when they are put away, and where they leave from.
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("page.noArchivedTitle")}</CardTitle>
+            <CardDescription>{t("page.noArchivedDescription")}</CardDescription>
           </CardHeader>
         </Card>
       ) : (

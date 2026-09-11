@@ -296,6 +296,8 @@
     "updating": "Wird aktualisiert..."
   },
   "page": {
+    "noArchivedDescription": "Archivierte Dokumente landen hier — schreibgeschützt, bis du sie zurückholst.",
+    "noArchivedTitle": "Nichts archiviert",
     "title": "Dokumente",
     "subtitle": "Halte das Wissen der Initiative organisiert und hänge Dokumente an Projekte an.",
     "newDocument": "Neues Dokument",
@@ -607,7 +609,8 @@
   "status": {
     "label": "Anzeigen",
     "documents": "Dokumente",
-    "templates": "Vorlagen"
+    "templates": "Vorlagen",
+    "archived": "Archiviert"
   },
   "summary": {
     "aiNotEnabled": "KI-Funktionen sind nicht aktiviert. Konfiguriere die KI-Einstellungen, um Dokumentzusammenfassungen zu generieren.",

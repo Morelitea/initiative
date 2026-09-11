@@ -123,3 +123,25 @@ async def unarchive_entity(session: AsyncSession, entity: ArchiveMixin) -> None:
             child.archived_at = None
             session.add(child)
         await session.flush()
+
+
+#: What the ``archived`` query parameter says, written once for every tool's
+#: list rather than reworded on each.
+ARCHIVED_QUERY_DESCRIPTION = (
+    "true lists what has been archived instead of what is live. Omit for the "
+    "live list, which is what every other view shows."
+)
+
+
+def archive_filter_clause(model: type[ArchiveMixin], archived: Optional[bool]):
+    """The WHERE clause a tool's list needs to answer ``archived``.
+
+    A list shows live rows unless it is asked for the archive. That is what
+    makes archiving mean anything on a list — the default view is the work in
+    front of you — and it is why the archive view has to exist: a row nobody can
+    find is a row nobody can take back out.
+
+    ``None`` and ``false`` mean the same thing here, the way they do for the
+    project list this generalises.
+    """
+    return model.archived_at.isnot(None) if archived else model.archived_at.is_(None)

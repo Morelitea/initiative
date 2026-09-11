@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead
@@ -72,7 +73,7 @@ class ProjectTaskSummary(SanitizedBaseModel):
     completed: int = 0
 
 
-class ProjectRead(ProjectBase):
+class ProjectRead(ProjectBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -92,7 +93,6 @@ class ProjectRead(ProjectBase):
     created_at: datetime
     updated_at: datetime
     is_template: bool
-    archived_at: Optional[datetime] = None
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
