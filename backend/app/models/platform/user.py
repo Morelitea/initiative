@@ -145,6 +145,16 @@ class User(SQLModel, table=True):
     # a missing hash as "never a match", so such an account can only sign in
     # through its identity provider until it explicitly sets a password.
     hashed_password: Optional[str] = Field(default=None)
+    #: When this account's password was last set, as far as the record goes.
+    #: NULL means one of two things a stored hash cannot tell apart: no
+    #: password at all, or one set before this column existed — an account
+    #: provisioned through an identity provider before ``20260720_0152`` carries
+    #: a throwaway argon2 hash indistinguishable from a chosen one. Every place
+    #: that sets a password stamps this, so the unknown set only shrinks.
+    password_set_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
     role: UserRole = Field(
         default=UserRole.member,
         sa_column=Column(

@@ -2142,3 +2142,59 @@ async def test_password_change_revokes_refresh_session(
     client.cookies.set("refresh_token", captured, path="/api/v1/auth")
     replay = await client.post("/api/v1/auth/refresh")
     assert replay.status_code == 401
+
+
+async def test_registering_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    from sqlmodel import select
+
+    from app.core.encryption import hash_email
+    from app.models.platform.user import User
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "stamped@example.com",
+            "username": "stamped",
+            "full_name": "Stamped",
+            "password": "a-perfectly-fine-secret-1",
+        },
+    )
+    assert response.status_code == 201
+
+    session.expire_all()
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("stamped@example.com"))
+        )
+    ).one()
+    assert user.password_set_at is not None
+
+
+async def test_password_reset_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account carrying a hash nobody set — the pre-0152 SSO case — becomes
+    known the moment somebody actually sets one."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="reset-stamp@example.com")
+    user.password_set_at = None
+    session.add(user)
+    await session.commit()
+    user_id = user.id
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert response.status_code == 200
+
+    session.expire_all()
+    refreshed = await session.get(User, user_id)
+    assert refreshed.password_set_at is not None

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import asyncio
 from contextlib import suppress
 from urllib.parse import urlparse
@@ -51,6 +52,7 @@ async def init_owner() -> None:
             or usernames.random_name(),
             discriminator=usernames.random_discriminator(),
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
+            password_set_at=datetime.now(timezone.utc),
             role=UserRole.owner,
             email_verified=True,
         )
