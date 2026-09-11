@@ -50,3 +50,23 @@ def format_ref(
     if aspect is not None:
         parts.append(aspect.value)
     return REF_SEPARATOR.join(parts)
+
+
+def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
+    """The thing a bare reference names, or ``None`` for a string that names none.
+
+    The inverse of :func:`format_ref` without an aspect. A reference that does
+    not parse is dropped rather than refused: stored content outlives the build
+    that wrote it, and a kind this build no longer offers should cost a reader
+    the reference, not the page it is on.
+    """
+    kind, separator, raw_id = ref.partition(REF_SEPARATOR)
+    if not separator or not raw_id.isdigit():
+        return None
+    try:
+        entity_type = SearchEntityType(kind)
+    except ValueError:
+        return None
+    if not is_referenceable(entity_type):
+        return None
+    return entity_type, int(raw_id)

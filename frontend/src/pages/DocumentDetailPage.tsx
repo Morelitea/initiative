@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
@@ -110,6 +110,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
+import { referenceRef } from "@/lib/smartChips";
 import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
@@ -1415,6 +1416,7 @@ export const DocumentDetailPage = () => {
                   isSynced={collaboration.isSynced}
                   // Wikilinks support
                   initiativeId={document.initiative_id}
+                  subject={referenceRef(SearchEntityType.document, document.id)}
                   supportsEntityMentions={supportsEntityMentions(document.document_type)}
                   onWikilinkNavigate={handleWikilinkNavigate}
                   onCreateReferencedThing={handleCreateReferencedThing}

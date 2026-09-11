@@ -8157,6 +8157,10 @@ export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
    */
   template?: boolean | null;
   /**
+   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   */
+  subject?: string | null;
+  /**
    * @minimum 1
    */
   limit?: number;
@@ -8180,6 +8184,10 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
   template?: boolean | null;
+  /**
+   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   */
+  subject?: string | null;
   /**
    * @minimum 1
    */

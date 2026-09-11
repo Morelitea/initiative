@@ -1,14 +1,24 @@
-"""Which references count as a link between documents.
+"""Which references count as a link between documents, and which get recorded.
 
 Backlinks — "what points at this page" — are built from what a document's
-content refers to. This is the part that decides.
+content refers to. The first half here decides what counts as a reference; the
+second decides which of them the graph keeps.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.services.tenant.documents import extract_linked_document_ids
+import pytest
+from sqlmodel import select
+
+from app.models.platform.guild import GuildRole
+from app.models.tenant.document import DocumentLink
+from app.services.tenant.documents import (
+    extract_linked_document_ids,
+    sync_document_links,
+)
+from app.testing import create_document
 
 
 def _doc(*nodes: dict[str, Any]) -> dict[str, Any]:
@@ -80,3 +90,91 @@ def test_an_unresolved_reference_is_not_a_link():
         extract_linked_document_ids(_doc({"type": "wikilink", "documentId": None}))
         == set()
     )
+
+
+async def _targets(session, document_id: int) -> set[int]:
+    """What the graph says this document links to."""
+    rows = await session.exec(
+        select(DocumentLink.target_document_id).where(
+            DocumentLink.source_document_id == document_id
+        )
+    )
+    return set(rows)
+
+
+@pytest.mark.integration
+async def test_a_document_does_not_link_to_itself(session, acting_user):
+    """The page a self-link opens is the page it was written on, and the row
+    would list the document among the ones that link to it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_document(session, a.initiative, a.user)
+
+    await sync_document_links(
+        session,
+        document_id=doc.id,
+        content=_doc(_wikilink(doc.id), _wikilink(other.id)),
+        guild_id=a.guild.id,
+    )
+
+    assert await _targets(session, doc.id) == {other.id}
+
+
+@pytest.mark.integration
+async def test_a_hash_reference_to_itself_is_not_a_link_either(session, acting_user):
+    """Both triggers write into one graph, so both are refused the same way."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+
+    await sync_document_links(
+        session,
+        document_id=doc.id,
+        content=_doc(_reference("document", doc.id)),
+        guild_id=a.guild.id,
+    )
+
+    assert await _targets(session, doc.id) == set()
+
+
+@pytest.mark.integration
+async def test_a_self_link_already_recorded_is_removed(session, acting_user):
+    """Content written before this was refused still holds one, so the next
+    save is what clears it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    session.add(
+        DocumentLink(
+            source_document_id=doc.id,
+            target_document_id=doc.id,
+            guild_id=a.guild.id,
+        )
+    )
+    await session.flush()
+
+    await sync_document_links(
+        session,
+        document_id=doc.id,
+        content=_doc(_wikilink(doc.id)),
+        guild_id=a.guild.id,
+    )
+
+    assert await _targets(session, doc.id) == set()
+
+
+@pytest.mark.integration
+async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
+    """Asked to repair the content too, it leaves the words and drops the
+    pointer — the same treatment a link to a deleted document gets."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+
+    fixed = await sync_document_links(
+        session,
+        document_id=doc.id,
+        content=_doc(_wikilink(doc.id)),
+        guild_id=a.guild.id,
+        fix_content=True,
+    )
+
+    assert fixed is not None
+    assert extract_linked_document_ids(fixed) == set()

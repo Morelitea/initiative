@@ -35,6 +35,10 @@ export interface EditorProps {
   trackChanges?: boolean;
   isSynced?: boolean;
   initiativeId?: number | null;
+  /** What is being written, as a reference (`document:12`) — see
+   *  `Plugins.subject`. Absent while it does not exist yet, which is a thing
+   *  nothing can point at anyway. */
+  subject?: string | null;
   /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
   supportsEntityMentions?: boolean;
   /** Which surface this editor is on. `post` narrows the toolbar to what
@@ -64,6 +68,7 @@ export function Editor({
   trackChanges,
   isSynced = true,
   initiativeId = null,
+  subject,
   supportsEntityMentions = false,
   variant = "document",
   maxLength,
@@ -141,6 +146,7 @@ export function Editor({
               collaborative={useCollaborativeMode}
               cursorsContainerRef={cursorsContainerRef}
               initiativeId={initiativeId}
+              subject={subject}
               supportsEntityMentions={supportsEntityMentions}
               variant={variant}
               maxLength={maxLength}

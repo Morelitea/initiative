@@ -109,7 +109,8 @@ const SUGGESTION_LIST_LENGTH_LIMIT = 10;
 
 function useWikilinkSearch(
   queryString: string | null,
-  initiativeId: number | null
+  initiativeId: number | null,
+  subject?: string | null
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
   // The shared lookup, narrowed to this initiative's live documents. A
   // wikilink points at a document to read, not at a blueprint.
@@ -126,6 +127,9 @@ function useWikilinkSearch(
     types: linkable,
     initiative_id: initiativeId ?? undefined,
     template: false,
+    // A page does not link to itself: the page the link opens is the one the
+    // words are on.
+    subject,
     limit: SUGGESTION_LIST_LENGTH_LIMIT,
     enabled: queryString !== null && initiativeId !== null,
   });
@@ -152,6 +156,9 @@ function useWikilinkSearch(
 
 export interface WikilinksPluginProps {
   initiativeId: number | null;
+  /** The thing being written in, as a reference (`document:12`). Never
+   *  offered, and never made: a thing does not point at itself. */
+  subject?: string | null;
   onNavigate?: (documentId: number) => void;
   /** Asked to make what `[[ ]]` could not find. The caller opens the dialog
    *  that knows which tools this initiative has; it answers with the reference
@@ -164,13 +171,14 @@ export interface WikilinksPluginProps {
 
 export function WikilinksPlugin({
   initiativeId,
+  subject,
   onNavigate,
   onCreateThing,
 }: WikilinksPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
 
-  const { options, isLoading } = useWikilinkSearch(queryString, initiativeId);
+  const { options, isLoading } = useWikilinkSearch(queryString, initiativeId, subject);
 
   const onSelectOption = useCallback(
     (

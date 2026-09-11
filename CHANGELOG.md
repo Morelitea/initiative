@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Cell colours and bold survive an Excel export** — a spreadsheet exported to `.xlsx` kept the number formats it was given but quietly lost the look of individual cells: bold, fill, text colour, alignment and borders set on a cell arrived plain. Column and row formatting was always carried over, and now per-cell formatting is too.
 
+- **Nothing points at itself** — typing `#` or `[[ ]]` in a document offered the very page being written on, and the box under a document, task or notice offered the thing the comment was about. Picking either made a link that opened the page the words were already on. Neither is offered now, anywhere a reference can be written: a document, a notice, and every comment box, reply and edit. A document that already held a link to itself no longer counts itself among the pages linking to it, and the next save leaves the words and drops the link.
+
 ## [0.67.1] - 2026-09-09
 
 ### Added
