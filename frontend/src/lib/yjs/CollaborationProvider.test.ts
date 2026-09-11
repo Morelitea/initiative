@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { CollaborationProvider } from "./CollaborationProvider";
+import { CollaborationError, CollaborationProvider } from "./CollaborationProvider";
 
 const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
@@ -52,6 +52,7 @@ class FakeWebSocket {
 }
 
 let counter = 0;
+const opened: CollaborationProvider[] = [];
 
 /** A connected provider over a fake socket, with ``doc`` as its state. */
 const connect = (doc: Y.Doc) => {
@@ -63,6 +64,7 @@ const connect = (doc: Y.Doc) => {
     { auth: { token: "t" } },
     `/connection-${counter}`
   );
+  opened.push(provider);
   const socket = FakeWebSocket.last as FakeWebSocket;
   socket.onopen?.();
   return { provider, socket };
@@ -74,6 +76,11 @@ const stateVectorOf = (doc: Y.Doc) => Y.encodeStateVector(doc);
 beforeEach(() => {
   vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
   FakeWebSocket.last = null;
+});
+
+afterEach(() => {
+  // Destroy providers so no pending reconnect timer outlives its test.
+  while (opened.length) opened.pop()?.destroy();
 });
 
 describe("CollaborationProvider sync handshake", () => {
@@ -141,5 +148,78 @@ describe("CollaborationProvider sync handshake", () => {
     const frames = socket.framesOfType(MSG_CONTENT);
     expect(frames).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(frames[0]))).toEqual({ root: "ready" });
+  });
+});
+
+describe("CollaborationProvider across an outage", () => {
+  /** The socket goes away the way a network does — no close frame from us. */
+  const dropConnection = (socket: FakeWebSocket) => {
+    socket.readyState = FakeWebSocket.CLOSED;
+    socket.onclose?.({ code: 1006 });
+  };
+
+  it("hands over work done while the connection was gone", () => {
+    const doc = new Y.Doc();
+    const { provider, socket } = connect(doc);
+    socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
+
+    dropConnection(socket);
+    // ...and the writing carries on into the local doc.
+    doc.getMap("cells").set("A1", "written with no connection");
+
+    provider.resume();
+    const reconnected = FakeWebSocket.last as FakeWebSocket;
+    expect(reconnected).not.toBe(socket);
+    reconnected.onopen?.();
+
+    // The room asks what this client is holding that it has never seen.
+    reconnected.deliver(MSG_SYNC_STEP1, stateVectorOf(new Y.Doc()));
+
+    const answers = reconnected.framesOfType(MSG_SYNC_STEP2);
+    expect(answers).toHaveLength(1);
+    const room = new Y.Doc();
+    Y.applyUpdate(room, answers[0]);
+    expect(room.getMap("cells").get("A1")).toBe("written with no connection");
+  });
+
+  it("comes back when the network does", () => {
+    const { socket } = connect(new Y.Doc());
+    dropConnection(socket);
+
+    window.dispatchEvent(new Event("online"));
+
+    expect(FakeWebSocket.last).not.toBe(socket);
+    expect((FakeWebSocket.last as FakeWebSocket).framesOfType(MSG_SYNC_STEP1)).toBeDefined();
+  });
+
+  it("reports a lost connection as recoverable, and keeps trying", () => {
+    const { provider, socket } = connect(new Y.Doc());
+    const errors: Error[] = [];
+    provider.on("error", (error) => errors.push(error));
+
+    // Exhaust the retry budget.
+    for (let i = 0; i < 8; i += 1) {
+      dropConnection(FakeWebSocket.last as FakeWebSocket);
+      provider.connect();
+    }
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every((e) => e instanceof CollaborationError)).toBe(true);
+    expect((errors[0] as CollaborationError).recoverable).toBe(true);
+    // Said once, however long it goes on.
+    expect(errors).toHaveLength(1);
+    void socket;
+  });
+
+  it("reports being refused as final", () => {
+    const { provider, socket } = connect(new Y.Doc());
+    const errors: Error[] = [];
+    provider.on("error", (error) => errors.push(error));
+
+    socket.readyState = FakeWebSocket.CLOSED;
+    socket.onclose?.({ code: 1008 });
+
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as CollaborationError).recoverable).toBe(false);
   });
 });

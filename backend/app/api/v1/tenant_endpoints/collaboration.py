@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 MSG_SYNC_STEP1 = 0  # Client requests current state
 MSG_SYNC_STEP2 = 1  # Server sends current state
 MSG_UPDATE = 2  # Incremental Yjs update
-MSG_AWARENESS = 3  # Cursor/selection awareness (JSON)
+MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 MSG_AUTH = 5  # Authentication message (JSON: {token, guild_id})
 MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
@@ -379,19 +379,6 @@ async def websocket_collaborate(
                         f"Collaboration: rejected content frame from "
                         f"{handle_of(user)}: {exc.code}"
                     )
-
-            elif msg_type == MSG_AWARENESS:
-                # Awareness update (cursor position, etc.) - JSON format
-                try:
-                    awareness_data = json.loads(payload.decode())
-                    await broadcast_awareness(
-                        guild_id,
-                        document_id,
-                        {"type": "cursor", "user_id": user.id, **awareness_data},
-                        exclude=websocket,
-                    )
-                except json.JSONDecodeError:
-                    pass
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients

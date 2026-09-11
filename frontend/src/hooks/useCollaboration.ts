@@ -57,6 +57,9 @@ export interface UseCollaborationResult {
   isReady: boolean;
   /** Manually connect to the collaboration session */
   connect: () => void;
+  /** Start the connection over with a fresh retry budget — what to call when
+   *  the network is back and the socket should stop waiting out its backoff. */
+  resume: () => void;
   /** Manually disconnect from the collaboration session */
   disconnect: () => void;
   /** Hand the document's room the editor's JSON rendering of it, so the room
@@ -322,6 +325,10 @@ export function useCollaboration({
     providerRef.current?.connect();
   }, []);
 
+  const resume = useCallback(() => {
+    providerRef.current?.resume();
+  }, []);
+
   const disconnect = useCallback(() => {
     providerRef.current?.disconnect();
   }, []);
@@ -342,6 +349,7 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       connect,
+      resume,
       disconnect,
       sendContent,
     }),
@@ -354,6 +362,7 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       connect,
+      resume,
       disconnect,
       sendContent,
     ]

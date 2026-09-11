@@ -533,7 +533,6 @@ def room_roster(guild_id: int, document_id: int) -> list[dict]:
                 "name": member.meta.get("name") or "",
                 "can_write": bool(member.meta.get("can_write")),
                 "avatar_url": member.meta.get("avatar_url"),
-                "cursor": None,
             }
         elif member.meta.get("can_write"):
             entry["can_write"] = True
