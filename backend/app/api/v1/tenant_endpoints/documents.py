@@ -31,6 +31,7 @@ from app.api.deps import (
     SessionDep,
     UploadUserDep,
     UserSessionDep,
+    addressed_guild_id,
     establish_guild_access,
     get_current_active_user,
     get_guild_membership,
@@ -1998,6 +1999,9 @@ async def download_document_file(
     inline: bool = False,
 ) -> Response:
     """Download a file-type document — requires read permission on the document."""
+    # These two routes resolve the guild themselves rather than through
+    # ``get_guild_membership``, so they ask the same question it does.
+    guild_id = addressed_guild_id(request, guild_id)
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
@@ -2050,6 +2054,7 @@ async def download_document_file_version(
     inline: bool = False,
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""
+    guild_id = addressed_guild_id(request, guild_id)
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
