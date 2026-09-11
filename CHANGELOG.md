@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Accounts record when their password was set** — a stored password hash said a value was there, never whether anybody knew it. Accounts created through single sign-on before mid-2026 were given a throwaway password nobody ever held, which looks exactly like a real one. Setting or changing a password now records when, so the question stops being unanswerable for every account from here on, and the few stored values that could never have worked have been cleared. Nothing is guessed: an existing password is left alone, and how you sign in does not change.
+
 ### Fixed
 
 - **Deleting an account clears its sign-in sessions** — anonymizing an account emptied it of everything personal except one thing: the record of where it had been signed in, which keeps a device name, a browser and an address per session. Those go now, along with the rest. Sessions that have expired or been signed out are also cleared away on a schedule after thirty days, rather than being kept indefinitely. Permanently deleting an account already removed them with the account itself.
