@@ -325,25 +325,56 @@ def test_no_single_parent_names_only_real_tables():
     assert stale == [], stale
 
 
-def test_every_declared_hop_is_a_real_column():
-    """``via`` names the FK chain an endpoint walks to reach the parent.
+def test_every_declared_hop_walks_a_real_column_to_a_real_table():
+    """``via`` is walked to load a parent, so every step of it has to exist.
 
-    It is used to load a row, so a stale column name would be an attribute
-    error at request time rather than at import. Checked against the mapped
-    models, which is where the policy's join gets its columns too.
+    Each hop names a column on the table reached so far and the table that
+    column points at, and the walk has to arrive at the governing tool's own
+    table. Checking only the first hop would let a renamed intermediate — the
+    ``tasks`` in ``task_tags -> tasks -> projects`` — reach CI green and fail
+    at the moment something followed it.
+
+    A table absent from the mapped metadata fails rather than skips: it means
+    the registry names something the models do not, which is the drift this
+    is here to catch.
     """
+    import app.db.base  # noqa: F401 — imported for its side effect
     from sqlmodel import SQLModel
 
     from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
 
-    tables = SQLModel.metadata.tables
-    missing = []
-    for table, path in sorted(INITIATIVE_PATHS.items()):
+    # app.db.base registers every model, so the metadata is complete whether
+    # this runs alone or in a suite. Without it an unimported model looks like
+    # registry drift.
+    mapped = SQLModel.metadata.tables
+    problems: list[str] = []
+
+    for table, _path in sorted(INITIATIVE_PATHS.items()):
         derived = governing_path(table)
-        if derived is None or not derived[1]:
+        if derived is None:
             continue
-        first_hop = derived[1][0]
-        mapped = tables.get(table)
-        if mapped is not None and first_hop not in mapped.columns:
-            missing.append(f"{table}.{first_hop}")
-    assert missing == [], missing
+        tool, hops = derived
+
+        current = table
+        if current not in mapped:
+            problems.append(f"{current}: registered but not a mapped table")
+            continue
+
+        for column, target in hops:
+            if column not in mapped[current].columns:
+                problems.append(f"{current}.{column}: no such column")
+                break
+            if target not in mapped:
+                problems.append(f"{current}.{column} -> {target}: no such mapped table")
+                break
+            current = target
+        else:
+            # The walk has to end AT the governing resource, not merely near
+            # it — that is what makes the tool and the chain one declaration.
+            if current != tool.plural:
+                problems.append(
+                    f"{table}: chain ends at {current}, governed by {tool.value} "
+                    f"(expected {tool.plural})"
+                )
+
+    assert problems == [], problems

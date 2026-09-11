@@ -120,16 +120,27 @@ class DacPath:
     ``tool`` and ``via`` are the SAME declaration as data rather than SQL, so
     the app layer can answer "which tool governs a task, and how does a task
     reach it" from the registry the policies are rendered from instead of
-    restating it per endpoint. ``via`` is the foreign-key chain from this
-    table to the governing resource, outermost first — ``("project_id",)`` on
-    ``tasks``, ``("task_id", "project_id")`` on ``task_tags``, empty where the
-    row IS the resource. Both are None/empty for a polymorphic table, whose
-    governing tool is a property of the row rather than the table.
+    restating it per endpoint.
+
+    ``via`` is the join chain from this table to the governing resource,
+    outermost first, as ``(column, table_it_points_at)`` pairs — the column
+    belongs to the PREVIOUS table in the walk, starting with this one:
+
+    - ``tasks``      → ``(("project_id", "projects"),)``
+    - ``task_tags``  → ``(("task_id", "tasks"), ("project_id", "projects"))``
+    - ``projects``   → ``()`` — the row IS the resource
+
+    Naming the table at every hop and not just the column is what lets the
+    walk be checked end to end: a renamed intermediate is caught where it is
+    declared rather than where something later follows it.
+
+    Both are None/empty for a polymorphic table, whose governing tool is a
+    property of the row rather than of the table.
     """
 
     predicate: DacBuilder
     tool: Tool | None = None
-    via: tuple[str, ...] = ()
+    via: tuple[tuple[str, str], ...] = ()
 
 
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
@@ -234,7 +245,7 @@ def _dac_via(
 
     return DacPath(
         tool=tool,
-        via=(fk,),
+        via=((fk, parent),),
         predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
@@ -257,7 +268,7 @@ def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     tool = _TOOL_BY_TABLE[parent]
     return DacPath(
         tool=tool,
-        via=(fk, mid_fk),
+        via=((fk, mid), (mid_fk, parent)),
         predicate=lambda t, c, w: (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
@@ -1062,8 +1073,8 @@ assert all(
 ), "DAC_WRITE_COMMANDS names a command that does not write"
 
 
-def governing_path(table: str) -> tuple[Tool, tuple[str, ...]] | None:
-    """The tool that governs ``table``'s rows and the FK chain that reaches it.
+def governing_path(table: str) -> tuple[Tool, tuple[tuple[str, str], ...]] | None:
+    """The tool that governs ``table``'s rows and the join chain that reaches it.
 
     The app-layer half of the sharing leg the policies are rendered from — one
     declaration, read two ways, so an endpoint resolving "which project does
