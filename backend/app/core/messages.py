@@ -959,6 +959,24 @@ class GuildAppMessages:
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
 
 
+class DelegationExchangeMessages:
+    """Codes for re-addressing a delegate's token to the app it will act at.
+
+    Read by a delegate deciding whether to park the work or give up on it, so
+    the three states it can actually do something about are told apart.
+    """
+
+    #: No app of this deployment answers to that public id.
+    UNKNOWN_AUDIENCE = "APP_DELEGATION_UNKNOWN_AUDIENCE"
+    #: The guild the caller's token names has not installed that app.
+    NOT_INSTALLED = "APP_DELEGATION_NOT_INSTALLED"
+    #: Installed, and the guild has switched it off.
+    INSTALL_DISABLED = "APP_DELEGATION_INSTALL_DISABLED"
+    #: Reached with something that is not a delegation, so there is nothing
+    #: held to re-address.
+    NOT_DELEGATED = "APP_DELEGATION_NOT_DELEGATED"
+
+
 class AppServiceMessages:
     """Codes for the deployment-level app service registry.
 
