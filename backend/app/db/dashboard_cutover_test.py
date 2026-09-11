@@ -75,7 +75,7 @@ LEGACY_BINDINGS = [
             "source": "task_counts",
             "bucket": bucket,
             "project_id": 4,
-            "conditions": [{"field": "is_archived", "op": "eq", "value": False}],
+            "conditions": [{"field": "archived_at", "op": "is_null", "value": True}],
         }
         for bucket in ("status_category", "status", "priority", "project", "day")
     ),
@@ -123,12 +123,12 @@ class TestEveryLegacyBindingBecomesAStatementTheSurfaceRuns:
         """Some buckets join tasks under an alias and some read it plainly."""
         filtered = {
             "source": "task_counts",
-            "conditions": [{"field": "is_archived", "op": "eq", "value": False}],
+            "conditions": [{"field": "archived_at", "op": "is_null", "value": True}],
         }
         joined = cutover._statement({**filtered, "bucket": "status"}, "chart")
         flat = cutover._statement({**filtered, "bucket": "priority"}, "chart")
-        assert "t.is_archived = false" in joined
-        assert "WHERE is_archived = false" in flat
+        assert "t.archived_at IS NULL" in joined
+        assert "WHERE archived_at IS NULL" in flat
 
     def test_a_value_carrying_a_quote_stays_one_value(self):
         sql = cutover._statement(

@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
   ArchiveDoneResponse,
+  ArchiveResponse,
   ChecklistItem,
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
@@ -297,15 +299,13 @@ export const useBulkUpdateTasks = (
     options
   );
 
-export const useBulkArchiveTasks = (options?: MutationOpts<TaskRead[], number[]>) =>
-  useGuildMutation<TaskRead[], number[]>(
+export const useBulkArchiveTasks = (options?: MutationOpts<ArchiveResponse[], number[]>) =>
+  useGuildMutation<ArchiveResponse[], number[]>(
     {
       mutationFn: (guildId, taskIds) =>
         Promise.all(
           taskIds.map((taskId) =>
-            updateTaskApiV1GGuildIdTasksTaskIdPatch(guildId, taskId, {
-              is_archived: true,
-            } as Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2])
+            archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(guildId, "task", taskId)
           )
         ),
       invalidate: () => invalidate(q.allTasks()),

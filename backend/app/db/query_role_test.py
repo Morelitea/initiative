@@ -84,7 +84,7 @@ async def test_initiative_rls_still_applies_to_it(engine, provisioned):
         await conn.execute(
             text(
                 f"INSERT INTO {schema}.projects (name, guild_id, initiative_id, "
-                "is_archived, is_template, comments_enabled, "
+                "archived_at, is_template, comments_enabled, "
                 "created_at, updated_at) "
                 "VALUES ('p', :g, :i, false, false, true, now(), now())"
             ),

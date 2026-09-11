@@ -123,7 +123,7 @@ describe("CommunityAutoJoinPrompt", () => {
         name: "Retired",
         join_policy: "open",
         auto_join: true,
-        is_archived: true,
+        archived_at: "2026-06-01T00:00:00.000Z",
       }),
     ]);
 

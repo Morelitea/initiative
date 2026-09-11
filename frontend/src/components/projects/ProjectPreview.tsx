@@ -50,7 +50,7 @@ export const canPinProject = (
   // An archived project takes no edits at all, pinning included — the server
   // refuses the update. A project pinned before it was archived still shows
   // the read-only indicator.
-  if (project.is_archived) return false;
+  if (project.archived_at !== null) return false;
 
   // Guild admins can always pin
   if (guildRole === "admin") return true;
@@ -279,7 +279,7 @@ const ProjectStateBadge = ({ project }: { project: ProjectRead }) => {
   if (project.is_template) {
     return <Badge variant="outline">{t("preview.templateBadge")}</Badge>;
   }
-  if (project.is_archived) {
+  if (project.archived_at !== null) {
     return <Badge variant="outline">{t("preview.archivedBadge")}</Badge>;
   }
   return null;

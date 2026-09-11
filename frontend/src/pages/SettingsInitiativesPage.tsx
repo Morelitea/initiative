@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles, useUpdateRole } from "@/hooks/useInitiativeRoles";
 import {
@@ -282,6 +283,8 @@ export const SettingsInitiativesPage = () => {
   const initiativesQuery = useGuildInitiatives({ enabled: isGuildAdmin });
   const updateInitiative = useUpdateInitiative();
   const deleteInitiative = useDeleteInitiative();
+  const archiveInitiative = useArchiveEntity();
+  const unarchiveInitiative = useUnarchiveEntity();
 
   // One roster fetch for the whole table; every row's manager picker reads it.
   const usersQuery = useUsers({ enabled: isGuildAdmin, staleTime: 5 * 60 * 1000 });
@@ -298,9 +301,10 @@ export const SettingsInitiativesPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<InitiativeRead | null>(null);
 
   const toggleArchive = (initiative: InitiativeRead) => {
-    const nextArchived = !initiative.is_archived;
-    updateInitiative.mutate(
-      { initiativeId: initiative.id, data: { is_archived: nextArchived } },
+    const nextArchived = initiative.archived_at === null;
+    const mutation = nextArchived ? archiveInitiative : unarchiveInitiative;
+    mutation.mutate(
+      { entityType: "initiative", entityId: initiative.id },
       {
         onSuccess: () => {
           toast.success(
@@ -384,7 +388,7 @@ export const SettingsInitiativesPage = () => {
       id: "status",
       header: t("manage.statusColumn"),
       cell: ({ row }) =>
-        row.original.is_archived ? (
+        row.original.archived_at !== null ? (
           <Badge variant="outline" className="text-xs">
             {t("manage.archived")}
           </Badge>
@@ -406,7 +410,7 @@ export const SettingsInitiativesPage = () => {
               onClick={() => toggleArchive(initiative)}
               disabled={updateInitiative.isPending}
             >
-              {initiative.is_archived ? (
+              {initiative.archived_at !== null ? (
                 <>
                   <ArchiveRestore className="h-4 w-4" />
                   {t("manage.unarchive")}

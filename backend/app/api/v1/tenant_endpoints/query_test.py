@@ -86,14 +86,14 @@ async def test_describing_a_statement_names_its_columns_and_types(client, acting
     actor = await acting_user(guild_role=GuildRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/describe"),
-        json={"sql": "SELECT name, created_at, is_archived, id FROM projects"},
+        json={"sql": "SELECT name, created_at, archived_at, id FROM projects"},
         headers=actor.headers,
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
         {"name": "name", "type": "text"},
         {"name": "created_at", "type": "date"},
-        {"name": "is_archived", "type": "boolean"},
+        {"name": "archived_at", "type": "timestamp"},
         {"name": "id", "type": "number"},
     ]
 
@@ -260,7 +260,7 @@ async def test_a_built_query_brackets_what_it_was_told_to(client, session, actin
                         {"field": "priority", "op": "eq", "value": "urgent"},
                     ],
                 },
-                {"field": "is_archived", "op": "eq", "value": False},
+                {"field": "archived_at", "op": "is_null", "value": True},
             ],
             "initiative_id": actor.initiative.id,
         },

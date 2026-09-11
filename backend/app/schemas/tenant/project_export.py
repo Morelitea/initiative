@@ -19,10 +19,10 @@ from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 """Bump on breaking changes to the envelope shape. Independent of app VERSION."""
 
-MIN_SUPPORTED_IMPORT_VERSION = 1
+MIN_SUPPORTED_IMPORT_VERSION = 2
 """Imports below this version are rejected. Future migrations may bridge older versions."""
 
 
@@ -31,7 +31,7 @@ class ProjectExportProject(SanitizedBaseModel):
     icon: Optional[str] = None
     description: Optional[str] = None
     is_template: bool = False
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -100,7 +100,7 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
     position: float = 0.0
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the
     # importer derives it from the restored status in that case.
     completed_at: Optional[datetime] = None

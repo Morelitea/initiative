@@ -4,7 +4,7 @@ Archiving and trashing promise the same thing — *this is finished, leave it
 alone* — and this module is where that promise is kept, in Postgres, for every
 guild-content table at once.
 
-A row is **frozen** when it is archived (``is_archived``), in the trash
+A row is **frozen** when it is archived (``archived_at``), in the trash
 (``deleted_at``), or hangs off something that is. Frozen content accepts no
 writes; the only writes it accepts are the ones that end the state or move it
 along — unarchive, restore, purge.
@@ -51,7 +51,7 @@ from app.db.initiative_rls import (
 )
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES
+from app.models.tenant._mixins import archive_models
 
 #: The SQLSTATE the guard raises, with a constraint name so it is told apart
 #: from any other object-not-in-prerequisite-state error. 55000 is Postgres's
@@ -76,7 +76,6 @@ _PURGING = f"current_setting('{PURGE_GUC}'::text, true) = 'true'::text"
 #: What a frozen row may still change: the columns that describe the freeze
 #: itself, plus the timestamp every write touches. Everything else is content.
 LIFECYCLE_COLUMNS: tuple[str, ...] = (
-    "is_archived",
     "archived_at",
     "deleted_at",
     "deleted_by",
@@ -84,12 +83,9 @@ LIFECYCLE_COLUMNS: tuple[str, ...] = (
     "updated_at",
 )
 
-#: Tables carrying ``is_archived``, read off the mapped models rather than
-#: listed — a model that gains the column joins the freeze by declaring it.
+#: Tables carrying the archive lifecycle (the ``ArchiveMixin`` subclasses).
 ARCHIVABLE_TABLES: frozenset[str] = frozenset(
-    name
-    for name, table in SQLModel.metadata.tables.items()
-    if "is_archived" in table.c and name in GUILD_SCOPED_TABLES
+    str(model.__tablename__) for model in archive_models()
 )
 
 #: Tables carrying the trash-can lifecycle (the ``SoftDeleteMixin`` subclasses).
@@ -152,7 +148,7 @@ def row_is_frozen(row: Any) -> bool:
     """
     if row is None:
         return False
-    if getattr(row, "is_archived", False):
+    if getattr(row, "archived_at", None) is not None:
         return True
     if getattr(row, "deleted_at", None) is not None:
         return True
@@ -190,7 +186,7 @@ def _own_frozen(alias: str, table: str) -> str | None:
     """Whether the row aliased ``alias`` is itself archived or trashed."""
     legs = []
     if table in ARCHIVABLE_TABLES:
-        legs.append(f"{alias}.is_archived")
+        legs.append(f"{alias}.archived_at IS NOT NULL")
     if table in TRASHABLE_TABLES:
         legs.append(f"{alias}.deleted_at IS NOT NULL")
     if not legs:

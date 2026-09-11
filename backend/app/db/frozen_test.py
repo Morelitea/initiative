@@ -89,7 +89,7 @@ async def _archive(session, model, row_id: int) -> None:
     """Archive through the superuser fixture, so the test sets up the state
     rather than exercising the path that reaches it."""
     await session.exec(
-        text(f"UPDATE {model} SET is_archived = true WHERE id = :id").bindparams(
+        text(f"UPDATE {model} SET archived_at = now() WHERE id = :id").bindparams(
             id=row_id
         )
     )
@@ -300,7 +300,7 @@ class TestRowFreeze:
         await _archive(session, "projects", project.id)
         await routed.exec(
             text(
-                "UPDATE projects SET is_archived = false, updated_at = now() "
+                "UPDATE projects SET archived_at = NULL, updated_at = now() "
                 "WHERE id = :id"
             ).bindparams(id=project.id)
         )
@@ -325,7 +325,7 @@ class TestRowFreeze:
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text(
-                    "UPDATE projects SET is_archived = false, name = 'renamed' "
+                    "UPDATE projects SET archived_at = NULL, name = 'renamed' "
                     "WHERE id = :id"
                 ).bindparams(id=project.id)
             )

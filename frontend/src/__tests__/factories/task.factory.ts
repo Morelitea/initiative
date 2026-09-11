@@ -54,7 +54,7 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     position: counter,
-    is_archived: false,
+    archived_at: null,
     comment_count: 0,
     guild_id: null,
     guild_name: null,

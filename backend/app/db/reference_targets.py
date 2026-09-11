@@ -137,10 +137,11 @@ class Resolved:
     #: sits on a guild calendar, which is guild-level content rather than
     #: initiative content.
     scoped_kind: bool
-    #: Whether the row is archived. Only projects and tasks can be; every other
-    #: kind reports False, which is the honest answer for a kind with no such
-    #: state rather than a default standing in for one.
-    is_archived: bool
+    #: Whether the row is archived. Every tool can be, as can a task and an
+    #: initiative; a kind that carries no archive lifecycle reports False, which
+    #: is the honest answer for a kind with no such state rather than a default
+    #: standing in for one.
+    archived: bool
 
 
 async def resolve_many(
@@ -161,7 +162,11 @@ async def resolve_many(
     table = SQLModel.metadata.tables[table_name]
     path = INITIATIVE_PATHS.get(table_name)
     initiative = text(path.initiative_expr(table_name)) if path is not None else null()
-    archived = table.c["is_archived"] if "is_archived" in table.c else literal(False)
+    archived = (
+        table.c["archived_at"].isnot(None)
+        if "archived_at" in table.c
+        else literal(False)
+    )
 
     rows = await session.exec(
         select(
@@ -181,7 +186,7 @@ async def resolve_many(
             title=row[1],
             initiative_id=row[2],
             scoped_kind=path is not None,
-            is_archived=bool(row[3]),
+            archived=bool(row[3]),
         )
         for row in rows.all()
     }

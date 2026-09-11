@@ -149,7 +149,7 @@ export const ProjectSettingsAdvancedTab = ({
           <CardHeader>
             <CardTitle>{t("settings.archiveStatus.title")}</CardTitle>
             <CardDescription>
-              {project.is_archived
+              {project.archived_at !== null
                 ? t("settings.archiveStatus.isArchived")
                 : t("settings.archiveStatus.isActive")}
             </CardDescription>
@@ -160,13 +160,13 @@ export const ProjectSettingsAdvancedTab = ({
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  project.is_archived
+                  project.archived_at !== null
                     ? unarchiveProject.mutate(projectId)
                     : archiveProject.mutate(projectId)
                 }
                 disabled={archiveProject.isPending || unarchiveProject.isPending}
               >
-                {project.is_archived
+                {project.archived_at !== null
                   ? t("settings.archiveStatus.unarchive")
                   : t("settings.archiveStatus.archive")}
               </Button>
