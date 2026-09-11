@@ -94,6 +94,20 @@ TRASHABLE_TABLES: frozenset[str] = frozenset(SOFT_DELETE_TABLES)
 #: Every table a row can be frozen ON. These carry the BEFORE UPDATE guard.
 FROZEN_TABLES: frozenset[str] = ARCHIVABLE_TABLES | TRASHABLE_TABLES
 
+#: Tables whose own two columns are the whole answer.
+#:
+#: Both lifecycles CASCADE — archiving an initiative stamps the tools in it and
+#: a project stamps its tasks (``services.tenant.archive``), and the trash does
+#: the same (``services.tenant.soft_delete``) — so a row here already carries
+#: what its parent's state would have told us. Asking upward as well would be
+#: the same question answered twice, from two places that could disagree.
+#:
+#: What is NOT here still asks: a comment or a picture carries a ``deleted_at``
+#: but no ``archived_at``, and a row that carries neither — an assignee, a
+#: property value, a grant — has nothing of its own to read. They inherit from
+#: the nearest ancestor that does, which is one hop for most and two at worst.
+SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
+
 
 #: Tables the freeze does not reach, and why. Reading frozen content still
 #: happens, and reading writes rows — so the freeze would otherwise turn a page
@@ -242,9 +256,13 @@ def _dispatch_tables() -> tuple[str, ...]:
 def render_resource_frozen_fn() -> str:
     """``public.resource_frozen(kind, id, trashed_ok)`` — one walk, every caller.
 
-    ``trashed_ok`` is what a DELETE asks: under a trashed parent, deleting is
-    the lifecycle rather than a change to it, so the walk stops there and
-    answers no. Under an archived one it answers yes, and the delete is refused.
+    A row that carries both lifecycle columns answers from itself and stops:
+    the cascades already put its parent's state on it. Only a row with nothing
+    of its own to read asks upward.
+
+    ``trashed_ok`` is what a DELETE asks: a trashed row ends the walk, because
+    deleting there is the lifecycle rather than a change to it. An archived one
+    answers yes, and the delete is refused.
 
     Created in ``public`` with no ``SET search_path``, like
     ``public.initiative_access``, so it resolves the guild-local tables of
@@ -268,7 +286,9 @@ def render_resource_frozen_fn() -> str:
             c
             for c in (
                 _own_frozen("fz", table),
-                _parent_call(table, "fz", trashed_ok="trashed_ok"),
+                None
+                if table in SELF_STAMPED_TABLES
+                else _parent_call(table, "fz", trashed_ok="trashed_ok"),
             )
             if c is not None
         ]
@@ -278,37 +298,64 @@ def render_resource_frozen_fn() -> str:
     return _RESOURCE_FROZEN_TEMPLATE.format(arms="\n".join(arms), purging=_PURGING)
 
 
-def render_frozen_ancestor_fn() -> str:
-    """``public.fn_frozen_ancestor_guard()`` — says no, and nothing else.
+def render_frozen_refuse_fn() -> str:
+    """``public.fn_frozen_refuse()`` — says no, and nothing else.
 
     The decision is in each trigger's ``WHEN`` clause, rendered per table from
-    the same walk the policies use, so this stays one function for every table.
+    the same declaration the policies use, so this stays one function for every
+    table and every reason.
     """
     return f"""
-CREATE OR REPLACE FUNCTION public.fn_frozen_ancestor_guard() RETURNS trigger
-    LANGUAGE plpgsql AS $frozen_ancestor$
+CREATE OR REPLACE FUNCTION public.fn_frozen_refuse() RETURNS trigger
+    LANGUAGE plpgsql AS $frozen_refuse$
 BEGIN
-    RAISE EXCEPTION 'content of an archived or trashed parent is read-only'
+    RAISE EXCEPTION 'archived or trashed content is read-only'
         USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
 END;
-$frozen_ancestor$;
+$frozen_refuse$;
 """
 
 
-def frozen_ancestor_triggers(table: str) -> list[str]:
-    """The ancestor attachments for one table, or none where the freeze does
-    not reach it.
+def frozen_write_triggers(table: str) -> list[str]:
+    """What refuses a write to one table, beyond the row's own UPDATE guard.
 
-    UPDATE asks about BOTH ancestries — the one the row has and the one it would
-    end up under — so neither editing under a frozen parent nor moving into one
-    gets through, and reparenting is covered by the database rather than by each
-    endpoint that does it. It runs the row guard, so the lifecycle columns may
-    still change: a trashed task under an archived project can be restored.
+    A cascade says where a row has BEEN, never where it is going. That is the
+    line these are drawn on.
 
-    DELETE asks only about the ancestry the row has, with ``trashed_ok`` so a
-    purge cascade runs.
+    A row that carries both lifecycle columns already has its parent's state on
+    it, so nothing here asks about the ancestry it HAS — its own UPDATE guard
+    covers that, and asking upward too would be one question answered twice from
+    two places that could disagree. It still takes:
+
+    * a DELETE guard on its own state, since the row guard is BEFORE UPDATE and
+      says nothing about removal. Deleting a TRASHED row is exempt: that is what
+      purge is.
+    * an UPDATE guard on the ancestry it would END UP under, because no cascade
+      can have stamped a row for a parent it has not reached yet — the same
+      reason INSERT keeps its walk.
+
+    A row with nothing of its own to read inherits instead, and asks about both
+    ancestries: the one it has as well as the one it is moving to.
     """
     out: list[str] = []
+    if table in SELF_STAMPED_TABLES:
+        own = _own_frozen("OLD", table)
+        trashed = _trashed("OLD", table)
+        out.append(
+            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_delete "
+            f"BEFORE DELETE ON {table} FOR EACH ROW "
+            f"WHEN (({own}) AND NOT ({trashed})) "
+            f"EXECUTE FUNCTION public.fn_frozen_refuse()"
+        )
+        moving_into = freeze_leg(table, "UPDATE", alias="NEW")
+        if moving_into is not None:
+            out.append(
+                f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
+                f"BEFORE UPDATE ON {table} FOR EACH ROW WHEN ({moving_into}) "
+                f"EXECUTE FUNCTION public.fn_frozen_row_guard()"
+            )
+        return out
+
     prior = freeze_leg(table, "UPDATE", alias="OLD")
     proposed = freeze_leg(table, "UPDATE", alias="NEW")
     if prior is not None and proposed is not None:
@@ -323,7 +370,7 @@ def frozen_ancestor_triggers(table: str) -> list[str]:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
             f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({doomed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+            f"EXECUTE FUNCTION public.fn_frozen_refuse()"
         )
     return out
 

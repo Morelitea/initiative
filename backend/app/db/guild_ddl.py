@@ -40,9 +40,9 @@ from app.db.initiative_rls import (
 from app.db.frozen import (
     FROZEN_TABLES,
     freeze_leg,
-    frozen_ancestor_triggers,
+    frozen_write_triggers,
     frozen_guard_trigger,
-    render_frozen_ancestor_fn,
+    render_frozen_refuse_fn,
     render_frozen_guard_fn,
     render_resource_frozen_fn,
 )
@@ -301,15 +301,17 @@ _FREEZE_SECTION = """\
 -- together, which a policy never has.
 --
 -- tr_<t>_frozen_guard: the row is itself archived or trashed.
--- tr_<t>_frozen_ancestor_update: it hangs off something that is, or is being
---   moved to hang off something that is.
+-- tr_<t>_frozen_ancestor_update: it carries no stamp of its own and hangs off
+--   something that is, or is being moved to hang off something that is.
 -- Both permit a change to the lifecycle columns and nothing else, so a frozen
 -- row can still be unarchived, restored, or given a new purge date. Their WHEN
 -- clauses keep an ordinary write on live content from reaching the function.
 --
--- tr_<t>_frozen_ancestor_delete: DELETE under a frozen parent, asked with
--- trashed_ok so a purge cascade — the one delete a trashed parent is FOR —
--- runs.
+-- tr_<t>_frozen_delete / tr_<t>_frozen_ancestor_delete: DELETE has no WITH
+-- CHECK, so RLS could only refuse it by returning no rows. A row that carries
+-- its own stamp is asked about itself; one that does not is asked about its
+-- ancestry, with trashed_ok so a purge cascade — the one delete a trashed row
+-- is FOR — runs.
 -- ==========================================================================="""
 
 
@@ -327,7 +329,7 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + render_frozen_guard_fn()
         + "\n"
-        + render_frozen_ancestor_fn()
+        + render_frozen_refuse_fn()
         + "\n"
         + "\n\n".join(blocks)
     )
@@ -341,7 +343,7 @@ def render_guild_rls_ddl() -> str:
     guards += [
         f"{trigger};"
         for table in sorted(INITIATIVE_PATHS)
-        for trigger in frozen_ancestor_triggers(table)
+        for trigger in frozen_write_triggers(table)
     ]
     out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
     return out + "\n"

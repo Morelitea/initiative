@@ -276,6 +276,9 @@ def upgrade() -> None:
         filters_carried += _carry_saved_filters(connection, schema)
 
     connection.execute(sa.text("SET LOCAL search_path = public"))
+    # Renamed: it refuses a delete on a row's own state now as well as on its
+    # ancestry. Nothing calls the old name once the triggers above are gone.
+    op.execute("DROP FUNCTION IF EXISTS public.fn_frozen_ancestor_guard()")
     logger.info(
         "archive flags carried onto archived_at: %s row(s); "
         "saved filters rewritten: %s",
