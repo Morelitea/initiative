@@ -25,8 +25,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
-    from app.models.tenant.document import Document
-    from app.models.tenant.task import Task
     from app.models.tenant.resource_grant import ResourceGrant
 
 
@@ -162,14 +160,6 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
         back_populates="queue_item",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    document_links: List["QueueItemDocument"] = Relationship(
-        back_populates="queue_item",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    task_links: List["QueueItemTask"] = Relationship(
-        back_populates="queue_item",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
 
 
 class QueueTag(SQLModel, table=True):
@@ -212,43 +202,3 @@ class QueuePermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-class QueueItemDocument(SQLModel, table=True):
-    """Junction table linking queue items to documents."""
-
-    __tablename__ = "queue_item_documents"
-
-    queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    attached_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue_item: Optional[QueueItem] = Relationship(back_populates="document_links")
-    document: Optional["Document"] = Relationship(back_populates="queue_item_links")
-
-
-class QueueItemTask(SQLModel, table=True):
-    """Junction table linking queue items to tasks."""
-
-    __tablename__ = "queue_item_tasks"
-
-    queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    attached_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue_item: Optional[QueueItem] = Relationship(back_populates="task_links")
-    task: Optional["Task"] = Relationship(back_populates="queue_item_links")

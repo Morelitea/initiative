@@ -1041,7 +1041,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_filter_presets": via("projects", "project_id"),
-    "project_documents": via("projects", "project_id"),
     "project_tags": via("projects", "project_id"),
     # One hop -> documents
     "document_tags": via("documents", "document_id"),
@@ -1072,15 +1071,12 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "task_assignees": via_task_project("task_id"),
     "task_tags": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
-    "queue_item_documents": via_queue_item("queue_item_id"),
     "queue_item_tags": via_queue_item("queue_item_id"),
-    "queue_item_tasks": via_queue_item("queue_item_id"),
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
     "post_poll_votes": via_post_poll("poll_id"),
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
-    "calendar_event_documents": via_event_calendar("calendar_event_id"),
     "calendar_event_tags": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
