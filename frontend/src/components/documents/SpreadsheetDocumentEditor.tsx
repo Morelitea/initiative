@@ -613,14 +613,31 @@ export const SpreadsheetDocumentEditor = ({
   // draws at zero size. Every "where can the cursor go", "which cells does
   // this range cover" and "what is the next cell" question goes through it,
   // so there is one answer rather than one per call site.
+  const isRowHidden = useCallback(
+    (r: number) => formatting.rows[String(r)]?.hidden === true,
+    [formatting.rows]
+  );
+  const isColHidden = useCallback(
+    (c: number) => formatting.columns[String(c)]?.hidden === true,
+    [formatting.columns]
+  );
+
   const grid = useMemo(
-    () =>
-      sheetGrid({
-        bounds: dimensions,
-        isRowHidden: (r) => formatting.rows[String(r)]?.hidden === true,
-        isColHidden: (c) => formatting.columns[String(c)]?.hidden === true,
-      }),
-    [dimensions, formatting.rows, formatting.columns]
+    () => sheetGrid({ bounds: dimensions, isRowHidden, isColHidden }),
+    [dimensions, isRowHidden, isColHidden]
+  );
+
+  // What actually gets drawn. A hidden line still has a place in the
+  // virtualizer — at zero size, so the lines after it sit where they should —
+  // but it has no cells and no header on screen. Its offset is the next
+  // line's, so anything it drew would sit on top of that line.
+  const visibleRows = useMemo(
+    () => virtualRows.filter((row) => !isRowHidden(row.index)),
+    [virtualRows, isRowHidden]
+  );
+  const visibleCols = useMemo(
+    () => virtualCols.filter((col) => !isColHidden(col.index)),
+    [virtualCols, isColHidden]
   );
 
   const selBox = useMemo(
@@ -2241,7 +2258,7 @@ export const SpreadsheetDocumentEditor = ({
               className="sticky top-0 left-0 z-30 border-border border-r border-b bg-muted"
               style={{ width: ROW_HEADER_WIDTH, height: COL_HEADER_HEIGHT }}
             />
-            {virtualCols.map((col) => {
+            {visibleCols.map((col) => {
               const header = (
                 <button
                   type="button"
@@ -2341,11 +2358,13 @@ export const SpreadsheetDocumentEditor = ({
                   height: frozenBandHeight,
                 }}
               />
-              {virtualCols.map((col) =>
+              {visibleCols.map((col) =>
                 col.index < frozenCols
                   ? null
                   : Array.from({ length: frozenRows }, (_, r) =>
-                      renderCell(r, col.index, ROW_HEADER_WIDTH + col.start, prefixRow[r])
+                      isRowHidden(r)
+                        ? null
+                        : renderCell(r, col.index, ROW_HEADER_WIDTH + col.start, prefixRow[r])
                     )
               )}
             </div>
@@ -2362,11 +2381,11 @@ export const SpreadsheetDocumentEditor = ({
                 className="absolute bg-background"
                 style={{ left: 0, top: 0, width: frozenBandWidth, height: totalGridHeight }}
               />
-              {virtualRows.map((row) =>
+              {visibleRows.map((row) =>
                 row.index < frozenRows
                   ? null
                   : Array.from({ length: frozenCols }, (_, c) =>
-                      renderCell(row.index, c, prefixCol[c], row.start)
+                      isColHidden(c) ? null : renderCell(row.index, c, prefixCol[c], row.start)
                     )
               )}
             </div>
@@ -2402,7 +2421,7 @@ export const SpreadsheetDocumentEditor = ({
             className="sticky left-0 z-10 bg-muted"
             style={{ width: ROW_HEADER_WIDTH, height: totalGridHeight }}
           >
-            {virtualRows.map((row) => {
+            {visibleRows.map((row) => {
               const header = (
                 <button
                   type="button"
@@ -2475,8 +2494,8 @@ export const SpreadsheetDocumentEditor = ({
           </div>
 
           {/* Body cells (excludes anything covered by a frozen band). */}
-          {virtualRows.map((row) =>
-            virtualCols.map((col) => {
+          {visibleRows.map((row) =>
+            visibleCols.map((col) => {
               if (row.index < frozenRows || col.index < frozenCols) return null;
               return renderCell(
                 row.index,

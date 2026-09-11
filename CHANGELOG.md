@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Archived and finished work is properly read-only** — archiving a project stopped edits on a handful of screens and left the rest open; archiving an initiative only hid it from the sidebar, with everything inside still editable; an archived task could be edited as though it were not. Archiving now means what it says, everywhere: an archived initiative, project or task is read-only until you bring it back, and so is everything inside it — tasks, comments, reactions, attachments, properties and sharing alike. The trash works the same way: a trashed item and its contents can be restored or emptied, and nothing else. Deleted work is also out of sight now, not just out of the way — once something is in the trash only you, as the person who deleted it, and your community's admins can still see it. Unarchiving and restoring are unchanged, and so is reading — archived work still opens, searches and exports the way it always did.
 - **"Linked from" counts what a conversation says, not just what a page says** — a document's backlinks were read from links typed into other documents' text. A `#` mention written in a comment now counts too, recorded against whatever the comment is about, so a page mentioned while discussing a project shows up under that project the way one mentioned in its body always has. What a page refers to is also kept for every kind of thing now, not only for other documents — a task or a queue named in a document is remembered as a reference to it, ready for the surfaces that will read them.
 
+### Fixed
+
+- **Hiding a spreadsheet row hides it** — a hidden row stopped taking up space but kept drawing its contents, which landed on top of the row beneath it: hide the row holding "Test2" and "Test2" and "Test3" ended up printed over each other on one line, with both row numbers crowded into the same place. A hidden row or column is no longer drawn at all, so the rows after it close up the way they should. Hiding a frozen row does the same.
+
 ## [0.68.0] - 2026-09-11
 
 ### Added
