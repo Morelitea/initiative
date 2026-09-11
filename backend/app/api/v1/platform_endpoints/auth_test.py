@@ -1123,6 +1123,106 @@ async def test_oidc_callback_establishes_refresh_session(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The id_token's own account of the authentication — which methods, which
+    context class, when — is kept against the provider that performed it, and
+    its methods join the session's ``amr``."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-assurance@example.com",
+            "username": "sso-assurance",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+            "auth_time": 1757600000,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    user = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("sso-assurance@example.com")
+            )
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {
+        str(provider.id): {
+            "auth_time": 1757600000,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+        }
+    }
+    # The session's own factors gain what the IdP named, alongside the marker
+    # that says which provider it was.
+    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An IdP that asserts none of it records none of it, and the access token
+    carries no ``satd`` at all."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-silent@example.com",
+            "username": "sso-silent",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("sso-silent@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {}
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert "satd" not in claims
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_oidc_callback_survives_session_store_failure(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

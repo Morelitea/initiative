@@ -162,6 +162,7 @@ def mint_access_token(
     session_id: uuid.UUID,
     amr: list[str],
     satisfied_providers: list[int],
+    provider_auth: dict[str, Any] | None = None,
     expires_in: timedelta | None = None,
     now: datetime | None = None,
 ) -> tuple[str, int]:
@@ -173,6 +174,11 @@ def mint_access_token(
     provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
     ``iat``/``exp``. Returns ``(token, expires_in_seconds)`` so the caller can
     schedule a refresh before it lapses.
+
+    ``satd`` joins them when the session has one: each satisfied provider's own
+    account of its authentication event, keyed by provider id (see
+    ``services.auth.assurance``). Absent when no provider contributed one, so a
+    password session's token keeps the shape it always had.
     """
     issued = now or datetime.now(timezone.utc)
     ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
@@ -187,6 +193,8 @@ def mint_access_token(
         "iat": int(issued.timestamp()),
         "exp": issued + ttl,
     }
+    if provider_auth:
+        payload["satd"] = provider_auth
     token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
     return token, int(ttl.total_seconds())
 
