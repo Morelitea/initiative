@@ -20,6 +20,7 @@ from app.testing.app_channel import (
 from app.testing.factories import (
     grant_role_permission,
     TOOL_FACTORIES,
+    billing_guild_ref,
     enable_all_tools,
     create_tool_entity,
     create_app_delegation,
@@ -77,6 +78,7 @@ __all__ = [
     "encode_body",
     "register_app_service",
     "TOOL_FACTORIES",
+    "billing_guild_ref",
     "enable_all_tools",
     "create_tool_entity",
     "Actor",

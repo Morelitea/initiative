@@ -62,8 +62,6 @@ async def _send_claim(user_id: int, guild_id: int) -> None:
     try:
         user_ref, guild_ref = await billing_refs(user_id=user_id, guild_id=guild_id)
         token, _ = create_billing_portal_handoff_token(
-            user_id=user_id,
-            guild_id=guild_id,
             guild_role="admin",
             user_ref=user_ref,
             guild_ref=guild_ref,

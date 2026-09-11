@@ -2189,3 +2189,15 @@ async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Ini
     await session.commit()
     await session.refresh(fresh)
     return fresh
+
+
+async def billing_guild_ref(guild_id: int) -> str:
+    """The reference the billing service knows one guild by, minted on demand.
+
+    Billing names a guild by its reference and never by a row id, so a test
+    that posts to the billing boundary needs the value that boundary would
+    actually receive — which is the one the service itself would mint.
+    """
+    from app.services.platform import identity_refs
+
+    return await identity_refs.billing_guild_ref(guild_id=guild_id)
