@@ -80,6 +80,30 @@ _PURGE_GUARD_PREDICATE = (
     "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
 )
 
+# Who may READ a row that is in the trash. Deleting something takes it out of
+# sight, so the ordinary answer is nobody: the trash is a place to recover from,
+# not a second copy of the guild's content that outlives the decision to remove
+# it. Two legs open it — the guild admin, who manages the trash for everyone,
+# and whoever deleted the row, who gets their own deletions back from /me/trash.
+# RESTRICTIVE, so it AND-combines with the membership gate rather than widening
+# it: a trashed row is still only visible to someone who could see it alive.
+_TRASH_READ_PREDICATE = (
+    "deleted_at IS NULL"
+    f" OR {_PURGE_GUARD_PREDICATE}"
+    " OR deleted_by = NULLIF(current_setting('app.current_user_id'::text, true),"
+    " ''::text)::integer"
+)
+
+
+def _trash_read_policy(table: str) -> list[str]:
+    """Hide a trashed row from everyone but the admin and whoever deleted it."""
+    return [
+        f"DROP POLICY IF EXISTS trashed_read ON {table};",
+        f"CREATE POLICY trashed_read ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_TRASH_READ_PREDICATE});",
+    ]
+
+
 _HEADER = """\
 -- RENDERED AT RUNTIME from app/db/initiative_rls.py (INITIATIVE_PATHS).
 -- Initiative-member-level RLS for the per-guild CONTENT tables. Schema-relative
@@ -219,6 +243,8 @@ def _table_block(table: str, path: InitiativePath) -> str:
         else:  # USING
             lines.append(f"  USING ({pred});")
     lines.extend(_freeze_policies(table))
+    if table in SOFT_DELETE_TABLES:
+        lines.extend(_trash_read_policy(table))
     if table in _PURGE_GUARD_TABLES:
         # Admin-only hard delete (purge), AND-combined with the PERMISSIVE delete
         # policy above. RESTRICTIVE, so a write-member who clears the permissive
@@ -292,6 +318,7 @@ def _guild_level_guard_block(table: str) -> str:
             f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
             f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
             f"  USING ({_PURGE_GUARD_PREDICATE});",
+            *_trash_read_policy(table),
         ]
     )
 

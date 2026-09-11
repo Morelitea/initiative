@@ -7,6 +7,8 @@ they would show either way — but the split is exactly what these pin down, and
 mixing the two sessions would hide which half refused a write.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -20,6 +22,7 @@ from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
 from app.testing import (
     create_guild,
+    create_initiative_member,
     create_guild_membership,
     create_initiative,
     create_project,
@@ -98,11 +101,16 @@ async def _archive(session, entity) -> None:
     await session.commit()
 
 
-async def _trash(session, entity) -> None:
+async def _trash(session, entity, by: int) -> None:
     """Trash through the service, for the same reason as ``_archive``: the
-    cascade is what puts the contents into the state being tested."""
+    cascade is what puts the contents into the state being tested.
+
+    ``by`` is not optional. A trashed row is visible to whoever deleted it, and
+    leaving that unrecorded would set up a row nobody can see — which no request
+    path produces, and which would make these tests describe the wrong thing.
+    """
     await soft_delete_entity(
-        session, entity, deleted_by_user_id=None, retention_days=None
+        session, entity, deleted_by_user_id=by, retention_days=None
     )
     await session.commit()
 
@@ -136,8 +144,8 @@ class TestResourceFrozen:
         self, session, routed, workspace
     ):
         """What is under a trashed row is being purged, not edited."""
-        _u, _g, _i, project, task = workspace
-        await _trash(session, project)
+        user, _g, _i, project, task = workspace
+        await _trash(session, project, by=user.id)
         assert await _frozen(routed, "tasks", task.id) is True
         assert await _frozen(routed, "tasks", task.id, trashed_ok=True) is False
 
@@ -217,8 +225,8 @@ class TestAncestorFreeze:
     async def test_a_purge_under_a_trashed_project_still_runs(
         self, session, admin_routed, workspace
     ):
-        _u, _g, _i, project, task = workspace
-        await _trash(session, project)
+        user, _g, _i, project, task = workspace
+        await _trash(session, project, by=user.id)
         result = await admin_routed.exec(
             text("DELETE FROM tasks WHERE id = :id").bindparams(id=task.id)
         )
@@ -246,8 +254,8 @@ class TestAncestorFreeze:
     ):
         """A lifecycle change is the one write a frozen ancestor still admits —
         restoring a trashed project's tasks would be impossible otherwise."""
-        _u, _g, _i, project, task = workspace
-        await _trash(session, task)
+        user, _g, _i, project, task = workspace
+        await _trash(session, task, by=user.id)
         await _archive(session, project)
         await routed.exec(
             text(
@@ -309,8 +317,8 @@ class TestRowFreeze:
         await routed.commit()
 
     async def test_a_trashed_project_can_be_restored(self, session, routed, workspace):
-        _u, _g, _i, project, _t = workspace
-        await _trash(session, project)
+        user, _g, _i, project, _t = workspace
+        await _trash(session, project, by=user.id)
         await routed.exec(
             text(
                 "UPDATE projects SET deleted_at = NULL, deleted_by = NULL, "
@@ -361,3 +369,102 @@ class TestWhatTheFreezeLeavesAlone:
             ).bindparams(uid=user.id, pid=project.id)
         )
         await routed.commit()
+
+
+class TestTrashedRowsAreOutOfSight:
+    """Deleting something takes it out of sight, not just out of the way."""
+
+    @pytest.fixture
+    async def other_member(self, session, workspace):
+        """A second member of the same initiative, who deleted nothing."""
+        _u, guild, initiative, _p, _t = workspace
+        user = await create_user(session)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.member
+        )
+        await create_initiative_member(session, initiative=initiative, user=user)
+        return user
+
+    async def _routed_as(self, role_session, user, guild, guild_role):
+        s = await role_session("app_user")
+        await set_rls_context(
+            s, user_id=user.id, guild_id=guild.id, guild_role=guild_role
+        )
+        return s
+
+    async def test_a_member_does_not_see_what_somebody_else_deleted(
+        self, session, role_session, workspace, other_member
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.member.value
+        )
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert rows == []
+
+    async def test_whoever_deleted_it_still_sees_it(
+        self, session, role_session, workspace
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(role_session, user, guild, GuildRole.member.value)
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert len(rows) == 1
+
+    async def test_the_guild_admin_sees_everything_in_the_trash(
+        self, session, role_session, workspace, other_member
+    ):
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.admin.value
+        )
+        rows = (
+            await s.exec(
+                text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
+            )
+        ).all()
+        await s.rollback()
+        assert len(rows) == 1
+
+    async def test_the_freeze_still_sees_it_when_deciding(
+        self, session, role_session, workspace, other_member
+    ):
+        """The guard asks the database about a row the asker cannot read. If
+        hiding it also hid it from the guard, everything hanging off a trashed
+        row would become writable by anyone who did not delete it."""
+        user, guild, _i, _p, task = workspace
+        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_by = user.id
+        session.add(task)
+        await session.commit()
+
+        s = await self._routed_as(
+            role_session, other_member, guild, GuildRole.member.value
+        )
+        frozen = await _frozen(s, "tasks", task.id)
+        await s.rollback()
+        assert frozen is True

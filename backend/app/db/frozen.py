@@ -285,6 +285,13 @@ def render_resource_frozen_fn() -> str:
     the cascades already put its parent's state on it. Only a row with nothing
     of its own to read asks upward.
 
+    A row it cannot find is treated as frozen. The caller reads under its own
+    policies, and a trashed row is hidden from everyone but the guild admin and
+    whoever deleted it — so "no such row" and "a row I may not see" arrive here
+    as the same answer, and only one of them is safe to guess. Everything this
+    walks is reached by a foreign key from a row that exists, so a miss means
+    the second. Purge says so explicitly and is exempt above.
+
     ``trashed_ok`` is what a DELETE asks: a trashed row ends the walk, because
     deleting there is the lifecycle rather than a change to it. An archived one
     answers yes, and the delete is refused.
@@ -298,7 +305,7 @@ def render_resource_frozen_fn() -> str:
         lines = [
             f"      WHEN '{table}' THEN",
             f"        SELECT * INTO fz FROM {table} WHERE id = rid;",  # noqa: S608
-            "        IF NOT FOUND THEN RETURN false; END IF;",
+            "        IF NOT FOUND THEN RETURN true; END IF;",
         ]
         trashed = _trashed("fz", table)
         if trashed is not None:
