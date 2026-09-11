@@ -68,6 +68,7 @@ from app.models.platform.app_service_registration import (
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.fields.spec import FieldType
+from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
 from app.services.query.rows import RowColumn
 from app.services.marketplace.service_apps import clears_visibility
@@ -750,10 +751,15 @@ async def _call_app(
         raise AppDataError(AppDataMessages.BUSY, 503)
     _inflight[public_id] = _inflight.get(public_id, 0) + 1
     try:
+        # What this install calls the guild. The token and the body name it
+        # the same way, because it is the only name the app has for it.
+        guild_ref = await ensure_app_guild_ref(
+            guild_id=app.guild_id, app_install_id=app.id
+        )
         try:
             token, _ = mint_context_token(
                 public_id=public_id,
-                guild_id=app.guild_id,
+                guild_ref=guild_ref,
                 app_install_id=app.id,
                 scope="endpoint",
                 endpoint_id=endpoint_id,
@@ -777,7 +783,7 @@ async def _call_app(
                 content=json.dumps(
                     {
                         "endpoint": endpoint_id,
-                        "guild_id": app.guild_id,
+                        "guild_ref": guild_ref,
                         "params": dict(params),
                     }
                 ).encode("utf-8"),

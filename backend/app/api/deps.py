@@ -171,9 +171,10 @@ async def _authenticate_auto_delegation(
     # works in is resolved here rather than taken from the token.
     from app.services.marketplace.app_refs import resolve_app_guild_ref
 
-    guild_id = await resolve_app_guild_ref(ref=claims.guild_ref)
-    if guild_id is None:
+    resolved_guild = await resolve_app_guild_ref(ref=claims.guild_ref)
+    if resolved_guild is None:
         return None
+    guild_id, _install_id = resolved_guild
 
     # The token names its member by the reference the app was given, not by a
     # user id. Resolving it takes both the guild it was minted in and the app
