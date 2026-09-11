@@ -21,10 +21,9 @@ Two things to keep in mind here.
 every read rather than the schema the query runs in. ``resolve_app_ref``
 therefore takes the guild and will not answer without it.
 
-And it is reachable only on the system engine, which splits these functions in
-two: the ones called from the guild-routed request path open a system-engine
-session of their own, and the ones whose callers already hold one take it as an
-argument.
+And it is reachable only on the system engine. Every function here that writes
+therefore opens a session of its own; only ``resolve_app_ref`` takes one, because
+its caller composes it with a guild-routed read in the same transaction.
 """
 
 from __future__ import annotations
@@ -140,11 +139,17 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     return dropped
 
 
-async def drop_guild_app_refs(session: AsyncSession, *, guild_id: int) -> int:
+async def drop_guild_app_refs(*, guild_id: int) -> int:
     """Remove every app reference minted in one guild. Returns the count.
 
     Called when the guild is deleted, for the same reason as
-    ``drop_install_refs``. Takes a session because guild deletion already runs
-    on the system engine.
+    ``drop_install_refs``, and like it opens its own session: guild deletion
+    reaches this from three call sites holding three different sessions, one of
+    them routed into the guild role being deleted.
     """
-    return await identity_refs.drop_sector_refs(session, sector_guild_id=guild_id)
+    async with db_session.AdminSessionLocal() as session:
+        dropped = await identity_refs.drop_sector_refs(
+            session, sector_guild_id=guild_id
+        )
+        await session.commit()
+    return dropped

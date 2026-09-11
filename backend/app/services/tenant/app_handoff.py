@@ -216,9 +216,9 @@ async def mint_embed_handoff(
         # One-shot marker: the app blocklists a handoff once it has exchanged
         # it, so a captured token is not replayable inside its short window.
         "jti": str(uuid.uuid4()),
-        # The pairwise subject this install knows the member by, never the row
-        # id: two apps must not be able to compare notes and find they are
-        # talking to the same person (OIDC Core §8.1).
+        # The reference this install knows the member by (OIDC Core §8.1
+        # pairwise), never the row id: it is stable for this install and
+        # unrelated to what any other sector holds for the same person.
         "sub": subject,
         "aud": audience,
         "iss": settings.APP_PLATFORM_ISSUER,
