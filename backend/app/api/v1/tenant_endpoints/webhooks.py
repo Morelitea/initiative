@@ -28,9 +28,11 @@ guild admin — ordinary ownership, the same rule any other guild resource uses.
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import (
     GuildContext,
@@ -58,6 +60,8 @@ from app.services.webhook_target_url import (
     WebhookTargetUrlPrivateError,
     assert_target_url_is_public_async,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -239,6 +243,18 @@ async def delete_subscription(
     # The names this subscription minted for itself. Only its own sector: one an
     # app registered is named in that app's, which belongs to the install and
     # outlives any single subscription.
-    await webhook_refs.drop_subscription_refs(
-        guild_id=guild_context.guild_id, subscription_id=subscription_id
-    )
+    #
+    # Reported rather than raised, like the same step on app uninstall: the row
+    # is already gone and committed, so failing the request here would answer
+    # "no" to something that happened, and the retry it invites answers 404.
+    try:
+        await webhook_refs.drop_subscription_refs(
+            guild_id=guild_context.guild_id, subscription_id=subscription_id
+        )
+    except SQLAlchemyError:
+        logger.warning(
+            "webhook refs: references for subscription %s in guild %s were not "
+            "removed; they name a subscription that no longer exists",
+            subscription_id,
+            guild_context.guild_id,
+        )

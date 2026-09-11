@@ -195,6 +195,39 @@ async def update_subscription(
     return subscription
 
 
+async def deactivate_for_install(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    app_install_id: int,
+) -> int:
+    """Switch off the subscriptions one install registered. Returns the count.
+
+    An install is what makes an app present in a guild, so removing it ends
+    what that app receives. Deactivated rather than deleted: the row is the
+    record of what was being sent where, and a reinstall registers afresh.
+
+    Called from the uninstall path, which runs as a guild admin — the authority
+    the guild-wide ones need, and more than enough for the rest.
+    """
+    rows = (
+        await session.exec(
+            select(WebhookSubscription).where(
+                WebhookSubscription.guild_id == guild_id,
+                WebhookSubscription.app_install_id == app_install_id,
+                WebhookSubscription.active.is_(True),
+            )
+        )
+    ).all()
+    for row in rows:
+        row.active = False
+        row.updated_at = datetime.now(timezone.utc)
+        session.add(row)
+    if rows:
+        await session.commit()
+    return len(rows)
+
+
 async def delete_subscription(
     session: AsyncSession,
     *,
