@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
@@ -227,7 +227,7 @@ def serialize_gallery_summary(
         ),
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
-        tags=tag_summaries(getattr(gallery, "tag_links", None)),
+        tags=annotated_tags(gallery),
         grants=serialize_grants(gallery),
     )
 
@@ -263,7 +263,7 @@ def serialize_gallery_image(image: "GalleryImage") -> GalleryImageRead:
         created_at=image.created_at,
         updated_at=image.updated_at,
         version_count=int(getattr(image, "version_count", 1)),
-        tags=tag_summaries(getattr(image, "tag_links", None)),
+        tags=annotated_tags(image),
     )
 
 

@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services.fields.spec import FieldType
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.services.tenant.dashboard_definition import (
     TABULAR_SOURCES,
     WIDGET_PRESETS,
@@ -299,7 +299,7 @@ def serialize_dashboard_summary(
             else None
         ),
         comments_enabled=dashboard.comments_enabled,
-        tags=tag_summaries(getattr(dashboard, "tag_links", None)),
+        tags=annotated_tags(dashboard),
         grants=serialize_grants(dashboard),
     )
 

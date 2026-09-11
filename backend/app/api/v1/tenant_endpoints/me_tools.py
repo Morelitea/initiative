@@ -44,6 +44,7 @@ from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import queues as queues_service
+from app.services.tenant import tags as tags_service
 
 me_router = APIRouter()
 
@@ -151,6 +152,7 @@ async def list_across_guilds(
             .options(*spec.loader_options())
         )
         rows = (await guild_session.exec(statement)).unique().all()
+        await tags_service.annotate_tags(guild_session, rows)
         # Serialize inside the routed session: relationships resolve in this
         # guild's schema, and the next guild expunges these rows.
         return [spec.serialize(row, current_user) for row in rows]

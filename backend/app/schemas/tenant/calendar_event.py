@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 from app.core.user_display import display_name
 
@@ -286,7 +286,7 @@ def serialize_calendar_event_summary(
         attendee_names=names,
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
-        tags=tag_summaries(getattr(event, "tag_links", None)),
+        tags=annotated_tags(event),
         my_permission_level=my_permission_level,
         created_at=event.created_at,
         updated_at=event.updated_at,

@@ -349,6 +349,7 @@ async def list_queues(
     )
     result = await session.exec(stmt)
     queues = result.unique().all()
+    await tags_service.annotate_tags(session, queues)
 
     items = [
         serialize_queue_summary(

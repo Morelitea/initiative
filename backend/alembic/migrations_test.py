@@ -430,6 +430,19 @@ def _execute_sql(sql: str) -> None:
     asyncio.run(_execute_sql_async(sql))
 
 
+async def _fetchval_async(sql: str):
+    conn = await _connect_test_db()
+    try:
+        return await conn.fetchval(sql)
+    finally:
+        await conn.close()
+
+
+def _fetchval(sql: str):
+    """One scalar from the migrations test DB."""
+    return asyncio.run(_fetchval_async(sql))
+
+
 async def _alembic_version_row_count_async() -> int:
     conn = await _connect_test_db()
     try:
@@ -827,3 +840,172 @@ class TestMostRecentRevision:
         head_second = _current_alembic_revision()
         assert head_first == head_second
         assert head_second == _script_directory().get_current_head()
+
+
+# ---------------------------------------------------------------------------
+# The junction moves: does the backfill actually carry rows?
+# ---------------------------------------------------------------------------
+
+#: The revision each of the two junction moves starts from.
+_PRE_RELATIONSHIPS = "20260910_0251"
+_RELATIONSHIPS = "20260910_0252"
+_TAGS_AS_RELATIONSHIPS = "20260910_0253"
+
+#: Enough of a guild schema to hang a junction row off. ``guild_template`` is a
+#: real guild schema for these purposes — ``run_for_each_guild_schema`` visits
+#: it like any other — so seeding it is what makes the copy have work to do.
+#:
+#: A fresh install has nothing to carry over, so a backfill that moves nothing
+#: passes every test that builds from empty. That is the failure this file is
+#: here to catch, and it needs rows to catch it with.
+_SEED_SQL = """
+-- Every table here FORCEs row-level security, which binds the owner this
+-- connection is, so the seed lifts it and puts it back — the same
+-- lift-and-restore a migration writing to an existing table uses. What is
+-- restored is the state the copy then has to deal with: FORCE on, and policies
+-- that key on request GUCs a migration has no value for.
+ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.guilds (id, name, created_at, updated_at)
+VALUES (1, 'Seed', now(), now());
+
+INSERT INTO public.users (
+    id, email_hash, email_encrypted, username, discriminator, created_at, updated_at
+) VALUES (1, 'seed-hash', 'seed-encrypted', 'seed', '0001', now(), now());
+
+ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
+
+SET search_path = guild_template, public;
+
+ALTER TABLE initiatives NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE documents NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE tags NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_documents NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_tags NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO initiatives (id, guild_id, name, is_default, created_at, updated_at)
+VALUES (1, 1, 'Seed initiative', true, now(), now());
+
+INSERT INTO projects (
+    id, name, initiative_id, guild_id, is_archived, is_template, created_at, updated_at
+) VALUES (1, 'Seed project', 1, 1, false, false, now(), now());
+
+INSERT INTO documents (
+    id, initiative_id, guild_id, name, created_by, is_template, created_at, updated_at
+) VALUES (1, 1, 1, 'Seed document', 1, false, now(), now());
+
+INSERT INTO tags (id, guild_id, name, created_at, updated_at)
+VALUES (1, 1, 'seed-tag', now(), now());
+
+INSERT INTO project_documents (project_id, document_id, attached_at)
+VALUES (1, 1, now());
+
+INSERT INTO project_tags (project_id, tag_id, created_at)
+VALUES (1, 1, now());
+
+ALTER TABLE initiatives FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE documents FORCE ROW LEVEL SECURITY;
+ALTER TABLE tags FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_documents FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_tags FORCE ROW LEVEL SECURITY;
+"""
+
+#: ``(kind_code << 32) | id`` for the seeded rows — the node ids the copies must
+#: produce. Spelled out rather than imported, for the reason the migrations
+#: themselves spell their codes out.
+_NODE_PROJECT = (10 << 32) | 1
+_NODE_DOCUMENT = (6 << 32) | 1
+_NODE_TAG = (13 << 32) | 1
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestJunctionsMoveTheirRows:
+    """The two junction moves, replayed over a database that has rows.
+
+    Both revisions copy junction rows into ``relationships`` and then DROP the
+    junction. The copy reads tables the request path locks down, and a copy that
+    matches nothing reports success and drops the source anyway — so what these
+    assert is not that the migration runs, but that the rows came out the other
+    side.
+    """
+
+    def _stage(self) -> None:
+        _run_alembic("upgrade", _PRE_RELATIONSHIPS)
+        _execute_sql(_SEED_SQL)
+
+    def test_attachments_survive_the_move(self, fresh_migrations_db: str) -> None:
+        self._stage()
+        _run_alembic("upgrade", _RELATIONSHIPS)
+
+        assert not _table_exists("project_documents", "guild_template"), (
+            "the junction was dropped, so its rows had one chance to move"
+        )
+        row = _fetchval(
+            "SELECT count(*) FROM guild_template.relationships "
+            f"WHERE relationship_type = 'attached' "
+            f"AND source_node = {_NODE_DOCUMENT} AND target_node = {_NODE_PROJECT}"
+        )
+        assert row == 1, (
+            "the attachment did not arrive as an edge. A copy that reads nothing "
+            "reports success and drops the junction, which is why this is asked "
+            "with rows present rather than on a fresh database."
+        )
+
+    def test_tag_assignments_survive_the_move(self, fresh_migrations_db: str) -> None:
+        self._stage()
+        _run_alembic("upgrade", _TAGS_AS_RELATIONSHIPS)
+
+        assert not _table_exists("project_tags", "guild_template")
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.relationships "
+                "WHERE relationship_type = 'tagged_with' "
+                f"AND source_node = {_NODE_PROJECT} AND target_node = {_NODE_TAG}"
+            )
+            == 1
+        ), "the tag assignment did not arrive as an edge"
+        assert (
+            _fetchval(
+                "SELECT guild_id FROM guild_template.relationships "
+                "WHERE relationship_type = 'tagged_with'"
+            )
+            == 1
+        ), "the edge did not take the guild from the tag it names"
+
+    def test_tag_assignments_survive_a_round_trip(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Down and back up again, with the rows still there at each end.
+
+        The downgrade is the half nothing else exercises: a release rollback
+        rebuilds the junctions from the edges, and the re-upgrade has to find
+        them again.
+        """
+        self._stage()
+        _run_alembic("upgrade", _TAGS_AS_RELATIONSHIPS)
+
+        _run_alembic("downgrade", "-1")
+        assert _current_alembic_revision() == _RELATIONSHIPS
+        assert _table_exists("project_tags", "guild_template")
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.project_tags "
+                "WHERE project_id = 1 AND tag_id = 1"
+            )
+            == 1
+        ), "the rollback left the assignment behind"
+
+        _run_alembic("upgrade", _TAGS_AS_RELATIONSHIPS)
+        assert (
+            _fetchval(
+                "SELECT count(*) FROM guild_template.relationships "
+                "WHERE relationship_type = 'tagged_with' "
+                f"AND source_node = {_NODE_PROJECT} AND target_node = {_NODE_TAG}"
+            )
+            == 1
+        ), "the re-upgrade did not carry the assignment back"

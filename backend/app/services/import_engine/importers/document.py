@@ -16,7 +16,6 @@ from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.tag import DocumentTag
 from app.schemas.tenant.import_envelopes import DocumentEnvelope
 from app.services.import_engine.common import (
     ensure_tag,
@@ -31,6 +30,7 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
     resolve_property_values,
 )
+from app.services.tenant import tags as tags_service
 
 _IMPORTABLE_TYPES = {
     DocumentType.native.value,
@@ -121,7 +121,13 @@ class DocumentImporter:
                 tags_created += 1
             else:
                 tags_matched += 1
-            session.add(DocumentTag(document_id=document.id, tag_id=resolved.id))
+            session.add(
+                tags_service.tag_edge(
+                    tags_service.TAG_LINKS["document"],
+                    document.id,
+                    resolved.id,
+                )
+            )
 
         member_handles = await load_initiative_member_handles(
             session, initiative_id=target_initiative.id

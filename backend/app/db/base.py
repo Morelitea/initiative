@@ -33,7 +33,7 @@ from app.models.tenant.document import (
 )
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
-from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
+from app.models.tenant.tag import Tag
 from app.models.tenant.property import (
     DocumentPropertyValue,
     PropertyDefinition,
@@ -42,25 +42,21 @@ from app.models.tenant.property import (
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
-    QueueItemTag,
 )
-from app.models.tenant.calendar import Calendar, CalendarTag
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventTag,
 )
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.models.tenant.dashboard import Dashboard, DashboardTag
-from app.models.tenant.post import Post, PostTag
+from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.post import Post
 from app.models.tenant.gallery import (
     Gallery,
     GalleryImage,
-    GalleryImageTag,
     GalleryImageVersion,
-    GalleryTag,
 )
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
@@ -160,31 +156,21 @@ __all__ = [
     "Notification",
     "OIDCClaimMapping",
     "Tag",
-    "TaskTag",
-    "ProjectTag",
-    "DocumentTag",
     "PropertyDefinition",
     "DocumentPropertyValue",
     "TaskPropertyValue",
     "Queue",
     "QueueItem",
-    "QueueItemTag",
     "Calendar",
-    "CalendarTag",
     "CalendarEvent",
     "CalendarEventAttendee",
-    "CalendarEventTag",
     "EventOutbox",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
-    "DashboardTag",
     "Post",
-    "PostTag",
     "Gallery",
-    "GalleryTag",
     "GalleryImage",
-    "GalleryImageTag",
     "GalleryImageVersion",
     "PostRead",
     "PostPoll",

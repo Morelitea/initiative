@@ -11,7 +11,7 @@ from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.post import Post
@@ -377,7 +377,7 @@ def serialize_post_summary(
         comments_enabled=post.comments_enabled,
         reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),
-        tags=tag_summaries(getattr(post, "tag_links", None)),
+        tags=annotated_tags(post),
         grants=serialize_grants(post),
         reactions=(
             reactions_service.summarize(reaction_rows, viewer_id=user_id)

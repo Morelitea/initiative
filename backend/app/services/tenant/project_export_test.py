@@ -20,14 +20,16 @@ from app.models.tenant.property import (
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.tenant.tag import ProjectTag, Tag, TaskTag
+from app.models.tenant.tag import Tag
 from app.schemas.tenant.project_export import SCHEMA_VERSION
 from app.models.tenant.task import Task, TaskAssignee, TaskStatusCategory
 from app.services.tenant import project_export as export_service
 from app.services.tenant import project_import as import_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import tags as tags_service
 from app.testing import (
+    assign_tag,
     checklist_items,
     create_guild,
     create_guild_membership,
@@ -69,7 +71,7 @@ async def _seed_populated_project(session: AsyncSession):
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
-    session.add(ProjectTag(project_id=project.id, tag_id=tag.id))
+    await assign_tag(session, project, tag)
 
     # Property definition (select)
     severity = await create_property_definition(
@@ -96,7 +98,7 @@ async def _seed_populated_project(session: AsyncSession):
     session.add(task)
     await session.commit()
     await session.refresh(task)
-    session.add(TaskTag(task_id=task.id, tag_id=tag.id))
+    await assign_tag(session, task, tag)
     session.add(TaskAssignee(task_id=task.id, user_id=assignee.id, guild_id=guild.id))
     session.add(
         TaskPropertyValue(
@@ -177,11 +179,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         .options(
             selectinload(Project.grants),
             selectinload(Project.task_statuses),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks)
-            .selectinload(Task.tag_links)
-            .selectinload(TaskTag.tag),
             selectinload(Project.tasks)
             .selectinload(Task.property_values)
             .selectinload(TaskPropertyValue.property_definition),
@@ -197,7 +195,8 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert new_task.title == "Fix the thing"
     assert {i["text"] for i in new_task.checklist} == {"step 1", "step 2"}
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
-    assert {link.tag.name for link in new_task.tag_links} == {"blocker"}
+    await tags_service.annotate_tags(session, [new_task])
+    assert {t.name for t in new_task.tags} == {"blocker"}
     assert len(new_task.property_values) == 1
     pv = new_task.property_values[0]
     assert pv.value_text == "high"

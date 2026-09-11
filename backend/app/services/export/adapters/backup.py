@@ -876,9 +876,7 @@ def _document_metadata(document) -> dict:
     from app.services.export.property_values import property_export_dict
 
     return {
-        "tags": sorted(
-            link.tag.name for link in document.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in document.tags or []),
         "properties": [
             property_export_dict(pv)
             for pv in document.property_values or []

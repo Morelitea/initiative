@@ -25,10 +25,15 @@ Two things are created in ``public`` first, because the table depends on them:
 
 The copy reads tables that have FORCE ROW LEVEL SECURITY, which binds even the
 owner the migration runs as, and the policies key on request GUCs a migration
-has no value for. So each source has FORCE lifted for the copy and the row
-counts are asserted to match: a policy-bound copy moves nothing and reports
-success, and a fresh install has nothing to copy, so CI would stay green while
-every upgrade with data silently lost it.
+has no value for. So each source has FORCE lifted for the copy, and the row
+counts are asserted to match.
+
+The count assertion catches a partial copy and nothing else — both sides of it
+are read under the same policies, so a copy that reads zero compares zero to
+zero and passes. What holds the lift itself is
+``TestJunctionsMoveTheirRows`` in ``alembic/migrations_test.py``, which replays
+this revision over a database that has rows in it. A fresh install has nothing
+to carry over, so every test that builds from empty passes either way.
 
 Order is create -> backfill -> drop. RLS policies, grants and the
 ``created_by`` trigger are NOT written here: provisioning renders those from the
@@ -43,13 +48,38 @@ Create Date: 2026-09-10
 import sqlalchemy as sa
 from alembic import op
 
-from app.core.relationships import ENDPOINT_KINDS, NODE_ID_SHIFT
 from app.db.guild_migrations import run_for_each_guild_schema
 
 revision = "20260910_0252"
 down_revision = "20260910_0251"
 branch_labels = None
 depends_on = None
+
+
+#: The endpoint kinds as of this revision: ``(kind, permanent code, table)``.
+#: Stated here rather than read from ``app.core.relationships`` — a kind added
+#: later must not change what this revision writes, and a code that moved would
+#: silently re-encode every row generated here while leaving the old ones
+#: behind. ``migration_imports_test`` is what holds the rule.
+_KINDS: tuple[tuple[str, int, str], ...] = (
+    ("calendar", 1, "calendars"),
+    ("calendar_event", 2, "calendar_events"),
+    ("counter", 3, "counters"),
+    ("counter_group", 4, "counter_groups"),
+    ("dashboard", 5, "dashboards"),
+    ("document", 6, "documents"),
+    ("gallery", 7, "galleries"),
+    ("gallery_image", 8, "gallery_images"),
+    ("post", 9, "posts"),
+    ("project", 10, "projects"),
+    ("queue", 11, "queues"),
+    ("queue_item", 12, "queue_items"),
+    ("tag", 13, "tags"),
+    ("task", 14, "tasks"),
+)
+
+#: How many low bits of a node id hold the entity id.
+_NODE_ID_SHIFT = 32
 
 
 #: The junctions, as (table, source column, source kind, target column, target
@@ -73,10 +103,7 @@ _JUNCTIONS: tuple[tuple[str, str, str, str, str], ...] = (
 
 
 def _kind_code_fn() -> str:
-    arms = " ".join(
-        f"WHEN '{kind.value}' THEN {endpoint.code}"
-        for kind, endpoint in ENDPOINT_KINDS.items()
-    )
+    arms = " ".join(f"WHEN '{kind}' THEN {code}" for kind, code, _ in _KINDS)
     return f"""
         CREATE OR REPLACE FUNCTION public.relationship_kind_code(kind text)
         RETURNS bigint LANGUAGE sql IMMUTABLE STRICT AS $$
@@ -87,10 +114,10 @@ def _kind_code_fn() -> str:
 
 def _set_guild_id_fn() -> str:
     arms = "\n".join(
-        f"""                    WHEN '{kind.value}' THEN
-                        SELECT guild_id INTO NEW.guild_id FROM {endpoint.table}
+        f"""                    WHEN '{kind}' THEN
+                        SELECT guild_id INTO NEW.guild_id FROM {table}
                         WHERE id = NEW.source_id;"""
-        for kind, endpoint in ENDPOINT_KINDS.items()
+        for kind, _, table in _KINDS
     )
     return f"""
         CREATE OR REPLACE FUNCTION public.fn_relationships_set_guild_id()
@@ -111,9 +138,8 @@ def _set_guild_id_fn() -> str:
     """
 
 
-
 def _create_table() -> None:
-    kinds = ", ".join(f"'{k.value}'" for k in sorted(ENDPOINT_KINDS, key=str))
+    kinds = ", ".join(f"'{kind}'" for kind, _, _ in sorted(_KINDS))
     op.create_table(
         "relationships",
         sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
@@ -128,7 +154,7 @@ def _create_table() -> None:
             "source_node",
             sa.BigInteger(),
             sa.Computed(
-                f"(public.relationship_kind_code(source_type) << {NODE_ID_SHIFT}) "
+                f"(public.relationship_kind_code(source_type) << {_NODE_ID_SHIFT}) "
                 "| source_id::bigint",
                 persisted=True,
             ),
@@ -138,7 +164,7 @@ def _create_table() -> None:
             "target_node",
             sa.BigInteger(),
             sa.Computed(
-                f"(public.relationship_kind_code(target_type) << {NODE_ID_SHIFT}) "
+                f"(public.relationship_kind_code(target_type) << {_NODE_ID_SHIFT}) "
                 "| target_id::bigint",
                 persisted=True,
             ),

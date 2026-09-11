@@ -120,6 +120,15 @@ class CaptureSpec:
     #: carries more than one trigger. ``None`` everywhere else, which keeps
     #: every existing trigger's name unchanged.
     label: str | None = None
+    #: Row expression yielding the facet label, where one constant cannot say
+    #: it — a table whose rows are facets of different things depending on what
+    #: the row holds. ``None`` everywhere else, and then ``facet`` is the whole
+    #: answer and no per-row lookup is paid for.
+    facet_expr: str | None = None
+    #: Row expression yielding the initiative this trigger's events are scoped
+    #: to, where the table's own answer is not this report's. ``None`` leaves
+    #: the table's registry entry to answer, which is the ordinary case.
+    initiative_expr: str | None = None
 
     @property
     def trigger_name(self) -> str:
@@ -312,6 +321,16 @@ def build_specs() -> list[CaptureSpec]:
                             else None
                         ),
                         label=report.label,
+                        facet_expr=(
+                            report.facet_expr(ROW)
+                            if report.facet_expr is not None
+                            else None
+                        ),
+                        initiative_expr=(
+                            report.initiative_expr(ROW)
+                            if report.initiative_expr is not None
+                            else None
+                        ),
                     )
                 )
             continue
@@ -365,6 +384,7 @@ def build_specs() -> list[CaptureSpec]:
 #:   7 — expression resolving the resource's parent chain, or '' when it has none
 #:   8 — expression that is true while the row is not news yet, or '' for none
 #:   9 — 'anonymous' when this table's events name no actor
+#:  10 — expression resolving the facet label, or '' when arg 3 is the answer
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -487,6 +507,13 @@ BEGIN
         END IF;
     END IF;
 
+    -- A facet whose label the row decides. Resolved here rather than passed as
+    -- a literal, for a table whose rows are facets of different things.
+    IF COALESCE(TG_ARGV[10], '') <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[10] INTO v_facet USING v_row;
+        v_facet := COALESCE(v_facet, '');
+    END IF;
+
     -- A facet has no columns of its own worth naming; report the change as the
     -- owning resource being updated in one respect.
     IF v_facet <> '' THEN
@@ -562,7 +589,7 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"CREATE TRIGGER {spec.trigger_name}",
             f"  AFTER INSERT OR UPDATE OR DELETE ON {spec.table}",
             f"  FOR EACH ROW EXECUTE FUNCTION {CAPTURE_FUNCTION}(",
-            f"    {_quoted(initiative_locator(spec.table)(ROW))},",
+            f"    {_quoted(spec.initiative_expr or initiative_locator(spec.table)(ROW))},",
             f"    '{static_type}',",
             f"    {_quoted(spec.resource_id_expr)},",
             f"    '{spec.facet or ''}',",
@@ -571,7 +598,8 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"    {_quoted(type_expr or '')},",
             f"    {_quoted(spec.parents_expr)},",
             f"    {_quoted(spec.quiet_expr)},",
-            f"    '{'anonymous' if source.anonymous else ''}'",
+            f"    '{'anonymous' if source.anonymous else ''}',",
+            f"    {_quoted(spec.facet_expr or '')}",
             "  );",
         ]
     )

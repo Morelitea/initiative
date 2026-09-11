@@ -28,7 +28,13 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.core.reactions import ReactionTarget
-from app.core.relationships import ENDPOINT_KINDS, SYMMETRIC_TYPES, EndpointKind
+from app.core.relationships import (
+    ENDPOINT_KINDS,
+    FACETS,
+    SYMMETRIC_TYPES,
+    EndpointKind,
+    RelationshipType,
+)
 from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
@@ -735,17 +741,137 @@ def reactions_path() -> InitiativePath:
     )
 
 
+def _relationship_end(
+    r: str, side: str, render: Callable[["InitiativePath", str], str]
+) -> str:
+    """One end of an edge, read through the registry entry of whatever it names.
+
+    A CASE over that end's type, each arm joining to the kind's own table and
+    asking the question there — so an edge never answers for itself what its
+    endpoints already answer for themselves. An end no entry covers (a tag, and
+    guild-level things generally) yields NULL, which each caller reads its own
+    way. Built on call rather than at import, because ``INITIATIVE_PATHS`` is
+    still being assembled when the callers are defined.
+    """
+    arms = " ".join(
+        f"WHEN '{kind.value}' THEN (SELECT {render(path, 'rl')} "  # noqa: S608
+        f"FROM {endpoint.table} rl WHERE rl.id = {r}.{side}_id)"
+        for kind, endpoint in ENDPOINT_KINDS.items()
+        if (path := INITIATIVE_PATHS.get(endpoint.table)) is not None
+    )
+    return f"(CASE {r}.{side}_type {arms} ELSE NULL END)"
+
+
+#: The function name the relationships policies defer to. One call per end
+#: instead of one EXISTS per kind per end: the policy stays a few hundred bytes
+#: and the per-kind walk is planned once per session inside the function, where
+#: inlining it made every statement on the table plan a thousand-node tree.
+ENDPOINT_ACCESS_FN = "public.relationship_endpoint_access"
+
+
+def _endpoint_dac(endpoint: EndpointKind) -> DacPath | None:
+    """The sharing leg for one kind, with its tool NAMED.
+
+    Both ends are reached under an alias here. Where the row IS the governing
+    resource (``via`` empty), ``_dac_self`` reads the tool off the name it is
+    handed — which under an alias is not a table name, so it would find no tool
+    and render no gate at all. The lookup it wants is the same one, against the
+    real table; naming the tool is what ``reactions_path`` does for the same
+    reason.
+
+    A kind that reaches its resource through a parent keeps the leg its own
+    entry declares: that walk names each table, so it survives the alias.
+    """
+    path = INITIATIVE_PATHS.get(endpoint.table)
+    dac = path.dac if path is not None else None
+    if dac is None or dac.via:
+        return dac
+    tool = dac.tool or _TOOL_BY_TABLE.get(endpoint.table)
+    return _dac_self(tool) if tool is not None else None
+
+
+def _endpoint_predicate(endpoint: EndpointKind, write: bool) -> str:
+    """What one kind asks of a reader, membership and sharing together.
+
+    The same two legs ``guild_ddl`` ANDs onto every other table's policies,
+    rendered here because they go inside the function rather than inside the
+    policy. Sharing needs no per-command variant: the only thing a command
+    changes in this leg is whether an INSERT is the governed resource being
+    created, and an endpoint reached under an alias never is.
+    """
+    path = INITIATIVE_PATHS.get(endpoint.table)
+    if path is None:
+        # Guild-level, and stated rather than defaulted. A tag is the guild's
+        # own vocabulary: every member already sees every tag, so existence
+        # inside the routed schema IS the gate. A kind with no entry and no
+        # statement here is not an endpoint at all — ENDPOINT_KINDS refuses it,
+        # because the permissive reading of a missing initiative admits any
+        # member rather than nobody.
+        return "TRUE"
+    legs = [path.predicate("re", write)]
+    dac = _endpoint_dac(endpoint)
+    if dac is not None:
+        sharing = dac.predicate("re", "UPDATE" if write else "SELECT", write)
+        if sharing is not None:
+            legs.append(sharing)
+    return " AND ".join(f"({leg})" for leg in legs)
+
+
+def render_endpoint_access_fn() -> str:
+    """The per-kind gate, as one function the policies call twice.
+
+    Rendered from ``INITIATIVE_PATHS`` like every policy here, so a kind's gate
+    is still declared once. ``plpgsql`` rather than ``LANGUAGE sql``: a SQL
+    function of this shape gets inlined back into the calling query, which is
+    the thing being avoided. Not ``SECURITY DEFINER`` — it runs as the caller,
+    so each endpoint table's own policies apply inside it too, and the guild
+    schema it reads is whichever one the request is routed to.
+    """
+    arms = []
+    for kind, endpoint in ENDPOINT_KINDS.items():
+
+        def exists(write: bool) -> str:
+            return (
+                f"EXISTS (SELECT 1 FROM {endpoint.table} re "  # noqa: S608
+                f"WHERE re.id = p_entity_id "
+                f"AND {_endpoint_predicate(endpoint, write)})"
+            )
+
+        arms.append(
+            f"        WHEN '{kind.value}' THEN\n"
+            f"            IF p_need_write THEN\n"
+            f"                RETURN {exists(True)};\n"
+            f"            END IF;\n"
+            f"            RETURN {exists(False)};"
+        )
+    body = "\n".join(arms)
+    return f"""
+CREATE OR REPLACE FUNCTION {ENDPOINT_ACCESS_FN}(
+    p_kind text, p_entity_id integer, p_need_write boolean
+) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    AS $endpoint_access$
+BEGIN
+    CASE p_kind
+{body}
+        ELSE
+            RETURN false;
+    END CASE;
+END;
+$endpoint_access$;
+"""
+
+
 def relationships_path() -> InitiativePath:
     """An edge is reached by whoever can reach BOTH of the things it connects.
 
-    Polymorphic on both ends, so each end renders one EXISTS leg per kind into
-    that kind's table, deferring to the kind's OWN entry here for the membership
-    predicate and the sharing leg. The two ends are ANDed: a row is invisible
-    unless the reader clears each of them, which is ``document_links_path`` made
-    general. A link can therefore never widen access — it only ever surfaces for
-    someone who already held both sides — and an edge naming something the
-    reader cannot see is simply absent, indistinguishable from never having
-    existed.
+    Polymorphic on both ends, so each end defers to :func:`render_endpoint_access_fn`
+    — which asks that kind's OWN entry here for the membership predicate and
+    the sharing leg. The two ends are ANDed: a row is invisible unless the
+    reader clears each of them, which is ``document_links_path`` made general. A
+    link can therefore never widen access — it only ever surfaces for someone
+    who already held both sides — and an edge naming something the reader cannot
+    see is simply absent, indistinguishable from never having existed.
 
     **What a write asks depends on what the edge describes.** Direction is
     chosen so the source is the end an edge describes, which makes this
@@ -760,137 +886,44 @@ def relationships_path() -> InitiativePath:
       service instead, because read-level DELETE here would let anyone who can
       see both ends undo somebody else's curation.
 
-    That distinction is per TYPE, which is why it renders as a CASE on
-    ``relationship_type`` inside the predicate rather than as a
-    ``DAC_WRITE_COMMANDS`` entry: that registry answers per command, and this
-    question is not one a command can answer.
+    That distinction is per TYPE, and it rides as the function's ``need_write``
+    argument — a plain boolean expression over the row's own column, where a
+    ``DAC_WRITE_COMMANDS`` entry could not say it: that registry answers per
+    command, and this question is not one a command can answer.
     """
 
-    # Resolved lazily: INITIATIVE_PATHS is still being built at import time, and
-    # the builders below only run when the DDL is rendered.
-    def _leg_for(endpoint: EndpointKind) -> InitiativePath | None:
-        return INITIATIVE_PATHS.get(endpoint.table)
-
-    def _dac_for(endpoint: EndpointKind) -> DacPath | None:
-        """The sharing leg for one kind, with its tool NAMED.
-
-        Both ends are reached under an alias here. Where the row IS the
-        governing resource (``via`` empty), ``_dac_self`` reads the tool off the
-        name it is handed — which under an alias is not a table name, so it
-        would find no tool and render no gate at all. The lookup it wants is the
-        same one, against the real table; naming the tool is what
-        ``reactions_path`` does for the same reason.
-
-        A kind that reaches its resource through a parent keeps the leg its own
-        entry declares: that walk names each table, so it survives the alias.
-        """
-        path = _leg_for(endpoint)
-        dac = path.dac if path is not None else None
-        if dac is None or dac.via:
-            return dac
-        tool = dac.tool or _TOOL_BY_TABLE.get(endpoint.table)
-        return _dac_self(tool) if tool is not None else None
-
-    def _end(t: str, side: str, write: bool) -> str:
-        """One end's membership gate: a CASE over that end's kind."""
-        arms = []
-        for kind, endpoint in ENDPOINT_KINDS.items():
-            alias = f"re_{side}"
-            path = _leg_for(endpoint)
-            if path is None:
-                # Guild-level, and stated rather than defaulted. A tag is the
-                # guild's own vocabulary: every member already sees every tag,
-                # so existence inside the routed schema IS the gate. A kind with
-                # no entry and no statement here is not an endpoint at all —
-                # ENDPOINT_KINDS refuses it, because the permissive reading of a
-                # missing initiative admits any member rather than nobody.
-                inner = "TRUE"
-            else:
-                inner = path.predicate(alias, write)
-            arms.append(
-                f"WHEN '{kind.value}' THEN EXISTS ("
-                f"SELECT 1 FROM {endpoint.table} {alias} "  # noqa: S608
-                f"WHERE {alias}.id = {t}.{side}_id AND {inner})"
-            )
-        return f"(CASE {t}.{side}_type {' '.join(arms)} ELSE FALSE END)"
-
-    def _end_dac(t: str, side: str, command: str, write: bool) -> str:
-        arms = []
-        for kind, endpoint in ENDPOINT_KINDS.items():
-            alias = f"rd_{side}"
-            dac = _dac_for(endpoint)
-            # A kind the guild's own vocabulary governs (a tag) has no sharing
-            # question to ask, and the membership leg above is the whole answer.
-            inner = dac.predicate(alias, command, write) if dac is not None else None
-            inner = inner or "TRUE"
-            arms.append(
-                f"WHEN '{kind.value}' THEN EXISTS ("
-                f"SELECT 1 FROM {endpoint.table} {alias} "  # noqa: S608
-                f"WHERE {alias}.id = {t}.{side}_id AND {inner})"
-            )
-        return f"(CASE {t}.{side}_type {' '.join(arms)} ELSE FALSE END)"
-
-    def _source_write(t: str) -> str:
-        """Whether THIS row's type makes the source the end being edited."""
-        return f"{t}.relationship_type NOT IN ({_SYMMETRIC_SQL})"
-
     def build(t: str, w: bool) -> str:
-        if not w:
-            return f"({_end(t, 'source', False)} AND {_end(t, 'target', False)})"
-        # A write: the source leg asks write only where the edge describes it.
-        source = (
-            f"(CASE WHEN {_source_write(t)} "
-            f"THEN {_end(t, 'source', True)} ELSE {_end(t, 'source', False)} END)"
+        # A write asks write of the source only where the edge describes it.
+        need_write = (
+            f"{t}.relationship_type NOT IN ({_SYMMETRIC_SQL})" if w else "false"
         )
-        return f"({source} AND {_end(t, 'target', False)})"
-
-    def build_dac(t: str, command: str, w: bool) -> str:
-        if not w:
-            return (
-                f"({_end_dac(t, 'source', command, False)} "
-                f"AND {_end_dac(t, 'target', command, False)})"
-            )
-        source = (
-            f"(CASE WHEN {_source_write(t)} "
-            f"THEN {_end_dac(t, 'source', command, True)} "
-            f"ELSE {_end_dac(t, 'source', command, False)} END)"
+        return (
+            f"({ENDPOINT_ACCESS_FN}({t}.source_type, {t}.source_id, {need_write})"
+            f" AND {ENDPOINT_ACCESS_FN}({t}.target_type, {t}.target_id, false))"
         )
-        return f"({source} AND {_end_dac(t, 'target', command, False)})"
 
     def locate(r: str) -> str:
-        """The initiative an event about this edge is scoped to.
+        """The initiative this edge belongs to, either end answering.
 
-        Either end answers, so the first non-NULL wins: a guild-level endpoint
-        (a tag) has no initiative to give, and the other end's is the one that
-        decides who hears about the change.
+        The events are scoped more precisely than this — each one to its OWN
+        end (:func:`relationships_report_on_both_ends`), which is what keeps a
+        cross-initiative edge from telling one side about the other. This is
+        the table's answer for anything that asks it of the row itself, where a
+        guild-level end has none to give and the other end's decides.
         """
 
-        def side(name: str) -> str:
-            arms = " ".join(
-                f"WHEN '{kind.value}' THEN (SELECT {path.initiative_expr('rl')} "  # noqa: S608
-                f"FROM {endpoint.table} rl WHERE rl.id = {r}.{name}_id)"
-                for kind, endpoint in ENDPOINT_KINDS.items()
-                if (path := _leg_for(endpoint)) is not None
-            )
-            return f"(CASE {r}.{name}_type {arms} ELSE NULL END)"
+        def init(path: InitiativePath, alias: str) -> str:
+            return path.initiative_expr(alias)
 
-        return f"COALESCE({side('source')}, {side('target')})"
-
-    def chain(r: str) -> str:
-        arms = " ".join(
-            f"WHEN '{kind.value}' THEN (SELECT {path.parents('rl')} "  # noqa: S608
-            f"FROM {endpoint.table} rl WHERE rl.id = {r}.source_id)"
-            for kind, endpoint in ENDPOINT_KINDS.items()
-            if (path := _leg_for(endpoint)) is not None
+        return (
+            f"COALESCE({_relationship_end(r, 'source', init)}, "
+            f"{_relationship_end(r, 'target', init)})"
         )
-        return f"COALESCE((CASE {r}.source_type {arms} ELSE NULL END), {NO_PARENTS})"
 
-    return InitiativePath(
-        predicate=build,
-        initiative_expr=locate,
-        parents=chain,
-        dac=DacPath(predicate=build_dac),
-    )
+    # Sharing is inside the function with membership: both legs ask the same
+    # endpoint the same question, and splitting them here would render the walk
+    # to each kind twice.
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
@@ -1087,43 +1120,31 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_filter_presets": via("projects", "project_id"),
-    "project_tags": via("projects", "project_id"),
     # One hop -> documents
-    "document_tags": via("documents", "document_id"),
     "document_file_versions": via("documents", "document_id"),
     "document_links": document_links_path(),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
-    "queue_tags": via("queues", "queue_id"),
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
-    "counter_group_tags": via("counter_groups", "counter_group_id"),
     # One hop -> calendars
     "calendar_events": via("calendars", "calendar_id"),
-    "calendar_tags": via("calendars", "calendar_id"),
     # One hop -> dashboards
-    "dashboard_tags": via("dashboards", "dashboard_id"),
     # One hop -> posts
-    "post_tags": via("posts", "post_id"),
     "post_reads": via("posts", "post_id"),
     # One hop -> galleries
-    "gallery_tags": via("galleries", "gallery_id"),
     "gallery_images": gallery_images_path(),
     # Two hops -> gallery_images -> galleries
-    "gallery_image_tags": via_gallery_image("gallery_image_id"),
     "gallery_image_versions": via_gallery_image("gallery_image_id"),
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "task_assignees": via_task_project("task_id"),
-    "task_tags": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
-    "queue_item_tags": via_queue_item("queue_item_id"),
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
     "post_poll_votes": via_post_poll("poll_id"),
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
-    "calendar_event_tags": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
         "documents d",
@@ -1306,6 +1327,16 @@ class ReportsAs:
     #: trigger's name. ``None`` for the ordinary one-report table, which keeps
     #: every existing trigger named exactly as it is today.
     label: str | None = None
+    #: Row expression yielding the label for ``changed``, where the answer
+    #: depends on the row rather than on the table. ``facet`` stays the constant
+    #: the rest of the registry reads; this is what the trigger evaluates.
+    facet_expr: RowLocator | None = None
+    #: Row expression yielding the initiative THIS report is scoped to, where
+    #: the table's own answer is not the one this report wants. A table
+    #: reporting against two different resources answers this twice. The parent
+    #: chain needs no counterpart — it already resolves from the resource the
+    #: report names.
+    initiative_expr: RowLocator | None = None
 
 
 def reports_as(parent: str, fk: str, facet: str) -> ReportsAs:
@@ -1357,34 +1388,73 @@ def reactions_report_on_their_target() -> ReportsAs:
     )
 
 
+def _endpoint_report(endpoint: EndpointKind) -> tuple[str, Callable[[str], str]]:
+    """The resource an event about this kind names, and how to reach its id.
+
+    An endpoint kind is not always a thing a subscriber fetches: a picture has
+    no route of its own, and its own table says so by reporting against its
+    gallery. An edge naming one has to name what that kind names, or the event
+    would carry an id nothing can re-read — so the answer comes from the
+    table's own registry entry rather than from a second decision here.
+    """
+    declared = event_source(endpoint.table).reports_as
+    if declared is None:
+        return endpoint.table, lambda alias: f"{alias}.id"
+    report = declared[0] if isinstance(declared, tuple) else declared
+    (parent,) = report.resource_types
+    return parent, report.id_expr
+
+
 def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
     """An edge is a facet of BOTH things it connects, so it reports twice.
 
     One event would leave the other end's watchers unaware — and for a symmetric
     type there is no "main" end to pick, because the stored source is whichever
     node id sorted lower. Each event names only its own end and is scoped to
-    that end's initiative, so nothing crosses a boundary: a subscriber is told
-    that something it can see changed, and re-reads it through RLS, which ANDs
-    both ends and hands back only what that reader may have.
+    that end's own initiative, so a subscriber is told that something it can see
+    changed and re-reads it through RLS, which ANDs both ends and hands back
+    only what that reader may have.
 
-    The facet is the table's own name rather than the other end's kind, because
-    a facet label is one static trigger argument and the other end's kind varies
-    per row. Nothing keys on the label — the signal is content-free and the
-    refetch is what carries the answer.
+    An end that belongs to no initiative — a tag — resolves NULL, and the
+    capture function writes no event it cannot scope. The other end still
+    reports, so the change is heard once, by the initiative it happened in.
+
+    **The label comes from the primitive**, read per row: a ``tagged_with`` edge
+    reports ``changed = ['tags']`` whatever the two things are, which is what a
+    junction named ``task_tags`` derived from its own name. Storage moves; a
+    subscriber's field filter does not.
     """
+    facet_arms = " ".join(
+        f"WHEN '{t.value}' THEN '{FACETS[t]}'" for t in RelationshipType
+    )
+    reports = {kind: _endpoint_report(ep) for kind, ep in ENDPOINT_KINDS.items()}
 
     def one(side: str) -> ReportsAs:
-        arms = " ".join(
-            f"WHEN '{kind.value}' THEN '{endpoint.table}'"
-            for kind, endpoint in ENDPOINT_KINDS.items()
+        type_arms = " ".join(
+            f"WHEN '{kind.value}' THEN '{resource}'"
+            for kind, (resource, _) in reports.items()
         )
+
+        def id_of(r: str) -> str:
+            arms = " ".join(
+                f"WHEN '{kind.value}' THEN (SELECT {id_expr('rl')} "  # noqa: S608
+                f"FROM {ENDPOINT_KINDS[kind].table} rl WHERE rl.id = {r}.{side}_id)"
+                for kind, (_, id_expr) in reports.items()
+            )
+            return f"(CASE {r}.{side}_type {arms} END)"
+
+        def init(path: InitiativePath, alias: str) -> str:
+            return path.initiative_expr(alias)
+
         return ReportsAs(
-            resource_types=frozenset(
-                endpoint.table for endpoint in ENDPOINT_KINDS.values()
-            ),
-            id_expr=lambda r, s=side: f"{r}.{s}_id",
-            facet="relationships",
-            type_expr=lambda r, s=side, a=arms: f"(CASE {r}.{s}_type {a} END)",
+            resource_types=frozenset(resource for resource, _ in reports.values()),
+            id_expr=id_of,
+            # The constant the registry reads when it needs one name for the
+            # table; what the trigger evaluates is the expression below.
+            facet=FACETS[RelationshipType.related_to],
+            facet_expr=lambda r: f"(CASE {r}.relationship_type {facet_arms} END)",
+            type_expr=lambda r: f"(CASE {r}.{side}_type {type_arms} END)",
+            initiative_expr=lambda r: _relationship_end(r, side, init),
             label=side,
         )
 
@@ -1555,7 +1625,6 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.
     "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
-    "gallery_image_tags": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),
@@ -1569,7 +1638,6 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         reports_as=poll_options_report_on_their_post(), anonymous=True
     ),
     "reactions": Emit(reports_as=reactions_report_on_their_target()),
-    "relationships": Emit(reports_as=relationships_report_on_both_ends()),
 }
 
 _SILENT: frozenset[str] = frozenset(
@@ -1589,6 +1657,12 @@ def event_source(table: str) -> Emit:
     """How ``table`` emits — its declared deviations, or the derived default."""
     source = EVENT_SOURCES.get(table)
     return source if isinstance(source, Emit) else Emit()
+
+
+# Registered after the registry it reads: an edge reports against whatever its
+# endpoints report against, so it can only be built once every endpoint's own
+# entry above exists.
+EVENT_SOURCES["relationships"] = Emit(reports_as=relationships_report_on_both_ends())
 
 
 def initiative_locator(table: str) -> RowLocator:

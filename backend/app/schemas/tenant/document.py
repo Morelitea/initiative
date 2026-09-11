@@ -12,7 +12,7 @@ from app.models.tenant.document import DocumentType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import (
@@ -240,7 +240,7 @@ def serialize_document_summary(
         comment_count=getattr(document, "comment_count", 0),
         comments_enabled=document.comments_enabled,
         grants=serialize_grants(document),
-        tags=tag_summaries(getattr(document, "tag_links", None)),
+        tags=annotated_tags(document),
         properties=_serialize_document_properties(document),
         document_type=document.document_type.value
         if document.document_type

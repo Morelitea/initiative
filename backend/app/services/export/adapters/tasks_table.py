@@ -244,9 +244,7 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
         "start": task.start_date.strftime("%Y-%m-%d") if task.start_date else "",
         "assignees": [display_name(a) for a in (task.assignees or [])],
-        "tags": sorted(
-            link.tag.name for link in task.tag_links if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in task.tags or []),
         # Descriptions are Markdown (the app renders them with react-markdown)
         # — parse into blocks so **bold** renders bold, not literally.
         "description_blocks": blocks_from_markdown(task.description),

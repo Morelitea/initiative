@@ -1916,6 +1916,23 @@ async def create_tag(
     return tag
 
 
+async def assign_tag(session, entity, tag, *, commit: bool = False):
+    """Put a tag on something — the edge a tagging surface writes.
+
+    ``guild_id`` is stated rather than left to the table's trigger: a tenant
+    write has to be routable at the moment it is added, and the tag already
+    knows which guild it belongs to.
+    """
+    from app.services.tenant import tags as tags_service
+
+    row = tags_service.tag_edge(tags_service.spec_for(entity), entity.id, tag.id)
+    row.guild_id = tag.guild_id
+    session.add(row)
+    if commit:
+        await session.commit()
+    return row
+
+
 def checklist_items(*texts: str, done: bool = False) -> list[dict]:
     """A checklist for ``create_task(checklist=...)`` — one item per text."""
     return [

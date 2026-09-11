@@ -140,9 +140,7 @@ def event_export_dict(
             for attendee in event.attendees or []
             if attendee.user is not None
         ],
-        "tags": sorted(
-            link.tag.name for link in event.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in event.tags or []),
         "documents": sorted(
             related.entity.name for related in documents if related.entity is not None
         ),

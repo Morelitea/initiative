@@ -71,6 +71,7 @@ from app.services.tenant import tool_listing
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.services.tenant import tags as tags_service
 
 
 router = APIRouter()
@@ -284,6 +285,7 @@ async def list_counter_groups(
     )
     result = await session.exec(stmt)
     groups = result.unique().all()
+    await tags_service.annotate_tags(session, groups)
 
     items = [
         serialize_counter_group_summary(

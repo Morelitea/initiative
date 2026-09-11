@@ -46,7 +46,6 @@ from app.core import usernames
 from app.models.platform.user import User, UserStatus
 from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document
-from app.models.tenant.tag import ProjectTag
 from app.api import resource_access
 from app.core.user_display import handle_of
 from app.core.tools import Tool
@@ -105,6 +104,7 @@ from app.schemas.tenant.project_export import (
 from app.services.tenant import project_export as project_export_service
 from app.services.tenant import recent_views as recent_views_service
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter()
 # Cross-guild "my projects" aggregate (My Projects page). Mounted under
@@ -205,12 +205,11 @@ async def _get_project_or_404(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.task_statuses),
         )
     )
     if populate_existing:
-        # Refresh identity-mapped collections (tag_links etc.) after a commit —
+        # Refresh identity-mapped collections after a commit —
         # expire_on_commit=False keeps the pre-write state otherwise.
         statement = statement.execution_options(populate_existing=True)
     if guild_id is not None:
@@ -398,7 +397,6 @@ async def _duplicate_template_tasks(
         .options(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
-            selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
         .order_by(Task.position.asc(), Task.id.asc())
@@ -477,7 +475,6 @@ def _full_project_load_options() -> list:
                 InitiativeRoleModel.permissions
             ),
         ),
-        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
     ]
 
 
@@ -576,9 +573,10 @@ async def _project_reads_with_order(
 
     project_ids = [project.id for project in projects if project.id is not None]
 
-    # Fetch task summaries, sort orders, favorites, and views in parallel-ish
-    # (all independent queries batched before we iterate projects)
+    # Fetch task summaries, tags, sort orders, favorites, and views in
+    # parallel-ish (all independent queries batched before we iterate projects)
     await _attach_task_summaries(session, projects)
+    await tags_service.annotate_tags(session, projects)
     order_map, favorite_ids, view_map = await _project_metadata_for_user(
         session,
         current_user.id,
@@ -743,7 +741,6 @@ async def _projects_by_ids(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
     result = await session.exec(stmt)
@@ -807,7 +804,7 @@ def _build_project_payload(
             "documents": _project_documents(attached_documents),
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
-            "tags": tags_service.tag_summaries(project.tag_links),
+            "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
             "my_permission_level": my_permission_level,
             "owner_id": ownership_service.owner_id_of(project),
@@ -947,7 +944,6 @@ async def _list_global_projects(
                         InitiativeRoleModel.permissions
                     ),
                 ),
-                selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             )
         )
         projects = list((await guild_session.exec(statement)).all())
@@ -1596,6 +1592,7 @@ async def favorite_projects(
         session, current_user.id, project_ids
     )
     attached = await _documents_for_projects(session, list(project_map.values()))
+    await tags_service.annotate_tags(session, list(project_map.values()))
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:

@@ -183,6 +183,7 @@ async def _refetch_gallery(
 async def _annotate(session: RLSSessionDep, galleries: list) -> None:
     """Everything a gallery row carries beyond its columns, one grouped query
     each for the page."""
+    await tags_service.annotate_tags(session, galleries)
     await comments_service.annotate_comment_counts(
         session, galleries, column="gallery_id"
     )
@@ -399,14 +400,12 @@ def _image_scope(
     filter, and the search box. Tags are ANY-of: "everything still awaiting a
     decision" is one tag, and asking for two is asking for either.
     """
-    from app.models.tenant.gallery import GalleryImageTag
-
     conditions = [GalleryImage.gallery_id == gallery.id]
     if tag_ids:
         conditions.append(
             GalleryImage.id.in_(
-                select(GalleryImageTag.gallery_image_id).where(
-                    GalleryImageTag.tag_id.in_(tuple(tag_ids))
+                tags_service.tagged_entity_ids(
+                    tags_service.TAG_LINKS["gallery_image"], tuple(tag_ids)
                 )
             )
         )
@@ -797,6 +796,7 @@ async def list_gallery_images(
         .limit(page_size)
     )
     images = list((await session.exec(stmt)).unique().all())
+    await tags_service.annotate_tags(session, images)
     await galleries_service.annotate_version_counts(session, images)
     return GalleryImageListResponse(
         items=[serialize_gallery_image(i) for i in images],
@@ -971,11 +971,6 @@ async def update_gallery_image(
             entity_id=image.id,
             tag_ids=update_data["tag_ids"],
         )
-        # The row came in with its tag links loaded, and the replace above
-        # deleted those rows underneath the collection. Forget the collection
-        # before the row is added back, or the cascade would try to save the
-        # links that were just removed.
-        session.expire(image, ["tag_links"])
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
     await session.commit()

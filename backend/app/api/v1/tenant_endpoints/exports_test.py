@@ -18,7 +18,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import worker as export_worker
 from app.services.storage import get_guild_storage
-from app.testing.factories import create_task
+from app.testing.factories import assign_tag, create_task
 
 pytestmark = pytest.mark.integration
 
@@ -884,7 +884,6 @@ async def test_gc_expires_row_even_when_artifact_delete_fails(
 
 async def _queue_with_items(acting_user, session):
     from app.core.search import SearchEntityType
-    from app.models.tenant.queue import QueueItemTag
     from app.testing.factories import (
         create_document,
         create_queue,
@@ -912,7 +911,7 @@ async def _queue_with_items(acting_user, session):
         session, queue, label="Lurker", position=10, is_visible=False
     )
     tag = await create_tag(session, a.guild, name="npc")
-    session.add(QueueItemTag(queue_item_id=lurker.id, tag_id=tag.id))
+    await assign_tag(session, lurker, tag)
     doc = await create_document(session, a.initiative, a.user, name="Dungeon map")
     task = await create_task(session, a.project, title="Prep loot")
     await create_relationship(
@@ -1864,7 +1863,6 @@ async def test_document_envelope_carries_tags_and_properties(
     name and custom properties in the shared flat encoding."""
     import json
 
-    from app.models.tenant.tag import DocumentTag
     from app.testing.factories import (
         create_document,
         create_document_property_value,
@@ -1881,7 +1879,7 @@ async def test_document_envelope_carries_tags_and_properties(
         content={"root": {"children": [], "type": "root"}},
     )
     tag = await create_tag(session, a.guild, name="worldbuilding")
-    session.add(DocumentTag(document_id=doc.id, tag_id=tag.id))
+    await assign_tag(session, doc, tag)
     await session.commit()
     definition = await create_property_definition(session, a.initiative, name="Status")
     await create_document_property_value(session, doc, definition, value_text="Draft")

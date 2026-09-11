@@ -31,7 +31,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import DeclarativeBase
-from sqlmodel import select
 
 from app.schemas.query import FilterOp
 from app.services.fields.spec import ControlKind, FieldSpec, column, computed
@@ -186,13 +185,12 @@ def _tag_field(model: type[DeclarativeBase]) -> Optional[FieldSpec]:
     """The ``tag_ids`` filter, for a model that has tags.
 
     Nearly everything is taggable and everything taggable binds the same way,
-    so no dataset says it has tags: the junction named in ``TAG_LINKS`` for
-    this model is the whole of the difference between one of these and the
-    next. A model with no entry gets no tag field, which is the same answer it
-    would have given by hand.
+    so no dataset says it has tags: the model's entry in ``TAG_LINKS`` is the
+    whole of the difference between one of these and the next. A model with no
+    entry gets no tag field, which is the same answer it would have given by
+    hand.
     """
-    from app.models.tenant.tag import Tag
-    from app.services.tenant.tags import TAG_LINKS
+    from app.services.tenant.tags import TAG_LINKS, tagged_entity_ids
 
     link = next(
         (spec for spec in TAG_LINKS.values() if spec.entity is model),
@@ -204,16 +202,9 @@ def _tag_field(model: type[DeclarativeBase]) -> Optional[FieldSpec]:
     def resolve_tag_ids(op: Any, value: Any, ctx: Any) -> Any:
         if not value:
             return None
-        subq = (
-            select(link.entity_column())
-            .join(Tag, Tag.id == link.junction.tag_id)
-            .where(
-                link.junction.tag_id.in_(tuple(value)),
-                Tag.guild_id == ctx.guild_id,
-            )
-            .distinct()
+        return link.entity.id.in_(
+            tagged_entity_ids(link, tuple(value), guild_id=ctx.guild_id)
         )
-        return link.entity.id.in_(subq)
 
     return computed(
         "tag_ids",

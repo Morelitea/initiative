@@ -25,7 +25,6 @@ from app.models.tenant._mixins import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
-    from app.models.tenant.tag import DocumentTag
     from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.resource_grant import ResourceGrant
 
@@ -113,10 +112,6 @@ class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")
-    tag_links: List["DocumentTag"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     property_values: List["DocumentPropertyValue"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

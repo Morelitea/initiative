@@ -80,7 +80,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # CASCADE because by the time this runs, the rendered RLS calls it: every
+    # content table's sharing leg is a call to this function, and a rollback to
+    # before it existed is a rollback to a rendering that does not. Dropping
+    # those policies is what makes the database match the revision being
+    # returned to; the next boot renders the older shape from the registry that
+    # code carries, the same way it rendered this one.
+    #
+    # A plain drop is refused while anything still calls the function, which is
+    # every database that has booted since. CASCADE is what lets the rollback
+    # complete.
     op.execute(
         "DROP FUNCTION IF EXISTS public.resource_access("
-        "text, integer, integer, integer, boolean)"
+        "text, integer, integer, integer, boolean) CASCADE"
     )
