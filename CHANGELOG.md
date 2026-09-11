@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.1] - 2026-09-11
+
 ### Changed
 
 - **Anything can be archived, and archiving records when** — archiving was three things: a project, a task, and an initiative. It is now every tool — documents, queues, counter groups, calendars, dashboards, notices and galleries as well — because anything a community works through can be finished with. Archiving also remembers the date now, everywhere; a project screen already showed "archived on", and a task or an initiative could only say whether. Archiving something archives what is inside it — an archived initiative puts its tools away, an archived project puts its tasks away — and bringing it back brings those back with it, while anything you had archived separately stays that way. Archiving and unarchiving moved to one action that works the same way whatever you point it at, so a saved filter that asked for "not archived" now asks whether it has an archive date, and is carried across for you on upgrade. Project export files record the date rather than the flag; an older file still imports, and a project it held as archived comes back ready to use.
