@@ -27,6 +27,7 @@ import logging
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.engine import Connection
 
 from app.db.guild_migrations import apply_to_all_guild_schemas, guild_schema_names
 
@@ -89,7 +90,7 @@ def _own_row_rls_statements() -> list[str]:
     return statements
 
 
-def _report_discarded(connection) -> None:
+def _report_discarded(connection: Connection) -> None:
     """Say how many subjects are being removed, per guild that has any.
 
     Skips a schema that has no such table, so a partially provisioned one is
