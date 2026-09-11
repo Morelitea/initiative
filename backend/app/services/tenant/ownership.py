@@ -40,6 +40,7 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
+from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -71,6 +72,7 @@ OWNABLE: dict[Tool, OwnableSpec] = {
     Tool.calendar: OwnableSpec(Calendar),
     Tool.dashboard: OwnableSpec(Dashboard),
     Tool.post: OwnableSpec(Post),
+    Tool.gallery: OwnableSpec(Gallery),
 }
 
 

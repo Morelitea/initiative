@@ -354,7 +354,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
               <TaskDescriptionHoverCard task={task} />
             </div>
             <TaskChecklistProgress
-              progress={task.subtask_progress}
+              progress={task.checklist_progress}
               className="mt-2 max-w-[200px]"
             />
           </div>

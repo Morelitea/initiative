@@ -21,6 +21,7 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
+import { useGalleriesList } from "@/hooks/useGalleries";
 import { usePostsList } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
@@ -73,6 +74,7 @@ export function useGuildToolRows(
   const calendars = useCalendarsList(params, only(Tool.calendar));
   const dashboards = useDashboardsList(params, only(Tool.dashboard));
   const posts = usePostsList(params, only(Tool.post));
+  const galleries = useGalleriesList(params, only(Tool.gallery));
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the query that lists it.
@@ -84,6 +86,7 @@ export function useGuildToolRows(
     [Tool.calendar]: calendars,
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
+    [Tool.gallery]: galleries,
   }[tool];
 
   const rows = useMemo<ToolRow[]>(() => {
@@ -95,6 +98,7 @@ export function useGuildToolRows(
       [Tool.calendar]: calendars.data,
       [Tool.dashboard]: dashboards.data,
       [Tool.post]: posts.data,
+      [Tool.gallery]: galleries.data,
     };
     return buildToolRows(tool, responses, t, guildId);
   }, [
@@ -108,6 +112,7 @@ export function useGuildToolRows(
     calendars.data,
     dashboards.data,
     posts.data,
+    galleries.data,
   ]);
 
   return {

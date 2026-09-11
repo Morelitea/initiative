@@ -15,12 +15,11 @@ import type {
   TaskStatusReorderRequest,
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
-  attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost,
   createProjectApiV1GGuildIdProjectsPost,
   deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
-  detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete,
   duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
   favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
@@ -52,6 +51,7 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
+import { relate, unrelate } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -464,10 +464,10 @@ export const useAttachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+        await relate(
           guildId,
-          projectId,
-          documentId
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
         );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
@@ -480,10 +480,10 @@ export const useDetachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
+        await unrelate(
           guildId,
-          projectId,
-          documentId
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
         );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),

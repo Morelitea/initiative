@@ -43,7 +43,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.dashboard import (
     PublishedOver,
@@ -67,7 +67,6 @@ from app.db.session import rls_context_params
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services import query as query_service
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.installs import (
     ListingInstallError,
@@ -206,27 +205,6 @@ async def _get_initiative_for_dashboard(
     return initiative
 
 
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_dashboards,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DashboardMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashboard:
     dashboard = await dashboards_service.get_dashboard(
         session, dashboard_id, populate_existing=True
@@ -327,6 +305,7 @@ async def list_dashboards(
     )
     result = await session.exec(stmt)
     dashboards = result.unique().all()
+    await tags_service.annotate_tags(session, dashboards)
 
     items = [
         serialize_dashboard_summary(d, user_id=current_user.id) for d in dashboards
@@ -461,7 +440,9 @@ async def create_dashboard(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=DashboardMessages.FEATURE_DISABLED,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+    await resource_access.require_create(
+        session, Tool.dashboard, initiative, current_user, guild_context
+    )
 
     listing_id: Optional[int] = None
     listing_version: Optional[str] = None

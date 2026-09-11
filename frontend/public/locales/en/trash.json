@@ -40,6 +40,8 @@
     "counter_group": "Counter group",
     "counter": "Counter",
     "dashboard": "Dashboard",
-    "post": "Post"
+    "post": "Post",
+    "gallery": "Gallery",
+    "gallery_image": "Picture"
   }
 }

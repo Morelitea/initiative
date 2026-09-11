@@ -630,8 +630,9 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, session: AsyncS
     assert data["max_uses"] == 5
     # Read back masked: whoever typed the address already has it, and a
     # guild's other admins never did. Redemption still matches the whole
-    # address, from the ciphertext.
-    assert data["invitee_email"] == "i•••@example.com"
+    # address, from the ciphertext. The domain is elided too — a bare domain
+    # narrows an address to one organisation.
+    assert data["invitee_email"] == "i***e@e***m"
     assert data["uses"] == 0
     assert len(data["code"]) == 22
 
@@ -1112,9 +1113,12 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
     assert payload["aud"] == BILLING_PORTAL_AUDIENCE
     assert payload["iss"] == "initiative"
-    assert payload["sub"] == str(admin.id)
-    assert payload["guild_id"] == guild.id
     assert payload["guild_role"] == "admin"
+    # The pair is named by reference and by nothing else, `sub` included.
+    assert payload["sub"] == payload["user_ref"]
+    assert payload["user_ref"].startswith("ubil_")
+    assert payload["guild_ref"].startswith("gbil_")
+    assert "guild_id" not in payload
 
 
 @pytest.mark.integration

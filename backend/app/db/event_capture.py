@@ -116,10 +116,27 @@ class CaptureSpec:
     #: Row expression yielding the resource type, for the polymorphic case.
     #: ``None`` when ``resource_types`` holds the single constant answer.
     resource_type_expr: str | None = None
+    #: Set only where a table reports against more than one resource and so
+    #: carries more than one trigger. ``None`` everywhere else, which keeps
+    #: every existing trigger's name unchanged.
+    label: str | None = None
+    #: Row expression yielding the facet label, where one constant cannot say
+    #: it — a table whose rows are facets of different things depending on what
+    #: the row holds. ``None`` everywhere else, and then ``facet`` is the whole
+    #: answer and no per-row lookup is paid for.
+    facet_expr: str | None = None
+    #: Every label ``facet_expr`` can yield, for the vocabularies that have to
+    #: know the names before a row exists. Empty where ``facet`` is the answer.
+    facet_values: frozenset[str] = frozenset()
+    #: Row expression yielding the initiative this trigger's events are scoped
+    #: to, where the table's own answer is not this report's. ``None`` leaves
+    #: the table's registry entry to answer, which is the ordinary case.
+    initiative_expr: str | None = None
 
     @property
     def trigger_name(self) -> str:
-        return f"capture_{self.table}"
+        suffix = f"_{self.label}" if self.label else ""
+        return f"capture_{self.table}{suffix}"
 
     @property
     def static_resource_type(self) -> str:
@@ -155,7 +172,11 @@ class CaptureSpec:
 
 
 def _singular(table: str) -> str:
-    """Junction owners are all regular plurals in this schema."""
+    """Junction owners are all regular plurals in this schema — ``posts``,
+    ``counter_groups``, ``galleries`` — so one spelling rule reads them back:
+    ``ies`` was a ``y``, and otherwise the ``s`` comes off."""
+    if table.endswith("ies"):
+        return table[:-3] + "y"
     return table[:-1] if table.endswith("s") else table
 
 
@@ -287,19 +308,35 @@ def build_specs() -> list[CaptureSpec]:
         source = event_source(table_name)
         declared = source.reports_as
         if declared is not None:
-            specs.append(
-                CaptureSpec(
-                    table=table_name,
-                    resource_types=declared.resource_types,
-                    resource_id_expr=declared.id_expr(ROW),
-                    facet=declared.facet,
-                    resource_type_expr=(
-                        declared.type_expr(ROW)
-                        if declared.type_expr is not None
-                        else None
-                    ),
+            # A tuple reports the row against several resources — one trigger
+            # each, so the capture function itself needs to know nothing about
+            # the case: it is the same per-table arguments, twice.
+            for report in declared if isinstance(declared, tuple) else (declared,):
+                specs.append(
+                    CaptureSpec(
+                        table=table_name,
+                        resource_types=report.resource_types,
+                        resource_id_expr=report.id_expr(ROW),
+                        facet=report.facet,
+                        resource_type_expr=(
+                            report.type_expr(ROW)
+                            if report.type_expr is not None
+                            else None
+                        ),
+                        label=report.label,
+                        facet_expr=(
+                            report.facet_expr(ROW)
+                            if report.facet_expr is not None
+                            else None
+                        ),
+                        facet_values=report.facet_values,
+                        initiative_expr=(
+                            report.initiative_expr(ROW)
+                            if report.initiative_expr is not None
+                            else None
+                        ),
+                    )
                 )
-            )
             continue
 
         pk = list(table.primary_key.columns)
@@ -351,6 +388,7 @@ def build_specs() -> list[CaptureSpec]:
 #:   7 — expression resolving the resource's parent chain, or '' when it has none
 #:   8 — expression that is true while the row is not news yet, or '' for none
 #:   9 — 'anonymous' when this table's events name no actor
+#:  10 — expression resolving the facet label, or '' when arg 3 is the answer
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -473,6 +511,13 @@ BEGIN
         END IF;
     END IF;
 
+    -- A facet whose label the row decides. Resolved here rather than passed as
+    -- a literal, for a table whose rows are facets of different things.
+    IF COALESCE(TG_ARGV[10], '') <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[10] INTO v_facet USING v_row;
+        v_facet := COALESCE(v_facet, '');
+    END IF;
+
     -- A facet has no columns of its own worth naming; report the change as the
     -- owning resource being updated in one respect.
     IF v_facet <> '' THEN
@@ -548,7 +593,7 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"CREATE TRIGGER {spec.trigger_name}",
             f"  AFTER INSERT OR UPDATE OR DELETE ON {spec.table}",
             f"  FOR EACH ROW EXECUTE FUNCTION {CAPTURE_FUNCTION}(",
-            f"    {_quoted(initiative_locator(spec.table)(ROW))},",
+            f"    {_quoted(spec.initiative_expr or initiative_locator(spec.table)(ROW))},",
             f"    '{static_type}',",
             f"    {_quoted(spec.resource_id_expr)},",
             f"    '{spec.facet or ''}',",
@@ -557,7 +602,8 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"    {_quoted(type_expr or '')},",
             f"    {_quoted(spec.parents_expr)},",
             f"    {_quoted(spec.quiet_expr)},",
-            f"    '{'anonymous' if source.anonymous else ''}'",
+            f"    '{'anonymous' if source.anonymous else ''}',",
+            f"    {_quoted(spec.facet_expr or '')}",
             "  );",
         ]
     )

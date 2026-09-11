@@ -14,6 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.document import Document
+from app.services.tenant import relationships
 from sqlmodel import select
 
 from app.api.deps import (
@@ -28,8 +33,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
-    CalendarEventTag,
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative
@@ -97,9 +100,11 @@ async def _get_event_or_404(
             detail=CalendarEventMessages.NOT_FOUND,
         )
     # Feature gate + DAC, both resolved on the parent calendar: read to see the
-    # event, write for any mutation.
+    # event, write for any mutation. The parent's tool comes from the registry
+    # the event table's own policy is rendered from, so the two agree on what
+    # governs an event by construction.
     resource_access.authorize(
-        Tool.calendar,
+        resource_access.governing_tool("calendar_events"),
         event.calendar,
         user,
         access=access,
@@ -151,9 +156,15 @@ async def _notify_targets(user_ids: list[int]) -> list[User]:
 
 
 async def _exec_events(session, stmt) -> list[CalendarEvent]:
-    """Run a CalendarEvent select and return de-duplicated rows as a list."""
+    """Run a CalendarEvent select, de-duplicate, and carry each row's tags.
+
+    Every select of events goes through here, so this is the one place that
+    has to remember them — and it costs the page two queries, not one per row.
+    """
     result = await session.exec(stmt)
-    return list(result.unique().all())
+    events = list(result.unique().all())
+    await tags_service.annotate_tags(session, events)
+    return events
 
 
 def _cross_guild_event_dac_clause(guild_id: int, user_id: int) -> ColumnElement[bool]:
@@ -287,15 +298,10 @@ async def export_my_calendar_events_ics(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user
                 ),
-                # event_export_dict reads tags, linked-document titles, and
-                # custom properties too — async lazy loads would raise, so
-                # load them here.
-                selectinload(CalendarEvent.tag_links).selectinload(
-                    CalendarEventTag.tag
-                ),
-                selectinload(CalendarEvent.document_links).selectinload(
-                    CalendarEventDocument.document
-                ),
+                # event_export_dict reads tags and custom properties too —
+                # async lazy loads would raise, so load them here. Attached
+                # documents are not on the row any more and are gathered per
+                # guild below, where the session is routed to read them.
                 selectinload(CalendarEvent.property_values).selectinload(
                     CalendarEventPropertyValue.property_definition
                 ),
@@ -304,15 +310,25 @@ async def export_my_calendar_events_ics(
                 ),
             )
         )
-        return _exec_events(guild_session, stmt)
+
+        async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
+            found = await _exec_events(guild_session, stmt)
+            await tags_service.annotate_tags(guild_session, found)
+            # Read while this session is still routed to THIS guild — edges live
+            # in its schema — and paired with their event on the way out, so
+            # nothing downstream has to key them. Ids repeat across schemas.
+            documents = await ical_service.documents_for_events(guild_session, found)
+            return [(event, documents.get(event.id, [])) for event in found]
+
+        return _run()
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
+    events.sort(key=lambda pair: (pair[0].start_at, pair[0].guild_id, pair[0].id))
 
-    ics_bytes = ical_service.events_to_ical(list(events))
+    ics_bytes = ical_service.events_to_ical(events)
     return Response(
         content=ics_bytes,
         media_type="text/calendar",
@@ -408,7 +424,6 @@ def _calendar_event_loader_options():
         selectinload(CalendarEvent.calendar)
         .selectinload(Calendar.initiative)
         .selectinload(Initiative.memberships),
-        selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
         selectinload(CalendarEvent.property_values).selectinload(
             CalendarEventPropertyValue.property_definition
         ),
@@ -528,8 +543,7 @@ async def query_guild_calendar_events(
     )
     if limit is not None:
         stmt = stmt.limit(limit)
-    result = await session.exec(stmt)
-    return list(result.unique().all()), total_count
+    return await _exec_events(session, stmt), total_count
 
 
 @router.get("/", response_model=CalendarEventListResponse)
@@ -572,6 +586,32 @@ async def list_calendar_events(
     )
 
 
+async def _event_documents(
+    session: AsyncSession, event: CalendarEvent
+) -> list[Related]:
+    """The documents attached to one event.
+
+    Its own function so every response below goes through one place: the edges
+    moved out of the event's own row, and a fetch scattered across nine handlers
+    is how a page ends up doing nine of them.
+    """
+    return await relationships.related_for(
+        session,
+        relationships.Endpoint(SearchEntityType.calendar_event, event.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+
+
+async def _serialized_event(
+    session: AsyncSession, event: CalendarEvent, user_id: int
+) -> CalendarEventRead:
+    return serialize_calendar_event(
+        event, user_id=user_id, documents=await _event_documents(session, event)
+    )
+
+
 @router.get("/{event_id}", response_model=CalendarEventRead)
 async def read_calendar_event(
     event_id: int,
@@ -581,7 +621,7 @@ async def read_calendar_event(
     include_deleted: IncludeDeletedDep = False,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    return serialize_calendar_event(event, user_id=current_user.id)
+    return await _serialized_event(session, event, current_user.id)
 
 
 @router.post("/", response_model=CalendarEventRead, status_code=status.HTTP_201_CREATED)
@@ -655,7 +695,7 @@ async def create_calendar_event(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.patch("/{event_id}", response_model=CalendarEventRead)
@@ -769,7 +809,7 @@ async def update_calendar_event(
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -849,7 +889,7 @@ async def set_attendees(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 @router.patch("/{event_id}/rsvp", response_model=CalendarEventRead)
@@ -895,35 +935,12 @@ async def update_rsvp(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 # ---------------------------------------------------------------------------
 # Tags & Documents
 # ---------------------------------------------------------------------------
-
-
-@router.put("/{event_id}/documents", response_model=CalendarEventRead)
-async def set_documents(
-    event_id: int,
-    document_ids: List[int],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CalendarEventRead:
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
-    )
-    await events_service.set_event_documents(
-        session,
-        event,
-        document_ids,
-        guild_context.guild_id,
-        current_user.id,
-    )
-    await session.commit()
-    hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.put("/{event_id}/tags", response_model=CalendarEventRead)
@@ -951,7 +968,7 @@ async def set_event_tags(
     session.add(event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -990,4 +1007,4 @@ async def set_event_properties(
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
+    return await _serialized_event(session, hydrated, current_user.id)

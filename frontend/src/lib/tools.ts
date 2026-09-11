@@ -34,6 +34,7 @@ import {
   CalendarDays,
   GalleryHorizontalEnd,
   Gauge,
+  Images,
   LayoutDashboard,
   ListTodo,
   type LucideIcon,
@@ -60,6 +61,7 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.calendar]: CalendarDays,
   [Tool.dashboard]: LayoutDashboard,
   [Tool.post]: Megaphone,
+  [Tool.gallery]: Images,
 };
 
 /** Every tool, in canonical enum order. */
@@ -86,6 +88,9 @@ export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
   // Export/import ships with the marketplace, which owns the definition
   // envelope format.
   Tool.dashboard,
+  // A gallery is its image files, and the export engine carries JSON
+  // envelopes — mirrors backend `NON_EXPORTABLE_TOOLS`.
+  Tool.gallery,
 ]);
 
 /** Tools with an export-engine source (single + bulk selection export), and
@@ -117,6 +122,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
   Tool.calendar,
   Tool.dashboard,
   Tool.document,
+  Tool.gallery,
   Tool.post,
   Tool.queue,
   Tool.counter_group,
@@ -127,8 +133,23 @@ export const SIDEBAR_TOOLS: Tool[] = [
 // Derived names — one rule each, no per-tool tables.
 // ---------------------------------------------------------------------------
 
-/** "counter_group" → "counter_groups" */
-export const toolPlural = (tool: Tool): string => `${tool}s`;
+/**
+ * "counter_group" → "counter_groups", "gallery" → "galleries".
+ *
+ * One rule, mirrored from the backend's `Tool.plural`: a trailing `y` after a
+ * consonant becomes `ies`, and everything else takes an `s`.
+ */
+export const toolPlural = (tool: Tool): string =>
+  /[^aeiou]y$/.test(tool) ? `${tool.slice(0, -1)}ies` : `${tool}s`;
+
+/**
+ * Inverse of {@link toolPlural} for any table-ish plural the bus names —
+ * "galleries" → "gallery", "counter_groups" → "counter_group". The one
+ * spelling rule, read backwards, so a resource type is never singularized by
+ * chopping an `s` off.
+ */
+export const singularOf = (plural: string): string =>
+  plural.endsWith("ies") ? `${plural.slice(0, -3)}y` : plural.replace(/s$/, "");
 
 /** "counter_group" → "counter-groups" — route segment AND API path segment. */
 export const toolRouteSegment = (tool: Tool): string => toolPlural(tool).replaceAll("_", "-");
@@ -149,6 +170,11 @@ export const toolCamelSingular = (tool: Tool): string =>
 /** "counter_group" → "CounterGroup" */
 export const toolPascalSingular = (tool: Tool): string =>
   tool.replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
+
+/** "counter_group" → "CounterGroups", "gallery" → "Galleries" — the stem of
+ *  the per-tool permission label keys. */
+export const toolPascalPlural = (tool: Tool): string =>
+  toolPlural(tool).replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
 
 /** Resource-relative API path (WITHOUT the `/g/{guildId}` segment), e.g. "/api/v1/counter-groups".
  *  Callers must prepend `/api/v1/g/${guildId}` when building guild-scoped requests. */

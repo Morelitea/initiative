@@ -20,6 +20,13 @@ from app.services.tenant import outbox_poller
 pytestmark = pytest.mark.unit
 
 
+#: Stand-ins for what this subscriber calls the guild and the person who wrote.
+#: Minted by the poller before it builds an envelope — these tests are about
+#: what the envelope is made of, not where the names come from.
+_GUILD_REF = "gweb_lPqTf3Vd8KmY2nRb6ZsXeA1cJhW4tGuN"
+_ACTOR_REF = "uweb_9dYkR2pLmX7vQzB4nT6sHfA3eJwC8gUx"
+
+
 def _subscription(**overrides) -> WebhookSubscription:
     defaults = dict(
         id=7,
@@ -80,7 +87,9 @@ def test_grouping_is_by_transaction_not_adjacency():
 def test_one_transaction_is_one_envelope():
     subscription = _subscription()
     rows = [_row(1, 500), _row(3, 500)]
-    envelope = outbox_poller._envelope(subscription, 500, rows)
+    envelope = outbox_poller._envelope(
+        subscription, 500, rows, guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
+    )
 
     assert len(envelope["changes"]) == 2
     assert envelope["event_id"] == outbox_poller._event_id(subscription.id, 500)
@@ -104,7 +113,13 @@ def test_the_envelope_carries_the_parent_chain():
     """
     subscription = _subscription()
     chain = [{"type": "projects", "id": 7}]
-    envelope = outbox_poller._envelope(subscription, 500, [_row(1, 500, parents=chain)])
+    envelope = outbox_poller._envelope(
+        subscription,
+        500,
+        [_row(1, 500, parents=chain)],
+        guild_ref=_GUILD_REF,
+        actor_ref=_ACTOR_REF,
+    )
 
     (change,) = envelope["changes"]
     assert change["parents"] == chain
@@ -161,7 +176,9 @@ def test_a_batch_is_one_transaction_whole():
     subscription = _subscription()
     rows = [_row(1, 500), _row(3, 500), _row(9, 500)]
 
-    envelope = outbox_poller._envelope(subscription, 500, rows)
+    envelope = outbox_poller._envelope(
+        subscription, 500, rows, guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
+    )
 
     assert [c["resource"]["id"] for c in envelope["changes"]] == [101, 103, 109]
     assert envelope["event_id"] == outbox_poller._event_id(subscription.id, 500)
@@ -324,3 +341,33 @@ async def test_repeated_refusals_escalate_the_backoff(
         "unreachable target would be retried at the first interval forever"
     )
     assert intervals[:3] == [float(s) for s in poller._BACKOFF_SECONDS[:3]]
+
+
+def test_the_envelope_names_the_guild_and_the_actor_by_reference():
+    """Both used to be row ids. A receiver holding subscriptions in several
+    guilds was handed one number per person that meant the same person in all
+    of them; these are its own (``webhook_refs``).
+
+    The rest stay ids on purpose: they are per-guild-schema sequences, and
+    ``subscription_id`` is what a receiver matches a delivery against.
+    """
+    subscription = _subscription()
+    envelope = outbox_poller._envelope(
+        subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
+    )
+
+    assert envelope["guild_ref"] == _GUILD_REF
+    assert envelope["actor_ref"] == _ACTOR_REF
+    assert "guild_id" not in envelope
+    assert "actor_user_id" not in envelope
+    assert envelope["subscription_id"] == subscription.id
+
+
+def test_a_system_write_names_no_actor():
+    """A background job is attributed to nobody, so there is nobody to name."""
+    subscription = _subscription()
+    envelope = outbox_poller._envelope(
+        subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=None
+    )
+
+    assert envelope["actor_ref"] is None

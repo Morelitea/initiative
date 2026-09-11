@@ -17,9 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.task import Task, TaskStatus
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.project_activity import ProjectFavorite
-    from app.models.tenant.document import ProjectDocument
     from app.models.platform.guild import Guild
-    from app.models.tenant.tag import ProjectTag
     from app.models.tenant.resource_grant import ResourceGrant
 
 
@@ -96,14 +94,6 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     favorite_entries: List["ProjectFavorite"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    document_links: List["ProjectDocument"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    tag_links: List["ProjectTag"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

@@ -11,7 +11,7 @@ from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.counter import Counter, CounterGroup
@@ -262,7 +262,7 @@ def serialize_counter_group_summary(
         created_at=group.created_at,
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,
-        tags=tag_summaries(getattr(group, "tag_links", None)),
+        tags=annotated_tags(group),
         grants=serialize_grants(group),
     )
 

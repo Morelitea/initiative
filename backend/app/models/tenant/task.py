@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
@@ -20,8 +21,6 @@ from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.tag import TaskTag
-    from app.models.tenant.queue import QueueItemTask
     from app.models.tenant.property import TaskPropertyValue
 
 
@@ -97,35 +96,6 @@ class TaskAssignee(SQLModel, table=True):
     )
 
 
-class Subtask(CreatedByMixin, table=True):
-    __tablename__ = "subtasks"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    task_id: int = Field(foreign_key="tasks.id", nullable=False)
-    content: str = Field(sa_column=Column(Text, nullable=False))
-    is_completed: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    position: int = Field(
-        default=0,
-        sa_column=Column(Integer, nullable=False, server_default="0"),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    task: Optional["Task"] = Relationship(back_populates="subtasks")
-
-
 class Task(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
     _display_field = "title"
@@ -139,6 +109,13 @@ class Task(CreatedByMixin, SoftDeleteMixin, table=True):
     title: str = Field(nullable=False)
     # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # Ordered ``{"id", "text", "done"}`` objects — the task's checklist. JSONB
+    # so one item can be addressed by id and rewritten in place; see
+    # ``app.services.tenant.task_checklist``.
+    checklist: List[dict] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=False, server_default="[]"),
+    )
     priority: TaskPriority = Field(
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
@@ -204,19 +181,7 @@ class Task(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-    subtasks: List["Subtask"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    tag_links: List["TaskTag"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     property_values: List["TaskPropertyValue"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    queue_item_links: List["QueueItemTask"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

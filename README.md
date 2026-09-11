@@ -216,7 +216,7 @@ The surface is curated and **default-deny** — only the following are exposed. 
 |---|---|
 | List / read initiatives (+ members, roles, your permissions) | `GET /g/{guild}/initiatives…` |
 | List / read projects (+ activity, favorites, task statuses) | `GET /g/{guild}/projects…` |
-| List / read tasks and subtasks | `GET /g/{guild}/tasks…` |
+| List / read tasks | `GET /g/{guild}/tasks…` |
 | List / read documents (+ versions, backlinks) | `GET /g/{guild}/documents…` |
 | List / read queues and their items | `GET /g/{guild}/queues…` |
 | List / read counter groups and counters | `GET /g/{guild}/counter-groups…` |

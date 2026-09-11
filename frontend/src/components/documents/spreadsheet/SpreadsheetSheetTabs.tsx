@@ -1,4 +1,4 @@
-import { ChevronDown, EyeOff, Plus } from "lucide-react";
+import { ChevronDown, EyeOff, Plus, Upload } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +26,9 @@ interface SpreadsheetSheetTabsProps {
   canAdd: boolean;
   onSelect: (id: SheetId) => void;
   onAdd: () => void;
+  /** Absent when the surface cannot import (read-only, or a host that has
+   *  not wired a file source). */
+  onImport?: () => void;
   onRename: (id: SheetId, name: string) => void;
   onDelete: (id: SheetId) => void;
   onDuplicate: (id: SheetId) => void;
@@ -49,6 +52,7 @@ export const SpreadsheetSheetTabs = ({
   canAdd,
   onSelect,
   onAdd,
+  onImport,
   onRename,
   onDelete,
   onDuplicate,
@@ -123,6 +127,23 @@ export const SpreadsheetSheetTabs = ({
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
+        </button>
+      )}
+
+      {!readOnly && onImport && (
+        <button
+          type="button"
+          onClick={onImport}
+          disabled={!canAdd}
+          title={
+            canAdd
+              ? t("documents:spreadsheet.sheets.import")
+              : t("documents:spreadsheet.sheets.maxReached")
+          }
+          aria-label={t("documents:spreadsheet.sheets.import")}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <Upload className="h-4 w-4" />
         </button>
       )}
 

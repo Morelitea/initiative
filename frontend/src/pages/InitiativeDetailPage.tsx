@@ -31,6 +31,7 @@ import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
 import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
+import { GalleriesView } from "./initiativeTools/galleries/GalleriesPage";
 import { PostsView } from "./initiativeTools/posts/PostsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { ProjectsView } from "./ProjectsPage";
@@ -49,6 +50,7 @@ const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
   [Tool.calendar]: CalendarsView,
   [Tool.dashboard]: DashboardsView,
   [Tool.post]: PostsView,
+  [Tool.gallery]: GalleriesView,
 };
 
 const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = TOOLS.map((tool) => [

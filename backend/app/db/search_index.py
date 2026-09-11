@@ -141,6 +141,13 @@ def _post_text(row: str) -> str:
     return _json_text(row, "strict $.**.text", column="body")
 
 
+def _gallery_image_text(row: str) -> str:
+    """A picture's searchable text: its caption, and the filename split into
+    words so ``round-4-detail.png`` is found by ``detail``."""
+    filename = f"coalesce({row}.original_filename, '')"
+    return f"coalesce({row}.caption, '') || ' ' || {_with_words(filename)}"
+
+
 def _document_text(row: str) -> str:
     """A document's searchable text, by what kind of document it is.
 
@@ -172,6 +179,19 @@ def _document_text(row: str) -> str:
         " ELSE '' END)"
         " || ' ' || " + _with_words(f"coalesce({row}.original_filename, '')")
     )
+
+
+def _task_text(row: str) -> str:
+    """A task's searchable text: its description, and its checklist lines.
+
+    The lines are content someone wrote on the task, so a phrase typed onto one
+    finds the task it belongs to. There is no separate row to find instead.
+    """
+    lines = (
+        "coalesce((SELECT string_agg(entry->>'text', ' ') "
+        f"FROM jsonb_array_elements({row}.checklist) AS entry), '')"
+    )
+    return f"coalesce({row}.description, '') || ' ' || {lines}"
 
 
 def _comment_preview(row: str) -> str:
@@ -277,7 +297,8 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
     "tasks": SearchSource(
         SearchEntityType.task,
         title="title",
-        body=("description",),
+        body=("description", "checklist"),
+        body_sql=_task_text,
         dac_tool=Tool.project,
         dac_id="project_id",
     ),
@@ -300,6 +321,19 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         body=("description", "location"),
         dac_tool=Tool.calendar,
         dac_id="calendar_id",
+    ),
+    # A picture is found by what somebody called it, or failing that by the
+    # name of the file they uploaded — which is often the only name it has.
+    "gallery_images": SearchSource(
+        SearchEntityType.gallery_image,
+        title="title",
+        title_sql=lambda row: (
+            f"coalesce(nullif({row}.title, ''), {row}.original_filename, '')"
+        ),
+        body=("caption", "original_filename"),
+        body_sql=_gallery_image_text,
+        dac_tool=Tool.gallery,
+        dac_id="gallery_id",
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.
@@ -336,8 +370,8 @@ NOT_SEARCHABLE: dict[str, str] = {
     "project_filter_presets": "one member's saved filters",
     "task_statuses": "column names, reached from the project",
     "document_file_versions": "history of a document already indexed",
+    "gallery_image_versions": "history of a picture already indexed",
     "document_links": "derived wikilink graph",
-    "subtasks": "checklist lines, reached from the task",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",
@@ -345,6 +379,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "task_assignment_digest_items": "scheduler bookkeeping",
     "reaction_digest_items": "scheduler bookkeeping",
     "reactions": "a gesture with no text of its own",
+    "relationships": "an edge between two things, each indexed on its own",
 }
 
 

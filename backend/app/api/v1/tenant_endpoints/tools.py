@@ -82,8 +82,9 @@ async def set_tool_tags(
         return []
     # Re-read under the session-wide soft-delete filter. A tag trashed by a
     # concurrent request between the write above and this read is filtered out
-    # here — skip it rather than KeyError (mirrors tag_summaries dropping links
-    # whose tag is gone), so the race returns a clean list, never a 500.
+    # here — skip it rather than KeyError (the tag service drops an assignment
+    # whose tag is gone the same way), so the race returns a clean list, never
+    # a 500.
     tags_by_id = {
         tag.id: tag
         for tag in (await session.exec(select(Tag).where(Tag.id.in_(tag_ids)))).all()

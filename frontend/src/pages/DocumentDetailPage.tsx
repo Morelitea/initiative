@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
@@ -69,6 +69,7 @@ const SmartLinkDocumentViewer = lazy(() =>
 import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
+import { importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
 import type {
   DocumentProjectLink,
   PropertyDefinitionRead,
@@ -109,11 +110,14 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
+import { referenceRef } from "@/lib/smartChips";
+import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
 /**
  * Live "Attached N ago" label for one attached-project row. A component (not an
@@ -195,6 +199,7 @@ export const DocumentDetailPage = () => {
     null
   );
   const collaboratingRef = useRef(false);
+  const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
 
   // Wikilink dialog state
@@ -225,11 +230,16 @@ export const DocumentDetailPage = () => {
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
-      // Show toast and fall back to autosave mode on collaboration error
       toast.error(t("detail.collaborationFailed"), {
         description: error.message || t("detail.collaborationFailedDescription"),
       });
-      setCollaborationEnabled(false);
+      // Only a refusal ends the session. A lost connection leaves the provider
+      // trying, and turning collaboration off here would tear down the socket
+      // that is going to carry this tab's work back — anything typed during an
+      // outage lives in the local doc until the sync handshake hands it over.
+      if (!(error instanceof CollaborationError) || !error.recoverable) {
+        setCollaborationEnabled(false);
+      }
     },
   });
 
@@ -246,6 +256,9 @@ export const DocumentDetailPage = () => {
   );
   const title = titleField.values.title;
   const setTitle = (next: string) => titleField.set({ title: next });
+  // Whether the name field is being typed in right now. Autosave waits it out
+  // so the Save button beside the field stays put for as long as it is wanted.
+  const [titleHasFocus, setTitleHasFocus] = useState(false);
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -396,15 +409,14 @@ export const DocumentDetailPage = () => {
     // frozen (read_only lifecycle status) or access is via a read-level grant.
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
-  const isDirty =
-    canEditDocument &&
-    ((document && title?.trim() !== document?.name?.trim()) ||
-      documentContentJson !== currentContentJson ||
-      normalizedDocumentFeatured !== featuredImageUrl);
+  // Split by what a save would carry: a rename and the rest of the document
+  // are committed on different terms — see the autosave effect.
+  const nameIsDirty = Boolean(document) && title?.trim() !== document?.name?.trim();
+  const bodyIsDirty =
+    documentContentJson !== currentContentJson || normalizedDocumentFeatured !== featuredImageUrl;
+  const isDirty = canEditDocument && (nameIsDirty || bodyIsDirty);
 
-  const titleIsDirty = Boolean(
-    canEditDocument && document && title?.trim() !== document?.name?.trim()
-  );
+  const titleIsDirty = canEditDocument && nameIsDirty;
 
   const commentsCanModerate = useMemo(() => {
     if (!document || !user) {
@@ -465,8 +477,12 @@ export const DocumentDetailPage = () => {
     suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
-      // that started before the last keystroke must not mark it saved.
-      titleField.settle({ title: sent.name ?? "" });
+      // that started before the last keystroke must not mark it saved. A save
+      // that carried no name at all (one made while the field was being typed
+      // in) settles nothing.
+      if (typeof sent.name === "string") {
+        titleField.settle({ title: sent.name });
+      }
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
@@ -497,8 +513,25 @@ export const DocumentDetailPage = () => {
   );
 
   useEffect(() => {
+    const resumed = collaboration.isCollaborating && !collaboratingRef.current;
     collaboratingRef.current = collaboration.isCollaborating;
-  }, [collaboration.isCollaborating]);
+    sendContentRef.current = collaboration.sendContent;
+    // The handshake brings this tab's Yjs work back into the room, but the
+    // content column moves only when an editor reports a rendering — and after
+    // an outage there may be nothing further to type. Report one on arrival.
+    if (resumed && canEditDocument) {
+      const stored = contentStateRef.current;
+      if (stored && stored.documentId === parsedId) {
+        collaboration.sendContent(stored.content);
+      }
+    }
+  }, [
+    collaboration.isCollaborating,
+    collaboration.sendContent,
+    collaboration,
+    canEditDocument,
+    parsedId,
+  ]);
 
   // Extract the Yjs doc from the collaboration provider for whiteboards.
   // Mirrors what Lexical's CollaborationPlugin does internally — we call the
@@ -585,6 +618,17 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
+    // A rename in progress belongs to the person typing it: taking it retires
+    // the Save button beside the field mid-reach. The name waits for the field
+    // to be let go — leaving the page still flushes it (see the unmount/unload
+    // flush below) — while the body carries on saving on its own schedule.
+    const savesName = nameIsDirty && !titleHasFocus;
+    // Nothing this pass would write. The collaborating branch below checks
+    // this too: the room owns the content column while it is live, but an open
+    // document nobody is editing has no rendering to report and no name to send.
+    if (!savesName && !bodyIsDirty) {
+      return;
+    }
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
@@ -595,22 +639,23 @@ export const DocumentDetailPage = () => {
     if (collaboration.isCollaborating) {
       const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
+        // The room is the writer of this document's content column while it
+        // is live: it saves the JSON and the Yjs state from one snapshot, so
+        // the two always describe the same moment. Every tab reports to it,
+        // and it reconciles them.
+        collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
-          content: contentForSave,
+          ...(savesName ? { name: title?.trim() } : null),
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
-      if (!isDirty) {
-        return;
-      }
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -619,7 +664,8 @@ export const DocumentDetailPage = () => {
     }
   }, [
     autosaveEnabled,
-    isDirty,
+    nameIsDirty,
+    bodyIsDirty,
     canEditDocument,
     saveDocument,
     parsedId,
@@ -627,8 +673,10 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
+    collaboration.sendContent,
     isOnline,
     document?.document_type,
+    titleHasFocus,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -640,7 +688,17 @@ export const DocumentDetailPage = () => {
     const wasOffline = !prevOnlineRef.current;
     prevOnlineRef.current = isOnline;
     if (!wasOffline || !isOnline) return;
-    if (!canEditDocument || !isDirty || saveDocument.isPending) return;
+    if (!canEditDocument || saveDocument.isPending) return;
+    if (collaborationEnabled) {
+      // The work done while offline is in this tab's Yjs doc, and the sync
+      // handshake is what carries it over — merged with whatever the rest of
+      // the room did meanwhile, rather than written over it. The REST path
+      // carries a rendering rather than the work itself, and the server keeps
+      // the content column with the room for that reason.
+      collaboration.resume();
+      return;
+    }
+    if (!isDirty) return;
     // Do NOT set isAutosaveRef here — we want the success toast to fire so
     // users who edited while offline get explicit confirmation their work
     // was persisted after reconnecting.
@@ -655,6 +713,8 @@ export const DocumentDetailPage = () => {
     isDirty,
     saveDocument,
     parsedId,
+    collaborationEnabled,
+    collaboration,
     title,
     contentForSave,
     featuredImageUrl,
@@ -795,6 +855,12 @@ export const DocumentDetailPage = () => {
         `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
       );
 
+      // Push it to the room first, over the socket that is still open. The
+      // REST call below stays as the fallback for a socket that has already
+      // gone: the server applies it only when no room is live, so whichever
+      // of the two is the redundant one is the one it drops.
+      sendContentRef.current?.(stored.content);
+
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {
         method: "POST",
@@ -830,6 +896,23 @@ export const DocumentDetailPage = () => {
       globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [parsedId, token, activeGuildId, canEditDocument]);
+
+  // Reading a file is the host's job — it knows which document and guild the
+  // editor is showing. What comes back is sheets; the editor adds them to its
+  // live workbook itself, in one transaction.
+  const importSpreadsheetSheets = useCallback(
+    async (file: File) => {
+      if (!activeGuildId || !Number.isFinite(parsedId)) return [];
+      const result =
+        await importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+          activeGuildId,
+          parsedId,
+          { file }
+        );
+      return result.sheets as unknown as SpreadsheetSheetContent[];
+    },
+    [activeGuildId, parsedId]
+  );
 
   const handleFeaturedImageChange = async (file: File) => {
     if (!canEditDocument) {
@@ -1014,8 +1097,10 @@ export const DocumentDetailPage = () => {
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            onFocus={() => setTitleHasFocus(true)}
+            onBlur={() => setTitleHasFocus(false)}
             placeholder={t("detail.titlePlaceholder")}
-            className="font-semibold text-2xl"
+            className="min-w-0 font-semibold text-2xl"
             disabled={!canEditDocument}
           />
           {titleIsDirty ? (
@@ -1328,6 +1413,7 @@ export const DocumentDetailPage = () => {
                     collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
                   }
                   currentUser={spreadsheetCurrentUser}
+                  onImportFile={canEditDocument ? importSpreadsheetSheets : undefined}
                   className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                 />
               ) : (
@@ -1348,6 +1434,7 @@ export const DocumentDetailPage = () => {
                   isSynced={collaboration.isSynced}
                   // Wikilinks support
                   initiativeId={document.initiative_id}
+                  subject={referenceRef(SearchEntityType.document, document.id)}
                   supportsEntityMentions={supportsEntityMentions(document.document_type)}
                   onWikilinkNavigate={handleWikilinkNavigate}
                   onCreateReferencedThing={handleCreateReferencedThing}

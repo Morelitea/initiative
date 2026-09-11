@@ -21,6 +21,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Provenance, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.relationship import EntityRelationship
+from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
     hash_email,
@@ -43,6 +47,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
+from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
@@ -71,7 +76,6 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
-    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
@@ -85,6 +89,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
 
@@ -1522,6 +1527,171 @@ async def create_post_poll(
     return poll
 
 
+def png_bytes(
+    width: int = 4, height: int = 4, rgb: tuple[int, int, int] = (200, 60, 60)
+) -> bytes:
+    """A valid flat-colour PNG, written by hand so a test picture needs no
+    image library and is a few dozen bytes. What the upload endpoint's header
+    check reads — signature, IHDR, dimensions — is all real."""
+    import zlib
+
+    raw = bytearray()
+    for _ in range(height):
+        raw.append(0)
+        raw.extend(bytes(rgb) * width)
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (
+            len(payload).to_bytes(4, "big")
+            + kind
+            + payload
+            + zlib.crc32(kind + payload).to_bytes(4, "big")
+        )
+
+    header = (
+        width.to_bytes(4, "big") + height.to_bytes(4, "big") + bytes((8, 2, 0, 0, 0))
+    )
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+async def create_gallery(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Gallery:
+    """Create a test gallery with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. The initiative is expected to be
+    galleries-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by": creator.id,
+        "name": name or f"Gallery {datetime.now(timezone.utc).timestamp()}",
+    }
+    gallery = Gallery(**{**defaults, **overrides})
+    session.add(gallery)
+
+    if commit:
+        await session.commit()
+        await session.refresh(gallery)
+
+        session.add(
+            ResourceGrant(
+                resource_type="gallery",
+                resource_id=gallery.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=gallery.guild_id,
+                initiative_id=gallery.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="gallery",
+                resource_id=gallery.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=gallery.guild_id,
+                initiative_id=gallery.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return gallery
+
+
+async def create_gallery_image(
+    session: AsyncSession,
+    gallery: Gallery,
+    uploader: User,
+    *,
+    title: str | None = None,
+    width: int = 4,
+    height: int = 4,
+    write_blob: bool = True,
+    commit: bool = True,
+    **overrides: Any,
+) -> GalleryImage:
+    """Create a test picture in a gallery, with its first version and its
+    ``uploads`` row.
+
+    ``write_blob`` puts a real PNG in the guild's storage under the row's
+    ``file_url``, so a test that serves or purges the picture finds bytes
+    there; a test about the rows alone can skip it.
+    """
+    from app.services.storage import get_guild_storage
+
+    await route_session_to_guild(session, gallery.guild_id)
+
+    data = png_bytes(width, height)
+    filename = f"{uuid.uuid4().hex}.png"
+    file_url = f"/uploads/{gallery.guild_id}/{filename}"
+    if write_blob:
+        get_guild_storage(gallery.guild_id).write(
+            filename, data, content_type="image/png"
+        )
+    session.add(
+        Upload(
+            filename=filename,
+            guild_id=gallery.guild_id,
+            created_by=uploader.id,
+            size_bytes=len(data),
+            content_type="image/png",
+        )
+    )
+
+    defaults = {
+        "guild_id": gallery.guild_id,
+        "gallery_id": gallery.id,
+        "created_by": uploader.id,
+        "title": title,
+        "file_url": file_url,
+        "file_content_type": "image/png",
+        "file_size": len(data),
+        "original_filename": f"{title or 'picture'}.png",
+        "width": width,
+        "height": height,
+    }
+    image = GalleryImage(**{**defaults, **overrides})
+    session.add(image)
+    await session.flush()
+    session.add(
+        GalleryImageVersion(
+            gallery_image_id=image.id,
+            guild_id=gallery.guild_id,
+            version_number=1,
+            file_url=image.file_url,
+            thumbnail_url=image.thumbnail_url,
+            file_content_type=image.file_content_type,
+            file_size=image.file_size,
+            original_filename=image.original_filename,
+            width=image.width,
+            height=image.height,
+            created_by=uploader.id,
+        )
+    )
+
+    if commit:
+        await session.commit()
+        await session.refresh(image)
+
+    return image
+
+
 async def create_calendar_event(
     session: AsyncSession,
     calendar: Calendar,
@@ -1649,6 +1819,7 @@ async def create_comment(
     calendar: Calendar | None = None,
     dashboard: Dashboard | None = None,
     post: Post | None = None,
+    gallery: Gallery | None = None,
     content: str = "A test comment",
     commit: bool = True,
     **overrides: Any,
@@ -1663,6 +1834,7 @@ async def create_comment(
         "calendar_id": calendar,
         "dashboard_id": dashboard,
         "post_id": post,
+        "gallery_id": gallery,
     }
     provided = {column: row for column, row in parents.items() if row is not None}
     if len(provided) != 1:
@@ -1744,30 +1916,28 @@ async def create_tag(
     return tag
 
 
-async def create_subtask(
-    session: AsyncSession,
-    task: Task,
-    *,
-    content: str = "A test subtask",
-    commit: bool = True,
-    **overrides: Any,
-) -> Subtask:
-    """Create a subtask under ``task``."""
-    await route_session_to_guild(session, task.guild_id)
+async def assign_tag(session, entity, tag, *, commit: bool = False):
+    """Put a tag on something — the edge a tagging surface writes.
 
-    defaults = {
-        "guild_id": task.guild_id,
-        "task_id": task.id,
-        "content": content,
-    }
-    subtask = Subtask(**{**defaults, **overrides})
-    session.add(subtask)
+    ``guild_id`` is stated rather than left to the table's trigger: a tenant
+    write has to be routable at the moment it is added, and the tag already
+    knows which guild it belongs to.
+    """
+    from app.services.tenant import tags as tags_service
 
+    row = tags_service.tag_edge(tags_service.spec_for(entity), entity.id, tag.id)
+    row.guild_id = tag.guild_id
+    session.add(row)
     if commit:
         await session.commit()
-        await session.refresh(subtask)
+    return row
 
-    return subtask
+
+def checklist_items(*texts: str, done: bool = False) -> list[dict]:
+    """A checklist for ``create_task(checklist=...)`` — one item per text."""
+    return [
+        {"id": mint_checklist_item_id(), "text": text, "done": done} for text in texts
+    ]
 
 
 async def create_task_status(
@@ -2004,6 +2174,7 @@ TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.calendar: create_calendar,
     Tool.dashboard: create_dashboard,
     Tool.post: create_post,
+    Tool.gallery: create_gallery,
 }
 
 if set(TOOL_FACTORIES) != set(Tool):
@@ -2039,3 +2210,60 @@ async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Ini
     await session.commit()
     await session.refresh(fresh)
     return fresh
+
+
+async def create_relationship(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    source: tuple[SearchEntityType, int],
+    target: tuple[SearchEntityType, int],
+    relationship_type: RelationshipType = RelationshipType.attached,
+    provenance: Provenance = Provenance.manual,
+    created_by: int | None = None,
+    commit: bool = True,
+) -> EntityRelationship:
+    """Create one edge between two things.
+
+    Endpoints are ``(kind, id)`` pairs, and a symmetric type is stored in the
+    order the constraint requires, so a test may name its two ends in whichever
+    order reads better.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    source_endpoint = relationships_service.Endpoint(*source)
+    target_endpoint = relationships_service.Endpoint(*target)
+    row = await relationships_service.create(
+        session,
+        source=source_endpoint,
+        relationship_type=relationship_type,
+        target=target_endpoint,
+        provenance=provenance,
+        created_by=created_by,
+    )
+    if row is None:  # already present — hand back the live one
+        row = await relationships_service.find(
+            session,
+            source=source_endpoint,
+            relationship_type=relationship_type,
+            target=target_endpoint,
+        )
+    assert row is not None
+
+    if commit:
+        await session.commit()
+        await session.refresh(row)
+
+    return row
+
+
+async def billing_guild_ref(guild_id: int) -> str:
+    """The reference the billing service knows one guild by, minted on demand.
+
+    Billing names a guild by its reference and never by a row id, so a test
+    that posts to the billing boundary needs the value that boundary would
+    actually receive — which is the one the service itself would mint.
+    """
+    from app.services.platform import identity_refs
+
+    return await identity_refs.billing_guild_ref(guild_id=guild_id)

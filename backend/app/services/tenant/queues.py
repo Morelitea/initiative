@@ -11,14 +11,11 @@ This module handles:
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
-from app.core.tools import Tool
-from app.services.tenant import tags as tags_service
 from app.services.permissions import (
     DAC_RESOURCES,
     compute_permission,
@@ -29,13 +26,14 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
-    QueueItemDocument,
-    QueueItemTag,
-    QueueItemTask,
 )
 from app.models.tenant.resource_grant import ResourceGrant
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.models.tenant.task import Task
+from app.services.tenant import relationships
 from app.models.platform.user import User
+from app.services.tenant import tags as tags_service
 
 
 # ---------------------------------------------------------------------------
@@ -75,14 +73,13 @@ def require_queue_access(
 
 def list_loader_options() -> list:
     """Eager-load what a queue *list* row needs: its items (for the count), its
-    sharing, its initiative's memberships (the DAC engine reads them) and its
-    tags. Lighter than :func:`get_queue`, which also walks each item's own
-    links for the detail read."""
+    sharing and its initiative's memberships (the DAC engine reads them).
+    Lighter than :func:`get_queue`, which also walks each item's own links for
+    the detail read."""
     return [
         selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
         selectinload(Queue.initiative).selectinload(Initiative.memberships),
-        tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
     ]
 
 
@@ -97,25 +94,19 @@ async def get_queue(
         select(Queue)
         .where(Queue.id == queue_id)
         .options(
-            selectinload(Queue.items)
-            .selectinload(QueueItem.tag_links)
-            .selectinload(QueueItemTag.tag),
-            selectinload(Queue.items)
-            .selectinload(QueueItem.document_links)
-            .selectinload(QueueItemDocument.document),
-            selectinload(Queue.items)
-            .selectinload(QueueItem.task_links)
-            .selectinload(QueueItemTask.task),
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
-            tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
         )
     )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    queue = result.one_or_none()
+    if queue is not None:
+        await tags_service.annotate_tags(session, [queue])
+        await tags_service.annotate_tags(session, queue.items or [])
+    return queue
 
 
 async def get_queue_for_export(
@@ -186,18 +177,16 @@ async def get_queue_item(
         select(QueueItem)
         .where(QueueItem.id == item_id)
         .options(
-            selectinload(QueueItem.tag_links).selectinload(QueueItemTag.tag),
-            selectinload(QueueItem.document_links).selectinload(
-                QueueItemDocument.document
-            ),
-            selectinload(QueueItem.task_links).selectinload(QueueItemTask.task),
             selectinload(QueueItem.user),
         )
     )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    item = result.one_or_none()
+    if item is not None:
+        await tags_service.annotate_tags(session, [item])
+    return item
 
 
 # ---------------------------------------------------------------------------
@@ -563,23 +552,14 @@ async def set_queue_item_documents(
                 detail=QueueMessages.ITEM_NOT_FOUND,
             )
 
-    # Remove existing document links
-    delete_stmt = sa_delete(QueueItemDocument).where(
-        QueueItemDocument.queue_item_id == item.id,
+    await relationships.set_related(
+        session,
+        relationships.Endpoint(SearchEntityType.queue_item, item.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        ids=document_ids,
+        created_by=user_id,
     )
-    await session.exec(delete_stmt)
-
-    # Add new document links
-    now = datetime.now(timezone.utc)
-    for doc_id in document_ids:
-        link = QueueItemDocument(
-            queue_item_id=item.id,
-            document_id=doc_id,
-            guild_id=guild_id,
-            attached_by_id=user_id,
-            attached_at=now,
-        )
-        session.add(link)
 
 
 async def set_queue_item_tasks(
@@ -606,20 +586,11 @@ async def set_queue_item_tasks(
                 detail=QueueMessages.ITEM_NOT_FOUND,
             )
 
-    # Remove existing task links
-    delete_stmt = sa_delete(QueueItemTask).where(
-        QueueItemTask.queue_item_id == item.id,
+    await relationships.set_related(
+        session,
+        relationships.Endpoint(SearchEntityType.queue_item, item.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        ids=task_ids,
+        created_by=user_id,
     )
-    await session.exec(delete_stmt)
-
-    # Add new task links
-    now = datetime.now(timezone.utc)
-    for task_id in task_ids:
-        link = QueueItemTask(
-            queue_item_id=item.id,
-            task_id=task_id,
-            guild_id=guild_id,
-            attached_by_id=user_id,
-            attached_at=now,
-        )
-        session.add(link)

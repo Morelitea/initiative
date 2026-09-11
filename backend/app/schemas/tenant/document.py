@@ -1,26 +1,29 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
 
 from app.models.tenant.document import DocumentType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import (
         Document,
         DocumentFileVersion,
-        ProjectDocument,
     )
 
 LexicalState = Dict[str, Any]
+#: One sheet of a workbook, in the canonical shape
+#: ``normalize_spreadsheet_content`` produces.
+SpreadsheetSheet = Dict[str, Any]
 DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link", "spreadsheet"]
 
 
@@ -172,20 +175,26 @@ class ProjectDocumentSummary(SanitizedBaseModel):
     attached_at: datetime
 
 
-def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
-    links: List[DocumentProjectLink] = []
-    for link in getattr(document, "project_links", []) or []:
-        project = getattr(link, "project", None)
-        links.append(
-            DocumentProjectLink(
-                project_id=link.project_id,
-                project_name=getattr(project, "name", None),
-                project_icon=getattr(project, "icon", None),
-                project_initiative_id=getattr(project, "initiative_id", None),
-                attached_at=link.attached_at,
-            )
+def _serialize_project_links(
+    projects: Sequence[Related],
+) -> List[DocumentProjectLink]:
+    """The projects a document is attached to.
+
+    Handed in, because a document list serialises many of these at once and the
+    edges live in their own table: the caller loads the whole page's worth in
+    one go (``relationships.related_for_many``) rather than each document
+    fetching its own.
+    """
+    return [
+        DocumentProjectLink(
+            project_id=related.id,
+            project_name=getattr(related.entity, "name", None),
+            project_icon=getattr(related.entity, "icon", None),
+            project_initiative_id=getattr(related.entity, "initiative_id", None),
+            attached_at=related.linked_at,
         )
-    return links
+        for related in projects
+    ]
 
 
 def _serialize_document_properties(document: "Document") -> List[PropertySummary]:
@@ -206,6 +215,7 @@ def serialize_document_summary(
     document: "Document",
     *,
     my_permission_level: Optional[str] = None,
+    projects: Sequence[Related] = (),
 ) -> DocumentSummary:
     initiative = (
         serialize_initiative(document.initiative) if document.initiative else None
@@ -229,11 +239,11 @@ def serialize_document_summary(
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,
-        projects=_serialize_project_links(document),
+        projects=_serialize_project_links(projects),
         comment_count=getattr(document, "comment_count", 0),
         comments_enabled=document.comments_enabled,
         grants=serialize_grants(document),
-        tags=tag_summaries(getattr(document, "tag_links", None)),
+        tags=annotated_tags(document),
         properties=_serialize_document_properties(document),
         document_type=document.document_type.value
         if document.document_type
@@ -299,14 +309,31 @@ def serialize_document_file_versions(
 
 
 def serialize_project_document_link(
-    link: "ProjectDocument",
+    related: Related,
 ) -> ProjectDocumentSummary | None:
-    document = getattr(link, "document", None)
-    if not document or document.id is None:
+    """One attached document, from the project's side.
+
+    ``None`` when the far end is gone or the reader cannot open it: the edge
+    cleared the gate, the document did not, and an attachment nobody may read
+    is simply absent from the answer.
+    """
+    document = related.entity
+    if document is None or getattr(document, "id", None) is None:
         return None
     return ProjectDocumentSummary(
         document_id=document.id,
         name=document.name,
         updated_at=document.updated_at,
-        attached_at=link.attached_at,
+        attached_at=related.linked_at,
     )
+
+
+class SpreadsheetImportRead(SanitizedBaseModel):
+    """The sheets a file held, ready to be added to a workbook.
+
+    Nothing is written by the read that produces this: the editor adds these
+    to its live document itself, in one transaction, so an import is one thing
+    to undo.
+    """
+
+    sheets: List[SpreadsheetSheet] = Field(default_factory=list)

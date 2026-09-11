@@ -91,6 +91,7 @@ export function Plugins({
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
+  subject,
   supportsEntityMentions = false,
   variant = "document",
   maxLength,
@@ -103,6 +104,10 @@ export function Plugins({
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
+  /** This page, as a reference (`document:12`). Neither trigger offers it: a
+   *  page does not point at itself, and a link to it would open the page the
+   *  words are already on. */
+  subject?: string | null;
   /** Whether this is a standard document — prose with a caret. `#` is offered
    *  only here: a whiteboard and a spreadsheet are not written into, and a file
    *  or a linked page has no body of its own to write in. */
@@ -295,10 +300,11 @@ export function Plugins({
             array. */}
         <SmartChipRefsPlugin />
         {supportsEntityMentions && !readOnly && (
-          <EntityMentionsPlugin initiativeId={initiativeId} />
+          <EntityMentionsPlugin initiativeId={initiativeId} subject={subject} />
         )}
         <WikilinksPlugin
           initiativeId={initiativeId}
+          subject={subject}
           onNavigate={onWikilinkNavigate}
           onCreateThing={onCreateReferencedThing}
         />

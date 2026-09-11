@@ -231,10 +231,11 @@ class TaskMessages:
     DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
 
 
-class SubtaskMessages:
-    NOT_FOUND = "SUBTASK_NOT_FOUND"
-    NOT_FOUND_FOR_TASK = "SUBTASK_NOT_FOUND_FOR_TASK"
-    CONTENT_EMPTY = "SUBTASK_CONTENT_EMPTY"
+class ChecklistMessages:
+    ITEM_NOT_FOUND = "CHECKLIST_ITEM_NOT_FOUND"
+    DUPLICATE_ITEM_ID = "CHECKLIST_DUPLICATE_ITEM_ID"
+    TEXT_EMPTY = "CHECKLIST_TEXT_EMPTY"
+    TOO_LONG = "CHECKLIST_TOO_LONG"
 
 
 class TaskStatusMessages:
@@ -302,6 +303,7 @@ class DocumentMessages:
     NAME_ALREADY_EXISTS = "DOCUMENT_NAME_ALREADY_EXISTS"
     TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
+    LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
     CANNOT_ASSIGN_OWNER = "DOCUMENT_CANNOT_ASSIGN_OWNER"
     USER_MUST_BE_MEMBER = "DOCUMENT_USER_MUST_BE_MEMBER"
     CANNOT_MODIFY_OWNER = "DOCUMENT_CANNOT_MODIFY_OWNER"
@@ -313,6 +315,8 @@ class DocumentMessages:
     AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
     SPREADSHEET_INVALID_PAYLOAD = "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
+    SPREADSHEET_UNREADABLE_FILE = "DOCUMENT_SPREADSHEET_UNREADABLE_FILE"
+    SPREADSHEET_FILE_TOO_LARGE = "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE"
     SMART_LINK_URL_INVALID = "DOCUMENT_SMART_LINK_URL_INVALID"
     NOT_A_FILE_DOCUMENT = "DOCUMENT_NOT_A_FILE_DOCUMENT"
     VERSION_NOT_FOUND = "DOCUMENT_VERSION_NOT_FOUND"
@@ -365,6 +369,26 @@ class ReactionMessages:
     INVALID_EMOJI = "REACTION_INVALID_EMOJI"
     TOO_MANY = "REACTION_TOO_MANY"
     DISABLED = "REACTION_DISABLED"
+
+
+class RelationshipMessages:
+    """One vocabulary for links, whatever two kinds a link is between.
+
+    ``CROSS_INITIATIVE`` is the rule the per-tool attach endpoints stated as
+    ``PROJECT_DOCUMENT_WRONG_INITIATIVE``. It was never about documents or
+    projects — it is that a link made from a picker stays inside one
+    initiative — so it is named for the rule rather than for the first pair of
+    kinds it applied to.
+    """
+
+    BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"
+    ENDPOINT_NOT_FOUND = "RELATIONSHIP_ENDPOINT_NOT_FOUND"
+    CROSS_INITIATIVE = "RELATIONSHIP_CROSS_INITIATIVE"
+    ENDPOINT_ARCHIVED = "RELATIONSHIP_ENDPOINT_ARCHIVED"
+    SELF = "RELATIONSHIP_SELF"
+    EXISTS = "RELATIONSHIP_EXISTS"
+    NOT_FOUND = "RELATIONSHIP_NOT_FOUND"
+    REMOVE_DENIED = "RELATIONSHIP_REMOVE_DENIED"
 
 
 class SettingsMessages:
@@ -745,6 +769,27 @@ class PostMessages:
     POLL_NOT_PUBLISHED = "POST_POLL_NOT_PUBLISHED"
 
 
+class GalleryMessages:
+    NOT_FOUND = "GALLERY_NOT_FOUND"
+    CREATE_PERMISSION_REQUIRED = "GALLERY_CREATE_PERMISSION_REQUIRED"
+    FEATURE_DISABLED = "GALLERIES_NOT_ENABLED"
+    PERMISSION_REQUIRED = "GALLERY_PERMISSION_REQUIRED"
+    OWNER_REQUIRED = "GALLERY_OWNER_REQUIRED"
+    WRITE_ACCESS_REQUIRED = "GALLERY_WRITE_ACCESS_REQUIRED"
+    GRANT_CANNOT_MANAGE_MEMBERS = "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS"
+    IMAGE_NOT_FOUND = "GALLERY_IMAGE_NOT_FOUND"
+    #: The bytes are not a raster image this app can show — or are an SVG,
+    #: which is a document rather than a picture.
+    INVALID_IMAGE = "GALLERY_INVALID_IMAGE"
+    IMAGE_TOO_LARGE = "GALLERY_IMAGE_TOO_LARGE"
+    IMAGE_EMPTY = "GALLERY_IMAGE_EMPTY"
+    VERSION_NOT_FOUND = "GALLERY_VERSION_NOT_FOUND"
+    CANNOT_DELETE_LAST_VERSION = "GALLERY_CANNOT_DELETE_LAST_VERSION"
+    VERSION_CONFLICT = "GALLERY_VERSION_CONFLICT"
+    #: A cover has to be one of the gallery's own pictures.
+    COVER_NOT_IN_GALLERY = "GALLERY_COVER_NOT_IN_GALLERY"
+
+
 class MarketplaceMessages:
     LISTING_NOT_FOUND = "MARKETPLACE_LISTING_NOT_FOUND"
     #: The listing exists but nothing about it can be installed here — withdrawn
@@ -932,6 +977,29 @@ class GuildAppMessages:
     #: The placement sent is not a shape this build stores, or it names an
     #: initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
+
+
+class DelegationExchangeMessages:
+    """Codes for re-addressing a delegate's token to the app it will act at.
+
+    Read by a delegate deciding whether to park the work or give up on it, so
+    the three states it can actually do something about are told apart.
+
+    Machine-to-machine (a delegate, not the SPA), so these are consumed by the
+    caller's logs and retry logic rather than ``errors.json`` — the same
+    reasoning as :class:`BillingMessages`. No surface renders one to a person,
+    and a translation for one would be a string nothing reads.
+    """
+
+    #: No app of this deployment answers to that public id.
+    UNKNOWN_AUDIENCE = "APP_DELEGATION_UNKNOWN_AUDIENCE"
+    #: The guild the caller's token names has not installed that app.
+    NOT_INSTALLED = "APP_DELEGATION_NOT_INSTALLED"
+    #: Installed, and the guild has switched it off.
+    INSTALL_DISABLED = "APP_DELEGATION_INSTALL_DISABLED"
+    #: Reached with something that is not a delegation, so there is nothing
+    #: held to re-address.
+    NOT_DELEGATED = "APP_DELEGATION_NOT_DELEGATED"
 
 
 class AppServiceMessages:

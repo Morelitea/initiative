@@ -99,6 +99,11 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
         "audit_events",
+        # What outside parties — a payment processor, an installed app —
+        # call a user or a guild. One per purpose, so no two parties hold
+        # the same value for the same entity. Cross-guild and pre-routing,
+        # like the accounts and guilds it names.
+        "identity_refs",
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
         # The operator-set half of a guild (caps / plan label / sign-in
@@ -217,12 +222,6 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
         "guild_app_user_connections",
-        # What one installed app calls one member — a pairwise pseudonymous
-        # subject (OIDC Core §8.1). No initiative, and one owner per row, so it
-        # carries own_row_* policies like its neighbours: the link is the whole
-        # point of the value, and a row that resolved for anyone would undo the
-        # unlinkability it exists to provide.
-        "guild_app_subjects",
         # A member's authorization for an installed app to act as them. Same
         # shape and same reasons as the connections beside it: no FK to any
         # initiative (an app is guild-wide), one owner per row, and guild-
@@ -246,7 +245,6 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
-    "guild_app_subjects": "user_id",
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
@@ -259,24 +257,6 @@ OWN_ROW_TABLES: dict[str, str] = {
 # table is in neither bucket, so a new table forces the decision.
 CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
     {
-        # Junctions and link rows. Each already carries its own matched pair
-        # naming the relation rather than a row author — ``attached_by_id`` /
-        # ``attached_at`` on the document links, ``created_at`` on the tag
-        # links — and the thing that was authored is the entity at either end.
-        "calendar_event_documents",
-        "calendar_event_tags",
-        "calendar_tags",
-        "counter_group_tags",
-        "dashboard_tags",
-        "document_tags",
-        "post_tags",
-        "project_documents",
-        "project_tags",
-        "queue_item_documents",
-        "queue_item_tags",
-        "queue_item_tasks",
-        "queue_tags",
-        "task_tags",
         # Roster rows: the membership IS the fact, and ``user_id`` already names
         # whose it is.
         "calendar_event_attendees",
@@ -290,7 +270,6 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # the author and the subject, so a second copy of it says nothing.
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
-        "guild_app_subjects",
         "guild_app_user_connections",
         "guild_app_user_delegations",
         "post_reads",

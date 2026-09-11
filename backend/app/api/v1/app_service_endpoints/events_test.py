@@ -84,6 +84,17 @@ async def _install(session: AsyncSession, *, definition=None, **overrides):
     return guild, app
 
 
+#: A reference this deployment never minted, for the case that must not resolve.
+UNKNOWN_REF = "gapp_noinstallholdsthis"
+
+
+async def _ref(guild, app) -> str:
+    """What this install calls its guild — how an app names one to us."""
+    from app.services.marketplace.app_refs import ensure_app_guild_ref
+
+    return await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
+
+
 async def _emit(client: AsyncClient, payload, **kwargs):
     body = encode_body(payload)
     return await client.post(
@@ -97,18 +108,19 @@ async def test_a_declared_event_reaches_the_dispatcher(
     client: AsyncClient, session: AsyncSession, dispatched
 ):
     await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session)
+    guild, app = await _install(session)
 
     response = await _emit(
         client,
         {
-            "guild_id": guild.id,
+            "guild_ref": await _ref(guild, app),
             "event_type": ORDER_CREATED,
             "payload": {"order_id": "1001"},
         },
     )
 
     assert response.status_code == 202, response.text
+    # The reference stopped at the edge: what reaches the dispatcher is the id.
     assert dispatched == [
         {
             "event_type": ORDER_CREATED,
@@ -125,12 +137,12 @@ async def test_an_event_carries_no_initiative(
     """Apps see guilds, not initiatives, so an app's event is guild-scoped and
     a field naming an initiative is simply not part of the shape."""
     await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session)
+    guild, app = await _install(session)
 
     response = await _emit(
         client,
         {
-            "guild_id": guild.id,
+            "guild_ref": await _ref(guild, app),
             "event_type": ORDER_CREATED,
             "payload": {},
             "initiative_id": 7,
@@ -208,9 +220,9 @@ async def test_an_event_the_channel_will_not_carry_is_refused(
 ):
     """Each refusal names what was wrong, and nothing reaches a subscriber."""
     await register_app_service(session, listing_uid=SHOP_UID, **registration)
-    guild, _ = await _install(session, **install)
+    guild, app = await _install(session, **install)
 
-    response = await _emit(client, {"guild_id": guild.id, **event})
+    response = await _emit(client, {"guild_ref": await _ref(guild, app), **event})
 
     assert response.status_code == status, response.text
     assert response.json()["detail"] == detail
@@ -223,14 +235,14 @@ async def test_another_apps_namespace_is_refused(
     """Even a pinned definition that lists it: an app announces and emits only
     under its own name, so the prefix is checked against the caller."""
     await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(
+    guild, app = await _install(
         session, definition=_definition(events=["app.tests.other.order_created"])
     )
 
     response = await _emit(
         client,
         {
-            "guild_id": guild.id,
+            "guild_ref": await _ref(guild, app),
             "event_type": "app.tests.other.order_created",
             "payload": {},
         },
@@ -248,7 +260,7 @@ async def test_an_endpoint_that_is_not_an_emit_is_refused(
     enough — an app announcing under a read's id would be emitting something no
     subscriber could have asked for, because only emissions are subscribable."""
     await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(
+    guild, app = await _install(
         session,
         definition={
             "app_kind": "service",
@@ -260,7 +272,11 @@ async def test_an_endpoint_that_is_not_an_emit_is_refused(
 
     response = await _emit(
         client,
-        {"guild_id": guild.id, "event_type": ORDER_CREATED, "payload": {}},
+        {
+            "guild_ref": await _ref(guild, app),
+            "event_type": ORDER_CREATED,
+            "payload": {},
+        },
     )
 
     assert response.status_code == 400
@@ -273,11 +289,11 @@ async def test_an_event_for_a_guild_without_the_install_is_refused(
 ):
     await register_app_service(session, listing_uid=SHOP_UID)
     user = await create_user(session)
-    bare = await create_guild(session, creator=user)
+    await create_guild(session, creator=user)
 
     response = await _emit(
         client,
-        {"guild_id": bare.id, "event_type": ORDER_CREATED, "payload": {}},
+        {"guild_ref": UNKNOWN_REF, "event_type": ORDER_CREATED, "payload": {}},
     )
 
     assert response.status_code == 404

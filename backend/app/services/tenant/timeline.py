@@ -64,8 +64,10 @@ async def month_buckets(
     last month.
 
     ``anchor`` is the newest instant in each month rather than the month's own
-    end. It is what a jump asks for, and taking it from the data means the
-    client never has to work out when a month ends somewhere else.
+    end, and ``anchor_oldest`` the oldest. They are what a jump asks for, and
+    taking them from the data means the client never has to work out when a
+    month begins or ends somewhere else — nor which of the two a list reads
+    from, which is a question about that list's own direction.
     """
     zone = resolve_zone(tz)
     # ``timezone(zone, ts)`` renders the instant as local wall time, which is
@@ -79,6 +81,7 @@ async def month_buckets(
                 func.to_char(month, "YYYY-MM").label("period"),
                 func.count().label("count"),
                 func.max(date_expr).label("anchor"),
+                func.min(date_expr).label("anchor_oldest"),
             )
             .where(*conditions)
             .group_by(month)
@@ -87,6 +90,8 @@ async def month_buckets(
     ).all()
 
     return [
-        TimelineBucket(period=period, count=count, anchor=anchor)
-        for period, count, anchor in rows
+        TimelineBucket(
+            period=period, count=count, anchor=anchor, anchor_oldest=anchor_oldest
+        )
+        for period, count, anchor, anchor_oldest in rows
     ]

@@ -81,5 +81,7 @@
   "requestsWaiting_one": "{{count}} pendiente",
   "requestsWaiting_other": "{{count}} pendientes",
   "posts": "Publicaciones",
-  "createPost": "Nueva publicación"
+  "createPost": "Nueva publicación",
+  "galleries": "Galerías",
+  "createGallery": "Nueva galería"
 }

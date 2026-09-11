@@ -16,6 +16,7 @@ import type {
   AnnouncementSection,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { Lightbox } from "@/components/shared/Lightbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -168,19 +169,13 @@ export const AnnouncementDialog = ({
 
       {/* Nested on purpose: Escape and a click outside close the picture and
           leave the announcement where it was, rather than dismissing it. */}
-      <Dialog open={zoomed !== null} onOpenChange={(next) => !next && setZoomed(null)}>
-        <DialogContent className="max-w-[96vw] p-3 sm:max-w-[92vw]">
-          <DialogTitle className="sr-only">{zoomed?.alt || title}</DialogTitle>
-          <DialogDescription className="sr-only">{t("dialog.zoomImage")}</DialogDescription>
-          {zoomed ? (
-            <img
-              src={zoomed.src}
-              alt={zoomed.alt}
-              className="max-h-[85vh] w-full rounded object-contain"
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <Lightbox
+        open={zoomed !== null}
+        onOpenChange={(next) => !next && setZoomed(null)}
+        items={zoomed ? [{ id: zoomed.src, src: zoomed.src, alt: zoomed.alt || title }] : []}
+        index={0}
+        onIndexChange={() => {}}
+      />
     </Dialog>
   );
 };

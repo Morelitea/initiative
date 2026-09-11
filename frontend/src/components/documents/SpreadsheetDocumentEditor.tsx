@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 
 import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
+import { SPREADSHEET_ORIGINS } from "@/components/documents/spreadsheet/origins";
 import { SpreadsheetFindBar } from "@/components/documents/spreadsheet/SpreadsheetFindBar";
 import { SpreadsheetFormulaBar } from "@/components/documents/spreadsheet/SpreadsheetFormulaBar";
 import { SpreadsheetSheetTabs } from "@/components/documents/spreadsheet/SpreadsheetSheetTabs";
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/context-menu";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   CEILING,
   clipToCeiling,
@@ -59,7 +61,11 @@ import {
   clipMatchesClipboard,
   placeClip,
 } from "@/lib/spreadsheet/clipboard";
-import { parseSpreadsheetContent, type SpreadsheetContent } from "@/lib/spreadsheet/content";
+import {
+  parseSpreadsheetContent,
+  type SpreadsheetContent,
+  type SpreadsheetSheetContent,
+} from "@/lib/spreadsheet/content";
 import {
   type CellRange,
   type CellValue,
@@ -87,6 +93,7 @@ import {
   referenceInsertTarget,
 } from "@/lib/spreadsheet/formula-refs";
 import {
+  draftResolution,
   formatSheetPrefix,
   MAX_SHEETS,
   type SheetId,
@@ -134,6 +141,9 @@ interface SpreadsheetDocumentEditorProps {
    *  Until then the workbook must not be seeded from ``initialContent``
    *  (see ``useSpreadsheetSheets``). Ignored when ``yDoc`` is null. */
   isSynced?: boolean;
+  /** Read a file into sheets. Supplied by the host, which knows the document
+   *  and guild this editor is showing; absent when import is unavailable. */
+  onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
   /** Awareness handle from the same provider as ``yDoc``. Used to
    *  publish / observe selected-cell presence rings. */
   awareness?: ProviderAwareness | null;
@@ -192,6 +202,7 @@ export const SpreadsheetDocumentEditor = ({
   className,
   yDoc = null,
   isSynced = true,
+  onImportFile,
   awareness = null,
   currentUser = null,
 }: SpreadsheetDocumentEditorProps) => {
@@ -895,6 +906,17 @@ export const SpreadsheetDocumentEditor = ({
     pointRefRef.current = null;
   }, []);
 
+  // Hiding a sheet from the menu commits the draft on it first (see
+  // ``handleSetSheetHidden``). Undo, redo and a peer reach the same state
+  // without passing through there, so the rule is applied to the sheets
+  // themselves rather than to the one action that used to change them.
+  useEffect(() => {
+    if (!editing) return;
+    const resolution = draftResolution(sheets, editing.sheetId);
+    if (resolution === "commit") commitEdit();
+    else if (resolution === "cancel") cancelEdit();
+  }, [editing, sheets, commitEdit, cancelEdit]);
+
   // Blur handler shared by the in-cell input and the formula-bar input. A blur
   // that hands focus to the *other* editing surface is a surface switch, not
   // an edit end — keep the draft alive instead of committing.
@@ -1285,7 +1307,7 @@ export const SpreadsheetDocumentEditor = ({
             formatting.updateCell(at[0], at[1], { style: fmt.style, format: fmt.format ?? null });
           }
         }
-      }, "spreadsheet-paste");
+      }, SPREADSHEET_ORIGINS.PASTE);
       if (dropped > 0) toast.info(t("documents:spreadsheet.pasteClipped", { count: dropped }));
     },
     [docForData, bulkUpdate, bulkUpdateOn, formatting, grid, t]
@@ -1372,7 +1394,7 @@ export const SpreadsheetDocumentEditor = ({
           cellStyles: result.cellStyles,
           frozen: formatting.frozen,
         });
-      }, "spreadsheet-sort");
+      }, SPREADSHEET_ORIGINS.SORT);
     },
     [readOnly, cells, formatting, bulkUpdate, docForData]
   );
@@ -1438,7 +1460,7 @@ export const SpreadsheetDocumentEditor = ({
             for (const [key, value] of Object.entries(rewritten)) draft.set(key, value);
           });
         }
-      }, "spreadsheet-structure");
+      }, SPREADSHEET_ORIGINS.STRUCTURE);
 
       // Remap the selection along the shifted axis so it tracks the same
       // content — otherwise an insert-above leaves the stale band straddling
@@ -2036,6 +2058,45 @@ export const SpreadsheetDocumentEditor = ({
     [workbook, editing, commitEdit, t]
   );
 
+  // Import: the host reads the file, this writes what comes back. Every sheet
+  // lands in one transaction (see ``importSheets``), so a file is one thing to
+  // undo however many tabs it brought.
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      if (!onImportFile) return;
+      setImporting(true);
+      try {
+        const incoming = await onImportFile(file);
+        const { added, skipped } = workbook.importSheets(incoming);
+        if (added.length === 0) {
+          toast.info(t("documents:spreadsheet.sheets.maxReached"));
+          return;
+        }
+        setRequestedSheetId(added[0]);
+        if (skipped > 0) {
+          // Some of the file is in and some is not; saying only how much
+          // arrived would read as all of it.
+          toast.warning(
+            t("documents:spreadsheet.sheets.importedPartly", {
+              count: added.length,
+              skipped,
+            })
+          );
+        } else {
+          toast.success(t("documents:spreadsheet.sheets.imported", { count: added.length }));
+        }
+      } catch (error) {
+        toast.error(getErrorMessage(error, "documents:spreadsheet.sheets.importFailed"));
+      } finally {
+        setImporting(false);
+      }
+    },
+    [onImportFile, workbook, t]
+  );
+
   const handleDeleteSheet = useCallback(
     (id: SheetId) => {
       // Drop an edit anchored to this sheet before it goes: its container
@@ -2435,12 +2496,27 @@ export const SpreadsheetDocumentEditor = ({
         canAdd={sheets.length < MAX_SHEETS}
         onSelect={selectSheet}
         onAdd={handleAddSheet}
+        onImport={onImportFile && !importing ? () => importInputRef.current?.click() : undefined}
         onRename={workbook.renameSheet}
         onDelete={handleDeleteSheet}
         onDuplicate={handleDuplicateSheet}
         onMove={workbook.moveSheet}
         onSetHidden={handleSetSheetHidden}
       />
+      {onImportFile && (
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,.tsv,.xlsx,.xlsm"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Cleared so choosing the same file twice fires again.
+            e.target.value = "";
+            if (file) void handleImportFile(file);
+          }}
+        />
+      )}
     </div>
   );
 };

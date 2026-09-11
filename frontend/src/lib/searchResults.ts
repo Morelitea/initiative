@@ -14,6 +14,7 @@
 import {
   CalendarClock,
   Hash,
+  Image,
   type LucideIcon,
   MessageSquare,
   SquareCheckBig,
@@ -63,6 +64,13 @@ const TOOL_CHILDREN: Partial<Record<SearchEntityType, ToolChild>> = {
     tool: Tool.queue,
     icon: Ticket,
     path: (initiativeId, queueId) => toolDetailRoute(Tool.queue, initiativeId, queueId),
+  },
+  // A picture is browsed in its gallery rather than on a page of its own, so
+  // a hit lands on the gallery.
+  [SearchEntityType.gallery_image]: {
+    tool: Tool.gallery,
+    icon: Image,
+    path: (initiativeId, galleryId) => toolDetailRoute(Tool.gallery, initiativeId, galleryId),
   },
   // A comment is read on the thing it is on, so it goes there. Its own id
   // addresses nothing: there is no page for one comment.

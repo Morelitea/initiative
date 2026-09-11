@@ -36,6 +36,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
@@ -83,6 +84,8 @@ ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "calendar_event": (CalendarEvent, "title"),
     "dashboard": (Dashboard, "name"),
     "post": (Post, "name"),
+    "gallery": (Gallery, "name"),
+    "gallery_image": (GalleryImage, "title"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
 }
@@ -133,6 +136,7 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
         (Task, "task_id"),
         (Document, "document_id"),
         (Post, "post_id"),
+        (Gallery, "gallery_id"),
         (Comment, "parent_comment_id"),
     ],
     Queue: [(Initiative, "initiative_id")],
@@ -141,6 +145,8 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     CalendarEvent: [(Calendar, "calendar_id")],
     Dashboard: [(Initiative, "initiative_id")],
     Post: [(Initiative, "initiative_id")],
+    Gallery: [(Initiative, "initiative_id")],
+    GalleryImage: [(Gallery, "gallery_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
 }

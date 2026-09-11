@@ -572,7 +572,14 @@
       "hideLastBlocked": "Una hoja de cálculo necesita al menos una hoja visible.",
       "hiddenCount_one": "{{count}} hoja oculta",
       "hiddenCount_other": "{{count}} hojas ocultas",
-      "unhideNamed": "Mostrar «{{name}}»"
+      "unhideNamed": "Mostrar «{{name}}»",
+      "import": "Importar un archivo",
+      "importing": "Leyendo el archivo…",
+      "imported_one": "{{count}} hoja importada.",
+      "imported_other": "{{count}} hojas importadas.",
+      "importFailed": "No se pudo importar ese archivo.",
+      "importedPartly_one": "{{count}} hoja importada; {{skipped}} omitidas — esta hoja de cálculo está llena.",
+      "importedPartly_other": "{{count}} hojas importadas; {{skipped}} omitidas — esta hoja de cálculo está llena."
     },
     "pasteClipped_one": "{{count}} celda no cabía en la hoja y no se pegó.",
     "pasteClipped_other": "{{count}} celdas no cabían en la hoja y no se pegaron.",

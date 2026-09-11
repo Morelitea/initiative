@@ -33,15 +33,18 @@ from app.schemas.tenant.dashboard import (
     DashboardListResponse,
     serialize_dashboard_summary,
 )
+from app.schemas.tenant.gallery import GalleryListResponse, serialize_gallery_summary
 from app.schemas.tenant.my_tools import MyToolCountsResponse
 from app.schemas.tenant.post import PostListResponse, serialize_post
 from app.schemas.tenant.queue import QueueListResponse, serialize_queue_summary
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
+from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import queues as queues_service
+from app.services.tenant import tags as tags_service
 
 me_router = APIRouter()
 
@@ -101,6 +104,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # it will land, not by the day somebody started it.
         default_key=lambda row: row.published_at or row.scheduled_for or row.created_at,
     ),
+    Tool.gallery: MyToolList(
+        loader_options=galleries_service.list_loader_options,
+        serialize=lambda row, user: serialize_gallery_summary(row, user_id=user.id),
+        default_key=lambda row: row.updated_at,
+    ),
 }
 
 
@@ -144,6 +152,7 @@ async def list_across_guilds(
             .options(*spec.loader_options())
         )
         rows = (await guild_session.exec(statement)).unique().all()
+        await tags_service.annotate_tags(guild_session, rows)
         # Serialize inside the routed session: relationships resolve in this
         # guild's schema, and the next guild expunges these rows.
         return [spec.serialize(row, current_user) for row in rows]
@@ -278,6 +287,46 @@ async def list_my_posts(
         page_size=page_size,
     )
     return PostListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=page_has_next(page, page_size, total_count),
+    )
+
+
+@me_router.get("/galleries", response_model=GalleryListResponse)
+async def list_my_galleries(
+    session: UserSessionDep,
+    current_user: CurrentUserDep,
+    guild_ids: Optional[List[int]] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    created_by_me: bool = Query(default=False),
+    sort_by: Optional[str] = Query(default=None, description=_SORT_BY_DESCRIPTION),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> GalleryListResponse:
+    """Galleries that reach the caller across every guild they belong to.
+
+    Counts and covers are not carried here: a cross-guild list is merged in
+    Python from one query per guild, and those annotations are per-guild
+    grouped queries the merge has no session for. The card falls back to no
+    picture, which is what a gallery looks like from outside its community.
+    """
+    items, total_count = await list_across_guilds(
+        session,
+        current_user,
+        Tool.gallery,
+        guild_ids=guild_ids,
+        search=search,
+        created_by_me=created_by_me,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        page=page,
+        page_size=page_size,
+    )
+    return GalleryListResponse(
         items=items,
         total_count=total_count,
         page=page,

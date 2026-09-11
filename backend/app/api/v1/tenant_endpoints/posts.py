@@ -48,7 +48,7 @@ from app.api.deps import (
 from app.core.messages import CommonMessages, InitiativeMessages, PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -128,27 +128,6 @@ async def _get_initiative_for_post(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_posts,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=PostMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 def _validated_body(body: dict | None) -> dict:
@@ -427,6 +406,7 @@ async def list_posts(
     posts = result.unique().all()
     # One grouped query each for the page, so a board of twenty asks twice
     # rather than forty times.
+    await tags_service.annotate_tags(session, posts)
     await comments_service.annotate_comment_counts(session, posts, column="post_id")
     await posts_service.attach_reactions(session, *posts)
     await posts_service.annotate_read_state(session, posts, user_id=current_user.id)
@@ -584,7 +564,9 @@ async def create_post(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=PostMessages.FEATURE_DISABLED,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+    await resource_access.require_create(
+        session, Tool.post, initiative, current_user, guild_context
+    )
 
     now = datetime.now(timezone.utc)
     # A schedule in the past is somebody asking for it now, which is what an

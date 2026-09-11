@@ -32,13 +32,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
 from app.db.jti_blocklist import purge_expired_jtis
+from app.db import session as db_session
 from app.models.platform.billing import BillingEventLog, BillingJti
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.services.platform.identity_refs import ensure_ref
 from app.services.tenant.attachments import (
     StorageQuotaExceededError,
     enforce_storage_quota,
 )
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
+    billing_guild_ref,
     guild_administration,
     create_guild,
     create_upload,
@@ -132,9 +136,10 @@ async def _post(client: AsyncClient, endpoint: str, payload: dict, **overrides):
     return await client.post(path, content=body, headers=headers)
 
 
-def _tier_payload(guild_id: int, **fields) -> dict:
+async def _tier_payload(guild_id: int, **fields) -> dict:
+    """A write the way billing sends one: the guild named by its reference."""
     return {
-        "guild_id": guild_id,
+        "guild_ref": await billing_guild_ref(guild_id),
         "event_id": fields.pop("event_id", f"evt-{secrets.token_hex(6)}"),
         "source": fields.pop("source", "paddle_webhook"),
         **fields,
@@ -149,7 +154,7 @@ async def test_unconfigured_boundary_refuses_everything(
 ):
     monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", None)
     guild = await create_guild(session)
-    response = await _post(client, "guild-tier", _tier_payload(guild.id))
+    response = await _post(client, "guild-tier", await _tier_payload(guild.id))
     # 503, not 403: billing absent is the self-host default, not a caller
     # fault (see billing_foss_test.py for the full unconfigured surface).
     assert response.status_code == 503
@@ -160,7 +165,7 @@ async def test_missing_envelope_headers_rejected(
     client: AsyncClient, session: AsyncSession
 ):
     guild = await create_guild(session)
-    body = json.dumps(_tier_payload(guild.id)).encode()
+    body = json.dumps(await _tier_payload(guild.id)).encode()
     response = await client.post(
         "/api/v1/billing/guild-tier",
         content=body,
@@ -174,7 +179,7 @@ async def test_stale_timestamp_rejected(client: AsyncClient, session: AsyncSessi
     guild = await create_guild(session)
     stale = str(int(time.time()) - 3600)
     response = await _post(
-        client, "guild-tier", _tier_payload(guild.id), timestamp=stale
+        client, "guild-tier", await _tier_payload(guild.id), timestamp=stale
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_STALE_TIMESTAMP"
@@ -183,7 +188,7 @@ async def test_stale_timestamp_rejected(client: AsyncClient, session: AsyncSessi
 async def test_wrong_hmac_secret_rejected(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     response = await _post(
-        client, "guild-tier", _tier_payload(guild.id), secret="wrong-secret"
+        client, "guild-tier", await _tier_payload(guild.id), secret="wrong-secret"
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_SIGNATURE"
@@ -193,9 +198,9 @@ async def test_tampered_body_rejected(client: AsyncClient, session: AsyncSession
     """A signature minted for one body must not authorize a different one."""
     guild = await create_guild(session)
     path = "/api/v1/billing/guild-tier"
-    signed_body = json.dumps(_tier_payload(guild.id, tier_name="silver")).encode()
+    signed_body = json.dumps(await _tier_payload(guild.id, tier_name="silver")).encode()
     headers = _signed_headers(path, signed_body)
-    tampered = json.dumps(_tier_payload(guild.id, tier_name="platinum")).encode()
+    tampered = json.dumps(await _tier_payload(guild.id, tier_name="platinum")).encode()
     response = await client.post(path, content=tampered, headers=headers)
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_SIGNATURE"
@@ -204,7 +209,9 @@ async def test_tampered_body_rejected(client: AsyncClient, session: AsyncSession
 async def test_wrong_jwt_key_rejected(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     token = _mint_token(private_pem=_OTHER_PRIVATE_PEM)
-    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    response = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
 
@@ -218,7 +225,9 @@ async def test_wrong_audience_or_issuer_rejected(
 ):
     guild = await create_guild(session)
     token = _mint_token(**claim_overrides)
-    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    response = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
 
@@ -229,10 +238,14 @@ async def test_jti_is_one_shot(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     token = _mint_token(jti="billing-replay-001")
 
-    first = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    first = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert first.status_code == 200, first.text
 
-    second = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    second = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
 
@@ -242,7 +255,9 @@ async def test_oversized_jti_rejected(client: AsyncClient, session: AsyncSession
     verification, not surface as a database error at redemption."""
     guild = await create_guild(session)
     token = _mint_token(jti="x" * 65)
-    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    response = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
 
@@ -275,7 +290,9 @@ async def test_purged_jti_still_unreplayable(
     assert remaining is None
 
     # Fresh HMAC, purged blocklist row — the token's own exp still refuses it.
-    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    response = await _post(
+        client, "guild-tier", await _tier_payload(guild.id), token=token
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
 
@@ -288,7 +305,7 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
     response = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id,
             event_id="evt-happy-1",
             tier_name="gold",
@@ -329,14 +346,14 @@ async def test_replayed_event_id_is_noop(client: AsyncClient, session: AsyncSess
     first = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, event_id="evt-dup", tier_name="gold"),
+        await _tier_payload(guild.id, event_id="evt-dup", tier_name="gold"),
     )
     assert first.status_code == 200 and first.json()["applied"] is True
 
     second = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, event_id="evt-dup", tier_name="platinum"),
+        await _tier_payload(guild.id, event_id="evt-dup", tier_name="platinum"),
     )
     assert second.status_code == 200
     data = second.json()
@@ -355,7 +372,9 @@ async def test_sentinel_semantics_omit_vs_null(
     setup = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, tier_name="gold", max_storage_bytes=1024, max_users=10),
+        await _tier_payload(
+            guild.id, tier_name="gold", max_storage_bytes=1024, max_users=10
+        ),
     )
     assert setup.status_code == 200
 
@@ -363,7 +382,7 @@ async def test_sentinel_semantics_omit_vs_null(
     response = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, max_storage_bytes=None),
+        await _tier_payload(guild.id, max_storage_bytes=None),
     )
     assert response.status_code == 200
     data = response.json()
@@ -388,7 +407,7 @@ async def test_the_pushed_ceiling_is_the_one_uploads_are_held_to(
     # Cleared: no ceiling to hit.
     assert (
         await _post(
-            client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=None)
+            client, "guild-tier", await _tier_payload(guild.id, max_storage_bytes=None)
         )
     ).status_code == 200
     await route_session_to_guild(session, guild.id)
@@ -397,7 +416,7 @@ async def test_the_pushed_ceiling_is_the_one_uploads_are_held_to(
     # Same upload, against a cap billing pushed after it.
     assert (
         await _post(
-            client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=1000)
+            client, "guild-tier", await _tier_payload(guild.id, max_storage_bytes=1000)
         )
     ).status_code == 200
     await route_session_to_guild(session, guild.id)
@@ -411,7 +430,7 @@ async def test_status_change_stamps_status_changed_at(
     guild = await create_guild(session)
     assert guild.status_changed_at is None
     response = await _post(
-        client, "guild-tier", _tier_payload(guild.id, status="read_only")
+        client, "guild-tier", await _tier_payload(guild.id, status="read_only")
     )
     assert response.status_code == 200
     assert response.json()["status"] == "read_only"
@@ -431,7 +450,7 @@ async def test_support_source_may_only_raise_storage(
     allowed = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id,
             source="support_manual",
             actor="support:42",
@@ -444,7 +463,7 @@ async def test_support_source_may_only_raise_storage(
     tier_change = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id, source="support_manual", actor="support:42", tier_name="gold"
         ),
     )
@@ -454,7 +473,7 @@ async def test_support_source_may_only_raise_storage(
     anonymous = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, source="support_manual", max_storage_bytes=4096),
+        await _tier_payload(guild.id, source="support_manual", max_storage_bytes=4096),
     )
     assert anonymous.status_code == 422
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
@@ -472,7 +491,7 @@ async def test_support_source_cannot_lower_storage(
     cap_unlimited = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id,
             source="support_manual",
             actor="support:42",
@@ -484,14 +503,14 @@ async def test_support_source_cannot_lower_storage(
 
     # Give the guild a finite cap via the automated path.
     setup = await _post(
-        client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=4096)
+        client, "guild-tier", await _tier_payload(guild.id, max_storage_bytes=4096)
     )
     assert setup.status_code == 200
 
     lowered = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id,
             source="support_manual",
             actor="support:42",
@@ -511,7 +530,7 @@ async def test_support_source_cannot_lower_storage(
     equal = await _post(
         client,
         "guild-tier",
-        _tier_payload(
+        await _tier_payload(
             guild.id,
             source="support_manual",
             actor="support:42",
@@ -524,7 +543,7 @@ async def test_support_source_cannot_lower_storage(
 
     # paddle_webhook (the automated recompute path) may lower freely.
     automated = await _post(
-        client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=512)
+        client, "guild-tier", await _tier_payload(guild.id, max_storage_bytes=512)
     )
     assert automated.status_code == 200
     assert automated.json()["max_storage_bytes"] == 512
@@ -537,7 +556,7 @@ async def test_unknown_guild_404_does_not_consume_event_id(
     missing = await _post(
         client,
         "guild-tier",
-        _tier_payload(999_999_999, event_id="evt-preserved", tier_name="gold"),
+        await _tier_payload(999_999_999, event_id="evt-preserved", tier_name="gold"),
     )
     assert missing.status_code == 404
     assert missing.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
@@ -545,17 +564,72 @@ async def test_unknown_guild_404_does_not_consume_event_id(
     retry = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, event_id="evt-preserved", tier_name="gold"),
+        await _tier_payload(guild.id, event_id="evt-preserved", tier_name="gold"),
     )
     assert retry.status_code == 200, retry.text
     assert retry.json()["applied"] is True
+
+
+async def test_a_reference_this_deployment_never_minted_is_404(
+    client: AsyncClient, session: AsyncSession
+):
+    """Billing names the guild, and only a reference this deployment issued
+    for billing is a name it answers to."""
+    response = await _post(
+        client,
+        "guild-tier",
+        {
+            "guild_ref": "gbil_notoneweminted",
+            "event_id": "evt-unknown-ref",
+            "source": "paddle_webhook",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+
+
+async def test_a_reference_minted_for_something_else_is_404(
+    client: AsyncClient, session: AsyncSession
+):
+    """A user's reference resolves, and is still not an answer to which guild
+    this is.
+
+    Minted against an id that IS a guild's, which is the only shape where the
+    question has teeth: entity ids are per-table sequences with no foreign key
+    between them, so the same number names a user and a guild at once. What
+    separates them is what the reference was minted for, and nothing else.
+    """
+    guild = await create_guild(session)
+    # Through the module, not a name bound at import: conftest points the
+    # factory at this worker's database by setting the attribute, and a name
+    # imported before that still refers to the configured one.
+    async with db_session.AdminSessionLocal() as admin:
+        user_ref = await ensure_ref(
+            admin,
+            entity_type=IdentityEntity.user,
+            entity_id=guild.id,
+            purpose=IdentityPurpose.billing,
+        )
+        await admin.commit()
+
+    response = await _post(
+        client,
+        "guild-tier",
+        {
+            "guild_ref": user_ref,
+            "event_id": "evt-wrong-entity",
+            "source": "paddle_webhook",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
 
 
 async def test_malformed_payload_rejected_after_verification(
     client: AsyncClient, session: AsyncSession
 ):
     path = "/api/v1/billing/guild-tier"
-    body = b'{"guild_id": "not-a-number"}'
+    body = b'{"guild_ref": 17}'
     headers = _signed_headers(path, body)
     response = await client.post(path, content=body, headers=headers)
     assert response.status_code == 422
@@ -570,9 +644,13 @@ async def test_a_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
     replayable inside the window."""
     guild = await create_guild(session)
     token = _mint_token(jti="billing-read-replay")
-    first = await _post(client, "usage", {"guild_id": guild.id}, token=token)
+    first = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+    )
     assert first.status_code == 200
-    second = await _post(client, "usage", {"guild_id": guild.id}, token=token)
+    second = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+    )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
 
@@ -585,20 +663,32 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
     await create_upload(session, guild, uploader, size_bytes=1000)
     await create_upload(session, guild, uploader, size_bytes=234)
 
-    response = await _post(client, "usage", {"guild_id": guild.id})
+    response = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}
+    )
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": guild.id, "usage_bytes": 1234}
+    assert response.json() == {
+        "guild_ref": await billing_guild_ref(guild.id),
+        "usage_bytes": 1234,
+    }
 
 
 async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
-    response = await _post(client, "usage", {"guild_id": guild.id})
+    response = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}
+    )
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": guild.id, "usage_bytes": 0}
+    assert response.json() == {
+        "guild_ref": await billing_guild_ref(guild.id),
+        "usage_bytes": 0,
+    }
 
 
 async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):
-    response = await _post(client, "usage", {"guild_id": 999_999_999})
+    response = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(999_999_999)}
+    )
     assert response.status_code == 404
     assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
 
@@ -606,9 +696,13 @@ async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSessio
 async def test_usage_burns_jti(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     token = _mint_token(jti="billing-usage-replay")
-    first = await _post(client, "usage", {"guild_id": guild.id}, token=token)
+    first = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+    )
     assert first.status_code == 200
-    second = await _post(client, "usage", {"guild_id": guild.id}, token=token)
+    second = await _post(
+        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+    )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
 
@@ -633,7 +727,7 @@ async def test_both_keys_verify_while_billing_rotates(
         response = await _post(
             client,
             "guild-tier",
-            _tier_payload(guild.id),
+            await _tier_payload(guild.id),
             token=_mint_token(private_pem=private_pem),
         )
         assert response.status_code == 200, response.text
@@ -652,7 +746,7 @@ async def test_dropping_the_old_block_ends_its_access(
     response = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id),
+        await _tier_payload(guild.id),
         token=_mint_token(private_pem=_PRIVATE_PEM),
     )
     assert response.status_code == 403
@@ -672,6 +766,6 @@ async def test_unreadable_key_answers_503_not_403(
     )
     guild = await create_guild(session)
 
-    response = await _post(client, "guild-tier", _tier_payload(guild.id))
+    response = await _post(client, "guild-tier", await _tier_payload(guild.id))
     assert response.status_code == 503
     assert response.json()["detail"] == "BILLING_KEY_UNREADABLE"

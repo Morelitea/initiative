@@ -15,6 +15,7 @@ import type dates from "../../public/locales/en/dates.json";
 import type documents from "../../public/locales/en/documents.json";
 import type errors from "../../public/locales/en/errors.json";
 import type exports_ from "../../public/locales/en/exports.json";
+import type galleries from "../../public/locales/en/galleries.json";
 import type guildHome from "../../public/locales/en/guildHome.json";
 import type guilds from "../../public/locales/en/guilds.json";
 import type importNs from "../../public/locales/en/import.json";
@@ -75,6 +76,7 @@ declare module "i18next" {
       projects: typeof projects;
       properties: typeof properties;
       posts: typeof posts;
+      galleries: typeof galleries;
       queues: typeof queues;
       search: typeof search;
       settings: typeof settings;

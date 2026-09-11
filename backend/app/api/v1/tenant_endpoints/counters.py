@@ -40,7 +40,6 @@ from app.models.tenant.counter import (
 )
 from app.models.tenant.initiative import (
     Initiative,
-    PermissionKey,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
@@ -69,19 +68,19 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
-from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.services.tenant import tags as tags_service
 
 
 router = APIRouter()
 
-#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
-#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
-#: to be addressable by its own id — a nested path would need a parent the
-#: envelope never carries. Writes stay nested under their group, where the
-#: caller is already working inside one.
+#: Flat read-back route, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the resource has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Writes stay nested under their group, where the caller is
+#: already working inside one.
 counters_router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -141,28 +140,6 @@ async def _get_initiative_for_counter_group(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_initiative_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-    permission_key: PermissionKey,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=permission_key,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 async def _get_counter_group_with_access(
@@ -308,6 +285,7 @@ async def list_counter_groups(
     )
     result = await session.exec(stmt)
     groups = result.unique().all()
+    await tags_service.annotate_tags(session, groups)
 
     items = [
         serialize_counter_group_summary(
@@ -397,12 +375,8 @@ async def create_counter_group(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CounterMessages.FEATURE_DISABLED,
         )
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_counter_groups,
+    await resource_access.require_create(
+        session, Tool.counter_group, initiative, current_user, guild_context
     )
 
     group = CounterGroup(

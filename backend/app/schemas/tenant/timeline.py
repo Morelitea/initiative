@@ -29,11 +29,17 @@ class TimelineBucket(SanitizedBaseModel):
     #: How many rows fall in it — what gives the rail its sense of density, so
     #: a busy month reads differently from a quiet one.
     count: int
-    #: The newest instant in the period. This is what a jump anchors on: asking
-    #: for "at or before this" puts the period's first row at the top of the
-    #: feed, without the client having to work out where a month ends in the
-    #: reader's own time zone.
+    #: The newest instant in the period, and the oldest. Between them they are
+    #: what a jump anchors on, and which one it uses is the direction the list
+    #: is read in: a list newest-first asks for "at or before ``anchor``" and
+    #: walks back, one oldest-first asks for "at or after ``anchor_oldest``"
+    #: and walks forward. Either way the period's own first row lands at the
+    #: top, and the client never has to work out where a month ends in the
+    #: reader's time zone.
+    #:
+    #: A list that only reads one way (a board) uses only its own end.
     anchor: datetime
+    anchor_oldest: datetime
 
 
 class TimelineResponse(SanitizedBaseModel):

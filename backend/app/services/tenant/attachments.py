@@ -293,6 +293,53 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
     delete_uploads_by_urls(file_urls_to_unlink | orphan_urls)
 
 
+async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> None:
+    """Delete Upload rows + blobs for pictures about to be hard-purged.
+
+    A picture's blobs back exactly one picture by construction — the file and
+    the thumbnail of every version — so there is no orphan check to run: the
+    version rows go with the picture (FK cascade), and this takes their
+    ``Upload`` rows and the bytes behind them.
+
+    Caller must use a session that can DELETE from ``uploads``; caller commits.
+    """
+    from sqlalchemy import delete as sa_delete
+    from sqlmodel import select
+
+    from app.models.tenant.gallery import GalleryImageVersion
+    from app.models.tenant.upload import Upload
+
+    doomed = list(images)
+    if not doomed:
+        return
+
+    urls: Set[str] = set()
+    for image in doomed:
+        for url in (image.file_url, image.thumbnail_url):
+            normalized = normalize_upload_url(url)
+            if normalized:
+                urls.add(normalized)
+
+    version_rows = await session.exec(
+        select(GalleryImageVersion.file_url, GalleryImageVersion.thumbnail_url).where(
+            GalleryImageVersion.gallery_image_id.in_({i.id for i in doomed})
+        )
+    )
+    for file_url, thumbnail_url in version_rows.all():
+        for url in (file_url, thumbnail_url):
+            normalized = normalize_upload_url(url)
+            if normalized:
+                urls.add(normalized)
+
+    if urls:
+        await session.exec(
+            sa_delete(Upload).where(Upload.filename.in_({Path(u).name for u in urls}))
+        )
+    # Blobs after the rows, so "Upload row exists ⇒ blob exists" holds in any
+    # intermediate state.
+    delete_uploads_by_urls(urls)
+
+
 def extract_upload_urls(payload: Any) -> Set[str]:
     urls: Set[str] = set()
 

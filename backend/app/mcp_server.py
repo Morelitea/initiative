@@ -65,6 +65,7 @@ READ_TAGS = (
     "calendars",
     "calendar-events",
     "posts",
+    "galleries",
     "dashboards",
 )
 

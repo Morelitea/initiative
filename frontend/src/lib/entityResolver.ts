@@ -35,6 +35,10 @@ import {
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
   readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
 } from "@/api/generated/documents/documents";
+import {
+  getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey,
+  readGalleryApiV1GGuildIdGalleriesGalleryIdGet,
+} from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
@@ -67,6 +71,7 @@ export type EntityRefType =
   | "calendar"
   | "dashboard"
   | "post"
+  | "gallery"
   | "task"
   | "event";
 
@@ -78,6 +83,7 @@ const REF_TYPES = new Set<string>([
   "calendar",
   "dashboard",
   "post",
+  "gallery",
   "task",
   "event",
 ]);
@@ -169,6 +175,13 @@ export async function resolveEntityPath(
         );
         return toolDetailRoute(Tool.post, post.initiative_id, entityId);
       }
+      case "gallery": {
+        const gallery = await fetch(
+          getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey(guildId, entityId),
+          () => readGalleryApiV1GGuildIdGalleriesGalleryIdGet(guildId, entityId)
+        );
+        return toolDetailRoute(Tool.gallery, gallery.initiative_id, entityId);
+      }
       case "task": {
         const task = await fetch(
           getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, entityId),
@@ -229,6 +242,25 @@ const LEGACY_LISTS = new Set([
   "/calendars",
   "/calendar",
 ]);
+
+/**
+ * App-level (guild-less) paths that a notification may still name.
+ *
+ * `/settings/profile` never existed as a route — your account lives under
+ * `/profile`. Notification rows persist the path they were written with, so
+ * the ones already sent have to be rewritten on the way out; the server no
+ * longer mints it.
+ */
+const LEGACY_APP_TARGETS = new Map([
+  ["/settings/profile", "/profile/account"],
+  ["/settings/account", "/profile/account"],
+]);
+
+/** As {@link normalizeLegacyTarget}, for a path that names no guild. */
+export function normalizeAppTarget(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return LEGACY_APP_TARGETS.get(normalized) ?? normalized;
+}
 
 export function normalizeLegacyTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;

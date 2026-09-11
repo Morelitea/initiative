@@ -72,6 +72,7 @@ COMMENT_TARGET_FIELDS: tuple[str, ...] = (
     "calendar_id",
     "dashboard_id",
     "post_id",
+    "gallery_id",
 )
 
 
@@ -84,6 +85,7 @@ class CommentCreate(CommentBase):
     calendar_id: Optional[int] = Field(default=None, gt=0)
     dashboard_id: Optional[int] = Field(default=None, gt=0)
     post_id: Optional[int] = Field(default=None, gt=0)
+    gallery_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
@@ -131,6 +133,7 @@ class CommentRead(CommentBase):
     calendar_id: Optional[int] = None
     dashboard_id: Optional[int] = None
     post_id: Optional[int] = None
+    gallery_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

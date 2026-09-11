@@ -12,6 +12,14 @@ this enum, so a new member that forgets to wire one fails CI.
 from enum import Enum
 
 
+def plural_of(stem: str) -> str:
+    """The plural spelling of a tool stem — ``post`` → ``posts``, ``gallery`` →
+    ``galleries``. The frontend's ``toolPlural`` applies the same rule."""
+    if len(stem) > 1 and stem.endswith("y") and stem[-2] not in "aeiou":
+        return stem[:-1] + "ies"
+    return stem + "s"
+
+
 class Tool(str, Enum):
     project = "project"
     document = "document"
@@ -20,12 +28,17 @@ class Tool(str, Enum):
     calendar = "calendar"
     dashboard = "dashboard"
     post = "post"
+    gallery = "gallery"
 
     @property
     def plural(self) -> str:
         """Pluralized stem — the table-ish spelling every derived name uses
-        (``counter_group`` → ``counter_groups``)."""
-        return f"{self.value}s"
+        (``counter_group`` → ``counter_groups``, ``gallery`` → ``galleries``).
+
+        One rule, mirrored by the frontend's ``toolPlural``: a trailing ``y``
+        after a consonant becomes ``ies``, and everything else takes an ``s``.
+        """
+        return plural_of(self.value)
 
     @property
     def view_permission(self) -> str:
@@ -68,6 +81,11 @@ NON_EXPORTABLE_TOOLS = frozenset(
         # Export/import ships with the marketplace, which owns the definition
         # envelope format.
         Tool.dashboard,
+        # A gallery is its image files, and the export engine carries JSON
+        # envelopes; a backup that dropped the pictures and kept their captions
+        # would be worse than none. Carrying the blobs is its own piece of
+        # work, tracked separately.
+        Tool.gallery,
     }
 )
 
@@ -85,7 +103,12 @@ BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 # the ``TagTarget`` schema enum both derive from TAG_TARGETS, so a new Tool is
 # taggable across every surface with no per-surface edit; tags_test.py fails if
 # any surface drifts.
-TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item", "calendar_event")
+TAGGABLE_EXTRAS: tuple[str, ...] = (
+    "task",
+    "queue_item",
+    "calendar_event",
+    "gallery_image",
+)
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 
 
@@ -102,6 +125,7 @@ TRASHABLE_EXTRAS: tuple[str, ...] = (
     "comment",
     "initiative",
     "tag",
+    "gallery_image",
 )
 TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 

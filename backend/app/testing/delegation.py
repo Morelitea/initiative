@@ -80,7 +80,7 @@ def foreign_jwks(kid: str = DELEGATE_KID) -> dict[str, Any]:
 def mint_delegation_token(
     *,
     subject: str,
-    guild_id: int,
+    guild_ref: str,
     initiative_id: Optional[int] = None,
     jti: Optional[str] = None,
     kid: Optional[str] = DELEGATE_KID,
@@ -91,9 +91,9 @@ def mint_delegation_token(
 ) -> str:
     """A delegation JWT as the delegate would mint it.
 
-    ``subject`` is the pairwise identifier the app was given for a member, not
-    a user id — an app never learns which Initiative user it acts for. Get one
-    from :func:`delegate_subject`.
+    ``subject`` is the reference the app was given for a member and ``guild_ref``
+    the one it was given for the guild — neither is a row id. Get them from
+    :func:`delegate_subject` and :func:`delegate_guild_ref`.
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -103,7 +103,7 @@ def mint_delegation_token(
         "iss": iss,
         "iat": int(now.timestamp()),
         "exp": now + timedelta(seconds=expires_in),
-        "guild_id": guild_id,
+        "guild_ref": guild_ref,
     }
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
@@ -199,14 +199,26 @@ async def delegate_subject(session: AsyncSession, guild, user) -> str:
     Installs the app if the guild has not, because the subject's sector is the
     install — there is no subject for an app that is not there.
     """
-    from app.services.marketplace.app_subjects import ensure_subject
+    from app.services.marketplace.app_refs import ensure_app_ref
 
     app = await install_delegate(session, guild)
-    subject = await ensure_subject(
-        session, app_install_id=app.id, guild_id=guild.id, user_id=user.id
-    )
     await session.commit()
-    return subject
+    return await ensure_app_ref(
+        guild_id=guild.id, app_install_id=app.id, user_id=user.id
+    )
+
+
+async def delegate_guild_ref(session: AsyncSession, guild) -> str:
+    """The reference the delegate knows one guild by.
+
+    Installs the app if the guild has not, for the same reason
+    :func:`delegate_subject` does: the sector is the install.
+    """
+    from app.services.marketplace.app_refs import ensure_app_guild_ref
+
+    app = await install_delegate(session, guild)
+    await session.commit()
+    return await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
 
 
 async def authorize_delegate(

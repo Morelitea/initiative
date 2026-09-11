@@ -38,6 +38,7 @@ from app.api.v1.tenant_endpoints import (
     marketplace as guild_marketplace,
     me_ai,
     me_tools,
+    galleries,
     me_trash,
     posts,
     projects,
@@ -45,6 +46,7 @@ from app.api.v1.tenant_endpoints import (
     queues,
     reactions,
     recents,
+    relationships,
     resource_grants,
     storage,
     tags,
@@ -67,6 +69,7 @@ from app.api.v1.platform_endpoints import (
     billing,
     config,
     contacts,
+    delegation_exchange,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -130,6 +133,12 @@ api_router.include_router(
 api_router.include_router(
     app_platform.router, prefix="/app-platform", tags=["app-platform"]
 )
+# Same prefix, but authenticated: a delegate trades the token it holds for one
+# addressed to the app it is about to call, because only this side holds both
+# sectors' references (history/opaque-identity-design.md §12).
+api_router.include_router(
+    delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
+)
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —
 # no user, no session, no guild in a header. The guild each call operates in is
@@ -175,7 +184,6 @@ guild_router.include_router(task_statuses.initiative_router, tags=["task-statuse
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -205,6 +213,7 @@ guild_router.include_router(
     dashboards.router, prefix="/dashboards", tags=["dashboards"]
 )
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
+guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
@@ -234,6 +243,9 @@ guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
 guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
+guild_router.include_router(
+    relationships.router, prefix="/relationships", tags=["relationships"]
+)
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])

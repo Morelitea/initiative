@@ -29,12 +29,12 @@ import type { DialogProps } from "@/types/dialog";
 interface TodoistParseResult {
   sections: Array<{ name: string; task_count: number }>;
   task_count: number;
-  has_subtasks: boolean;
+  has_checklist_items: boolean;
 }
 
 interface ImportResult {
   tasks_created: number;
-  subtasks_created: number;
+  checklist_items_created: number;
   tasks_failed: number;
   errors: string[];
 }
@@ -251,7 +251,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                         t("todoist.sectionsNone"),
                     })}
                   </p>
-                  {parseResult.has_subtasks && <p>{t("common.includesSubtasks")}</p>}
+                  {parseResult.has_checklist_items && <p>{t("common.includesChecklistItems")}</p>}
                 </div>
               </div>
             )}
@@ -367,8 +367,8 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {t("common.tasksCreated", { count: importResult.tasks_created })}
-                  {importResult.subtasks_created > 0 &&
-                    `, ${t("common.subtasksCount", { count: importResult.subtasks_created })}`}
+                  {importResult.checklist_items_created > 0 &&
+                    `, ${t("common.checklistItemsCount", { count: importResult.checklist_items_created })}`}
                   {importResult.tasks_failed > 0 &&
                     `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
                 </p>

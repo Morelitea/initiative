@@ -50,7 +50,7 @@ class AppInstallRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     install_id: int
-    guild_id: int
+    guild_ref: str
     listing_uid: str
     listing_version: str
     name: str
@@ -91,7 +91,7 @@ class AppInstallConfigRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    guild_ref: str
     install_id: int
     listing_uid: str
     listing_version: str
@@ -160,7 +160,7 @@ class AppStatusReport(SanitizedBaseModel):
 class AppStatusRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    guild_ref: str
     install_id: int
     config_state: str
     config_state_detail: Optional[str] = None
@@ -174,6 +174,6 @@ class AppEventIngest(SanitizedBaseModel):
     against the pinned definition and against the caller's own namespace.
     """
 
-    guild_id: int
+    guild_ref: str
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}

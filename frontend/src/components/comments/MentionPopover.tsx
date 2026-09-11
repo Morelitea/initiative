@@ -30,6 +30,9 @@ interface MentionPopoverProps {
   /** The mention being typed — who or what, and how much of it. */
   active: ActiveMention;
   initiativeId: number;
+  /** The thing this comment is on, as a reference (`document:12`). Never
+   *  offered: a remark about something does not point back at it. */
+  subject?: string | null;
   /** Pixel anchor (relative to the field) so the popover sits under the word
    *  being typed. Falls back to below the whole field when absent. */
   anchor?: { top: number; left: number } | null;
@@ -95,6 +98,7 @@ const suggestionRow = (suggestion: SearchSuggestion): Row => {
 export const MentionPopover = ({
   active,
   initiativeId,
+  subject,
   anchor,
   onSelect,
   onClose,
@@ -126,6 +130,7 @@ export const MentionPopover = ({
     initiative_id: initiativeId,
     // A mention points at work, not at the blueprint work is started from.
     template: false,
+    subject,
     limit: MENTION_LIMIT,
     enabled: !active.user && inInitiative,
   });

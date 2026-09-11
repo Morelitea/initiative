@@ -108,7 +108,8 @@
     "calendars": "Calendrier",
     "dashboards": "Tableaux de bord",
     "counterGroups": "Compteurs",
-    "posts": "Publications"
+    "posts": "Publications",
+    "galleries": "Galeries"
   },
   "settings": {
     "title": "Paramètres de l'initiative",
@@ -237,7 +238,8 @@
       "calendars": "Événements",
       "dashboards": "Tableaux de bord",
       "counterGroups": "Compteurs",
-      "posts": "Publications"
+      "posts": "Publications",
+      "galleries": "Galeries"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -253,7 +255,9 @@
       "viewCounterGroups": "Voir les compteurs",
       "createCounterGroups": "Créer des compteurs",
       "viewPosts": "Voir les publications",
-      "createPosts": "Créer des publications"
+      "createPosts": "Créer des publications",
+      "viewGalleries": "Voir les galeries",
+      "createGalleries": "Créer des galeries"
     },
     "handleColumn": "Identifiant",
     "toolAudience": {
@@ -286,5 +290,7 @@
   "counterGroupsFeature": "Compteurs",
   "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales.",
   "postsFeature": "Publications",
-  "postsFeatureDescription": "Un tableau d’affichage pour l’initiative — des avis que chacun peut lire, commenter et auxquels réagir, les plus importants étant épinglés en haut."
+  "postsFeatureDescription": "Un tableau d’affichage pour l’initiative — des avis que chacun peut lire, commenter et auxquels réagir, les plus importants étant épinglés en haut.",
+  "galleriesFeature": "Galeries",
+  "galleriesFeatureDescription": "Des collections d’images — maquettes, captures, exports de design — parcourues comme un mur plutôt que lues une à une, avec des étiquettes et un historique de versions pour chaque image."
 }

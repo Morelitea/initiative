@@ -358,22 +358,30 @@ BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 def create_billing_portal_handoff_token(
     *,
-    user_id: int,
-    guild_id: int,
     guild_role: str,
+    user_ref: str,
+    guild_ref: str,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
-    """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
+    """Mint the billing-portal handoff token (RS256; raises if unconfigured).
+
+    ``user_ref`` / ``guild_ref`` are the only names for the pair that cross —
+    see ``services.platform.identity_refs.billing_refs``. ``sub`` carries the
+    user's, which is what a pairwise pseudonymous identifier is for (OpenID
+    Connect Core §8.1); no row id of ours is a parameter here, so none can
+    reach the claims.
+    """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
+        "sub": user_ref,
         "aud": BILLING_PORTAL_AUDIENCE,
         "iss": "initiative",
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
-        "guild_id": guild_id,
         "guild_role": guild_role,
+        "user_ref": user_ref,
+        "guild_ref": guild_ref,
     }
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
@@ -435,16 +443,20 @@ def billing_support_handoff_enabled() -> bool:
 
 def create_billing_support_handoff_token(
     *,
-    user_id: int,
-    guild_id: int,
     grant_id: int | str,
-    approver_id: int | str | None = None,
+    user_ref: str,
+    guild_ref: str,
+    approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-support handoff token.
 
     ``grant_id`` names the ``access_grants`` row that authorises the visit, so
-    both sides log the same grant.
+    both sides log the same grant. Everyone else on it is named by reference —
+    the operator visiting, the guild visited, and whoever approved the visit —
+    see ``services.platform.identity_refs.billing_refs``. ``sub`` carries the
+    operator's, which is what a pairwise pseudonymous identifier is for
+    (OpenID Connect Core §8.1).
     """
     if not billing_support_handoff_enabled():
         raise BillingSupportHandoffNotConfiguredError(
@@ -455,16 +467,17 @@ def create_billing_support_handoff_token(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
+        "sub": user_ref,
         "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
         "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
-        "guild_id": int(guild_id),
         "grant_id": str(grant_id),
+        "user_ref": user_ref,
+        "guild_ref": guild_ref,
     }
-    if approver_id is not None:
-        payload["approver"] = str(approver_id)
+    if approver_ref is not None:
+        payload["approver"] = approver_ref
     token = jwt.encode(
         payload,
         settings.BILLING_SUPPORT_HANDOFF_SECRET,
@@ -496,7 +509,9 @@ class AutoDelegationClaims:
     #: caller resolves it inside the guild the token names — an app that never
     #: learns who somebody is can still act as them.
     subject: str
-    guild_id: int
+    #: The reference the app knows this guild by, NOT a guild id. Resolved by
+    #: the caller, like ``subject``.
+    guild_ref: str
     initiative_id: int | None
 
 
@@ -579,9 +594,9 @@ def verify_auto_delegation_token(
     if not isinstance(subject, str) or not subject:
         raise AutoDelegationVerificationError("sub must be a pairwise subject")
 
-    guild_id = payload.get("guild_id")
-    if not isinstance(guild_id, int):
-        raise AutoDelegationVerificationError("guild_id must be an int")
+    guild_ref = payload.get("guild_ref")
+    if not isinstance(guild_ref, str) or not guild_ref:
+        raise AutoDelegationVerificationError("guild_ref must be a reference")
 
     initiative_id = payload.get("initiative_id")
     if initiative_id is not None and not isinstance(initiative_id, int):
@@ -592,6 +607,6 @@ def verify_auto_delegation_token(
     return AutoDelegationClaims(
         jti=str(payload["jti"]),
         subject=subject,
-        guild_id=guild_id,
+        guild_ref=guild_ref,
         initiative_id=initiative_id,
     )

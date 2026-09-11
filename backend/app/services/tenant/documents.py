@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -16,7 +15,6 @@ from app.models.tenant.document import (
     Document,
     DocumentLink,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
@@ -26,8 +24,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.tag import DocumentTag
-from app.models.tenant.project import Project
 from app.core.config import settings
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
@@ -156,9 +152,7 @@ async def get_document(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
             ),
@@ -176,6 +170,7 @@ async def get_document(
     result = await session.exec(statement)
     document = result.one_or_none()
     if document:
+        await tags_service.annotate_tags(session, [document])
         await annotate_comment_counts(session, [document])
     return document
 
@@ -255,51 +250,6 @@ async def get_document_for_grants(
         )
     )
     return (await session.exec(statement)).one_or_none()
-
-
-async def attach_document_to_project(
-    session: AsyncSession,
-    *,
-    document: Document,
-    project: Project,
-    user_id: int,
-) -> ProjectDocument:
-    stmt = select(ProjectDocument).where(
-        ProjectDocument.project_id == project.id,
-        ProjectDocument.document_id == document.id,
-    )
-    result = await session.exec(stmt)
-    link = result.one_or_none()
-    if link:
-        return link
-
-    link = ProjectDocument(
-        project_id=project.id,
-        document_id=document.id,
-        attached_by_id=user_id,
-        attached_at=datetime.now(timezone.utc),
-    )
-    session.add(link)
-    await session.commit()
-    await session.refresh(link)
-    return link
-
-
-async def detach_document_from_project(
-    session: AsyncSession,
-    *,
-    document_id: int,
-    project_id: int,
-) -> None:
-    stmt = select(ProjectDocument).where(
-        ProjectDocument.project_id == project_id,
-        ProjectDocument.document_id == document_id,
-    )
-    result = await session.exec(stmt)
-    link = result.one_or_none()
-    if link:
-        await session.delete(link)
-        await session.commit()
 
 
 async def duplicate_document(
@@ -551,11 +501,11 @@ async def sync_document_links(
 
     This extracts all wikilink document IDs from the content and updates
     the document_links table to reflect the current state:
-    - Adds new links (only to documents that exist)
+    - Adds new links (only to documents a link may point at)
     - Removes links that no longer exist in the content
 
-    If fix_content=True, also unresolves any wikilinks pointing to deleted
-    documents and returns the fixed content. Otherwise returns None.
+    If fix_content=True, also unresolves any wikilinks pointing to somewhere
+    a link may not go and returns the fixed content. Otherwise returns None.
 
     Called on document save to keep backlinks up to date.
     """
@@ -574,13 +524,20 @@ async def sync_document_links(
     else:
         valid_target_ids = set()
 
+    # Where a link may go: a document that exists, and is not this one. A
+    # document does not link to itself — the page the link opens is the page it
+    # was written on, and a row for it would list the document among the ones
+    # that link to it. Older content can still hold one, so this is what
+    # removes it rather than only what stops writing it.
+    linkable_target_ids = valid_target_ids - {document_id}
+
     # Optionally fix stale wikilinks in the content
     fixed_content = None
     if fix_content and current_target_ids:
-        invalid_ids = current_target_ids - valid_target_ids
+        invalid_ids = current_target_ids - linkable_target_ids
         if invalid_ids:
             fixed_content = deepcopy(content)
-            unresolve_invalid_wikilinks(fixed_content, valid_target_ids)
+            unresolve_invalid_wikilinks(fixed_content, linkable_target_ids)
 
     # Get existing links from database
     stmt = select(DocumentLink).where(DocumentLink.source_document_id == document_id)
@@ -588,9 +545,9 @@ async def sync_document_links(
     existing_links = result.all()
     existing_target_ids = {link.target_document_id for link in existing_links}
 
-    # Determine adds and removes (only add links to valid documents)
-    to_add = valid_target_ids - existing_target_ids
-    to_remove = existing_target_ids - valid_target_ids
+    # Determine adds and removes (only add links a document may hold)
+    to_add = linkable_target_ids - existing_target_ids
+    to_remove = existing_target_ids - linkable_target_ids
 
     # Remove old links (including links to documents that no longer exist)
     for link in existing_links:

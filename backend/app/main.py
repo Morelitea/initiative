@@ -39,6 +39,14 @@ from app.services import background_tasks as background_tasks_service
 
 logger = logging.getLogger(__name__)
 
+#: How long a browser may reuse a served upload before asking again.
+#:
+#: A stored blob is immutable, so this is not about staleness — it is how
+#: often access is re-checked. Five minutes: long enough that scrolling a
+#: gallery up and down is not a request per picture per pass, short enough to
+#: stay close to the current answer.
+UPLOAD_CACHE_SECONDS = 300
+
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
 static_path = Path(settings.STATIC_DIR)
@@ -307,9 +315,17 @@ async def lifespan(app: FastAPI):
     )
     await notify_bus.start()
 
+    # Write collaborative documents that have changed on an interval, so what a
+    # live editing session has produced does not depend on its last connection
+    # closing cleanly to reach the database.
+    from app.services.tenant.collaboration import collaboration_manager
+
+    collaboration_manager.ensure_persistence_loop()
+
     try:
         yield
     finally:
+        await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])
@@ -575,7 +591,17 @@ async def serve_upload_file(
     if blob is None:
         raise HTTPException(status_code=404)
 
-    headers: dict[str, str] = {}
+    # A stored file never changes under its name — every write, including a
+    # new version of a picture, gets a fresh UUID — so the bytes behind a URL
+    # are safe to reuse. The decision above them is re-made per request, so
+    # the window is short rather than a year: long enough for the repeat
+    # requests one session of scrolling a gallery makes, and short enough that
+    # access is re-checked while somebody is still reading. ``private`` keeps
+    # shared caches out of it, and ``must-revalidate`` bounds the entry to
+    # that window.
+    headers: dict[str, str] = {
+        "Cache-Control": f"private, max-age={UPLOAD_CACHE_SECONDS}, must-revalidate",
+    }
     if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"

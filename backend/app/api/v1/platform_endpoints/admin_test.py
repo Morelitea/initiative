@@ -58,10 +58,10 @@ async def test_export_platform_users_csv_as_admin(
         "timezone",
         "locale",
     ]
+    # Masked, like the roster this exports, so the two agree.
     emails = {row[1] for row in data_rows}
-    assert "admin@example.com" in emails
-    assert "user1@example.com" in emails
-    assert "user2@example.com" in emails
+    assert emails == {"a***n@e***m", "u***1@e***m", "u***2@e***m"}
+    assert not any("@example.com" in row[1] for row in data_rows)
 
 
 @pytest.mark.integration
@@ -92,10 +92,15 @@ async def test_export_platform_users_csv_single_user_id(
     )
 
     assert response.status_code == 200
-    assert f"user-{target.id}-" in response.headers["content-disposition"]
+    # Named by handle, never by address: a filename outlives the download, in
+    # a directory listing and in whatever it gets mailed to.
+    disposition = response.headers["content-disposition"]
+    assert f"user-{target.id}-{target.username}" in disposition
+    assert "target" not in disposition.replace(f"user-{target.id}-", "", 1)
     _, data_rows = _parse_csv(response.content)
     assert len(data_rows) == 1
     assert data_rows[0][0] == str(target.id)
+    assert data_rows[0][1] == "t***t@e***m"
 
 
 @pytest.mark.integration
@@ -118,7 +123,7 @@ async def test_export_platform_users_csv_multi_user_id(
     assert "platform-users-" in response.headers["content-disposition"]
     _, data_rows = _parse_csv(response.content)
     emails = {row[1] for row in data_rows}
-    assert emails == {"a@example.com", "b@example.com"}
+    assert emails == {"a***@e***m", "b***@e***m"}
 
 
 @pytest.mark.integration
@@ -437,3 +442,71 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == AdminMessages.ROLE_NOT_FOUND
+
+
+@pytest.mark.integration
+async def test_platform_roster_masks_addresses(
+    client: AsyncClient, session: AsyncSession
+):
+    """The roster serves the masked address, not the stored one.
+
+    Asserted on the payload rather than on what the SPA renders, because the
+    payload is where the shortening happens.
+    """
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    await create_user(session, email="user1@example.com")
+
+    response = await client.get("/api/v1/admin/users", headers=get_auth_headers(owner))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {u["email"] for u in body} == {"o***r@e***m", "u***1@e***m"}
+    assert "@example.com" not in response.text
+
+
+@pytest.mark.integration
+async def test_admin_mutations_return_masked_addresses(
+    client: AsyncClient, session: AsyncSession
+):
+    """The single-account admin routes mask too, not just the list.
+
+    Each returns the account it just changed, so each is its own read of an
+    address and needs the same shape.
+    """
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    target = await create_user(session, email="target@example.com")
+    headers = get_auth_headers(owner)
+
+    role_change = await client.patch(
+        f"/api/v1/admin/users/{target.id}/platform-role",
+        headers=headers,
+        json={"role": "support"},
+    )
+    assert role_change.status_code == 200
+    assert role_change.json()["email"] == "t***t@e***m"
+
+    suspend = await client.post(
+        f"/api/v1/admin/users/{target.id}/suspension",
+        headers=headers,
+        json={"suspended": True},
+    )
+    assert suspend.status_code == 200
+    assert suspend.json()["email"] == "t***t@e***m"
+
+
+@pytest.mark.integration
+async def test_own_account_still_reads_its_whole_address(
+    client: AsyncClient, session: AsyncSession
+):
+    """The one reader entitled to an address is the person it belongs to.
+
+    ``/users/me`` backs the account screen, where the address is shown so you
+    can check which account you are signed in as. Masking it there would be
+    withholding it from its owner.
+    """
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(owner))
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "owner@example.com"

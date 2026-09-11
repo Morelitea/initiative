@@ -30,6 +30,7 @@
   "required": "Obligatorio",
   "optional": "Opcional",
   "actions": "Acciones",
+  "rowActionsFor": "Acciones para {{subject}}",
   "more": "Más",
   "less": "Menos",
   "noResults": "No se encontraron resultados",
@@ -144,6 +145,11 @@
   "pagination": {
     "perPage": "Por página:",
     "rangeOf": "{{start}}–{{end}} de {{total}}"
+  },
+  "lightbox": {
+    "title": "Imagen",
+    "description": "Usa las flechas o desliza para pasar de una imagen a otra.",
+    "position": "{{current}} / {{total}}"
   },
   "timeline": {
     "label": "Ir a un mes",

@@ -46,6 +46,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.services.tenant.ical_service import documents_for_events
 from app.core.user_display import handle_of
 from app.core.config import settings
 from app.core.messages import ExportMessages
@@ -597,6 +598,7 @@ class _ScopeBuilder:
         if not _included(self.params, "queue"):
             return
         from app.services.export.adapters.queue import build_queue_item
+        from app.services.export.adapters.queue import queue_attachments_for
         from app.services.tenant.queues import (
             get_queue_for_export,
             list_queue_ids_for_export,
@@ -610,7 +612,8 @@ class _ScopeBuilder:
             queue = await get_queue_for_export(
                 self.session, self.user, self.guild_id, queue_id=queue_id
             )
-            item = build_queue_item(queue, fmt, self.user, self.now)
+            attachments = await queue_attachments_for(self.session, queue.items)
+            item = build_queue_item(queue, fmt, self.user, self.now, attachments)
             path_stem = f"{folder}/queues/{_slug(queue.id, queue.name)}"
             if fmt == "json":
                 self._append_backup(
@@ -720,7 +723,10 @@ class _ScopeBuilder:
             calendar = await get_calendar_for_export(
                 self.session, self.user, self.guild_id, calendar_id=calendar_id
             )
-            item = build_calendar_item(calendar, fmt, date)
+            documents_by_event = await documents_for_events(
+                self.session, list(calendar.events)
+            )
+            item = build_calendar_item(calendar, fmt, date, documents_by_event)
             path_stem = f"{folder}/calendars/{_slug(calendar.id, calendar.name)}"
             if fmt == "json":
                 self._append_backup(
@@ -870,9 +876,7 @@ def _document_metadata(document) -> dict:
     from app.services.export.property_values import property_export_dict
 
     return {
-        "tags": sorted(
-            link.tag.name for link in document.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in document.tags or []),
         "properties": [
             property_export_dict(pv)
             for pv in document.property_values or []

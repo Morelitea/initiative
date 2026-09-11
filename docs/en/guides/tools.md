@@ -4,7 +4,7 @@ icon: lucide/wrench
 
 # Tools
 
-Everything that lives inside an initiative is a **tool**. There are seven kinds. Two you'll use from the first day; the rest sit quietly, entirely unbothered by whether you ever open them.
+Everything that lives inside an initiative is a **tool**. There are eight kinds. Two you'll use from the first day; the rest sit quietly, entirely unbothered by whether you ever open them.
 
 <div class="grid cards" markdown>
 
@@ -50,6 +50,12 @@ Everything that lives inside an initiative is a **tool**. There are seven kinds.
 
     [:octicons-arrow-right-24: Posts](posts.md)
 
+-   :material-image-multiple-outline: __Galleries__
+
+    A wall of pictures. Mockups, screenshots, the four logos that lost.
+
+    [:octicons-arrow-right-24: Galleries](galleries.md)
+
 </div>
 
 ## Add one when you actually need it
@@ -61,6 +67,7 @@ Most groups run on projects and documents for a good long while, and there is no
 - **Counters**, when a number needs to be the *same* number for everyone in the room.
 - A **dashboard**, when somebody who isn't doing the work starts asking how the work is going.
 - A **board**, the third time something important was announced in a chat and missed by four people.
+- A **gallery**, when the mockups are in a folder called `final`, next to a folder called `final2`.
 
 Switching one on is not a commitment or a lifestyle change. Switching it off later doesn't delete anything.
 

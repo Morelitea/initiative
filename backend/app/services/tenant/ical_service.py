@@ -6,10 +6,13 @@ Handles conversion between CalendarEvent models and iCalendar format.
 import json
 import logging
 from datetime import date, datetime, timezone
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import icalendar
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.relationships import Related
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.calendar_event import EventRecurrence
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
@@ -93,7 +96,9 @@ def _recurrence_to_rrule(recurrence: Optional[dict]) -> Optional[dict]:
     return rule
 
 
-def event_export_dict(event: CalendarEvent) -> dict:
+def event_export_dict(
+    event: CalendarEvent, documents: "Sequence[Related]" = ()
+) -> dict:
     """One event's JSON-safe export record — the single intermediate both the
     ics renderer and the json envelope consume. Must stay JSON-serializable:
     ``RenderItem.data`` crosses the export engine's job boundary (persisted
@@ -101,7 +106,8 @@ def event_export_dict(event: CalendarEvent) -> dict:
 
     Attendees ride as display name + email + RSVP (informational — user ids
     are guild-local, an import can't rebind them); tags by name; linked
-    documents by name."""
+    documents by name — handed in, because the edges live in their own table
+    and a calendar export renders every event at once."""
     recurrence: Optional[dict] = None
     if event.recurrence:
         try:
@@ -134,13 +140,9 @@ def event_export_dict(event: CalendarEvent) -> dict:
             for attendee in event.attendees or []
             if attendee.user is not None
         ],
-        "tags": sorted(
-            link.tag.name for link in event.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in event.tags or []),
         "documents": sorted(
-            link.document.name
-            for link in event.document_links or []
-            if link.document is not None
+            related.entity.name for related in documents if related.entity is not None
         ),
         "properties": [
             property_export_dict(pv)
@@ -210,9 +212,45 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
     return cal.to_ical()
 
 
-def events_to_ical(events: List[CalendarEvent]) -> bytes:
-    """Serialize a list of CalendarEvent models to iCal bytes."""
-    return ical_from_export_dicts([event_export_dict(event) for event in events])
+def events_to_ical(
+    events: "List[tuple[CalendarEvent, Sequence[Related]]]",
+) -> bytes:
+    """Serialize events and their attachments to iCal bytes.
+
+    Takes pairs rather than a list plus a lookup: an event's attachments travel
+    WITH it, so nothing has to key them. Ids are unique only inside one guild's
+    schema, and this is fed by a walk across several.
+    """
+    return ical_from_export_dicts(
+        [event_export_dict(event, documents) for event, documents in events]
+    )
+
+
+async def documents_for_events(
+    session: "AsyncSession", events: List[CalendarEvent]
+) -> "dict[int, list[Related]]":
+    """Attached documents for many events, in two queries.
+
+    Here rather than at each caller: the builders above are synchronous and hold
+    no session, and a calendar export renders every event a calendar has.
+
+    Keyed by event id, which is unambiguous because this reads ONE guild's
+    schema. A caller walking several guilds must not merge these dicts — ids
+    repeat across schemas — and should carry each list with its event instead.
+    """
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document
+    from app.services.tenant import relationships
+
+    return await relationships.related_for_many(
+        session,
+        SearchEntityType.calendar_event,
+        [event.id for event in events if event.id is not None],
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
 
 
 # ---------------------------------------------------------------------------

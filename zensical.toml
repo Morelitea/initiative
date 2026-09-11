@@ -65,6 +65,7 @@ nav = [
       "en/guides/counters.md",
       "en/guides/dashboards.md",
       "en/guides/posts.md",
+      "en/guides/galleries.md",
     ] },
     "en/guides/apps-and-marketplace.md",
     "en/guides/tags.md",

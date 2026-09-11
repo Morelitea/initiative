@@ -50,6 +50,7 @@ from app.schemas.tenant.post import post_excerpt
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import posts as posts_service
+from app.services.tenant import tags as tags_service
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
         .unique()
         .all()
     )
+    await tags_service.annotate_tags(session, posts)
     for post in posts:
         author = await accounts_service.load_one(post.created_by)
         if author is None:
