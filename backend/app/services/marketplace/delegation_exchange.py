@@ -91,11 +91,14 @@ async def exchange_for_app(
     that guild's schema.
     """
     # By registration rather than by grant: the target is being *called*, not
-    # doing the delegating, so it needs no power of its own — only to be an app
-    # this deployment runs and has switched on.
+    # doing the delegating, so it needs no power of its own. It does have to be
+    # live — the operator's switch on, and the last handshake having confirmed
+    # the service answering is the one registered. A row that has never
+    # verified has no confirmed manifest behind it, and is not somewhere a
+    # credential goes.
     registrations = await registration_lookup.load_registrations()
     target = registrations.get(target_public_id)
-    if target is None or not target.enabled or not target.listing_uid:
+    if target is None or not target.live or not target.listing_uid:
         raise DelegationExchangeError(DelegationExchangeMessages.UNKNOWN_AUDIENCE)
 
     install = await _target_install(

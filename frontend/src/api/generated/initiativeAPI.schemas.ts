@@ -7256,10 +7256,6 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
 
 export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
 
-export type ReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet200 = {
-  [key: string]: unknown;
-};
-
 export type ListNotificationsApiV1NotificationsGetParams = {
   /**
    * @minimum 1

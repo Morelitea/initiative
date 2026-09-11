@@ -21,16 +21,15 @@ See ``history/opaque-identity-design.md`` §12.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import Annotated
 
-from app.api.deps import get_current_active_user
+from app.api.deps import SessionDep, get_current_active_user
 from app.core.messages import AppServiceMessages, DelegationExchangeMessages
 from app.core.security import (
     AppPlatformSigningNotConfiguredError,
     app_platform_signing_enabled,
 )
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.user import User
 from app.schemas.marketplace.delegation_exchange import (
     DelegationExchangeRequest,
@@ -39,9 +38,10 @@ from app.schemas.marketplace.delegation_exchange import (
 from app.services.marketplace import delegation_exchange as exchange_service
 from app.services.marketplace.delegation_exchange import DelegationExchangeError
 
-router = APIRouter()
+#: Not part of the OpenAPI schema: this is a service-to-service route, reached
+#: with a delegate's own credential, and no browser calls it.
+router = APIRouter(include_in_schema=False)
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
@@ -49,7 +49,7 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 async def exchange_delegation(
     request: Request,
     payload: DelegationExchangeRequest,
-    session: AdminSessionDep,
+    session: SessionDep,
     current_user: CurrentUserDep,
 ) -> DelegationExchangeResponse:
     """Re-issue this call's delegation for one app, in that app's own terms.
@@ -74,8 +74,12 @@ async def exchange_delegation(
             detail=AppServiceMessages.SIGNING_NOT_CONFIGURED,
         )
 
-    # The install lives in the guild's own schema.
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    # The install lives in the guild's own schema, so the session is routed
+    # into it — as the member the delegate is carrying, under RLS, rather than
+    # on the system engine. An install is guild-level, so reading one needs no
+    # standing beyond being in the guild, which the delegation already
+    # established.
+    await set_rls_context(session, user_id=current_user.id, guild_id=guild_id)
     try:
         token, expires_in = await exchange_service.exchange_for_app(
             session,
