@@ -1009,3 +1009,43 @@ class TestJunctionsMoveTheirRows:
             )
             == 1
         ), "the re-upgrade did not carry the assignment back"
+
+
+#: The revision that introduced ``public.resource_access`` and the one before it.
+_RESOURCE_ACCESS = "20260901_0209"
+_PRE_RESOURCE_ACCESS = "20260901_0208"
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestResourceAccessRollback:
+    """Rolling back the sharing function has to leave a readable database.
+
+    Every content table's sharing leg is a call to ``resource_access``, so the
+    drop has to take those policies with it. A table with row-level security
+    enabled and no policy on it answers nobody, and provisioning — which is what
+    writes policies — skips a schema whose stamp already matches. So the drop
+    has to ask for the rendering back as well as remove it.
+    """
+
+    def test_dropping_the_function_asks_for_the_policies_back(
+        self, fresh_migrations_db: str
+    ) -> None:
+        _run_alembic("upgrade", _RESOURCE_ACCESS)
+        _execute_sql(
+            "COMMENT ON SCHEMA guild_template IS 'provisioned:deadbeefdeadbeef'"
+        )
+
+        _run_alembic("downgrade", _PRE_RESOURCE_ACCESS)
+
+        assert _current_alembic_revision() == _PRE_RESOURCE_ACCESS
+        assert (
+            _fetchval(
+                "SELECT obj_description('guild_template'::regnamespace, 'pg_namespace')"
+            )
+            is None
+        ), (
+            "the stamp survived the rollback, so the next boot would skip this "
+            "schema and leave its tables with row-level security on and no "
+            "policy to answer for them"
+        )
