@@ -19,6 +19,7 @@ from sqlalchemy import TextClause, text
 
 from app.core.messages import ChecklistMessages
 from app.schemas.tenant.task import (
+    MAX_CHECKLIST_ITEMS,
     ChecklistItem,
     ChecklistItemInput,
     ChecklistProgress,
@@ -26,8 +27,27 @@ from app.schemas.tenant.task import (
 )
 
 
-def normalize(items: Sequence[ChecklistItemInput]) -> list[dict[str, Any]]:
-    """The stored form of a written checklist — order as given, one id each."""
+def normalize(
+    items: Sequence[ChecklistItemInput],
+    existing: Sequence[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """The stored form of a written checklist — order as given, one id each.
+
+    ``done`` for an item the task already holds is read from ``existing``, not
+    from the payload: a whole-list write says what the lines are and what they
+    say, and :func:`toggle_statement` is the only thing that ticks one. An item
+    the task does not hold yet keeps the ``done`` it arrived with, which is what
+    an import and a restore need.
+
+    The list may not grow past :data:`MAX_CHECKLIST_ITEMS`, but a longer one —
+    carried in by a migration or an import, which do not pass through here — can
+    always be shortened.
+    """
+    held = {
+        item["id"]: bool(item.get("done"))
+        for item in (existing or [])
+        if item.get("id")
+    }
     stored: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in items:
@@ -44,7 +64,18 @@ def normalize(items: Sequence[ChecklistItemInput]) -> list[dict[str, Any]]:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ChecklistMessages.TEXT_EMPTY,
             )
-        stored.append({"id": item_id, "text": item_text, "done": item.done})
+        stored.append(
+            {
+                "id": item_id,
+                "text": item_text,
+                "done": held.get(item_id, item.done),
+            }
+        )
+    if len(stored) > MAX_CHECKLIST_ITEMS and len(stored) >= len(existing or []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ChecklistMessages.TOO_LONG,
+        )
     return stored
 
 

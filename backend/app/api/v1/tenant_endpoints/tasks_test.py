@@ -25,6 +25,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.testing.factories import (
+    checklist_items,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -33,7 +34,7 @@ from app.testing.factories import (
 )
 
 
-async def _create_task(session, project, title="Test Task"):
+async def _create_task(session, project, title="Test Task", checklist=None):
     """Helper to create a task."""
     from app.models.tenant.task import Task
     from app.services.tenant import task_statuses as task_statuses_service
@@ -47,6 +48,7 @@ async def _create_task(session, project, title="Test Task"):
         project_id=project.id,
         task_status_id=status.id,
         guild_id=project.guild_id,
+        checklist=checklist or [],
     )
     session.add(task)
     await session.commit()
@@ -749,6 +751,126 @@ async def test_checklist_replaced_by_task_patch(
         ("two", "Second, renamed"),
         ("three", "Third"),
     ]
+
+
+@pytest.mark.integration
+async def test_checklist_edit_does_not_carry_completion(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A whole-list write says what the lines are, not what is done.
+
+    Someone renaming a line holds whatever the list said when they opened it.
+    A tick that lands in between is not theirs to undo.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    # A rename sent from a view taken before that tick, still saying done=False.
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First, renamed", "done": False},
+                {"id": "two", "text": "Second", "done": False},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert [(i["id"], i["text"], i["done"]) for i in response.json()["checklist"]] == [
+        ("one", "First, renamed", False),
+        ("two", "Second", True),
+    ]
+
+
+@pytest.mark.integration
+async def test_checklist_new_item_keeps_the_state_it_arrived_with(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An item the task does not hold yet is taken at its word — which is what
+    an import and a restore need."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "fresh", "text": "Already done", "done": True}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["checklist"][0]["done"] is True
+
+
+@pytest.mark.integration
+async def test_an_over_long_checklist_can_still_be_shortened(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A list carried in by a migration or an import can be longer than the cap.
+    It has to stay editable, so the cap stops a list growing, not shrinking."""
+    from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    oversized = checklist_items(
+        *[f"Step {index}" for index in range(MAX_CHECKLIST_ITEMS + 20)]
+    )
+    # Straight onto the row: a list this long is what a migration or an import
+    # leaves behind, and neither goes through the API.
+    task = await _create_task(session, a.project, checklist=oversized)
+
+    # Dropping one still submits an over-cap list, and must be allowed.
+    shorter = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"checklist": oversized[1:]}
+    )
+    assert shorter.status_code == 200
+    assert len(shorter.json()["checklist"]) == MAX_CHECKLIST_ITEMS + 19
+
+    # Growing it again is not.
+    longer = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [*oversized, {"id": "extra", "text": "One more"}]},
+    )
+    assert longer.status_code == 400
+    assert longer.json()["detail"] == "CHECKLIST_TOO_LONG"
+
+
+@pytest.mark.integration
+async def test_checklist_capped_on_a_task_that_has_none(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Too much",
+            "project_id": a.project.id,
+            "checklist": [
+                {"text": f"Step {index}"} for index in range(MAX_CHECKLIST_ITEMS + 1)
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CHECKLIST_TOO_LONG"
 
 
 @pytest.mark.integration

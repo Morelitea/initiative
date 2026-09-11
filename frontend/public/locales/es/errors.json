@@ -128,6 +128,7 @@
   "CHECKLIST_ITEM_NOT_FOUND": "Elemento de la lista no encontrado",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Dos elementos de la lista comparten el mismo identificador",
   "CHECKLIST_TEXT_EMPTY": "El texto del elemento no puede estar vacío",
+  "CHECKLIST_TOO_LONG": "Esta lista de verificación alcanzó su longitud máxima.",
   "TASK_STATUS_NOT_FOUND": "Estado de tarea no encontrado",
   "TASK_STATUS_DUPLICATE_ID": "ID de estado duplicado en la solicitud",
   "TASK_STATUS_CANNOT_REMOVE_LAST": "No se puede eliminar el último estado de esta categoría",

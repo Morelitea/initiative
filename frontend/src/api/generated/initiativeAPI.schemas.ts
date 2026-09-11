@@ -6308,7 +6308,6 @@ export interface TaskCreate {
   /** @maxItems 100 */
   tag_ids?: number[];
   property_values?: PropertyValueInput[];
-  /** @maxItems 100 */
   checklist?: ChecklistItemInput[];
 }
 

@@ -107,12 +107,17 @@ def upgrade() -> None:
         finally:
             op.execute("ALTER TABLE tasks FORCE ROW LEVEL SECURITY")
 
+        for suffix in ("select", "insert", "update", "delete"):
+            op.execute(f"DROP POLICY IF EXISTS initiative_member_{suffix} ON subtasks")
+        op.execute("ALTER TABLE subtasks DISABLE ROW LEVEL SECURITY")
         op.execute("DROP TABLE subtasks")
         # Delivery records naming a table that no longer exists; a consumer
         # reading one back would find nothing to read.
         op.execute("DELETE FROM event_outbox WHERE resource_type = 'subtasks'")
 
     connection.execute(sa.text("SET LOCAL search_path = public"))
+    # Shared, and named for the table it filled: nothing calls it now.
+    op.execute("DROP FUNCTION IF EXISTS public.fn_subtasks_set_guild_id()")
     logger.info(
         "checklists carried onto their tasks: %s line(s) across %s task(s)",
         lines_carried,
@@ -123,14 +128,35 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Put the table back and unpack every checklist into it.
 
-    Row-level security on the recreated table arrives the way it does for any
-    guild table: the registry that renders it names ``subtasks`` again in the
-    code being downgraded to, and the provisioning stamp is re-applied on the
-    next boot. Per-item authorship does not come back — the column never
-    carried it.
+    The two ``BEFORE INSERT`` triggers are recreated here rather than left to
+    the next boot. Provisioning renders a guild schema's triggers by reflecting
+    ``guild_template``, so a template table without them propagates a table
+    without them, and ``guild_id`` is ``NOT NULL``. The capture trigger is
+    rendered from the registry instead and does come back on its own.
+
+    Row-level security is enabled here for the same reason and its policies
+    arrive on the next boot, from the registry that names ``subtasks`` again in
+    the code being downgraded to. Per-item authorship does not come back — the
+    column never carried it.
     """
     connection = op.get_bind()
     lines_carried = 0
+
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION public.fn_subtasks_set_guild_id()
+        RETURNS trigger LANGUAGE plpgsql AS $fn$
+        BEGIN
+            IF NEW.guild_id IS NULL
+               OR (TG_OP = 'UPDATE' AND OLD.task_id IS DISTINCT FROM NEW.task_id)
+            THEN
+                SELECT guild_id INTO NEW.guild_id FROM tasks WHERE id = NEW.task_id;
+            END IF;
+            RETURN NEW;
+        END;
+        $fn$
+        """
+    )
 
     for schema in guild_schema_names(connection):
         _route(connection, schema)
@@ -162,12 +188,24 @@ def downgrade() -> None:
         )
         op.create_index("ix_subtasks_guild_id", "subtasks", ["guild_id"])
         op.create_index("ix_subtasks_task_id", "subtasks", ["task_id"])
-
+        op.execute(
+            "CREATE TRIGGER tr_subtasks_set_guild_id BEFORE INSERT OR UPDATE OF task_id "
+            "ON subtasks FOR EACH ROW EXECUTE FUNCTION public.fn_subtasks_set_guild_id()"
+        )
+        op.execute(
+            "CREATE TRIGGER tr_subtasks_set_created_by BEFORE INSERT "
+            "ON subtasks FOR EACH ROW EXECUTE FUNCTION public.fn_set_created_by()"
+        )
         op.execute("ALTER TABLE tasks NO FORCE ROW LEVEL SECURITY")
         try:
             lines_carried += connection.execute(sa.text(_CARRY_BACK)).rowcount
         finally:
             op.execute("ALTER TABLE tasks FORCE ROW LEVEL SECURITY")
+
+        # Locked down only once the rows are in: FORCE binds the owner, which
+        # is the role this runs as.
+        op.execute("ALTER TABLE subtasks ENABLE ROW LEVEL SECURITY")
+        op.execute("ALTER TABLE subtasks FORCE ROW LEVEL SECURITY")
 
         op.execute("ALTER TABLE tasks DROP COLUMN checklist")
 

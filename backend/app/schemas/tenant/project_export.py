@@ -19,13 +19,11 @@ from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 """Bump on breaking changes to the envelope shape. Independent of app VERSION."""
 
-MIN_SUPPORTED_IMPORT_VERSION = 2
-"""Imports below this version are rejected. Version 2 replaced a task's
-``subtasks`` list with its ``checklist``; re-export from the source instance to
-move a project written by an older one."""
+MIN_SUPPORTED_IMPORT_VERSION = 1
+"""Imports below this version are rejected. Future migrations may bridge older versions."""
 
 
 class ProjectExportProject(SanitizedBaseModel):

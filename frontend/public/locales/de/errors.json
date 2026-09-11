@@ -130,6 +130,7 @@
   "CHECKLIST_ITEM_NOT_FOUND": "Checklisten-Element nicht gefunden",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Zwei Checklisten-Elemente haben dieselbe Kennung",
   "CHECKLIST_TEXT_EMPTY": "Der Text eines Checklisten-Elements darf nicht leer sein",
+  "CHECKLIST_TOO_LONG": "Diese Checkliste hat die maximale Länge erreicht.",
   "TASK_STATUS_NOT_FOUND": "Aufgabenstatus nicht gefunden",
   "TASK_STATUS_DUPLICATE_ID": "Doppelte Status-ID in der Anfrage",
   "TASK_STATUS_CANNOT_REMOVE_LAST": "Der letzte Status dieser Kategorie kann nicht entfernt werden",

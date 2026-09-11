@@ -93,6 +93,9 @@ class ChecklistItemToggle(SanitizedBaseModel):
 
 
 #: Ceiling on a single task's checklist. A list past this is a project.
+#: Enforced in ``services.tenant.task_checklist.normalize``, which can see both
+#: the written list and the one it replaces — a longer list carried in by a
+#: migration or an import has to stay shrinkable.
 MAX_CHECKLIST_ITEMS: Final = 100
 
 
@@ -196,9 +199,7 @@ class TaskCreate(TaskBase):
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
     property_values: List[PropertyValueInput] = Field(default_factory=list)
-    checklist: List[ChecklistItemInput] = Field(
-        default_factory=list, max_length=MAX_CHECKLIST_ITEMS
-    )
+    checklist: List[ChecklistItemInput] = Field(default_factory=list)
 
 
 class TaskUpdate(SanitizedBaseModel):
@@ -215,9 +216,7 @@ class TaskUpdate(SanitizedBaseModel):
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
     property_values: Optional[List[PropertyValueInput]] = None
-    checklist: Optional[List[ChecklistItemInput]] = Field(
-        default=None, max_length=MAX_CHECKLIST_ITEMS
-    )
+    checklist: Optional[List[ChecklistItemInput]] = None
 
 
 class TaskMoveRequest(SanitizedBaseModel):

@@ -126,6 +126,7 @@
   "CHECKLIST_ITEM_NOT_FOUND": "Checklist item not found",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Two checklist items share the same id",
   "CHECKLIST_TEXT_EMPTY": "Checklist item text cannot be empty",
+  "CHECKLIST_TOO_LONG": "This checklist is at its maximum length.",
   "TASK_STATUS_NOT_FOUND": "Task status not found",
   "TASK_STATUS_DUPLICATE_ID": "Duplicate status ID in request",
   "TASK_STATUS_CANNOT_REMOVE_LAST": "Cannot remove the final status for this category",

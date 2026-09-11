@@ -1801,7 +1801,9 @@ async def update_task(
             continue
         setattr(task, field, value)
     if checklist_sent:
-        task.checklist = checklist_service.normalize(task_in.checklist or [])
+        task.checklist = checklist_service.normalize(
+            task_in.checklist or [], existing=task.checklist
+        )
     now = datetime.now(timezone.utc)
     task.updated_at = now
     sync_completed_at(
