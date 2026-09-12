@@ -78,7 +78,15 @@ const serve = () => {
       });
     }),
     guildHttp.post("/query", () =>
-      HttpResponse.json({ columns: [], rows: [], truncated: false, relations: [] })
+      HttpResponse.json({
+        columns: [
+          { name: "priority", type: "text" },
+          { name: "tasks", type: "number" },
+        ],
+        rows: [["high", 3]],
+        truncated: false,
+        relations: ["tasks"],
+      })
     )
   );
 };
@@ -354,5 +362,31 @@ describe("a statement the server refuses", () => {
     await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
     await user.clear(sqlBox());
     await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+});
+
+describe("the preview", () => {
+  /** What the pane last handed the widget to draw. */
+  const drawnWith = () =>
+    renderWidget.mock.calls.at(-1)?.[0] as
+      | { slots?: Record<string, number[]>; data?: { rows?: unknown[] } }
+      | undefined;
+
+  it("tells the widget which columns fill its slots", async () => {
+    // Without this every slot reads as unfilled, and a widget that draws
+    // numbers reports it was handed none — whatever the statement returned.
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await waitFor(() => expect(drawnWith()?.data?.rows).toHaveLength(1));
+    // `stat` takes a number and an optional label; the statement returns one
+    // of each, in that order.
+    expect(drawnWith()?.slots).toEqual({ value: [1], label: [0] });
+  });
+
+  it("honours a mapping the author corrected rather than inferring over it", async () => {
+    mount({ ...widget({ source: "query", sql: SHIPPED_SQL }), mapping: { value: [0] } });
+
+    await waitFor(() => expect(drawnWith()?.data?.rows).toHaveLength(1));
+    expect(drawnWith()?.slots?.value).toEqual([0]);
   });
 });

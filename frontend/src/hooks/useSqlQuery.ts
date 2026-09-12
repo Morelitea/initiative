@@ -4,6 +4,7 @@ import { runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
 import type { QueryResponse } from "@/api/generated/initiativeAPI.schemas";
 import { runQueryApiV1GGuildIdQueryPost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { busyRetryDelay, inQueryLane, retryWhileBusy } from "@/lib/queryLane";
 import type { QueryOpts } from "@/types/query";
 
 /**
@@ -45,10 +46,15 @@ export const useSqlQuery = (
   return useQuery<QueryResponse>({
     queryKey: sqlQueryKey(guildId, sql ?? "", initiativeId),
     queryFn: () =>
-      runQueryApiV1GGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId }),
+      inQueryLane(() =>
+        runQueryApiV1GGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
+      ),
     // Not retried: a statement either resolves against the registry or it does
-    // not, and a refused one is refused the same way every time.
-    retry: false,
+    // not, and a refused one is refused the same way every time. A guild with
+    // no free slot is the one failure that says nothing about the statement,
+    // so it — and only it — comes back.
+    retry: retryWhileBusy,
+    retryDelay: busyRetryDelay,
     ...options,
     enabled: Boolean(sql) && (options?.enabled ?? true),
   });
@@ -72,14 +78,18 @@ export const useWidgetQuery = (
   return useQuery<QueryResponse>({
     queryKey: widgetQueryKey(guildId, dashboardId ?? 0, widgetId ?? ""),
     queryFn: () =>
-      runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
-        guildId,
-        dashboardId as number,
-        widgetId as string
+      inQueryLane(() =>
+        runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
+          guildId,
+          dashboardId as number,
+          widgetId as string
+        )
       ),
     // Not retried, for the same reason: a statement either resolves against the
-    // registry or it does not.
-    retry: false,
+    // registry or it does not — except for a guild with no free slot, which is
+    // what a canvas of tiles asking at once produces on its own.
+    retry: retryWhileBusy,
+    retryDelay: busyRetryDelay,
     // Keyed by where the widget sits, and a canvas re-renders with its
     // dashboard momentarily unknown — while its own read is in flight, or on
     // the way back from one. Without this the key changes under the tile and
