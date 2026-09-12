@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.3] - 2026-09-11
+
 ### Changed
 
 - **My Tasks stops going dark every time you tick something off** — checking a task off, or moving it to another status, put a translucent "Updating" panel over the whole table and disabled every row in it until three cross-guild requests had come back. The change now shows on the row the moment you make it, and everything else on the page stays live: you can carry on sorting, paging and checking things off while the list catches up behind a thin progress line. Only the row actually saving is held, so it can't be submitted twice, and if the save fails the row goes back to what it was and says so.
