@@ -105,6 +105,33 @@ def _trash_read_policy(table: str) -> list[str]:
     ]
 
 
+# Reader-written SQL never sees the trash, whoever is asking.
+#
+# The two legs above are for managing the trash — the admin's screen and a
+# reader's own /me/trash — and neither is a reason for a deleted task to turn up
+# in a dashboard's figures. Left alone, an admin's board counts rows they had
+# already thrown away, and counts them differently from what a member sees on
+# the same board, which makes the number mean nothing.
+#
+# RESTRICTIVE and keyed on the query flag rather than the role, so it ANDs with
+# everything above and applies exactly where a statement somebody wrote is
+# running: `describe` and `run`, one pool, one flag. This is the whole of the
+# rule — there is no way to opt a statement back in, which is the point.
+_QUERY_TRASH_PREDICATE = (
+    "deleted_at IS NULL"
+    " OR current_setting('app.query'::text, true) IS DISTINCT FROM 'true'::text"
+)
+
+
+def _query_trash_policy(table: str) -> list[str]:
+    """Hide a trashed row from the query surface, with no exemption."""
+    return [
+        f"DROP POLICY IF EXISTS query_excludes_trash ON {table};",
+        f"CREATE POLICY query_excludes_trash ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_QUERY_TRASH_PREDICATE});",
+    ]
+
+
 _HEADER = """\
 -- RENDERED AT RUNTIME from app/db/initiative_rls.py (INITIATIVE_PATHS).
 -- Initiative-member-level RLS for the per-guild CONTENT tables. Schema-relative
@@ -246,6 +273,7 @@ def _table_block(table: str, path: InitiativePath) -> str:
     lines.extend(_freeze_policies(table))
     if table in SOFT_DELETE_TABLES:
         lines.extend(_trash_read_policy(table))
+        lines.extend(_query_trash_policy(table))
     if table in _PURGE_GUARD_TABLES:
         # Admin-only hard delete (purge), AND-combined with the PERMISSIVE delete
         # policy above. RESTRICTIVE, so a write-member who clears the permissive
@@ -320,6 +348,7 @@ def _guild_level_guard_block(table: str) -> str:
             f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
             f"  USING ({_PURGE_GUARD_PREDICATE});",
             *_trash_read_policy(table),
+            *_query_trash_policy(table),
         ]
     )
 

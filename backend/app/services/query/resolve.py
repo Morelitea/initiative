@@ -756,6 +756,31 @@ def _function_arguments(node: Any) -> set[int]:
     return found
 
 
+def _cast_arguments(node: Any) -> set[int]:
+    """Constants a cast is there to give a type to.
+
+    ``CAST('30 days' AS interval)`` says what the constant *is*, so binding it
+    as a parameter hands the driver a string where the type it just declared
+    expects something else — an interval wants a ``timedelta``, and the bind
+    fails at execution. Nothing catches it earlier: preparing the statement
+    plans fine, and only running it binds anything, so the surface accepted a
+    statement it could never answer.
+
+    Writing the constant through, as the reader wrote it, is what the cast was
+    asking for.
+    """
+    found: set[int] = set()
+
+    class Collect(Visitor):
+        def visit_TypeCast(self, ancestors: Any, cast: ast.TypeCast) -> None:
+            if isinstance(cast.arg, ast.A_Const):
+                found.add(id(cast.arg))
+
+    if node is not None:
+        Collect()(node)
+    return found
+
+
 def _literal_positions(select: ast.SelectStmt) -> set[int]:
     """Constants that stay constants.
 
@@ -766,11 +791,14 @@ def _literal_positions(select: ast.SelectStmt) -> set[int]:
     takes that column's type, which is what makes ``priority = $1`` work
     against an enum. And a constant inside a grouped or ordered expression is
     part of how that expression is written, which is what the output column is
-    found by. Last, a constant filling a function's argument stays one,
-    because not every function can say what type it takes.
+    found by. A constant filling a function's argument stays one, because not
+    every function can say what type it takes. And last, a constant a cast
+    names the type of stays one — the cast is the type, and a parameter there
+    is bound as the wrong thing.
     """
     marked, grouped = _grouped_expressions(select)
     marked |= _function_arguments(select)
+    marked |= _cast_arguments(select)
     for entry in select.groupClause or ():
         if isinstance(entry, ast.A_Const):
             marked.add(id(entry))

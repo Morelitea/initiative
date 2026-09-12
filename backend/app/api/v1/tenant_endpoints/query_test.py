@@ -6,6 +6,7 @@ way to know is to ask two people with different standing the same question.
 """
 
 import json
+from typing import Any
 from pathlib import Path
 
 import pytest
@@ -613,3 +614,133 @@ class TestAskingAboutTheReader:
         )
         assert response.status_code == 400
         assert response.json()["detail"] == QueryMessages.RESERVED_NAME
+
+
+@pytest.mark.integration
+async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session):
+    """The trash is a place to recover from, not rows to report on.
+
+    The admin is the interesting asker: the policy that hides a trashed row
+    from everyone else lets *them* through, because they manage the trash. That
+    exemption is for the trash screen and has no business in a dashboard —
+    left alone it would give an admin's board a different number from the one
+    every other member sees on the same board.
+    """
+    from datetime import datetime, timezone
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="kept")
+    binned = await create_task(session, a.project, title="binned")
+
+    counted = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT count(*) AS n FROM tasks"},
+        headers=a.headers,
+    )
+    assert counted.json()["rows"] == [[2]]
+
+    binned.deleted_at = datetime.now(timezone.utc)
+    session.add(binned)
+    await session.commit()
+
+    counted = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT count(*) AS n FROM tasks"},
+        headers=a.headers,
+    )
+    assert counted.json()["rows"] == [[1]], "a trashed task is still being counted"
+
+    listed = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT title FROM tasks"},
+        headers=a.headers,
+    )
+    assert listed.json()["rows"] == [["kept"]]
+
+
+@pytest.mark.integration
+async def test_the_trash_is_still_reachable_where_it_is_managed(
+    client, acting_user, session
+):
+    """The rule is the query surface's, not a new rule about the trash.
+
+    Worth pinning beside the test above: the same admin, the same trashed row,
+    asked for through the endpoint whose job is the trash — and it is there.
+    """
+    from datetime import datetime, timezone
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    binned = await create_task(session, a.project, title="binned")
+    task_id = binned.id
+
+    binned.deleted_at = datetime.now(timezone.utc)
+    session.add(binned)
+    await session.commit()
+
+    found = await client.get(
+        a.g(f"/tasks/{task_id}"), params={"include_deleted": "true"}, headers=a.headers
+    )
+    assert found.status_code == 200, found.text
+
+
+class TestEveryShippedDashboardReportsOnLiveWork:
+    """What the shipped statements leave out.
+
+    The check is invariance rather than wording: run each statement, add work
+    that should not count — a task in the trash, an archived task, a task in a
+    template project — and run it again. Every answer has to be the same one.
+
+    Asked this way because the statements have no common shape. A count, a
+    grouping and a list would each need their own assertion about which row is
+    missing; "adding these rows changed nothing" is the property itself, and it
+    holds whatever the statement returns.
+    """
+
+    async def test_none_of_them_counts_work_that_is_not_live(
+        self, client, acting_user, session
+    ):
+        from datetime import datetime, timezone
+
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        live = await create_project(session, actor.initiative, actor.user)
+        await create_task(session, live, title="live work")
+
+        statements = list(TestEveryShippedDashboardDrawsItsShape._widgets())
+        assert statements, "no shipped dashboard widgets were checked"
+
+        async def answers() -> dict[str, Any]:
+            out = {}
+            for public_id, widget, sql in statements:
+                response = await client.post(
+                    actor.g("/query"), json={"sql": sql}, headers=actor.headers
+                )
+                where = f"{public_id}/{widget['id']}"
+                assert response.status_code == 200, f"{where}: {response.json()}"
+                out[where] = response.json()["rows"]
+            return out
+
+        before = await answers()
+
+        # Three kinds of row that must not reach a dashboard. The trash is the
+        # database's rule; the other two are the statements' own.
+        binned = await create_task(session, live, title="binned")
+        binned.deleted_at = datetime.now(timezone.utc)
+        archived = await create_task(session, live, title="archived")
+        archived.archived_at = datetime.now(timezone.utc)
+        template = await create_project(
+            session, actor.initiative, actor.user, is_template=True
+        )
+        await create_task(session, template, title="in a template")
+        session.add_all([binned, archived])
+        await session.commit()
+
+        after = await answers()
+
+        differing = {
+            where: (before[where], rows)
+            for where, rows in after.items()
+            if before[where] != rows
+        }
+        assert not differing, (
+            f"these statements counted work that is not live: {differing}"
+        )

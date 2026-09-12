@@ -181,3 +181,61 @@ def describe(dataset_name: str) -> list[dict[str, Any]]:
         }
         for spec in dataset(dataset_name).offered
     ]
+
+
+#: What a statement about live content leaves out, as field names.
+#:
+#: Archived means *finished with* and a template is a shape rather than work
+#: anybody is doing, so neither belongs in the figures a dashboard reports by
+#: default. Unlike the trash — which the query surface removes outright, in the
+#: database, with no way to ask for it back — these are a **starting point**: a
+#: report on what was archived last quarter is a fair question, so the builder
+#: writes them as ordinary filter rows the author can see and delete.
+_ARCHIVED_FIELD = "archived_at"
+_TEMPLATE_FIELD = "is_template"
+
+
+def default_filters(dataset_name: str) -> list[dict[str, Any]]:
+    """The conditions a new statement about *dataset_name* starts with.
+
+    Derived rather than listed, so a dataset that gains either lifecycle gets
+    the filter without anybody remembering to add it here.
+
+    A dataset that has no template flag of its own may still be *governed* by
+    something that has one — a task is a project's, which is the same answer
+    the sharing gate reaches for (``Dataset.tool``). Where that governing
+    dataset is also one this dataset declares a way to, the filter is written
+    through that relation, so ``tasks`` excludes the work inside a template
+    project without ``tasks`` having to know what a template is.
+    """
+    spec = dataset(dataset_name)
+    conditions: list[dict[str, Any]] = []
+    if _ARCHIVED_FIELD in spec.by_name:
+        conditions.append({"field": _ARCHIVED_FIELD, "op": "is_null", "value": True})
+
+    template_field = _template_field(spec)
+    if template_field is not None:
+        conditions.append({"field": template_field, "op": "eq", "value": False})
+    return conditions
+
+
+def _template_field(spec: Dataset) -> str | None:
+    """Where this dataset's template flag is read from, if it has one at all.
+
+    A dataset that has no flag of its own may still be *governed* by something
+    that has one — a task is a project's, which is the same answer the sharing
+    gate reaches for (``Dataset.tool``). So a relation counts only when it
+    reaches a dataset under that same governing tool: ``tasks`` excludes the
+    work inside a template project through its ``project`` relation, while its
+    relation to a member reaches a dataset governed by nothing and is not a
+    place to look for one.
+    """
+    if _TEMPLATE_FIELD in spec.by_name:
+        return _TEMPLATE_FIELD
+    if spec.tool is None:
+        return None
+    for relation in spec.relations:
+        related = dataset(relation.dataset)
+        if related.tool is spec.tool and _TEMPLATE_FIELD in related.by_name:
+            return f"{relation.name}.{_TEMPLATE_FIELD}"
+    return None
