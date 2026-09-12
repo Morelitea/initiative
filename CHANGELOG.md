@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A board widget with a lot of cards draws them** — a column holding more cards than fit shared its height out among them instead of scrolling, so a board of a few hundred tasks drew every card as a hairline with its title spilling over the next. Columns overflow and scroll now, at any number of cards.
+- **Widget previews draw again** — the preview beside the widget settings ran the widget without telling it which of the statement's columns were which, so anything that draws numbers reported it had been given none: "No numeric column to report" over a query returning nothing but counts. A widget is handed column positions rather than names and works out neither its own shape nor any correction the author made, and the preview was the one place doing neither. It now resolves them exactly as the placed tile does, falls back to the table when a statement stops returning the shape the widget draws, and loads the widget's own code for previews of widgets that came from an app — so the pane shows what the tile will show, which is what it says it does.
+- **Long dropdowns scroll again** — a menu with more options than fit on screen ran off the bottom of the window with no way to reach the rest, which is what the column picker in the dashboard query builder does on a table of any width. The height limit these menus are supposed to obey had been written in a form the styling toolchain stopped understanding when it was upgraded, so it was silently thrown away. Menus are capped to the room they have and scroll again, and the same silent loss is fixed everywhere else it had happened: the date picker's cells, the width popovers take from the control that opened them, and the direction menus and tooltips grow from when they open.
+- **A dashboard's tiles all draw, however many of them ask the database** — a community may have only so many of its own queries running at once, and opening a dashboard asked for one per tile in the same instant, so a canvas of five SQL widgets drew two and told the other three there were too many requests. The page now runs them a few at a time, in the order they were placed, and a tile that is turned away because somebody else in the community is querying waits a moment and asks again instead of showing an error. A tile that is refused for any other reason — a statement that asks for too much work, one that takes too long — still says so straight away.
+
 ## [0.68.3] - 2026-09-11
 
 ### Changed
