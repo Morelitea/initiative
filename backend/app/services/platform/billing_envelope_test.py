@@ -1,5 +1,6 @@
 """Fast contract tests for the billing envelope's rotation overlap."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -69,15 +70,28 @@ def envelope(monkeypatch: pytest.MonkeyPatch) -> tuple[dict[str, str], str]:
     return headers, token
 
 
-def test_previous_hmac_secret_verifies_during_rotation(envelope) -> None:
+def test_previous_hmac_secret_verifies_during_rotation(envelope, caplog) -> None:
+    """The overlap verifies, and says so.
+
+    The rotation procedure tells an operator to wait for
+    `billing.envelope_verified_with_previous_secret` to stop appearing before
+    retiring the old key. That signal is the only thing distinguishing "the far
+    side has cut over" from "nothing has been sent recently", so a rename or a
+    removal must fail a test rather than quietly leave the operator without it.
+    """
     headers, _ = envelope
-    claims = verify_billing_envelope(
-        method=METHOD,
-        path=PATH,
-        headers=headers,
-        body=BODY,
-    )
+    with caplog.at_level(logging.WARNING):
+        claims = verify_billing_envelope(
+            method=METHOD,
+            path=PATH,
+            headers=headers,
+            body=BODY,
+        )
     assert claims.jti == "rotation-contract"
+    assert any(
+        "billing.envelope_verified_with_previous_secret" in record.getMessage()
+        for record in caplog.records
+    ), "traffic on the retiring key produced no cutover signal"
 
 
 def test_previous_hmac_secret_is_rejected_after_overlap(envelope, monkeypatch) -> None:
