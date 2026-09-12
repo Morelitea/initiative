@@ -1262,9 +1262,9 @@ async def test_unprivileged_database_url_starts(monkeypatch):
     ],
 )
 async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes, named):
-    """Both attributes are the right to ignore row-level security, so both
-    stop the boot -- and the message names which one was found, because the
-    operator has to know which to remove."""
+    """Either attribute means the connection is more than the app needs, so
+    both stop the boot. The message names which was found, because the operator
+    has to know which to remove."""
     _fake_provisioning_engine(monkeypatch, **attributes)
     monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_URL", False)
 
@@ -1273,15 +1273,16 @@ async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes,
 
     message = str(exit_info.value)
     assert named in message
-    # The refusal has to carry the way out, or it is an outage with no remedy.
+    # The refusal carries the way out; without it, it is an outage with no
+    # stated remedy.
     assert "DATABASE_URL_BOOTSTRAP" in message
     assert "app_provisioner" in message
     assert "ALLOW_PRIVILEGED_DATABASE_URL" in message
 
 
 async def test_opt_out_boots_and_says_the_boundary_is_not_in_force(monkeypatch, caplog):
-    """The escape hatch has to stay uncomfortable. It warns every boot, and
-    the warning states the consequence rather than only naming the setting."""
+    """The escape hatch warns on every boot, and the warning says what it
+    changes rather than only naming the setting."""
     _fake_provisioning_engine(monkeypatch, rolsuper=True)
     monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_URL", True)
 
@@ -1291,4 +1292,4 @@ async def test_opt_out_boots_and_says_the_boundary_is_not_in_force(monkeypatch, 
     joined = "\n".join(r.getMessage() for r in caplog.records)
     assert "ALLOW_PRIVILEGED_DATABASE_URL" in joined
     assert "SECURITY.md" in joined
-    assert "NOT in force" in joined
+    assert "NOT\nin force" in joined or "NOT in force" in joined

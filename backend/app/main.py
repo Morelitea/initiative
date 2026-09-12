@@ -82,10 +82,10 @@ async def lifespan(app: FastAPI):
     from app.db.bootstrap import ensure_database_bootstrap
 
     await ensure_database_bootstrap()
-    # Before any DDL runs: refuse a DATABASE_URL that bypasses row-level
-    # security. This is deliberately ahead of the migrations rather than beside
-    # the other heals below -- a connection that voids the tenancy boundary
-    # should not be the one that reshapes the schema.
+    # Before any DDL runs: check the connection is the least-privilege
+    # provisioning login. Ahead of the migrations rather than beside the other
+    # heals below, so a misconfigured connection is caught before it reshapes
+    # the schema.
     from app.db.schema_provisioning import reject_privileged_database_url
 
     await reject_privileged_database_url()

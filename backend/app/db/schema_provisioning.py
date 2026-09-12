@@ -636,21 +636,19 @@ async def backfill_guild_schemas() -> BackfillSummary:
 async def reject_privileged_database_url() -> None:
     """Refuse to start when DATABASE_URL connects as a SUPERUSER/BYPASSRLS role.
 
-    Every tenancy guarantee in ``SECURITY.md`` is enforced by row-level
-    security, and these two role attributes are precisely the right to ignore
-    it. A deployment wired this way is not a degraded one -- it has no
-    boundary between guilds at all, while the document says it has.
+    The application's own connection is meant to be ``app_provisioner``: the
+    least-privilege login that can run migrations and provision guild schemas.
+    The access rules ``SECURITY.md`` describes are enforced by the database and
+    assume this connection is bound by them.
 
-    This used to be a warning. ``SECURITY.md`` has said since it was written
-    that "a future release will refuse to start with one", and a log line at
-    boot is not a barrier: on the deployment where it matters, nobody reads it.
+    ``SECURITY.md`` has said since it was written that "a future release will
+    refuse to start with one". This is that release; it used to be a warning.
 
-    Migrations and guild provisioning fit in the least-privilege
-    ``app_provisioner`` role (NOSUPERUSER CREATEROLE + CREATE on the database +
-    ownership of the app's objects), so this URL never needs more. Creating
-    that role is :mod:`app.db.bootstrap`'s job, over ``DATABASE_URL_BOOTSTRAP``
-    -- which is the one connection that legitimately holds the privilege, and
-    which this does not touch.
+    Migrations and guild provisioning fit in ``app_provisioner`` (NOSUPERUSER
+    CREATEROLE + CREATE on the database + ownership of the app's objects), so
+    this URL never needs more. Creating that role is :mod:`app.db.bootstrap`'s
+    job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
+    legitimately holds the privilege, and which this does not touch.
 
     ``ALLOW_PRIVILEGED_DATABASE_URL`` keeps such a deployment booting for an
     operator who cannot migrate in the same window. It logs every boot, so it
@@ -684,10 +682,9 @@ async def reject_privileged_database_url() -> None:
         logger.warning(
             "\n%s\n"
             "ALLOW_PRIVILEGED_DATABASE_URL is set, and DATABASE_URL connects\n"
-            "as a %s role. Row-level security does not constrain this\n"
-            "connection, so the per-guild boundary described in SECURITY.md is\n"
-            "NOT in force. This setting exists to buy a maintenance window,\n"
-            "not to be left on. Migrate (about a minute):\n"
+            "as a %s role. The access rules described in SECURITY.md are NOT\n"
+            "in force for this connection. This setting exists to buy a\n"
+            "maintenance window, not to be left on. Migrate (about a minute):\n"
             "\n%s\n%s",
             "=" * 70,
             held,
@@ -699,9 +696,9 @@ async def reject_privileged_database_url() -> None:
     raise SystemExit(
         f"\n{'=' * 70}\n"
         f"REFUSING TO START: DATABASE_URL connects as a {held} role.\n\n"
-        f"The app never needs these privileges, and with them row-level\n"
-        f"security does not constrain this connection -- the per-guild\n"
-        f"boundary described in SECURITY.md would not be in force.\n\n"
+        f"The app never needs these privileges, and the access rules\n"
+        f"described in SECURITY.md are not in force for a connection that\n"
+        f"holds them.\n\n"
         f"Migrate once (about a minute):\n\n"
         f"{migration}\n\n"
         f"To keep booting for one maintenance window, set\n"
