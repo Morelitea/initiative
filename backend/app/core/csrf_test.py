@@ -1,9 +1,8 @@
-"""The second layer under SameSite=Lax, for cookie-authenticated writes.
+"""Origin checking for cookie-authenticated writes.
 
-Each case is a shape a browser can actually produce. The one that matters is
-the cross-site multipart form: it is a simple request, so CORS never sees a
-preflight, and before this existed the only thing between it and a write was
-one cookie attribute.
+Each case is a request shape a browser can actually produce, including a
+multipart form post from another origin -- which is a simple request, so no
+preflight is involved and CORS is not what decides it.
 """
 
 from __future__ import annotations
@@ -45,9 +44,8 @@ def _cookie(client: TestClient) -> None:
 
 
 def test_a_cross_site_form_post_is_refused(client):
-    # The exposure, in the shape it actually takes: a form on another origin,
-    # multipart so no preflight is triggered, with the browser attaching the
-    # session cookie because it is a top-level POST.
+    # A form on another origin, multipart so no preflight is involved, with the
+    # session cookie attached as a browser would attach it.
     _cookie(client)
 
     response = client.post(
@@ -57,13 +55,12 @@ def test_a_cross_site_form_post_is_refused(client):
     )
 
     assert response.status_code == 403
-    assert response.json()["code"] == CSRF_ERROR_CODE
+    assert response.json()["detail"] == CSRF_ERROR_CODE
 
 
 def test_a_cross_site_post_with_no_origin_at_all_is_refused(client):
-    # Every browser sends Origin on an unsafe method. Something presenting a
-    # session cookie without one is not a browser doing what browsers do, and
-    # absence must not read as permission.
+    # Browsers send Origin on an unsafe method as a matter of course, so its
+    # absence is not an answer of yes.
     _cookie(client)
 
     response = client.post("/write", json={})
@@ -73,8 +70,8 @@ def test_a_cross_site_post_with_no_origin_at_all_is_refused(client):
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
 def test_every_unsafe_method_is_covered(client, method):
-    # A control with a gap in it is not a control, and the gap would be in
-    # whichever method nobody thought of.
+    # All four, so the rule does not depend on which verb a route happens to
+    # use.
     _cookie(client)
 
     response = client.request(
@@ -108,8 +105,8 @@ def test_a_split_origin_deployment_still_writes(client):
 
 
 def test_same_site_is_not_taken_as_proof(client):
-    # Same-site includes sibling subdomains. Trusting it would reintroduce the
-    # failure this threat was described by: one carelessly added subdomain.
+    # Same-site includes sibling subdomains, which is wider than the allowlist
+    # this is meant to match.
     _cookie(client)
 
     response = client.post(
@@ -122,9 +119,8 @@ def test_same_site_is_not_taken_as_proof(client):
 
 
 def test_a_header_authenticated_client_is_not_asked_for_anything(client):
-    # Bearer tokens, API keys and device tokens were never exposed: a browser
-    # does not attach an Authorization header cross-site. Asking them for an
-    # Origin would break every API script and mobile shell for no gain.
+    # Bearer tokens, API keys and device tokens are out of scope here; asking
+    # them for an Origin would break API scripts and mobile shells for nothing.
     _cookie(client)
 
     response = client.post(
@@ -135,9 +131,9 @@ def test_a_header_authenticated_client_is_not_asked_for_anything(client):
 
 
 def test_an_anonymous_request_is_not_refused_here(client):
-    # No session cookie, so there is no credential to ride along. Whether it is
-    # allowed is the authentication layer's decision, not this one's -- and a
-    # 403 from here would hide a 401 that says something more useful.
+    # No session cookie, so this has nothing to say about it. Whether the
+    # request is allowed is the authentication layer's decision, and a 403 from
+    # here would hide the 401 that explains it.
     response = client.post(
         "/write", json={}, headers={"origin": "https://attacker.test"}
     )
@@ -154,8 +150,8 @@ def test_a_read_is_untouched(client):
 
 
 def test_a_cookie_whose_name_merely_ends_in_the_session_name_is_not_a_session(client):
-    # Substring matching on the Cookie header would treat `x_session_token` as
-    # a session and refuse a request that carries no session at all.
+    # Whole-name comparison: `x_session_token` contains the session cookie's
+    # name without being it.
     client.cookies.set(f"x_{SESSION_COOKIE_NAME}", "not-a-session")
 
     response = client.post(

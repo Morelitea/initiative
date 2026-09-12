@@ -1,37 +1,29 @@
-"""Proof that a state-changing request was intended, for cookie sessions.
+"""Where a state-changing request came from, for cookie-authenticated callers.
 
-The session cookie authenticates every API route -- ``get_current_user`` falls
-back to it when no ``Authorization`` header is present (``deps.py``), so it is
-not merely a refresh credential. It is ``SameSite=Lax`` on path ``/``, and that
-attribute was the entire defence against a cross-site write.
+The session cookie authenticates ordinary API requests, not only the refresh
+route: ``get_current_user`` falls back to it when no ``Authorization`` header
+is present. So for those callers this asks for one more thing before an unsafe
+method is allowed through -- that the request came from a page this deployment
+serves.
 
-Lax is a good defence and is not a complete one. It is one browser default,
-with nothing that fails loudly if the attribute is dropped, and nothing at all
-in a client that does not honour it. CORS does not close the gap either: a
-cross-site ``<form enctype="multipart/form-data">`` is a simple request, sends
-no preflight, and this API has multipart routes that write
-(``galleries.py:877``, ``documents.py:953``, the avatar upload). The browser
-attaches the cookie and the server has already decided who the caller is.
+Scope, and why it is drawn here:
 
-So this adds a second, independent layer: on an unsafe method authenticated by
-the COOKIE, the request must also prove it came from an origin we serve. A
-cross-site form cannot do that -- it cannot set ``Origin``, and it cannot stop
-the browser from sending the real one.
-
-What is deliberately NOT here:
-
-* **Nothing for header-authenticated callers.** An ``Authorization`` header is
-  not attached by a browser on a cross-site request, so bearer tokens, API keys
-  and device tokens were never exposed to this and are not asked for anything.
-  That is also what keeps mobile shells and API scripts working unchanged.
+* **Only cookie-authenticated callers.** An ``Authorization`` header is never
+  attached by a browser on someone else's behalf, so bearer tokens, API keys
+  and device tokens are not asked for anything. That is also what keeps mobile
+  shells and API scripts working unchanged.
+* **Only unsafe methods.** ``OPTIONS`` is excluded along with the read methods:
+  it is the CORS preflight and is answered before this runs.
 * **No token to mint, store or rotate.** A synchroniser or double-submit token
-  is a stronger primitive and can be layered on top of this later. It also
-  needs every client that writes to carry it, which is a change across the
-  whole frontend; this is backend-only and effective immediately. Doing the
-  cheap layer first is not an argument against the expensive one.
-* **No trust in ``Sec-Fetch-Site: same-site``.** Same-site includes sibling
-  subdomains, and a carelessly added subdomain is one of the ways this threat
-  was described as failing. Only ``same-origin`` is taken as proof on its own.
+  is a stronger primitive and can be added on top of this later. It also needs
+  every client that writes to carry it, which is a change across the whole
+  frontend; this is backend-only.
+* **``Sec-Fetch-Site: same-site`` is not accepted on its own**, because it
+  includes sibling subdomains. Only ``same-origin`` is conclusive by itself;
+  anything else is matched against the same origin allowlist CORS uses.
+
+Detail beyond what the code does lives in the private tracker, per
+CLAUDE.md "Security-sensitive comments".
 """
 
 from __future__ import annotations
@@ -42,33 +34,29 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
+from app.core.messages import AuthMessages
 from app.core.security import SESSION_COOKIE_NAME
 
-#: Methods that cannot change state, per RFC 9110. HEAD and OPTIONS included:
-#: OPTIONS is the CORS preflight and must never be answered with a 403 from
-#: here, or the preflight failure hides whatever the real request would have
-#: said.
+#: Methods that cannot change state, per RFC 9110.
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 
-#: Machine-readable, so a client can tell this apart from an authorization
-#: failure and not send the user to log in again over it.
-CSRF_ERROR_CODE = "CSRF_ORIGIN_REQUIRED"
+#: Kept as a name so callers can refer to the code without repeating it.
+CSRF_ERROR_CODE = AuthMessages.REQUEST_ORIGIN_NOT_RECOGNIZED
 
 
 def _carries_session_cookie(headers: Headers) -> bool:
     """Whether this request is authenticated by the cookie rather than a header.
 
     An ``Authorization`` header wins in ``get_current_user``, so a request that
-    has one is not a cookie session even if a cookie also rode along -- and it
-    is not reachable cross-site in the first place.
+    carries one is not a cookie session even if a cookie rode along too.
     """
     if headers.get("authorization"):
         return False
     cookie = headers.get("cookie")
     if not cookie:
         return False
-    # Substring is not enough: a cookie named `x_session_token` would contain
-    # `session_token`. Split on the separator the header actually uses.
+    # Compare whole names: a cookie called `x_session_token` contains the
+    # session cookie's name as a substring without being it.
     return any(
         piece.strip().split("=", 1)[0] == SESSION_COOKIE_NAME
         for piece in cookie.split(";")
@@ -76,18 +64,17 @@ def _carries_session_cookie(headers: Headers) -> bool:
 
 
 def intent_is_proven(headers: Headers) -> bool:
-    """Whether the request shows it came from somewhere we serve.
+    """Whether the request came from a page this deployment serves.
 
     ``Sec-Fetch-Site: same-origin`` is conclusive on its own and is checked
     first, because a same-origin fetch is the common case and needs no
     allowlist lookup. Otherwise the ``Origin`` must be one this deployment
-    serves -- which covers a split-origin deployment, where the SPA is hosted
-    somewhere other than the API, without weakening anything: that list is the
-    same one CORS already credentials.
+    serves, which is how a split-origin deployment -- SPA hosted somewhere
+    other than the API -- still works. That list is the one CORS already
+    credentials, so the two cannot drift apart.
 
-    A request with neither header is refused. Every browser sends ``Origin`` on
-    an unsafe method; something presenting a session cookie without one is not
-    a browser doing what browsers do.
+    Neither header present means the answer is no. Browsers send ``Origin`` on
+    an unsafe method as a matter of course.
     """
     if headers.get("sec-fetch-site") == "same-origin":
         return True
@@ -100,9 +87,9 @@ def intent_is_proven(headers: Headers) -> bool:
 class CsrfOriginMiddleware:
     """Refuse a cookie-authenticated write that cannot say where it came from.
 
-    Pure ASGI rather than ``BaseHTTPMiddleware``: this decides from headers
-    alone and must answer before the body is read, so there is no reason to
-    buffer a request that is about to be refused.
+    Pure ASGI rather than ``BaseHTTPMiddleware``: the decision is made from
+    headers alone, so there is no reason to buffer a body that is not going to
+    be used.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -118,15 +105,8 @@ class CsrfOriginMiddleware:
             await self.app(scope, receive, send)
             return
 
-        response = JSONResponse(
-            status_code=403,
-            content={
-                "detail": (
-                    "This request was not sent from a page this server serves. "
-                    "If you are using an API client, authenticate with an "
-                    "Authorization header rather than a session cookie."
-                ),
-                "code": CSRF_ERROR_CODE,
-            },
-        )
+        # A machine-readable code, mapped to text in
+        # frontend/public/locales/*/errors.json, per CLAUDE.md "Backend: Error
+        # code constants".
+        response = JSONResponse(status_code=403, content={"detail": CSRF_ERROR_CODE})
         await response(scope, receive, send)
