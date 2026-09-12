@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
+from app.core.config import settings
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_template_rls,
@@ -1095,8 +1096,9 @@ async def test_engine_identities_warn_on_shared_app_and_admin_login(
     import app.db.session as db_session
 
     # Point the app engine at the (harness) admin engine: same login, same DB.
-    # Working-but-not-recommended wiring warns loudly and boots (the
-    # warn_if_privileged_database_url pattern), it never stops.
+    # Working-but-not-recommended wiring warns loudly and boots; it never
+    # stops. Contrast reject_privileged_database_url, which does stop --- the
+    # difference is a weakened backstop versus no boundary at all.
     monkeypatch.setattr(db_session, "engine", db_session.admin_engine)
     with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
         await schema_provisioning.verify_engine_identities()
@@ -1195,3 +1197,98 @@ async def test_effective_grants_fail_closed_for_grantless_admin_login(
     finally:
         await bound_engine.dispose()
         await _drop_login(engine, role)
+
+
+# --- reject_privileged_database_url (T67) ------------------------------------
+#
+# The role attributes are faked rather than created. Whether the harness login
+# happens to be a superuser is a property of the CI database, not of this
+# behaviour, and a test that only runs where the DB is set up a particular way
+# is a test that quietly stops running.
+
+
+class _FakeResult:
+    def __init__(self, row):
+        self._row = row
+
+    def one(self):
+        return self._row
+
+
+class _FakeConnection:
+    def __init__(self, row):
+        self._row = row
+
+    async def execute(self, *_args, **_kwargs):
+        return _FakeResult(self._row)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
+class _FakeEngine:
+    """Stands in for provisioning_engine, reporting fixed role attributes."""
+
+    def __init__(self, *, rolsuper: bool, rolbypassrls: bool):
+        self._row = (rolsuper, rolbypassrls)
+
+    def connect(self):
+        return _FakeConnection(self._row)
+
+
+def _fake_provisioning_engine(monkeypatch, *, rolsuper=False, rolbypassrls=False):
+    import app.db.session as db_session
+
+    monkeypatch.setattr(
+        db_session,
+        "provisioning_engine",
+        _FakeEngine(rolsuper=rolsuper, rolbypassrls=rolbypassrls),
+    )
+
+
+async def test_unprivileged_database_url_starts(monkeypatch):
+    _fake_provisioning_engine(monkeypatch)
+    await schema_provisioning.reject_privileged_database_url()
+
+
+@pytest.mark.parametrize(
+    ("attributes", "named"),
+    [
+        ({"rolsuper": True}, "SUPERUSER"),
+        ({"rolbypassrls": True}, "BYPASSRLS"),
+    ],
+)
+async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes, named):
+    """Both attributes are the right to ignore row-level security, so both
+    stop the boot -- and the message names which one was found, because the
+    operator has to know which to remove."""
+    _fake_provisioning_engine(monkeypatch, **attributes)
+    monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_URL", False)
+
+    with pytest.raises(SystemExit) as exit_info:
+        await schema_provisioning.reject_privileged_database_url()
+
+    message = str(exit_info.value)
+    assert named in message
+    # The refusal has to carry the way out, or it is an outage with no remedy.
+    assert "DATABASE_URL_BOOTSTRAP" in message
+    assert "app_provisioner" in message
+    assert "ALLOW_PRIVILEGED_DATABASE_URL" in message
+
+
+async def test_opt_out_boots_and_says_the_boundary_is_not_in_force(monkeypatch, caplog):
+    """The escape hatch has to stay uncomfortable. It warns every boot, and
+    the warning states the consequence rather than only naming the setting."""
+    _fake_provisioning_engine(monkeypatch, rolsuper=True)
+    monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_URL", True)
+
+    with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
+        await schema_provisioning.reject_privileged_database_url()
+
+    joined = "\n".join(r.getMessage() for r in caplog.records)
+    assert "ALLOW_PRIVILEGED_DATABASE_URL" in joined
+    assert "SECURITY.md" in joined
+    assert "NOT in force" in joined

@@ -167,6 +167,14 @@ class Settings(BaseSettings):
     # Unset it and the app verifies those prerequisites instead of applying
     # them; a deployment that provisions its database out of band never sets it.
     DATABASE_URL_BOOTSTRAP: str | None = None
+    # An escape hatch, not a supported configuration. ``DATABASE_URL`` holding
+    # SUPERUSER or BYPASSRLS voids every row-level-security guarantee in
+    # SECURITY.md -- the tenancy boundary is enforced by RLS, and these two
+    # attributes are exactly the right to ignore it. Startup refuses such a
+    # connection. An operator who cannot migrate in the same maintenance window
+    # can set this to keep booting; it is recorded at WARNING on every boot so
+    # it cannot become the quiet steady state.
+    ALLOW_PRIVILEGED_DATABASE_URL: bool = False
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
     # engines above. Unset (the common case) it uses ``DATABASE_URL``; set it

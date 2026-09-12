@@ -59,7 +59,7 @@ Initiative connects through **three PostgreSQL logins**, each least-privilege fo
 | **`app_admin`** | Background jobs, startup seeding, bootstrapping endpoints | Yes — the standard Postgres trusted-batch actor, bounded by enumerated per-table `GRANT`s, and never serving a user request as itself. Entering a guild schema requires `SET ROLE`, which **drops** the bypass |
 | **`app_provisioner`** | Migrations and DDL (`CREATE SCHEMA`, `CREATE ROLE`) | No — `NOSUPERUSER CREATEROLE`, and `FORCE ROW LEVEL SECURITY` keeps it policy-bound for data |
 
-**The application never holds Postgres superuser credentials.** A superuser `DATABASE_URL` is deprecated; the app logs a warning at boot, and a future release will refuse to start with one.
+**The application never holds Postgres superuser credentials.** A superuser (or `BYPASSRLS`) `DATABASE_URL` **stops the boot** — every guarantee above is enforced by row-level security, and those attributes are the right to ignore it. The refusal names the one-minute migration to `app_provisioner`. `ALLOW_PRIVILEGED_DATABASE_URL=true` keeps such a deployment booting for one maintenance window; it warns on every boot, and states that the per-guild boundary is not in force while it is set. `DATABASE_URL_BOOTSTRAP` is unaffected — creating the least-privilege roles is the one job that legitimately needs the privilege.
 
 ### No standing bypass, and no superuser account
 
