@@ -630,19 +630,26 @@ async def backfill_guild_schemas() -> BackfillSummary:
     )
 
 
-async def warn_if_privileged_database_url() -> None:
-    """Emit a deprecation banner when DATABASE_URL connects as a superuser
-    (or BYPASSRLS) role.
+async def reject_privileged_database_url() -> None:
+    """Refuse to start when DATABASE_URL connects as a SUPERUSER/BYPASSRLS role.
 
-    Migrations and guild provisioning fit in the least-privilege
-    ``app_provisioner`` role (NOSUPERUSER CREATEROLE + CREATE on the database +
-    ownership of the app's objects), so this URL never needs more. Creating
-    that role is :mod:`app.db.bootstrap`'s job, over ``DATABASE_URL_BOOTSTRAP``.
+    The application's own connection is meant to be ``app_provisioner``: the
+    least-privilege login that can run migrations and provision guild schemas.
+    The access rules ``SECURITY.md`` describes are enforced by the database and
+    assume this connection is bound by them.
 
-    Superuser DATABASE_URL support is DEPRECATED and a future release will
-    refuse to start with it, so the banner is deliberately loud — a framed
-    multi-line block at WARNING every boot, not a one-liner that scrolls past —
-    to move the remaining legacy deployments before the hard cutoff.
+    ``SECURITY.md`` has said since it was written that "a future release will
+    refuse to start with one". This is that release; it used to be a warning.
+
+    Migrations and guild provisioning fit in ``app_provisioner`` (NOSUPERUSER
+    CREATEROLE + CREATE on the database + ownership of the app's objects), so
+    this URL never needs more. Creating that role is :mod:`app.db.bootstrap`'s
+    job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
+    legitimately holds the privilege, and which this does not touch.
+
+    ``ALLOW_PRIVILEGED_DATABASE_URL`` keeps such a deployment booting for an
+    operator who cannot migrate in the same window. It logs every boot, so it
+    stays visible rather than becoming the quiet steady state.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -653,26 +660,48 @@ async def warn_if_privileged_database_url() -> None:
                 )
             )
         ).one()
-    if rolsuper or rolbypassrls:
+    if not (rolsuper or rolbypassrls):
+        return
+
+    held = "SUPERUSER" if rolsuper else "BYPASSRLS"
+    migration = (
+        "  1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
+        "  2. Point DATABASE_URL at app_provisioner, with a password of\n"
+        "     your choosing, and restart. The bootstrap creates the role\n"
+        "     and hands the app's objects over to it.\n"
+        "  3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n"
+        "\n"
+        "DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
+        "deployment docs for details."
+    )
+
+    if settings.ALLOW_PRIVILEGED_DATABASE_URL:
         logger.warning(
             "\n%s\n"
-            "DEPRECATED: DATABASE_URL connects as %s role.\n"
-            "The app never needs these privileges, and a FUTURE RELEASE WILL\n"
-            "REFUSE TO START with them. Migrate once (about a minute):\n"
-            "\n"
-            "  1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
-            "  2. Point DATABASE_URL at app_provisioner, with a password of\n"
-            "     your choosing, and restart. The bootstrap creates the role\n"
-            "     and hands the app's objects over to it.\n"
-            "  3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n"
-            "\n"
-            "DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
-            "deployment docs for details.\n"
-            "%s",
+            "ALLOW_PRIVILEGED_DATABASE_URL is set, and DATABASE_URL connects\n"
+            "as a %s role. The access rules described in SECURITY.md are NOT\n"
+            "in force for this connection. This setting exists to buy a\n"
+            "maintenance window, not to be left on. Migrate (about a minute):\n"
+            "\n%s\n%s",
             "=" * 70,
-            "a SUPERUSER" if rolsuper else "a BYPASSRLS",
+            held,
+            migration,
             "=" * 70,
         )
+        return
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"REFUSING TO START: DATABASE_URL connects as a {held} role.\n\n"
+        f"The app never needs these privileges, and the access rules\n"
+        f"described in SECURITY.md are not in force for a connection that\n"
+        f"holds them.\n\n"
+        f"Migrate once (about a minute):\n\n"
+        f"{migration}\n\n"
+        f"To keep booting for one maintenance window, set\n"
+        f"ALLOW_PRIVILEGED_DATABASE_URL=true. It warns on every boot.\n"
+        f"{'=' * 70}\n"
+    )
 
 
 SEARCH_OPCLASS = "tsvector_search_ops"
@@ -1160,8 +1189,9 @@ async def verify_engine_identities() -> None:
     functions, because routed requests ``SET ROLE`` into guild/platform roles
     either way, but the unrouted request surface then runs at the system
     engine's privileges and loses its database-level row-security backstop.
-    Following the ``warn_if_privileged_database_url`` pattern, that wiring
-    gets a framed WARNING naming the recommended split, not a boot stop.
+    That wiring gets a framed WARNING naming the recommended split, not a
+    boot stop. It is a weaker backstop, not an absent boundary --- which is
+    why it warns where ``reject_privileged_database_url`` refuses.
 
     Runs before the heals so the operator sees which login each repair will
     act on. Probes ``session_user`` (the login) rather than ``current_user``
