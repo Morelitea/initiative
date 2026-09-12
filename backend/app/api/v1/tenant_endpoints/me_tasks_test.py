@@ -340,6 +340,163 @@ async def test_list_my_tasks_pagination(client: AsyncClient, session: AsyncSessi
 
 
 @pytest.mark.integration
+async def test_list_my_tasks_counts_comments_per_row(
+    client: AsyncClient, session: AsyncSession
+):
+    """Each row carries its own comment count.
+
+    The count is selected alongside the task rather than fetched for the page as
+    a group, so it is worth pinning that it lands on the right row — including
+    the zero for a task nobody has commented on.
+    """
+    from app.testing.factories import create_comment
+
+    user = await create_user(session, email="user@example.com")
+    _guild, _, project = await _setup_guild_with_project(session, user)
+
+    talked_about = await _create_task(
+        session, project, "talked about", created_by=user.id
+    )
+    quiet = await _create_task(session, project, "quiet", created_by=user.id)
+    for task in (talked_about, quiet):
+        await _assign(session, task, user.id)
+    for _ in range(3):
+        await create_comment(session, user, task=talked_about)
+
+    response = await client.get("/api/v1/me/tasks", headers=get_auth_headers(user))
+    assert response.status_code == 200, response.text
+    counts = {t["title"]: t["comment_count"] for t in response.json()["items"]}
+    assert counts == {"talked about": 3, "quiet": 0}
+
+
+@pytest.mark.integration
+async def test_list_my_tasks_paged_page_interleaves_guilds(
+    client: AsyncClient, session: AsyncSession
+):
+    """A page drawn from several guilds comes back in the sort's order.
+
+    The endpoint orders the whole matching set from lightweight per-guild rows
+    and then loads only the ids on the requested page — so the rows are fetched
+    guild by guild and have to be put back into the global order, and a guild
+    that contributes nothing to this page must still count toward
+    ``total_count``. Interleaving the due dates across two guilds means guild
+    order and sort order disagree on every page.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    user = await create_user(session, email="user@example.com")
+    _guild1, _, project1 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 1"
+    )
+    _guild2, _, project2 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 2"
+    )
+
+    # The soonest task is in the LATER guild, so concatenating each guild's rows
+    # in guild order gets every page wrong: guild 2 holds days 1 and 3, guild 1
+    # days 2 and 4.
+    plan = [
+        (project2, "first", 1),
+        (project1, "second", 2),
+        (project2, "third", 3),
+        (project1, "fourth", 4),
+    ]
+    for project, title, days in plan:
+        task = await _create_task(
+            session,
+            project,
+            title,
+            created_by=user.id,
+            due_date=now + timedelta(days=days),
+        )
+        await _assign(session, task, user.id)
+
+    headers = get_auth_headers(user)
+    sorting = json.dumps([{"field": "due_date", "dir": "asc"}])
+
+    response = await client.get(
+        f"/api/v1/me/tasks?sorting={sorting}&page=1&page_size=2&tz=UTC", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    first = response.json()
+    assert [t["title"] for t in first["items"]] == ["first", "second"]
+    assert first["total_count"] == 4
+    assert first["has_next"] is True
+
+    response = await client.get(
+        f"/api/v1/me/tasks?sorting={sorting}&page=2&page_size=2&tz=UTC", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    second = response.json()
+    assert [t["title"] for t in second["items"]] == ["third", "fourth"]
+    assert second["total_count"] == 4
+    assert second["has_next"] is False
+
+    # The hydrated rows carry everything the list shape promises, including the
+    # relationship-backed fields the second pass is responsible for loading.
+    row = second["items"][0]
+    assert row["project_id"] == project2.id
+    assert row["task_status"]["id"] is not None
+    assert row["guild_name"] == "Guild 2"
+
+
+@pytest.mark.integration
+async def test_list_my_tasks_page_from_one_guild_only(
+    client: AsyncClient, session: AsyncSession
+):
+    """Guilds off the requested page are skipped, and still counted.
+
+    The hydration pass visits only the guilds holding ids on this page. A guild
+    whose tasks all sort onto a later page must contribute to ``total_count``
+    without appearing in ``items``.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    user = await create_user(session, email="user@example.com")
+    _guild1, _, project1 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 1"
+    )
+    _guild2, _, project2 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 2"
+    )
+
+    for title, days in (("g1 soon", 1), ("g1 next", 2)):
+        task = await _create_task(
+            session,
+            project1,
+            title,
+            created_by=user.id,
+            due_date=now + timedelta(days=days),
+        )
+        await _assign(session, task, user.id)
+    for title, days in (("g2 late", 30), ("g2 latest", 60)):
+        task = await _create_task(
+            session,
+            project2,
+            title,
+            created_by=user.id,
+            due_date=now + timedelta(days=days),
+        )
+        await _assign(session, task, user.id)
+
+    headers = get_auth_headers(user)
+    sorting = json.dumps([{"field": "due_date", "dir": "asc"}])
+    response = await client.get(
+        f"/api/v1/me/tasks?sorting={sorting}&page=1&page_size=2&tz=UTC", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert [t["title"] for t in data["items"]] == ["g1 soon", "g1 next"]
+    assert {t["guild_name"] for t in data["items"]} == {"Guild 1"}
+    assert data["total_count"] == 4
+    assert data["has_next"] is True
+
+
+@pytest.mark.integration
 async def test_list_my_tasks_date_group_sorted_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
