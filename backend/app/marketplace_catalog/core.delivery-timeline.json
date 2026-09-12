@@ -8,8 +8,8 @@
   "long_description": "Puts every dated task in the initiative on a shared timeline, grouped into lanes, with the open count beside it and the full list below.\n\nTasks with no start or due date do not appear on the timeline — they are still counted, and still listed.",
   "avatar_url": "/marketplace/core-delivery-timeline.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "Adds what is past its date and what has been finished lately.",
+  "version": "1.2.0",
+  "release_notes": "Counts only live work: archived tasks, and tasks in template projects, no longer reach the schedule or the figures above it.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT title, start_date, due_date FROM tasks WHERE start_date IS NOT NULL AND due_date IS NOT NULL ORDER BY start_date"
+          "sql": "SELECT title, tasks.start_date AS start_date, due_date FROM tasks WHERE tasks.start_date IS NOT NULL AND due_date IS NOT NULL AND tasks.archived_at IS NULL AND project.is_template = false ORDER BY tasks.start_date"
         },
         "title": "Schedule"
       },
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS tasks FROM tasks WHERE due_date IS NOT NULL AND completed_at IS NULL"
+          "sql": "SELECT count(*) AS tasks FROM tasks WHERE due_date IS NOT NULL AND completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Still open"
       },
@@ -58,7 +58,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now()"
+          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now() AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Past its date"
       },
@@ -73,7 +73,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval)"
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval) AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Finished, last 30 days"
       },
@@ -88,7 +88,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(completed_at) AS finished, count(*) AS total FROM tasks"
+          "sql": "SELECT count(tasks.completed_at) AS finished, count(*) AS total FROM tasks WHERE tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "How far along"
       },
@@ -103,7 +103,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT title, start_date, due_date, priority FROM tasks WHERE completed_at IS NULL ORDER BY due_date"
+          "sql": "SELECT title, tasks.start_date AS start_date, due_date, priority FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false ORDER BY due_date"
         },
         "title": "Open work"
       }

@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A dashboard reports on live work** — a question asked of your tasks was answered with all of them, so a board of "who is carrying what" dealt out the steps of every template project alongside real work, and archived work counted the same as current work. New widgets now start by leaving out archived rows and templates, as ordinary filters you can see and delete when the question really is about archived work. The five dashboards that ship with the app ask the same way.
+
 ### Fixed
 
+- **The trash stays out of dashboards** — a dashboard could count deleted tasks in its figures, so the same board did not always show the same number to everybody reading it. Queries now report on live content only. The trash screen itself is unchanged.
+- **"Finished, last 30 days" counts again** — the tile failed to load on all four dashboards that carry it, as did any query measuring a stretch of time.
 - **A board widget with a lot of cards draws them** — a column holding more cards than fit shared its height out among them instead of scrolling, so a board of a few hundred tasks drew every card as a hairline with its title spilling over the next. Columns overflow and scroll now, at any number of cards.
 - **Widget previews draw again** — the preview beside the widget settings ran the widget without telling it which of the statement's columns were which, so anything that draws numbers reported it had been given none: "No numeric column to report" over a query returning nothing but counts. A widget is handed column positions rather than names and works out neither its own shape nor any correction the author made, and the preview was the one place doing neither. It now resolves them exactly as the placed tile does, falls back to the table when a statement stops returning the shape the widget draws, and loads the widget's own code for previews of widgets that came from an app — so the pane shows what the tile will show, which is what it says it does.
 - **Long dropdowns scroll again** — a menu with more options than fit on screen ran off the bottom of the window with no way to reach the rest, which is what the column picker in the dashboard query builder does on a table of any width. The height limit these menus are supposed to obey had been written in a form the styling toolchain stopped understanding when it was upgraded, so it was silently thrown away. Menus are capped to the room they have and scroll again, and the same silent loss is fixed everywhere else it had happened: the date picker's cells, the width popovers take from the control that opened them, and the direction menus and tooltips grow from when they open.

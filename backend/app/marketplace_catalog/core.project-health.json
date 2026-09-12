@@ -8,8 +8,8 @@
   "long_description": "The dashboard to open before a check-in. The top row answers the three questions somebody always asks — how much is open, how much is late, how much got finished lately — and says how far along the whole thing is.\n\nUnderneath, each project's finished and remaining work sits side by side, so a project that has stopped moving is visible next to one that has not. The board deals every open task into a column per person, each card led by its project, which is the fastest way to see who is carrying what and where it came from.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on. Read-only, like every dashboard: it shows the work, and the work is changed where it lives.",
   "avatar_url": "/marketplace/core-project-health.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "Says how far along each project is rather than only how many tasks it has, adds what is late and what was finished lately, and a board showing who is carrying what.",
+  "version": "1.2.0",
+  "release_notes": "Counts only live work: archived projects and tasks, and anything inside a template project, no longer reach the figures, the per-project bars or the board.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS open FROM tasks WHERE completed_at IS NULL"
+          "sql": "SELECT count(*) AS open FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Still open"
       },
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now()"
+          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now() AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Past its date"
       },
@@ -58,7 +58,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval)"
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval) AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Finished, last 30 days"
       },
@@ -73,7 +73,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(completed_at) AS finished, count(*) AS total FROM tasks"
+          "sql": "SELECT count(tasks.completed_at) AS finished, count(*) AS total FROM tasks WHERE tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "How far along"
       },
@@ -88,7 +88,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT p.name AS project, count(t.completed_at) AS finished, count(*) - count(t.completed_at) AS remaining FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY p.name"
+          "sql": "SELECT p.name AS project, count(t.completed_at) AS finished, count(*) - count(t.completed_at) AS remaining FROM projects p JOIN tasks t ON t.project_id = p.id WHERE p.archived_at IS NULL AND p.is_template = false AND t.archived_at IS NULL GROUP BY p.name ORDER BY p.name"
         },
         "title": "Each project, finished and remaining",
         "options": {
@@ -108,7 +108,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT assignee.display_name AS person, count(*) AS open FROM tasks WHERE completed_at IS NULL GROUP BY assignee.display_name ORDER BY count(*) DESC"
+          "sql": "SELECT assignee.display_name AS person, count(*) AS open FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false GROUP BY assignee.display_name ORDER BY count(*) DESC"
         },
         "title": "Open work by person",
         "options": {
@@ -128,7 +128,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT concat(project.name, ' · ', title) AS card, assignee.display_name AS person, due_date FROM tasks WHERE completed_at IS NULL ORDER BY project.name, due_date"
+          "sql": "SELECT concat(project.name, ' · ', title) AS card, assignee.display_name AS person, due_date FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false ORDER BY project.name, due_date"
         },
         "title": "Who is carrying what",
         "options": {
@@ -149,7 +149,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT p.name AS project, count(*) - count(t.completed_at) AS open, count(*) AS total FROM projects p JOIN tasks t ON t.project_id = p.id GROUP BY p.name ORDER BY count(*) - count(t.completed_at) DESC"
+          "sql": "SELECT p.name AS project, count(*) - count(t.completed_at) AS open, count(*) AS total FROM projects p JOIN tasks t ON t.project_id = p.id WHERE p.archived_at IS NULL AND p.is_template = false AND t.archived_at IS NULL GROUP BY p.name ORDER BY count(*) - count(t.completed_at) DESC"
         },
         "title": "Projects"
       }

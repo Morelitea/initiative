@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_active_user
 from app.schemas.field_catalog import (
+    DefaultFilter,
     FieldCatalogResponse,
     FieldDescription,
     RelationDescription,
@@ -53,6 +54,10 @@ def read_field_catalog(dataset: DatasetName) -> FieldCatalogResponse:
         relations=[
             RelationDescription(name=relation.name, dataset=relation.dataset)
             for relation in fields_registry.dataset(dataset.value).relations
+        ],
+        default_filters=[
+            DefaultFilter(**condition)
+            for condition in fields_registry.default_filters(dataset.value)
         ],
     )
 

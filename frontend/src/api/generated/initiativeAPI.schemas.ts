@@ -2540,6 +2540,38 @@ export interface DecorationPackListResponse {
 }
 
 /**
+ * Comparison operators for filter conditions.
+ *
+ * Negation is handled by the ``negate`` flag on FilterCondition,
+ * not by separate operators.
+ */
+export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
+
+export const FilterOp = {
+  eq: "eq",
+  lt: "lt",
+  lte: "lte",
+  gt: "gt",
+  gte: "gte",
+  in_: "in_",
+  ilike: "ilike",
+  is_null: "is_null",
+} as const;
+
+/**
+ * One condition a new statement about this dataset starts with.
+ *
+ * Shaped as the builder's own condition so a client seeds its filter rows
+ * with it rather than translating: what comes back is an ordinary filter,
+ * shown like every other and removed the same way.
+ */
+export interface DefaultFilter {
+  field: string;
+  op: FilterOp;
+  value?: unknown;
+}
+
+/**
  * Response indicating whether user can be deleted and any blockers
  */
 export interface DeletionEligibilityResponse {
@@ -3191,25 +3223,6 @@ export interface FavoriteContactsResponse {
 }
 
 /**
- * Comparison operators for filter conditions.
- *
- * Negation is handled by the ``negate`` flag on FilterCondition,
- * not by separate operators.
- */
-export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
-
-export const FilterOp = {
-  eq: "eq",
-  lt: "lt",
-  lte: "lte",
-  gt: "gt",
-  gte: "gte",
-  in_: "in_",
-  ilike: "ilike",
-  is_null: "is_null",
-} as const;
-
-/**
  * One field a client may offer for filtering.
  */
 export interface FieldDescription {
@@ -3242,6 +3255,7 @@ export interface FieldCatalogResponse {
   dataset: string;
   fields: FieldDescription[];
   relations?: RelationDescription[];
+  default_filters?: DefaultFilter[];
 }
 
 export interface PresetPropertyFilter {

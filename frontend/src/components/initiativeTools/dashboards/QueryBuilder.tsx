@@ -13,7 +13,7 @@
  */
 
 import { Plus, X } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -56,7 +56,7 @@ export interface QueryBuilderProps {
 
 export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps) {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { fields, relations } = useFieldCatalog(spec.dataset as DatasetName);
+  const { fields, relations, defaultFilters } = useFieldCatalog(spec.dataset as DatasetName);
   // What each related dataset holds. A relation says only its name and where
   // it arrives; what may be named there is that dataset's own description, so
   // it is read the same way this one is.
@@ -97,6 +97,30 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
   );
 
   const patch = (next: Partial<QueryBuildRequest>) => onChange({ ...spec, ...next });
+
+  /**
+   * A new statement starts without archived work or templates.
+   *
+   * Seeded here rather than written into the starting spec because the answer
+   * belongs to the dataset and arrives with its catalog. Choosing a different
+   * dataset clears the filters — nothing chosen against the old one survives —
+   * so the new one seeds its own, and coming back to a dataset seeds it again.
+   *
+   * What is remembered is the dataset last seeded, which is what separates
+   * that from an author deleting the conditions: the filters are ordinary
+   * rows, and removing them is how somebody asks about archived work. Deleting
+   * them leaves the dataset unchanged, so nothing puts them back.
+   */
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    // Empty while the catalog is on its way, and for a dataset that has
+    // neither lifecycle. Neither is a dataset we have seeded.
+    if (!defaultFilters.length) return;
+    if (seededFor.current === spec.dataset) return;
+    seededFor.current = spec.dataset;
+    if (spec.where?.length) return;
+    onChange({ ...spec, where: defaultFilters.map((condition) => ({ ...condition })) });
+  }, [defaultFilters, spec, onChange]);
 
   const setColumn = (index: number, column: QueryColumnSpec) =>
     patch({ columns: spec.columns.map((held, at) => (at === index ? column : held)) });

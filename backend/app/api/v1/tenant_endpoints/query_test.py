@@ -6,6 +6,7 @@ way to know is to ask two people with different standing the same question.
 """
 
 import json
+from typing import Any
 from pathlib import Path
 
 import pytest
@@ -613,3 +614,148 @@ class TestAskingAboutTheReader:
         )
         assert response.status_code == 400
         assert response.json()["detail"] == QueryMessages.RESERVED_NAME
+
+
+@pytest.mark.integration
+async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session):
+    """The trash is a place to recover from, not rows to report on.
+
+    Asked as the guild admin, who manages the trash and reaches it where it is
+    managed. A dashboard is not where it is managed: what a board counts should
+    be the same figure for everybody reading it, whoever asks.
+    """
+    from datetime import datetime, timezone
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="kept")
+    binned = await create_task(session, a.project, title="binned")
+
+    counted = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT count(*) AS n FROM tasks"},
+        headers=a.headers,
+    )
+    assert counted.json()["rows"] == [[2]]
+
+    binned.deleted_at = datetime.now(timezone.utc)
+    session.add(binned)
+    await session.commit()
+
+    counted = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT count(*) AS n FROM tasks"},
+        headers=a.headers,
+    )
+    assert counted.json()["rows"] == [[1]], "a trashed task is still being counted"
+
+    listed = await client.post(
+        a.g("/query"),
+        json={"sql": "SELECT title FROM tasks"},
+        headers=a.headers,
+    )
+    assert listed.json()["rows"] == [["kept"]]
+
+
+@pytest.mark.integration
+async def test_the_trash_is_still_reachable_where_it_is_managed(
+    client, acting_user, session
+):
+    """The rule is the query surface's, not a new rule about the trash.
+
+    Worth pinning beside the test above: the same reader, the same trashed row,
+    asked for through the endpoint whose job is the trash — and it is there.
+    """
+    from datetime import datetime, timezone
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    binned = await create_task(session, a.project, title="binned")
+    task_id = binned.id
+
+    binned.deleted_at = datetime.now(timezone.utc)
+    session.add(binned)
+    await session.commit()
+
+    found = await client.get(
+        a.g(f"/tasks/{task_id}"), params={"include_deleted": "true"}, headers=a.headers
+    )
+    assert found.status_code == 200, found.text
+
+
+class TestEveryShippedDashboardReportsOnLiveWork:
+    """What the shipped statements leave out.
+
+    The check is invariance rather than wording: run each statement, add work
+    that should not count — a task in the trash, an archived task, a task in a
+    template project — and run it again. Every answer has to be the same one.
+
+    Asked this way because the statements have no common shape. A count, a
+    grouping and a list would each need their own assertion about which row is
+    missing; "adding these rows changed nothing" is the property itself, and it
+    holds whatever the statement returns.
+
+    Run through the service rather than the endpoint. There are a few dozen
+    statements and each is asked twice, and a test that spends a hundred
+    requests to make one point is a slow test that also shares a rate limit
+    with everything around it. The endpoint adds nothing here: the same
+    executor, under the context the request would have established, is what
+    decides the rows.
+    """
+
+    async def test_none_of_them_counts_work_that_is_not_live(
+        self, client, acting_user, session
+    ):
+        from datetime import datetime, timezone
+
+        from app.services import query as query_service
+
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        live = await create_project(session, actor.initiative, actor.user)
+        await create_task(session, live, title="live work")
+
+        statements = list(TestEveryShippedDashboardDrawsItsShape._widgets())
+        assert statements, "no shipped dashboard widgets were checked"
+
+        # What the request that runs a dashboard's tiles would have established:
+        # this reader, in this guild, under the query role.
+        context = {
+            "user_id": actor.user.id,
+            "guild_id": actor.guild.id,
+            "guild_role": "admin",
+        }
+
+        async def answers() -> dict[str, Any]:
+            out = {}
+            for public_id, widget, sql in statements:
+                where = f"{public_id}/{widget['id']}"
+                try:
+                    result = await query_service.run(sql, context=context)
+                except query_service.QueryError as refused:
+                    raise AssertionError(f"{where}: {refused}") from refused
+                out[where] = [list(row) for row in result.rows]
+            return out
+
+        before = await answers()
+
+        # Three kinds of row that must not reach a dashboard. The trash is the
+        # database's rule; the other two are the statements' own.
+        binned = await create_task(session, live, title="binned")
+        binned.deleted_at = datetime.now(timezone.utc)
+        archived = await create_task(session, live, title="archived")
+        archived.archived_at = datetime.now(timezone.utc)
+        template = await create_project(
+            session, actor.initiative, actor.user, is_template=True
+        )
+        await create_task(session, template, title="in a template")
+        session.add_all([binned, archived])
+        await session.commit()
+
+        after = await answers()
+
+        differing = {
+            where: (before[where], rows)
+            for where, rows in after.items()
+            if before[where] != rows
+        }
+        assert not differing, (
+            f"these statements counted work that is not live: {differing}"
+        )
