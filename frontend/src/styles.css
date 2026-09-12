@@ -570,3 +570,26 @@ html.pride [data-slot="button"].bg-primary:hover {
   width: 6px;
   height: 6px;
 }
+
+/* An indeterminate sliver that crosses its track and repeats — for work
+   happening behind a surface that stays usable, where nothing is waiting on it
+   so it reports rather than blocks. Honours a reduced-motion preference by
+   holding still rather than disappearing: the bar is the only sign the refresh
+   is running. */
+@keyframes indeterminate-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.animate-indeterminate-sweep {
+  animation: indeterminate-sweep 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-indeterminate-sweep {
+    animation: none;
+    width: 100%;
+  }
+}

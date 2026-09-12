@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from operator import attrgetter
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, Any, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from sqlalchemy import and_, func, or_
@@ -128,7 +128,7 @@ TASK_DEFAULT_SORT = [(Task.position, "asc"), (Task.id, "asc")]
 # Attribute sorters for the cross-guild merge. attrgetter is faster than a
 # lambda and avoids per-row closure overhead on large result sets. ``priority``
 # and ``date_group`` need custom handling (enum order / SQL-carried value) and
-# are resolved separately in _sort_global_task_reads.
+# are resolved separately in _sort_global_task_keys.
 _GLOBAL_SORT_ATTRGETTERS = {
     "position": attrgetter("position"),
     "title": attrgetter("title"),
@@ -144,45 +144,70 @@ _GLOBAL_SORT_ATTRGETTERS = {
 _PRIORITY_SORT_ORDER = {p: i for i, p in enumerate(TaskPriority)}
 
 
-def _sort_global_task_reads(
-    items: list[tuple[TaskListRead, int]],
+def _global_ordering_selectables(tz: str | None = None):
+    """The columns the cross-guild ordering pass selects.
+
+    Every sort key the /me task views accept is a plain ``tasks`` column (plus
+    the SQL-computed ``date_group``), so the whole matching set can be ordered
+    from rows this narrow — no relationships, no annotations. Labelled with the
+    sort field names so :func:`_sort_global_task_keys` reads a row by the name
+    the caller sorted on.
+    """
+    return (
+        Task.id.label("id"),
+        _date_group_expression(tz).label("date_group"),
+        Task.position.label("position"),
+        Task.title.label("title"),
+        Task.due_date.label("due_date"),
+        Task.start_date.label("start_date"),
+        Task.created_at.label("created_at"),
+        Task.updated_at.label("updated_at"),
+        Task.priority.label("priority"),
+    )
+
+
+def _sort_global_task_keys(
+    items: list[tuple[int, Any]],
     sort_fields: list | None,
-) -> list[TaskListRead]:
-    """Order the merged cross-guild rows and drop the carried date_group.
+) -> list[tuple[int, Any]]:
+    """Order the merged cross-guild ordering rows.
 
     Cross-schema results can't be ordered by a single SQL query, so this is the
     *only* sort for the /me task views (the per-guild queries deliberately skip
-    ORDER BY). ``items`` are ``(TaskListRead, date_group)`` pairs where the
-    date_group was computed in SQL — the same :func:`_date_group_expression`
-    used by the guild-scoped endpoint, so there is one source of truth.
+    ORDER BY). ``items`` are ``(guild_id, row)`` pairs where ``row`` is a
+    :func:`_global_ordering_selectables` row — the guild id travels alongside
+    because task ids are unique per schema, not across them.
 
     Matches the guild-scoped list's ordering conventions: NULLs sort last
     regardless of direction, and ``id`` ascending breaks ties.
     """
-    reads = [read for read, _ in items]
+    rows = list(items)
     if not sort_fields:
         # Deterministic default when the caller doesn't sort. position is
         # per-guild so it can't truly order across guilds, but the id tiebreaker
         # keeps the merge stable; mirrors the SQL endpoint's position-then-id.
-        reads.sort(key=attrgetter("position", "id"))
-        return reads
-
-    date_groups = {id(read): group for read, group in items}
+        rows.sort(key=lambda pair: (pair[1].position, pair[1].id))
+        return rows
 
     def _getter(field):
         if field == "date_group":
-            return lambda r: date_groups[id(r)]
+            return lambda pair: pair[1].date_group
         if field == "priority":
             # None priority → None so the nulls-last partition applies it in
             # both directions (mirrors apply_sorting()'s nulls_last()).
-            return lambda r: (
-                _PRIORITY_SORT_ORDER.get(r.priority) if r.priority is not None else None
+            return lambda pair: (
+                _PRIORITY_SORT_ORDER.get(pair[1].priority)
+                if pair[1].priority is not None
+                else None
             )
-        return _GLOBAL_SORT_ATTRGETTERS.get(field)
+        base = _GLOBAL_SORT_ATTRGETTERS.get(field)
+        if base is None:
+            return None
+        return lambda pair: base(pair[1])
 
     # Stable radix sort: apply the least-significant key first. ``id`` asc is the
     # final tiebreaker, so it sorts first here.
-    reads.sort(key=attrgetter("id"))
+    rows.sort(key=lambda pair: pair[1].id)
     for sf in reversed(sort_fields):
         getter = _getter(sf.field)
         if getter is None:
@@ -190,11 +215,11 @@ def _sort_global_task_reads(
             # absent from allowed_fields.
             continue
         reverse = sf.dir == SortDir.desc
-        non_null = [r for r in reads if getter(r) is not None]
-        nulls = [r for r in reads if getter(r) is None]
+        non_null = [r for r in rows if getter(r) is not None]
+        nulls = [r for r in rows if getter(r) is None]
         non_null.sort(key=getter, reverse=reverse)
-        reads = non_null + nulls
-    return reads
+        rows = non_null + nulls
+    return rows
 
 
 def _build_task_filter_fields(
@@ -302,25 +327,50 @@ async def _rebalance_if_needed(
     return changed
 
 
-async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
+def _comment_count_expression():
+    """A task's comment count, as a column on the row that carries the task.
+
+    For a read that is bounded by round trips rather than by rows — the
+    cross-guild lists pay per guild they touch — the count travels with the
+    task instead of costing a query of its own. Correlated on ``Task``, so it
+    resolves against whichever ``tasks`` the caller's search_path names.
+    """
+    return (
+        select(func.count(Comment.id))
+        .where(Comment.task_id == Task.id)
+        .correlate(Task)
+        .scalar_subquery()
+        .label("comment_count")
+    )
+
+
+async def _annotate_tasks(
+    session: SessionDep,
+    tasks: list[Task],
+    *,
+    comment_counts: dict[int, int] | None = None,
+) -> None:
     """Annotate tasks with comment counts and checklist progress.
 
     Checklist progress is read from the column the row already carries, so only
-    the comment count needs a query.
+    the comment count needs a query — and ``comment_counts`` skips even that,
+    for a caller that selected the counts alongside the rows
+    (:func:`_comment_count_expression`).
     """
     task_ids = [task.id for task in tasks if task.id is not None]
     if not task_ids:
         return
 
-    ids_tuple = tuple(task_ids)
+    if comment_counts is None:
+        ids_tuple = tuple(task_ids)
 
-    stmt = (
-        select(Comment.task_id, func.count(Comment.id))
-        .where(Comment.task_id.in_(ids_tuple))
-        .group_by(Comment.task_id)
-    )
-    result = await session.exec(stmt)
-    comment_counts: dict[int, int] = {row[0]: row[1] for row in result.all()}
+        stmt = (
+            select(Comment.task_id, func.count(Comment.id))
+            .where(Comment.task_id.in_(ids_tuple))
+            .group_by(Comment.task_id)
+        )
+        result = await session.exec(stmt)
+        comment_counts = {row[0]: row[1] for row in result.all()}
 
     for task in tasks:
         object.__setattr__(task, "comment_count", comment_counts.get(task.id, 0))
@@ -794,10 +844,18 @@ async def _allowed_project_ids(
 
 
 def _global_task_options():
+    """Loaders for the hydration pass of a cross-guild task list.
+
+    project → initiative → guild is a chain of many-to-one links, so it is
+    joined onto the row rather than fetched with a query per level: a
+    ``selectinload`` there cost three extra round trips per guild the page draws
+    from, and this endpoint is bounded by round trips. The collections stay on
+    ``selectinload``, which is what it is for.
+    """
     return (
-        selectinload(Task.project)
-        .selectinload(Project.initiative)
-        .selectinload(Initiative.guild),
+        joinedload(Task.project)
+        .joinedload(Project.initiative)
+        .joinedload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.property_values).selectinload(
@@ -816,44 +874,95 @@ async def _gather_global_task_reads(
     page: int,
     page_size: int,
     sort_fields: list | None = None,
+    tz: str | None = None,
 ) -> tuple[list[TaskListRead], int, int]:
     """Run a per-guild task query across every guild the user belongs to and
     merge into TaskListReads.
 
-    A single SQL query can't order across guild schemas, so ``build_query`` emits
-    ``(Task, date_group)`` rows *without* ORDER BY and the merged set is sorted
-    once, globally, by :func:`_sort_global_task_reads` before pagination.
-    Annotation + conversion happen inside each guild's routed context.
+    Two passes, because a single SQL query can't order across guild schemas and
+    the ordering has to see the whole matching set before anything can be paged:
 
-    ``build_query`` receives the guild id so it can compile the guild-local
-    filter fields (tag/property subqueries resolve against that guild's schema).
+    1. **Order.** Each guild returns :func:`_global_ordering_selectables` rows —
+       the sort keys and the id, nothing else — *without* ORDER BY, and the
+       merged set is sorted once, globally, by :func:`_sort_global_task_keys`
+       and then sliced to the requested page.
+    2. **Hydrate.** Only the ids on that page are loaded with their
+       relationships and annotations, and only from the guilds that actually
+       contribute to it.
+
+    The split is what keeps the cost of this endpoint proportional to the page
+    rather than to everything the filter matches: a reader with hundreds of
+    assigned tasks across half a dozen guilds used to pay the relationship
+    loads, comment counts, tag and property annotation for every one of them to
+    show twenty.
+
+    ``build_query(guild_id, *selectables)`` receives the guild id so it can
+    compile the guild-local filter fields (tag/property subqueries resolve
+    against that guild's schema), and what to select so both passes share one
+    definition of the filtered set.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
 
-    async def _fetch(
-        guild_session: AsyncSession, _guild_id: int
-    ) -> list[tuple[TaskListRead, int]]:
-        rows = list((await guild_session.exec(build_query(_guild_id))).all())
-        tasks = [row[0] for row in rows]
-        await _annotate_tasks(guild_session, tasks)
-        await tags_service.annotate_tags(guild_session, tasks)
-        _annotate_task_properties(tasks)
-        # row[1] is the SQL-computed date_group, carried for the global sort.
-        return [(_task_to_list_read(task), row[1]) for task, row in zip(tasks, rows)]
+    ordering = _global_ordering_selectables(tz)
 
-    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    async def _order_keys(
+        guild_session: AsyncSession, _guild_id: int
+    ) -> list[tuple[int, Any]]:
+        rows = (await guild_session.exec(build_query(_guild_id, *ordering))).all()
+        return [(_guild_id, row) for row in rows]
+
+    keys = await gather_across_guilds(
+        session, current_user.id, target_guilds, _order_keys
+    )
     # Sort across ALL guilds before slicing — the per-guild queries return rows
     # unordered, so this is where global ordering is established.
-    items = _sort_global_task_reads(items, sort_fields)
-    total_count = len(items)
+    keys = _sort_global_task_keys(keys, sort_fields)
+    total_count = len(keys)
     actual_page = clamp_page(page, page_size, total_count)
     # One slicing rule for every page_size, including the windowed
     # page_size<=0 "fetch all" protocol (bounded response, nothing
     # unreachable — the caller walks pages until has_next is false).
-    items = paginate_sequence(items, actual_page, page_size)
-    return items, total_count, actual_page
+    window = paginate_sequence(keys, actual_page, page_size)
+    if not window:
+        return [], total_count, actual_page
+
+    # (guild, task) -> where it sits on the page, so the hydrated rows come back
+    # in the order the global sort established rather than in guild order.
+    placement: dict[tuple[int, int], int] = {}
+    wanted: dict[int, list[int]] = {}
+    for index, (guild_id, row) in enumerate(window):
+        wanted.setdefault(guild_id, []).append(row.id)
+        placement[(guild_id, row.id)] = index
+
+    async def _hydrate(
+        guild_session: AsyncSession, _guild_id: int
+    ) -> list[tuple[int, TaskListRead]]:
+        ids = wanted.get(_guild_id)
+        if not ids:
+            return []
+        statement = (
+            build_query(_guild_id, Task, _comment_count_expression())
+            .where(Task.id.in_(tuple(ids)))
+            .options(*_global_task_options())
+        )
+        rows = list((await guild_session.exec(statement)).unique().all())
+        tasks = [row[0] for row in rows]
+        comment_counts = {row[0].id: row[1] for row in rows}
+        await _annotate_tasks(guild_session, tasks, comment_counts=comment_counts)
+        await tags_service.annotate_tags(guild_session, tasks)
+        _annotate_task_properties(tasks)
+        return [
+            (placement[(_guild_id, task.id)], _task_to_list_read(task))
+            for task in tasks
+        ]
+
+    hydrated = await gather_across_guilds(
+        session, current_user.id, sorted(wanted), _hydrate
+    )
+    hydrated.sort(key=lambda pair: pair[0])
+    return [read for _, read in hydrated], total_count, actual_page
 
 
 async def _list_global_tasks(
@@ -892,16 +1001,17 @@ async def _list_global_tasks(
     if window is not None:
         base_conditions.append(window)
 
-    def _build(guild_id: int):
-        # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
-        # BY is omitted because _sort_global_task_reads orders the merged set.
+    def _build(guild_id: int, *selectables):
+        # One definition of the filtered set, selected two ways: the ordering
+        # pass asks for the sort keys, the hydration pass for the Task itself.
+        # ORDER BY is omitted either way — _sort_global_task_keys orders the
+        # merged set, which no single schema's query can do.
         stmt = (
-            select(Task, _date_group_expression(tz).label("date_group"))
+            select(*selectables)
             .join(TaskAssignee, TaskAssignee.task_id == Task.id)
             .join(Task.project)
             .join(Project.initiative)
             .where(*base_conditions)
-            .options(*_global_task_options())
         )
         return apply_filters(
             stmt,
@@ -923,6 +1033,7 @@ async def _list_global_tasks(
         page=page,
         page_size=page_size,
         sort_fields=sort_fields,
+        tz=tz,
     )
 
 
@@ -952,15 +1063,16 @@ async def _list_global_created_tasks(
     if not include_archived:
         base_conditions.append(Task.archived_at.is_(None))
 
-    def _build(guild_id: int):
-        # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
-        # BY is omitted because _sort_global_task_reads orders the merged set.
+    def _build(guild_id: int, *selectables):
+        # One definition of the filtered set, selected two ways: the ordering
+        # pass asks for the sort keys, the hydration pass for the Task itself.
+        # ORDER BY is omitted either way — _sort_global_task_keys orders the
+        # merged set, which no single schema's query can do.
         stmt = (
-            select(Task, _date_group_expression(tz).label("date_group"))
+            select(*selectables)
             .join(Task.project)
             .join(Project.initiative)
             .where(*base_conditions)
-            .options(*_global_task_options())
         )
         return apply_filters(
             stmt,
@@ -982,6 +1094,7 @@ async def _list_global_created_tasks(
         page=page,
         page_size=page_size,
         sort_fields=sort_fields,
+        tz=tz,
     )
 
 
