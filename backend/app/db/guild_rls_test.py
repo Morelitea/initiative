@@ -386,12 +386,10 @@ _GID_QUERY_TRASH = 990_412
 
 #: What ``query_excludes_trash`` has to say, as Postgres normalises it.
 #:
-#: Pinned whole rather than searched for a substring. The three ways this
-#: policy could be wrong while still mentioning the right words are an inverted
-#: comparison, a different setting name, and a missing ``deleted_at IS NULL``
-#: branch — the first two would hide live rows from the screens that manage the
-#: trash, the third would hide nothing from anybody. Equality catches all three;
-#: "contains app.query" catches none of them.
+#: Pinned whole rather than matched loosely: the policy has to say exactly
+#: this, so the test is an equality against the rendered predicate. Postgres
+#: normalises it the same way for every table, which is what makes that stable
+#: to compare.
 _QUERY_TRASH_QUAL = (
     "((deleted_at IS NULL) OR (current_setting('app.query'::text, true)"
     " IS DISTINCT FROM 'true'::text))"
@@ -403,16 +401,14 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
     """Every soft-delete table carries ``query_excludes_trash`` in a freshly
     provisioned schema — RESTRICTIVE, FOR SELECT, and saying the same thing.
 
-    Over the whole set rather than one table. The rule is that a statement a
-    reader wrote reports on live content, and a table that quietly missed the
-    policy would answer with deleted rows while every other table did not —
-    which is worse than either answer given consistently, and invisible from
-    any one dataset's tests.
+    Asked of the whole set rather than one table, because the rule is that a
+    statement a reader wrote reports on live content — and that is a statement
+    about every dataset, not about the one a test happened to pick.
 
-    What the policy *does* in each direction is proved end to end against real
-    rows in ``query_test.py``: a trashed task is absent from a query, and still
-    present through the endpoint that manages the trash. This is the shape, for
-    every table, so that proof holds for more than the one table it was run on.
+    What the policy does is proved end to end against real rows in
+    ``query_test.py``: a trashed task is absent from a query, and still there
+    through the endpoint that manages the trash. This is the shape, for every
+    table, so that proof holds for more than the one table it was run on.
     """
     schema = guild_schema_name(_GID_QUERY_TRASH)
     try:
@@ -430,15 +426,13 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
 
         missing = sorted(set(SOFT_DELETE_TABLES) - set(found))
         assert not missing, (
-            f"these soft-delete tables would answer a reader's statement with "
-            f"deleted rows: {missing}"
+            f"these soft-delete tables have no query_excludes_trash policy: {missing}"
         )
 
         for tbl in sorted(SOFT_DELETE_TABLES):
             permissive, cmd, qual = found[tbl]
             assert (permissive, cmd) == ("RESTRICTIVE", "SELECT"), (
-                f"{tbl}.query_excludes_trash must be RESTRICTIVE FOR SELECT so it "
-                f"narrows every other policy rather than widening one, got "
+                f"{tbl}.query_excludes_trash must be RESTRICTIVE FOR SELECT, got "
                 f"{permissive} FOR {cmd}."
             )
             assert qual == _QUERY_TRASH_QUAL, (
