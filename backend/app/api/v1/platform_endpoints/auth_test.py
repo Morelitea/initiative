@@ -484,6 +484,54 @@ async def test_sign_in_hashes_a_password_even_for_an_address_nobody_holds(
     assert calls[0] is not None
 
 
+async def test_device_token_hashes_a_password_for_an_address_nobody_holds(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The mobile sign-in endpoint is the same case as the web one.
+
+    It was missed the first time round: the web endpoint was fixed and this one
+    was left short-circuiting, which is the same oracle on a second route.
+    """
+    from app.api.v1.platform_endpoints import auth as auth_module
+
+    calls: list[str | None] = []
+    real_verify = auth_module.verify_password
+
+    def counting_verify(plain: str, hashed: str | None) -> bool:
+        calls.append(hashed)
+        return real_verify(plain, hashed)
+
+    monkeypatch.setattr(auth_module, "verify_password", counting_verify)
+
+    await create_user(session, email="device-exists@example.com")
+
+    refused = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "device-exists@example.com",
+            "password": "wrong_password",
+            "device_name": "a-phone",
+        },
+    )
+    # 400, not 422: a rejected body never reaches the password check and would
+    # make the comparison below vacuous.
+    assert refused.status_code == 400
+    known_account_calls = len(calls)
+
+    calls.clear()
+    await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "device-nobody@example.com",
+            "password": "wrong_password",
+            "device_name": "a-phone",
+        },
+    )
+
+    assert len(calls) == known_account_calls == 1
+    assert calls[0] is not None
+
+
 async def test_sign_in_hashes_a_password_for_an_account_that_has_none(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

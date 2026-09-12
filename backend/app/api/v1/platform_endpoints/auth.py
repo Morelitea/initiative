@@ -776,7 +776,14 @@ async def create_device_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    if not user or not verify_password(payload.password, user.hashed_password):
+    # Same constant work as the password sign-in above, for the same reason:
+    # short-circuiting on a missing user returns without hashing, and the
+    # difference between that and a wrong password is measurable from outside.
+    password_hash = (
+        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    )
+    password_matches = verify_password(payload.password, password_hash)
+    if not user or not password_matches:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
