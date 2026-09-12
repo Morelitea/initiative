@@ -25,7 +25,9 @@ import {
   messageLog,
   peerDeviceKeys,
   peerKeyChanges,
+  sessionForDevice,
   sessionOrigin,
+  sessionPickle,
   sessionsInConversation,
 } from "./store";
 
@@ -469,5 +471,40 @@ describe("the list of changes waiting to be seen", () => {
     await peerKeyChanges.acknowledge("a");
 
     expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["b"]);
+  });
+});
+
+describe("the session filed against a device", () => {
+  it("stops being chosen once it is forgotten", async () => {
+    // A session is filed by device id, and a device id outlives the key it was
+    // opened against. When the key changes the session in hand can no longer
+    // be read by the far end, so it must not be the one the next send picks.
+    await sessionForDevice.set("their-phone", "session-1");
+    expect(await sessionForDevice.get("their-phone")).toBe("session-1");
+
+    await sessionForDevice.forget("their-phone");
+
+    expect(await sessionForDevice.get("their-phone")).toBeUndefined();
+  });
+
+  it("leaves other devices alone", async () => {
+    await sessionForDevice.set("their-phone", "session-1");
+    await sessionForDevice.set("their-laptop", "session-2");
+
+    await sessionForDevice.forget("their-phone");
+
+    expect(await sessionForDevice.get("their-laptop")).toBe("session-2");
+  });
+
+  it("keeps the pickle, which other conversations still file", async () => {
+    // Dropping the pointer is enough to stop the session being chosen. The
+    // pickle is shared, and deleting it would reach into conversations this
+    // change is not about.
+    await sessionPickle.set("session-1", "pickle-bytes");
+    await sessionForDevice.set("their-phone", "session-1");
+
+    await sessionForDevice.forget("their-phone");
+
+    expect(await sessionPickle.get("session-1")).toBe("pickle-bytes");
   });
 });

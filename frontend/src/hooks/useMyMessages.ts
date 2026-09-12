@@ -111,6 +111,11 @@ export function useSendMessage(conversationId: string, otherUserId: number) {
         queryKey: messageKeys.thread(conversationId),
       });
     },
+    // Settled, not success: reading the directory happens before the send, so
+    // a send that fails afterwards can still have found something to say.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+    },
   });
 }
 
@@ -126,6 +131,7 @@ export function useMessageActions(conversationId: string, otherUserId: number) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
   };
 
   const react = useMutation({
@@ -189,6 +195,9 @@ export function useCollectMessages(enabled: boolean) {
       // just signed in elsewhere is not doing.
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyRequest });
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
+      // Same reason: a directory read during this collection can record a key
+      // change locally, and nothing else asks that query again.
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
         void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });

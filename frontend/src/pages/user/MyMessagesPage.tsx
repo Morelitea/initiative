@@ -228,7 +228,7 @@ export function MyMessagesPage() {
       <HistoryRequestPanel />
 
       {/* The other side of the same comparison, on the device that asked. */}
-      <PeerKeyChangeNotice />
+      <PeerKeyChangeNotice nameOf={nameOf} />
       <HistoryAskNotice />
 
       {/* Who there is to talk to lives in the sidebar, which drills into this

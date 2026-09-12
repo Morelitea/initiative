@@ -8,18 +8,21 @@ import { useAcknowledgePeerKeyChange, usePeerKeyChanges } from "@/hooks/useMyMes
 /**
  * A conversation partner's device key changed under a thread already in use.
  *
- * The directory is the server's, so the honest thing to say is that this
- * browser cannot tell which of two things happened: they replaced a device, or
- * somebody with the database enrolled one. The wording says both, in that
- * order, because the first is far more common and a notice that only names the
- * attack gets read as an error.
+ * This browser cannot tell on its own why the key changed, so the wording does
+ * not pretend to: it leads with the ordinary reason, a replaced or reinstalled
+ * device, and says the comparison is what settles it.
  *
  * The new code is drawn so it can be compared out of band -- the same
  * comparison the history panels ask for, reused here because it is the same
  * question. Dismissing records that the interruption was read, which is not
  * the same as approving; the key was already in use by the time this appeared.
  */
-export const PeerKeyChangeNotice = () => {
+export const PeerKeyChangeNotice = ({
+  nameOf,
+}: {
+  /** What to call the person a change belongs to, resolved by the page. */
+  nameOf: (userId: number) => string;
+}) => {
   const { t } = useTranslation("messages");
   const changes = usePeerKeyChanges();
   const acknowledge = useAcknowledgePeerKeyChange();
@@ -39,7 +42,9 @@ export const PeerKeyChangeNotice = () => {
         <div className="space-y-3">
           <div className="space-y-1">
             <h2 className="font-medium text-sm">{t("peerKeyChange.title")}</h2>
-            <p className="max-w-prose text-muted-foreground text-sm">{t("peerKeyChange.body")}</p>
+            <p className="max-w-prose text-muted-foreground text-sm">
+              {t("peerKeyChange.body", { name: nameOf(change.userId) })}
+            </p>
           </div>
           <SafetyCode fingerprint={change.now} />
           <Button

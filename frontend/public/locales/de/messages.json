@@ -104,7 +104,7 @@
   },
   "peerKeyChange": {
     "title": "In dieser Unterhaltung hat sich ein Geräteschlüssel geändert",
-    "body": "Eine Person, der du schreibst, verwendet jetzt einen anderen Schlüssel auf einem Gerät, an das du bereits geschrieben hast. Meist bedeutet das, dass sie ein Gerät ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät registriert hat. Vergleiche diese Bilder mit ihr auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
+    "body": "{{name}} verwendet jetzt einen anderen Schlüssel auf einem Gerät, an das du bereits geschrieben hast. Meist bedeutet das, dass die Person ein Gerät ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät registriert hat. Vergleiche diese Bilder mit ihr auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
     "acknowledge": "Ich habe das geprüft"
   },
   "safetyEmoji": {

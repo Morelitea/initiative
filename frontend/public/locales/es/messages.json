@@ -104,7 +104,7 @@
   },
   "peerKeyChange": {
     "title": "Ha cambiado la clave de un dispositivo en esta conversación",
-    "body": "Alguien a quien escribes usa ahora una clave distinta en un dispositivo al que ya habías escrito. Normalmente significa que ha sustituido o reinstalado un dispositivo. También puede significar que otra persona ha registrado un dispositivo en su nombre. Comprueba estas imágenes con esa persona por un medio distinto a este antes de enviar nada privado.",
+    "body": "{{name}} usa ahora una clave distinta en un dispositivo al que ya habías escrito. Normalmente significa que ha sustituido o reinstalado un dispositivo. También puede significar que otra persona ha registrado un dispositivo en su nombre. Comprueba estas imágenes con esa persona por un medio distinto a este antes de enviar nada privado.",
     "acknowledge": "Lo he comprobado"
   },
   "safetyEmoji": {

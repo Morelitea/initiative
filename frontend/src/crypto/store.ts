@@ -617,23 +617,17 @@ export const approvedDevices = {
 /**
  * The device keys this browser has seen for each conversation partner.
  *
- * The server operates the device directory. The ratchet is sound and the
- * platform never holds the pickle key, so the directory is where an operator
- * with the database can still get in: enroll a device for someone, publish its
- * key, and every message sent from here is addressed to it as well. Nothing on
- * either side looks different.
+ * The directory is served by the platform, so a key it returns is worth
+ * remembering rather than simply trusting each time.
  *
- * What makes it visible is memory. A key seen for the first time is
- * trust-on-first-use and says nothing -- warning on it would be a warning on
- * every new conversation, which is how a warning gets dismissed without being
- * read. A key that REPLACES one already used is the event worth interrupting
- * for, because from here it is indistinguishable from an attack even when it
- * is a new phone.
+ * A key seen for the first time says nothing: that is trust-on-first-use, and
+ * warning on it would warn on every new conversation, which is how a warning
+ * gets dismissed without being read. A key that REPLACES one already used is
+ * the event worth interrupting for -- most often a partner's new or
+ * reinstalled device, which is the thing a person can confirm for themselves.
  *
- * Per partner, keyed by their device id. Device ids are the server's too, so a
- * new id is a new device, not a changed one -- that case is a first sighting
- * and stays silent, by design. The attack this catches is the directory
- * answering with a different key for a device already spoken to.
+ * Per partner, keyed by their device id. A new device id is a new device, not
+ * a changed one, so it is a first sighting and stays silent.
  */
 export interface PeerKeyChange {
   userId: number;
@@ -675,9 +669,9 @@ export const peerDeviceKeys = {
         }
         next[deviceId] = fingerprint;
       }
-      // Devices that stopped being listed are left in place. A directory that
-      // omits a device it later restores with a different key is the same
-      // attack with an extra step, and forgetting would let it through.
+      // Devices that stopped being listed are left in place, so a device that
+      // disappears and comes back with a different key is still a change
+      // rather than a first sighting.
       return next;
     });
     return changes;
@@ -690,9 +684,8 @@ export const peerDeviceKeys = {
 /**
  * Changes waiting to be shown to the person using this browser.
  *
- * Held rather than raised inline: the send path is not a place that can put
- * something on screen, and a change found while sending must survive until it
- * has been seen.
+ * Held rather than raised inline: the send path cannot put something on
+ * screen, and a change found while sending has to survive until it has been.
  */
 export const peerKeyChanges = {
   all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
@@ -793,6 +786,20 @@ export const historyAsk = {
 export const sessionForDevice = {
   get: (deviceId: string) => read<string>("device-session:" + deviceId),
   set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+  /**
+   * Stop using the session filed against a device.
+   *
+   * Sessions are filed by device id, and a device id outlives the key it was
+   * opened against. When the directory returns a different key for a device
+   * this browser has already spoken to, the session in hand was negotiated
+   * with the previous one and the far end can no longer read anything sent
+   * through it — so the next send has to start a new one.
+   *
+   * The pickle itself is left where it is. Other conversations file the same
+   * session id, and deleting it out from under them is a wider change than
+   * this needs; dropping the pointer is enough to stop it being chosen.
+   */
+  forget: (deviceId: string) => write("device-session:" + deviceId, undefined),
 };
 
 /**

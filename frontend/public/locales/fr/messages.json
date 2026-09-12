@@ -104,7 +104,7 @@
   },
   "peerKeyChange": {
     "title": "La clé d'un appareil a changé dans cette conversation",
-    "body": "Une personne à qui vous écrivez utilise désormais une clé différente sur un appareil auquel vous aviez déjà écrit. Le plus souvent, cela signifie qu'elle a remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a enregistré un appareil en son nom. Vérifiez ces images avec elle par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
+    "body": "{{name}} utilise désormais une clé différente sur un appareil auquel vous aviez déjà écrit. Le plus souvent, cela signifie que cette personne a remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a enregistré un appareil en son nom. Vérifiez ces images avec elle par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
     "acknowledge": "J'ai vérifié"
   },
   "safetyEmoji": {

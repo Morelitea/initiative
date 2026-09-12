@@ -559,16 +559,13 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
 /**
  * Read the other party's devices, and notice when one's key has changed.
  *
- * Every path that addresses another person goes through the directory, and the
- * directory is the server's. Comparing what it returns against what this
- * browser used before is the only place a substituted key becomes visible --
- * the ratchet cannot tell a rogue device from a new phone, because at the
- * protocol level they are the same thing.
+ * Every path that addresses another person reads the directory, so this is
+ * where a key that differs from the one last used is noticed.
  *
  * The change is recorded rather than thrown. A send that found one still has
- * to complete: refusing would mean an operator could silence a conversation by
- * publishing a key, and a person whose partner really did get a new phone
- * would be unable to write to them until they understood why.
+ * to complete: stopping it would mean a conversation could be silenced from
+ * outside, and a person whose partner genuinely did get a new phone would be
+ * unable to write to them until they worked out why.
  */
 async function readPeerDirectory(otherUserId: number) {
   const theirs = await readDirectory(otherUserId);
@@ -579,7 +576,14 @@ async function readPeerDirectory(otherUserId: number) {
       fingerprint: device.fingerprint_key,
     }))
   );
-  await peerKeyChanges.add(changes);
+  if (changes.length > 0) {
+    // The session in hand was negotiated with the key that has just been
+    // replaced, so the far end cannot read anything sent through it. Drop the
+    // pointer and the next send opens a fresh one against the key the
+    // directory now returns.
+    await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
+    await peerKeyChanges.add(changes);
+  }
   return theirs;
 }
 
@@ -1042,10 +1046,9 @@ export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
  *
  * The new key was already remembered when it was noticed -- it had to be, or
  * the next send would report it again -- so this only takes the notice down.
- * Which means acknowledging is not approving: it is saying the interruption
- * has been read. Refusing the new key is a different action, and it is not
- * this one: it would mean not writing to that person until they can be asked
- * out of band, and nothing here can hold a conversation open in that state.
+ * Acknowledging is therefore not approving; it says the interruption has been
+ * read. Declining to use the new key would be a different action and is not
+ * offered here.
  */
 export async function acknowledgePeerKeyChange(deviceId: string): Promise<void> {
   await peerKeyChanges.acknowledge(deviceId);
