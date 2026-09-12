@@ -105,18 +105,13 @@ def _trash_read_policy(table: str) -> list[str]:
     ]
 
 
-# Reader-written SQL never sees the trash, whoever is asking.
+# Reader-written SQL reports on live content only.
 #
-# The two legs above are for managing the trash — the admin's screen and a
-# reader's own /me/trash — and neither is a reason for a deleted task to turn up
-# in a dashboard's figures. Left alone, an admin's board counts rows they had
-# already thrown away, and counts them differently from what a member sees on
-# the same board, which makes the number mean nothing.
-#
-# RESTRICTIVE and keyed on the query flag rather than the role, so it ANDs with
-# everything above and applies exactly where a statement somebody wrote is
-# running: `describe` and `run`, one pool, one flag. This is the whole of the
-# rule — there is no way to opt a statement back in, which is the point.
+# The trash is a place to recover from, and recovering from it is what the
+# trash screen is for. A dashboard is a different question: what it counts
+# should be the same for everybody reading it, and a deleted row is not part of
+# that for anyone. RESTRICTIVE and keyed on the query flag, so it applies to the
+# statements a reader writes and to nothing else.
 _QUERY_TRASH_PREDICATE = (
     "deleted_at IS NULL"
     " OR current_setting('app.query'::text, true) IS DISTINCT FROM 'true'::text"
@@ -124,7 +119,7 @@ _QUERY_TRASH_PREDICATE = (
 
 
 def _query_trash_policy(table: str) -> list[str]:
-    """Hide a trashed row from the query surface, with no exemption."""
+    """Keep a trashed row out of what a reader's own statement returns."""
     return [
         f"DROP POLICY IF EXISTS query_excludes_trash ON {table};",
         f"CREATE POLICY query_excludes_trash ON {table} AS RESTRICTIVE FOR SELECT",

@@ -620,11 +620,9 @@ class TestAskingAboutTheReader:
 async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session):
     """The trash is a place to recover from, not rows to report on.
 
-    The admin is the interesting asker: the policy that hides a trashed row
-    from everyone else lets *them* through, because they manage the trash. That
-    exemption is for the trash screen and has no business in a dashboard —
-    left alone it would give an admin's board a different number from the one
-    every other member sees on the same board.
+    Asked as the guild admin, who manages the trash and reaches it where it is
+    managed. A dashboard is not where it is managed: what a board counts should
+    be the same figure for everybody reading it, whoever asks.
     """
     from datetime import datetime, timezone
 
@@ -664,7 +662,7 @@ async def test_the_trash_is_still_reachable_where_it_is_managed(
 ):
     """The rule is the query surface's, not a new rule about the trash.
 
-    Worth pinning beside the test above: the same admin, the same trashed row,
+    Worth pinning beside the test above: the same reader, the same trashed row,
     asked for through the endpoint whose job is the trash — and it is there.
     """
     from datetime import datetime, timezone
@@ -694,12 +692,21 @@ class TestEveryShippedDashboardReportsOnLiveWork:
     grouping and a list would each need their own assertion about which row is
     missing; "adding these rows changed nothing" is the property itself, and it
     holds whatever the statement returns.
+
+    Run through the service rather than the endpoint. There are a few dozen
+    statements and each is asked twice, and a test that spends a hundred
+    requests to make one point is a slow test that also shares a rate limit
+    with everything around it. The endpoint adds nothing here: the same
+    executor, under the context the request would have established, is what
+    decides the rows.
     """
 
     async def test_none_of_them_counts_work_that_is_not_live(
         self, client, acting_user, session
     ):
         from datetime import datetime, timezone
+
+        from app.services import query as query_service
 
         actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
         live = await create_project(session, actor.initiative, actor.user)
@@ -708,15 +715,23 @@ class TestEveryShippedDashboardReportsOnLiveWork:
         statements = list(TestEveryShippedDashboardDrawsItsShape._widgets())
         assert statements, "no shipped dashboard widgets were checked"
 
+        # What the request that runs a dashboard's tiles would have established:
+        # this reader, in this guild, under the query role.
+        context = {
+            "user_id": actor.user.id,
+            "guild_id": actor.guild.id,
+            "guild_role": "admin",
+        }
+
         async def answers() -> dict[str, Any]:
             out = {}
             for public_id, widget, sql in statements:
-                response = await client.post(
-                    actor.g("/query"), json={"sql": sql}, headers=actor.headers
-                )
                 where = f"{public_id}/{widget['id']}"
-                assert response.status_code == 200, f"{where}: {response.json()}"
-                out[where] = response.json()["rows"]
+                try:
+                    result = await query_service.run(sql, context=context)
+                except query_service.QueryError as refused:
+                    raise AssertionError(f"{where}: {refused}") from refused
+                out[where] = [list(row) for row in result.rows]
             return out
 
         before = await answers()

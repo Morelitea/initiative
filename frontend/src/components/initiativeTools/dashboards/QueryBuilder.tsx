@@ -102,22 +102,22 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
    * A new statement starts without archived work or templates.
    *
    * Seeded here rather than written into the starting spec because the answer
-   * belongs to the dataset and arrives with its catalog — and a dataset the
-   * author switches to has its own, which is why this runs per dataset rather
-   * than once.
+   * belongs to the dataset and arrives with its catalog. Choosing a different
+   * dataset clears the filters — nothing chosen against the old one survives —
+   * so the new one seeds its own, and coming back to a dataset seeds it again.
    *
-   * They are seeded as ordinary conditions, so they show up in the filter list
-   * below and are deleted like any other: leaving out archived work is a
-   * sensible default, not a rule, and a report *on* what was archived is a
-   * fair question. What that costs is that deleting every last filter and
-   * coming back to the dataset later seeds them again — remembering an emptied
-   * list across reopens is more machinery than the case is worth.
+   * What is remembered is the dataset last seeded, which is what separates
+   * that from an author deleting the conditions: the filters are ordinary
+   * rows, and removing them is how somebody asks about archived work. Deleting
+   * them leaves the dataset unchanged, so nothing puts them back.
    */
-  const seeded = useRef(new Set<string>());
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
+    // Empty while the catalog is on its way, and for a dataset that has
+    // neither lifecycle. Neither is a dataset we have seeded.
     if (!defaultFilters.length) return;
-    if (seeded.current.has(spec.dataset)) return;
-    seeded.current.add(spec.dataset);
+    if (seededFor.current === spec.dataset) return;
+    seededFor.current = spec.dataset;
     if (spec.where?.length) return;
     onChange({ ...spec, where: defaultFilters.map((condition) => ({ ...condition })) });
   }, [defaultFilters, spec, onChange]);
