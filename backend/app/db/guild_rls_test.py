@@ -380,3 +380,54 @@ def test_every_declared_hop_walks_a_real_column_to_a_real_table():
                 )
 
     assert problems == [], problems
+
+
+_GID_QUERY_TRASH = 990_412
+
+
+async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engine):
+    """Every soft-delete table carries ``query_excludes_trash`` in a freshly
+    provisioned schema — RESTRICTIVE, FOR SELECT.
+
+    Over the whole set rather than one table. The rule is that a statement a
+    reader wrote reports on live content, and a table that quietly missed the
+    policy would answer with deleted rows while every other table did not —
+    which is worse than either answer given consistently, and invisible from
+    any one dataset's tests.
+    """
+    schema = guild_schema_name(_GID_QUERY_TRASH)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_QUERY_TRASH)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, permissive, cmd, qual FROM pg_policies "
+                    "WHERE schemaname = :s AND policyname = 'query_excludes_trash'"
+                ),
+                {"s": schema},
+            )
+            found = {tbl: (perm, cmd, qual) for tbl, perm, cmd, qual in rows}
+
+        missing = sorted(set(SOFT_DELETE_TABLES) - set(found))
+        assert not missing, (
+            f"these soft-delete tables would answer a reader's statement with "
+            f"deleted rows: {missing}"
+        )
+
+        for tbl in sorted(SOFT_DELETE_TABLES):
+            permissive, cmd, qual = found[tbl]
+            assert (permissive, cmd) == ("RESTRICTIVE", "SELECT"), (
+                f"{tbl}.query_excludes_trash must be RESTRICTIVE FOR SELECT so it "
+                f"narrows every other policy rather than widening one, got "
+                f"{permissive} FOR {cmd}."
+            )
+            # It has to read the flag: a policy that only checked deleted_at
+            # would take the trash away from the screens that manage it.
+            assert "app.query" in qual, (
+                f"{tbl}.query_excludes_trash must apply to reader-written SQL "
+                f"only, got: {qual}"
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_QUERY_TRASH)
