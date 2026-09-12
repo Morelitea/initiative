@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **My Tasks stops going dark every time you tick something off** — checking a task off, or moving it to another status, put a translucent "Updating" panel over the whole table and disabled every row in it until three cross-guild requests had come back. The change now shows on the row the moment you make it, and everything else on the page stays live: you can carry on sorting, paging and checking things off while the list catches up behind a thin progress line. Only the row actually saving is held, so it can't be submitted twice, and if the save fails the row goes back to what it was and says so.
+- **My Tasks loads faster** — the page used to fetch every task assigned to you, in every community you belong to, complete with its status, people, tags and properties, and then show twenty of them. It now works out the order first and loads only the rows on the page you asked for, from only the communities that have one, so the work no longer grows with the size of your task list. Your saved filters and sort are also fetched as soon as you sign in rather than when the page opens, which took a round trip out of the wait before the first row could appear.
+
+### Fixed
+
+- **A task opened on a phone is one column again** — the task page put its form and its checklist side by side on any narrow screen, giving each half as little as 152px on a phone and around 280px on a small tablet: a form squeezed into a third of a column nobody would choose to fill in. The two halves now sit one above the other until there is genuinely room for both at full width, which is what they already did between 640px and 824px. Wider windows are unchanged.
+- **A task's title is sized like a title, not a banner** — the heading on the task page was set three steps larger than the page's own headings, so a task with a name of any length took two or three lines before anything about it was visible. It now sits at a size that leaves the task's details on the first screen.
+
 ## [0.68.2] - 2026-09-11
 
 ### Added
