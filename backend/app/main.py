@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
@@ -488,6 +489,21 @@ app.add_middleware(SecurityHeadersMiddleware)
 # oversized (or chunked, length-less) request is refused before its body is
 # buffered, not after FastAPI has already parsed it.
 app.add_middleware(BodySizeLimitMiddleware)
+
+# A second layer under SameSite=Lax for cookie-authenticated writes.
+#
+# Added BEFORE CORSMiddleware. Starlette applies middleware in reverse order of
+# addition, so CORS ends up OUTERMOST and runs first -- which is what we want:
+# a preflight is answered by CORS and never reaches this, so a refusal here can
+# never masquerade as a failed preflight.
+#
+# A refusal carries no Access-Control-Allow-Origin, because by construction it
+# only happens when the Origin is absent or not on the allowlist, and CORS
+# echoes neither. The calling page therefore sees a CORS error rather than the
+# 403 body. That is the right outcome -- a cross-site page should not be able
+# to read our responses -- and it means the JSON body below is for logs and for
+# same-origin clients, not for the attacker's page.
+app.add_middleware(CsrfOriginMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

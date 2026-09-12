@@ -75,6 +75,7 @@ Either way the session is routed through that guild's own roles and PAM context 
 ### Authentication and secrets
 
 - **HttpOnly `SameSite=Lax` cookie sessions** rather than `localStorage`, so the session isn't readable by scripts in the page. Native (Capacitor) apps store device tokens in secure platform storage.
+- **A second layer under `SameSite` for cookie-authenticated writes.** An unsafe method authenticated by the session cookie must also arrive from an origin this deployment serves — `Sec-Fetch-Site: same-origin`, or an `Origin` on the CORS allowlist. A cross-site form cannot produce either, and it cannot suppress the real one. This matters because a cross-site `multipart/form-data` POST is a *simple* request: no preflight, so CORS never sees it, and this API has multipart routes that write. Callers using an `Authorization` header — bearer tokens, API keys, device tokens — are unaffected, because a browser does not attach that header cross-site.
 - **Passwords** are a minimum of 12 characters and are never stored in recoverable form.
 - **OpenID Connect (OIDC) SSO** with PKCE, and optional claim-to-role mapping for guild and initiative membership.
 - **Encryption at rest** for sensitive fields (AI provider keys, OIDC secrets, SMTP passwords, email addresses) using Fernet (AES-128-CBC) with a key derived from `SECRET_KEY`, with support for key rotation.
