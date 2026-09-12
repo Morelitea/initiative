@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
@@ -514,6 +515,15 @@ app.add_middleware(SecurityHeadersMiddleware)
 # oversized (or chunked, length-less) request is refused before its body is
 # buffered, not after FastAPI has already parsed it.
 app.add_middleware(BodySizeLimitMiddleware)
+
+# Origin checking for cookie-authenticated writes; see app/core/csrf.py.
+#
+# Added BEFORE CORSMiddleware. Starlette applies middleware in reverse order of
+# addition, so CORS ends up outermost and answers a preflight before this runs.
+# A refusal from here carries no Access-Control-Allow-Origin, so a caller whose
+# origin is not on the allowlist reads it as a CORS error rather than as the
+# 403 body -- which is why the body is a code for logs and same-origin clients.
+app.add_middleware(CsrfOriginMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
