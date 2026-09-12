@@ -208,7 +208,7 @@ async def test_previous_hmac_secret_is_accepted_during_rotation(
     response = await _post(
         client,
         "guild-tier",
-        _tier_payload(guild.id, storage_cap_bytes=4096),
+        await _tier_payload(guild.id, storage_cap_bytes=4096),
         secret=_PREVIOUS_HMAC_SECRET,
     )
     assert response.status_code == 200
