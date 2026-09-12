@@ -3,8 +3,8 @@
 A nudge that a guild's membership changed. What the service does with it is
 its own business; this side only sends it.
 
-* the payload is the guild id and a fresh event id, and nothing else — no
-  member data, no PII, no count;
+* the payload is the guild's reference and a fresh event id, and nothing
+  else — no member data, no PII, no count;
 * no retry queue and no delivery guarantee;
 * the join/leave transaction must never fail or slow because the service is
   down: the send runs as a detached task with a tight timeout and swallows
@@ -33,6 +33,7 @@ from uuid import uuid4
 import httpx
 
 from app.core.config import settings
+from app.services.platform.identity_refs import billing_guild_ref
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +53,19 @@ def billing_ping_enabled() -> bool:
     return bool(settings.BILLING_SERVICE_URL and settings.BILLING_HMAC_SECRET)
 
 
-def build_membership_ping(guild_id: int) -> tuple[str, bytes, dict[str, str]]:
+def build_membership_ping(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
     """Assemble (url, body, headers) for one ping. Pure — no I/O.
 
-    The HMAC is bound to the path component billing's verifier will see,
-    so a base URL with a path prefix still signs correctly.
+    The guild is named by the reference billing holds for it, which is the only
+    name for it the two share. The HMAC is bound to the path component
+    billing's verifier will see, so a base URL with a path prefix still signs
+    correctly.
     """
     base = settings.BILLING_SERVICE_URL.rstrip("/")
     url = base + MEMBERSHIP_PING_PATH
     path = urlsplit(url).path
     body = json.dumps(
-        {"guild_id": int(guild_id), "event_id": uuid4().hex},
+        {"guild_ref": guild_ref, "event_id": uuid4().hex},
         separators=(",", ":"),
     ).encode()
     ts = str(int(time.time()))
@@ -82,7 +85,8 @@ async def _send_membership_ping(guild_id: int) -> None:
     """One attempt, no retry; never raises (task exceptions would only spam
     the loop's never-retrieved handler)."""
     try:
-        url, body, headers = build_membership_ping(guild_id)
+        guild_ref = await billing_guild_ref(guild_id=guild_id)
+        url, body, headers = build_membership_ping(guild_ref)
         async with httpx.AsyncClient(timeout=_PING_TIMEOUT) as client:
             await client.post(url, content=body, headers=headers)
     except Exception:

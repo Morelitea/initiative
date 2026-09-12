@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import {
+  archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost,
+  unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost,
+} from "@/api/generated/archive/archive";
 import type {
   InitiativeGroupedCountsResponse,
   ListMyProjectsApiV1MeProjectsGetParams,
@@ -15,12 +19,10 @@ import type {
   TaskStatusReorderRequest,
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
-  archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
-  attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost,
   createProjectApiV1GGuildIdProjectsPost,
   deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
-  detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete,
   duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
   favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
@@ -39,7 +41,6 @@ import {
   readProjectApiV1GGuildIdProjectsProjectIdGet,
   reorderProjectsApiV1GGuildIdProjectsReorderPost,
   setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut,
-  unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost,
   unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1GGuildIdProjectsProjectIdPatch,
 } from "@/api/generated/projects/projects";
@@ -52,6 +53,7 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
+import { relate, unrelate } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -258,7 +260,11 @@ export const useArchiveProject = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, projectId) => {
-        await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
+        await archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(
+          guildId,
+          "project",
+          projectId
+        );
       },
       invalidate: () => invalidate(q.allProjects()),
     },
@@ -269,7 +275,11 @@ export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, projectId) => {
-        await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
+        await unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost(
+          guildId,
+          "project",
+          projectId
+        );
       },
       invalidate: () => invalidate(q.allProjects()),
     },
@@ -464,10 +474,10 @@ export const useAttachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+        await relate(
           guildId,
-          projectId,
-          documentId
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
         );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),
@@ -480,10 +490,10 @@ export const useDetachProjectDocument = (projectId: number, options?: MutationOp
   useGuildMutation<void, number>(
     {
       mutationFn: async (guildId, documentId) => {
-        await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
+        await unrelate(
           guildId,
-          projectId,
-          documentId
+          { type: SearchEntityType.project, id: projectId },
+          { type: SearchEntityType.document, id: documentId }
         );
       },
       invalidate: () => invalidateProjectAndDocuments(projectId),

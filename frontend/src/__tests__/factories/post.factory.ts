@@ -79,6 +79,8 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     // it is the state most cases are about.
     is_read: false,
     read_count: 0,
+    archived_at: null,
+    can_unarchive: false,
     my_permission_level: "owner",
     comments_enabled: true,
     reactions_enabled: true,

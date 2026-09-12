@@ -5,10 +5,12 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
@@ -54,7 +56,7 @@ class GalleryCover(SanitizedBaseModel):
     height: Optional[int] = None
 
 
-class GallerySummary(GalleryBase):
+class GallerySummary(GalleryBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -197,7 +199,7 @@ def serialize_gallery_summary(
     gallery: "Gallery", *, user_id: Optional[int] = None
 ) -> GallerySummary:
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import compute_gallery_permission, serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return GallerySummary(
         id=gallery.id,
@@ -220,14 +222,11 @@ def serialize_gallery_summary(
             )
             if cover is not None
         ],
-        my_permission_level=(
-            compute_gallery_permission(gallery, user_id)
-            if user_id is not None
-            else None
-        ),
+        archived_at=gallery.archived_at,
+        **client_access(Tool.gallery, gallery, user_id),
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
-        tags=tag_summaries(getattr(gallery, "tag_links", None)),
+        tags=annotated_tags(gallery),
         grants=serialize_grants(gallery),
     )
 
@@ -263,7 +262,7 @@ def serialize_gallery_image(image: "GalleryImage") -> GalleryImageRead:
         created_at=image.created_at,
         updated_at=image.updated_at,
         version_count=int(getattr(image, "version_count", 1)),
-        tags=tag_summaries(getattr(image, "tag_links", None)),
+        tags=annotated_tags(image),
     )
 
 

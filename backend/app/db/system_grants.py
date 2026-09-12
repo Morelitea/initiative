@@ -82,6 +82,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # invite redemption reads/creates/updates; row removal rides the FK cascade
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Minted on first use, replaced by a re-issue, swept once the replaced
+    # value stops resolving, and removed when the entity is erased.
+    "identity_refs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # singleton config: seeded + updated, never deleted
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
     # Marketplace catalog: the system engine is the only writer — boot seeding of
@@ -245,6 +248,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # Written and read on the system engine only — the request path never
     # touches the log, in either direction.
     "audit_events": None,
+    # Minted and resolved on the system engine, behind the surfaces that
+    # hand a reference to an outside party; the request path never reads
+    # the mapping in either direction.
+    "identity_refs": None,
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,

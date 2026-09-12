@@ -84,11 +84,11 @@ class TestSummary:
     def test_a_summary_carries_ids_and_state_only(self):
         """What an app reconciles against. Anything about the guild's people
         would be a second channel's answer arriving on this one."""
-        summary = _summarize(_app())
+        summary = _summarize(_app(), "gapp_testguild2")
 
         assert set(summary) == {
             "install_id",
-            "guild_id",
+            "guild_ref",
             "listing_uid",
             "listing_version",
             "name",

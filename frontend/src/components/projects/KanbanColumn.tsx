@@ -354,7 +354,7 @@ const KanbanCardContent = memo(
             {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
             {recurrenceText ? <p>{recurrenceText}</p> : null}
           </div>
-          <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
+          <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
         </button>
         <div className="flex min-w-0 flex-wrap gap-2">
           <Badge variant={priorityVariant[task.priority]}>
@@ -432,7 +432,7 @@ const KanbanTaskCardSortable = memo(
         {...listeners}
         className={cn(
           "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-          task.is_archived && "opacity-50"
+          task.archived_at !== null && "opacity-50"
         )}
         data-kanban-scroll-lock="true"
       >
@@ -465,7 +465,7 @@ const KanbanTaskCardPlain = memo(
         data-index={dataIndex}
         className={cn(
           "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-          task.is_archived && "opacity-50"
+          task.archived_at !== null && "opacity-50"
         )}
         data-kanban-scroll-lock="true"
       >
@@ -518,7 +518,7 @@ const KanbanTaskCard = ({
       {...listeners}
       className={cn(
         "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
-        task.is_archived && "opacity-50"
+        task.archived_at !== null && "opacity-50"
       )}
       data-kanban-scroll-lock="true"
     >

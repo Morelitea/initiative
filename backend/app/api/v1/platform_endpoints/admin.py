@@ -48,6 +48,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -352,9 +353,9 @@ async def list_audit_events(
     # The rows hold ids, so a name is looked up now rather than stored then.
     # An account that has since been erased simply resolves to nothing, and the
     # record of what was done to it stays intact.
-    wanted = {event.actor_user_id for event in events} | {
-        event.target_user_id for event in events if event.target_user_id is not None
-    }
+    wanted = {
+        event.actor_user_id for event in events if event.actor_user_id is not None
+    } | {event.target_user_id for event in events if event.target_user_id is not None}
     handles: dict[int, User] = {}
     if wanted:
         rows = await session.exec(select(User).where(User.id.in_(wanted)))
@@ -898,6 +899,9 @@ async def admin_delete_guild(
     # Mirrors the member-facing DELETE /guilds/{id} endpoint.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    # See delete_guild: these live on another connection, so they go after the
+    # commit that made the deletion real.
+    await app_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:

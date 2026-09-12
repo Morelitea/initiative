@@ -6,6 +6,7 @@ authorized independently and reported ``ok`` / ``forbidden`` / ``not_found``,
 and a bad item never blocks the good ones.
 """
 
+from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -221,7 +222,7 @@ async def test_bulk_skips_archived_project_but_applies_the_rest(
     await create_initiative_member(session, initiative, member, role_name="member")
     live = await create_project(session, initiative, owner)
     archived = await create_project(session, initiative, owner)
-    archived.is_archived = True
+    archived.archived_at = datetime.now(timezone.utc)
     session.add(archived)
     await session.commit()
     headers = get_auth_headers(owner)

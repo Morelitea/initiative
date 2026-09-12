@@ -11,7 +11,6 @@
       "asana": "Projekte und Aufgaben aus einem Asana-CSV-Export importieren"
     }
   },
-
   "common": {
     "stepUpload": "Hochladen",
     "stepConfigure": "Konfigurieren",
@@ -48,8 +47,9 @@
     "tasksFailed_other": "{{count}} Aufgaben konnten nicht importiert werden",
     "tasksCreated_one": "{{count}} Aufgabe erstellt",
     "tasksCreated_other": "{{count}} Aufgaben erstellt",
-    "subtasksCount_one": "{{count}} Teilaufgabe",
-    "subtasksCount_other": "{{count}} Teilaufgaben",
+    "checklistItemsCount_one": "{{count}} Checklisten-Element",
+    "checklistItemsCount_other": "{{count}} Checklisten-Elemente",
+    "includesChecklistItems": "Enthält Checklisten",
     "failedCount_one": "{{count}} fehlgeschlagen",
     "failedCount_other": "{{count}} fehlgeschlagen",
     "noTasksImported": "Es wurden keine Aufgaben importiert",
@@ -57,10 +57,8 @@
     "importFailed": "Import fehlgeschlagen",
     "parseError": "Datei kann nicht analysiert werden",
     "errors": "Fehler:",
-    "includesSubtasks": "Enthält Teilaufgaben",
     "done": "Fertig"
   },
-
   "todoist": {
     "title": "Aus Todoist importieren",
     "description": "Importiere Aufgaben aus einem Todoist-CSV-Export.",
@@ -93,7 +91,6 @@
     "mapSectionsLabel": "Abschnitte den Status zuordnen",
     "mapSectionsDescription": "Wähle aus, welchem Projektstatus jeder Todoist-Abschnitt zugeordnet werden soll."
   },
-
   "ticktick": {
     "title": "Aus TickTick importieren",
     "description": "Importiere Aufgaben aus einem TickTick-CSV-Export.",
@@ -131,7 +128,6 @@
     "mapColumnsLabel": "Spalten den Status zuordnen",
     "mapColumnsDescription": "Wähle aus, welchem Projektstatus jede TickTick-Spalte zugeordnet werden soll."
   },
-
   "vikunja": {
     "title": "Aus Vikunja importieren",
     "description": "Importiere Aufgaben aus einem Vikunja-JSON-Export.",

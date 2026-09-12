@@ -15,13 +15,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.tenant.task import Subtask
+from app.models.tenant.queue import QueueItem
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
-    create_project,
-    create_task,
+    create_queue,
     create_user,
 )
 
@@ -29,15 +28,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.service]
 
 
 async def _workspace(session: AsyncSession):
-    """A guild with a task in it, plus a second member to act as."""
+    """A guild with a queue in it, plus a second member to act as."""
     creator = await create_user(session)
     guild = await create_guild(session, creator=creator)
     initiative = await create_initiative(session, guild=guild, creator=creator)
-    project = await create_project(session, initiative=initiative, owner=creator)
-    task = await create_task(session, project=project)
+    queue = await create_queue(session, initiative=initiative, creator=creator)
     actor = await create_user(session)
     await create_guild_membership(session, user=actor, guild=guild)
-    return guild, task, actor
+    return guild, queue, actor
 
 
 async def _route(session: AsyncSession, guild_id: int, user_id: int | None) -> None:
@@ -47,22 +45,22 @@ async def _route(session: AsyncSession, guild_id: int, user_id: int | None) -> N
     )
 
 
-async def _reload(session: AsyncSession, subtask_id: int) -> Subtask:
+async def _reload(session: AsyncSession, item_id: int) -> QueueItem:
     """Read the row back. The trigger writes to the row, not to the identity
     map, so a freshly flushed object still holds None until it is refreshed."""
     session.expunge_all()
-    return (await session.exec(select(Subtask).where(Subtask.id == subtask_id))).one()
+    return (await session.exec(select(QueueItem).where(QueueItem.id == item_id))).one()
 
 
 async def test_insert_records_the_acting_user(session: AsyncSession):
-    guild, task, actor = await _workspace(session)
+    guild, queue, actor = await _workspace(session)
 
     await _route(session, guild.id, actor.id)
-    subtask = Subtask(task_id=task.id, guild_id=guild.id, content="check the wiring")
-    session.add(subtask)
+    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="check the wiring")
+    session.add(item)
     await session.flush()
 
-    assert (await _reload(session, subtask.id)).created_by == actor.id
+    assert (await _reload(session, item.id)).created_by == actor.id
 
 
 async def test_a_write_that_skips_the_orm_is_stamped_too(session: AsyncSession):
@@ -71,25 +69,23 @@ async def test_a_write_that_skips_the_orm_is_stamped_too(session: AsyncSession):
     A bulk ``insert()`` never reaches the ORM's unit of work, so an app-layer
     hook could not see it. The database does not care how the row arrived.
     """
-    guild, task, actor = await _workspace(session)
+    guild, queue, actor = await _workspace(session)
 
     await _route(session, guild.id, actor.id)
     # A Core insert also skips the Python-side column defaults, so the
-    # timestamps are supplied here; ``created_by`` is the database's job.
-    now = datetime.now(timezone.utc)
+    # timestamp is supplied here; ``created_by`` is the database's job.
     await session.exec(
-        insert(Subtask).values(
-            task_id=task.id,
+        insert(QueueItem).values(
+            queue_id=queue.id,
             guild_id=guild.id,
-            content="written by statement",
-            created_at=now,
-            updated_at=now,
+            label="written by statement",
+            created_at=datetime.now(timezone.utc),
         )
     )
 
     row = (
         await session.exec(
-            select(Subtask).where(Subtask.content == "written by statement")
+            select(QueueItem).where(QueueItem.label == "written by statement")
         )
     ).one()
     assert row.created_by == actor.id
@@ -97,49 +93,49 @@ async def test_a_write_that_skips_the_orm_is_stamped_too(session: AsyncSession):
 
 async def test_an_explicit_author_is_kept(session: AsyncSession):
     """A caller restoring original authorship (backup import) keeps it."""
-    guild, task, actor = await _workspace(session)
+    guild, queue, actor = await _workspace(session)
     original = await create_user(session)
 
     await _route(session, guild.id, actor.id)
-    subtask = Subtask(
-        task_id=task.id,
+    item = QueueItem(
+        queue_id=queue.id,
         guild_id=guild.id,
-        content="imported",
+        label="imported",
         created_by=original.id,
     )
-    session.add(subtask)
+    session.add(item)
     await session.flush()
 
-    assert (await _reload(session, subtask.id)).created_by == original.id
+    assert (await _reload(session, item.id)).created_by == original.id
 
 
 async def test_an_edit_by_someone_else_leaves_the_author(session: AsyncSession):
     """Authorship is a historical fact: the trigger is INSERT-only."""
-    guild, task, author = await _workspace(session)
+    guild, queue, author = await _workspace(session)
     editor = await create_user(session)
     await create_guild_membership(session, user=editor, guild=guild)
 
     await _route(session, guild.id, author.id)
-    subtask = Subtask(task_id=task.id, guild_id=guild.id, content="first draft")
-    session.add(subtask)
+    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="first draft")
+    session.add(item)
     await session.flush()
-    subtask_id = subtask.id
+    item_id = item.id
 
     await _route(session, guild.id, editor.id)
-    row = await _reload(session, subtask_id)
-    row.content = "second draft"
+    row = await _reload(session, item_id)
+    row.label = "second draft"
     await session.flush()
 
-    assert (await _reload(session, subtask_id)).created_by == author.id
+    assert (await _reload(session, item_id)).created_by == author.id
 
 
 async def test_a_system_session_stamps_nothing(session: AsyncSession):
     """Background work and seeding have no one to name, so they name no one."""
-    guild, task, _ = await _workspace(session)
+    guild, queue, _ = await _workspace(session)
 
     await _route(session, guild.id, None)
-    subtask = Subtask(task_id=task.id, guild_id=guild.id, content="swept up by a job")
-    session.add(subtask)
+    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="swept up by a job")
+    session.add(item)
     await session.flush()
 
-    assert (await _reload(session, subtask.id)).created_by is None
+    assert (await _reload(session, item.id)).created_by is None

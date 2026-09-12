@@ -57,7 +57,7 @@
   "detail": {
     "description": "Description",
     "noDescription": "Aucune description.",
-    "subtasks": "Sous-tâches",
+    "checklist": "Checklist",
     "comments": "Commentaires",
     "start": "Début"
   },

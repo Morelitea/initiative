@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  draftResolution,
   formatSheetPrefix,
   MAX_SHEET_NAME_LENGTH,
   needsSheetQuoting,
@@ -101,5 +102,28 @@ describe("newSheetId", () => {
     const ids = new Set(Array.from({ length: 50 }, () => newSheetId()));
     expect(ids.size).toBe(50);
     for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+});
+
+describe("draftResolution", () => {
+  const visible = [{ id: "s1", name: "Sheet1" }];
+  const hidden = [{ id: "s1", name: "Sheet1", hidden: true }];
+
+  it("leaves an edit alone while its sheet is on screen", () => {
+    expect(draftResolution(visible, "s1")).toBe("keep");
+  });
+
+  it("commits an edit whose sheet has been hidden", () => {
+    // The sheet still holds the value, so the edit belongs in it — the same
+    // rule the hide menu applies before it hides anything.
+    expect(draftResolution(hidden, "s1")).toBe("commit");
+  });
+
+  it("drops an edit whose sheet has gone", () => {
+    expect(draftResolution(visible, "s2")).toBe("cancel");
+  });
+
+  it("has nothing to say when nothing is being edited", () => {
+    expect(draftResolution(visible, null)).toBe("keep");
   });
 });

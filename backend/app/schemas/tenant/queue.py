@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.relationships import Related
+from app.core.tools import Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -131,7 +134,7 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueSummary(QueueBase):
+class QueueSummary(QueueBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -177,37 +180,42 @@ class QueueRead(QueueSummary):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_queue_item_documents(item: "QueueItem") -> List[QueueItemDocumentRead]:
-    doc_links = getattr(item, "document_links", None) or []
-    result: List[QueueItemDocumentRead] = []
-    for link in doc_links:
-        doc = getattr(link, "document", None)
-        result.append(
-            QueueItemDocumentRead(
-                document_id=link.document_id,
-                name=getattr(doc, "name", "") if doc else "",
-                attached_at=link.attached_at,
-            )
+def _serialize_queue_item_documents(
+    documents: Sequence[Related],
+) -> List[QueueItemDocumentRead]:
+    return [
+        QueueItemDocumentRead(
+            document_id=related.id,
+            name=getattr(related.entity, "name", "") if related.entity else "",
+            attached_at=related.linked_at,
         )
-    return result
+        for related in documents
+    ]
 
 
-def _serialize_queue_item_tasks(item: "QueueItem") -> List[QueueItemTaskRead]:
-    task_links = getattr(item, "task_links", None) or []
-    result: List[QueueItemTaskRead] = []
-    for link in task_links:
-        task = getattr(link, "task", None)
-        result.append(
-            QueueItemTaskRead(
-                task_id=link.task_id,
-                title=getattr(task, "title", "") if task else "",
-                attached_at=link.attached_at,
-            )
+def _serialize_queue_item_tasks(tasks: Sequence[Related]) -> List[QueueItemTaskRead]:
+    return [
+        QueueItemTaskRead(
+            task_id=related.id,
+            title=getattr(related.entity, "title", "") if related.entity else "",
+            attached_at=related.linked_at,
         )
-    return result
+        for related in tasks
+    ]
 
 
-def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
+def serialize_queue_item(
+    item: "QueueItem",
+    *,
+    documents: Sequence[Related] = (),
+    tasks: Sequence[Related] = (),
+) -> QueueItemRead:
+    """One queue item.
+
+    Attachments are handed in rather than read off the item: they live in their
+    own table now, and a queue shows many items at once, so the caller loads
+    them for the whole page in one go.
+    """
     user = getattr(item, "user", None)
     return QueueItemRead(
         id=item.id,
@@ -220,9 +228,9 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
         notes=item.notes,
         is_visible=item.is_visible,
         held_at_round=item.held_at_round,
-        tags=tag_summaries(getattr(item, "tag_links", None)),
-        documents=_serialize_queue_item_documents(item),
-        tasks=_serialize_queue_item_tasks(item),
+        tags=annotated_tags(item),
+        documents=_serialize_queue_item_documents(documents),
+        tasks=_serialize_queue_item_tasks(tasks),
         created_at=item.created_at,
     )
 
@@ -230,11 +238,11 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
 def serialize_queue_summary(
     queue: "Queue",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> QueueSummary:
     items = getattr(queue, "items", None) or []
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return QueueSummary(
         id=queue.id,
@@ -248,9 +256,10 @@ def serialize_queue_summary(
         item_count=len(items),
         created_at=queue.created_at,
         updated_at=queue.updated_at,
-        my_permission_level=my_permission_level,
+        archived_at=queue.archived_at,
+        **client_access(Tool.queue, queue, user_id),
         comments_enabled=queue.comments_enabled,
-        tags=tag_summaries(getattr(queue, "tag_links", None)),
+        tags=annotated_tags(queue),
         grants=serialize_grants(queue),
     )
 
@@ -258,7 +267,7 @@ def serialize_queue_summary(
 def serialize_queue(
     queue: "Queue",
     *,
-    my_permission_level: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> QueueRead:
     items = getattr(queue, "items", None) or []
     serialized_items = [serialize_queue_item(item) for item in items]
@@ -268,7 +277,7 @@ def serialize_queue(
             if item.id == queue.current_item_id:
                 current_item = item
                 break
-    summary = serialize_queue_summary(queue, my_permission_level=my_permission_level)
+    summary = serialize_queue_summary(queue, user_id=user_id)
     return QueueRead(
         **summary.model_dump(),
         items=serialized_items,

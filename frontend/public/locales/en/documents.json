@@ -295,7 +295,18 @@
     "hideFilters": "Hide filters",
     "updating": "Updating..."
   },
+  "outline": {
+    "title": "Contents",
+    "show": "Show contents",
+    "hide": "Hide contents",
+    "empty": "Headings you add appear here.",
+    "untitled": "Untitled heading",
+    "expand": "Show what is under {{heading}}",
+    "collapse": "Hide what is under {{heading}}"
+  },
   "page": {
+    "noArchivedDescription": "Documents you archive land here, read-only, until you take them back out.",
+    "noArchivedTitle": "Nothing archived",
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
     "newDocument": "New document",
@@ -572,7 +583,14 @@
       "hideLastBlocked": "A workbook needs at least one sheet on show.",
       "hiddenCount_one": "{{count}} hidden sheet",
       "hiddenCount_other": "{{count}} hidden sheets",
-      "unhideNamed": "Show “{{name}}”"
+      "unhideNamed": "Show “{{name}}”",
+      "import": "Import a file",
+      "importing": "Reading file…",
+      "imported_one": "{{count}} sheet imported.",
+      "imported_other": "{{count}} sheets imported.",
+      "importFailed": "That file could not be imported.",
+      "importedPartly_one": "{{count}} sheet imported; {{skipped}} left out — this spreadsheet is full.",
+      "importedPartly_other": "{{count}} sheets imported; {{skipped}} left out — this spreadsheet is full."
     },
     "pasteClipped_one": "{{count}} cell didn't fit on the sheet and wasn't pasted.",
     "pasteClipped_other": "{{count}} cells didn't fit on the sheet and weren't pasted.",
@@ -600,7 +618,8 @@
   "status": {
     "label": "Show",
     "documents": "Documents",
-    "templates": "Templates"
+    "templates": "Templates",
+    "archived": "Archived"
   },
   "summary": {
     "aiNotEnabled": "AI features are not enabled. Configure AI settings to generate document summaries.",

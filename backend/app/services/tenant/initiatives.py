@@ -760,7 +760,7 @@ async def list_directory_entries(
         .where(
             Initiative.guild_id == guild_id,
             or_(Initiative.join_policy.in_(LISTED_JOIN_POLICIES), is_member),
-            Initiative.is_archived.is_(False),
+            Initiative.archived_at.is_(None),
             Initiative.deleted_at.is_(None),
         )
         # The caller's own initiatives first — the list serves "mine" before
@@ -789,7 +789,7 @@ def is_self_joinable(initiative: Initiative) -> bool:
     """Whether a guild member may add themselves to ``initiative`` right now."""
     return (
         initiative.join_policy == InitiativeJoinPolicy.open.value
-        and not initiative.is_archived
+        and initiative.archived_at is None
         and initiative.deleted_at is None
     )
 
@@ -872,7 +872,7 @@ async def list_auto_join_initiatives(
         .where(
             Initiative.guild_id == guild_id,
             Initiative.auto_join.is_(True),
-            Initiative.is_archived.is_(False),
+            Initiative.archived_at.is_(None),
             Initiative.deleted_at.is_(None),
         )
         .order_by(Initiative.id.asc())
@@ -926,7 +926,7 @@ def is_requestable(initiative: Initiative) -> bool:
     """Whether a guild member may knock on ``initiative`` right now."""
     return (
         initiative.join_policy == InitiativeJoinPolicy.request.value
-        and not initiative.is_archived
+        and initiative.archived_at is None
         and initiative.deleted_at is None
     )
 

@@ -15,9 +15,10 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -25,10 +26,6 @@ from app.models.tenant._mixins import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
-    from app.models.tenant.project import Project
-    from app.models.tenant.tag import DocumentTag
-    from app.models.tenant.queue import QueueItemDocument
-    from app.models.tenant.calendar_event import CalendarEventDocument
     from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.resource_grant import ResourceGrant
 
@@ -43,7 +40,9 @@ class DocumentType(str, Enum):
     spreadsheet = "spreadsheet"  # Sparse cell map; collaborative via yjs
 
 
-class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Document(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     __tablename__ = "documents"
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and
@@ -116,14 +115,6 @@ class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")
-    project_links: List["ProjectDocument"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    tag_links: List["DocumentTag"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     property_values: List["DocumentPropertyValue"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -136,14 +127,6 @@ class Document(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
             ),
             "viewonly": True,
         }
-    )
-    queue_item_links: List["QueueItemDocument"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    calendar_event_links: List["CalendarEventDocument"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     file_versions: List["DocumentFileVersion"] = Relationship(
         back_populates="document",
@@ -203,39 +186,3 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     )
 
     document: Optional["Document"] = Relationship(back_populates="file_versions")
-
-
-class ProjectDocument(SQLModel, table=True):
-    __tablename__ = "project_documents"
-
-    project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    attached_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    attached_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    project: Optional["Project"] = Relationship(back_populates="document_links")
-    document: Optional[Document] = Relationship(back_populates="project_links")
-
-
-class DocumentLink(CreatedByMixin, table=True):
-    """Tracks wikilinks between documents for backlinks queries."""
-
-    __tablename__ = "document_links"
-
-    source_document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    target_document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )

@@ -32,6 +32,8 @@ from app.core.security import (
     create_billing_portal_handoff_token,
     verify_password,
 )
+from app.services.platform.identity_refs import billing_refs
+from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import (
@@ -512,8 +514,10 @@ async def create_guild(
             await deprovision_guild(guild.id)  # drops the schema + any partial content
         stale = await guilds_service.get_guild(session, guild_id=guild.id)
         if stale:
+            stale_id = stale.id
             await guilds_service.delete_guild(session, stale)
             await session.commit()
+            await app_refs.forget_guild(guild_id=stale_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
@@ -907,10 +911,13 @@ async def create_guild_billing_handoff(
     )
 
     try:
+        user_ref, guild_ref = await billing_refs(
+            user_id=current_user.id, guild_id=guild_id
+        )
         token, expires_in_seconds = create_billing_portal_handoff_token(
-            user_id=current_user.id,
-            guild_id=guild_id,
             guild_role=GuildRole.admin.value,
+            user_ref=user_ref,
+            guild_ref=guild_ref,
         )
     except HandoffSigningNotConfiguredError as exc:
         raise HTTPException(
@@ -1111,6 +1118,9 @@ async def delete_guild(
     # public.guilds guild_delete RLS policy (current_guild_id) matches.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    # See delete_guild: these live on another connection, so they go after the
+    # commit that made the deletion real.
+    await app_refs.forget_guild(guild_id=guild_id)
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )

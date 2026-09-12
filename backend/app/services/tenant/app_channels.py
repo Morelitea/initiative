@@ -43,6 +43,7 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -141,6 +142,15 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     )
 
 
+async def _install_guild_ref(app: GuildApp) -> str:
+    """What this install calls the guild it is in.
+
+    Every payload on this channel names the guild by it, because it is the only
+    name the app on the other end has for it.
+    """
+    return await ensure_app_guild_ref(guild_id=app.guild_id, app_install_id=app.id)
+
+
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
     await set_rls_context(session)
     return (await session.exec(select(Guild).where(Guild.id == guild_id))).first()
@@ -173,15 +183,19 @@ async def install_summaries(
             )
         ).all()
         summaries.extend(
-            _summarize(app) for app in rows if owns_install(app, registration)
+            [
+                _summarize(app, await _install_guild_ref(app))
+                for app in rows
+                if owns_install(app, registration)
+            ]
         )
     return summaries
 
 
-def _summarize(app: GuildApp) -> dict[str, Any]:
+def _summarize(app: GuildApp, guild_ref: str) -> dict[str, Any]:
     """One install as the app is told about it.
 
-    Ids and state only: which guild, which install, which version it is pinned
+    Names and state only: which guild, which install, which version it is pinned
     to, and whether it is live. Nothing about who is in the guild, and nothing
     about what anyone configured — those are the config and connections
     channels, addressed one guild at a time.
@@ -189,7 +203,7 @@ def _summarize(app: GuildApp) -> dict[str, Any]:
     state = app_config_service.config_state(app)
     return {
         "install_id": app.id,
-        "guild_id": app.guild_id,
+        "guild_ref": guild_ref,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
         "name": app.name,
@@ -206,14 +220,22 @@ async def load_install(
     registration: AppServiceRegistration,
     guild_id: int,
     *,
+    app_install_id: int,
     for_write: bool = False,
 ) -> GuildApp:
     """The calling app's install in one guild, with the session routed to it.
 
+    ``app_install_id`` is the install the caller's reference named, and the one
+    found here has to be it. A guild that removed this app and added it again
+    holds a different install, and a reference minted against the first names
+    only the first — so the check is what keeps the reference specific rather
+    than standing for whatever this app's install in that guild happens to be.
+
     Everything that is not this app's install answers the same way — a guild
     that does not exist, one that is suspended, one that never installed the
-    app, and one that installed a different app are one refusal, because the
-    caller is entitled to distinguish none of them.
+    app, one that installed a different app, and one whose install has been
+    replaced are one refusal, because the caller is entitled to distinguish
+    none of them.
 
     ``for_write`` refuses a guild the operator has frozen, so a write is turned
     away with a reason rather than failing against a read-only database role.
@@ -236,6 +258,8 @@ async def load_install(
         )
     ).first()
     if app is None or not owns_install(app, registration):
+        raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
+    if app.id != app_install_id:
         raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
     if not app.enabled:
         # The guild's own kill switch, beside the operator's: the install stays
@@ -296,7 +320,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
 
     state = app_config_service.config_state(app)
     return {
-        "guild_id": app.guild_id,
+        "guild_ref": await _install_guild_ref(app),
         "install_id": app.id,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
@@ -463,7 +487,7 @@ async def report_config_state(
     await session.commit()
     await session.refresh(app)
     return {
-        "guild_id": app.guild_id,
+        "guild_ref": await _install_guild_ref(app),
         "install_id": app.id,
         "config_state": app.config_state,
         "config_state_detail": app.config_state_detail,

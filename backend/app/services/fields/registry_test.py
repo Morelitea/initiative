@@ -22,6 +22,7 @@ from app.services.fields import (
     FieldContext,
     allowed_fields,
     allowed_ops,
+    default_filters,
     dataset,
     describe,
     sort_fields,
@@ -80,6 +81,7 @@ VIRTUAL_FIELDS = {
 #: the model becomes a field without anybody listing it.
 NOT_FILTERABLE = {
     "recurrence": "a JSON rule — no operator means anything against it",
+    "checklist": "a JSON list of steps — no operator means anything against it",
     "guild_id": "references a table no picker browses, and a request is "
     "already scoped to one guild",
 }
@@ -275,7 +277,7 @@ PREVIOUSLY_OFFERED = {
     "start_date": (["gt", "gte", "is_null", "lt", "lte"], False),
     "completed_at": (["gt", "gte", "is_null", "lt", "lte"], False),
     "created_at": (["gt", "gte", "lt", "lte"], False),
-    "is_archived": (["eq"], False),
+    "archived_at": (["gt", "gte", "is_null", "lt", "lte"], False),
     "title": (["ilike"], False),
 }
 
@@ -463,3 +465,75 @@ class TestEveryToolIsQueryable:
                 if spec.column is not None
             )
             resolve(f"SELECT {relation.name}.{field} AS v FROM {name}")
+
+
+class TestWhatANewStatementLeavesOut:
+    """The conditions the builder seeds a new statement with.
+
+    Derived from the declarations rather than listed, so the test asks what a
+    dataset carries rather than restating the answer beside the code that
+    computes it.
+    """
+
+    def test_a_dataset_that_can_be_archived_starts_without_archived_rows(self):
+        assert {"field": "archived_at", "op": "is_null", "value": True} in (
+            default_filters("tasks")
+        )
+
+    def test_a_dataset_with_its_own_template_flag_reads_it_directly(self):
+        assert {"field": "is_template", "op": "eq", "value": False} in (
+            default_filters("projects")
+        )
+
+    def test_a_task_reads_the_flag_from_the_project_that_governs_it(self):
+        """A task is not a template; the project holding it is. The relation is
+        the one reaching the dataset under the same governing tool, so the
+        route is derived rather than named here."""
+        assert {"field": "project.is_template", "op": "eq", "value": False} in (
+            default_filters("tasks")
+        )
+
+    def test_a_relation_to_something_governed_by_nothing_is_not_followed(self):
+        """`tasks` also relates to members, which is nobody's template."""
+        fields = [condition["field"] for condition in default_filters("tasks")]
+        assert not any(field.startswith("assignee.") for field in fields)
+
+    def test_a_dataset_with_neither_lifecycle_starts_clean(self):
+        assert default_filters("members") == []
+
+    def test_every_archivable_dataset_says_so(self):
+        from app.db.frozen import ARCHIVABLE_TABLES
+
+        for name in dataset_names():
+            spec = dataset(name)
+            table = getattr(spec.model, "__tablename__", None)
+            if table is None or str(table) not in ARCHIVABLE_TABLES:
+                continue
+            fields = [condition["field"] for condition in default_filters(name)]
+            assert "archived_at" in fields, name
+
+    def test_the_trash_is_not_one_of_them(self):
+        """It is removed in the database, not offered as a filter to delete."""
+        for name in dataset_names():
+            fields = [condition["field"] for condition in default_filters(name)]
+            assert not any("deleted_at" in field for field in fields), name
+
+    def test_what_it_produces_is_a_statement_the_builder_accepts(self):
+        """The point of the shape: it is an ordinary condition, so it compiles."""
+        from app.schemas.query import FilterOp
+        from app.services.query.build import Column, Condition, QuerySpec, build
+
+        for name in ("tasks", "projects", "documents"):
+            spec = QuerySpec(
+                dataset=name,
+                columns=(Column(field="*", aggregate="count", alias="count"),),
+                where=tuple(
+                    Condition(
+                        field=condition["field"],
+                        op=FilterOp(condition["op"]),
+                        value=condition["value"],
+                    )
+                    for condition in default_filters(name)
+                ),
+            )
+            assert build(spec).startswith("SELECT count(*) AS count FROM ")

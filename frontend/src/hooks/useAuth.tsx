@@ -40,6 +40,7 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
+import { prefetchViewPreferences } from "@/lib/viewPreferences";
 
 interface LoginPayload {
   email: string;
@@ -150,6 +151,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserState(nextUser);
       setHasActiveSession(nextUser !== null);
       rememberIdentity(nextUser);
+      // The first screen's list query waits on the saved filters and sort, so
+      // ask for them from here rather than from the screen: knowing who is
+      // signed in is the only prerequisite, and this is where that happens.
+      if (nextUser) prefetchViewPreferences();
     },
     [rememberIdentity]
   );
@@ -168,6 +173,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
       setHasActiveSession(true);
       rememberIdentity(nextUser);
+      // Signing in lands here rather than in setUser; the map is still fresh
+      // from any earlier call, so a re-read costs nothing.
+      prefetchViewPreferences();
     },
     [rememberIdentity]
   );

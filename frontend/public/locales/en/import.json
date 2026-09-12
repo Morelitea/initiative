@@ -11,7 +11,6 @@
       "asana": "Import projects and tasks from Asana CSV export"
     }
   },
-
   "common": {
     "stepUpload": "Upload",
     "stepConfigure": "Configure",
@@ -48,8 +47,9 @@
     "tasksFailed_other": "{{count}} tasks failed to import",
     "tasksCreated_one": "{{count}} task created",
     "tasksCreated_other": "{{count}} tasks created",
-    "subtasksCount_one": "{{count}} subtask",
-    "subtasksCount_other": "{{count}} subtasks",
+    "checklistItemsCount_one": "{{count}} checklist item",
+    "checklistItemsCount_other": "{{count}} checklist items",
+    "includesChecklistItems": "Includes checklists",
     "failedCount_one": "{{count}} failed",
     "failedCount_other": "{{count}} failed",
     "noTasksImported": "No tasks were imported",
@@ -57,10 +57,8 @@
     "importFailed": "Import failed",
     "parseError": "Unable to parse file",
     "errors": "Errors:",
-    "includesSubtasks": "Includes subtasks",
     "done": "Done"
   },
-
   "todoist": {
     "title": "Import from Todoist",
     "description": "Import tasks from a Todoist CSV export.",
@@ -93,7 +91,6 @@
     "mapSectionsLabel": "Map sections to statuses",
     "mapSectionsDescription": "Choose which project status each Todoist section should map to."
   },
-
   "ticktick": {
     "title": "Import from TickTick",
     "description": "Import tasks from a TickTick CSV export.",
@@ -107,7 +104,7 @@
     "pasteLabel": "Paste CSV content",
     "uploadButton": "Upload CSV file",
     "uploadFileLabel": "Upload CSV file",
-    "uploadHint": "Export from TickTick Settings \u2192 Backup",
+    "uploadHint": "Export from TickTick Settings → Backup",
     "parseButton": "Parse CSV",
     "exportParsed": "Export parsed successfully",
     "noListsFound": "No lists with tasks found in the export",
@@ -131,7 +128,6 @@
     "mapColumnsLabel": "Map columns to statuses",
     "mapColumnsDescription": "Choose which project status each TickTick column should map to."
   },
-
   "vikunja": {
     "title": "Import from Vikunja",
     "description": "Import tasks from a Vikunja JSON export.",

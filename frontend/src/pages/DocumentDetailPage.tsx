@@ -5,6 +5,7 @@ import {
   ChevronUp,
   ExternalLink,
   ImagePlus,
+  ListTree,
   Loader2,
   Maximize2,
   Minimize2,
@@ -21,10 +22,15 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
+import {
+  DocumentOutlinePanel,
+  DocumentOutlineScope,
+  useDocumentOutline,
+} from "@/components/documents/DocumentOutline";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
@@ -69,6 +75,7 @@ const SmartLinkDocumentViewer = lazy(() =>
 import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
+import { importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
 import type {
   DocumentProjectLink,
   PropertyDefinitionRead,
@@ -109,11 +116,14 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
+import { referenceRef } from "@/lib/smartChips";
+import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
 /**
  * Live "Attached N ago" label for one attached-project row. A component (not an
@@ -140,6 +150,7 @@ export const DocumentDetailPage = () => {
   const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
+  const outline = useDocumentOutline();
   const { isEnabled: isAIEnabled } = useAIEnabled();
   const setDocumentTagsMutation = useSetToolTags(Tool.document);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -195,6 +206,7 @@ export const DocumentDetailPage = () => {
     null
   );
   const collaboratingRef = useRef(false);
+  const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
 
   // Wikilink dialog state
@@ -225,11 +237,16 @@ export const DocumentDetailPage = () => {
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
-      // Show toast and fall back to autosave mode on collaboration error
       toast.error(t("detail.collaborationFailed"), {
         description: error.message || t("detail.collaborationFailedDescription"),
       });
-      setCollaborationEnabled(false);
+      // Only a refusal ends the session. A lost connection leaves the provider
+      // trying, and turning collaboration off here would tear down the socket
+      // that is going to carry this tab's work back — anything typed during an
+      // outage lives in the local doc until the sync handshake hands it over.
+      if (!(error instanceof CollaborationError) || !error.recoverable) {
+        setCollaborationEnabled(false);
+      }
     },
   });
 
@@ -246,6 +263,9 @@ export const DocumentDetailPage = () => {
   );
   const title = titleField.values.title;
   const setTitle = (next: string) => titleField.set({ title: next });
+  // Whether the name field is being typed in right now. Autosave waits it out
+  // so the Save button beside the field stays put for as long as it is wanted.
+  const [titleHasFocus, setTitleHasFocus] = useState(false);
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -396,15 +416,14 @@ export const DocumentDetailPage = () => {
     // frozen (read_only lifecycle status) or access is via a read-level grant.
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
-  const isDirty =
-    canEditDocument &&
-    ((document && title?.trim() !== document?.name?.trim()) ||
-      documentContentJson !== currentContentJson ||
-      normalizedDocumentFeatured !== featuredImageUrl);
+  // Split by what a save would carry: a rename and the rest of the document
+  // are committed on different terms — see the autosave effect.
+  const nameIsDirty = Boolean(document) && title?.trim() !== document?.name?.trim();
+  const bodyIsDirty =
+    documentContentJson !== currentContentJson || normalizedDocumentFeatured !== featuredImageUrl;
+  const isDirty = canEditDocument && (nameIsDirty || bodyIsDirty);
 
-  const titleIsDirty = Boolean(
-    canEditDocument && document && title?.trim() !== document?.name?.trim()
-  );
+  const titleIsDirty = canEditDocument && nameIsDirty;
 
   const commentsCanModerate = useMemo(() => {
     if (!document || !user) {
@@ -465,8 +484,12 @@ export const DocumentDetailPage = () => {
     suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
-      // that started before the last keystroke must not mark it saved.
-      titleField.settle({ title: sent.name ?? "" });
+      // that started before the last keystroke must not mark it saved. A save
+      // that carried no name at all (one made while the field was being typed
+      // in) settles nothing.
+      if (typeof sent.name === "string") {
+        titleField.settle({ title: sent.name });
+      }
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
@@ -497,8 +520,25 @@ export const DocumentDetailPage = () => {
   );
 
   useEffect(() => {
+    const resumed = collaboration.isCollaborating && !collaboratingRef.current;
     collaboratingRef.current = collaboration.isCollaborating;
-  }, [collaboration.isCollaborating]);
+    sendContentRef.current = collaboration.sendContent;
+    // The handshake brings this tab's Yjs work back into the room, but the
+    // content column moves only when an editor reports a rendering — and after
+    // an outage there may be nothing further to type. Report one on arrival.
+    if (resumed && canEditDocument) {
+      const stored = contentStateRef.current;
+      if (stored && stored.documentId === parsedId) {
+        collaboration.sendContent(stored.content);
+      }
+    }
+  }, [
+    collaboration.isCollaborating,
+    collaboration.sendContent,
+    collaboration,
+    canEditDocument,
+    parsedId,
+  ]);
 
   // Extract the Yjs doc from the collaboration provider for whiteboards.
   // Mirrors what Lexical's CollaborationPlugin does internally — we call the
@@ -585,6 +625,17 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
+    // A rename in progress belongs to the person typing it: taking it retires
+    // the Save button beside the field mid-reach. The name waits for the field
+    // to be let go — leaving the page still flushes it (see the unmount/unload
+    // flush below) — while the body carries on saving on its own schedule.
+    const savesName = nameIsDirty && !titleHasFocus;
+    // Nothing this pass would write. The collaborating branch below checks
+    // this too: the room owns the content column while it is live, but an open
+    // document nobody is editing has no rendering to report and no name to send.
+    if (!savesName && !bodyIsDirty) {
+      return;
+    }
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
@@ -595,22 +646,23 @@ export const DocumentDetailPage = () => {
     if (collaboration.isCollaborating) {
       const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
+        // The room is the writer of this document's content column while it
+        // is live: it saves the JSON and the Yjs state from one snapshot, so
+        // the two always describe the same moment. Every tab reports to it,
+        // and it reconciles them.
+        collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
-          content: contentForSave,
+          ...(savesName ? { name: title?.trim() } : null),
           featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
-      if (!isDirty) {
-        return;
-      }
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          name: title?.trim(),
+          ...(savesName ? { name: title?.trim() } : null),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -619,7 +671,8 @@ export const DocumentDetailPage = () => {
     }
   }, [
     autosaveEnabled,
-    isDirty,
+    nameIsDirty,
+    bodyIsDirty,
     canEditDocument,
     saveDocument,
     parsedId,
@@ -627,8 +680,10 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
+    collaboration.sendContent,
     isOnline,
     document?.document_type,
+    titleHasFocus,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -640,7 +695,17 @@ export const DocumentDetailPage = () => {
     const wasOffline = !prevOnlineRef.current;
     prevOnlineRef.current = isOnline;
     if (!wasOffline || !isOnline) return;
-    if (!canEditDocument || !isDirty || saveDocument.isPending) return;
+    if (!canEditDocument || saveDocument.isPending) return;
+    if (collaborationEnabled) {
+      // The work done while offline is in this tab's Yjs doc, and the sync
+      // handshake is what carries it over — merged with whatever the rest of
+      // the room did meanwhile, rather than written over it. The REST path
+      // carries a rendering rather than the work itself, and the server keeps
+      // the content column with the room for that reason.
+      collaboration.resume();
+      return;
+    }
+    if (!isDirty) return;
     // Do NOT set isAutosaveRef here — we want the success toast to fire so
     // users who edited while offline get explicit confirmation their work
     // was persisted after reconnecting.
@@ -655,6 +720,8 @@ export const DocumentDetailPage = () => {
     isDirty,
     saveDocument,
     parsedId,
+    collaborationEnabled,
+    collaboration,
     title,
     contentForSave,
     featuredImageUrl,
@@ -795,6 +862,12 @@ export const DocumentDetailPage = () => {
         `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
       );
 
+      // Push it to the room first, over the socket that is still open. The
+      // REST call below stays as the fallback for a socket that has already
+      // gone: the server applies it only when no room is live, so whichever
+      // of the two is the redundant one is the one it drops.
+      sendContentRef.current?.(stored.content);
+
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {
         method: "POST",
@@ -830,6 +903,23 @@ export const DocumentDetailPage = () => {
       globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [parsedId, token, activeGuildId, canEditDocument]);
+
+  // Reading a file is the host's job — it knows which document and guild the
+  // editor is showing. What comes back is sheets; the editor adds them to its
+  // live workbook itself, in one transaction.
+  const importSpreadsheetSheets = useCallback(
+    async (file: File) => {
+      if (!activeGuildId || !Number.isFinite(parsedId)) return [];
+      const result =
+        await importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+          activeGuildId,
+          parsedId,
+          { file }
+        );
+      return result.sheets as unknown as SpreadsheetSheetContent[];
+    },
+    [activeGuildId, parsedId]
+  );
 
   const handleFeaturedImageChange = async (file: File) => {
     if (!canEditDocument) {
@@ -965,6 +1055,9 @@ export const DocumentDetailPage = () => {
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
   const showSummaryTab = document.document_type === "native" && isAIEnabled;
+  // Only prose has headings to navigate; a board, a sheet, an uploaded
+  // file and a link to somewhere else have no contents of their own.
+  const showOutline = document.document_type === "native";
 
   return (
     <div className="space-y-6">
@@ -1014,8 +1107,10 @@ export const DocumentDetailPage = () => {
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            onFocus={() => setTitleHasFocus(true)}
+            onBlur={() => setTitleHasFocus(false)}
             placeholder={t("detail.titlePlaceholder")}
-            className="font-semibold text-2xl"
+            className="min-w-0 font-semibold text-2xl"
             disabled={!canEditDocument}
           />
           {titleIsDirty ? (
@@ -1218,208 +1313,257 @@ export const DocumentDetailPage = () => {
             />
           </Suspense>
         ) : (
-          <div
-            className={cn(
-              "flex flex-col gap-4",
-              isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
-            )}
-          >
-            {/* Collaboration status - shown between featured image and editor.
-                Also shown when offline even in non-collaborative mode, so the
-                user sees an explicit offline indicator at the top of the editor. */}
-            <div className="flex items-center gap-2">
-              {(collaborationEnabled || !isOnline) && (
-                <CollaborationStatusBadge
-                  connectionStatus={collaboration.connectionStatus}
-                  collaborators={collaboration.collaborators}
-                  isCollaborating={collaboration.isCollaborating}
-                  isSynced={collaboration.isSynced}
-                  isOnline={isOnline}
-                />
+          // Scoped to the body editor alone: a comment composer further down
+          // the page is an editor too, and its headings are not this
+          // document's contents.
+          <DocumentOutlineScope>
+            <div
+              className={cn(
+                "flex flex-col gap-4",
+                isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
               )}
-              {document.document_type === "smart_link" &&
-              typeof (document.content as { url?: unknown } | null)?.url === "string" ? (
-                <Button asChild type="button" variant="ghost" size="sm" className="ml-auto">
-                  <a
-                    href={(document.content as { url: string }).url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {t("smartLink.openInNewTab")}
-                  </a>
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsFullscreen((value) => !value)}
-                aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-                className={cn(document.document_type !== "smart_link" && "ml-auto")}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-                {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-              </Button>
-            </div>
-            {/*
-              Key is just document.id - we don't remount when entering collaborative mode.
-              The CollaborationPlugin handles syncing the existing content to Yjs.
-            */}
-            <Suspense
-              fallback={
-                <div className="flex h-96 items-center justify-center rounded-xl border">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              }
             >
-              {document.document_type === "whiteboard" ? (
-                whiteboardSceneReady ? (
-                  <WhiteboardDocumentEditor
-                    key={parsedId}
-                    initialScene={whiteboardScene}
-                    initialSceneFromCache={whiteboardSceneFromCache}
-                    onSerializedChange={handleWhiteboardChange}
-                    readOnly={!canEditDocument}
-                    yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
+              {/* Collaboration status - shown between featured image and editor.
+                  Also shown when offline even in non-collaborative mode, so the
+                  user sees an explicit offline indicator at the top of the editor. */}
+              {/* Wraps rather than overflows: the row carries up to four
+                  controls and none of them shrink. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {showOutline && (
+                  <Button
+                    type="button"
+                    variant={outline.isOpen ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={outline.toggle}
+                    aria-expanded={outline.isOpen}
+                    title={t(outline.isOpen ? "outline.hide" : "outline.show")}
+                  >
+                    <ListTree className="h-4 w-4" />
+                    {t("outline.title")}
+                  </Button>
+                )}
+                {(collaborationEnabled || !isOnline) && (
+                  <CollaborationStatusBadge
+                    connectionStatus={collaboration.connectionStatus}
+                    collaborators={collaboration.collaborators}
+                    isCollaborating={collaboration.isCollaborating}
                     isSynced={collaboration.isSynced}
-                    // The server roster includes ourselves — only *other*
-                    // users make the room's Yjs state authoritative over a
-                    // local write-ahead cache.
-                    hasOtherCollaborators={collaboration.collaborators.some(
-                      (c) => c.user_id !== user?.id
-                    )}
-                    collaboratorsReady={collaboration.collaboratorsReady}
-                    awareness={
-                      collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
-                    }
-                    currentUser={
-                      user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null
-                    }
-                    className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                    isOnline={isOnline}
                   />
-                ) : (
-                  <div className="flex h-96 items-center justify-center rounded-xl border">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                )
-              ) : document.document_type === "smart_link" ? (
-                <SmartLinkDocumentViewer
-                  key={parsedId}
-                  content={document.content as unknown as SmartLinkContent | null}
-                  className={cn(isFullscreen && "h-full min-h-0 flex-1")}
-                />
-              ) : document.document_type === "spreadsheet" ? (
-                <SpreadsheetDocumentEditor
-                  key={parsedId}
-                  initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
-                  onContentChange={(content) =>
-                    handleContentChange(content as unknown as SerializedEditorState)
-                  }
-                  documentTitle={title || document.name}
-                  readOnly={!canEditDocument}
-                  yDoc={collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null}
-                  isSynced={collaboration.isSynced}
-                  awareness={
-                    collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
-                  }
-                  currentUser={spreadsheetCurrentUser}
-                  className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
-                />
-              ) : (
-                <Editor
-                  key={parsedId}
-                  editorSerializedState={normalizedDocumentContent}
-                  onSerializedChange={handleContentChange}
-                  readOnly={!canEditDocument}
-                  showToolbar={canEditDocument}
-                  className={cn(
-                    "max-h-[80vh] bg-card",
-                    isFullscreen && "h-full max-h-none min-h-0 flex-1"
-                  )}
-                  collaborative={collaborationEnabled && collaboration.isReady}
-                  providerFactory={collaboration.providerFactory}
-                  // Always track changes so contentState stays updated for periodic saves
-                  trackChanges={true}
-                  isSynced={collaboration.isSynced}
-                  // Wikilinks support
-                  initiativeId={document.initiative_id}
-                  supportsEntityMentions={supportsEntityMentions(document.document_type)}
-                  onWikilinkNavigate={handleWikilinkNavigate}
-                  onCreateReferencedThing={handleCreateReferencedThing}
-                />
-              )}
-            </Suspense>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Smart-link docs have nothing editable on this page — suppress
-                  the save/autosave bar entirely. */}
-              {document.document_type === "smart_link" ? null : canEditDocument ? (
-                <>
-                  {/* When collaboration is active, changes sync in real-time */}
-                  {collaboration.isCollaborating ? (
-                    <span className="text-muted-foreground text-sm">
-                      {t("detail.collaborationDescription")}
-                    </span>
+                )}
+                {document.document_type === "smart_link" &&
+                typeof (document.content as { url?: unknown } | null)?.url === "string" ? (
+                  <Button asChild type="button" variant="ghost" size="sm" className="ml-auto">
+                    <a
+                      href={(document.content as { url: string }).url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {t("smartLink.openInNewTab")}
+                    </a>
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsFullscreen((value) => !value)}
+                  aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+                  className={cn(document.document_type !== "smart_link" && "ml-auto")}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
                   ) : (
-                    <>
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          saveDocument.mutate({
-                            name: title?.trim(),
-                            content: contentForSave,
-                            featured_image_url: featuredImageUrl,
-                          })
-                        }
-                        disabled={!isDirty || saveDocument.isPending}
-                      >
-                        {saveDocument.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            {t("detail.saving")}
-                          </>
-                        ) : (
-                          t("detail.saveChanges")
-                        )}
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="autosave"
-                          checked={autosaveEnabled}
-                          onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
-                        />
-                        <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                          {t("detail.autosave")}
-                        </Label>
-                      </div>
-                      {!isDirty ? (
-                        <span className="self-center text-muted-foreground text-sm">
-                          {t("detail.allChangesSaved")}
-                        </span>
-                      ) : null}
-                    </>
+                    <Maximize2 className="h-4 w-4" />
                   )}
-                  {/* Always show collaboration toggle */}
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="collaboration"
-                      checked={collaborationEnabled}
-                      onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
-                    />
-                    <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                      {t("detail.liveCollaboration")}
-                    </Label>
-                  </div>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
-              )}
+                  {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+                </Button>
+              </div>
+              {/*
+                Key is just document.id - we don't remount when entering collaborative mode.
+                The CollaborationPlugin handles syncing the existing content to Yjs.
+              */}
+              <div className={cn("flex min-w-0 gap-4", isFullscreen && "min-h-0 flex-1")}>
+                {showOutline && (
+                  <DocumentOutlinePanel
+                    isOpen={outline.isOpen}
+                    onOpenChange={outline.setIsOpen}
+                    className={cn(
+                      "hidden w-64 shrink-0 lg:flex",
+                      isFullscreen ? "min-h-0" : "max-h-[80vh]"
+                    )}
+                  />
+                )}
+                <div className={cn("flex min-w-0 flex-1 flex-col", isFullscreen && "min-h-0")}>
+                  <Suspense
+                    fallback={
+                      <div className="flex h-96 items-center justify-center rounded-xl border">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    }
+                  >
+                    {document.document_type === "whiteboard" ? (
+                      whiteboardSceneReady ? (
+                        <WhiteboardDocumentEditor
+                          key={parsedId}
+                          initialScene={whiteboardScene}
+                          initialSceneFromCache={whiteboardSceneFromCache}
+                          onSerializedChange={handleWhiteboardChange}
+                          readOnly={!canEditDocument}
+                          yDoc={
+                            collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null
+                          }
+                          isSynced={collaboration.isSynced}
+                          // The server roster includes ourselves — only *other*
+                          // users make the room's Yjs state authoritative over a
+                          // local write-ahead cache.
+                          hasOtherCollaborators={collaboration.collaborators.some(
+                            (c) => c.user_id !== user?.id
+                          )}
+                          collaboratorsReady={collaboration.collaboratorsReady}
+                          awareness={
+                            collaborationEnabled && collaboration.isReady
+                              ? whiteboardAwareness
+                              : null
+                          }
+                          currentUser={
+                            user
+                              ? { id: user.id, name: getUserDisplayName(user, "Anonymous") }
+                              : null
+                          }
+                          className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                        />
+                      ) : (
+                        <div className="flex h-96 items-center justify-center rounded-xl border">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                      )
+                    ) : document.document_type === "smart_link" ? (
+                      <SmartLinkDocumentViewer
+                        key={parsedId}
+                        content={document.content as unknown as SmartLinkContent | null}
+                        className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                      />
+                    ) : document.document_type === "spreadsheet" ? (
+                      <SpreadsheetDocumentEditor
+                        key={parsedId}
+                        initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
+                        onContentChange={(content) =>
+                          handleContentChange(content as unknown as SerializedEditorState)
+                        }
+                        documentTitle={title || document.name}
+                        readOnly={!canEditDocument}
+                        yDoc={
+                          collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null
+                        }
+                        isSynced={collaboration.isSynced}
+                        awareness={
+                          collaborationEnabled && collaboration.isReady
+                            ? spreadsheetAwareness
+                            : null
+                        }
+                        currentUser={spreadsheetCurrentUser}
+                        onImportFile={canEditDocument ? importSpreadsheetSheets : undefined}
+                        className={cn(
+                          "max-h-[70vh]",
+                          isFullscreen && "h-full max-h-none min-h-0 flex-1"
+                        )}
+                      />
+                    ) : (
+                      <Editor
+                        key={parsedId}
+                        editorSerializedState={normalizedDocumentContent}
+                        onSerializedChange={handleContentChange}
+                        readOnly={!canEditDocument}
+                        showToolbar={canEditDocument}
+                        className={cn(
+                          "max-h-[80vh] bg-card",
+                          isFullscreen && "h-full max-h-none min-h-0 flex-1"
+                        )}
+                        collaborative={collaborationEnabled && collaboration.isReady}
+                        providerFactory={collaboration.providerFactory}
+                        // Always track changes so contentState stays updated for periodic saves
+                        trackChanges={true}
+                        isSynced={collaboration.isSynced}
+                        // Wikilinks support
+                        initiativeId={document.initiative_id}
+                        subject={referenceRef(SearchEntityType.document, document.id)}
+                        supportsEntityMentions={supportsEntityMentions(document.document_type)}
+                        onWikilinkNavigate={handleWikilinkNavigate}
+                        onCreateReferencedThing={handleCreateReferencedThing}
+                      />
+                    )}
+                  </Suspense>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Smart-link docs have nothing editable on this page — suppress
+                    the save/autosave bar entirely. */}
+                {document.document_type === "smart_link" ? null : canEditDocument ? (
+                  <>
+                    {/* When collaboration is active, changes sync in real-time */}
+                    {collaboration.isCollaborating ? (
+                      <span className="text-muted-foreground text-sm">
+                        {t("detail.collaborationDescription")}
+                      </span>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          onClick={() =>
+                            saveDocument.mutate({
+                              name: title?.trim(),
+                              content: contentForSave,
+                              featured_image_url: featuredImageUrl,
+                            })
+                          }
+                          disabled={!isDirty || saveDocument.isPending}
+                        >
+                          {saveDocument.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t("detail.saving")}
+                            </>
+                          ) : (
+                            t("detail.saveChanges")
+                          )}
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="autosave"
+                            checked={autosaveEnabled}
+                            onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                          />
+                          <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                            {t("detail.autosave")}
+                          </Label>
+                        </div>
+                        {!isDirty ? (
+                          <span className="self-center text-muted-foreground text-sm">
+                            {t("detail.allChangesSaved")}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                    {/* Always show collaboration toggle */}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="collaboration"
+                        checked={collaborationEnabled}
+                        onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
+                      />
+                      <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                        {t("detail.liveCollaboration")}
+                      </Label>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
+                )}
+              </div>
             </div>
-          </div>
+          </DocumentOutlineScope>
         )}
 
         <Card>

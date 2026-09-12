@@ -252,52 +252,38 @@ def test_every_tool_read_schema_reports_the_comment_switch():
 
 def test_tag_link_specs_carry_the_uniform_contract():
     # Every taggable entity honors the structural contract everything derives
-    # from: an ``entity.tag_links`` relationship to its junction, a
-    # ``junction.tag`` relationship to Tag, a composite (fk, tag_id) PK, an
-    # initiative-scoped RLS path for the junction table, and a delete-orphan
-    # relationship from Tag to the junction (so hard purge removes every link).
-    from sqlalchemy import inspect as sa_inspect
-
-    from app.db.initiative_rls import INITIATIVE_PATHS
-    from app.models.tenant.tag import Tag
+    # from: a model, and an endpoint kind whose table is that model's. A tag
+    # assignment is a ``tagged_with`` edge in ``relationships`` now, so there is
+    # no junction to check — what replaces it is that both halves of the spec
+    # agree, and that the kind is one an edge may actually name.
+    from app.core.relationships import ENDPOINT_KINDS
     from app.services.tenant.tags import TAG_LINKS
 
-    junctions = set()
     for name, spec in TAG_LINKS.items():
-        rel = sa_inspect(spec.entity).relationships["tag_links"]
-        assert rel.mapper.class_ is spec.junction, name
-        jmapper = sa_inspect(spec.junction)
-        assert jmapper.relationships["tag"].mapper.class_ is Tag, name
-        pk = {c.name for c in jmapper.persist_selectable.primary_key.columns}
-        assert pk == {spec.fk, "tag_id"}, name
-        assert spec.junction.__tablename__ in INITIATIVE_PATHS, name
-        junctions.add(spec.junction)
-    cascaded = {
-        rel.mapper.class_
-        for rel in sa_inspect(Tag).relationships
-        if rel.cascade.delete_orphan
-    }
-    assert junctions <= cascaded
+        assert spec.kind in ENDPOINT_KINDS, name
+        assert ENDPOINT_KINDS[spec.kind].table == spec.entity.__tablename__, name
+        assert spec.kind.value == name, name
 
 
-def test_tag_model_carries_one_links_relationship_per_tag_target():
-    # ``Tag`` has a ``<target>_links`` relationship for EVERY taggable target
-    # — derived from the enum-backed TAG_TARGETS, so a new tool that forgets
-    # to wire its junction onto Tag fails here. Exact equality also catches a
-    # leftover relationship for a removed target.
-    from sqlalchemy import inspect as sa_inspect
-
+def test_every_tag_target_has_a_spec():
+    # Derived from the enum-backed TAG_TARGETS, so a new tool that forgets to
+    # wire its tags fails here. Exact equality also catches a leftover spec for
+    # a removed target.
     from app.core.tools import TAG_TARGETS
-    from app.models.tenant.tag import Tag
     from app.services.tenant.tags import TAG_LINKS
 
-    mapper = sa_inspect(Tag)
-    links = {name for name in mapper.relationships.keys() if name.endswith("_links")}
-    assert links == {f"{target}_links" for target in TAG_TARGETS}
-    for target in TAG_TARGETS:
-        rel = mapper.relationships[f"{target}_links"]
-        assert rel.mapper.class_ is TAG_LINKS[target].junction, target
-        assert rel.cascade.delete_orphan, target
+    assert set(TAG_LINKS) == set(TAG_TARGETS)
+
+
+def test_a_tag_assignment_is_an_edge_like_any_other():
+    # The one relation the whole tag layer reads and writes, and the direction
+    # it is stored in: a tag is a label, so the edge describes the thing
+    # carrying it and the tag is always the target.
+    from app.core.relationships import SPECS, RelationshipType
+
+    spec = SPECS[RelationshipType.tagged_with]
+    assert not spec.symmetric, "a tagged thing and a tag are not interchangeable"
+    assert not spec.transitive, "a tag of a tag is not a tag of the thing"
 
 
 def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():

@@ -176,6 +176,7 @@ _CONTEXT_SQL = (
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
     "set_config('app.guild_shows_member_names', :names, true), "
+    "set_config('app.query', :q, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -223,6 +224,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "sinit": "",
             "vdash": "",
             "names": "false",
+            "q": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),
         }
@@ -301,6 +303,10 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         if scope_initiative_id is not None
         else "",
         "vdash": str(int(via_dashboard_id)) if via_dashboard_id is not None else "",
+        # Reader-written SQL, as the policies see it. The role already says
+        # so; this says it where a policy can read it, which is what lets a
+        # rule apply to the query surface and nowhere else.
+        "q": "true" if query else "false",
         "sp": sp,
         "role": role_target,
     }

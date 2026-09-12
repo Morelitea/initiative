@@ -47,7 +47,6 @@ __all__ = [
     "RegistrationSnapshot",
     "any_delegate_registered",
     "app_is_offered",
-    "delegate_jwks",
     "delegation_allowed",
     "resolve_delegated_member",
     "delegation_keys_for",
@@ -87,10 +86,6 @@ class RegistrationSnapshot:
     #: ``kid`` a token names. Parsed once when the snapshot is built rather than
     #: per token. Empty on an app that has not been provisioned with one.
     delegation_keys: Mapping[str, Any]
-    #: The same keys as provisioned — public JWK entries, for the published
-    #: delegate key set (:func:`delegate_jwks`). Public halves only: the write
-    #: path refuses anything else (``normalize_delegation_jwks``).
-    delegation_jwk_entries: tuple[Mapping[str, Any], ...]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -134,16 +129,6 @@ def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
     return MappingProxyType(parsed)
 
 
-def _public_jwk_entries(row: AppServiceRegistration) -> tuple[Mapping[str, Any], ...]:
-    """The stored key set's entries, as read-only mappings for the snapshot."""
-    key_set = row.delegation_jwks or {}
-    return tuple(
-        MappingProxyType(dict(entry))
-        for entry in key_set.get("keys", []) or []
-        if isinstance(entry, dict)
-    )
-
-
 _cache: dict[str, RegistrationSnapshot] | None = None
 _loaded_at: float = 0.0
 
@@ -184,7 +169,6 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
             delegation_keys=_parse_delegation_keys(row),
-            delegation_jwk_entries=_public_jwk_entries(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -423,28 +407,6 @@ async def directory_reader(public_id: str) -> Optional[RegistrationSnapshot]:
     return snapshot
 
 
-async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
-    """One delegate's public verification keys, as a JWKS document.
-
-    Per delegate, never merged. A ``kid`` is an opaque label its owner
-    chooses, unique only within the registration that published it — which is
-    why :func:`delegation_keys_for` resolves a token by trying every candidate
-    and letting the signature decide. A document merging two registrations
-    would hand a consumer two entries under one ``kid``, and a consumer that
-    selects one key per ``kid`` (which is what a JWKS is for) would then reject
-    calls signed with the other. One issuer, one key set.
-
-    Served under the same rule that resolves a token: the registration must be
-    ``enabled`` and hold the ``delegation`` grant, so an operator's edit
-    reaches this and verification alike within the cache TTL. ``None`` when no
-    such delegate is published here — the caller answers that as not found.
-    """
-    snapshot = await live_delegate(public_id)
-    if snapshot is None:
-        return None
-    return {"keys": [dict(entry) for entry in snapshot.delegation_jwk_entries]}
-
-
 async def any_delegate_registered() -> bool:
     """Whether some app on this deployment may delegate and can be verified.
 
@@ -469,29 +431,34 @@ async def resolve_delegated_member(
     signer is the part that matters: without it, an app could present a subject
     another app was given and act as that person.
 
-    Read on the system engine and routed into the guild, because the subject
-    table is guild content and the caller at this point is nobody yet.
+    Read on the system engine, because the caller at this point is nobody yet.
+    The session is routed into the guild for the install lookup; the reference
+    itself lives in a platform-wide table, so ``resolve_app_ref`` takes the
+    guild as a predicate rather than inheriting it from the schema.
     """
     if not public_id or not subject:
         return None
 
     from app.models.tenant.guild_app import GuildApp
-    from app.services.marketplace.app_subjects import resolve_subject
+    from app.services.marketplace.app_refs import resolve_app_ref
 
     async with db_session.AdminSessionLocal() as session:
         try:
+            # The reference first, on the unrouted session: it lives in a
+            # platform-wide table the guild roles hold nothing on.
+            row = await resolve_app_ref(session, ref=subject, guild_id=guild_id)
+            if row is None:
+                return None
+            # Then the install, which lives in the guild's own schema.
             await db_session.set_rls_context(
                 session, guild_id=guild_id, guild_role="admin"
             )
-            row = await resolve_subject(session, subject=subject)
-            if row is None:
-                return None
-            # The subject resolved — now check it was minted for *this* app's
-            # install, in this guild.
+            # The reference resolved — now check it was minted for *this*
+            # app's install.
             install = (
                 await session.exec(
                     select(GuildApp.id).where(
-                        GuildApp.id == row.app_id,
+                        GuildApp.id == row.sector_id,
                         GuildApp.enabled.is_(True),
                         GuildApp.definition["app_kind"].astext == "service",
                         GuildApp.definition["service"]["public_id"].astext == public_id,
@@ -500,7 +467,7 @@ async def resolve_delegated_member(
             ).first()
             if install is None:
                 return None
-            return row.user_id
+            return row.entity_id
         except SQLAlchemyError:
             logger.warning(
                 "app services: subject lookup could not read guild %s", guild_id

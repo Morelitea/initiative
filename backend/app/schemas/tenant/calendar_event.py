@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 from app.core.user_display import display_name
 
@@ -177,19 +178,23 @@ class CalendarEventRead(CalendarEventSummary):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_documents(event: "CalendarEvent") -> List[CalendarEventDocumentRead]:
-    doc_links = getattr(event, "document_links", None) or []
-    result: List[CalendarEventDocumentRead] = []
-    for link in doc_links:
-        doc = getattr(link, "document", None)
-        result.append(
-            CalendarEventDocumentRead(
-                document_id=link.document_id,
-                name=getattr(doc, "name", "") if doc else "",
-                attached_at=link.attached_at,
-            )
+def _serialize_documents(
+    documents: Sequence[Related],
+) -> List[CalendarEventDocumentRead]:
+    """The attached documents, as the read schema wants them.
+
+    Handed in rather than read off the event: the edges live in their own table
+    now, and loading them is the caller's job so a page of events pays for one
+    query instead of one per event.
+    """
+    return [
+        CalendarEventDocumentRead(
+            document_id=related.id,
+            name=getattr(related.entity, "name", "") if related.entity else "",
+            attached_at=related.linked_at,
         )
-    return result
+        for related in documents
+    ]
 
 
 def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRead]:
@@ -281,7 +286,7 @@ def serialize_calendar_event_summary(
         attendee_names=names,
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
-        tags=tag_summaries(getattr(event, "tag_links", None)),
+        tags=annotated_tags(event),
         my_permission_level=my_permission_level,
         created_at=event.created_at,
         updated_at=event.updated_at,
@@ -289,11 +294,14 @@ def serialize_calendar_event_summary(
 
 
 def serialize_calendar_event(
-    event: "CalendarEvent", *, user_id: Optional[int] = None
+    event: "CalendarEvent",
+    *,
+    user_id: Optional[int] = None,
+    documents: Sequence[Related] = (),
 ) -> CalendarEventRead:
     summary = serialize_calendar_event_summary(event, user_id=user_id)
     return CalendarEventRead(
         **summary.model_dump(),
         attendees=_serialize_attendees(event),
-        documents=_serialize_documents(event),
+        documents=_serialize_documents(documents),
     )

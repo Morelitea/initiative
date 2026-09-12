@@ -48,7 +48,7 @@ from app.api.deps import (
 from app.core.messages import CommonMessages, InitiativeMessages, PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -80,7 +80,10 @@ from app.schemas.tenant.timeline import TimelineResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
+from app.core.search import SearchEntityType
+from app.services.tenant import archive as archive_service
 from app.services.tenant import comments as comments_service
+from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
@@ -89,6 +92,7 @@ from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
+from app.services.tenant.relationships import Endpoint
 
 #: How many notices a board hands over at once. A post carries its body and
 #: the client mounts an editor per body, so this is deliberately far below the
@@ -128,27 +132,6 @@ async def _get_initiative_for_post(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
-
-
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_posts,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=PostMessages.CREATE_PERMISSION_REQUIRED,
-        )
 
 
 def _validated_body(body: dict | None) -> dict:
@@ -353,6 +336,9 @@ async def list_posts(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     unread: bool = Query(
         default=False,
         description="Only notices this reader has not read yet.",
@@ -401,7 +387,10 @@ async def list_posts(
             page_size=page_size,
             has_next=False,
         )
-    conditions = list(scope)
+    conditions = [
+        *scope,
+        archive_service.archive_filter_clause(Post, archived),
+    ]
 
     if until is not None:
         conditions.append(posts_service.anchored_clause(until))
@@ -427,6 +416,7 @@ async def list_posts(
     posts = result.unique().all()
     # One grouped query each for the page, so a board of twenty asks twice
     # rather than forty times.
+    await tags_service.annotate_tags(session, posts)
     await comments_service.annotate_comment_counts(session, posts, column="post_id")
     await posts_service.attach_reactions(session, *posts)
     await posts_service.annotate_read_state(session, posts, user_id=current_user.id)
@@ -584,7 +574,9 @@ async def create_post(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=PostMessages.FEATURE_DISABLED,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+    await resource_access.require_create(
+        session, Tool.post, initiative, current_user, guild_context
+    )
 
     now = datetime.now(timezone.utc)
     # A schedule in the past is somebody asking for it now, which is what an
@@ -629,6 +621,14 @@ async def create_post(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=post_in.grants,
+    )
+
+    # What the new body points at becomes `references` edges.
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.post, post.id),
+        body=post.body,
+        author_id=current_user.id,
     )
 
     if post_in.tag_ids:
@@ -686,8 +686,10 @@ async def update_post(
     if "name" in update_data and update_data["name"] is not None:
         post.name = update_data["name"].strip()
         updated = True
+    body_changed = False
     if "body" in update_data and update_data["body"] is not None:
         post.body = _validated_body(update_data["body"])
+        body_changed = True
         updated = True
     if "scheduled_for" in update_data:
         when = update_data["scheduled_for"]
@@ -713,6 +715,13 @@ async def update_post(
     if updated:
         post.updated_at = now
         session.add(post)
+        if body_changed:
+            await content_references.sync_for_entity(
+                session,
+                Endpoint(SearchEntityType.post, post.id),
+                body=post.body,
+                author_id=current_user.id,
+            )
         if publish_now:
             await _announce(session, post, current_user, guild_context)
         await session.commit()

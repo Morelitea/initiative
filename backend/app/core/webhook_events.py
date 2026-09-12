@@ -43,9 +43,12 @@ def _vocabulary() -> dict[str, frozenset[str]]:
     for spec in build_specs():
         if spec.facet is not None:
             # A polymorphic facet reports against any of several parents, and
-            # every one of them can name the label.
+            # every one of them can name the label. A facet the ROW decides
+            # brings its whole vocabulary: an edge says ``tags`` or
+            # ``attachments`` depending on what it is, and both are nameable.
+            labels = spec.facet_values or {spec.facet}
             for resource in spec.resource_types:
-                fields.setdefault(resource, set()).add(spec.facet)
+                fields.setdefault(resource, set()).update(labels)
             continue
         bucket = fields.setdefault(spec.static_resource_type, set())
         table = SQLModel.metadata.tables[spec.table]

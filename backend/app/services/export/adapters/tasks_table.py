@@ -97,7 +97,7 @@ class TasksTableAdapter:
         format: str,
     ) -> RenderRequest:
         # The detailed report is a distinct, richer shape (one task per page
-        # with description/subtasks/comments) — PDF only; for other formats
+        # with description/checklist/comments) — PDF only; for other formats
         # ``layout=detailed`` falls through to the table.
         if format == "pdf" and params.get("layout") == "detailed":
             return await self._build_detailed(session, user, guild_id, params)
@@ -185,7 +185,7 @@ class TasksTableAdapter:
                 "tags": et("columns.tags", loc),
                 "description": et("detail.description", loc),
                 "noDescription": et("detail.noDescription", loc),
-                "subtasks": et("detail.subtasks", loc),
+                "checklist": et("detail.checklist", loc),
                 "comments": et("detail.comments", loc),
             },
             "tasks": [_detail(t, comments.get(t.id, []), loc) for t in tasks],
@@ -231,7 +231,7 @@ def _row(task: Task, locale: str) -> dict[str, Any]:
 
 def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
     """One task's full record for the detailed report. Free-text fields
-    (title, description, subtask content, comment bodies, names) are user data
+    (title, description, checklist lines, comment bodies, names) are user data
     and stay verbatim (the description is *parsed* as the Markdown it is, but
     its text is untouched); only the priority enum localizes."""
     return {
@@ -244,15 +244,14 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
         "start": task.start_date.strftime("%Y-%m-%d") if task.start_date else "",
         "assignees": [display_name(a) for a in (task.assignees or [])],
-        "tags": sorted(
-            link.tag.name for link in task.tag_links if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in task.tags or []),
         # Descriptions are Markdown (the app renders them with react-markdown)
         # — parse into blocks so **bold** renders bold, not literally.
         "description_blocks": blocks_from_markdown(task.description),
-        "subtasks": [
-            {"content": s.content, "done": bool(s.is_completed)}
-            for s in sorted(task.subtasks or [], key=lambda s: s.position)
+        "checklist": [
+            {"text": item.get("text", ""), "done": bool(item.get("done"))}
+            for item in (task.checklist or [])
+            if item.get("text")
         ],
         "comments": [
             {

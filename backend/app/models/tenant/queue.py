@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import (
     Boolean,
     Column,
@@ -13,9 +12,10 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -24,13 +24,12 @@ from app.models.tenant._mixins import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.tag import Tag
-    from app.models.tenant.document import Document
-    from app.models.tenant.task import Task
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Queue(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"
@@ -77,10 +76,6 @@ class Queue(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "cascade": "all, delete-orphan",
             "foreign_keys": "[QueueItem.queue_id]",
         },
-    )
-    tag_links: List["QueueTag"] = Relationship(
-        back_populates="queue",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={
@@ -158,97 +153,9 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         },
     )
-    tag_links: List["QueueItemTag"] = Relationship(
-        back_populates="queue_item",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    document_links: List["QueueItemDocument"] = Relationship(
-        back_populates="queue_item",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    task_links: List["QueueItemTask"] = Relationship(
-        back_populates="queue_item",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-
-
-class QueueTag(SQLModel, table=True):
-    """Junction table linking queues to tags."""
-
-    __tablename__ = "queue_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    queue_id: int = Field(foreign_key="queues.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue: Optional[Queue] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="queue_links")
-
-
-class QueueItemTag(SQLModel, table=True):
-    """Junction table linking queue items to tags."""
-
-    __tablename__ = "queue_item_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue_item: Optional[QueueItem] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="queue_item_links")
 
 
 class QueuePermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-class QueueItemDocument(SQLModel, table=True):
-    """Junction table linking queue items to documents."""
-
-    __tablename__ = "queue_item_documents"
-
-    queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    attached_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue_item: Optional[QueueItem] = Relationship(back_populates="document_links")
-    document: Optional["Document"] = Relationship(back_populates="queue_item_links")
-
-
-class QueueItemTask(SQLModel, table=True):
-    """Junction table linking queue items to tasks."""
-
-    __tablename__ = "queue_item_tasks"
-
-    queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    attached_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue_item: Optional[QueueItem] = Relationship(back_populates="task_links")
-    task: Optional["Task"] = Relationship(back_populates="queue_item_links")

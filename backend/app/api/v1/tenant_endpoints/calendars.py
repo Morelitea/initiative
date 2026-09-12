@@ -34,7 +34,7 @@ from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.calendar import (
@@ -49,7 +49,7 @@ from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
+from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -95,27 +95,6 @@ async def _get_initiative_for_calendar(
     return initiative
 
 
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_calendars,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calendar:
     calendar = await calendars_service.get_calendar(
         session, calendar_id, populate_existing=True
@@ -156,6 +135,9 @@ async def list_calendars(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> CalendarListResponse:
@@ -166,7 +148,10 @@ async def list_calendars(
     unfiltered list, which is everything in scope, so it is asked for by name
     rather than inferred from an absent ``initiative_id``.
     """
-    conditions = [Calendar.guild_id == guild_context.guild_id]
+    conditions = [
+        Calendar.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(Calendar, archived),
+    ]
 
     if scope == "guild":
         conditions.append(Calendar.initiative_id.is_(None))
@@ -221,6 +206,7 @@ async def list_calendars(
     )
     result = await session.exec(stmt)
     calendars = result.unique().all()
+    await tags_service.annotate_tags(session, calendars)
 
     items = [serialize_calendar_summary(c, user_id=current_user.id) for c in calendars]
     has_next = page * page_size < total_count
@@ -331,7 +317,9 @@ async def create_calendar(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=CalendarMessages.FEATURE_DISABLED,
             )
-        await _check_create_permission(session, initiative, current_user, guild_context)
+        await resource_access.require_create(
+            session, Tool.calendar, initiative, current_user, guild_context
+        )
 
     initiative_id = initiative.id if initiative is not None else None
 
@@ -547,9 +535,11 @@ async def list_my_calendars(
 
 
 async def _exec_calendars(session, stmt) -> list[Calendar]:
-    """Run a Calendar select and return de-duplicated rows as a list."""
+    """Run a Calendar select, de-duplicate, and carry each row's tags."""
     result = await session.exec(stmt)
-    return list(result.unique().all())
+    calendars = list(result.unique().all())
+    await tags_service.annotate_tags(session, calendars)
+    return calendars
 
 
 # ---------------------------------------------------------------------------

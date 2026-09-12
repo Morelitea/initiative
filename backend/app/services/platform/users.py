@@ -17,6 +17,8 @@ from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
+from app.services.auth import sessions as session_service
+from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
@@ -391,8 +393,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     Drops memberships like ``deactivate_user``, then strips every PII
     field on the row, randomises ``email_hash`` / ``email_encrypted`` so
     no future signup or admin lookup can resolve to this row, blanks the
-    password hash, and revokes auth artifacts (API keys, push tokens,
-    user_tokens). The row stays so existing FKs (comment authors, task
+    password hash, and removes auth artifacts (API keys, push tokens,
+    user_tokens, sign-in sessions). The row stays so existing FKs (comment authors, task
     assignees, project owners, …) continue to resolve and the UI can
     render the placeholder "Deleted user #{id}" wherever the original
     user was referenced.
@@ -496,6 +498,10 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
+    # The session rows too: a husk keeps no record of the devices, addresses
+    # and user agents its account signed in from. A hard delete gets this from
+    # the ``users`` foreign key; the row survives here, so it is explicit.
+    await session_service.delete_all_for_user(session, user_id=user_id)
 
     # Scrub the user's address out of any guild invite bound to it. Without
     # this, an unexpired/lingering invite keeps a recoverable copy of the very
@@ -508,6 +514,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # revocation either all succeed or all roll back together.
     await session.commit()
     await _dispatch_queued_revocations(session)
+    # Last, because the revocations above name this person to each app by the
+    # very references this removes.
+    await identity_refs.forget_user(user_id=user_id)
 
 
 async def _dispatch_queued_revocations(session: AsyncSession) -> None:
@@ -774,6 +783,9 @@ async def hard_delete_user(
     await session.delete(user)
 
     await session.commit()
+    # After the commit: the row is gone, so what outside parties were given to
+    # name this person by should stop resolving to anybody.
+    await identity_refs.forget_user(user_id=user_id)
 
 
 # The member-lookup helpers below bind to ``MemberProfile`` — the guild

@@ -78,7 +78,15 @@ const serve = () => {
       });
     }),
     guildHttp.post("/query", () =>
-      HttpResponse.json({ columns: [], rows: [], truncated: false, relations: [] })
+      HttpResponse.json({
+        columns: [
+          { name: "priority", type: "text" },
+          { name: "tasks", type: "number" },
+        ],
+        rows: [["high", 3]],
+        truncated: false,
+        relations: ["tasks"],
+      })
     )
   );
 };
@@ -354,5 +362,84 @@ describe("a statement the server refuses", () => {
     await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
     await user.clear(sqlBox());
     await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+});
+
+describe("the preview", () => {
+  /** What the pane last handed the widget to draw. */
+  const drawnWith = () =>
+    renderWidget.mock.calls.at(-1)?.[0] as
+      | { slots?: Record<string, number[]>; data?: { rows?: unknown[] } }
+      | undefined;
+
+  it("tells the widget which columns fill its slots", async () => {
+    // Without this every slot reads as unfilled, and a widget that draws
+    // numbers reports it was handed none — whatever the statement returned.
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await waitFor(() => expect(drawnWith()?.data?.rows).toHaveLength(1));
+    // `stat` takes a number and an optional label; the statement returns one
+    // of each, in that order.
+    expect(drawnWith()?.slots).toEqual({ value: [1], label: [0] });
+  });
+
+  it("honours a mapping the author corrected rather than inferring over it", async () => {
+    mount({ ...widget({ source: "query", sql: SHIPPED_SQL }), mapping: { value: [0] } });
+
+    await waitFor(() => expect(drawnWith()?.data?.rows).toHaveLength(1));
+    expect(drawnWith()?.slots?.value).toEqual([0]);
+  });
+});
+
+describe("what a new statement leaves out", () => {
+  /** The catalog, answering with what the server derives for `tasks`. */
+  const withDefaults = () =>
+    server.use(
+      http.get("/api/v1/fields/:dataset", ({ params }) =>
+        HttpResponse.json({
+          dataset: params.dataset,
+          fields: [FIELD("title", "text"), FIELD("archived_at", "date")],
+          relations: [{ name: "project", dataset: "projects" }],
+          default_filters:
+            params.dataset === "tasks"
+              ? [
+                  { field: "archived_at", op: "is_null", value: true },
+                  { field: "project.is_template", op: "eq", value: false },
+                ]
+              : [],
+        })
+      )
+    );
+
+  it("starts a new widget without archived work or templates", async () => {
+    withDefaults();
+    mount(widget({ source: "query" }));
+
+    await waitFor(() => {
+      const where = described.build?.where as { field: string }[] | undefined;
+      expect(where?.map((condition) => condition.field)).toEqual([
+        "archived_at",
+        "project.is_template",
+      ]);
+    });
+  });
+
+  it("shows them as filters rather than hiding them in the statement", async () => {
+    // The whole point of seeding conditions instead of applying them server
+    // side: an author can see what is being left out, and take it back.
+    withDefaults();
+    mount(widget({ source: "query" }));
+
+    await screen.findByRole("tab", { name: /build/i });
+    await waitFor(() => expect(screen.queryByText(/no filters/i)).not.toBeInTheDocument());
+  });
+
+  it("leaves a statement somebody already wrote alone", async () => {
+    // A stored statement opens on SQL and is never rewritten by being read.
+    withDefaults();
+    mount(widget({ source: "query", sql: SHIPPED_SQL }));
+
+    await waitFor(() => expect(sqlBox()).toHaveValue(SHIPPED_SQL));
+    expect(asked.build).toBe(0);
   });
 });

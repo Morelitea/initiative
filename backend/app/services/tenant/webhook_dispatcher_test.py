@@ -117,6 +117,7 @@ async def _make_subscription(
     event_types: list[str],
     initiative_id: int | None = None,
     active: bool = True,
+    app_install_id: int | None = None,
 ) -> WebhookSubscription:
     """Helper: create a sub bound to a real guild+user so FKs hold."""
     now = datetime.now(timezone.utc)
@@ -124,6 +125,7 @@ async def _make_subscription(
         guild_id=guild.id,
         initiative_id=initiative_id,
         created_by=user.id,
+        app_install_id=app_install_id,
         target_url=target_url,
         hmac_secret="test-secret",
         event_types=event_types,
@@ -473,3 +475,54 @@ async def test_inert_dispatch_explains_itself_once_per_process(monkeypatch):
             )
 
     assert mock_info.call_count == 1
+
+
+@pytest.mark.integration
+async def test_an_install_that_is_gone_is_delivered_to_by_nobody(session):
+    """Uninstalling switches an app's subscriptions off, which is what stops
+    deliveries promptly. This is what makes it true anyway.
+
+    ``app_install_id`` carries no foreign key — the install and the
+    subscription are both guild content, but nothing enforces the link — so the
+    selector asks whether the install is still there rather than trusting that
+    every path which removes one remembered to switch its subscriptions off.
+    """
+    from app.testing.factories import create_guild, create_user
+
+    user = await create_user(session, email="dispatcher-install@example.com")
+    guild = await create_guild(session)
+    await _make_subscription(
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://an-install-that-went.example.com/hook",
+        event_types=["task.created"],
+        active=True,
+        # No guild_apps row: an install that is not there any more.
+        app_install_id=987654,
+    )
+    await _make_subscription(
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://a-member-of-this-guild.example.com/hook",
+        event_types=["task.created"],
+        active=True,
+        app_install_id=None,
+    )
+
+    delivered_to: list[str] = []
+
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
+        delivered_to.append(target_url)
+        return True
+
+    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
+        await dispatch_event(
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
+        )
+
+    assert delivered_to == ["https://a-member-of-this-guild.example.com/hook"]

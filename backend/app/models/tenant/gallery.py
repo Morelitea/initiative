@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import ClassVar, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import (
     BigInteger,
     Column,
@@ -12,9 +11,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -23,11 +23,12 @@ from app.models.tenant._mixins import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.models.tenant.tag import Tag
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Gallery(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Gallery(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """A collection of pictures in an initiative.
 
     A gallery is a whole tool entity — its own sharing, its own comment thread,
@@ -102,10 +103,6 @@ class Gallery(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-    tag_links: List["GalleryTag"] = Relationship(
-        back_populates="gallery",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     # The pictures. Ordered newest first here because that is the one order
     # every surface wants — a gallery is a record of what arrived, and the
     # latest arrival is what somebody opening it came to see.
@@ -124,24 +121,6 @@ class Gallery(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-
-
-class GalleryTag(SQLModel, table=True):
-    """Junction table linking galleries to tags."""
-
-    __tablename__ = "gallery_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    gallery_id: int = Field(foreign_key="galleries.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    gallery: Optional[Gallery] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="gallery_links")
 
 
 class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
@@ -218,10 +197,6 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-    tag_links: List["GalleryImageTag"] = Relationship(
-        back_populates="image",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     versions: List["GalleryImageVersion"] = Relationship(
         back_populates="image",
         sa_relationship_kwargs={
@@ -229,24 +204,6 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
             "order_by": "GalleryImageVersion.version_number",
         },
     )
-
-
-class GalleryImageTag(SQLModel, table=True):
-    """Junction table linking gallery images to tags."""
-
-    __tablename__ = "gallery_image_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    gallery_image_id: int = Field(foreign_key="gallery_images.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    image: Optional[GalleryImage] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="gallery_image_links")
 
 
 class GalleryImageVersion(CreatedByMixin, table=True):

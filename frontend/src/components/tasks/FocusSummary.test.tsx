@@ -64,7 +64,7 @@ function renderFocus(prefs: Partial<FocusPreferences> = {}, stored?: unknown) {
         focus={focus}
         activeGuildId={1}
         changeTaskStatus={changeTaskStatus}
-        isUpdatingTaskStatus={false}
+        isUpdatingTask={() => false}
       />
     );
   };

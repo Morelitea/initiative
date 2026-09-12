@@ -25,10 +25,14 @@ class FakeWebSocket:
 
     def __init__(self) -> None:
         self.sent: list[dict] = []
+        self.sent_bytes: list[bytes] = []
         self.closed: Optional[int] = None
 
     async def send_json(self, message: dict) -> None:
         self.sent.append(message)
+
+    async def send_bytes(self, payload: bytes) -> None:
+        self.sent_bytes.append(payload)
 
     async def close(self, code: Optional[int] = None) -> None:
         self.closed = code
@@ -57,6 +61,7 @@ async def _join(
     user=USER,
     authorize=None,
     satisfied_providers=frozenset(),
+    meta=None,
 ):
     async def _ok(_session, _user):
         return True
@@ -70,6 +75,7 @@ async def _join(
         resource_id=resource_id,
         authorize=authorize or _ok,
         satisfied_providers=satisfied_providers,
+        meta=meta,
     )
 
 
@@ -354,3 +360,60 @@ async def test_a_live_account_keeps_its_socket(authority, monkeypatch) -> None:
 
     assert ws.closed is None
     assert authority.room_size(1, "document", 3) == 1
+
+
+# ── binary fan-out ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+async def test_emit_bytes_reaches_a_second_connection_of_the_same_account(
+    authority,
+) -> None:
+    """One person's two tabs are two connections, and each is the other's peer.
+
+    Exclusion is by socket, so the only frame withheld is the sender's own.
+    """
+    first = FakeWebSocket()
+    second = FakeWebSocket()
+    await _join(authority, first, guild_id=1, resource_type="document", resource_id=7)
+    await _join(authority, second, guild_id=1, resource_type="document", resource_id=7)
+
+    await authority.emit_bytes(1, "document", 7, b"\x02update", exclude=first)
+
+    assert second.sent_bytes == [b"\x02update"]
+    assert first.sent_bytes == []
+
+
+@pytest.mark.unit
+async def test_emit_bytes_is_isolated_by_guild(authority) -> None:
+    same = FakeWebSocket()
+    other_guild = FakeWebSocket()
+    await _join(authority, same, guild_id=1, resource_type="document", resource_id=5)
+    await _join(
+        authority, other_guild, guild_id=2, resource_type="document", resource_id=5
+    )
+
+    await authority.emit_bytes(1, "document", 5, b"\x02payload")
+
+    assert same.sent_bytes == [b"\x02payload"]
+    assert other_guild.sent_bytes == []
+
+
+@pytest.mark.unit
+async def test_room_members_carries_the_channels_own_state(authority) -> None:
+    ws = FakeWebSocket()
+    await _join(
+        authority,
+        ws,
+        guild_id=1,
+        resource_type="document",
+        resource_id=5,
+        meta={"name": "Ada", "can_write": True},
+    )
+
+    members = authority.room_members(1, "document", 5)
+
+    assert len(members) == 1
+    assert members[0].user is USER
+    assert members[0].meta["name"] == "Ada"
+    assert members[0].meta["can_write"] is True

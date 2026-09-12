@@ -1,24 +1,14 @@
 from datetime import datetime, timezone
-from typing import List, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, String
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 from pydantic import ConfigDict
 
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
-    from app.models.tenant.task import Task
-    from app.models.tenant.project import Project
-    from app.models.tenant.document import Document
-    from app.models.tenant.queue import QueueItemTag, QueueTag
-    from app.models.tenant.calendar import CalendarTag
-    from app.models.tenant.calendar_event import CalendarEventTag
-    from app.models.tenant.dashboard import DashboardTag
-    from app.models.tenant.post import PostTag
-    from app.models.tenant.gallery import GalleryImageTag, GalleryTag
-    from app.models.tenant.counter import CounterGroupTag
 
 
 class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
@@ -51,105 +41,3 @@ class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     guild: Optional["Guild"] = Relationship()
-    task_links: List["TaskTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    project_links: List["ProjectTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    document_links: List["DocumentTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    queue_item_links: List["QueueItemTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    calendar_links: List["CalendarTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    calendar_event_links: List["CalendarEventTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    dashboard_links: List["DashboardTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    post_links: List["PostTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    gallery_links: List["GalleryTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    gallery_image_links: List["GalleryImageTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    queue_links: List["QueueTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    counter_group_links: List["CounterGroupTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-
-
-class TaskTag(SQLModel, table=True):
-    """Junction table linking tasks to tags."""
-
-    __tablename__ = "task_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    task: Optional["Task"] = Relationship(back_populates="tag_links")
-    tag: Optional[Tag] = Relationship(back_populates="task_links")
-
-
-class ProjectTag(SQLModel, table=True):
-    """Junction table linking projects to tags."""
-
-    __tablename__ = "project_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    project: Optional["Project"] = Relationship(back_populates="tag_links")
-    tag: Optional[Tag] = Relationship(back_populates="project_links")
-
-
-class DocumentTag(SQLModel, table=True):
-    """Junction table linking documents to tags."""
-
-    __tablename__ = "document_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    document: Optional["Document"] = Relationship(back_populates="tag_links")
-    tag: Optional[Tag] = Relationship(back_populates="document_links")

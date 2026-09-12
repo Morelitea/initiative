@@ -76,6 +76,18 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
 
 const PAGE_SIZE = 20;
 
+/**
+ * Prefix shared by every `/me/tasks` cache entry — the table's page, the focus
+ * summary's rule and pin queries. A status change patches all of them at once,
+ * so the row it touched updates wherever it is on screen without waiting for
+ * three cross-guild aggregates to come back.
+ */
+const MY_TASKS_QUERY_PREFIX = getListMyTasksApiV1MeTasksGetQueryKey();
+
+/** Task ids repeat across guilds, so an in-flight row is addressed by both. */
+const taskKey = (task: Pick<TaskListRead, "id" | "guild_id">) =>
+  `${task.guild_id ?? "none"}:${task.id}`;
+
 /** Map DataTable column IDs to backend sort field names */
 const SORT_FIELD_MAP: Record<string, string> = {
   title: "title",
@@ -293,15 +305,68 @@ export function useGlobalTasksTable() {
   );
 
   // --- Status mutation ---
-  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } =
-    useUpdateTaskInGuild({
-      onSuccess: (updatedTask) => {
-        const cached = projectStatusCache.current.get(updatedTask.project_id);
-        if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
-          cached.statuses.push(updatedTask.task_status);
+  const { mutateAsync: updateTaskStatusMutate } = useUpdateTaskInGuild({
+    onSuccess: (updatedTask) => {
+      const cached = projectStatusCache.current.get(updatedTask.project_id);
+      if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
+        cached.statuses.push(updatedTask.task_status);
+      }
+    },
+  });
+
+  // Which rows have a status change in flight. Per task rather than one flag for
+  // the mutation, because the shared `isPending` disabled every row on the page
+  // — and the focus summary's rows with them — while a single checkbox was
+  // saving.
+  const [updatingTasks, setUpdatingTasks] = useState<ReadonlySet<string>>(() => new Set());
+  const isUpdatingTask = useCallback(
+    (task: Pick<TaskListRead, "id" | "guild_id">) => updatingTasks.has(taskKey(task)),
+    [updatingTasks]
+  );
+
+  /**
+   * Rewrite one row's status in every `/me/tasks` page the cache holds.
+   *
+   * Only that row is touched — not a snapshot of the whole page — so two rows
+   * changed at once don't undo each other when one of them fails.
+   */
+  const writeStatusToCache = useCallback(
+    (task: Pick<TaskListRead, "id" | "guild_id">, status: TaskStatusRead) => {
+      const key = taskKey(task);
+      localQueryClient.setQueriesData<TaskListResponse>(
+        { queryKey: MY_TASKS_QUERY_PREFIX },
+        (old) => {
+          if (!old?.items?.some((item) => taskKey(item) === key)) return old;
+          return {
+            ...old,
+            items: old.items.map((item) =>
+              taskKey(item) === key
+                ? { ...item, task_status_id: status.id, task_status: status }
+                : item
+            ),
+          };
         }
-      },
-    });
+      );
+    },
+    [localQueryClient]
+  );
+
+  /**
+   * Show the new status now, and hand back the undo.
+   *
+   * The check lands the moment it is clicked instead of after the refetch the
+   * mutation's invalidation kicks off. A task that has just moved out of the
+   * filtered set stays put until that refetch drops it, which reads as
+   * completing work rather than as the row vanishing mid-click.
+   */
+  const applyStatusLocally = useCallback(
+    (task: TaskListRead, status: TaskStatusRead) => {
+      const previous = task.task_status;
+      writeStatusToCache(task, status);
+      return () => writeStatusToCache(task, previous);
+    },
+    [writeStatusToCache]
+  );
 
   // --- Task items + status cache hydration ---
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -369,6 +434,15 @@ export function useGlobalTasksTable() {
         toast.error(t("errors.guildContext"));
         return;
       }
+      // The status the row is moving to is already in hand whenever the caller
+      // resolved it through this project's statuses, which is every path that
+      // reaches here; without it the row simply waits for the refetch.
+      const target = projectStatusCache.current
+        .get(task.project_id)
+        ?.statuses.find((status) => status.id === targetStatusId);
+      const rollback = target ? applyStatusLocally(task, target) : null;
+      const key = taskKey(task);
+      setUpdatingTasks((prev) => new Set(prev).add(key));
       try {
         await updateTaskStatusMutate({
           taskId: task.id,
@@ -378,11 +452,18 @@ export function useGlobalTasksTable() {
           guildId: targetGuildId,
         });
       } catch (error) {
+        rollback?.();
         console.error(error);
         toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
+      } finally {
+        setUpdatingTasks((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
       }
     },
-    [activeGuildId, updateTaskStatusMutate, t]
+    [activeGuildId, applyStatusLocally, updateTaskStatusMutate, t]
   );
 
   const changeTaskStatus = useCallback(
@@ -463,7 +544,7 @@ export function useGlobalTasksTable() {
     fetchProjectStatuses,
     resolveStatusIdForCategory,
     projectStatusCache,
-    isUpdatingTaskStatus,
+    isUpdatingTask,
 
     // Display data
     displayTasks,

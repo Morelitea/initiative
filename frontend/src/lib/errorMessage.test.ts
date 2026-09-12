@@ -68,3 +68,17 @@ describe("getErrorCode", () => {
     expect(getErrorCode(apiError(403, { detail: "FORBIDDEN" }))).toBe("FORBIDDEN");
   });
 });
+
+describe("a 429", () => {
+  it("reads the app's own refusal rather than calling it a rate limit", () => {
+    expect(getErrorMessage(apiError(429, { detail: "QUERY_BUSY" }))).toBe(
+      "This community already has as many queries running as it may. Try again in a moment."
+    );
+  });
+
+  it("still says rate limited when the limiter answered without a code", () => {
+    expect(getErrorMessage(apiError(429, { error: "1 per 1 minute" }))).toBe(
+      "Too many requests. Please wait a moment and try again."
+    );
+  });
+});

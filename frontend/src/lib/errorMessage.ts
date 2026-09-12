@@ -38,12 +38,16 @@ function codeFromValidationDetail(detail: ValidationDetail[]): string | null {
 export function getErrorMessage(error: unknown, fallbackKey?: string): string {
   const axiosError = error as AxiosError<{ detail?: string | ValidationDetail[] }>;
 
-  // slowapi returns 429 with {"error": "..."} instead of {"detail": "..."}
-  if (axiosError?.response?.status === 429) {
+  const detail = axiosError?.response?.data?.detail;
+
+  // slowapi returns 429 with {"error": "..."} instead of {"detail": "..."}, so a
+  // 429 with nothing in `detail` is the rate limiter and says so. The app's own
+  // refusals use the same status for "not right now" — a guild with no free
+  // query slot — and those carry a code worth reading, so they are localized
+  // like any other.
+  if (axiosError?.response?.status === 429 && typeof detail !== "string") {
     return translate("RATE_LIMITED", { ns: "errors" });
   }
-
-  const detail = axiosError?.response?.data?.detail;
 
   // A 422 carries a list of field errors rather than a code. Localize the flat
   // code a validator raised; otherwise fall through to the caller's fallback,

@@ -9,7 +9,6 @@ Tests the auth API endpoints including:
 - Password reset
 """
 
-import logging
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -47,7 +46,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_new_access_token,
+    get_legacy_auth_headers,
     set_auth_scope,
 )
 from app.testing.oidc import (
@@ -438,143 +437,94 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-async def test_login_failure_is_recorded_against_the_account(
-    client: AsyncClient, session: AsyncSession, caplog
+async def test_sign_in_hashes_a_password_even_for_an_address_nobody_holds(
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A failed attempt names a known account only in the server-side log."""
-    user = await create_user(
-        session,
-        email="recorded@example.com",
-        hashed_password=get_password_hash("correct_password"),
-    )
+    """Whether an address has an account here must not be readable from outside.
 
-    with caplog.at_level(logging.WARNING):
-        response = await client.post(
-            "/api/v1/auth/token",
-            data={"username": "recorded@example.com", "password": "wrong_password"},
-        )
+    Checking ``not user`` first and short-circuiting returns without paying the
+    hashing cost, and the difference between "no account" and "wrong password"
+    is then a measurable one. So the property is that the hash is computed
+    either way -- asserted by counting the calls rather than by timing them,
+    because a wall-clock assertion on a hash function is a flaky test that
+    eventually gets deleted.
 
-    assert response.status_code == 400
-    logged = [
-        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
-    ]
-    assert logged, "a failed sign-in was not recorded"
-    assert f"user_id={user.id}" in logged[-1]
-    assert "recorded@example.com" not in logged[-1]
+    The reason it is recorded HERE rather than as an audit event is that there
+    is nothing to record it against: an address nobody holds is not an action
+    on anybody (see auth_audit_test.py).
+    """
+    from app.api.v1.platform_endpoints import auth as auth_module
 
-    unknown_response = await client.post(
+    calls: list[str | None] = []
+    real_verify = auth_module.verify_password
+
+    def counting_verify(plain: str, hashed: str | None) -> bool:
+        calls.append(hashed)
+        return real_verify(plain, hashed)
+
+    monkeypatch.setattr(auth_module, "verify_password", counting_verify)
+
+    await create_user(session, email="exists@example.com")
+
+    await client.post(
         "/api/v1/auth/token",
-        data={"username": "unknown@example.com", "password": "wrong_password"},
+        data={"username": "exists@example.com", "password": "wrong_password"},
     )
-    assert unknown_response.status_code == response.status_code
-    assert unknown_response.json() == response.json()
-    assert unknown_response.headers["content-type"] == response.headers["content-type"]
+    known_account_calls = len(calls)
+
+    calls.clear()
+    await client.post(
+        "/api/v1/auth/token",
+        data={"username": "nobody-at-all@example.com", "password": "wrong_password"},
+    )
+
+    assert len(calls) == known_account_calls == 1
+    # And against a real hash, not None: verify_password returns False for a
+    # None hash without hashing anything, which would leave the same gap.
+    assert calls[0] is not None
 
 
-async def test_unknown_account_still_runs_password_verification(
-    client: AsyncClient, monkeypatch
+async def test_sign_in_hashes_a_password_for_an_account_that_has_none(
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """An unknown address must pay the same password-check cost as a known one."""
-    checked: list[tuple[str, str | None]] = []
+    """An SSO-only account is the same case as a missing one.
 
-    def record_verification(password: str, stored_hash: str | None) -> bool:
-        checked.append((password, stored_hash))
-        return False
+    Its ``hashed_password`` is NULL, so passing it straight to
+    ``verify_password`` returns False without hashing -- which would say, to
+    anyone timing it, that this address exists but signs in another way.
+    """
+    from app.api.v1.platform_endpoints import auth as auth_module
 
+    calls: list[str | None] = []
+    real_verify = auth_module.verify_password
     monkeypatch.setattr(
-        "app.api.v1.platform_endpoints.auth.verify_password", record_verification
+        auth_module,
+        "verify_password",
+        lambda plain, hashed: (calls.append(hashed), real_verify(plain, hashed))[1],
     )
+
+    user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
+        email_hash=hash_email("sso-timing@example.com"),
+        email_encrypted=encrypt_field("sso-timing@example.com", SALT_EMAIL),
+        full_name="SSO Timing",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
     response = await client.post(
         "/api/v1/auth/token",
-        data={"username": "unknown@example.com", "password": "offered-password"},
+        data={"username": "sso-timing@example.com", "password": "anything"},
     )
 
     assert response.status_code == 400
-    assert len(checked) == 1
-    assert checked[0][0] == "offered-password"
-    assert checked[0][1]
+    from app.api.v1.platform_endpoints.auth import _DUMMY_PASSWORD_HASH
 
-
-async def test_login_failure_log_fields_come_from_server_state(
-    client: AsyncClient, session: AsyncSession, caplog
-):
-    """The log uses the client selected by the ASGI proxy trust boundary."""
-    user = await create_user(
-        session,
-        email="blocked-log@example.com",
-        hashed_password=get_password_hash("correct_password"),
-    )
-
-    with caplog.at_level(logging.WARNING):
-        response = await client.post(
-            "/api/v1/auth/token",
-            data={"username": "blocked-log@example.com", "password": "wrong_password"},
-            # A header value carrying a space and an equals sign. The log line
-            # is assembled as key=value pairs, so neither may survive into it.
-            headers={"X-Forwarded-For": "fe80::1%a b=c"},
-        )
-
-    assert response.status_code == 400
-    logged = [
-        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
-    ]
-    assert logged, "a failed sign-in was not recorded"
-    line = logged[-1]
-    assert line.count("user_id=") == 1
-    assert f"user_id={user.id}" in line
-    assert line.count("ip=") == 1
-    assert "ip=127.0.0.1 " in line
-    # Neither separator from the header reaches the line.
-    assert "%" not in line
-    assert "b=c" not in line
-    assert "blocked-log@example.com" not in line
-
-
-async def test_login_failure_is_recorded_for_a_correct_password_on_a_blocked_account(
-    client: AsyncClient, session: AsyncSession, caplog
-):
-    """A matching password against an unusable account is still recorded."""
-    password = "correct_password"
-    user = await create_user(
-        session,
-        email="blocked@example.com",
-        hashed_password=get_password_hash(password),
-        status=UserStatus.deactivated,
-    )
-
-    with caplog.at_level(logging.WARNING):
-        response = await client.post(
-            "/api/v1/auth/token",
-            data={"username": "blocked@example.com", "password": password},
-        )
-
-    assert response.status_code == 400
-    logged = [
-        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
-    ]
-    assert logged, "a correct password on a deactivated account was not recorded"
-    assert f"user_id={user.id}" in logged[-1]
-    assert "reason=account_not_active" in logged[-1]
-    assert "blocked@example.com" not in logged[-1]
-
-
-async def test_login_failure_for_unknown_account_names_no_user(
-    client: AsyncClient, caplog
-):
-    """No account, no id — and the same 400 the caller gets when one exists."""
-    with caplog.at_level(logging.WARNING):
-        response = await client.post(
-            "/api/v1/auth/token",
-            data={"username": "nobody@example.com", "password": "whatever"},
-        )
-
-    assert response.status_code == 400
-    logged = [
-        r.getMessage() for r in caplog.records if "auth.login_failed" in r.getMessage()
-    ]
-    assert logged, "a failed sign-in was not recorded"
-    assert "user_id=-" in logged[-1]
-    assert "nobody@example.com" not in logged[-1]
+    assert calls == [_DUMMY_PASSWORD_HASH]
 
 
 async def test_login_refused_for_account_without_password(
@@ -837,7 +787,7 @@ async def test_new_access_token_authenticates(
     on the session path alongside legacy JWTs — the accept-before-issue half of
     the cutover."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_auth_token(user)
 
     response = await client.get(
         "/api/v1/users/me",
@@ -855,7 +805,7 @@ async def test_new_access_token_stale_version_returns_401(
     """The new token still carries ``ver``, so a token_version bump (logout /
     password change) revokes it exactly like a legacy token."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_auth_token(user)
     user.token_version += 1
     session.add(user)
     await session.commit()
@@ -898,7 +848,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     satisfied = await client.post(
         "/api/v1/auth/upload-token",
         headers={
-            "Authorization": f"Bearer {get_new_access_token(user, satisfied_providers=[7, 3])}"
+            "Authorization": f"Bearer {get_auth_token(user, satisfied_providers=[7, 3])}"
         },
     )
     assert satisfied.status_code == 200, satisfied.text
@@ -906,7 +856,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     assert sat == frozenset({3, 7})
 
     legacy = await client.post(
-        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+        "/api/v1/auth/upload-token", headers=get_legacy_auth_headers(user)
     )
     _, sat = verify_upload_token(legacy.json()["upload_token"])
     assert sat == frozenset()
@@ -1259,6 +1209,106 @@ async def test_oidc_callback_establishes_refresh_session(
     assert claims["sid"] == str(auth_session.id)
     assert claims["amr"] == [f"oidc:{PLATFORM_OIDC_SLUG}"]
     assert claims["sat"] == [provider.id]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The id_token's own account of the authentication — which methods, which
+    context class, when — is kept against the provider that performed it, and
+    its methods join the session's ``amr``."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-assurance@example.com",
+            "username": "sso-assurance",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+            "auth_time": 1757600000,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    user = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("sso-assurance@example.com")
+            )
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {
+        str(provider.id): {
+            "auth_time": 1757600000,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+        }
+    }
+    # The session's own factors gain what the IdP named, alongside the marker
+    # that says which provider it was.
+    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An IdP that asserts none of it records none of it, and the access token
+    carries no ``satd`` at all."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-silent@example.com",
+            "username": "sso-silent",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("sso-silent@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {}
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert "satd" not in claims
 
 
 @pytest.mark.integration
@@ -2282,3 +2332,59 @@ async def test_password_change_revokes_refresh_session(
     client.cookies.set("refresh_token", captured, path="/api/v1/auth")
     replay = await client.post("/api/v1/auth/refresh")
     assert replay.status_code == 401
+
+
+async def test_registering_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    from sqlmodel import select
+
+    from app.core.encryption import hash_email
+    from app.models.platform.user import User
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "stamped@example.com",
+            "username": "stamped",
+            "full_name": "Stamped",
+            "password": "a-perfectly-fine-secret-1",
+        },
+    )
+    assert response.status_code == 201
+
+    session.expire_all()
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("stamped@example.com"))
+        )
+    ).one()
+    assert user.password_set_at is not None
+
+
+async def test_password_reset_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account carrying a hash nobody set — the pre-0152 SSO case — becomes
+    known the moment somebody actually sets one."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="reset-stamp@example.com")
+    user.password_set_at = None
+    session.add(user)
+    await session.commit()
+    user_id = user.id
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert response.status_code == 200
+
+    session.expire_all()
+    refreshed = await session.get(User, user_id)
+    assert refreshed.password_set_at is not None

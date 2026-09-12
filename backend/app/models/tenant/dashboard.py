@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -15,11 +15,12 @@ from app.models.tenant._mixins import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.models.tenant.tag import Tag
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Dashboard(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Dashboard(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
     ``definition`` is the validated, declarative body — layout plus widgets and
@@ -99,25 +100,3 @@ class Dashboard(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True
             "viewonly": True,
         }
     )
-    tag_links: List["DashboardTag"] = Relationship(
-        back_populates="dashboard",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-
-
-class DashboardTag(SQLModel, table=True):
-    """Junction table linking dashboards to tags."""
-
-    __tablename__ = "dashboard_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    dashboard_id: int = Field(foreign_key="dashboards.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    dashboard: Optional[Dashboard] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="dashboard_links")

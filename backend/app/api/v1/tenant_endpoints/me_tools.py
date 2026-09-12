@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api import resource_access
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.tools import Tool
 from app.db.query import page_has_next, paginate_sequence
@@ -44,6 +43,7 @@ from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import queues as queues_service
+from app.services.tenant import tags as tags_service
 
 me_router = APIRouter()
 
@@ -71,21 +71,13 @@ class MyToolList:
 MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.queue: MyToolList(
         loader_options=queues_service.list_loader_options,
-        serialize=lambda row, user: serialize_queue_summary(
-            row,
-            my_permission_level=resource_access.my_permission_level(
-                row, Tool.queue, user
-            ),
-        ),
+        serialize=lambda row, user: serialize_queue_summary(row, user_id=user.id),
         default_key=lambda row: row.updated_at,
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
         serialize=lambda row, user: serialize_counter_group_summary(
-            row,
-            my_permission_level=resource_access.my_permission_level(
-                row, Tool.counter_group, user
-            ),
+            row, user_id=user.id
         ),
         default_key=lambda row: row.updated_at,
     ),
@@ -151,6 +143,7 @@ async def list_across_guilds(
             .options(*spec.loader_options())
         )
         rows = (await guild_session.exec(statement)).unique().all()
+        await tags_service.annotate_tags(guild_session, rows)
         # Serialize inside the routed session: relationships resolve in this
         # guild's schema, and the next guild expunges these rows.
         return [spec.serialize(row, current_user) for row in rows]

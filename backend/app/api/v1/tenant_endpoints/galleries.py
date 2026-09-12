@@ -58,7 +58,7 @@ from app.core.messages import (
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.upload import Upload
 from app.schemas.tenant.gallery import (
@@ -83,8 +83,8 @@ from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
 from app.services import storage_config
+from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
@@ -166,27 +166,6 @@ async def _get_initiative_for_gallery(
     return initiative
 
 
-async def _check_create_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=PermissionKey.create_galleries,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GalleryMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _refetch_gallery(
     session: RLSSessionDep, gallery_id: int, *, user_id: int
 ) -> Gallery:
@@ -205,6 +184,7 @@ async def _refetch_gallery(
 async def _annotate(session: RLSSessionDep, galleries: list) -> None:
     """Everything a gallery row carries beyond its columns, one grouped query
     each for the page."""
+    await tags_service.annotate_tags(session, galleries)
     await comments_service.annotate_comment_counts(
         session, galleries, column="gallery_id"
     )
@@ -421,14 +401,12 @@ def _image_scope(
     filter, and the search box. Tags are ANY-of: "everything still awaiting a
     decision" is one tag, and asking for two is asking for either.
     """
-    from app.models.tenant.gallery import GalleryImageTag
-
     conditions = [GalleryImage.gallery_id == gallery.id]
     if tag_ids:
         conditions.append(
             GalleryImage.id.in_(
-                select(GalleryImageTag.gallery_image_id).where(
-                    GalleryImageTag.tag_id.in_(tuple(tag_ids))
+                tags_service.tagged_entity_ids(
+                    tags_service.TAG_LINKS["gallery_image"], tuple(tag_ids)
                 )
             )
         )
@@ -465,6 +443,9 @@ async def list_galleries(
         description="Order by one of: name, initiative, updated_at. Omit for newest first.",
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=0, le=500),
 ) -> GalleryListResponse:
@@ -477,6 +458,7 @@ async def list_galleries(
             items=[], total_count=0, page=page, page_size=page_size, has_next=False
         )
 
+    scope = [*scope, archive_service.archive_filter_clause(Gallery, archived)]
     count_subq = select(Gallery.id).where(*scope).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -568,7 +550,9 @@ async def create_gallery(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GalleryMessages.FEATURE_DISABLED,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+    await resource_access.require_create(
+        session, Tool.gallery, initiative, current_user, guild_context
+    )
 
     gallery = Gallery(
         guild_id=guild_context.guild_id,
@@ -817,6 +801,7 @@ async def list_gallery_images(
         .limit(page_size)
     )
     images = list((await session.exec(stmt)).unique().all())
+    await tags_service.annotate_tags(session, images)
     await galleries_service.annotate_version_counts(session, images)
     return GalleryImageListResponse(
         items=[serialize_gallery_image(i) for i in images],
@@ -991,11 +976,6 @@ async def update_gallery_image(
             entity_id=image.id,
             tag_ids=update_data["tag_ids"],
         )
-        # The row came in with its tag links loaded, and the replace above
-        # deleted those rows underneath the collection. Forget the collection
-        # before the row is added back, or the cascade would try to save the
-        # links that were just removed.
-        session.expire(image, ["tag_links"])
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
     await session.commit()

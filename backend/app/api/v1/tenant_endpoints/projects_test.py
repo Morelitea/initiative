@@ -21,11 +21,13 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.document import Document, DocumentType, ProjectDocument
+from app.core.search import SearchEntityType
+from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.task import TaskStatusCategory
 from app.testing.factories import (
     create_guild,
+    create_relationship,
     create_guild_membership,
     create_initiative,
     create_project,
@@ -235,7 +237,7 @@ async def test_list_projects_excludes_archived_by_default(
     project = await create_project(session, admin.initiative, admin.user)
 
     # Archive the project
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
@@ -254,7 +256,7 @@ async def test_list_projects_with_archived_filter(
     """Test listing projects with archived filter."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
@@ -1003,12 +1005,12 @@ async def test_archive_project(client: AsyncClient, session: AsyncSession, actin
     project = await create_project(session, owner.initiative, owner.user)
 
     response = await client.post(
-        owner.g(f"/projects/{project.id}/archive"), headers=owner.headers
+        owner.g(f"/archive/project/{project.id}"), headers=owner.headers
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_archived"] is True
+    assert data["archived_at"] is not None
 
 
 @pytest.mark.integration
@@ -1018,17 +1020,17 @@ async def test_unarchive_project(
     """Test unarchiving a project."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     project = await create_project(session, owner.initiative, owner.user)
-    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
 
     response = await client.post(
-        owner.g(f"/projects/{project.id}/unarchive"), headers=owner.headers
+        owner.g(f"/unarchive/project/{project.id}"), headers=owner.headers
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_archived"] is False
+    assert data["archived_at"] is None
 
 
 @pytest.mark.integration
@@ -1653,15 +1655,16 @@ async def test_project_shows_all_members_document_to_member(
                 guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
-            ProjectDocument(
-                project_id=project.id,
-                document_id=doc.id,
-                guild_id=guild.id,
-                attached_by_id=owner.user.id,
-            ),
         ]
     )
     await session.commit()
+    await create_relationship(
+        session,
+        guild,
+        source=(SearchEntityType.project, project.id),
+        target=(SearchEntityType.document, doc.id),
+        created_by=owner.user.id,
+    )
 
     r = await client.get(member.g(f"/projects/{project.id}"), headers=member.headers)
     assert r.status_code == 200, r.text
@@ -1687,7 +1690,11 @@ async def test_project_counts_by_initiative(
     await create_project(session, admin.initiative, member.user, name="Member project")
     await create_project(session, admin.initiative, admin.user, name="Admin project")
     await create_project(
-        session, admin.initiative, admin.user, name="Archived", is_archived=True
+        session,
+        admin.initiative,
+        admin.user,
+        name="Archived",
+        archived_at=datetime.now(timezone.utc),
     )
     await create_project(
         session, admin.initiative, admin.user, name="Template", is_template=True

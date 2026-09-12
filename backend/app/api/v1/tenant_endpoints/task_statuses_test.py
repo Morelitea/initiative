@@ -5,6 +5,7 @@ Covers the color/icon fields added for customizable status appearance,
 including category-driven defaults and PATCH behavior around category changes.
 """
 
+from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -304,7 +305,11 @@ async def test_initiative_statuses_skip_archived_and_template_projects(
         session, a.project, name="Active", category=TaskStatusCategory.todo
     )
     archived = await create_project(
-        session, a.initiative, a.user, name="Archived", is_archived=True
+        session,
+        a.initiative,
+        a.user,
+        name="Archived",
+        archived_at=datetime.now(timezone.utc),
     )
     await create_task_status(
         session, archived, name="Archived Only", category=TaskStatusCategory.todo

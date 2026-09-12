@@ -25,8 +25,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
-    CalendarEventTag,
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
@@ -65,7 +63,6 @@ def calendar_loader_options() -> list:
     return [
         selectinload(Calendar.grants).selectinload(ResourceGrant.role),
         selectinload(Calendar.initiative).selectinload(Initiative.memberships),
-        tags_service.TOOL_TAG_LINKS[Tool.calendar].load_options(),
     ]
 
 
@@ -85,7 +82,10 @@ async def get_calendar(
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    calendar = result.one_or_none()
+    if calendar is not None:
+        await tags_service.annotate_tags(session, [calendar])
+    return calendar
 
 
 def _event_export_loader_options() -> list:
@@ -97,12 +97,6 @@ def _event_export_loader_options() -> list:
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.attendees)
         .selectinload(CalendarEventAttendee.user),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.tag_links)
-        .selectinload(CalendarEventTag.tag),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.document_links)
-        .selectinload(CalendarEventDocument.document),
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.property_values)
         .selectinload(CalendarEventPropertyValue.property_definition),
@@ -154,6 +148,8 @@ async def get_calendar_for_export(
         current_user,
         access="read",
     )
+    await tags_service.annotate_tags(session, [calendar])
+    await tags_service.annotate_tags(session, calendar.events or [])
     return calendar
 
 

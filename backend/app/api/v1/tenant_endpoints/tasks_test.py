@@ -8,7 +8,7 @@ Tests the task API endpoints at /api/v1/tasks including:
 - Deleting tasks
 - Moving tasks
 - Duplicating tasks
-- Managing subtasks
+- Managing a task's checklist
 - Task reordering
 """
 
@@ -25,6 +25,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.testing.factories import (
+    checklist_items,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -33,7 +34,7 @@ from app.testing.factories import (
 )
 
 
-async def _create_task(session, project, title="Test Task"):
+async def _create_task(session, project, title="Test Task", checklist=None):
     """Helper to create a task."""
     from app.models.tenant.task import Task
     from app.services.tenant import task_statuses as task_statuses_service
@@ -47,6 +48,7 @@ async def _create_task(session, project, title="Test Task"):
         project_id=project.id,
         task_status_id=status.id,
         guild_id=project.guild_id,
+        checklist=checklist or [],
     )
     session.add(task)
     await session.commit()
@@ -682,85 +684,353 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
 
 
 @pytest.mark.integration
-async def test_create_subtask(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test creating a subtask."""
+async def test_create_task_with_checklist(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A task can be created with its checklist already on it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project)
-
-    payload = {"content": "Subtask content"}
 
     response = await client.post(
-        a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers, json=payload
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Ship the redesign",
+            "project_id": a.project.id,
+            "checklist": [
+                {"id": "aaa111", "text": "Draft the copy", "done": True},
+                {"text": "Get it reviewed"},
+            ],
+        },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data["content"] == "Subtask content"
-    assert data["task_id"] == task.id
-    assert data["is_completed"] is False
+    assert [item["text"] for item in data["checklist"]] == [
+        "Draft the copy",
+        "Get it reviewed",
+    ]
+    # An item that arrived without an id is given one, so it is addressable.
+    assert data["checklist"][0]["id"] == "aaa111"
+    assert data["checklist"][1]["id"]
+    assert data["checklist_progress"] == {"completed": 1, "total": 2}
 
 
 @pytest.mark.integration
-async def test_list_subtasks(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test listing subtasks."""
-    from app.models.tenant.task import Subtask
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project)
-
-    # Create some subtasks
-    subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
-    subtask2 = Subtask(task_id=task.id, content="Subtask 2", position=1)
-    session.add(subtask1)
-    session.add(subtask2)
-    await session.commit()
-
-    response = await client.get(a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    contents = {s["content"] for s in data}
-    assert "Subtask 1" in contents
-    assert "Subtask 2" in contents
-
-
-@pytest.mark.integration
-async def test_reorder_subtasks(
+async def test_checklist_replaced_by_task_patch(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test reordering subtasks."""
-    from app.models.tenant.task import Subtask
-
+    """Adding, renaming, reordering and deleting all arrive as the whole list."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     task = await _create_task(session, a.project)
 
-    # Create subtasks
-    subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
-    subtask2 = Subtask(task_id=task.id, content="Subtask 2", position=1)
-    session.add(subtask1)
-    session.add(subtask2)
-    await session.commit()
-    await session.refresh(subtask1)
-    await session.refresh(subtask2)
-
-    payload = {
-        "items": [
-            {"id": subtask2.id, "position": 0},
-            {"id": subtask1.id, "position": 1},
-        ]
-    }
-
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/subtasks/order"),
+    first = await client.patch(
+        a.g(f"/tasks/{task.id}"),
         headers=a.headers,
-        json=payload,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+    assert first.status_code == 200
+
+    # Reordered, one renamed, one dropped, one added.
+    second = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "two", "text": "Second, renamed"},
+                {"id": "three", "text": "Third"},
+            ]
+        },
+    )
+    assert second.status_code == 200
+    assert [(i["id"], i["text"]) for i in second.json()["checklist"]] == [
+        ("two", "Second, renamed"),
+        ("three", "Third"),
+    ]
+
+
+@pytest.mark.integration
+async def test_checklist_edit_does_not_carry_completion(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A whole-list write says what the lines are, not what is done.
+
+    Someone renaming a line holds whatever the list said when they opened it.
+    A tick that lands in between is not theirs to undo.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    # A rename sent from a view taken before that tick, still saying done=False.
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First, renamed", "done": False},
+                {"id": "two", "text": "Second", "done": False},
+            ]
+        },
     )
 
     assert response.status_code == 200
-    data = response.json()
-    ordered_ids = [s["id"] for s in data]
-    assert ordered_ids == [subtask2.id, subtask1.id]
+    assert [(i["id"], i["text"], i["done"]) for i in response.json()["checklist"]] == [
+        ("one", "First, renamed", False),
+        ("two", "Second", True),
+    ]
+
+
+@pytest.mark.integration
+async def test_checklist_new_item_keeps_the_state_it_arrived_with(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An item the task does not hold yet is taken at its word — which is what
+    an import and a restore need."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "fresh", "text": "Already done", "done": True}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["checklist"][0]["done"] is True
+
+
+@pytest.mark.integration
+async def test_an_over_long_checklist_can_still_be_shortened(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A list carried in by a migration or an import can be longer than the cap.
+    It has to stay editable, so the cap stops a list growing, not shrinking."""
+    from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    oversized = checklist_items(
+        *[f"Step {index}" for index in range(MAX_CHECKLIST_ITEMS + 20)]
+    )
+    # Straight onto the row: a list this long is what a migration or an import
+    # leaves behind, and neither goes through the API.
+    task = await _create_task(session, a.project, checklist=oversized)
+
+    # Dropping one still submits an over-cap list, and must be allowed.
+    shorter = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"checklist": oversized[1:]}
+    )
+    assert shorter.status_code == 200
+    assert len(shorter.json()["checklist"]) == MAX_CHECKLIST_ITEMS + 19
+
+    # Growing it again is not.
+    longer = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [*oversized, {"id": "extra", "text": "One more"}]},
+    )
+    assert longer.status_code == 400
+    assert longer.json()["detail"] == "CHECKLIST_TOO_LONG"
+
+
+@pytest.mark.integration
+async def test_checklist_capped_on_a_task_that_has_none(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Too much",
+            "project_id": a.project.id,
+            "checklist": [
+                {"text": f"Step {index}"} for index in range(MAX_CHECKLIST_ITEMS + 1)
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CHECKLIST_TOO_LONG"
+
+
+@pytest.mark.integration
+async def test_checklist_patch_omitted_leaves_it_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """PATCH semantics: an absent checklist means "leave unchanged"."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "one", "text": "First"}]},
+    )
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "Renamed"}
+    )
+
+    assert response.status_code == 200
+    assert [i["id"] for i in response.json()["checklist"]] == ["one"]
+
+
+@pytest.mark.integration
+async def test_toggle_checklist_item(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A tick names one item and leaves the rest of the list as it was."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+                {"id": "three", "text": "Third"},
+            ]
+        },
+    )
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    assert response.status_code == 200
+    assert [(i["id"], i["done"]) for i in response.json()] == [
+        ("one", False),
+        ("two", True),
+        ("three", False),
+    ]
+
+    untick = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": False}
+    )
+    assert untick.status_code == 200
+    assert untick.json()[1]["done"] is False
+
+
+@pytest.mark.integration
+async def test_toggling_two_items_keeps_both(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Ticks of different items accumulate rather than replacing each other."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First"},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/one"), headers=a.headers, json={"done": True}
+    )
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/two"), headers=a.headers, json={"done": True}
+    )
+
+    assert response.status_code == 200
+    assert all(item["done"] for item in response.json())
+
+
+@pytest.mark.integration
+async def test_toggle_unknown_checklist_item(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An id the task does not hold is a 404."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}/checklist/nosuchitem"),
+        headers=a.headers,
+        json={"done": True},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "CHECKLIST_ITEM_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_checklist_progress_on_task_list(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The list payload carries the count the cards and table rows draw."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "checklist": [
+                {"id": "one", "text": "First", "done": True},
+                {"id": "two", "text": "Second"},
+            ]
+        },
+    )
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    listed = next(item for item in response.json()["items"] if item["id"] == task.id)
+    assert listed["checklist_progress"] == {"completed": 1, "total": 2}
+
+
+@pytest.mark.integration
+async def test_duplicate_task_copies_checklist_unticked(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The copy carries the same lines with nothing done."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"checklist": [{"id": "one", "text": "First", "done": True}]},
+    )
+
+    response = await client.post(
+        a.g(f"/tasks/{task.id}/duplicate"), headers=a.headers, json={}
+    )
+
+    assert response.status_code == 201
+    copied = response.json()["checklist"]
+    assert [item["text"] for item in copied] == ["First"]
+    assert copied[0]["done"] is False
+    # Fresh ids: the copy's lines are its own.
+    assert copied[0]["id"] != "one"
 
 
 @pytest.mark.integration
@@ -1269,9 +1539,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     # Eager-load every relationship the helper touches so the
     # subsequent ``_advance_recurrence_if_needed`` call doesn't trip
     # SQLAlchemy's async-greenlet guard on a lazy load.
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     # Simulate the user completing the task at ~9pm Los Angeles on the
     # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
@@ -1360,9 +1628,7 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     )
     session.add(task)
     await session.commit()
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     # Complete on Sunday 2026-03-08 (US spring-forward day), late
     # morning LA so ``now_local`` is firmly in PDT. The composed
@@ -1424,7 +1690,6 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     from datetime import datetime, timezone
 
     from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-    from app.models.tenant.tag import TaskTag
     from app.models.tenant.task import Task, TaskStatusCategory
     from app.services.tenant import tags as tags_service
     from app.testing.factories import create_tag, create_task, create_task_status
@@ -1453,9 +1718,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         tag_ids=[tag.id],
     )
     await session.commit()
-    await session.refresh(
-        task, attribute_names=["task_status", "assignees", "tag_links"]
-    )
+    await session.refresh(task, attribute_names=["task_status", "assignees"])
 
     task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
@@ -1487,12 +1750,10 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         )
     ).first()
     assert new_task is not None
-    copied = (
-        await session.exec(
-            _select(TaskTag.tag_id).where(TaskTag.task_id == new_task.id)
-        )
-    ).all()
-    assert list(copied) == [tag_id]
+    copied = await tags_service.active_tag_ids(
+        session, tags_service.TAG_LINKS["task"], new_task.id
+    )
+    assert copied == [tag_id]
 
 
 @pytest.mark.integration

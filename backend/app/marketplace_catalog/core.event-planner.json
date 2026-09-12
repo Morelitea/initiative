@@ -8,8 +8,8 @@
   "long_description": "The initiative's events laid out the way an organizer thinks: every scheduled event on a weekly timeline, with the full list underneath for the details a bar can't carry.\n\nNothing here needs setting up — every widget reads the calendars of the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-event-planner.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "Adds what is coming up and how the events split across calendars.",
+  "version": "1.2.0",
+  "release_notes": "Counts only live calendars: one that has been archived no longer appears among the events per calendar.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT calendar.name AS calendar, count(*) AS events FROM calendar_events GROUP BY calendar.name ORDER BY count(*) DESC"
+          "sql": "SELECT calendar.name AS calendar, count(*) AS events FROM calendar_events WHERE calendar.archived_at IS NULL GROUP BY calendar.name ORDER BY count(*) DESC"
         },
         "title": "Events by calendar",
         "options": {

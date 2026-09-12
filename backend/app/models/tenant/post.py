@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 from typing import List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -16,11 +16,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.post_poll import PostPoll
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.models.tenant.tag import Tag
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Post(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """One notice on an initiative's bulletin board.
 
     A post is a whole tool entity rather than a child row, which is what gives
@@ -140,10 +141,6 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-    tag_links: List["PostTag"] = Relationship(
-        back_populates="post",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     # The question this notice asks, if it asks one. At most one — a notice
     # that needs two questions is two notices — so the relationship is
     # singular and the uniqueness is a key on the child table.
@@ -208,21 +205,3 @@ def board_time():
     from sqlalchemy import func
 
     return func.coalesce(Post.published_at, Post.scheduled_for, Post.created_at)
-
-
-class PostTag(SQLModel, table=True):
-    """Junction table linking posts to tags."""
-
-    __tablename__ = "post_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    post_id: int = Field(foreign_key="posts.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    post: Optional[Post] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="post_links")

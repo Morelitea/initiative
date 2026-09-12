@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -23,7 +22,6 @@ def dashboard_loader_options() -> list:
     return [
         selectinload(Dashboard.grants).selectinload(ResourceGrant.role),
         selectinload(Dashboard.initiative).selectinload(Initiative.memberships),
-        tags_service.TOOL_TAG_LINKS[Tool.dashboard].load_options(),
     ]
 
 
@@ -43,4 +41,7 @@ async def get_dashboard(
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    dashboard = result.one_or_none()
+    if dashboard is not None:
+        await tags_service.annotate_tags(session, [dashboard])
+    return dashboard

@@ -295,7 +295,18 @@
     "hideFilters": "Ocultar filtros",
     "updating": "Actualizando..."
   },
+  "outline": {
+    "title": "Contenido",
+    "show": "Mostrar contenido",
+    "hide": "Ocultar contenido",
+    "empty": "Los encabezados que añadas aparecerán aquí.",
+    "untitled": "Encabezado sin título",
+    "expand": "Mostrar lo que hay bajo {{heading}}",
+    "collapse": "Ocultar lo que hay bajo {{heading}}"
+  },
   "page": {
+    "noArchivedDescription": "Los documentos que archives aparecen aquí, de solo lectura, hasta que los recuperes.",
+    "noArchivedTitle": "No hay nada archivado",
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
     "newDocument": "Nuevo documento",
@@ -572,7 +583,14 @@
       "hideLastBlocked": "Una hoja de cálculo necesita al menos una hoja visible.",
       "hiddenCount_one": "{{count}} hoja oculta",
       "hiddenCount_other": "{{count}} hojas ocultas",
-      "unhideNamed": "Mostrar «{{name}}»"
+      "unhideNamed": "Mostrar «{{name}}»",
+      "import": "Importar un archivo",
+      "importing": "Leyendo el archivo…",
+      "imported_one": "{{count}} hoja importada.",
+      "imported_other": "{{count}} hojas importadas.",
+      "importFailed": "No se pudo importar ese archivo.",
+      "importedPartly_one": "{{count}} hoja importada; {{skipped}} omitidas — esta hoja de cálculo está llena.",
+      "importedPartly_other": "{{count}} hojas importadas; {{skipped}} omitidas — esta hoja de cálculo está llena."
     },
     "pasteClipped_one": "{{count}} celda no cabía en la hoja y no se pegó.",
     "pasteClipped_other": "{{count}} celdas no cabían en la hoja y no se pegaron.",
@@ -600,7 +618,8 @@
   "status": {
     "label": "Mostrar",
     "documents": "Documentos",
-    "templates": "Plantillas"
+    "templates": "Plantillas",
+    "archived": "Archivados"
   },
   "summary": {
     "aiNotEnabled": "Las funciones de IA no están habilitadas. Configura los ajustes de IA para generar resúmenes de documentos.",

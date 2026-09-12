@@ -4,16 +4,22 @@ The application-level permission layer for every tool. Unlike the mandatory RLS
 layer (see ``rls.py``), which PostgreSQL enforces, this resolves what a request
 may read, write or own from the ``resource_grants`` rows on a resource.
 
-The result is asked for in two shapes, and the second is defined in terms of the
-first:
+What is left here is what Postgres does not answer. The guild-schema policies
+apply this same sharing rule to every content table — gate 4, rendered from
+``app/db/initiative_rls.py`` and calling ``public.resource_access`` — so a
+statement confined to one initiative needs no sharing clause of its own. The
+app layer keeps the decisions the policies do not express:
 
-  - :func:`request_bypasses_dac` for a loaded row, behind
-    :func:`require_access` / :func:`compute_permission`
-  - :func:`dac_scope_clause` for a query, appended to a listing's WHERE
+  - :func:`require_access` — a *named* refusal on a loaded row, plus the
+    frozen-guild cap
+  - :func:`compute_permission` — what the client renders affordances from
+  - :func:`granted_scope_clause` — deliberately NARROWER than the policy for a
+    list spanning initiatives (no guild-admin leg)
+  - :func:`writable_scope_clause` — "which of these may I change", which a read
+    policy does not answer
 
 Guild isolation and initiative membership are separate layers, in ``rls.py`` and
-Postgres, with the sync initiative-scope check beside its SQL counterpart in
-``membership.py``.
+Postgres.
 """
 
 from dataclasses import dataclass
@@ -30,7 +36,7 @@ from app.core.role_context import (
     is_request_guild_admin,
     request_overrides_sharing,
 )
-from app.services.membership import NO_SCOPE_COLUMN, initiative_scope_ok
+from app.services.membership import NO_SCOPE_COLUMN
 from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
@@ -38,7 +44,9 @@ from app.models.tenant.project import Project
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
+from app.db.frozen import ancestor_is_frozen, row_is_frozen
 from app.core.messages import (
+    CommonMessages,
     SharingMessages,
     ProjectMessages,
     DocumentMessages,
@@ -104,8 +112,9 @@ def _granted_resource_ids(
     ``levels`` narrows to grants issued at those levels; omitted, any grant
     counts, which is what a read listing wants.
 
-    Grant rows only. :func:`dac_scope_clause` is the public entry point and
-    composes this with the rest of the decision.
+    Grant rows only. :func:`granted_scope_clause` and
+    :func:`writable_scope_clause` are the public entry points and compose this
+    with the rest of the decision.
     """
     my_roles = select(InitiativeMember.role_id).where(
         InitiativeMember.user_id == user_id
@@ -186,55 +195,18 @@ def granted_scope_clause(
     initiatives shows is what reaches the reader, the same way their sidebar and
     the community front page list the initiatives they joined.
 
-    That is also why ``initiative_id`` is absent from this signature where
-    :func:`dac_scope_clause` has one: the initiative "Full access" override
-    answers for one initiative at a time, and a list spanning them has no single
-    initiative to ask about.
+    ``initiative_id`` is absent from this signature on purpose: the initiative
+    "Full access" override answers for one initiative at a time, and a list
+    spanning them has no single initiative to ask about.
 
     A PAM or break-glass grantee keeps their window. They hold no membership row
     and no grant, so the grant legs would answer nothing at all — the grant is
     what they navigate by, exactly as it is in the initiative listing.
 
-    Use :func:`dac_scope_clause` for a statement already confined to one
-    initiative, where the reader's standing in that initiative is the question.
+    A statement already confined to one initiative asks nothing here — see
+    :func:`listing_scope_clause`.
     """
     if grant_satisfies(guild_id, access=access):
-        return true()
-    return id_col.in_(_granted_resource_ids(tool, user_id))
-
-
-def dac_scope_clause(
-    tool: Tool,
-    id_col: ColumnElement[int],
-    user_id: int,
-    *,
-    guild_id: int | None,
-    initiative_id: int | None = None,
-    access: str = "read",
-) -> ColumnElement[bool]:
-    """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
-
-    The query-shaped form of :func:`request_bypasses_dac`: that one answers for a
-    loaded row, this one answers once for a whole statement, and both resolve
-    through the same call. It returns ``true()`` when the request already covers
-    the guild, so a caller appends it unconditionally rather than branching.
-
-    ``id_col`` is whichever column names the resource — its own id, or a foreign
-    key to it (``Task.project_id``). ``access`` is what the caller intends to do:
-    a listing wants the default ``read``, and a grant covers only the level it
-    was issued at.
-
-    ``initiative_id`` folds in the initiative "Full access" override, which
-    answers for one initiative at a time. Pass it only from a statement already
-    confined to that one initiative, which is the case in which the override and
-    the statement agree on scope. Omitting it matches the per-row check
-    (:func:`compute_permission`) for every other leg.
-
-    A listing that spans initiatives wants :func:`granted_scope_clause` instead:
-    guild-admin standing answers "may I reach it", which is the right question
-    for one initiative and the wrong one for a list across them.
-    """
-    if request_bypasses_dac(guild_id, initiative_id=initiative_id, access=access):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id))
 
@@ -250,25 +222,25 @@ def listing_scope_clause(
 ) -> ColumnElement[bool]:
     """The WHERE leg for a tool listing, picking the rule its scope calls for.
 
-    Confined to one initiative, the question is the reader's standing there, and
-    a guild admin's reaches all of it — :func:`dac_scope_clause`.
+    **Confined to one initiative, there is nothing to add.** The question is the
+    reader's standing there, and the table's own policy already asked it: every
+    content table carries a sharing leg deferring to ``public.resource_access``
+    (guild admin OR PAM at the level OR the "Full access" override OR a grant
+    row), ANDed with initiative membership and the reader's initiative role.
+    Restating it here would narrow nothing and consult ``resource_grants`` a
+    second time per row.
 
-    Spanning initiatives — the community front page's table, the sidebar's tool
-    lists, the cross-guild ``/me/*`` views — the question is what has been
-    granted to the reader, so :func:`granted_scope_clause` answers it. This is
-    the listing-shaped form of the same rule the initiative listing follows: an
-    admin navigates what reaches them, and reaches everything else the moment
-    they ask for one initiative by name.
-
-    The initiative "Full access" override stays out of the confined branch, as
-    it already was at every call site here; folding it into listings is a
-    separate decision from choosing between these two rules.
+    **Spanning initiatives** — the community front page's table, the sidebar's
+    tool lists, the cross-guild ``/me/*`` views — the question is what has been
+    granted to the reader, which is NARROWER than the policy: it drops the
+    guild-admin leg. An admin navigates what reaches them, and reaches
+    everything else the moment they ask for one initiative by name. That is a
+    product rule, not an enforcement one, so :func:`granted_scope_clause`
+    carries it.
     """
-    if initiative_id is None:
-        return granted_scope_clause(
-            tool, id_col, user_id, guild_id=guild_id, access=access
-        )
-    return dac_scope_clause(tool, id_col, user_id, guild_id=guild_id, access=access)
+    if initiative_id is not None:
+        return true()
+    return granted_scope_clause(tool, id_col, user_id, guild_id=guild_id, access=access)
 
 
 def writable_scope_clause(
@@ -279,16 +251,16 @@ def writable_scope_clause(
     guild_id: int | None,
     initiative_id: int | None = None,
 ) -> ColumnElement[bool]:
-    """:func:`listing_scope_clause` narrowed to what the reader may CHANGE.
+    """The listing rule narrowed to what the reader may CHANGE.
 
-    The scope clauses above answer at ``read``, and their grant leg deliberately
-    ignores the level — every grant reaches a listing. A caller asking "which of
-    these may this person edit" needs the level to count, so this one filters
-    the grant rows to :data:`WRITE_LEVELS`.
+    This one does NOT collapse the way :func:`listing_scope_clause` does. A read
+    policy admits a row shared at any level, so "may I see it" is already
+    answered and "may I edit it" is strictly narrower — the grant rows have to
+    be filtered to :data:`WRITE_LEVELS` here, whatever the statement's scope.
 
-    The two branches are the same choice :func:`listing_scope_clause` makes:
-    confined to one initiative, a guild admin's authority answers; spanning
-    them, only what has been granted does.
+    The two branches are the scope choice made elsewhere: confined to one
+    initiative, a guild admin's authority answers; spanning them, only what has
+    been granted does.
     """
     if initiative_id is not None:
         if request_bypasses_dac(guild_id, initiative_id=initiative_id, access="write"):
@@ -306,7 +278,6 @@ def writable_scope_clause(
 @dataclass(frozen=True)
 class DacResource:
     name: Tool
-    scope_gate: bool  # gate on initiative_scope_ok? (project/document yes)
     denied_msg: str
     owner_msg: str
     write_msg: str
@@ -315,56 +286,48 @@ class DacResource:
 DAC_RESOURCES: dict[Tool, DacResource] = {
     Tool.project: DacResource(
         Tool.project,
-        True,
         ProjectMessages.NO_ACCESS,
         ProjectMessages.OWNER_REQUIRED,
         ProjectMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.document: DacResource(
         Tool.document,
-        True,
         DocumentMessages.NO_ACCESS,
         DocumentMessages.OWNER_REQUIRED,
         DocumentMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.queue: DacResource(
         Tool.queue,
-        False,
         QueueMessages.PERMISSION_REQUIRED,
         QueueMessages.OWNER_REQUIRED,
         QueueMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.counter_group: DacResource(
         Tool.counter_group,
-        False,
         CounterMessages.PERMISSION_REQUIRED,
         CounterMessages.OWNER_REQUIRED,
         CounterMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.calendar: DacResource(
         Tool.calendar,
-        True,
         CalendarMessages.PERMISSION_REQUIRED,
         CalendarMessages.OWNER_REQUIRED,
         CalendarMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.dashboard: DacResource(
         Tool.dashboard,
-        True,
         DashboardMessages.PERMISSION_REQUIRED,
         DashboardMessages.OWNER_REQUIRED,
         DashboardMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.post: DacResource(
         Tool.post,
-        True,
         PostMessages.PERMISSION_REQUIRED,
         PostMessages.OWNER_REQUIRED,
         PostMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.gallery: DacResource(
         Tool.gallery,
-        True,
         GalleryMessages.PERMISSION_REQUIRED,
         GalleryMessages.OWNER_REQUIRED,
         GalleryMessages.WRITE_ACCESS_REQUIRED,
@@ -713,10 +676,20 @@ def require_access(
     access: str = "read",
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
+    allow_frozen: bool = False,
 ) -> None:
     """Raise 403 unless ``user`` may act on ``row``: frozen-guild read cap →
-    bypass (admin/PAM/Full access) → (scope_gate) initiative scope → effective
-    DAC level vs requested access."""
+    bypass (admin/PAM/Full access) → effective DAC level vs requested access.
+
+    No initiative-scope step. The row was loaded through a routed session, and
+    every content table's policy defers to ``public.initiative_access`` before
+    anything here runs — a row belonging to an initiative the caller is not in
+    does not arrive to be checked. What is left is the part the policies do not
+    do: saying which refusal it is.
+
+    ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving,
+    which asks for write on a row that is archived by definition. The caller
+    still needs the write level."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
     # A frozen guild (read_only lifecycle status) caps EVERY real member at
@@ -729,6 +702,14 @@ def require_access(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
         )
+    # Archived or trashed content is read-only, and so is everything under it.
+    # Not a permission answer — the caller may well own it — so it carries its
+    # own code and its own status, and the thing to do is bring it back first.
+    if not allow_frozen and row_is_frozen(row) and (access != "read" or require_owner):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CommonMessages.CONTENT_IS_FROZEN,
+        )
     if request_bypasses_dac(
         guild_id,
         initiative_id=initiative_id,
@@ -737,12 +718,6 @@ def require_access(
         guild_role=guild_role,
     ):
         return
-    if resource.scope_gate and not initiative_scope_ok(
-        row, user, guild_role=guild_role
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
-        )
     effective = effective_level(resource, row, user.id)
 
     if require_owner:
@@ -769,7 +744,10 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     A frozen guild (read_only lifecycle status) caps the result at read — the
     single place the client-facing level reflects the hold, so every surface
     (edit affordances, writable filters, the collaboration socket's can_write)
-    inherits it without re-deriving the status."""
+    inherits it without re-deriving the status. Archived and trashed content
+    caps it the same way and for the same reason: one place, so a document in
+    the trash opens with its editor already read-only rather than failing on the
+    first keystroke."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
     level: str | None
@@ -779,7 +757,64 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
         level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
     if level is not None and content_read_only_active(guild_id):
         return "read"
+    if level is not None and row_is_frozen(row):
+        return "read"
     return level
+
+
+def may_unarchive(resource: DacResource, row: Any, user_id: int) -> bool:
+    """Whether the caller may take this row back out of the archive.
+
+    ``compute_permission`` caps a frozen row at read so that every edit
+    affordance goes off at once. Coming back out is a write too, and gating it
+    on that capped level would shut the only door out of the state — so it is
+    answered here instead, from the level the caller would have had if the row
+    were live. The endpoint asks the same question its own way
+    (``allow_frozen``), so the button and the handler agree.
+
+    Two things have to hold. The caller could write it if it were live. And the
+    stamp is the row's own: a row archived along with the thing above it comes
+    back with that thing, which is what the database says too, so the answer
+    here is no and the client points at the parent rather than offering a button
+    that would be refused.
+
+    A read-only guild answers no throughout — its hold is not the archive's to
+    lift.
+    """
+    if getattr(row, "archived_at", None) is None:
+        return False
+    guild_id = getattr(row, "guild_id", None)
+    if content_read_only_active(guild_id):
+        return False
+    if ancestor_is_frozen(row):
+        return False
+    initiative_id = getattr(row, "initiative_id", None)
+    if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
+        return True
+    level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+    return level in ("write", "owner")
+
+
+def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
+    """The two access fields a tool's read schema carries, answered together.
+
+    They are a pair. One says what may be done to the row as it stands — capped
+    at read while it is archived, so every edit affordance goes off at once. The
+    other says whether the caller may end that state. Answered in one place
+    because a surface that reports the first without the second tells someone
+    they may not edit a thing and nothing about how to get it back, which is the
+    state every archived tool was in.
+
+    Returned as a mapping so the pair travels into a serializer as one argument
+    and neither half can be passed without the other.
+    """
+    if user_id is None:
+        return {"my_permission_level": None, "can_unarchive": False}
+    resource = DAC_RESOURCES[tool]
+    return {
+        "my_permission_level": compute_permission(resource, row, user_id),
+        "can_unarchive": may_unarchive(resource, row, user_id),
+    }
 
 
 # ── High-level helpers for projects ─────────────────────────────

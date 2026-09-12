@@ -23,7 +23,7 @@ from app.api.deps import get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
-from app.core.messages import GuildMessages
+from app.core.messages import CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
     app_platform_signing_enabled,
@@ -32,6 +32,7 @@ from app.core.security import (
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
+from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -315,9 +316,17 @@ async def lifespan(app: FastAPI):
     )
     await notify_bus.start()
 
+    # Write collaborative documents that have changed on an interval, so what a
+    # live editing session has produced does not depend on its last connection
+    # closing cleanly to reach the database.
+    from app.services.tenant.collaboration import collaboration_manager
+
+    collaboration_manager.ensure_persistence_loop()
+
     try:
         yield
     finally:
+        await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])
@@ -397,7 +406,14 @@ async def validation_exception_handler(
 async def insufficient_privilege_handler(
     request: Request, exc: DBAPIError
 ) -> JSONResponse:
-    """Map Postgres ``insufficient_privilege`` (42501) to a generic 403.
+    """Map a database-layer refusal to the answer it deserves.
+
+    The lifecycle freeze comes first: the content is archived or in the trash —
+    or what it sits inside is — the caller may well be its owner, and the thing
+    to do is bring one or the other back. 409, naming which, rather than a
+    permission answer.
+
+    Otherwise, map Postgres ``insufficient_privilege`` (42501) to a generic 403.
 
     Denials enforced at the role layer — e.g. a write attempted while routed
     into the SELECT-only ``guild_<id>_ro`` role (PAM read grants, guilds in
@@ -412,6 +428,16 @@ async def insufficient_privilege_handler(
     grant, a misconfigured login role) must be findable in the logs — the
     client body is deliberately too generic to debug from.
     """
+    refusal = frozen_refusal(exc)
+    if refusal is not None:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": CommonMessages.PARENT_IS_FROZEN
+                if refusal == FROZEN_PARENT_CONSTRAINT
+                else CommonMessages.CONTENT_IS_FROZEN
+            },
+        )
     if dbapi_sqlstate(exc) == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         logger.warning(
             "insufficient_privilege mapped to 403: %s %s orig=%s",

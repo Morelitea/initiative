@@ -14,6 +14,11 @@
   "submit": "Enviar",
   "reset": "Restablecer",
   "done": "Listo",
+  "toolArchiveFilter": {
+    "label": "Mostrar",
+    "active": "Activos",
+    "archived": "Archivados"
+  },
   "yes": "Sí",
   "no": "No",
   "ok": "OK",
@@ -86,6 +91,17 @@
   },
   "deletedUserName": "Usuario eliminado #{{id}}",
   "toolSettings": {
+    "archive": {
+      "title": "Archivo",
+      "isActive": "Archivar significa que esto ha terminado. El elemento y todo lo que contiene pasan a ser de solo lectura hasta que lo recuperes.",
+      "isArchived": "Archivado. Este elemento y todo lo que contiene es de solo lectura hasta que lo recuperes.",
+      "archive": "Archivar",
+      "unarchive": "Desarchivar",
+      "archiving": "Archivando…",
+      "unarchiving": "Desarchivando…",
+      "archived": "«{{name}}» archivado",
+      "unarchived": "«{{name}}» ha vuelto"
+    },
     "title": "Configuración",
     "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
     "tabDetails": "Detalles",
@@ -168,5 +184,7 @@
     "permission": "Initiative necesita permiso para usar la cámara y las fotos. Actívalo en los ajustes del dispositivo e inténtalo de nuevo.",
     "unavailable": "Este dispositivo no tiene cámara para hacer una foto.",
     "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
-  }
+  },
+  "archiveError": "No se pudo archivar. Inténtalo de nuevo.",
+  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo."
 }
