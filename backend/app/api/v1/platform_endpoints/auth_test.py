@@ -509,7 +509,9 @@ async def test_login_failure_log_fields_come_from_server_state(
         response = await client.post(
             "/api/v1/auth/token",
             data={"username": "blocked-log@example.com", "password": "wrong_password"},
-            headers={"X-Forwarded-For": "fe80::1% user_id=1 ip=10.0.0.1"},
+            # A header value carrying a space and an equals sign. The log line
+            # is assembled as key=value pairs, so neither may survive into it.
+            headers={"X-Forwarded-For": "fe80::1%a b=c"},
         )
 
     assert response.status_code == 400
@@ -522,8 +524,9 @@ async def test_login_failure_log_fields_come_from_server_state(
     assert f"user_id={user.id}" in line
     assert line.count("ip=") == 1
     assert "ip=127.0.0.1 " in line
-    assert "10.0.0.1" not in line
+    # Neither separator from the header reaches the line.
     assert "%" not in line
+    assert "b=c" not in line
     assert "blocked-log@example.com" not in line
 
 

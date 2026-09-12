@@ -217,10 +217,12 @@ async def register_user(
         # first-user path because there's no bot economics on a fresh
         # deployment with zero users — and operators shouldn't be
         # locked out by a captcha they haven't fully wired up yet.
-        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
-        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
-        # ALB / Cloudflare the captcha provider sees the real client IP
-        # for its anti-abuse heuristics — not the proxy's.
+        # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+        # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
+        # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
+        # captcha provider sees the client address rather than the proxy's.
+        # A deployment that starts uvicorn some other way has to pass those
+        # flags itself, or this is the proxy's address.
         if not is_first_user:
             from app.core.rate_limit import get_real_client_ip
             from app.services import captcha as captcha_service
