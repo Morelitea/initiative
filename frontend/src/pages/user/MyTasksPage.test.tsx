@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildTask } from "@/__tests__/factories";
+import { buildProjectTaskStatus, buildTask } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
@@ -106,22 +106,21 @@ describe("MyTasksPage status changes", () => {
    * must not take the other away.
    */
   function stubTwoTasksAndStatuses({ patchDelayMs = 0 } = {}) {
-    const todo = {
+    const todo = buildProjectTaskStatus({
       id: 10,
       project_id: 5,
       name: "To Do",
-      category: "todo" as const,
+      category: "todo",
       position: 0,
       is_default: true,
-    };
-    const done = {
+    });
+    const done = buildProjectTaskStatus({
       id: 11,
       project_id: 5,
       name: "Done",
-      category: "done" as const,
+      category: "done",
       position: 1,
-      is_default: false,
-    };
+    });
     const items = [
       buildTask({
         id: 101,

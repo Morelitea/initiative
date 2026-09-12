@@ -888,7 +888,8 @@ async def _gather_global_task_reads(
        and then sliced to the requested page.
     2. **Hydrate.** Only the ids on that page are loaded with their
        relationships and annotations, and only from the guilds that actually
-       contribute to it.
+       contribute to it. By id alone: the filters are not re-applied, so a
+       concurrent edit cannot drop a row the ordering pass already counted.
 
     The split is what keeps the cost of this endpoint proportional to the page
     rather than to everything the filter matches: a reader with hundreds of
@@ -898,8 +899,7 @@ async def _gather_global_task_reads(
 
     ``build_query(guild_id, *selectables)`` receives the guild id so it can
     compile the guild-local filter fields (tag/property subqueries resolve
-    against that guild's schema), and what to select so both passes share one
-    definition of the filtered set.
+    against that guild's schema), and what to select.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -942,8 +942,17 @@ async def _gather_global_task_reads(
         ids = wanted.get(_guild_id)
         if not ids:
             return []
+        # By id ALONE — deliberately not through ``build_query``. Re-applying
+        # the filters here would let a concurrent edit drop a row the ordering
+        # pass already counted: a task that goes done, gets reassigned or is
+        # archived between the two statements would stop matching, and the page
+        # would come back a row short of the ``total_count`` and ``has_next``
+        # computed from the first pass. Access does not rest on those filters —
+        # it rests on the guild schema this session is routed into and on
+        # ``initiative_access``, and both apply to this statement exactly as
+        # they did to the one that chose the ids a moment ago.
         statement = (
-            build_query(_guild_id, Task, _comment_count_expression())
+            select(Task, _comment_count_expression())
             .where(Task.id.in_(tuple(ids)))
             .options(*_global_task_options())
         )
@@ -1002,10 +1011,9 @@ async def _list_global_tasks(
         base_conditions.append(window)
 
     def _build(guild_id: int, *selectables):
-        # One definition of the filtered set, selected two ways: the ordering
-        # pass asks for the sort keys, the hydration pass for the Task itself.
-        # ORDER BY is omitted either way — _sort_global_task_keys orders the
-        # merged set, which no single schema's query can do.
+        # Defines the filtered set for the ordering pass, which selects the
+        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
+        # the merged set, which no single schema's query can do.
         stmt = (
             select(*selectables)
             .join(TaskAssignee, TaskAssignee.task_id == Task.id)
@@ -1064,10 +1072,9 @@ async def _list_global_created_tasks(
         base_conditions.append(Task.archived_at.is_(None))
 
     def _build(guild_id: int, *selectables):
-        # One definition of the filtered set, selected two ways: the ordering
-        # pass asks for the sort keys, the hydration pass for the Task itself.
-        # ORDER BY is omitted either way — _sort_global_task_keys orders the
-        # merged set, which no single schema's query can do.
+        # Defines the filtered set for the ordering pass, which selects the
+        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
+        # the merged set, which no single schema's query can do.
         stmt = (
             select(*selectables)
             .join(Task.project)

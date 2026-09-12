@@ -25,8 +25,11 @@ from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
 
-#: Where this session remembers each guild's "Full access" initiative ids. On
-#: ``session.info``, so its lifetime is the session's — i.e. the request's.
+#: Where this session remembers each (user, guild)'s "Full access" initiative
+#: ids. On ``session.info``, so its lifetime is the session's — i.e. the
+#: request's. Keyed by user as well as guild because this function takes the
+#: user as an argument: one session may legitimately gather for more than one
+#: of them, and a guild-only key would hand the second the first's overrides.
 _OVERRIDES_CACHE_KEY = "cross_guild_sharing_overrides"
 
 
@@ -131,9 +134,9 @@ async def gather_across_guilds(
         for gid, role, status, shows_names, _caller in role_rows
     }
 
-    # Keyed by guild within this session, which is this request. A second pass
-    # over the same guild reuses the answer rather than asking again.
-    overrides_cache: dict[int, frozenset[int]] = session.info.setdefault(
+    # Keyed by (user, guild) within this session, which is this request. A
+    # second pass over the same guild reuses the answer rather than asking again.
+    overrides_cache: dict[tuple[int, int], frozenset[int]] = session.info.setdefault(
         _OVERRIDES_CACHE_KEY, {}
     )
 
@@ -187,7 +190,8 @@ async def gather_across_guilds(
             # more than once (a list that orders across guilds and then loads
             # only the page's rows does), and the answer — this user's
             # full-access roles in this schema — cannot change in between.
-            override_ids = overrides_cache.get(guild_id)
+            cache_key = (user_id, guild_id)
+            override_ids = overrides_cache.get(cache_key)
             if override_ids is None:
                 from app.services import rls as rls_service
 
@@ -196,7 +200,7 @@ async def gather_across_guilds(
                         session, user_id=user_id
                     )
                 )
-                overrides_cache[guild_id] = override_ids
+                overrides_cache[cache_key] = override_ids
             set_override_sharing_initiatives(override_ids)
             results.extend(await fetch(session, guild_id))
     finally:
