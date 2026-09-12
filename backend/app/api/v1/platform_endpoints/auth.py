@@ -147,6 +147,10 @@ async def _upgrade_password_hash(
 
 logger = logging.getLogger(__name__)
 
+# Keep the password-verification path uniform when an address does not resolve
+# to a password account. This value never belongs to a user.
+_DUMMY_PASSWORD_HASH = get_password_hash("initiative-login-dummy-password")
+
 # Shared across requests so provider discovery + JWKS caching work; the
 # per-request OidcProvider is just configuration composed around them.
 _oidc_discovery = OidcDiscovery()
@@ -220,10 +224,12 @@ async def register_user(
         # first-user path because there's no bot economics on a fresh
         # deployment with zero users — and operators shouldn't be
         # locked out by a captcha they haven't fully wired up yet.
-        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
-        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
-        # ALB / Cloudflare the captcha provider sees the real client IP
-        # for its anti-abuse heuristics — not the proxy's.
+        # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+        # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
+        # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
+        # captcha provider sees the client address rather than the proxy's.
+        # A deployment that starts uvicorn some other way has to pass those
+        # flags itself, or this is the proxy's address.
         if not is_first_user:
             from app.core.rate_limit import get_real_client_ip
             from app.services import captcha as captcha_service
@@ -472,10 +478,20 @@ async def login_access_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    # The hashing cost is paid whatever the address resolves to. Checking
+    # `not user` first and short-circuiting -- which is what this line used to
+    # do -- returns without hashing when nobody holds the address, and the
+    # difference is measurable from outside: it times which addresses have
+    # accounts here. An account with no password at all (SSO-only, hash None)
+    # is the same case and gets the same treatment.
+    password_hash = (
+        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    )
+    password_matches = verify_password(form_data.password, password_hash)
+    if not user or not password_matches:
         # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the log is no place to
-        # keep one. Those attempts are bounded by the rate limit above.
+        # nobody holds is not an action on anybody, and the audit log is no
+        # place to keep one. Those attempts are bounded by the rate limit above.
         if user is not None:
             await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
@@ -483,6 +499,7 @@ async def login_access_token(
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
+    # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
         await _record_sign_in_failure(admin_session, user, reason="inactive")
         raise HTTPException(

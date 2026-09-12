@@ -437,6 +437,96 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
+async def test_sign_in_hashes_a_password_even_for_an_address_nobody_holds(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Whether an address has an account here must not be readable from outside.
+
+    Checking ``not user`` first and short-circuiting returns without paying the
+    hashing cost, and the difference between "no account" and "wrong password"
+    is then a measurable one. So the property is that the hash is computed
+    either way -- asserted by counting the calls rather than by timing them,
+    because a wall-clock assertion on a hash function is a flaky test that
+    eventually gets deleted.
+
+    The reason it is recorded HERE rather than as an audit event is that there
+    is nothing to record it against: an address nobody holds is not an action
+    on anybody (see auth_audit_test.py).
+    """
+    from app.api.v1.platform_endpoints import auth as auth_module
+
+    calls: list[str | None] = []
+    real_verify = auth_module.verify_password
+
+    def counting_verify(plain: str, hashed: str | None) -> bool:
+        calls.append(hashed)
+        return real_verify(plain, hashed)
+
+    monkeypatch.setattr(auth_module, "verify_password", counting_verify)
+
+    await create_user(session, email="exists@example.com")
+
+    await client.post(
+        "/api/v1/auth/token",
+        data={"username": "exists@example.com", "password": "wrong_password"},
+    )
+    known_account_calls = len(calls)
+
+    calls.clear()
+    await client.post(
+        "/api/v1/auth/token",
+        data={"username": "nobody-at-all@example.com", "password": "wrong_password"},
+    )
+
+    assert len(calls) == known_account_calls == 1
+    # And against a real hash, not None: verify_password returns False for a
+    # None hash without hashing anything, which would leave the same gap.
+    assert calls[0] is not None
+
+
+async def test_sign_in_hashes_a_password_for_an_account_that_has_none(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An SSO-only account is the same case as a missing one.
+
+    Its ``hashed_password`` is NULL, so passing it straight to
+    ``verify_password`` returns False without hashing -- which would say, to
+    anyone timing it, that this address exists but signs in another way.
+    """
+    from app.api.v1.platform_endpoints import auth as auth_module
+
+    calls: list[str | None] = []
+    real_verify = auth_module.verify_password
+    monkeypatch.setattr(
+        auth_module,
+        "verify_password",
+        lambda plain, hashed: (calls.append(hashed), real_verify(plain, hashed))[1],
+    )
+
+    user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
+        email_hash=hash_email("sso-timing@example.com"),
+        email_encrypted=encrypt_field("sso-timing@example.com", SALT_EMAIL),
+        full_name="SSO Timing",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "sso-timing@example.com", "password": "anything"},
+    )
+
+    assert response.status_code == 400
+    from app.api.v1.platform_endpoints.auth import _DUMMY_PASSWORD_HASH
+
+    assert calls == [_DUMMY_PASSWORD_HASH]
+
+
 async def test_login_refused_for_account_without_password(
     client: AsyncClient, session: AsyncSession
 ):
