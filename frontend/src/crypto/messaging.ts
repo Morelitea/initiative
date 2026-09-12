@@ -38,6 +38,9 @@ import {
   historyProgress,
   lastRead,
   messageLog,
+  type PeerKeyChange,
+  peerDeviceKeys,
+  peerKeyChanges,
   pendingHistoryRequest,
   type ReceiptState,
   type SessionOrigin,
@@ -553,6 +556,37 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * account's own devices, which is what "nobody there to read it" looks like
  * from here.
  */
+/**
+ * Read the other party's devices, and notice when one's key has changed.
+ *
+ * Every path that addresses another person reads the directory, so this is
+ * where a key that differs from the one last used is noticed.
+ *
+ * The change is recorded rather than thrown. A send that found one still has
+ * to complete: stopping it would mean a conversation could be silenced from
+ * outside, and a person whose partner genuinely did get a new phone would be
+ * unable to write to them until they worked out why.
+ */
+async function readPeerDirectory(otherUserId: number) {
+  const theirs = await readDirectory(otherUserId);
+  const changes = await peerDeviceKeys.reconcile(
+    otherUserId,
+    theirs.devices.map((device) => ({
+      deviceId: device.device_id,
+      fingerprint: device.fingerprint_key,
+    }))
+  );
+  if (changes.length > 0) {
+    // The session in hand was negotiated with the key that has just been
+    // replaced, so the far end cannot read anything sent through it. Drop the
+    // pointer and the next send opens a fresh one against the key the
+    // directory now returns.
+    await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
+    await peerKeyChanges.add(changes);
+  }
+  return theirs;
+}
+
 async function sendEnvelope(
   conversationId: string,
   otherUserId: number,
@@ -563,7 +597,7 @@ async function sendEnvelope(
 
   // The directory rather than a claim: reading it spends nothing, and most
   // messages go to devices this one already has a session with.
-  const theirs = await readDirectory(otherUserId);
+  const theirs = await readPeerDirectory(otherUserId);
   if (theirs.devices.length === 0) return false;
 
   const destinations: Destination[] = [
@@ -821,7 +855,7 @@ async function identitiesForPreKeys(
   for (const conversation of conversations.conversations) {
     if (!conversationIds.has(conversation.id)) continue;
     try {
-      const theirs = await readDirectory(conversation.other_user_id);
+      const theirs = await readPeerDirectory(conversation.other_user_id);
       candidates.set(conversation.id, [
         ...theirs.devices.map((device) => ({
           id: device.device_id,
@@ -994,6 +1028,30 @@ export interface HistoryAskWaiting {
   fingerprint: string;
   /** Epoch milliseconds. */
   expiresAt: number;
+}
+
+/**
+ * Device keys that changed under a conversation this browser was already in.
+ *
+ * Newest first: if several have accrued, the one that just happened is the one
+ * the person is reacting to.
+ */
+export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
+  const changes = await peerKeyChanges.all();
+  return [...changes].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/**
+ * The person has seen a change and is carrying on.
+ *
+ * The new key was already remembered when it was noticed -- it had to be, or
+ * the next send would report it again -- so this only takes the notice down.
+ * Acknowledging is therefore not approving; it says the interruption has been
+ * read. Declining to use the new key would be a different action and is not
+ * offered here.
+ */
+export async function acknowledgePeerKeyChange(deviceId: string): Promise<void> {
+  await peerKeyChanges.acknowledge(deviceId);
 }
 
 /**

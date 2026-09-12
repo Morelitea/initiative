@@ -19,6 +19,7 @@ import { ConversationList } from "@/components/messages/ConversationList";
 import { HistoryAskNotice } from "@/components/messages/HistoryAskNotice";
 import { HistoryRequestPanel } from "@/components/messages/HistoryRequestPanel";
 import { MessageContent } from "@/components/messages/MessageContent";
+import { PeerKeyChangeNotice } from "@/components/messages/PeerKeyChangeNotice";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
 import { ReactionPicker } from "@/components/reactions/ReactionPicker";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -227,6 +228,7 @@ export function MyMessagesPage() {
       <HistoryRequestPanel />
 
       {/* The other side of the same comparison, on the device that asked. */}
+      <PeerKeyChangeNotice nameOf={nameOf} />
       <HistoryAskNotice />
 
       {/* Who there is to talk to lives in the sidebar, which drills into this

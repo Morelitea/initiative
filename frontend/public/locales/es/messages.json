@@ -102,6 +102,11 @@
     "title": "Esperando tus mensajes",
     "body": "Este dispositivo ha pedido a tus otros dispositivos los mensajes que ya tenías. Abre uno de ellos y apruébalo allí: estas son las imágenes que te mostrará."
   },
+  "peerKeyChange": {
+    "title": "Ha cambiado la clave de un dispositivo en esta conversación",
+    "body": "{{name}} usa ahora una clave distinta en un dispositivo al que ya habías escrito. Normalmente significa que ha sustituido o reinstalado un dispositivo. También puede significar que otra persona ha registrado un dispositivo en su nombre. Comprueba estas imágenes con esa persona por un medio distinto a este antes de enviar nada privado.",
+    "acknowledge": "Lo he comprobado"
+  },
   "safetyEmoji": {
     "dog": "Perro",
     "cat": "Gato",

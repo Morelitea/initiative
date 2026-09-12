@@ -615,6 +615,101 @@ export const approvedDevices = {
 };
 
 /**
+ * The device keys this browser has seen for each conversation partner.
+ *
+ * The directory is served by the platform, so a key it returns is worth
+ * remembering rather than simply trusting each time.
+ *
+ * A key seen for the first time says nothing: that is trust-on-first-use, and
+ * warning on it would warn on every new conversation, which is how a warning
+ * gets dismissed without being read. A key that REPLACES one already used is
+ * the event worth interrupting for -- most often a partner's new or
+ * reinstalled device, which is the thing a person can confirm for themselves.
+ *
+ * Per partner, keyed by their device id. A new device id is a new device, not
+ * a changed one, so it is a first sighting and stays silent.
+ */
+export interface PeerKeyChange {
+  userId: number;
+  deviceId: string;
+  /** What this browser used before. */
+  was: string;
+  /** What the directory returned now. */
+  now: string;
+  at: string;
+}
+
+const PEER_KEYS_PREFIX = "peer-keys:";
+const PEER_CHANGES = "peer-key-changes";
+
+export const peerDeviceKeys = {
+  all: async (userId: number): Promise<Record<string, string>> =>
+    (await read<Record<string, string>>(PEER_KEYS_PREFIX + userId)) ?? {},
+  /**
+   * Record what the directory returned, and report the keys that changed.
+   *
+   * Remembering and comparing are one step on purpose. Split in two they can
+   * interleave -- two sends racing, the first writing the new key before the
+   * second compares -- and the comparison then sees no change.
+   */
+  reconcile: async (
+    userId: number,
+    seen: { deviceId: string; fingerprint: string }[]
+  ): Promise<PeerKeyChange[]> => {
+    const changes: PeerKeyChange[] = [];
+    const at = new Date().toISOString();
+    await update<Record<string, string>>(PEER_KEYS_PREFIX + userId, (existing) => {
+      const known = existing ?? {};
+      const next = { ...known };
+      for (const { deviceId, fingerprint } of seen) {
+        const was = known[deviceId];
+        // Absent: first sighting, remember it silently.
+        if (was !== undefined && was !== fingerprint) {
+          changes.push({ userId, deviceId, was, now: fingerprint, at });
+        }
+        next[deviceId] = fingerprint;
+      }
+      // Devices that stopped being listed are left in place, so a device that
+      // disappears and comes back with a different key is still a change
+      // rather than a first sighting.
+      return next;
+    });
+    return changes;
+  },
+  forget: async (userId: number): Promise<void> => {
+    await write(PEER_KEYS_PREFIX + userId, undefined);
+  },
+};
+
+/**
+ * Changes waiting to be shown to the person using this browser.
+ *
+ * Held rather than raised inline: the send path cannot put something on
+ * screen, and a change found while sending has to survive until it has been.
+ */
+export const peerKeyChanges = {
+  all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
+  add: async (changes: PeerKeyChange[]): Promise<void> => {
+    if (changes.length === 0) return;
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => {
+      const held = existing ?? [];
+      // One entry per device. A directory answering differently on every read
+      // would otherwise fill this with the same finding repeatedly, and a list
+      // nobody can get to the bottom of is a list nobody reads.
+      const byDevice = new Map(held.map((change) => [change.deviceId, change]));
+      for (const change of changes) byDevice.set(change.deviceId, change);
+      return [...byDevice.values()];
+    });
+  },
+  /** The person has seen it. The key is already remembered; this clears the notice. */
+  acknowledge: async (deviceId: string): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) =>
+      (existing ?? []).filter((change) => change.deviceId !== deviceId)
+    );
+  },
+};
+
+/**
  * A request this device has been asked to answer, and has not yet.
  *
  * One at a time: a second device asking while the first is waiting replaces it,
@@ -691,6 +786,20 @@ export const historyAsk = {
 export const sessionForDevice = {
   get: (deviceId: string) => read<string>("device-session:" + deviceId),
   set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+  /**
+   * Stop using the session filed against a device.
+   *
+   * Sessions are filed by device id, and a device id outlives the key it was
+   * opened against. When the directory returns a different key for a device
+   * this browser has already spoken to, the session in hand was negotiated
+   * with the previous one and the far end can no longer read anything sent
+   * through it — so the next send has to start a new one.
+   *
+   * The pickle itself is left where it is. Other conversations file the same
+   * session id, and deleting it out from under them is a wider change than
+   * this needs; dropping the pointer is enough to stop it being chosen.
+   */
+  forget: (deviceId: string) => write("device-session:" + deviceId, undefined),
 };
 
 /**
