@@ -23,6 +23,8 @@ import {
   deviceId,
   forgetDevice,
   messageLog,
+  peerDeviceKeys,
+  peerKeyChanges,
   sessionOrigin,
   sessionsInConversation,
 } from "./store";
@@ -353,4 +355,119 @@ describe("the device-registration claim", () => {
       clock.mockRestore();
     }
   }
+});
+
+describe("remembered peer device keys", () => {
+  it("says nothing about a key it is seeing for the first time", async () => {
+    // Trust on first use. Warning here would warn on every new conversation,
+    // which is how a warning stops being read.
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-1" },
+    ]);
+
+    expect(changes).toEqual([]);
+    expect(await peerDeviceKeys.all(7)).toEqual({ "their-phone": "fp-1" });
+  });
+
+  it("reports a key that replaced one already used", async () => {
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-1" }]);
+
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-2" },
+    ]);
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        userId: 7,
+        deviceId: "their-phone",
+        was: "fp-1",
+        now: "fp-2",
+      }),
+    ]);
+  });
+
+  it("reports the same key only once", async () => {
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-1" }]);
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-2" }]);
+
+    // The new key was remembered when it was reported. A second send must not
+    // raise it again, or the notice never clears.
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-2" },
+    ]);
+
+    expect(changes).toEqual([]);
+  });
+
+  it("treats a new device id as a first sighting, not a change", async () => {
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-1" }]);
+
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-1" },
+      { deviceId: "their-laptop", fingerprint: "fp-2" },
+    ]);
+
+    expect(changes).toEqual([]);
+  });
+
+  it("keeps one person's devices out of another's", async () => {
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "shared-id", fingerprint: "fp-1" }]);
+
+    const changes = await peerDeviceKeys.reconcile(8, [
+      { deviceId: "shared-id", fingerprint: "fp-2" },
+    ]);
+
+    expect(changes).toEqual([]);
+  });
+
+  it("does not lose one device's change to another's, reconciling at once", async () => {
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "a", fingerprint: "fp-1" }]);
+    await peerDeviceKeys.reconcile(8, [{ deviceId: "b", fingerprint: "fp-1" }]);
+
+    // Two conversations sending at the same time is two tabs, and each opens
+    // its own connection.
+    const [first, second] = await Promise.all([
+      peerDeviceKeys.reconcile(7, [{ deviceId: "a", fingerprint: "fp-2" }]),
+      peerDeviceKeys.reconcile(8, [{ deviceId: "b", fingerprint: "fp-2" }]),
+    ]);
+
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1);
+  });
+});
+
+describe("the list of changes waiting to be seen", () => {
+  const change = (deviceId: string, now: string) => ({
+    userId: 7,
+    deviceId,
+    was: "fp-1",
+    now,
+    at: new Date().toISOString(),
+  });
+
+  it("holds one entry per device, newest winning", async () => {
+    await peerKeyChanges.add([change("a", "fp-2")]);
+    await peerKeyChanges.add([change("a", "fp-3")]);
+
+    const held = await peerKeyChanges.all();
+    expect(held).toHaveLength(1);
+    expect(held[0]?.now).toBe("fp-3");
+  });
+
+  it("keeps both of two additions that race", async () => {
+    await Promise.all([
+      peerKeyChanges.add([change("a", "fp-2")]),
+      peerKeyChanges.add([change("b", "fp-2")]),
+    ]);
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId).sort()).toEqual(["a", "b"]);
+  });
+
+  it("clears only the device acknowledged", async () => {
+    await peerKeyChanges.add([change("a", "fp-2"), change("b", "fp-2")]);
+
+    await peerKeyChanges.acknowledge("a");
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["b"]);
+  });
 });

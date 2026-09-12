@@ -615,6 +615,108 @@ export const approvedDevices = {
 };
 
 /**
+ * The device keys this browser has seen for each conversation partner.
+ *
+ * The server operates the device directory. The ratchet is sound and the
+ * platform never holds the pickle key, so the directory is where an operator
+ * with the database can still get in: enroll a device for someone, publish its
+ * key, and every message sent from here is addressed to it as well. Nothing on
+ * either side looks different.
+ *
+ * What makes it visible is memory. A key seen for the first time is
+ * trust-on-first-use and says nothing -- warning on it would be a warning on
+ * every new conversation, which is how a warning gets dismissed without being
+ * read. A key that REPLACES one already used is the event worth interrupting
+ * for, because from here it is indistinguishable from an attack even when it
+ * is a new phone.
+ *
+ * Per partner, keyed by their device id. Device ids are the server's too, so a
+ * new id is a new device, not a changed one -- that case is a first sighting
+ * and stays silent, by design. The attack this catches is the directory
+ * answering with a different key for a device already spoken to.
+ */
+export interface PeerKeyChange {
+  userId: number;
+  deviceId: string;
+  /** What this browser used before. */
+  was: string;
+  /** What the directory returned now. */
+  now: string;
+  at: string;
+}
+
+const PEER_KEYS_PREFIX = "peer-keys:";
+const PEER_CHANGES = "peer-key-changes";
+
+export const peerDeviceKeys = {
+  all: async (userId: number): Promise<Record<string, string>> =>
+    (await read<Record<string, string>>(PEER_KEYS_PREFIX + userId)) ?? {},
+  /**
+   * Record what the directory returned, and report the keys that changed.
+   *
+   * Remembering and comparing are one step on purpose. Split in two they can
+   * interleave -- two sends racing, the first writing the new key before the
+   * second compares -- and the comparison then sees no change.
+   */
+  reconcile: async (
+    userId: number,
+    seen: { deviceId: string; fingerprint: string }[]
+  ): Promise<PeerKeyChange[]> => {
+    const changes: PeerKeyChange[] = [];
+    const at = new Date().toISOString();
+    await update<Record<string, string>>(PEER_KEYS_PREFIX + userId, (existing) => {
+      const known = existing ?? {};
+      const next = { ...known };
+      for (const { deviceId, fingerprint } of seen) {
+        const was = known[deviceId];
+        // Absent: first sighting, remember it silently.
+        if (was !== undefined && was !== fingerprint) {
+          changes.push({ userId, deviceId, was, now: fingerprint, at });
+        }
+        next[deviceId] = fingerprint;
+      }
+      // Devices that stopped being listed are left in place. A directory that
+      // omits a device it later restores with a different key is the same
+      // attack with an extra step, and forgetting would let it through.
+      return next;
+    });
+    return changes;
+  },
+  forget: async (userId: number): Promise<void> => {
+    await write(PEER_KEYS_PREFIX + userId, undefined);
+  },
+};
+
+/**
+ * Changes waiting to be shown to the person using this browser.
+ *
+ * Held rather than raised inline: the send path is not a place that can put
+ * something on screen, and a change found while sending must survive until it
+ * has been seen.
+ */
+export const peerKeyChanges = {
+  all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
+  add: async (changes: PeerKeyChange[]): Promise<void> => {
+    if (changes.length === 0) return;
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => {
+      const held = existing ?? [];
+      // One entry per device. A directory answering differently on every read
+      // would otherwise fill this with the same finding repeatedly, and a list
+      // nobody can get to the bottom of is a list nobody reads.
+      const byDevice = new Map(held.map((change) => [change.deviceId, change]));
+      for (const change of changes) byDevice.set(change.deviceId, change);
+      return [...byDevice.values()];
+    });
+  },
+  /** The person has seen it. The key is already remembered; this clears the notice. */
+  acknowledge: async (deviceId: string): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) =>
+      (existing ?? []).filter((change) => change.deviceId !== deviceId)
+    );
+  },
+};
+
+/**
  * A request this device has been asked to answer, and has not yet.
  *
  * One at a time: a second device asking while the first is waiting replaces it,

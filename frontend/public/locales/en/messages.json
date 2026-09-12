@@ -102,6 +102,11 @@
     "title": "Waiting for your messages",
     "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you."
   },
+  "peerKeyChange": {
+    "title": "A device key changed in this conversation",
+    "body": "Someone you message is now using a different key on a device you had already written to. Usually that means they replaced or reinstalled a device. It can also mean someone else enrolled a device in their name. Check these pictures with them somewhere other than here before you send anything private.",
+    "acknowledge": "I've checked this"
+  },
   "safetyEmoji": {
     "dog": "Dog",
     "cat": "Cat",
