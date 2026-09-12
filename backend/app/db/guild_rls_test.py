@@ -384,16 +384,35 @@ def test_every_declared_hop_walks_a_real_column_to_a_real_table():
 
 _GID_QUERY_TRASH = 990_412
 
+#: What ``query_excludes_trash`` has to say, as Postgres normalises it.
+#:
+#: Pinned whole rather than searched for a substring. The three ways this
+#: policy could be wrong while still mentioning the right words are an inverted
+#: comparison, a different setting name, and a missing ``deleted_at IS NULL``
+#: branch — the first two would hide live rows from the screens that manage the
+#: trash, the third would hide nothing from anybody. Equality catches all three;
+#: "contains app.query" catches none of them.
+_QUERY_TRASH_QUAL = (
+    "((deleted_at IS NULL) OR (current_setting('app.query'::text, true)"
+    " IS DISTINCT FROM 'true'::text))"
+)
 
+
+@pytest.mark.database
 async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engine):
     """Every soft-delete table carries ``query_excludes_trash`` in a freshly
-    provisioned schema — RESTRICTIVE, FOR SELECT.
+    provisioned schema — RESTRICTIVE, FOR SELECT, and saying the same thing.
 
     Over the whole set rather than one table. The rule is that a statement a
     reader wrote reports on live content, and a table that quietly missed the
     policy would answer with deleted rows while every other table did not —
     which is worse than either answer given consistently, and invisible from
     any one dataset's tests.
+
+    What the policy *does* in each direction is proved end to end against real
+    rows in ``query_test.py``: a trashed task is absent from a query, and still
+    present through the endpoint that manages the trash. This is the shape, for
+    every table, so that proof holds for more than the one table it was run on.
     """
     schema = guild_schema_name(_GID_QUERY_TRASH)
     try:
@@ -422,11 +441,10 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
                 f"narrows every other policy rather than widening one, got "
                 f"{permissive} FOR {cmd}."
             )
-            # It has to read the flag: a policy that only checked deleted_at
-            # would take the trash away from the screens that manage it.
-            assert "app.query" in qual, (
-                f"{tbl}.query_excludes_trash must apply to reader-written SQL "
-                f"only, got: {qual}"
+            assert qual == _QUERY_TRASH_QUAL, (
+                f"{tbl}.query_excludes_trash does not say what it must.\n"
+                f"  expected: {_QUERY_TRASH_QUAL}\n"
+                f"  got:      {qual}"
             )
     finally:
         async with engine.begin() as conn:
