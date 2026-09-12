@@ -46,7 +46,7 @@ export const useSqlQuery = (
   return useQuery<QueryResponse>({
     queryKey: sqlQueryKey(guildId, sql ?? "", initiativeId),
     queryFn: () =>
-      inQueryLane(() =>
+      inQueryLane(guildId, () =>
         runQueryApiV1GGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
       ),
     // Not retried: a statement either resolves against the registry or it does
@@ -78,7 +78,7 @@ export const useWidgetQuery = (
   return useQuery<QueryResponse>({
     queryKey: widgetQueryKey(guildId, dashboardId ?? 0, widgetId ?? ""),
     queryFn: () =>
-      inQueryLane(() =>
+      inQueryLane(guildId, () =>
         runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
           guildId,
           dashboardId as number,

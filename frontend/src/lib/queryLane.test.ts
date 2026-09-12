@@ -27,6 +27,9 @@ function pending<T>(value: T) {
 
 const flush = () => new Promise<void>((done) => setTimeout(done, 0));
 
+const GUILD = 3;
+const OTHER_GUILD = 4;
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -37,7 +40,7 @@ describe("inQueryLane", () => {
     const started: number[] = [];
 
     const all = reads.map((read, index) =>
-      inQueryLane(() => {
+      inQueryLane(GUILD, () => {
         started.push(index);
         return read.promise;
       })
@@ -56,13 +59,29 @@ describe("inQueryLane", () => {
     expect(started).toEqual([0, 1, 2, 3, 4]);
   });
 
+  it("does not make one guild wait behind another's reads", async () => {
+    // The limit being modelled is per guild, so a tab that switches guild must
+    // not queue the new dashboard behind the old one's still-settling reads.
+    const held = [pending("a"), pending("b")];
+    const busy = held.map((read) => inQueryLane(GUILD, () => read.promise));
+
+    const elsewhere = vi.fn(() => Promise.resolve("elsewhere"));
+    await expect(inQueryLane(OTHER_GUILD, elsewhere)).resolves.toBe("elsewhere");
+
+    for (const read of held) read.settle();
+    await Promise.all(busy);
+  });
+
   it("lets a read through rather than queueing it behind one that never ends", async () => {
     vi.useFakeTimers();
     const lost = pending("never");
-    const blocking = [inQueryLane(() => lost.promise), inQueryLane(() => lost.promise)];
+    const blocking = [
+      inQueryLane(GUILD, () => lost.promise),
+      inQueryLane(GUILD, () => lost.promise),
+    ];
     const behind = pending("through");
     const started = vi.fn(() => behind.promise);
-    const queued = inQueryLane(started);
+    const queued = inQueryLane(GUILD, started);
 
     await vi.advanceTimersByTimeAsync(14_000);
     expect(started).not.toHaveBeenCalled();
@@ -77,18 +96,51 @@ describe("inQueryLane", () => {
     lost.settle();
     await Promise.all(blocking);
     const next = vi.fn(() => Promise.resolve("free"));
-    await expect(inQueryLane(next)).resolves.toBe("free");
+    await expect(inQueryLane(GUILD, next)).resolves.toBe("free");
+  });
+
+  it("releases a stuck lane's backlog one read at a time, not all at once", async () => {
+    // Everything queued by one canvas was queued in the same tick, so timers
+    // armed per read would all come due together and fire the whole backlog —
+    // the burst this module exists to prevent.
+    vi.useFakeTimers();
+    const lost = pending("never");
+    const blocking = [
+      inQueryLane(GUILD, () => lost.promise),
+      inQueryLane(GUILD, () => lost.promise),
+    ];
+    const backlog = [pending("x"), pending("y"), pending("z")];
+    const started: number[] = [];
+    const queued = backlog.map((read, index) =>
+      inQueryLane(GUILD, () => {
+        started.push(index);
+        return read.promise;
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(16_000);
+    expect(started).toEqual([0]);
+
+    await vi.advanceTimersByTimeAsync(16_000);
+    expect(started).toEqual([0, 1]);
+
+    await vi.advanceTimersByTimeAsync(16_000);
+    expect(started).toEqual([0, 1, 2]);
+
+    for (const read of backlog) read.settle();
+    lost.settle();
+    await Promise.all([...queued, ...blocking]);
   });
 
   it("gives the slot back when a read fails", async () => {
-    const failing = inQueryLane(() => Promise.reject(new Error("refused")));
+    const failing = inQueryLane(GUILD, () => Promise.reject(new Error("refused")));
     await expect(failing).rejects.toThrow("refused");
 
     const held = pending("a");
-    const blocking = inQueryLane(() => held.promise);
+    const blocking = inQueryLane(GUILD, () => held.promise);
     const after = pending("b");
     const started = vi.fn(() => after.promise);
-    const queued = inQueryLane(started);
+    const queued = inQueryLane(GUILD, started);
     await flush();
 
     // One slot is held; the other was handed back, so this one is free to run.

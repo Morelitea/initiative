@@ -20,7 +20,7 @@ import { getErrorCode, getHttpStatus } from "@/lib/errorMessage";
  */
 
 /**
- * How many statement reads this tab keeps in flight.
+ * How many statement reads one guild keeps in flight.
  *
  * Matched to the server's per-guild default so the common case — one reader,
  * one canvas — never asks for a slot that is not there. An operator who raises
@@ -41,63 +41,106 @@ const LANE_WIDTH = 2;
  */
 const LANE_WAIT_CEILING_MS = 15_000;
 
-let running = 0;
+interface Lane {
+  /** Reads in flight, including any let through by the ceiling. */
+  running: number;
+  /** Queued for a slot, oldest first. */
+  waiting: { admit: () => void }[];
+  /** The ceiling for the read at the head of the queue, or null when nothing
+   *  is waiting. Only ever one: whoever is at the front is the only read whose
+   *  patience is being measured. */
+  timer: ReturnType<typeof setTimeout> | null;
+}
 
 /**
- * The reads queued for a slot, oldest first. Each returns whether it took the
- * slot offered — one that already let itself through declines, and the slot
- * goes to whoever is behind it.
+ * One lane per guild, because the limit being modelled is per guild.
+ *
+ * A shared lane would make one guild's slow canvas hold up another's, which the
+ * server would have admitted — a tab that switches guild while the previous
+ * dashboard's reads are still settling would queue the new one behind work it
+ * has nothing to do with.
  */
-const waiting: (() => boolean)[] = [];
+const lanes = new Map<number, Lane>();
 
-const enter = (): Promise<void> => {
-  if (running < LANE_WIDTH) {
-    running += 1;
+const laneFor = (guildId: number): Lane => {
+  const existing = lanes.get(guildId);
+  if (existing) return existing;
+  const lane: Lane = { running: 0, waiting: [], timer: null };
+  lanes.set(guildId, lane);
+  return lane;
+};
+
+const disarm = (lane: Lane): void => {
+  if (lane.timer === null) return;
+  clearTimeout(lane.timer);
+  lane.timer = null;
+};
+
+/**
+ * Start the head of the queue's patience running.
+ *
+ * One timer for the queue rather than one per read, so a lane whose slots are
+ * both stuck lets its backlog through **one read at a time**, each after its
+ * own wait. Timers armed per read would all have been started in the same tick
+ * by the same canvas and would therefore all come due together — releasing the
+ * whole backlog at once, which is the burst this module exists to prevent.
+ */
+const arm = (lane: Lane): void => {
+  if (lane.timer !== null || lane.waiting.length === 0) return;
+  lane.timer = setTimeout(() => {
+    lane.timer = null;
+    const head = lane.waiting.shift();
+    if (head) {
+      // A slot that is not there, counted so it is given back on the way out.
+      lane.running += 1;
+      head.admit();
+    }
+    arm(lane);
+  }, LANE_WAIT_CEILING_MS);
+};
+
+const enter = (lane: Lane): Promise<void> => {
+  if (lane.running < LANE_WIDTH) {
+    lane.running += 1;
     return Promise.resolve();
   }
   return new Promise<void>((admit) => {
-    let admitted = false;
-    const claim = (): boolean => {
-      if (admitted) return false;
-      admitted = true;
-      return true;
-    };
-    const ceiling = setTimeout(() => {
-      // Nobody handed a slot over in time, so this read takes one that is not
-      // there and says so in the count.
-      if (claim()) {
-        running += 1;
-        admit();
-      }
-    }, LANE_WAIT_CEILING_MS);
-    waiting.push(() => {
-      if (!claim()) return false;
-      clearTimeout(ceiling);
-      admit();
-      return true;
-    });
+    lane.waiting.push({ admit });
+    arm(lane);
   });
 };
 
 /**
  * Hand the slot straight to whoever is next rather than releasing and
  * re-counting: the count only falls when the lane is actually empty, so two
- * callers resuming in the same tick cannot both read it as having room.
+ * callers resuming in the same tick cannot both read it as having room. The
+ * ceiling restarts with the queue's new head, whose wait has only now begun.
  */
-const leave = (): void => {
-  while (waiting.length > 0) {
-    if (waiting.shift()?.()) return;
+const leave = (lane: Lane, guildId: number): void => {
+  const next = lane.waiting.shift();
+  if (next) {
+    disarm(lane);
+    arm(lane);
+    next.admit();
+    return;
   }
-  running -= 1;
+  lane.running -= 1;
+  disarm(lane);
+  // Nothing running and nothing waiting: this guild is not being read right
+  // now, and the lane is only a record of that. Safe to drop — a read still
+  // holding a slot keeps `running` above zero, so the entry a caller is using
+  // is never the one removed.
+  if (lane.running <= 0) lanes.delete(guildId);
 };
 
-/** Run one statement read when the lane has room for it. */
-export const inQueryLane = async <T>(read: () => Promise<T>): Promise<T> => {
-  await enter();
+/** Run one statement read when that guild's lane has room for it. */
+export const inQueryLane = async <T>(guildId: number, read: () => Promise<T>): Promise<T> => {
+  const lane = laneFor(guildId);
+  await enter(lane);
   try {
     return await read();
   } finally {
-    leave();
+    leave(lane, guildId);
   }
 };
 
