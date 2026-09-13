@@ -135,6 +135,37 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
+// IntersectionObserver is what a carousel asks for the moment it mounts, and
+// what LazyImage asks for before it fetches. jsdom has neither, so a component
+// that scrolls or lazy-loads throws instead of rendering.
+//
+// The stub reports everything it is given as on screen, straight away. There is
+// no viewport in jsdom to be outside of, and a test asserting "the card draws
+// its picture" is asking what the component renders, not what a scroll position
+// would have revealed.
+class IntersectionObserverStub {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds: ReadonlyArray<number> = [];
+
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+
+  observe(target: Element) {
+    this.callback(
+      [{ target, isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver
+    );
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+window.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver;
+globalThis.IntersectionObserver =
+  IntersectionObserverStub as unknown as typeof IntersectionObserver;
+
 // Radix UI uses PointerEvent APIs that jsdom doesn't implement. Without these
 // shims Select/Popover trigger interactions crash before opening the menu.
 if (!("PointerEvent" in window)) {

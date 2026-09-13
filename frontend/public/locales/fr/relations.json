@@ -1,0 +1,89 @@
+{
+  "title": "Relations",
+  "description": "Relie ceci à n'importe quoi d'autre dans l'initiative, et dis comment les deux sont liés.",
+  "untitled": "Sans titre",
+  "empty": "Rien n'est encore relié à ceci.",
+  "loadFailed": "Les relations ne répondent pas. Réessaie dans un instant.",
+  "add": "Ajouter une relation",
+  "graph": {
+    "alt": "{{title}} et les {{count}} choses auxquelles il est relié",
+    "hops": "Sauts",
+    "hopsN_one": "{{count}} saut",
+    "hopsN_other": "{{count}} sauts",
+    "walking": "Recherche plus loin…",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "reset": "Ajuster à la vue",
+    "showTags": "Afficher les étiquettes"
+  },
+  "layout": {
+    "label": "Mode d'affichage",
+    "tiles": "Tuiles",
+    "rows": "Liste",
+    "carousel": "Carrousel",
+    "graph": "Graphe"
+  },
+  "addError": "Ce lien n'a pas pu être créé.",
+  "removeError": "Ce lien n'a pas pu être retiré.",
+  "added": "Relié.",
+  "removed": "Lien retiré.",
+  "dialog": {
+    "title": "Ajouter une relation",
+    "description": "Indique comment les deux sont reliés, puis choisis l'élément.",
+    "relationship": "Relation",
+    "entity": "Élément",
+    "entityPlaceholder": "Chercher par nom…",
+    "noResults": "Aucun résultat.",
+    "submit": "Ajouter la relation",
+    "submitting": "Ajout…"
+  },
+  "card": {
+    "kindLinked": "{{kind}} · relié {{date}}",
+    "unreachable": "Cette version de l'application ne peut pas ouvrir cela.",
+    "remove": "Retirer le lien vers {{title}}"
+  },
+  "derived": "Lu dans le contenu. Modifie le texte pour le changer.",
+  "groups": {
+    "attached": {
+      "title": "Joint",
+      "empty": "Rien n'est encore joint.",
+      "option": "Est joint à"
+    },
+    "blockedBy": {
+      "title": "Bloqué par",
+      "empty": "Rien ne fait obstacle.",
+      "option": "Est bloqué par"
+    },
+    "blocks": {
+      "title": "Bloque",
+      "empty": "Ne retient rien.",
+      "option": "Bloque"
+    },
+    "partOf": {
+      "title": "Partie de",
+      "empty": "Ne fait partie de rien de plus grand.",
+      "option": "Fait partie de"
+    },
+    "parts": {
+      "title": "Parties",
+      "empty": "Rien n'appartient à ceci.",
+      "option": "A pour partie"
+    },
+    "related": {
+      "title": "Lié",
+      "empty": "Rien de lié pour l'instant.",
+      "option": "Est lié à"
+    },
+    "referencedBy": {
+      "title": "Mentionné par",
+      "empty": "Rien ne mentionne ceci.",
+      "option": "Fait référence à"
+    },
+    "tagged": {
+      "title": "Étiqueté",
+      "empty": "Aucune étiquette.",
+      "option": "Est étiqueté"
+    }
+  },
+  "loading": "Chargement…"
+}

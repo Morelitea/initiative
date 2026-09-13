@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -10,6 +10,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 export interface SearchableComboboxItem {
   value: string;
   label: string;
+  /**
+   * Drawn before the label, for a list whose rows are not all the same sort of
+   * thing. Only {@link AsyncCombobox} draws these two: it is the variant backed
+   * by a server typeahead, which is what a list of mixed kinds is served from.
+   */
+  icon?: LucideIcon;
+  /** Muted text after the label — what kind of thing this row is. */
+  hint?: string;
 }
 
 export interface SearchableComboboxProps {

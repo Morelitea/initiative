@@ -1,13 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import type { QueueItemRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
-  ENTITY_PICKER_PAGE_SIZE,
-  type LinkedEntity,
-} from "@/components/initiativeTools/queues/LinkedEntityPicker";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+  type QueueItemRead,
+  type RelationshipRead,
+  RelationshipType,
+  SearchEntityType,
+  type TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
+import { useRelationshipsFor } from "@/hooks/useRelationships";
 import { useServerForm } from "@/hooks/useServerForm";
+import { type LinkedRef, refKey } from "@/lib/relationships";
 
 const DEFAULT_COLOR = "#6366F1";
 
@@ -20,8 +22,7 @@ const serializeItem = (value: {
   isVisible: boolean;
   selectedTags: { id: number }[];
   userId: number | null;
-  selectedDocs: LinkedEntity[];
-  selectedTasks: LinkedEntity[];
+  links: LinkedRef[];
 }): string =>
   JSON.stringify([
     value.label,
@@ -31,14 +32,27 @@ const serializeItem = (value: {
     value.isVisible,
     value.userId,
     value.selectedTags.map((tag) => tag.id),
-    value.selectedDocs.map((doc) => doc.id),
-    value.selectedTasks.map((task) => task.id),
+    value.links.map(refKey),
   ]);
+
+/**
+ * What an item is linked to right now, as one list of mixed kinds.
+ *
+ * Read from the graph rather than from the item, because the item serialises a
+ * `documents` array and a `tasks` array and nothing else — the two kinds that
+ * used to have junction tables of their own. An item may be pinned to any of the
+ * fourteen, and reading it from the two lists made everything else disappear the
+ * moment the dialog was reopened.
+ */
+const attachmentsOf = (rows: RelationshipRead[]): LinkedRef[] =>
+  rows
+    .filter((row) => row.relationship_type === RelationshipType.attached)
+    .map((row) => ({ type: row.other.type, id: row.other.id, title: row.other.title }));
 
 interface UseQueueItemFormArgs {
   /** Whether the owning dialog is open (gates the picker typeaheads + reset). */
   open: boolean;
-  /** Initiative the queue belongs to — scopes the member/doc/task pickers. */
+  /** Initiative the queue belongs to — scopes the member and link pickers. */
   initiativeId: number;
   /**
    * When provided, the form edits an existing item: fields initialize from it
@@ -49,15 +63,23 @@ interface UseQueueItemFormArgs {
 }
 
 /**
- * Shared field state and picker option lists for the add/edit queue-item
- * dialogs, which duplicated ~90% of their form wiring. The submit payload and
- * any edit-only concerns (delete, change detection) stay in each dialog.
+ * Shared field state for the add/edit queue-item dialogs, which duplicated ~90%
+ * of their form wiring. The submit payload and any edit-only concerns (delete,
+ * change detection) stay in each dialog.
  *
- * The document and task pickers are server typeaheads (issue #857): they fetch
- * only while the dialog is open and the picker is expanded, and never fetch the
- * full list.
+ * What an item is linked to is one list of mixed kinds rather than a list of
+ * documents and a list of tasks, and the picker that searches for them owns its
+ * own typeahead — so the two narrowed lookups that used to live here are gone.
  */
 export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormArgs) => {
+  // Asked for only while the dialog is open, and only for an item that exists:
+  // the add dialog is composing one and has nothing to ask about yet.
+  const linkQuery = useRelationshipsFor(
+    { type: SearchEntityType.queue_item, id: item?.id ?? 0 },
+    { enabled: open && Boolean(item?.id) }
+  );
+  const loadedLinks = useMemo(() => attachmentsOf(linkQuery.data ?? []), [linkQuery.data]);
+
   // Selections carry their titles: the typeahead only returns rows matching
   // the live query, so a chip's label can't be looked up from the results.
   // An edited item's own links already ship theirs.
@@ -71,16 +93,13 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
       isVisible: loaded?.is_visible ?? true,
       selectedTags: loaded?.tags ?? ([] as TagSummary[]),
       userId: loaded?.user_id ?? null,
-      selectedDocs: (loaded?.documents.map((d) => ({ id: d.document_id, title: d.name })) ??
-        []) as LinkedEntity[],
-      selectedTasks: (loaded?.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })) ??
-        []) as LinkedEntity[],
+      links: loadedLinks,
     }),
     [open, item?.id],
     (a, b) => serializeItem(a) === serializeItem(b)
   );
   const { label, position, color, notes, isVisible, selectedTags, userId } = form.values;
-  const { selectedDocs, selectedTasks } = form.values;
+  const { links } = form.values;
   const setLabel = (next: string) => form.set({ label: next });
   const setPosition = (next: string) => form.set({ position: next });
   const setColor = (next: string) => form.set({ color: next });
@@ -88,45 +107,12 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
   const setIsVisible = (next: boolean) => form.set({ isVisible: next });
   const setSelectedTags = (next: TagSummary[]) => form.set({ selectedTags: next });
   const setUserId = (next: number | null) => form.set({ userId: next });
-  const setSelectedDocs = (next: LinkedEntity[]) => form.set({ selectedDocs: next });
-  const setSelectedTasks = (next: LinkedEntity[]) => form.set({ selectedTasks: next });
-
-  const [docSearch, setDocSearch] = useState("");
-  const [docPickerOpen, setDocPickerOpen] = useState(false);
-  const [taskSearch, setTaskSearch] = useState("");
-  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const setLinks = (next: LinkedRef[]) => form.set({ links: next });
 
   // The user picker is a server typeahead over the initiative's members
   // (`MemberSelect`), so the form no longer pulls the full roster. An edited
   // item ships its own linked user, which saves the picker a lookup.
   const selectedUser = item?.user ?? null;
-
-  // Both pickers ask the one lookup the whole app searches through, narrowed
-  // to this initiative and to live work — a queue item links to something
-  // being done, not to a blueprint or something already put away. Each opens on
-  // what was most recently worked on, so neither starts as an empty box.
-  const docsPicker = useGuildPickerSuggestions(docSearch, {
-    types: [SearchEntityType.document],
-    initiative_id: initiativeId,
-    template: false,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-    enabled: open && docPickerOpen,
-  });
-  const docResults = useMemo(
-    () => docsPicker.items.map((doc) => ({ id: doc.entity_id, title: doc.title })),
-    [docsPicker.items]
-  );
-
-  const tasksPicker = useGuildPickerSuggestions(taskSearch, {
-    types: [SearchEntityType.task],
-    initiative_id: initiativeId,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-    enabled: open && taskPickerOpen,
-  });
-  const taskResults = useMemo(
-    () => tasksPicker.items.map((task) => ({ id: task.entity_id, title: task.title })),
-    [tasksPicker.items]
-  );
 
   return {
     // Field state
@@ -144,20 +130,11 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     setSelectedTags,
     userId,
     setUserId,
-    selectedDocs,
-    setSelectedDocs,
-    selectedTasks,
-    setSelectedTasks,
-    // Picker search/open setters
-    setDocSearch,
-    setDocPickerOpen,
-    setTaskSearch,
-    setTaskPickerOpen,
-    // Picker option lists
+    links,
+    setLinks,
+    /** The saved set, so a submit can work out what actually moved. */
+    initialLinks: loadedLinks,
+    linksLoading: linkQuery.isLoading,
     selectedUser,
-    docResults,
-    docsLoading: docsPicker.isFetching,
-    taskResults,
-    tasksLoading: tasksPicker.isFetching,
   };
 };

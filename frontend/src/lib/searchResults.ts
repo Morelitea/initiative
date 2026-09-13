@@ -134,8 +134,11 @@ export const hitCategory = (target: SearchTarget): SearchCategory => {
 export const hitIcon = (target: SearchTarget): LucideIcon => {
   const child = TOOL_CHILDREN[target.entity_type];
   if (child) return child.icon;
-  // The guild's vocabulary is the only thing that sits outside a tool.
-  return target.tool ? TOOL_ICONS[target.tool] : Tag;
+  // A tool's own row names its tool twice — as the tool and as the kind — so a
+  // caller that filled in only the kind still gets the right mark. The guild's
+  // vocabulary is the one thing that sits outside a tool, and falls through.
+  const tool = target.tool ?? (target.entity_type as unknown as Tool);
+  return TOOL_ICONS[tool] ?? Tag;
 };
 
 /**

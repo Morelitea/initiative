@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -19,10 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useCreateQueueItem } from "@/hooks/useQueues";
+import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
-import { entityRefRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -38,8 +36,7 @@ export const AddQueueItemDialog = ({
   initiativeId,
   onSuccess,
 }: AddQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common"]);
-  const gp = useGuildPath();
+  const { t } = useTranslation(["queues", "common", "relations"]);
 
   const {
     label,
@@ -56,22 +53,19 @@ export const AddQueueItemDialog = ({
     setSelectedTags,
     userId,
     setUserId,
-    selectedDocs,
-    setSelectedDocs,
-    selectedTasks,
-    setSelectedTasks,
-    setDocSearch,
-    setDocPickerOpen,
-    setTaskSearch,
-    setTaskPickerOpen,
-    docResults,
-    docsLoading,
-    taskResults,
-    tasksLoading,
+    links,
+    setLinks,
   } = useQueueItemForm({ open, initiativeId });
 
+  const setLinksMutation = useSetQueueItemLinks(queueId);
+
   const createItem = useCreateQueueItem(queueId, {
-    onSuccess: () => {
+    onSuccess: (created) => {
+      // The links can only be recorded once the thing they point from exists,
+      // so they are written against the id the create came back with.
+      if (links.length > 0) {
+        setLinksMutation.mutate({ itemId: created.id, links, previous: [] });
+      }
       toast.success(t("itemAdded"));
       onOpenChange(false);
       onSuccess?.();
@@ -92,8 +86,6 @@ export const AddQueueItemDialog = ({
       is_visible: isVisible,
       tag_ids: selectedTags.length > 0 ? selectedTags.map((tg) => tg.id) : undefined,
       user_id: userId ?? undefined,
-      document_ids: selectedDocs.length > 0 ? selectedDocs.map((doc) => doc.id) : undefined,
-      task_ids: selectedTasks.length > 0 ? selectedTasks.map((task) => task.id) : undefined,
     });
   };
 
@@ -206,30 +198,14 @@ export const AddQueueItemDialog = ({
             </div>
           </div>
 
-          <LinkedEntityPicker
-            label={t("linkedDocuments")}
-            selected={selectedDocs}
-            onChange={setSelectedDocs}
-            results={docResults}
-            loading={docsLoading}
-            onSearchChange={setDocSearch}
-            onOpenChange={setDocPickerOpen}
-            hrefFor={(id) => gp(entityRefRoute("document", id))}
-            placeholder={t("selectDocument")}
-            emptyMessage={t("noDocuments")}
-          />
-
-          <LinkedEntityPicker
-            label={t("linkedTasks")}
-            selected={selectedTasks}
-            onChange={setSelectedTasks}
-            results={taskResults}
-            loading={tasksLoading}
-            onSearchChange={setTaskSearch}
-            onOpenChange={setTaskPickerOpen}
-            hrefFor={(id) => gp(entityRefRoute("task", id))}
-            placeholder={t("selectTask")}
-            emptyMessage={t("noTasks")}
+          {/* One list, any kind — in place of a documents-only picker beside a
+              tasks-only one. No subject to leave out: the item does not exist
+              yet. */}
+          <EntityLinkField
+            label={t("relations:groups.attached.title")}
+            initiativeId={initiativeId}
+            value={links}
+            onChange={setLinks}
           />
         </div>
 

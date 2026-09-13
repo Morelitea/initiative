@@ -1,0 +1,89 @@
+{
+  "title": "Relations",
+  "description": "Connect this to anything else in the initiative, and say how the two are related.",
+  "untitled": "Untitled",
+  "empty": "Nothing is connected to this yet.",
+  "loadFailed": "Relations are not answering. Try again in a moment.",
+  "add": "Add relation",
+  "graph": {
+    "alt": "{{title}} and the {{count}} things it is connected to",
+    "hops": "Hops",
+    "hopsN_one": "{{count}} hop",
+    "hopsN_other": "{{count}} hops",
+    "walking": "Looking further…",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Fit to the frame",
+    "showTags": "Show tags"
+  },
+  "layout": {
+    "label": "How to show these",
+    "tiles": "Tiles",
+    "rows": "List",
+    "carousel": "Carousel",
+    "graph": "Graph"
+  },
+  "addError": "That link could not be made.",
+  "removeError": "That link could not be removed.",
+  "added": "Linked.",
+  "removed": "Link removed.",
+  "dialog": {
+    "title": "Add a relation",
+    "description": "Say how the two are connected, then choose the thing.",
+    "relationship": "Relationship",
+    "entity": "Thing",
+    "entityPlaceholder": "Search by name…",
+    "noResults": "Nothing matches.",
+    "submit": "Add relation",
+    "submitting": "Adding…"
+  },
+  "card": {
+    "kindLinked": "{{kind}} · linked {{date}}",
+    "unreachable": "This version of the app cannot open that.",
+    "remove": "Remove the link to {{title}}"
+  },
+  "derived": "Read from what a body says. Edit the words to change it.",
+  "groups": {
+    "attached": {
+      "title": "Attached",
+      "empty": "Nothing attached yet.",
+      "option": "Is attached to"
+    },
+    "blockedBy": {
+      "title": "Blocked by",
+      "empty": "Nothing is standing in the way.",
+      "option": "Is blocked by"
+    },
+    "blocks": {
+      "title": "Blocks",
+      "empty": "This is not holding anything up.",
+      "option": "Blocks"
+    },
+    "partOf": {
+      "title": "Part of",
+      "empty": "Not part of anything larger.",
+      "option": "Is part of"
+    },
+    "parts": {
+      "title": "Parts",
+      "empty": "Nothing belongs to this.",
+      "option": "Has as a part"
+    },
+    "related": {
+      "title": "Related",
+      "empty": "Nothing related yet.",
+      "option": "Is related to"
+    },
+    "referencedBy": {
+      "title": "Referenced by",
+      "empty": "Nothing mentions this.",
+      "option": "References"
+    },
+    "tagged": {
+      "title": "Tagged",
+      "empty": "No tags.",
+      "option": "Is tagged"
+    }
+  },
+  "loading": "Loading…"
+}
