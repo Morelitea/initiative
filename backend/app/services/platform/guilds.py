@@ -5,8 +5,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import Integer, bindparam, func, or_, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -435,18 +434,14 @@ async def reorder_memberships(
     )
     final_order.extend(m.guild_id for m in remaining)
 
-    # Persist via the SECURITY DEFINER reorder function. This runs in PERSONAL
-    # mode (no guild context) as a platform_<tier> role, which the
-    # guild_memberships_update RLS policy rejects (it requires
-    # guild_id = current_guild_id), so a direct ORM UPDATE would silently touch 0
-    # rows. The function updates ONLY `position`, scoped to this user's own rows —
-    # the same safe path for every platform tier.
-    await session.exec(
-        text("SELECT reorder_guild_memberships(:uid, :gids)").bindparams(
-            bindparam("gids", type_=ARRAY(Integer))
-        ),
-        params={"uid": user_id, "gids": final_order},
-    )
+    # ``position`` is the whole write, on rows the caller already holds, so the
+    # unit of work is left to issue it. Its row count is checked per row, which
+    # is what turns a write that lands nowhere into an error rather than a
+    # reorder that quietly reverts on the next read.
+    for index, guild_id in enumerate(final_order):
+        membership_by_guild[guild_id].position = index
+    session.add_all(memberships)
+    await session.flush()
 
 
 async def get_membership(
