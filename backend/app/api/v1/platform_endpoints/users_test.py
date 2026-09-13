@@ -1235,9 +1235,14 @@ async def test_a_password_change_that_cannot_open_a_session_is_refused(
     assert change.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
 
     # The revocations were staged alongside the replacement, so the account
-    # still holds what it had: once the store is back, the old password still
-    # signs in.
+    # still holds what it had. The session opened before the attempt is the
+    # thing to ask: it rotates, which it could not do if its chain had been
+    # revoked on its own. Signing in afresh would pass either way.
     monkeypatch.undo()
+    refreshed = await client.post("/api/v1/auth/refresh")
+    assert refreshed.status_code == 200, refreshed.text
+
+    # And the password is the one it always was.
     again = await client.post(
         "/api/v1/auth/token",
         data={"username": "pwfall@example.com", "password": "testpassword123"},
