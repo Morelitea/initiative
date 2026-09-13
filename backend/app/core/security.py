@@ -199,7 +199,7 @@ AUTH_TOKEN_ISSUER = "initiative"
 
 def mint_access_token(
     *,
-    user_id: int,
+    subject: str,
     token_version: int,
     session_id: uuid.UUID,
     amr: list[str],
@@ -210,7 +210,8 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (user id), ``sid``
+    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
     provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
@@ -225,7 +226,7 @@ def mint_access_token(
     issued = now or datetime.now(timezone.utc)
     ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
     payload: dict[str, Any] = {
-        "sub": str(user_id),
+        "sub": subject,
         "sid": str(session_id),
         "ver": token_version,
         "amr": amr,

@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import AUTH_ACCESS_AUDIENCE, AUTH_TOKEN_ISSUER
 from app.models.platform.user import UserStatus
+from app.services.auth.subject import user_for_subject
 from app.testing.factories import (
     create_user,
     get_auth_headers,
@@ -158,7 +159,10 @@ async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession)
 
     assert claims["aud"] == AUTH_ACCESS_AUDIENCE
     assert claims["iss"] == AUTH_TOKEN_ISSUER
-    assert claims["sub"] == str(user.id)
+    # Named by reference, and the reference resolves back to this account —
+    # asserting only the first half would pass for any opaque string.
+    assert claims["sub"] != str(user.id)
+    assert await user_for_subject(session, subject=claims["sub"]) == user
     assert claims["ver"] == user.token_version
     assert claims["sid"]
     # What a password sign-in carries: a factor, and no provider satisfied.

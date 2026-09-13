@@ -95,6 +95,7 @@ from app.core.encryption import SALT_EMAIL, decrypt_field
 from app.core.messages import AddressMessages, AuthMessages, UserMessages
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
+from app.services.auth import subject as subject_service
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_events import AuditEventType
@@ -1005,9 +1006,14 @@ async def update_users_me(
                 user_agent=request.headers.get("user-agent"),
                 ip=get_inet_client_ip(request),
             )
+            # The name the token will carry, minted in the same transaction as
+            # the session it belongs to.
+            subject = await subject_service.subject_for_user(
+                admin_session, user_id=current_user.id
+            )
             await admin_session.commit()
             refreshed_token, refreshed_max_age = mint_access_token(
-                user_id=current_user.id,
+                subject=subject,
                 token_version=current_user.token_version,
                 session_id=issued.session.id,
                 amr=issued.session.amr,

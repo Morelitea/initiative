@@ -80,6 +80,7 @@ from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
+from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     read_assurance,
     record_for_provider,
@@ -518,6 +519,9 @@ async def login_access_token(
             actor_user_id=user_id,
             detail={"method": "password"},
         )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
     except Exception as exc:
         await admin_session.rollback()
@@ -528,7 +532,7 @@ async def login_access_token(
         ) from exc
 
     access_token, access_max_age = mint_access_token(
-        user_id=user_id,
+        subject=subject,
         token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -602,8 +606,13 @@ async def refresh_access_token(
         await admin_session.commit()
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
+    # Already minted at sign-in for anything that signed in on this build; a
+    # session older than it acquires one here on its first renewal.
+    subject = await subject_service.subject_for_user(admin_session, user_id=user.id)
+    await admin_session.commit()
+
     access_token, access_max_age = mint_access_token(
-        user_id=user.id,
+        subject=subject,
         token_version=user.token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -1487,6 +1496,9 @@ async def _complete_provider_login(
             # running beside the stepped-up session. The new session is a
             # fresh chain root, so the walk never touches it.
             await session_service.revoke_chain(admin_session, session_id=prior.id)
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
@@ -1496,7 +1508,7 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
 
     app_token, access_max_age = mint_access_token(
-        user_id=user_id,
+        subject=subject,
         token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,

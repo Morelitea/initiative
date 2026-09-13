@@ -255,7 +255,7 @@ def test_mint_access_token_carries_session_claims():
     context (amr/sat) that the guild-policy gate reads locally."""
     sid = uuid.uuid4()
     token, seconds = mint_access_token(
-        user_id=42,
+        subject="ucli_forty_two",
         token_version=3,
         session_id=sid,
         amr=["pwd", "otp"],
@@ -266,7 +266,7 @@ def test_mint_access_token_carries_session_claims():
     assert seconds == settings.AUTH_ACCESS_TTL_MINUTES * 60
 
     payload = _decode_unverified(token)
-    assert payload["sub"] == "42"
+    assert payload["sub"] == "ucli_forty_two"
     assert payload["sid"] == str(sid)
     assert payload["ver"] == 3
     assert payload["amr"] == ["pwd", "otp"]
@@ -281,7 +281,7 @@ def test_mint_access_token_exp_matches_advertised_seconds():
     refresh off that number, so drift would refresh late (or never)."""
     sid = uuid.uuid4()
     token, seconds = mint_access_token(
-        user_id=1,
+        subject="ucli_one",
         token_version=0,
         session_id=sid,
         amr=["pwd"],
@@ -298,7 +298,7 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
     must succeed — signature + aud + iss all line up."""
     sid = uuid.uuid4()
     token, _ = mint_access_token(
-        user_id=5,
+        subject="ucli_five",
         token_version=1,
         session_id=sid,
         amr=["pwd"],
@@ -313,7 +313,7 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
         issuer=AUTH_TOKEN_ISSUER,
         options={"require": ["exp", "iat", "sub", "sid", "aud", "iss"]},
     )
-    assert payload["sub"] == "5"
+    assert payload["sub"] == "ucli_five"
 
 
 # ── Dual-verify decode (accepts new + legacy, rejects scoped) ───────────────
@@ -322,14 +322,14 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
 @pytest.mark.unit
 def test_decode_session_token_accepts_new_access_token():
     token, _ = mint_access_token(
-        user_id=7,
+        subject="ucli_seven",
         token_version=2,
         session_id=uuid.uuid4(),
         amr=["pwd"],
         satisfied_providers=[3],
     )
     payload = decode_session_token(token)
-    assert payload["sub"] == "7"
+    assert payload["sub"] == "ucli_seven"
     assert payload["ver"] == 2
     assert payload["aud"] == AUTH_ACCESS_AUDIENCE
     assert payload["sat"] == [3]
@@ -372,7 +372,7 @@ def test_decode_session_token_rejects_expired_new_token():
     the first decode — not be masked by the legacy fallback's audience error —
     so cutover-window logs stay honest."""
     token, _ = mint_access_token(
-        user_id=7,
+        subject="ucli_seven",
         token_version=0,
         session_id=uuid.uuid4(),
         amr=["pwd"],
