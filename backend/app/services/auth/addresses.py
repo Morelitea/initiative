@@ -41,6 +41,10 @@ SOURCE_ADDED = "added"
 SOURCE_OIDC = "oidc"
 SOURCE_SYNTHETIC = "synthetic"
 
+#: How many addresses one account keeps. A person collects a handful; a
+#: listing that grows without end is nobody's account page.
+MAX_ADDRESSES_PER_ACCOUNT = 10
+
 
 def normalize(email: str) -> str:
     """The form an address is hashed and stored in."""
@@ -57,7 +61,12 @@ async def find_user_by_address(session: AsyncSession, email: str) -> User | None
         await session.exec(
             select(User)
             .join(UserEmail, UserEmail.user_id == User.id)
-            .where(UserEmail.email_hash == digest)
+            .where(
+                UserEmail.email_hash == digest,
+                # Proven only (§6.2 rule 2). An unproven row is a claim
+                # somebody is in the middle of making, and it signs in nobody.
+                UserEmail.verified_at.is_not(None),
+            )
         )
     ).one_or_none()
     if found is not None:
@@ -305,18 +314,26 @@ async def list_for_user(session: AsyncSession, *, user_id: int) -> list[UserEmai
 async def add_for_user(
     session: AsyncSession, *, user_id: int, email: str, now: datetime | None = None
 ) -> UserEmail | None:
-    """Start holding ``email`` for this account, unverified.
+    """Start holding ``email`` for this account, unproven — or return the claim
+    this account already has on it, so the letter can go out again.
 
-    Returns the new row, or ``None`` when the address already belongs to
-    somebody — **including** to this account. The caller answers the same way
-    either way: what came back is for deciding who to write to, not what to
-    say.
+    Returns ``None`` only when somebody has **proven** the address. An unproven
+    claim belongs to nobody yet: the person who holds the mailbox can still
+    claim it, and proving it is what settles the matter.
+
+    The caller answers the same way whatever comes back. What it is for is
+    deciding whether to write, and to which pending claim.
     """
     digest = hash_email(normalize(email))
-    if await _by_hash(session, digest) is not None:
+    mine = await _pending_for_user(session, user_id=user_id, digest=digest)
+    if mine is not None:
+        return mine
+    if await _proven_holder(session, digest) is not None:
         return None
-    return record_address(
-        session,
+    if await _address_count(session, user_id) >= MAX_ADDRESSES_PER_ACCOUNT:
+        raise AddressError(AddressMessages.TOO_MANY_ADDRESSES)
+
+    row = _build_address(
         user_id=user_id,
         email=email,
         source=SOURCE_ADDED,
@@ -324,6 +341,16 @@ async def add_for_user(
         is_primary=False,
         now=now,
     )
+    try:
+        # Two additions of one address race to here; the proven-uniqueness
+        # index settles nothing between two unproven rows, so this is only
+        # about the account's own duplicate.
+        async with session.begin_nested():
+            session.add(row)
+            await session.flush()
+    except IntegrityError:
+        return await _pending_for_user(session, user_id=user_id, digest=digest)
+    return row
 
 
 async def verify_for_user(
@@ -335,9 +362,23 @@ async def verify_for_user(
 ) -> UserEmail:
     """Mark one address proven. Idempotent — proving it twice is proving it."""
     row = await _owned(session, user_id=user_id, address_id=address_id)
-    if row.verified_at is None:
-        row.verified_at = now or datetime.now(timezone.utc)
-        session.add(row)
+    if row.verified_at is not None:
+        return row
+
+    holder = await _proven_holder(session, row.email_hash)
+    if holder is not None and holder.user_id != user_id:
+        raise AddressError(AddressMessages.ADDRESS_TAKEN)
+
+    row.verified_at = now or datetime.now(timezone.utc)
+    session.add(row)
+    # Proving it settles every other claim on the same address.
+    await session.exec(
+        delete(UserEmail).where(
+            UserEmail.email_hash == row.email_hash,
+            UserEmail.id != row.id,
+            UserEmail.verified_at.is_(None),
+        )
+    )
     return row
 
 
@@ -372,10 +413,17 @@ async def set_primary_for_user(
         raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
     if row.is_primary:
         return row
-    # One primary per account is a partial unique index, so the old one is
-    # stood down in the same flush that raises the new one.
+    # One primary per account is a partial unique index, so two promotions
+    # arriving together would both stand the old one down and then raise two.
+    # The lock makes them take turns; the second reads the first's result.
+    await session.exec(
+        select(UserEmail.id)
+        .where(UserEmail.user_id == user_id)
+        .with_for_update()
+        .order_by(UserEmail.id)
+    )
     for other in await list_for_user(session, user_id=user_id):
-        if other.is_primary:
+        if other.is_primary and other.id != row.id:
             other.is_primary = False
             session.add(other)
     await session.flush()
@@ -389,6 +437,46 @@ async def _owned(session: AsyncSession, *, user_id: int, address_id: int) -> Use
     if row is None or row.user_id != user_id or row.source == SOURCE_SYNTHETIC:
         raise AddressError(AddressMessages.ADDRESS_NOT_FOUND)
     return row
+
+
+async def _pending_for_user(
+    session: AsyncSession, *, user_id: int, digest: str
+) -> UserEmail | None:
+    """This account's own unproven claim on an address, if it has one."""
+    return (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.user_id == user_id,
+                UserEmail.email_hash == digest,
+                UserEmail.verified_at.is_(None),
+            )
+        )
+    ).one_or_none()
+
+
+async def _proven_holder(session: AsyncSession, digest: str) -> UserEmail | None:
+    """The row that has proven this address, if anybody has."""
+    return (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.email_hash == digest,
+                UserEmail.verified_at.is_not(None),
+            )
+        )
+    ).one_or_none()
+
+
+async def _address_count(session: AsyncSession, user_id: int) -> int:
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(UserEmail)
+            .where(
+                UserEmail.user_id == user_id,
+                UserEmail.source != SOURCE_SYNTHETIC,
+            )
+        )
+    ).one()
 
 
 async def _verified_count(session: AsyncSession, user_id: int) -> int:

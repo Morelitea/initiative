@@ -282,6 +282,8 @@ class AddressMessages:
     ADDRESS_NOT_VERIFIED = "ADDRESS_NOT_VERIFIED"
     #: An account holds a bounded number of addresses.
     TOO_MANY_ADDRESSES = "TOO_MANY_ADDRESSES"
+    #: Somebody proved they hold it while this claim was pending.
+    ADDRESS_TAKEN = "ADDRESS_TAKEN"
 
 
 class AuthProviderMessages:

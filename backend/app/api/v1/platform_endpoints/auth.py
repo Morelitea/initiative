@@ -458,11 +458,11 @@ async def login_access_token(
         form_data.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the log is no place to
-        # keep one. Those attempts are bounded by the rate limit above.
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Recorded whether or not the address resolved: a run of refusals
+        # against addresses nobody holds is the shape worth seeing, and the
+        # record keeps no identity when there was none to keep. The volume is
+        # bounded by the rate limit above.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -742,8 +742,8 @@ async def create_device_token(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Recorded either way, like the token route.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,

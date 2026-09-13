@@ -12,6 +12,8 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import hash_email
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.auth import addresses
 from app.testing.factories import create_user, get_auth_headers
@@ -260,3 +262,135 @@ async def test_an_address_on_another_account_is_not_yours_to_touch(
     ):
         assert response.status_code == 404
         assert response.json()["detail"] == "ADDRESS_NOT_FOUND"
+
+
+async def test_an_unproven_claim_does_not_take_the_address(
+    client: AsyncClient, session: AsyncSession
+):
+    """An address is taken by proving it, not by typing it. Until a claim is
+    proven it belongs to nobody, and the person who holds the mailbox can make
+    the same claim."""
+    await _enable_smtp(session)
+    other_claimant = await create_user(session, email="claimant@example.com")
+    holder = await create_user(session, email="holder@example.com")
+
+    claimed = await client.post(
+        "/api/v1/users/me/emails",
+        json={"email": "contested@example.com"},
+        headers=get_auth_headers(other_claimant),
+    )
+    assert claimed.status_code == 202
+
+    # The real holder can still make the same claim.
+    theirs = await client.post(
+        "/api/v1/users/me/emails",
+        json={"email": "contested@example.com"},
+        headers=get_auth_headers(holder),
+    )
+    assert theirs.status_code == 202
+    assert "contested@example.com" in {
+        i["email"] for i in await _listing(client, holder)
+    }
+
+
+async def test_proving_an_address_settles_every_other_claim(
+    client: AsyncClient, session: AsyncSession
+):
+    other_claimant = await create_user(session, email="claimant@example.com")
+    holder = await create_user(session, email="holder2@example.com")
+    other_claimant_id, holder_id = other_claimant.id, holder.id
+    for user_id in (other_claimant_id, holder_id):
+        addresses.record_address(
+            session,
+            user_id=user_id,
+            email="contested2@example.com",
+            source=addresses.SOURCE_ADDED,
+            verified=False,
+            is_primary=False,
+        )
+    await session.commit()
+
+    theirs = await addresses._pending_for_user(
+        session, user_id=holder_id, digest=hash_email("contested2@example.com")
+    )
+    await addresses.verify_for_user(session, user_id=holder_id, address_id=theirs.id)
+    await session.commit()
+
+    # The holder has it, and the other claim is gone.
+    session.expire_all()
+    rows = (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.email_hash == hash_email("contested2@example.com")
+            )
+        )
+    ).all()
+    assert [(r.user_id, r.verified_at is not None) for r in rows] == [(holder_id, True)]
+
+
+async def test_an_unproven_address_signs_nobody_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Rule 2: only a proven address resolves, so a claim in progress is not a
+    way in and not a way to ask for a password reset."""
+    user = await create_user(session, email="real@example.com")
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email="pending@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+
+    assert await addresses.find_user_by_address(session, "pending@example.com") is None
+    found = await addresses.find_user_by_address(session, "real@example.com")
+    assert found is not None
+
+
+async def test_an_account_holds_a_bounded_number_of_addresses(
+    client: AsyncClient, session: AsyncSession
+):
+    await _enable_smtp(session)
+    user = await create_user(session, email="collector@example.com")
+    for n in range(addresses.MAX_ADDRESSES_PER_ACCOUNT - 1):
+        addresses.record_address(
+            session,
+            user_id=user.id,
+            email=f"extra-{n}@example.com",
+            source=addresses.SOURCE_ADDED,
+            verified=False,
+            is_primary=False,
+        )
+    await session.commit()
+
+    refused = await client.post(
+        "/api/v1/users/me/emails",
+        json={"email": "one-too-many@example.com"},
+        headers=get_auth_headers(user),
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "TOO_MANY_ADDRESSES"
+
+
+async def test_asking_again_resends_rather_than_refusing(
+    client: AsyncClient, session: AsyncSession
+):
+    """A letter that did not arrive is sent again by asking again — the claim
+    this account already has comes back rather than being treated as taken."""
+    await _enable_smtp(session)
+    user = await create_user(session, email="retry@example.com")
+
+    for _ in range(2):
+        response = await client.post(
+            "/api/v1/users/me/emails",
+            json={"email": "again@example.com"},
+            headers=get_auth_headers(user),
+        )
+        assert response.status_code == 202
+
+    held = [
+        i for i in await _listing(client, user) if i["email"] == "again@example.com"
+    ]
+    assert len(held) == 1

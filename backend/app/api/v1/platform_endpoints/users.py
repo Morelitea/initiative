@@ -853,9 +853,17 @@ async def add_my_address(
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
 
-    added = await addresses.add_for_user(
-        admin_session, user_id=current_user.id, email=payload.email
-    )
+    try:
+        added = await addresses.add_for_user(
+            admin_session, user_id=current_user.id, email=payload.email
+        )
+    except addresses.AddressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+    # ``added`` is the new claim, or the one this account already had — asking
+    # again is how a letter that did not arrive is sent again. ``None`` means
+    # somebody has proven the address, and nothing is written.
     if added is not None:
         await admin_session.commit()
         await admin_session.refresh(added)
