@@ -328,10 +328,21 @@ async def add_for_user(
     mine = await _pending_for_user(session, user_id=user_id, digest=digest)
     if mine is not None:
         return mine
-    if await _proven_holder(session, digest) is not None:
-        return None
+
+    # How full this account is, before the address is looked at. It is a fact
+    # about the account and not about who holds what, so settling it first
+    # keeps the answer the same either way — the same reason the endpoint
+    # settles whether the deployment can send before it gets here.
+    #
+    # The lock makes two additions arriving together take turns, so they count
+    # each other. An account with no addresses yet has nothing to lock, and
+    # nothing near the limit either.
+    await _lock_addresses(session, user_id)
     if await _address_count(session, user_id) >= MAX_ADDRESSES_PER_ACCOUNT:
         raise AddressError(AddressMessages.TOO_MANY_ADDRESSES)
+
+    if await _proven_holder(session, digest) is not None:
+        return None
 
     row = _build_address(
         user_id=user_id,
@@ -371,6 +382,15 @@ async def verify_for_user(
 
     row.verified_at = now or datetime.now(timezone.utc)
     session.add(row)
+    try:
+        # Two claims on one address can be proven at the same moment; the
+        # proven-uniqueness index settles which, inside a savepoint so the
+        # loser leaves the outer transaction usable.
+        async with session.begin_nested():
+            await session.flush()
+    except IntegrityError:
+        raise AddressError(AddressMessages.ADDRESS_TAKEN) from None
+
     # Proving it settles every other claim on the same address.
     await session.exec(
         delete(UserEmail).where(
@@ -416,12 +436,7 @@ async def set_primary_for_user(
     # One primary per account is a partial unique index, so two promotions
     # arriving together would both stand the old one down and then raise two.
     # The lock makes them take turns; the second reads the first's result.
-    await session.exec(
-        select(UserEmail.id)
-        .where(UserEmail.user_id == user_id)
-        .with_for_update()
-        .order_by(UserEmail.id)
-    )
+    await _lock_addresses(session, user_id)
     for other in await list_for_user(session, user_id=user_id):
         if other.is_primary and other.id != row.id:
             other.is_primary = False
@@ -437,6 +452,18 @@ async def _owned(session: AsyncSession, *, user_id: int, address_id: int) -> Use
     if row is None or row.user_id != user_id or row.source == SOURCE_SYNTHETIC:
         raise AddressError(AddressMessages.ADDRESS_NOT_FOUND)
     return row
+
+
+async def _lock_addresses(session: AsyncSession, user_id: int) -> None:
+    """Hold this account's address rows for the rest of the transaction, so
+    two requests changing the set take turns rather than both acting on the
+    same reading."""
+    await session.exec(
+        select(UserEmail.id)
+        .where(UserEmail.user_id == user_id)
+        .order_by(UserEmail.id)
+        .with_for_update()
+    )
 
 
 async def _pending_for_user(

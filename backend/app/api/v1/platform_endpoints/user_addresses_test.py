@@ -394,3 +394,78 @@ async def test_asking_again_resends_rather_than_refusing(
         i for i in await _listing(client, user) if i["email"] == "again@example.com"
     ]
     assert len(held) == 1
+
+
+async def test_a_full_account_answers_the_same_whoever_holds_the_address(
+    client: AsyncClient, session: AsyncSession
+):
+    """Rule 5 at the limit: how full the account is settles before the address
+    is looked at, so being full does not become a way to ask who holds what."""
+    await _enable_smtp(session)
+    holder = await create_user(session, email="holder3@example.com")
+    addresses.record_address(
+        session,
+        user_id=holder.id,
+        email="spoken-for@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    full = await create_user(session, email="full@example.com")
+    for n in range(addresses.MAX_ADDRESSES_PER_ACCOUNT - 1):
+        addresses.record_address(
+            session,
+            user_id=full.id,
+            email=f"held-{n}@example.com",
+            source=addresses.SOURCE_ADDED,
+            verified=False,
+            is_primary=False,
+        )
+    await session.commit()
+
+    taken = await client.post(
+        "/api/v1/users/me/emails",
+        json={"email": "spoken-for@example.com"},
+        headers=get_auth_headers(full),
+    )
+    free = await client.post(
+        "/api/v1/users/me/emails",
+        json={"email": "nobody-has-this@example.com"},
+        headers=get_auth_headers(full),
+    )
+    assert taken.status_code == free.status_code == 400
+    assert taken.json() == free.json()
+
+
+async def test_proving_an_address_somebody_just_proved_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    """Two claims can be proven at the same moment. The index settles which,
+    and the loser is told the address is taken rather than meeting an error."""
+    first = await create_user(session, email="first3@example.com")
+    second = await create_user(session, email="second3@example.com")
+    first_id, second_id = first.id, second.id
+    for user_id in (first_id, second_id):
+        addresses.record_address(
+            session,
+            user_id=user_id,
+            email="contested3@example.com",
+            source=addresses.SOURCE_ADDED,
+            verified=False,
+            is_primary=False,
+        )
+    await session.commit()
+
+    digest = hash_email("contested3@example.com")
+    theirs = await addresses._pending_for_user(session, user_id=first_id, digest=digest)
+    await addresses.verify_for_user(session, user_id=first_id, address_id=theirs.id)
+    await session.commit()
+
+    # The second claim was deleted by the first proving it, so there is nothing
+    # left to prove — and a claim that survived a concurrent commit is refused.
+    session.expire_all()
+    assert (
+        await addresses._pending_for_user(session, user_id=second_id, digest=digest)
+    ) is None
+    holder = await addresses.find_user_by_address(session, "contested3@example.com")
+    assert holder is not None and holder.id == first_id

@@ -1611,9 +1611,20 @@ async def confirm_verification(
     # A token minted for one address proves that address; the older
     # account-level tokens carry none and prove the account.
     if record.user_email_id is not None:
-        await addresses.verify_for_user(
-            admin_session, user_id=user.id, address_id=record.user_email_id
-        )
+        try:
+            await addresses.verify_for_user(
+                admin_session, user_id=user.id, address_id=record.user_email_id
+            )
+        except addresses.AddressError as exc:
+            # Somebody else proved the same address first. The claim is over,
+            # and the token that carried it is spent either way.
+            await admin_session.rollback()
+            record.consumed_at = datetime.now(timezone.utc)
+            session.add(record)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
