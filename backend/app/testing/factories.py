@@ -481,10 +481,10 @@ async def create_initiative(
     if commit:
         await session.flush()
 
-        # Create built-in roles (PM + Member)
-        pm_role, member_role = await create_builtin_roles(
-            session, initiative_id=initiative.id
-        )
+        # Create built-in roles (moderator + PM + member)
+        builtin_roles = await create_builtin_roles(session, initiative_id=initiative.id)
+        pm_role = builtin_roles["project_manager"]
+        member_role = builtin_roles["member"]
 
         if member_tool_access:
             from sqlalchemy import update as sa_update

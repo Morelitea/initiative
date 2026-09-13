@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Full access belongs to a role called Moderator** — "reaches every item in the initiative however it was shared" used to be a switch a community admin could throw on the project manager role, so it applied to every project manager at once. Every initiative now has a built-in **Moderator** role that carries it, listed first in **settings → Roles** with no tool switches to set, because it holds them all. Project managers keep every tool permission and lose the override. Only a community admin puts somebody on Moderator, and a community admin joining an initiative arrives on it, which is the standing they already had. Existing initiatives get the role on upgrade, and anyone whose project manager role had full access keeps reaching what they could reach.
 - **A dashboard reports on live work** — a question asked of your tasks was answered with all of them, so a board of "who is carrying what" dealt out the steps of every template project alongside real work, and archived work counted the same as current work. New widgets now start by leaving out archived rows and templates, as ordinary filters you can see and delete when the question really is about archived work. The five dashboards that ship with the app ask the same way.
 
 ### Fixed

@@ -4344,7 +4344,6 @@ export interface InitiativeRoleRead {
 export interface InitiativeRoleUpdate {
   display_name?: string | null;
   is_manager?: boolean | null;
-  override_share_restrictions?: boolean | null;
   permissions?: Partial<Record<PermissionKey, boolean>> | null;
 }
 

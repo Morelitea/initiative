@@ -49,10 +49,6 @@ interface InitiativeSettingsRolesTabProps {
   /** The initiative, so a group can say when its tool is turned off. */
   initiative: InitiativeRead | null;
   canManageMembers: boolean;
-  // "Full access" (override_share_restrictions) is guild-admin-settable only —
-  // a stricter gate than canManageMembers (which also includes PM managers), so
-  // a PM can't grant its own role the share override (self-escalation).
-  isGuildAdmin: boolean;
   onOpenCreateRoleDialog: () => void;
   onDeleteRole: (role: InitiativeRoleRead) => void;
   onRenameRole: (role: InitiativeRoleRead) => void;
@@ -104,7 +100,6 @@ export const InitiativeSettingsRolesTab = ({
   initiativeId,
   initiative,
   canManageMembers,
-  isGuildAdmin,
   onOpenCreateRoleDialog,
   onDeleteRole,
   onRenameRole,
@@ -116,21 +111,16 @@ export const InitiativeSettingsRolesTab = ({
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
 
+  // Moderator holds every permission, so it gets a card that says what it is
+  // rather than a full set of switches with nothing to change.
+  const moderatorRole = rolesQuery.data?.find((role) => role.name === "moderator");
+  const configurableRoles = (rolesQuery.data ?? []).filter((role) => role.name !== "moderator");
+
   const handleTogglePermission = useCallback(
     (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => {
       if (role.name === "project_manager") return;
       const newPermissions = { ...role.permissions, [key]: enabled };
       updateRoleMutation.mutate({ roleId: role.id, data: { permissions: newPermissions } });
-    },
-    [updateRoleMutation]
-  );
-
-  const handleToggleFullAccess = useCallback(
-    (role: InitiativeRoleRead, enabled: boolean) => {
-      updateRoleMutation.mutate({
-        roleId: role.id,
-        data: { override_share_restrictions: enabled },
-      });
     },
     [updateRoleMutation]
   );
@@ -149,113 +139,131 @@ export const InitiativeSettingsRolesTab = ({
             {t("settings.loadingRoles")}
           </div>
         ) : rolesQuery.data ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {rolesQuery.data.map((role) => {
-              const isPM = role.name === "project_manager";
-              return (
-                <Card key={role.id}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base">{role.display_name}</CardTitle>
-                      {role.is_builtin && (
-                        <Badge variant="secondary" className="text-xs">
-                          {t("settings.builtIn")}
-                        </Badge>
-                      )}
-                      {role.is_manager && (
+          <>
+            {moderatorRole && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-base">{moderatorRole.display_name}</CardTitle>
+                    <Badge variant="secondary" className="text-xs">
+                      {t("settings.builtIn")}
+                    </Badge>
+                    <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {t("settings.memberCountBadge", { count: moderatorRole.member_count })}
+                    </Badge>
+                  </div>
+                  {canManageMembers && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRenameRole(moderatorRole)}
+                      disabled={updateRoleMutation.isPending}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground text-sm">
+                    {t("settings.moderatorDescription")}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {configurableRoles.map((role) => {
+                const isPM = role.name === "project_manager";
+                return (
+                  <Card key={role.id}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="text-base">{role.display_name}</CardTitle>
+                        {role.is_builtin && (
+                          <Badge variant="secondary" className="text-xs">
+                            {t("settings.builtIn")}
+                          </Badge>
+                        )}
+                        {role.is_manager && (
+                          <Badge variant="outline" className="text-xs">
+                            {t("settings.manager")}
+                          </Badge>
+                        )}
+                        {role.override_share_restrictions && (
+                          <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
+                        )}
                         <Badge variant="outline" className="text-xs">
-                          {t("settings.manager")}
+                          {t("settings.memberCountBadge", { count: role.member_count })}
                         </Badge>
-                      )}
-                      {role.override_share_restrictions && (
-                        <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {t("settings.memberCountBadge", { count: role.member_count })}
-                      </Badge>
-                    </div>
-                    {canManageMembers && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onRenameRole(role)}
-                          disabled={updateRoleMutation.isPending}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {!role.is_builtin && (
+                      </div>
+                      {canManageMembers && (
+                        <div className="flex gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => onDeleteRole(role)}
-                            disabled={deleteRoleMutation.isPending || role.member_count > 0}
+                            onClick={() => onRenameRole(role)}
+                            disabled={updateRoleMutation.isPending}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
-                      </div>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {isPM && isGuildAdmin && (
-                      <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-                        <div className="space-y-1">
-                          <Label className="font-medium">{t("settings.fullAccess")}</Label>
-                          <p className="text-muted-foreground text-xs">
-                            {t("settings.fullAccessDescription")}
-                          </p>
+                          {!role.is_builtin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onDeleteRole(role)}
+                              disabled={deleteRoleMutation.isPending || role.member_count > 0}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
-                        <Switch
-                          checked={role.override_share_restrictions}
-                          disabled={updateRoleMutation.isPending}
-                          onCheckedChange={(checked) => handleToggleFullAccess(role, checked)}
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {CORE_PERMISSION_GROUPS.map((group) => (
+                        <PermissionGroupSection
+                          key={group.labelKey}
+                          group={group}
+                          role={role}
+                          isPM={isPM}
+                          canManageMembers={canManageMembers}
+                          isPending={updateRoleMutation.isPending}
+                          onToggle={handleTogglePermission}
+                          t={t as unknown as (key: never) => string}
                         />
-                      </div>
-                    )}
+                      ))}
 
-                    {CORE_PERMISSION_GROUPS.map((group) => (
-                      <PermissionGroupSection
-                        key={group.labelKey}
-                        group={group}
-                        role={role}
-                        isPM={isPM}
-                        canManageMembers={canManageMembers}
-                        isPending={updateRoleMutation.isPending}
-                        onToggle={handleTogglePermission}
-                        t={t as unknown as (key: never) => string}
-                      />
-                    ))}
-
-                    {ADVANCED_PERMISSION_GROUPS.length > 0 && (
-                      <Accordion type="single" collapsible>
-                        <AccordionItem value="advanced" className="border-b-0">
-                          <AccordionTrigger className="py-2 font-medium text-muted-foreground text-sm">
-                            {t("advancedTools")}
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-2">
-                            {ADVANCED_PERMISSION_GROUPS.map((group) => (
-                              <PermissionGroupSection
-                                key={group.labelKey}
-                                group={group}
-                                role={role}
-                                isPM={isPM}
-                                canManageMembers={canManageMembers}
-                                isPending={updateRoleMutation.isPending}
-                                onToggle={handleTogglePermission}
-                                toolIsOff={group.keys.some((key) => disabledKeys.has(key))}
-                                t={t as unknown as (key: never) => string}
-                              />
-                            ))}
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      {ADVANCED_PERMISSION_GROUPS.length > 0 && (
+                        <Accordion type="single" collapsible>
+                          <AccordionItem value="advanced" className="border-b-0">
+                            <AccordionTrigger className="py-2 font-medium text-muted-foreground text-sm">
+                              {t("advancedTools")}
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 pt-2">
+                              {ADVANCED_PERMISSION_GROUPS.map((group) => (
+                                <PermissionGroupSection
+                                  key={group.labelKey}
+                                  group={group}
+                                  role={role}
+                                  isPM={isPM}
+                                  canManageMembers={canManageMembers}
+                                  isPending={updateRoleMutation.isPending}
+                                  onToggle={handleTogglePermission}
+                                  toolIsOff={group.keys.some((key) => disabledKeys.has(key))}
+                                  t={t as unknown as (key: never) => string}
+                                />
+                              ))}
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </>
         ) : null}
 
         {canManageMembers && (

@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
+    BUILTIN_ROLES,
     Initiative,
     InitiativeJoinPolicy,
     InitiativeJoinRequest,
@@ -65,6 +66,18 @@ async def get_pm_role(
     )
 
 
+async def get_moderator_role(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+) -> InitiativeRoleModel | None:
+    """Get the moderator role for an initiative — the built-in that carries
+    "Full access" (``override_share_restrictions``)."""
+    return await get_role_by_name(
+        session, initiative_id=initiative_id, role_name="moderator"
+    )
+
+
 async def get_member_role(
     session: AsyncSession,
     *,
@@ -103,7 +116,7 @@ async def resolve_membership_role(
     route into an initiative resolves its role through.
 
     A guild admin's standing already reaches every initiative in their guild,
-    so their row carries a manager role: the built-in project manager unless a
+    so their row carries a manager role: the built-in moderator unless another
     manager role was named. That is settled here rather than refused, so a
     project manager can bring an admin into their initiative like anyone else.
 
@@ -116,10 +129,29 @@ async def resolve_membership_role(
     ):
         if requested is not None and requested.is_manager:
             return requested
-        return await get_pm_role(session, initiative_id=initiative.id)
+        return await get_moderator_role(session, initiative_id=initiative.id)
     if requested is not None:
         return requested
     return await get_member_role(session, initiative_id=initiative.id)
+
+
+async def creator_role(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    roles: dict[str, InitiativeRoleModel],
+) -> InitiativeRoleModel:
+    """The built-in role the person who brings an initiative into being takes.
+
+    A guild admin lands on the moderator role, the same as on any other route
+    into an initiative — :func:`resolve_membership_role` settles that for a row
+    somebody else writes, and this settles it for the row they write for
+    themselves. Anyone else becomes the project manager of what they made.
+    """
+    if await is_guild_admin_member(session, guild_id=guild_id, user_id=user_id):
+        return roles["moderator"]
+    return roles["project_manager"]
 
 
 async def align_guild_admin_membership_roles(
@@ -138,7 +170,7 @@ async def align_guild_admin_membership_roles(
     with the standing they now hold.
 
     Rows already on a manager role are left alone, as is an initiative with no
-    project manager role to move them to. Returns the initiative ids changed.
+    moderator role to move them to. Returns the initiative ids changed.
 
     The session must already be routed into the guild's schema; flush-only, the
     caller owns the transaction.
@@ -158,10 +190,12 @@ async def align_guild_admin_membership_roles(
     for membership in rows:
         if membership.role_ref is not None and membership.role_ref.is_manager:
             continue
-        pm_role = await get_pm_role(session, initiative_id=membership.initiative_id)
-        if pm_role is None:
+        moderator = await get_moderator_role(
+            session, initiative_id=membership.initiative_id
+        )
+        if moderator is None:
             continue
-        membership.role_id = pm_role.id
+        membership.role_id = moderator.id
         session.add(membership)
         changed.append(membership.initiative_id)
     if changed:
@@ -173,57 +207,39 @@ async def create_builtin_roles(
     session: AsyncSession,
     *,
     initiative_id: int,
-) -> tuple[InitiativeRoleModel, InitiativeRoleModel]:
-    """Create the built-in PM and Member roles for an initiative.
+) -> dict[str, InitiativeRoleModel]:
+    """Create an initiative's built-in roles, keyed by name.
 
-    Returns (pm_role, member_role).
+    Walks :data:`BUILTIN_ROLES` in order, so a role added to that tuple is a
+    role every new initiative gets — nothing here names one.
     """
-    # Create PM role
-    pm_role = InitiativeRoleModel(
-        initiative_id=initiative_id,
-        name="project_manager",
-        display_name="Project Manager",
-        is_builtin=True,
-        is_manager=True,
-        position=0,
-    )
-    session.add(pm_role)
-    await session.flush()
-
-    # Create Member role
-    member_role = InitiativeRoleModel(
-        initiative_id=initiative_id,
-        name="member",
-        display_name="Member",
-        is_builtin=True,
-        is_manager=False,
-        position=1,
-    )
-    session.add(member_role)
-    await session.flush()
-
-    # Add permissions for PM role
-    for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["project_manager"].items():
-        session.add(
-            InitiativeRolePermission(
-                initiative_role_id=pm_role.id,
-                permission_key=perm_key,
-                enabled=enabled,
-            )
+    roles: dict[str, InitiativeRoleModel] = {}
+    for position, spec in enumerate(BUILTIN_ROLES):
+        role = InitiativeRoleModel(
+            initiative_id=initiative_id,
+            name=spec.name,
+            display_name=spec.display_name,
+            is_builtin=True,
+            is_manager=spec.is_manager,
+            override_share_restrictions=spec.override_share_restrictions,
+            position=position,
         )
+        session.add(role)
+        roles[spec.name] = role
+    await session.flush()
 
-    # Add permissions for Member role
-    for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["member"].items():
-        session.add(
-            InitiativeRolePermission(
-                initiative_role_id=member_role.id,
-                permission_key=perm_key,
-                enabled=enabled,
+    for spec in BUILTIN_ROLES:
+        for perm_key, enabled in spec.permissions.items():
+            session.add(
+                InitiativeRolePermission(
+                    initiative_role_id=roles[spec.name].id,
+                    permission_key=perm_key,
+                    enabled=enabled,
+                )
             )
-        )
 
     await session.flush()
-    return pm_role, member_role
+    return roles
 
 
 async def ensure_default_initiative(
@@ -236,7 +252,7 @@ async def ensure_default_initiative(
     result = await session.exec(statement)
     default_initiative = result.one_or_none()
     if default_initiative:
-        await _ensure_membership_as_pm(
+        await _ensure_membership_as_moderator(
             session,
             initiative_id=default_initiative.id,
             user_id=admin_user.id,
@@ -259,16 +275,14 @@ async def ensure_default_initiative(
     await session.flush()
 
     # Create built-in roles for this initiative
-    pm_role, _member_role = await create_builtin_roles(
-        session, initiative_id=default_initiative.id
-    )
+    roles = await create_builtin_roles(session, initiative_id=default_initiative.id)
 
-    # Add admin as PM
+    # The guild's admin joins on the moderator role, as every admin does.
     session.add(
         InitiativeMember(
             initiative_id=default_initiative.id,
             user_id=admin_user.id,
-            role_id=pm_role.id,
+            role_id=roles["moderator"].id,
             guild_id=guild_id,
         )
     )
@@ -314,20 +328,20 @@ async def load_user_initiative_roles(
         object.__setattr__(user, "initiative_roles", user_assignments)
 
 
-async def _ensure_membership_as_pm(
+async def _ensure_membership_as_moderator(
     session: AsyncSession,
     *,
     initiative_id: int,
     user_id: int,
     guild_id: int,
 ) -> None:
-    """Ensure user is a member with PM role."""
-    pm_role = await get_pm_role(session, initiative_id=initiative_id)
-    if not pm_role:
+    """Ensure user is a member on the moderator role."""
+    role = await get_moderator_role(session, initiative_id=initiative_id)
+    if not role:
         # Create roles if they don't exist (migration safety)
-        pm_role, _member_role = await create_builtin_roles(
-            session, initiative_id=initiative_id
-        )
+        role = (await create_builtin_roles(session, initiative_id=initiative_id))[
+            "moderator"
+        ]
 
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
@@ -336,8 +350,8 @@ async def _ensure_membership_as_pm(
     result = await session.exec(stmt)
     membership = result.one_or_none()
     if membership:
-        if membership.role_id != pm_role.id:
-            membership.role_id = pm_role.id
+        if membership.role_id != role.id:
+            membership.role_id = role.id
             session.add(membership)
             await session.flush()
         return
@@ -345,7 +359,7 @@ async def _ensure_membership_as_pm(
         InitiativeMember(
             initiative_id=initiative_id,
             user_id=user_id,
-            role_id=pm_role.id,
+            role_id=role.id,
             guild_id=guild_id,
         )
     )
@@ -1221,14 +1235,16 @@ async def create_imported_initiative(
     session.add(initiative)
     await session.flush()
 
-    pm_role, _member_role = await create_builtin_roles(
-        session, initiative_id=initiative.id
-    )
+    roles = await create_builtin_roles(session, initiative_id=initiative.id)
     session.add(
         InitiativeMember(
             initiative_id=initiative.id,
             user_id=manager_id,
-            role_id=pm_role.id,
+            role_id=(
+                await creator_role(
+                    session, guild_id=guild_id, user_id=manager_id, roles=roles
+                )
+            ).id,
             guild_id=guild_id,
         )
     )

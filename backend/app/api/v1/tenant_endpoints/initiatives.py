@@ -29,6 +29,7 @@ from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
     JoinRequestStatus,
+    LOCKED_PERMISSION_ROLE_NAMES,
     PermissionKey,
 )
 from app.models.platform.guild import GuildRole
@@ -177,6 +178,37 @@ async def _guard_guild_admin_role(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.GUILD_ADMIN_ROLE_RESTRICTED,
         )
+
+
+async def _guard_full_access_role(
+    session: SessionDep,
+    *,
+    guild_id: int,
+    target_user_id: int,
+    role: InitiativeRoleModel | None,
+    guild_role: GuildRole | str | None,
+) -> None:
+    """Restrict who may be placed on a role carrying "Full access".
+
+    A guild admin settles that one. Every other role — the other manager roles
+    included — stays an initiative manager's to assign.
+
+    A guild admin as the *target* is the exception: their standing already
+    reaches every initiative in the guild, so the role adds nothing to it, and
+    this is the route a project manager brings an admin in by.
+    """
+    if role is None or not role.override_share_restrictions:
+        return
+    if rls_service.is_guild_admin(guild_role):
+        return
+    if await initiatives_service.is_guild_admin_member(
+        session, guild_id=guild_id, user_id=target_user_id
+    ):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=InitiativeMessages.OVERRIDE_REQUIRES_GUILD_ADMIN,
+    )
 
 
 async def _ensure_remaining_manager(
@@ -722,16 +754,20 @@ async def create_initiative(
     await session.flush()
 
     # Create built-in roles for this initiative
-    pm_role, _member_role = await initiatives_service.create_builtin_roles(
+    roles = await initiatives_service.create_builtin_roles(
         session, initiative_id=initiative.id
     )
 
-    # Add creator as PM
+    # Add the creator: a guild admin on the moderator role, anyone else as the
+    # project manager of what they just made.
+    creator_role = await initiatives_service.creator_role(
+        session, guild_id=guild_id, user_id=current_user.id, roles=roles
+    )
     session.add(
         InitiativeMember(
             initiative_id=initiative.id,
             user_id=current_user.id,
-            role_id=pm_role.id,
+            role_id=creator_role.id,
             guild_id=guild_id,
         )
     )
@@ -937,7 +973,8 @@ async def update_initiative_role(
 ) -> InitiativeRoleRead:
     """Update a role's display name and/or permissions.
 
-    Note: PM role permissions cannot be changed to prevent lockouts.
+    Note: the built-ins that already hold every permission (moderator, project
+    manager) cannot have theirs changed, to prevent lockouts.
     """
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
@@ -955,37 +992,12 @@ async def update_initiative_role(
             detail=InitiativeMessages.ROLE_NOT_FOUND,
         )
 
-    # Prevent modifying PM role permissions
-    if role.name == "project_manager" and role_in.permissions is not None:
+    # The built-ins that hold every permission have nothing to configure.
+    if role.name in LOCKED_PERMISSION_ROLE_NAMES and role_in.permissions is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=InitiativeMessages.CANNOT_MODIFY_PM_PERMISSIONS,
+            detail=InitiativeMessages.CANNOT_MODIFY_BUILTIN_PERMISSIONS,
         )
-
-    # "Full access" (override_share_restrictions): the endpoint is manager-
-    # accessible (a PM can edit roles), so this single field needs its own,
-    # stricter guard — otherwise a PM could flip it on their own role and
-    # self-escalate. Field-level, not endpoint-level:
-    #   * only a guild admin may change it (no in-initiative escalation), and
-    #   * only on the built-in project_manager role (its tool permissions are
-    #     already locked on, so "view/edit everything regardless of sharing" is
-    #     coherent there; on a lesser role it would contradict gate-3).
-    if (
-        role_in.override_share_restrictions is not None
-        and role_in.override_share_restrictions != role.override_share_restrictions
-    ):
-        if not rls_service.is_guild_admin(guild_context.role):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=InitiativeMessages.OVERRIDE_REQUIRES_GUILD_ADMIN,
-            )
-        if not (role.is_builtin and role.name == "project_manager"):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=InitiativeMessages.OVERRIDE_PM_ONLY,
-            )
-        role.override_share_restrictions = role_in.override_share_restrictions
-        session.add(role)
 
     # Update display name if provided
     if role_in.display_name is not None:
@@ -1363,8 +1375,16 @@ async def add_initiative_member(
                 detail=InitiativeMessages.ROLE_NOT_FOUND,
             )
 
+    await _guard_full_access_role(
+        session,
+        guild_id=initiative.guild_id,
+        target_user_id=payload.user_id,
+        role=requested_role,
+        guild_role=guild_context.role,
+    )
+
     # The role the row actually takes: what was asked for, the built-in member
-    # role when nothing was, or the manager role for a guild admin — whose
+    # role when nothing was, or the moderator role for a guild admin — whose
     # standing already reaches the initiative. Settling it here is what lets a
     # project manager invite an admin without knowing they are one.
     resolved_role = await initiatives_service.resolve_membership_role(
@@ -1565,6 +1585,13 @@ async def update_initiative_member(
         guild_id=initiative.guild_id,
         target_user_id=user_id,
         role=new_role,
+    )
+    await _guard_full_access_role(
+        session,
+        guild_id=initiative.guild_id,
+        target_user_id=user_id,
+        role=new_role,
+        guild_role=guild_context.role,
     )
 
     stmt = (
