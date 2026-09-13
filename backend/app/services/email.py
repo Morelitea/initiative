@@ -345,13 +345,21 @@ async def send_verification_email(
     )
 
 
-async def _account_recipients(session: AsyncSession, user: User) -> list[str]:
+async def _account_recipients(user: User) -> list[str]:
     """Where a letter about the account itself goes: every address its holder
     has proved (§6.2 rule 4), so a change nobody made is still seen by somebody
-    who no longer reads one of them."""
+    who no longer reads one of them.
+
+    On its own system-engine session rather than the caller's. Which addresses
+    an account holds is reached there and nowhere else, and the callers here
+    arrive with whichever session their endpoint runs on — a password reset
+    with the request-path one, an operator's reset with the admin one.
+    """
+    from app.db.session import AdminSessionLocal
     from app.services.auth import addresses
 
-    return await addresses.proven_addresses(session, user_id=user.id)
+    async with AdminSessionLocal() as admin_session:
+        return await addresses.proven_addresses(admin_session, user_id=user.id)
 
 
 async def send_address_verification_email(
@@ -414,7 +422,7 @@ async def send_password_reset_email(
     )
     await send_email(
         session,
-        recipients=await _account_recipients(session, user),
+        recipients=await _account_recipients(user),
         subject=email_t("passwordReset.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,

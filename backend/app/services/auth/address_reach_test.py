@@ -117,3 +117,36 @@ async def test_erasure_knows_every_address_to_scrub(session: AsyncSession):
         hash_email("erase-work@example.com"),
         hash_email("erase-pending@example.com"),
     }
+
+
+@pytest.mark.integration
+async def test_a_reset_is_written_to_every_address_the_account_holds(
+    client, session: AsyncSession, monkeypatch
+):
+    """End to end, through the endpoint that asks for a reset — the path that
+    decides the recipients runs on its own system-engine session, because the
+    request path holds nothing on the address set."""
+    from app.services import email as email_service
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
+
+    user = await create_user(session, email="reset-primary@example.com")
+    user_id = user.id
+    await _second_address(session, user_id, "reset-work@example.com")
+
+    sent: list[list[str]] = []
+
+    async def _capture(session_, *, recipients, **kwargs):
+        sent.append(list(recipients))
+
+    monkeypatch.setattr(email_service, "send_email", _capture)
+
+    response = await client.post(
+        "/api/v1/auth/password/forgot", json={"email": "reset-work@example.com"}
+    )
+    assert response.status_code == 200, response.text
+    assert sent == [["reset-primary@example.com", "reset-work@example.com"]]
