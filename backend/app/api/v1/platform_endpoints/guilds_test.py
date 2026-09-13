@@ -580,12 +580,13 @@ async def test_delete_guild_oidc_user_skips_password(
 async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
     """EVERY platform tier can reorder their own guilds in personal mode.
 
-    The request runs as ``platform_<role>`` with no guild context. The
-    ``guild_memberships_update`` RLS policy (``guild_id = current_guild_id``)
-    rejects that for every tier, so the SECURITY DEFINER ``reorder_guild_memberships``
-    function (migration 0107) is the uniform self-service path — no role relies on
-    a standing all-guild bypass. Parametrized across the whole ladder so a member
-    (lowest) and an owner (highest) are both proven to work the same way.
+    The request runs as ``platform_<role>`` with no guild context, and the write
+    is an ordinary UPDATE of the caller's own ``position`` values —
+    ``guild_memberships_update`` matches on ``user_id`` (migration 0266), so no
+    role relies on a standing all-guild bypass. Parametrized across the whole
+    ladder so a member (lowest) and an owner (highest) are both proven to work
+    the same way, and run through ``client`` rather than the superuser session
+    so the policy is the thing being exercised.
     """
     user = await create_user(session, email="test@example.com", role=UserRole(role))
     guild1 = await create_guild(session, name="Guild 1")

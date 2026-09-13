@@ -61,7 +61,7 @@
   "INITIATIVE_NOT_A_MEMBER": "Kein Mitglied dieser Initiative",
   "INITIATIVE_ROLE_NOT_FOUND": "Rolle nicht gefunden",
   "INITIATIVE_ROLE_NAME_EXISTS": "Rollenname existiert bereits",
-  "INITIATIVE_CANNOT_MODIFY_PM_PERMISSIONS": "Berechtigungen des Projektmanagers können nicht geändert werden",
+  "INITIATIVE_CANNOT_MODIFY_BUILTIN_PERMISSIONS": "Berechtigungen integrierter Rollen können nicht geändert werden",
   "INITIATIVE_CANNOT_CHANGE_BUILTIN_MANAGER": "Der Managerstatus integrierter Rollen kann nicht geändert werden",
   "INITIATIVE_MUST_HAVE_MANAGER": "Es muss mindestens eine Managerrolle mit Mitgliedern bestehen bleiben",
   "INITIATIVE_USER_NOT_IN_GUILD": "Der Benutzer gehört nicht zu dieser Community",
@@ -70,9 +70,8 @@
   "INITIATIVE_MUST_HAVE_PM": "Die Initiative muss mindestens einen Projektmanager haben",
   "INITIATIVE_CANNOT_DELETE_BUILTIN": "Integrierte Rollen können nicht gelöscht werden",
   "INITIATIVE_ROLE_HAS_MEMBERS": "Rolle kann nicht gelöscht werden: Es sind noch Mitglieder zugewiesen",
-  "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED": "Community-Administratoren haben bereits vollen Zugriff und können nur als Projektmanager zugewiesen werden",
-  "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN": "Nur Community-Administratoren können den Vollzugriff einer Rolle ändern",
-  "INITIATIVE_OVERRIDE_PM_ONLY": "Vollzugriff kann nur der Projektmanager-Rolle gewährt werden",
+  "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED": "Community-Administratoren haben bereits Vollzugriff und können nur einer Manager-Rolle zugewiesen werden",
+  "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN": "Nur Community-Administratoren können jemandem eine Rolle mit Vollzugriff geben",
   "INITIATIVE_NOT_JOINABLE": "Dieser Initiative kann nicht beigetreten werden",
   "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN": "Automatischer Beitritt ist nur für Initiativen möglich, denen alle beitreten können",
   "INITIATIVE_AUTO_JOIN_ADMIN_ONLY": "Nur Community-Admins können den automatischen Beitritt ändern",
@@ -621,5 +620,10 @@
   "SESSION_STORE_UNAVAILABLE": "Ihre Sitzung konnte gerade nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
   "OIDC_SESSION_STORE_UNAVAILABLE": "Ihr Identitätsanbieter hat Sie angemeldet, aber Ihre Sitzung konnte nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
   "OIDC_REGISTRATION_DISABLED": "Dieser Server erstellt keine Konten über Single Sign-on. Bitten Sie eine Administratorin oder einen Administrator um eine Einladung.",
-  "OIDC_ACCOUNT_INACTIVE": "Dieses Konto wurde deaktiviert. Eine Administratorin oder ein Administrator kann es wieder aktivieren."
+  "OIDC_ACCOUNT_INACTIVE": "Dieses Konto wurde deaktiviert. Eine Administratorin oder ein Administrator kann es wieder aktivieren.",
+  "ADDRESS_NOT_FOUND": "Diese Adresse gehört nicht zu Ihrem Konto.",
+  "PRIMARY_ADDRESS": "An diese Adresse geht Ihre Kontopost. Legen Sie zuerst eine andere als Hauptadresse fest.",
+  "LAST_VERIFIED_ADDRESS": "Das ist die einzige bestätigte Adresse Ihres Kontos. Bestätigen Sie zuerst eine weitere.",
+  "ADDRESS_NOT_VERIFIED": "Bestätigen Sie diese Adresse, bevor Ihre Kontopost dorthin geht.",
+  "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann."
 }

@@ -4,7 +4,7 @@
  * address without the standing the section needs.
  */
 
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -80,6 +80,48 @@ describe("initiative settings sections", () => {
     renderSection(InitiativeSettingsRolesPage, "roles");
 
     expect(await screen.findByText("Role permissions")).toBeInTheDocument();
+  });
+
+  /**
+   * Moderator holds every permission by construction, so its card says what the
+   * role is instead of offering a set of switches with nothing to change.
+   */
+  it("gives the moderator a card with no tool switches on /settings/roles", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({
+            name: "moderator",
+            display_name: "Moderator",
+            is_builtin: true,
+            is_manager: true,
+            override_share_restrictions: true,
+            position: 0,
+          }),
+          buildInitiativeRole({
+            name: "member",
+            display_name: "Member",
+            is_builtin: true,
+            position: 1,
+          }),
+        ])
+      )
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    expect(await screen.findByText("Moderator")).toBeInTheDocument();
+    expect(screen.getByText("Full access")).toBeInTheDocument();
+    expect(screen.getByText(/Moderators can use every tool/)).toBeInTheDocument();
+
+    // The member card carries the permission switches; this one carries none.
+    const moderatorCard = screen.getByText("Moderator").closest("div.rounded-xl");
+    expect(moderatorCard).not.toBeNull();
+    expect(within(moderatorCard as HTMLElement).queryByRole("switch")).toBeNull();
+    expect(screen.getAllByRole("switch").length).toBeGreaterThan(0);
   });
 
   /**

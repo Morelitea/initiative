@@ -4344,7 +4344,6 @@ export interface InitiativeRoleRead {
 export interface InitiativeRoleUpdate {
   display_name?: string | null;
   is_manager?: boolean | null;
-  override_share_restrictions?: boolean | null;
   permissions?: Partial<Record<PermissionKey, boolean>> | null;
 }
 
@@ -6770,6 +6769,30 @@ export interface UserCreate {
   password: string;
   timezone?: string | null;
   captcha_token?: string | null;
+}
+
+export interface UserEmailCreate {
+  email: string;
+}
+
+/**
+ * One address on the account reading it.
+ *
+ * Served only to its owner, so the address is in full — every other shape
+ * that carries one either masks it or does not have it at all.
+ */
+export interface UserEmailRead {
+  id: number;
+  email: string;
+  verified: boolean;
+  is_primary: boolean;
+  source: string;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface UserEmailListResponse {
+  items: UserEmailRead[];
 }
 
 /**

@@ -48,7 +48,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from sqlalchemy import update as sa_update  # noqa: E402
+from sqlalchemy import update  # noqa: E402
 from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
@@ -168,9 +168,15 @@ from app.services.tenant.initiatives import (  # noqa: E402
 from app.services.tenant.filter_presets import (  # noqa: E402
     ensure_default_presets,
 )
+from app.models.tenant._mixins import ArchiveMixin, archive_models  # noqa: E402
+from app.services.tenant.archive import archive_entity  # noqa: E402
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
+
+#: Rows seeded live that want archiving, and the date to stamp each one with.
+#: Drained by ``_apply_pending_archives`` at the end of each community.
+_PENDING_ARCHIVES: list[tuple[ArchiveMixin, datetime]] = []
 
 # Consistent "now" for seeding
 NOW = datetime.now(timezone.utc)
@@ -907,14 +913,14 @@ async def _create_initiative(
     await session.flush()
     ids.add("initiatives", initiative.id)
 
-    pm_role, member_role = await create_builtin_roles(
-        session, initiative_id=initiative.id
-    )
-    ids.add("initiative_roles", pm_role.id)
-    ids.add("initiative_roles", member_role.id)
+    builtin_roles = await create_builtin_roles(session, initiative_id=initiative.id)
+    pm_role = builtin_roles["project_manager"]
+    member_role = builtin_roles["member"]
+    for role in builtin_roles.values():
+        ids.add("initiative_roles", role.id)
 
     # Track role permissions
-    for role in [pm_role, member_role]:
+    for role in builtin_roles.values():
         result = await session.exec(
             select(InitiativeRolePermission).where(
                 InitiativeRolePermission.initiative_role_id == role.id
@@ -1215,7 +1221,7 @@ async def _apply_deferred_archives(session: AsyncSession, admin: User) -> None:
             # start again in every community's schema, so the identity map would
             # hand back whichever community's row 12 it loaded first.
             await session.exec(
-                sa_update(Project)
+                update(Project)
                 .where(Project.id == project_id)
                 .values(archived_at=when)
             )
@@ -1332,7 +1338,39 @@ async def _create_project(
         ids.add("project_permissions", {"project_id": project.id, "general": True})
 
     await session.flush()
+    if archived_days_ago is not None:
+        _PENDING_ARCHIVES.append((project, NOW - timedelta(days=archived_days_ago)))
     return project
+
+
+async def _apply_pending_archives(session: AsyncSession) -> None:
+    """Archive the rows that asked for it, now that they have contents.
+
+    A project or task is seeded live and archived here, at the end of its
+    community, because archived content takes no writes: statuses, tasks, tags,
+    comments and favourites all have to be in place first. That is the order a
+    real archive happens in, so seeded archives look like archives people made.
+
+    Projects are then backdated to the age ``_create_project`` asked for, so
+    the Archive tab has a spread of dates to sort by. Archiving stamps one
+    moment across everything it touched, which is what makes that set findable
+    afterwards; the whole set moves together, so the tasks inside still read as
+    archived with their project and unarchiving still puts back exactly this
+    much.
+    """
+    while _PENDING_ARCHIVES:
+        entity, archived_at = _PENDING_ARCHIVES.pop(0)
+        stamped = await archive_entity(session, entity)
+        if stamped == archived_at:
+            continue
+        for model in archive_models():
+            await session.execute(
+                update(model)
+                .where(model.archived_at == stamped)
+                .values(archived_at=archived_at)
+                .execution_options(synchronize_session=False)
+            )
+    await session.flush()
 
 
 async def _create_tasks(
@@ -1360,7 +1398,6 @@ async def _create_tasks(
             position=float(i),
             due_date=(NOW + timedelta(days=due)) if due is not None else None,
             start_date=(NOW + timedelta(days=start)) if start is not None else None,
-            is_archived=td.get("archived", False),
             checklist=[
                 {
                     "id": mint_checklist_item_id(),
@@ -1381,6 +1418,9 @@ async def _create_tasks(
                 a = TaskAssignee(task_id=task.id, user_id=user.id, guild_id=guild.id)
                 session.add(a)
                 ids.add("task_assignees", {"task_id": task.id, "user_id": user.id})
+
+        if td.get("archived"):
+            _PENDING_ARCHIVES.append((task, NOW))
 
     await session.flush()
     return created
@@ -5523,6 +5563,8 @@ async def seed() -> None:
             ],
         )
 
+        await _apply_pending_archives(session)
+
         # ==============================================================
         # GUILD 2: "Starforge Collective" — Sci-Fi Campaign
         # ==============================================================
@@ -6988,6 +7030,8 @@ async def seed() -> None:
                 ("task", t_infiltrate_id, Decimal("75000")),
             ],
         )
+
+        await _apply_pending_archives(session)
 
         # ==============================================================
         # GUILD 3: "Realm of Tides" — Pirate/Nautical Campaign
@@ -8586,6 +8630,8 @@ async def seed() -> None:
                 ("task", t_evade_id, (NOW + timedelta(days=4)).date()),
             ],
         )
+
+        await _apply_pending_archives(session)
 
         # Commit community 3's data — each community section is committed as it completes
         # (its writes are routed into that community's schema).

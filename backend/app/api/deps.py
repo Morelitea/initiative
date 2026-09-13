@@ -51,6 +51,7 @@ from app.models.platform.user import (
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
+from app.services.auth.subject import user_for_subject
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.marketplace import registration_lookup
@@ -347,9 +348,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    statement = select(User).where(User.id == int(token_data.sub))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    user = await user_for_subject(session, subject=token_data.sub)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
@@ -1170,9 +1169,7 @@ async def get_upload_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    statement = select(User).where(User.id == int(token_data.sub))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    user = await user_for_subject(session, subject=token_data.sub)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND

@@ -22,7 +22,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlmodel import Field, Index, SQLModel
@@ -44,9 +43,16 @@ class UserEmail(SQLModel, table=True):
 
     __tablename__ = "user_emails"
     __table_args__ = (
-        # An address belongs to one account, platform-wide: the same uniqueness
-        # users.email_hash carries today.
-        UniqueConstraint("email_hash", name="uq_user_emails_email_hash"),
+        # An address belongs to one account once it has been proven. An
+        # unproven row is a claim in progress: two accounts may each hold one
+        # for the same address, and proving it settles which.
+        Index("ix_user_emails_email_hash", "email_hash"),
+        Index(
+            "uq_user_emails_proven_hash",
+            "email_hash",
+            unique=True,
+            postgresql_where=text("verified_at IS NOT NULL"),
+        ),
         Index("ix_user_emails_user_id", "user_id"),
         # One primary per account, as a partial unique index rather than a
         # pointer on ``users`` — no nullable column and no circular foreign key.

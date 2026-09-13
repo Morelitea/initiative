@@ -601,6 +601,74 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_an_invite_reaches_the_address_it_was_sent_to(session: AsyncSession):
+    """An invite sent to somebody's work address is for them, whichever of
+    their addresses the account was created with."""
+    from app.services.auth import addresses
+
+    guild = await create_guild(session)
+    creator = await create_user(session, email="inviter@example.com")
+    invitee = await create_user(session, email="personal@example.com")
+    addresses.record_address(
+        session,
+        user_id=invitee.id,
+        email="at-work@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by=creator.id,
+        invitee_email="at-work@example.com",
+        max_uses=5,
+    )
+
+    joined = await guild_service.redeem_invite_for_user(
+        session, code=invite.code, user=invitee
+    )
+    assert joined.id == guild.id
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_an_invite_does_not_reach_an_unproven_claim(session: AsyncSession):
+    """A claim in progress is not holding the address, so an invite bound to
+    it is not yet for that account."""
+    from app.services.auth import addresses
+
+    guild = await create_guild(session)
+    creator = await create_user(session, email="inviter2@example.com")
+    claimer = await create_user(session, email="claimer@example.com")
+    addresses.record_address(
+        session,
+        user_id=claimer.id,
+        email="unproven@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by=creator.id,
+        invitee_email="unproven@example.com",
+        max_uses=5,
+    )
+
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EMAIL_MISMATCH"):
+        await guild_service.redeem_invite_for_user(
+            session, code=invite.code, user=claimer
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
     """An email-bound invite must reject a user whose email differs (SEC-15)."""
     guild = await create_guild(session)
