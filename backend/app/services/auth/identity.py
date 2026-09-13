@@ -378,6 +378,7 @@ async def _provision(
                 email=normalized,
                 source=(addresses.SOURCE_OIDC if email else addresses.SOURCE_SYNTHETIC),
                 verified=verified,
+                provider_id=provider.id,
             )
             identity = FederatedIdentity(
                 user_id=user.id,

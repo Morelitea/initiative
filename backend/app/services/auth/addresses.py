@@ -95,6 +95,7 @@ def record_address(
     source: str,
     verified: bool,
     is_primary: bool = True,
+    provider_id: int | None = None,
     now: datetime | None = None,
 ) -> UserEmail:
     """Stage an address for ``user_id`` in ``session``'s own transaction.
@@ -112,10 +113,76 @@ def record_address(
         verified_at=moment if verified else None,
         is_primary=is_primary,
         source=source,
+        provider_id=provider_id,
         created_at=moment,
     )
     session.add(row)
     return row
+
+
+async def ensure_address(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    email: str,
+    source: str,
+    verified: bool,
+    provider_id: int | None = None,
+    now: datetime | None = None,
+) -> UserEmail | None:
+    """Make sure ``user_id`` holds ``email``, adding it if it does not.
+
+    What a provider login needs. An account that is *provisioned* by a provider
+    gets its address with it; one that is *linked* already existed, and the
+    address the provider asserts for it is new information — a work address
+    beside a personal one.
+
+    Idempotent, because it runs on every sign-in: an address already on this
+    account gains the provider and the verification it arrived with, and keeps
+    everything else. An address already on a **different** account is left
+    alone and ``None`` comes back — an address belongs to one account, and a
+    provider asserting somebody else's does not move it.
+
+    Never primary. Which address receives account mail is its owner's to
+    choose, not a directory's.
+    """
+    moment = now or datetime.now(timezone.utc)
+    digest = hash_email(normalize(email))
+    existing = (
+        await session.exec(select(UserEmail).where(UserEmail.email_hash == digest))
+    ).one_or_none()
+
+    if existing is None:
+        return record_address(
+            session,
+            user_id=user_id,
+            email=email,
+            source=source,
+            verified=verified,
+            is_primary=False,
+            provider_id=provider_id,
+            now=moment,
+        )
+
+    if existing.user_id != user_id:
+        logger.warning(
+            "provider asserted an address held by account %s for account %s; "
+            "left where it is",
+            existing.user_id,
+            user_id,
+        )
+        return None
+
+    changed = False
+    if verified and existing.verified_at is None:
+        existing.verified_at = moment
+        changed = True
+    if provider_id is not None and existing.provider_id is None:
+        existing.provider_id = provider_id
+        changed = True
+    if changed:
+        session.add(existing)
+    return existing
 
 
 async def replace_all(

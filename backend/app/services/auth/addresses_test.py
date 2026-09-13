@@ -338,3 +338,91 @@ async def test_a_password_reset_finds_any_of_an_accounts_addresses(
     assert await _forgot("nobody@example.com") != await _forgot(
         "reset-primary@example.com"
     )
+
+
+@pytest.mark.unit
+async def test_an_address_records_the_provider_that_asserted_it(
+    session: AsyncSession,
+):
+    user = await create_user(session, email="typed@example.com")
+    rows = await _addresses(session, user.id)
+    # Nobody asserted the one somebody typed.
+    assert rows[0].provider_id is None
+
+
+@pytest.mark.unit
+async def test_a_provider_asserting_a_new_address_adds_it(session: AsyncSession):
+    from app.testing.factories import create_auth_provider
+
+    user = await create_user(session, email="alice@personal.example.com")
+    provider = await create_auth_provider(session, slug="acme")
+    user_id, provider_id = user.id, provider.id
+
+    await addresses.ensure_address(
+        session,
+        user_id=user_id,
+        email="alice@acme.example.com",
+        source=addresses.SOURCE_OIDC,
+        verified=True,
+        provider_id=provider_id,
+    )
+    await session.commit()
+
+    rows = await _addresses(session, user_id)
+    held = {r.email_hash: (r.provider_id, r.is_primary) for r in rows}
+    assert held[hash_email("alice@personal.example.com")] == (None, True)
+    # The asserted one arrives beside it, attributed, and never as the primary.
+    assert held[hash_email("alice@acme.example.com")] == (provider_id, False)
+
+
+@pytest.mark.unit
+async def test_asserting_an_address_the_account_already_holds_attributes_it(
+    session: AsyncSession,
+):
+    from app.testing.factories import create_auth_provider
+
+    user = await create_user(session, email="same@example.com", email_verified=False)
+    provider = await create_auth_provider(session, slug="acme")
+    user_id, provider_id = user.id, provider.id
+
+    await addresses.ensure_address(
+        session,
+        user_id=user_id,
+        email="same@example.com",
+        source=addresses.SOURCE_OIDC,
+        verified=True,
+        provider_id=provider_id,
+    )
+    await session.commit()
+
+    rows = await _addresses(session, user_id)
+    assert len(rows) == 1
+    assert rows[0].provider_id == provider_id
+    # The provider verified an address the account had not.
+    assert rows[0].verified_at is not None
+    assert rows[0].is_primary is True
+
+
+@pytest.mark.unit
+async def test_a_provider_cannot_move_somebody_elses_address(session: AsyncSession):
+    from app.testing.factories import create_auth_provider
+
+    owner = await create_user(session, email="theirs@example.com")
+    other = await create_user(session, email="mine@example.com")
+    provider = await create_auth_provider(session, slug="acme")
+    owner_id, other_id = owner.id, other.id
+
+    result = await addresses.ensure_address(
+        session,
+        user_id=other_id,
+        email="theirs@example.com",
+        source=addresses.SOURCE_OIDC,
+        verified=True,
+        provider_id=provider.id,
+    )
+    await session.commit()
+
+    assert result is None
+    assert len(await _addresses(session, other_id)) == 1
+    still_theirs = await addresses.find_user_by_address(session, "theirs@example.com")
+    assert still_theirs is not None and still_theirs.id == owner_id
