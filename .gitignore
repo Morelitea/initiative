@@ -17,12 +17,23 @@ uploads/
 __pycache__/
 *.py[cod]
 *.egg-info/
-.venv/
-venv/
+# No trailing slash. A pattern ending in `/` matches a DIRECTORY only, and
+# these are routinely SYMLINKS -- a worktree borrowing an interpreter or an
+# install from elsewhere rather than building its own. Git treats a symlink as
+# a file, so `foo/` never matches it, `git add -A` sweeps it in, and CI fails
+# before running anything:
+#
+#   error: failed to create directory backend/.venv: File exists
+#   ENOTDIR: not a directory, mkdir 'frontend/node_modules'
+#
+# Four incidents in one week across four branches, each read as a fresh
+# mistake rather than a missing rule.
+.venv
+venv
 .pytest_cache/
 
 # Node
-node_modules/
+node_modules
 dist/
 *.tsbuildinfo
 
@@ -38,7 +49,7 @@ backend/.coverage
 backend/htmlcov/
 
 # Frontend
-frontend/node_modules/
+frontend/node_modules
 frontend/dist/
 frontend/vite.config.js
 frontend/vite.config.d.ts
