@@ -11,6 +11,7 @@
   "SETTINGS_EMAIL_SEND_FAILED": "Die Test-E-Mail konnte nicht gesendet werden. Details stehen im Serverprotokoll.",
   "UNABLE_TO_CREATE_USER": "Benutzer konnte nicht erstellt werden",
   "INCORRECT_CREDENTIALS": "Falsche E-Mail-Adresse oder falsches Passwort",
+  "REQUEST_ORIGIN_NOT_RECOGNIZED": "Diese Anfrage kam nicht von einer Seite dieser Website. Wenn du einen API-Client verwendest, melde dich mit einem Zugriffstoken an statt mit einer Browser-Sitzung.",
   "PASSWORD_TOO_SHORT": "Das Passwort muss mindestens 12 Zeichen lang sein.",
   "PASSWORD_BREACHED": "Dieses Passwort ist in einem bekannten Datenleck aufgetaucht. Bitte wähle ein anderes.",
   "INACTIVE_USER": "Inaktiver Benutzer",
