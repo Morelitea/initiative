@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
+import { AddressManager } from "@/components/settings/AddressManager";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,161 +74,164 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   });
 
   return (
-    <form
-      className="space-y-6"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (password && password !== confirmPassword) {
-          setError(t("profile.passwordsMismatch"));
-          return;
-        }
-        if (password && !user.has_federated_identity && !currentPassword) {
-          setError(t("profile.currentPasswordRequired"));
-          return;
-        }
-        if (password) {
-          const policyError = validatePasswordLocal(password);
-          if (policyError) {
-            setError(policyError);
+    <div className="space-y-6">
+      {/* Outside the form below, and before it: the address is what the field
+          here used to be. Every action commits on its own, so there is nothing
+          for that form's Save button to collect. */}
+      <SettingsSection title={t("addresses.title")} description={t("addresses.description")}>
+        <AddressManager />
+      </SettingsSection>
+
+      <form
+        className="space-y-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (password && password !== confirmPassword) {
+            setError(t("profile.passwordsMismatch"));
             return;
           }
-        }
-        const payload: Record<string, unknown> = {};
-        if (fullName !== user.full_name) {
-          payload.full_name = fullName;
-        }
-        if (timezone !== (user.timezone ?? "UTC")) {
-          payload.timezone = timezone;
-        }
-        if (password) {
-          payload.password = password;
-          // Re-auth: the backend requires the current password to set a
-          // new one (skipped for SSO-only accounts with no local password).
-          if (!user.has_federated_identity) {
-            payload.current_password = currentPassword;
+          if (password && !user.has_federated_identity && !currentPassword) {
+            setError(t("profile.currentPasswordRequired"));
+            return;
           }
-        }
-        updateAccount.mutate(payload as UserSelfUpdate);
-      }}
-    >
-      <SettingsSection
-        title={t("account.identityTitle")}
-        description={t("account.identityDescription")}
+          if (password) {
+            const policyError = validatePasswordLocal(password);
+            if (policyError) {
+              setError(policyError);
+              return;
+            }
+          }
+          const payload: Record<string, unknown> = {};
+          if (fullName !== user.full_name) {
+            payload.full_name = fullName;
+          }
+          if (timezone !== (user.timezone ?? "UTC")) {
+            payload.timezone = timezone;
+          }
+          if (password) {
+            payload.password = password;
+            // Re-auth: the backend requires the current password to set a
+            // new one (skipped for SSO-only accounts with no local password).
+            if (!user.has_federated_identity) {
+              payload.current_password = currentPassword;
+            }
+          }
+          updateAccount.mutate(payload as UserSelfUpdate);
+        }}
       >
-        <div className="space-y-2">
-          <Label>{t("profile.emailLabel")}</Label>
-          <Input value={user.email} disabled readOnly />
-          <p className="text-muted-foreground text-xs">{t("profile.emailHelp")}</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
-          <Input
-            id="full-name"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            placeholder={t("profile.fullNamePlaceholder")}
-          />
-          <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
-        </div>
-
-        <div className="space-y-2">
-          {/* Shown, not editable — the same arrangement the address has.
-              It is how everyone else sees you, so it is the one thing on
-              this page you would look for and not find. */}
-          <Label>{t("profile.usernameLabel")}</Label>
-          <Input value={getUserHandle(user)} disabled readOnly />
-          <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>{t("profile.timezoneLabel")}</Label>
-          <SearchableCombobox
-            items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-            value={timezone}
-            onValueChange={setTimezone}
-            placeholder={t("profile.timezonePlaceholder")}
-            emptyMessage={t("profile.timezoneEmpty")}
-          />
-          <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title={t("account.passwordTitle")}
-        description={t("account.passwordDescription")}
-        footer={
-          <>
-            <Button type="submit" disabled={updateAccount.isPending}>
-              {updateAccount.isPending ? t("profile.saving") : t("profile.saveChanges")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={updateAccount.isPending}
-              onClick={() => {
-                setPassword("");
-                setCurrentPassword("");
-                setConfirmPassword("");
-                setFullName(user.full_name ?? "");
-                setTimezone(user.timezone ?? "UTC");
-                setError(null);
-              }}
-            >
-              {t("profile.reset")}
-            </Button>
-          </>
-        }
-      >
-        {!user.has_federated_identity ? (
+        <SettingsSection
+          title={t("account.identityTitle")}
+          description={t("account.identityDescription")}
+        >
           <div className="space-y-2">
-            <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
+            <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
             <Input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              placeholder={t("profile.currentPasswordPlaceholder")}
+              id="full-name"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              placeholder={t("profile.fullNamePlaceholder")}
             />
+            <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
           </div>
-        ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={t("profile.passwordPlaceholder")}
-              minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
-            />
-            <p
-              className={
-                password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                  ? "text-destructive text-xs"
-                  : "text-muted-foreground text-xs"
-              }
-            >
-              {t("auth:passwordPolicy.minLengthHelp")}
-            </p>
+            {/* Shown, not editable — the same arrangement the address has.
+                It is how everyone else sees you, so it is the one thing on
+                this page you would look for and not find. */}
+            <Label>{t("profile.usernameLabel")}</Label>
+            <Input value={getUserHandle(user)} disabled readOnly />
+            <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder={t("profile.passwordPlaceholder")}
-            />
-          </div>
-        </div>
 
-        {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      </SettingsSection>
-    </form>
+          <div className="space-y-2">
+            <Label>{t("profile.timezoneLabel")}</Label>
+            <SearchableCombobox
+              items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+              value={timezone}
+              onValueChange={setTimezone}
+              placeholder={t("profile.timezonePlaceholder")}
+              emptyMessage={t("profile.timezoneEmpty")}
+            />
+            <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          title={t("account.passwordTitle")}
+          description={t("account.passwordDescription")}
+          footer={
+            <>
+              <Button type="submit" disabled={updateAccount.isPending}>
+                {updateAccount.isPending ? t("profile.saving") : t("profile.saveChanges")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={updateAccount.isPending}
+                onClick={() => {
+                  setPassword("");
+                  setCurrentPassword("");
+                  setConfirmPassword("");
+                  setFullName(user.full_name ?? "");
+                  setTimezone(user.timezone ?? "UTC");
+                  setError(null);
+                }}
+              >
+                {t("profile.reset")}
+              </Button>
+            </>
+          }
+        >
+          {!user.has_federated_identity ? (
+            <div className="space-y-2">
+              <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder={t("profile.currentPasswordPlaceholder")}
+              />
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={t("profile.passwordPlaceholder")}
+                minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
+              />
+              <p
+                className={
+                  password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                    ? "text-destructive text-xs"
+                    : "text-muted-foreground text-xs"
+                }
+              >
+                {t("auth:passwordPolicy.minLengthHelp")}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder={t("profile.passwordPlaceholder")}
+              />
+            </div>
+          </div>
+
+          {error ? <p className="text-destructive text-sm">{error}</p> : null}
+        </SettingsSection>
+      </form>
+    </div>
   );
 };

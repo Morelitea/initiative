@@ -624,5 +624,6 @@
   "PRIMARY_ADDRESS": "An diese Adresse geht Ihre Kontopost. Legen Sie zuerst eine andere als Hauptadresse fest.",
   "LAST_VERIFIED_ADDRESS": "Das ist die einzige bestätigte Adresse Ihres Kontos. Bestätigen Sie zuerst eine weitere.",
   "ADDRESS_NOT_VERIFIED": "Bestätigen Sie diese Adresse, bevor Ihre Kontopost dorthin geht.",
+  "ADDRESS_TAKEN": "Jemand hat diese Adresse bestätigt, während Ihre Anfrage noch offen war.",
   "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann."
 }
