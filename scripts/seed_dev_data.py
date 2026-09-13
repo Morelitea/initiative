@@ -906,14 +906,14 @@ async def _create_initiative(
     await session.flush()
     ids.add("initiatives", initiative.id)
 
-    pm_role, member_role = await create_builtin_roles(
-        session, initiative_id=initiative.id
-    )
-    ids.add("initiative_roles", pm_role.id)
-    ids.add("initiative_roles", member_role.id)
+    builtin_roles = await create_builtin_roles(session, initiative_id=initiative.id)
+    pm_role = builtin_roles["project_manager"]
+    member_role = builtin_roles["member"]
+    for role in builtin_roles.values():
+        ids.add("initiative_roles", role.id)
 
     # Track role permissions
-    for role in [pm_role, member_role]:
+    for role in builtin_roles.values():
         result = await session.exec(
             select(InitiativeRolePermission).where(
                 InitiativeRolePermission.initiative_role_id == role.id

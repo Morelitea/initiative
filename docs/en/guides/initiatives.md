@@ -96,18 +96,18 @@ Their sidebar and front page show **the initiatives they're actually in**, then 
 
 An admin buried under a hundred initiatives they have never once opened cannot find the three they actually work in. That helps nobody, least of all the admin.
 
-To put one in front of themselves, an admin joins it from the front page. They walk straight in whatever the joining setting says — no request, no waiting — and arrive on the **project manager** role their standing already implies. **Community settings → Initiatives** still lists every initiative in the community.
+To put one in front of themselves, an admin joins it from the front page. They walk straight in whatever the joining setting says — no request, no waiting — and arrive on the **Moderator** role their standing already implies. **Community settings → Initiatives** still lists every initiative in the community.
 
 None of this changes what an admin may *do*. Open any initiative and they see all of it.
 
 !!! tip "Adding an admin to your initiative"
-    A project manager can add a community admin like anybody else — the member picker offers them, and they arrive as project manager, which is the only role their standing allows here.
+    A project manager can add a community admin like anybody else — the member picker offers them, and they arrive as a Moderator, which is the standing they already had.
 
 ## Roles and what they unlock
 
 Each member holds a **role**, which decides which *kinds of tools* they can use here — whether they can make projects, or only look at them.
 
-Initiative ships a **Manager** role (think project lead) with fixed permissions, and you build your own on top: "Coordinator". "Volunteer". "Client". "Guest". "Person Who Only Needs To See The Rota".
+Initiative ships two roles with fixed permissions — **Manager** (think project lead) and **Moderator** — and you build your own on top: "Coordinator". "Volunteer". "Client". "Guest". "Person Who Only Needs To See The Rota".
 
 Name them after how your group actually talks about itself, not after anything Initiative expects. Nobody has ever introduced themselves at a committee meeting as a view-only contributor.
 
@@ -117,8 +117,8 @@ Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **C
 
 There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md).
 
-!!! warning "Managers see absolutely everything"
-    The built-in **Manager** role reaches every project and document in the initiative, whether or not it was ever shared with them. That's unique to Manager — custom roles don't get it, and can't be given it however much you'd like them to.
+!!! warning "Moderators see absolutely everything"
+    The built-in **Moderator** role reaches every project and document in the initiative, whether or not it was ever shared with them. That's unique to Moderator — no other role gets it, or can be given it however much you'd like. A community admin hands it out, and arrives on it themselves.
 
     So hand it to the people who genuinely need the whole picture. Not as a thank-you for being helpful, and not because somebody's been around a long time and it felt rude not to.
 

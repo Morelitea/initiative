@@ -76,10 +76,10 @@ export const InitiativeSettingsMembersTab = ({
     );
   }, [usersQuery.data, members]);
 
-  // A guild admin's standing already reaches every initiative, so the only
-  // initiative role their row can hold is the manager one — the server settles
-  // that on the way in. The picker says so up front rather than offering a
-  // choice that would be rewritten.
+  // A guild admin's standing already reaches every initiative, so their row
+  // lands on the moderator role — the server settles that on the way in. The
+  // picker says so up front rather than offering a choice that would be
+  // rewritten.
   const adminIds = useMemo(
     () =>
       new Set(
@@ -89,14 +89,13 @@ export const InitiativeSettingsMembersTab = ({
       ),
     [usersQuery.data]
   );
-  const managerRole = useMemo(
+  const adminRole = useMemo(
     () =>
-      roles?.find((role) => role.is_manager) ??
-      roles?.find((role) => role.name === "project_manager"),
+      roles?.find((role) => role.name === "moderator") ?? roles?.find((role) => role.is_manager),
     [roles]
   );
   const addingAdmin = adminIds.has(Number(selectedUserId));
-  const effectiveRoleId = addingAdmin && managerRole ? String(managerRole.id) : selectedRoleId;
+  const effectiveRoleId = addingAdmin && adminRole ? String(adminRole.id) : selectedRoleId;
 
   const addMember = useAddInitiativeMember({
     onSuccess: () => {
