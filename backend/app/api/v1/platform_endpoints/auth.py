@@ -458,11 +458,17 @@ async def login_access_token(
         form_data.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the log is no place to
-        # keep one. Those attempts are bounded by the rate limit above.
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Recorded either way, and identity-free when nothing resolved.
+        #
+        # Writing the row only for an address that resolved puts an INSERT and
+        # a COMMIT on the request path for one and not the other, which is a
+        # difference an unauthenticated caller can measure. The invariant this
+        # route holds is that refusing costs the same whoever asks.
+        #
+        # Nothing about a stranger is retained: the row keeps no submitted
+        # address and no target when nothing resolved, only that a password
+        # refusal happened. See T20.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -742,8 +748,8 @@ async def create_device_token(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Same invariant as the token route: refusing costs the same either way.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
