@@ -47,6 +47,9 @@ interface CommentThreadProps {
   canModerate: boolean;
   currentUserId?: number;
   initiativeId: number;
+  /** The thing the thread is on, as a reference (`document:12`). Never offered
+   *  by a reply or an edit — see `CommentInput.subject`. */
+  subject?: string | null;
   isSubmitting?: boolean;
   /** False while the viewer may read the thread but not write to it. */
   canReact?: boolean;
@@ -66,6 +69,7 @@ export const CommentThread = ({
   canModerate,
   currentUserId,
   initiativeId,
+  subject,
   isSubmitting = false,
   canReact = true,
   deleteError,
@@ -182,6 +186,7 @@ export const CommentThread = ({
                   submitLabel={t("common:save")}
                   isSubmitting={isSubmitting}
                   initiativeId={initiativeId}
+                  subject={subject}
                   onCancel={handleEditCancel}
                   autoFocus
                   compact
@@ -214,6 +219,7 @@ export const CommentThread = ({
             submitLabel={t("reply")}
             isSubmitting={isSubmitting}
             initiativeId={initiativeId}
+            subject={subject}
             onCancel={() => {
               setIsReplying(false);
               setReplyContent("");
@@ -241,6 +247,7 @@ export const CommentThread = ({
               canModerate={canModerate}
               currentUserId={currentUserId}
               initiativeId={initiativeId}
+              subject={subject}
               isSubmitting={isSubmitting}
               canReact={canReact}
               deleteError={deleteError}

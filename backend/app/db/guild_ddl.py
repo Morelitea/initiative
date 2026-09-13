@@ -34,7 +34,19 @@ from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
+    render_endpoint_access_fn,
     InitiativePath,
+)
+from app.db.frozen import (
+    FROZEN_TABLES,
+    freeze_leg,
+    frozen_write_triggers,
+    frozen_guard_trigger,
+    render_frozen_ancestor_fn,
+    render_frozen_guard_fn,
+    render_frozen_parent_guard_fn,
+    render_resource_frozen_fn,
+    render_resource_frozen_for_grant_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
@@ -68,6 +80,52 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
 _PURGE_GUARD_PREDICATE = (
     "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
 )
+
+# Who may READ a row that is in the trash. Deleting something takes it out of
+# sight, so the ordinary answer is nobody: the trash is a place to recover from,
+# not a second copy of the guild's content that outlives the decision to remove
+# it. Two legs open it — the guild admin, who manages the trash for everyone,
+# and whoever deleted the row, who gets their own deletions back from /me/trash.
+# RESTRICTIVE, so it AND-combines with the membership gate rather than widening
+# it: a trashed row is still only visible to someone who could see it alive.
+_TRASH_READ_PREDICATE = (
+    "deleted_at IS NULL"
+    f" OR {_PURGE_GUARD_PREDICATE}"
+    " OR deleted_by = NULLIF(current_setting('app.current_user_id'::text, true),"
+    " ''::text)::integer"
+)
+
+
+def _trash_read_policy(table: str) -> list[str]:
+    """Hide a trashed row from everyone but the admin and whoever deleted it."""
+    return [
+        f"DROP POLICY IF EXISTS trashed_read ON {table};",
+        f"CREATE POLICY trashed_read ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_TRASH_READ_PREDICATE});",
+    ]
+
+
+# Reader-written SQL reports on live content only.
+#
+# The trash is a place to recover from, and recovering from it is what the
+# trash screen is for. A dashboard is a different question: what it counts
+# should be the same for everybody reading it, and a deleted row is not part of
+# that for anyone. RESTRICTIVE and keyed on the query flag, so it applies to the
+# statements a reader writes and to nothing else.
+_QUERY_TRASH_PREDICATE = (
+    "deleted_at IS NULL"
+    " OR current_setting('app.query'::text, true) IS DISTINCT FROM 'true'::text"
+)
+
+
+def _query_trash_policy(table: str) -> list[str]:
+    """Keep a trashed row out of what a reader's own statement returns."""
+    return [
+        f"DROP POLICY IF EXISTS query_excludes_trash ON {table};",
+        f"CREATE POLICY query_excludes_trash ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_QUERY_TRASH_PREDICATE});",
+    ]
+
 
 _HEADER = """\
 -- RENDERED AT RUNTIME from app/db/initiative_rls.py (INITIATIVE_PATHS).
@@ -105,6 +163,14 @@ _HEADER = """\
 -- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
 -- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
 -- the guard via the dedicated section at the bottom of this file.
+--
+-- Write commands additionally carry the LIFECYCLE freeze (app.db.frozen):
+-- archived and trashed content is read-only, and so is everything under it.
+-- INSERT carries a RESTRICTIVE policy deferring to one function,
+-- public.resource_frozen(kind, id, trashed_ok), which walks the same join chains
+-- the sharing legs are rendered from. UPDATE and DELETE are triggers, at the
+-- bottom of this file — telling an edit from an unarchive needs the old row and
+-- the new row together, which a policy never has. SELECT carries neither.
 """
 
 # Header for the guild-level guard section (initiatives, tags).
@@ -199,6 +265,10 @@ def _table_block(table: str, path: InitiativePath) -> str:
             lines.append(f"  WITH CHECK ({pred});")
         else:  # USING
             lines.append(f"  USING ({pred});")
+    lines.extend(_freeze_policies(table))
+    if table in SOFT_DELETE_TABLES:
+        lines.extend(_trash_read_policy(table))
+        lines.extend(_query_trash_policy(table))
     if table in _PURGE_GUARD_TABLES:
         # Admin-only hard delete (purge), AND-combined with the PERMISSIVE delete
         # policy above. RESTRICTIVE, so a write-member who clears the permissive
@@ -209,6 +279,31 @@ def _table_block(table: str, path: InitiativePath) -> str:
         )
         lines.append(f"  USING ({_PURGE_GUARD_PREDICATE});")
     return "\n".join(lines)
+
+
+def _freeze_policies(table: str) -> list[str]:
+    """The lifecycle freeze for one table on INSERT: a RESTRICTIVE policy
+    refusing a row whose ancestors are archived or trashed.
+
+    RESTRICTIVE, so it AND-combines with the permissive access policies.
+    ``WITH CHECK``, so a failure is raised rather than filtered out of the
+    statement. UPDATE and DELETE are triggers (see ``app.db.frozen``) — they
+    need the old row and the new row together, which a policy never has —
+    and SELECT takes neither.
+    """
+    lines: list[str] = []
+    for command in ("INSERT",):
+        leg = freeze_leg(table, command)
+        name = f"frozen_ancestor_{command.lower()}"
+        lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
+        if leg is None:
+            continue
+        lines.append(f"CREATE POLICY {name} ON {table} AS RESTRICTIVE FOR {command}")
+        lines.append(f"  WITH CHECK (NOT {leg});")
+    # Earlier shapes carried these; drop them wherever one was left.
+    lines.append(f"DROP POLICY IF EXISTS frozen_ancestor_update ON {table};")
+    lines.append(f"DROP POLICY IF EXISTS frozen_ancestor_delete ON {table};")
+    return lines
 
 
 def _own_row_block(table: str, owner_col: str) -> str:
@@ -247,19 +342,67 @@ def _guild_level_guard_block(table: str) -> str:
             f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
             f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
             f"  USING ({_PURGE_GUARD_PREDICATE});",
+            *_trash_read_policy(table),
+            *_query_trash_policy(table),
         ]
     )
 
 
+_FREEZE_SECTION = """\
+-- ===========================================================================
+-- The lifecycle freeze: the parts that need the old row and the new row
+-- together, which a policy never has.
+--
+-- tr_<t>_frozen_guard: the row is itself archived or trashed.
+-- tr_<t>_frozen_ancestor_update: it carries no stamp of its own and hangs off
+--   something that is, or is being moved to hang off something that is.
+-- Both permit a change to the lifecycle columns and nothing else, so a frozen
+-- row can still be unarchived, restored, or given a new purge date. Their WHEN
+-- clauses keep an ordinary write on live content from reaching the function.
+--
+-- tr_<t>_frozen_delete / tr_<t>_frozen_ancestor_delete: DELETE has no WITH
+-- CHECK, so RLS could only refuse it by returning no rows. A row that carries
+-- its own stamp is asked about itself; one that does not is asked about its
+-- ancestry, with trashed_ok so a purge cascade — the one delete a trashed row
+-- is FOR — runs.
+-- ==========================================================================="""
+
+
 def render_guild_rls_ddl() -> str:
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
-    out = _HEADER + "\n\n" + "\n\n".join(blocks)
+    # Shared, and written before the policies that call it. Re-rendered on every
+    # provisioning run from the same registry the policies come from, so a kind
+    # added to the graph reaches the gate the moment its entry does.
+    out = (
+        _HEADER
+        + "\n"
+        + render_endpoint_access_fn()
+        + "\n"
+        + render_resource_frozen_fn()
+        + "\n"
+        + render_resource_frozen_for_grant_fn()
+        + "\n"
+        + render_frozen_guard_fn()
+        + "\n"
+        + render_frozen_parent_guard_fn()
+        + "\n"
+        + render_frozen_ancestor_fn()
+        + "\n"
+        + "\n\n".join(blocks)
+    )
     guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
     if guards:
         out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
+    guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
+    guards += [
+        f"{trigger};"
+        for table in sorted(INITIATIVE_PATHS)
+        for trigger in frozen_write_triggers(table)
+    ]
+    out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
     return out + "\n"
 
 

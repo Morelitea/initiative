@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Loader2, Table2 } from "lucide-react";
+import { CalendarDays, Table2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -94,7 +94,7 @@ export const MyTasksPage = () => {
   const columns = useMemo(() => {
     const base = globalTaskColumns({
       activeGuildId: table.activeGuildId,
-      isUpdatingTaskStatus: table.isUpdatingTaskStatus,
+      isUpdatingTask: table.isUpdatingTask,
       changeTaskStatus: table.changeTaskStatus,
       changeTaskStatusById: table.changeTaskStatusById,
       fetchProjectStatuses: table.fetchProjectStatuses,
@@ -109,7 +109,7 @@ export const MyTasksPage = () => {
     return [...base.slice(0, tagsIdx + 1), ...propertyColumns, ...base.slice(tagsIdx + 1)];
   }, [
     table.activeGuildId,
-    table.isUpdatingTaskStatus,
+    table.isUpdatingTask,
     table.changeTaskStatus,
     table.changeTaskStatusById,
     table.fetchProjectStatuses,
@@ -193,7 +193,7 @@ export const MyTasksPage = () => {
           focus={focus}
           activeGuildId={table.activeGuildId}
           changeTaskStatus={table.changeTaskStatus}
-          isUpdatingTaskStatus={table.isUpdatingTaskStatus}
+          isUpdatingTask={table.isUpdatingTask}
         />
 
         {viewMode === "table" && (
@@ -215,14 +215,23 @@ export const MyTasksPage = () => {
             />
 
             <div className="relative">
+              {/* A refetch is a background event: a status change has already
+                  been applied to the rows optimistically, and the reader can go
+                  on sorting, paging and checking things off while the
+                  cross-guild aggregate catches up. So this says a refresh is
+                  running and takes nothing away — no cover, no pointer events,
+                  no dimming of rows that are already correct. */}
               {table.isRefetching ? (
-                <div className="absolute inset-0 z-10 flex items-start justify-center bg-background/60 pt-4">
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 shadow-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-muted-foreground text-sm">{t("updating")}</span>
-                  </div>
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden rounded-full bg-primary/15"
+                >
+                  <div className="h-full w-1/3 animate-indeterminate-sweep rounded-full bg-primary/60" />
                 </div>
               ) : null}
+              <span aria-live="polite" className="sr-only">
+                {table.isRefetching ? t("updating") : ""}
+              </span>
               {/* The saved sort has to be in hand before the table mounts: it
                   seeds its headers once, so a table built on the defaults would
                   keep claiming them while the rows came back in the saved

@@ -240,10 +240,6 @@ const allTasks = (): Spec => compose(resourceAndMe("tasks"), resourceAndMe("cale
 
 const task = (taskId: number): Spec => ({ guildExact: [`/api/v1/tasks/${taskId}`] });
 
-const taskSubtasks = (taskId: number): Spec => ({
-  guildExact: [`/api/v1/tasks/${taskId}/subtasks`],
-});
-
 // ── Projects (guild + me) ────────────────────────────────────────────────────
 
 const allProjects = (): Spec => resourceAndMe("projects");
@@ -277,8 +273,9 @@ const document = (documentId: number): Spec => ({
   guildExact: [`/api/v1/documents/${documentId}`],
 });
 
-const documentBacklinks = (documentId: number): Spec => ({
-  guildExact: [`/api/v1/documents/${documentId}/backlinks`],
+/** Every read of the graph. One path serves them all, so one bucket does. */
+const relationships = (): Spec => ({
+  guildPrefix: ["/api/v1/relationships"],
 });
 
 const documentVersions = (documentId: number): Spec => ({
@@ -559,10 +556,6 @@ const galleryImages = (galleryId: number): Spec => ({
   guildPrefix: [`/api/v1/galleries/${galleryId}/images`],
 });
 
-// ── Subtasks (guild) ─────────────────────────────────────────────────────────
-
-const subtask = (subtaskId: number): Spec => ({ guildExact: [`/api/v1/subtasks/${subtaskId}`] });
-
 // ── Version (personal) ───────────────────────────────────────────────────────
 
 const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
@@ -657,7 +650,6 @@ export const q = {
   directMessages,
   dmSettings,
   document,
-  documentBacklinks,
   documentComments,
   documentVersions,
   emailSettings,
@@ -692,14 +684,13 @@ export const q = {
   queue,
   recentComments,
   recents,
+  relationships,
   resolvedAISettings,
   storageSettings,
-  subtask,
   tag,
   tagEntities,
   task,
   taskComments,
-  taskSubtasks,
   tool,
   toolComments,
   userStats,

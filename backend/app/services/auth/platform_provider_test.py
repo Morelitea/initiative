@@ -16,6 +16,8 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
+    is_login_ready,
+    login_ready_clause,
     get_platform_provider,
     seed_platform_provider_from_env,
     set_platform_claim_path,
@@ -207,3 +209,31 @@ async def test_env_seed_noop_without_config(session, monkeypatch):
 
     assert await seed_platform_provider_from_env(session) is False
     assert await get_platform_provider(session) is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},
+        {"enabled": False},
+        {"kind": "oauth2"},
+        {"issuer": None},
+        {"issuer": ""},
+        {"client_id": None},
+        {"client_id": ""},
+    ],
+)
+async def test_login_ready_clause_matches_the_row_predicate(session, overrides):
+    """The SQL form and the row form answer the same question — they are two
+    spellings of one rule and are read by different callers."""
+    from app.testing.factories import create_auth_provider
+
+    row = await create_auth_provider(session, slug="drift", **overrides)
+    matched = (
+        await session.exec(
+            select(AuthProvider.id).where(
+                AuthProvider.id == row.id, login_ready_clause()
+            )
+        )
+    ).one_or_none()
+    assert (matched is not None) is is_login_ready(row), overrides

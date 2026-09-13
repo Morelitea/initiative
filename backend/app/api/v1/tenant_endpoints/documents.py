@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Sequence
 
 from fastapi import (
     APIRouter,
@@ -15,18 +15,26 @@ from fastapi import (
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import delete as sa_delete, exists, func, text
+from sqlalchemy import delete as sa_delete, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.project import Project
+from app.services.tenant import archive as archive_service
+from app.services.tenant import content_references
+from app.services.tenant import relationships
+from app.services.tenant.relationships import Endpoint
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
     UserSessionDep,
+    addressed_guild_id,
     establish_guild_access,
     get_current_active_user,
     get_guild_membership,
@@ -47,7 +55,6 @@ from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
@@ -58,24 +65,23 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.tag import Tag, DocumentTag
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
-    DocumentBacklink,
+    DocumentCopyRequest,
     DocumentCountsResponse,
     DocumentCreate,
-    DocumentCopyRequest,
     DocumentDuplicateRequest,
-    DocumentListResponse,
-    DocumentSummary,
-    DocumentRead,
     DocumentFileVersionRead,
+    DocumentListResponse,
+    DocumentRead,
+    DocumentSummary,
     DocumentUpdate,
     serialize_document,
     serialize_document_file_version,
     serialize_document_file_versions,
     serialize_document_summary,
+    SpreadsheetImportRead,
 )
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -89,6 +95,7 @@ from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import my_tools as my_tools_service
+from app.services.tenant import tags as tags_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
@@ -99,9 +106,30 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
+from app.services.tenant import spreadsheet_import
 from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def _document_projects(
+    session: AsyncSession, documents: Sequence[Document]
+) -> dict[int, list[Related]]:
+    """Which projects each of these documents is attached to.
+
+    One call for the whole page. The list endpoints below serialise documents in
+    a comprehension, so anything per-document here would be a query per row on
+    the busiest read in the tool.
+    """
+    return await relationships.related_for_many(
+        session,
+        SearchEntityType.document,
+        [d.id for d in documents if d.id is not None],
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.project,
+        model=Project,
+    )
+
 
 router = APIRouter()
 # Cross-guild "my documents" aggregate (My Documents page). Mounted under
@@ -253,14 +281,6 @@ async def _require_initiative_access(
             )
 
 
-def _compute_my_doc_permission_level(
-    document: Document,
-    user_id: int,
-) -> str | None:
-    """Compute the effective permission level for a user on a document."""
-    return permissions_service.compute_document_permission(document, user_id)
-
-
 def _require_document_write_access(
     document: Document,
     user: User,
@@ -355,8 +375,8 @@ def _build_visible_docs_filters(
 ):
     """Build common WHERE conditions for visible-document queries.
 
-    Guild scope + RLS apply either way; ``dac_scope_clause`` adds the sharing
-    gate, resolving to a no-op for a request that reaches the whole guild.
+    Guild scope and the document table's own policies apply either way;
+    ``listing_scope_clause`` adds only what a list spanning initiatives needs.
     """
     conditions = [
         Initiative.guild_id == guild_id,
@@ -385,28 +405,16 @@ def _build_visible_docs_filters(
     if name_match is not None:
         conditions.append(name_match)
 
+    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
     if tag_ids:
-        tag_subquery = (
-            select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(
-                DocumentTag.tag_id.in_(tuple(tag_ids)),
-                Tag.guild_id == guild_id,
+        conditions.append(
+            Document.id.in_(
+                tags_service.tagged_entity_ids(spec, tuple(tag_ids), guild_id=guild_id)
             )
-            .distinct()
         )
-        conditions.append(Document.id.in_(tag_subquery))
 
     if untagged:
-        # Join Tag so a document whose only tags are trashed counts as
-        # untagged — consistent with every read path that joins Tag.
-        tagged_subquery = (
-            select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(DocumentTag.document_id == Document.id)
-            .correlate(Document)
-        )
-        conditions.append(~exists(tagged_subquery))
+        conditions.append(tags_service.untagged_clause(spec, Document.id))
 
     return conditions
 
@@ -482,11 +490,7 @@ async def _list_global_documents(
                         InitiativeRoleModel.permissions
                     ),
                 ),
-                selectinload(Document.project_links).selectinload(
-                    ProjectDocument.project
-                ),
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
-                selectinload(Document.tag_links).selectinload(DocumentTag.tag),
                 selectinload(Document.property_values).selectinload(
                     DocumentPropertyValue.property_definition
                 ),
@@ -496,13 +500,14 @@ async def _list_global_documents(
             )
         )
         documents = list((await guild_session.exec(statement)).unique().all())
+        await tags_service.annotate_tags(guild_session, documents)
         await documents_service.annotate_comment_counts(guild_session, documents)
+        attached = await _document_projects(guild_session, documents)
         return [
             serialize_document_summary(
                 document,
-                my_permission_level=_compute_my_doc_permission_level(
-                    document, current_user.id
-                ),
+                user_id=current_user.id,
+                projects=attached.get(document.id, []),
             )
             for document in documents
         ]
@@ -530,6 +535,9 @@ async def get_document_counts(
     document_type: Optional[DocumentType] = Query(
         default=None, description="Filter by document type"
     ),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
 ) -> DocumentCountsResponse:
     """Get per-tag document counts for visible documents.
 
@@ -550,6 +558,7 @@ async def get_document_counts(
         is_template=is_template,
         document_type=document_type,
     )
+    conditions.append(archive_service.archive_filter_clause(Document, archived))
 
     # Subquery: IDs of visible documents
     visible_docs_subq = (
@@ -560,30 +569,21 @@ async def get_document_counts(
     total_stmt = select(func.count()).select_from(visible_docs_subq)
     total_count = (await session.exec(total_stmt)).one()
 
-    # Per-tag counts (join Tag to enforce guild scoping)
-    tag_count_stmt = (
-        select(DocumentTag.tag_id, func.count(DocumentTag.document_id))
-        .join(Tag, Tag.id == DocumentTag.tag_id)
-        .where(
-            DocumentTag.document_id.in_(select(visible_docs_subq.c.id)),
-            Tag.guild_id == guild_context.guild_id,
+    # Per-tag counts. Guild scoping needs no clause of its own — a tag of
+    # another guild lives in another schema, which this query cannot reach.
+    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
+    tag_rows = (
+        await session.exec(
+            tags_service.tag_counts_for(spec, select(visible_docs_subq.c.id))
         )
-        .group_by(DocumentTag.tag_id)
-    )
-    tag_rows = (await session.exec(tag_count_stmt)).all()
+    ).all()
     tag_counts = {tag_id: count for tag_id, count in tag_rows}
 
     # Untagged count
     untagged_stmt = (
         select(func.count())
         .select_from(visible_docs_subq)
-        .where(
-            ~select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(DocumentTag.document_id == visible_docs_subq.c.id)
-            .correlate(visible_docs_subq)
-            .exists()
-        )
+        .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
     )
     untagged_count = (await session.exec(untagged_stmt)).one()
 
@@ -700,6 +700,9 @@ async def list_documents(
         description="Order by one of: name, initiative, updated_at, created_at.",
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
 ) -> DocumentListResponse:
     """List documents in the active guild visible to the current user.
 
@@ -733,6 +736,7 @@ async def list_documents(
         is_template=is_template,
         document_type=document_type,
     )
+    conditions.append(archive_service.archive_filter_clause(Document, archived))
 
     # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
     try:
@@ -768,9 +772,7 @@ async def list_documents(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
             ),
@@ -789,14 +791,14 @@ async def list_documents(
     result = await session.exec(stmt)
     documents = result.unique().all()
 
+    await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
+    attached = await _document_projects(session, documents)
     items = [
         serialize_document_summary(
             document,
-            my_permission_level=_compute_my_doc_permission_level(
-                document,
-                current_user.id,
-            ),
+            user_id=current_user.id,
+            projects=attached.get(document.id, []),
         )
         for document in documents
     ]
@@ -918,12 +920,12 @@ async def create_document(
         grants=document_in.grants,
     )
 
-    # Sync wikilinks to document_links table
-    await documents_service.sync_document_links(
+    # What the new body points at becomes `references` edges.
+    await content_references.sync_for_entity(
         session,
-        document_id=document.id,
-        content=document.content,
-        guild_id=guild_context.guild_id,
+        Endpoint(SearchEntityType.document, document.id),
+        body=document.content,
+        author_id=current_user.id,
     )
 
     await session.commit()
@@ -936,10 +938,7 @@ async def create_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1096,10 +1095,7 @@ async def upload_document_file(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1393,49 +1389,9 @@ async def read_document(
     _require_document_access(document, current_user, access="read")
     return serialize_document(
         document,
-        my_permission_level=_compute_my_doc_permission_level(
-            document,
-            current_user.id,
-        ),
+        user_id=current_user.id,
         include_content=include_content,
     )
-
-
-@router.get("/{document_id}/backlinks", response_model=List[DocumentBacklink])
-async def get_backlinks(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[DocumentBacklink]:
-    """Get documents that link to this document via wikilinks.
-
-    Only returns documents the current user has permission to access.
-    """
-    document = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    _require_document_access(document, current_user, access="read")
-
-    backlinks = await documents_service.get_backlinks(
-        session,
-        document_id=document_id,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
-
-    return [
-        DocumentBacklink(
-            id=doc.id,
-            name=doc.name,
-            updated_at=doc.updated_at,
-            initiative_id=doc.initiative_id,
-        )
-        for doc in backlinks
-    ]
 
 
 @router.patch("/{document_id}", response_model=DocumentRead)
@@ -1477,6 +1433,25 @@ async def update_document(
         updated = True
 
     content_updated = False
+    # A document with a live collaboration room has that room as the writer of
+    # both its views — it saves ``content`` and ``yjs_state`` from one snapshot,
+    # on an interval and at teardown. Everything else in the patch (the name,
+    # the featured image) is unrelated to that and still applies.
+    if "content" in update_data and collaboration_manager.has_active_collaborators(
+        guild_context.guild_id, document.id
+    ):
+        # An editor inside the session reports its content to the room over its
+        # own socket, which is what ties a rendering to the state it was made
+        # from. A rendering arriving here belongs to a tab outside the session,
+        # whose view of the document the session has moved on from — and a
+        # request carries no connection, so one of an account's tabs cannot be
+        # told from another here. It is refused rather than taken and reported
+        # as saved; reconnecting is what gets that tab's work in, and the
+        # handshake carries it.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
+        )
     if "content" in update_data:
         try:
             document.content = documents_service.normalize_document_content(
@@ -1489,24 +1464,11 @@ async def update_document(
             ) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
-        # Clear yjs_state ONLY if there is no active collaboration room.
-        # Rationale: when users are actively collaborating, the in-memory
-        # room is the source of truth for Yjs state, and its full snapshot
-        # will be written back to yjs_state on the last disconnect via
-        # persist_room. Clearing yjs_state here while a room is active
-        # creates a data-loss window: if the REST PATCH lands right before
-        # all users disconnect, and the disconnect's persist_room fails or
-        # races with cleanup, yjs_state stays None and the next session
-        # bootstraps from the (potentially stale) PATCHed content column,
-        # losing any edits that were made between the PATCH and disconnect.
-        #
-        # Clearing only when the room is inactive still solves PR #347's
-        # original problem: non-collab edits need to override any stale
-        # pre-existing yjs_state the next time the user re-enables collab.
-        if not collaboration_manager.has_active_collaborators(
-            guild_context.guild_id, document.id
-        ):
-            document.yjs_state = None
+        # Reaching here means no room is live, so this edit is the newest
+        # thing about the document and any stored Yjs state predates it. It is
+        # cleared so the next collaborative session bootstraps from this
+        # content rather than from state that never saw it.
+        document.yjs_state = None
         content_updated = True
         updated = True
 
@@ -1526,13 +1488,12 @@ async def update_document(
     if updated:
         document.updated_at = datetime.now(timezone.utc)
         session.add(document)
-        # Sync wikilinks if content was updated
         if content_updated:
-            await documents_service.sync_document_links(
+            await content_references.sync_for_entity(
                 session,
-                document_id=document.id,
-                content=document.content,
-                guild_id=guild_context.guild_id,
+                Endpoint(SearchEntityType.document, document.id),
+                body=document.content,
+                author_id=current_user.id,
             )
         if removed_upload_urls:
             filenames = [url.split("/")[-1] for url in removed_upload_urls]
@@ -1554,10 +1515,7 @@ async def update_document(
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1610,10 +1568,7 @@ async def duplicate_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1681,10 +1636,7 @@ async def copy_document(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(
-            hydrated,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1869,10 +1821,7 @@ async def set_document_properties(
     )
     return serialize_document(
         refreshed,
-        my_permission_level=_compute_my_doc_permission_level(
-            refreshed,
-            current_user.id,
-        ),
+        user_id=current_user.id,
     )
 
 
@@ -1899,7 +1848,7 @@ async def set_document_grants(
     )
     return serialize_document(
         hydrated,
-        my_permission_level=_compute_my_doc_permission_level(hydrated, current_user.id),
+        user_id=current_user.id,
     )
 
 
@@ -1988,6 +1937,9 @@ async def download_document_file(
     inline: bool = False,
 ) -> Response:
     """Download a file-type document — requires read permission on the document."""
+    # These two routes resolve the guild themselves rather than through
+    # ``get_guild_membership``, so they ask the same question it does.
+    guild_id = addressed_guild_id(request, guild_id)
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
@@ -2040,6 +1992,7 @@ async def download_document_file_version(
     inline: bool = False,
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""
+    guild_id = addressed_guild_id(request, guild_id)
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
     )
@@ -2140,3 +2093,62 @@ async def clear_document_view(
         entity_type="document",
         entity_id=document.id,
     )
+
+
+@router.post(
+    "/{document_id}/spreadsheet/import",
+    response_model=SpreadsheetImportRead,
+)
+async def import_spreadsheet_file(
+    document_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+) -> SpreadsheetImportRead:
+    """Read a CSV/XLSX file into sheets, for the caller to add to this workbook.
+
+    The document is the permission scope rather than the destination — nothing
+    here writes to it. The sheets go back to the editor, which adds them to the
+    live document in a single transaction, so the whole import is one thing to
+    undo and peers receive it as one change.
+
+    Parsing is server-side for the same reason rendering is: the workbook
+    libraries are here, and the result goes through the same normalizer a
+    created spreadsheet does, so an imported sheet is the same kind of object
+    as any other.
+    """
+    document = await _get_document_or_404(
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+    )
+    _require_document_write_access(document, current_user)
+    if document.document_type != DocumentType.spreadsheet:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.SPREADSHEET_INVALID_PAYLOAD,
+        )
+
+    # Bounded read, so an over-sized file is refused before it is buffered.
+    try:
+        contents = await attachments_service.read_upload_bounded(
+            file, attachments_service.MAX_DOCUMENT_FILE_SIZE
+        )
+    except attachments_service.FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=DocumentMessages.FILE_TOO_LARGE,
+        )
+
+    try:
+        sheets = spreadsheet_import.parse_spreadsheet_file(
+            file.filename or "", contents
+        )
+    except documents_service.DocumentContentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+
+    return SpreadsheetImportRead(sheets=sheets)

@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 from typing import List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, String, Text
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -16,13 +16,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.tag import Tag
 
 
 DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
-class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Calendar(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to
@@ -78,10 +79,6 @@ class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
         back_populates="calendar",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    tag_links: List["CalendarTag"] = Relationship(
-        back_populates="calendar",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": (
@@ -91,21 +88,3 @@ class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
             "viewonly": True,
         }
     )
-
-
-class CalendarTag(SQLModel, table=True):
-    """Junction table linking calendars to tags."""
-
-    __tablename__ = "calendar_tags"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    calendar_id: int = Field(foreign_key="calendars.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    calendar: Optional[Calendar] = Relationship(back_populates="tag_links")
-    tag: Optional["Tag"] = Relationship(back_populates="calendar_links")

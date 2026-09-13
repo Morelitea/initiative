@@ -49,16 +49,21 @@ class TagSummary(SanitizedBaseModel):
     color: str
 
 
-def tag_summaries(tag_links) -> List[TagSummary]:
-    """Serialize eager-loaded ``tag_links`` junction rows to ``TagSummary`` —
-    the one serializer every taggable entity uses. Links whose tag was
-    filtered out (trashed) by the soft-delete loader criteria are skipped."""
-    summaries: List[TagSummary] = []
-    for link in tag_links or []:
-        tag = getattr(link, "tag", None)
-        if tag is not None:
-            summaries.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
-    return summaries
+def tag_summaries(tags) -> List[TagSummary]:
+    """Serialize tag rows to ``TagSummary`` — the one serializer every taggable
+    entity uses. The caller has already dropped anything trashed; this only
+    shapes what is left."""
+    return [TagSummary(id=tag.id, name=tag.name, color=tag.color) for tag in tags or []]
+
+
+def annotated_tags(entity) -> List[TagSummary]:
+    """The summaries ``tags_service.annotate_tags`` put on this entity.
+
+    Read rather than recomputed: assignments live in one table now and are
+    fetched for a whole page at once, so a serializer that went looking for
+    them itself would be a query per card.
+    """
+    return list(getattr(entity, "tags", None) or [])
 
 
 class TagRead(TagBase):

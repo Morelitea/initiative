@@ -23,6 +23,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.document import Document
+from app.models.tenant.task import Task
+from app.services.tenant import archive as archive_service
+from app.services.tenant import relationships
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     IncludeDeletedDep,
@@ -42,7 +50,6 @@ from app.models.tenant.queue import (
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.initiative import (
     Initiative,
-    PermissionKey,
 )
 from app.models.platform.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
@@ -71,19 +78,47 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.schemas.tenant.tag import TagSetRequest
-from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 
 
+async def _queue_item_attachments(
+    session: AsyncSession, item: QueueItem
+) -> tuple[list[Related], list[Related]]:
+    """The documents and tasks pinned to one queue item."""
+    endpoint = relationships.Endpoint(SearchEntityType.queue_item, item.id)
+    documents = await relationships.related_for(
+        session,
+        endpoint,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+    tasks = await relationships.related_for(
+        session,
+        endpoint,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        model=Task,
+    )
+    return documents, tasks
+
+
+async def _serialized_queue_item(
+    session: AsyncSession, item: QueueItem
+) -> QueueItemRead:
+    documents, tasks = await _queue_item_attachments(session, item)
+    return serialize_queue_item(item, documents=documents, tasks=tasks)
+
+
 router = APIRouter()
 
-#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
-#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
-#: to be addressable by its own id — a nested path would need a parent the
-#: envelope never carries. Writes stay nested under their queue, where the
-#: caller is already working inside one.
+#: Flat read-back route, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the resource has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Writes stay nested under their queue, where the caller is
+#: already working inside one.
 items_router = APIRouter()
 
 
@@ -146,30 +181,6 @@ async def _get_initiative_for_queue(
     return initiative
 
 
-async def _check_initiative_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-    permission_key: PermissionKey,
-) -> None:
-    """Check initiative role permission, raise 403 if denied."""
-    # Guild admins bypass initiative permissions
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=permission_key,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _get_queue_with_access(
     session: RLSSessionDep,
     queue_id: int,
@@ -197,10 +208,6 @@ async def _get_item_for_queue(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     return item
-
-
-def _compute_my_permission(queue: Queue, user: User) -> str | None:
-    return resource_access.my_permission_level(queue, Tool.queue, user)
 
 
 async def _refetch_queue(
@@ -248,7 +255,7 @@ async def read_queue_item(
     await _get_queue_with_access(
         session, item.queue_id, current_user, guild_context, access="read"
     )
-    return serialize_queue_item(item)
+    return await _serialized_queue_item(session, item)
 
 
 @router.get("/", response_model=QueueListResponse)
@@ -273,6 +280,9 @@ async def list_queues(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> QueueListResponse:
@@ -281,7 +291,10 @@ async def list_queues(
     DAC: Queues with explicit QueuePermission or role-based permission.
     Guild admins see all queues.
     """
-    conditions = [Queue.guild_id == guild_context.guild_id]
+    conditions = [
+        Queue.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(Queue, archived),
+    ]
 
     if initiative_id is not None:
         # Validate that queues are enabled for this initiative
@@ -339,11 +352,12 @@ async def list_queues(
     )
     result = await session.exec(stmt)
     queues = result.unique().all()
+    await tags_service.annotate_tags(session, queues)
 
     items = [
         serialize_queue_summary(
             q,
-            my_permission_level=_compute_my_permission(q, current_user),
+            user_id=current_user.id,
         )
         for q in queues
     ]
@@ -406,7 +420,7 @@ async def read_queue(
     )
     return serialize_queue(
         queue,
-        my_permission_level=_compute_my_permission(queue, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -428,12 +442,8 @@ async def create_queue(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=QueueMessages.FEATURE_DISABLED,
         )
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_queues,
+    await resource_access.require_create(
+        session, Tool.queue, initiative, current_user, guild_context
     )
 
     queue = Queue(
@@ -475,7 +485,7 @@ async def create_queue(
     hydrated = await _refetch_queue(session, queue.id)
     return serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -509,7 +519,7 @@ async def update_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     if updated:
         await _emit_queue(
@@ -631,7 +641,7 @@ async def add_queue_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "item_added", result.model_dump(mode="json"))
     return result
 
@@ -671,7 +681,7 @@ async def update_queue_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "item_updated", result.model_dump(mode="json"))
     return result
 
@@ -739,7 +749,7 @@ async def reorder_queue_items(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "items_reordered", result.model_dump(mode="json")
@@ -769,7 +779,7 @@ async def start_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "queue_started", result.model_dump(mode="json")
@@ -794,7 +804,7 @@ async def stop_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "queue_stopped", result.model_dump(mode="json")
@@ -819,7 +829,7 @@ async def advance_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(session, queue_id, "turn_advance", result.model_dump(mode="json"))
     return result
@@ -842,7 +852,7 @@ async def previous_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "turn_previous", result.model_dump(mode="json")
@@ -868,7 +878,7 @@ async def set_active_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "turn_set_active", result.model_dump(mode="json")
@@ -893,7 +903,7 @@ async def reset_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(session, queue_id, "queue_reset", result.model_dump(mode="json"))
     return result
@@ -921,7 +931,7 @@ async def hold_current_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(session, queue_id, "turn_held", result.model_dump(mode="json"))
     return result
@@ -960,7 +970,7 @@ async def release_held_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session, queue_id, "turn_released", result.model_dump(mode="json")
@@ -1005,7 +1015,7 @@ async def set_queue_item_tags(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    result = serialize_queue_item(hydrated_item)
+    result = await _serialized_queue_item(session, hydrated_item)
     await _emit_queue(session, queue_id, "tags_changed", result.model_dump(mode="json"))
     return result
 
@@ -1013,84 +1023,6 @@ async def set_queue_item_tags(
 # ---------------------------------------------------------------------------
 # Item Attachments (documents, tasks)
 # ---------------------------------------------------------------------------
-
-
-@router.put("/{queue_id}/items/{item_id}/documents", response_model=QueueItemRead)
-async def set_queue_item_documents(
-    queue_id: int,
-    item_id: int,
-    document_ids: List[int],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueueItemRead:
-    """Set document links on a queue item. Replaces all existing links."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
-    )
-    item = await _get_item_for_queue(session, queue_id, item_id)
-
-    await queues_service.set_queue_item_documents(
-        session,
-        item,
-        document_ids,
-        queue.guild_id,
-        current_user.id,
-    )
-    await session.commit()
-
-    hydrated_item = await queues_service.get_queue_item(
-        session, item.id, populate_existing=True
-    )
-    if not hydrated_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    result = serialize_queue_item(hydrated_item)
-    await _emit_queue(
-        session, queue_id, "documents_changed", result.model_dump(mode="json")
-    )
-    return result
-
-
-@router.put("/{queue_id}/items/{item_id}/tasks", response_model=QueueItemRead)
-async def set_queue_item_tasks(
-    queue_id: int,
-    item_id: int,
-    task_ids: List[int],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueueItemRead:
-    """Set task links on a queue item. Replaces all existing links."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
-    )
-    item = await _get_item_for_queue(session, queue_id, item_id)
-
-    await queues_service.set_queue_item_tasks(
-        session,
-        item,
-        task_ids,
-        queue.guild_id,
-        current_user.id,
-    )
-    await session.commit()
-
-    hydrated_item = await queues_service.get_queue_item(
-        session, item.id, populate_existing=True
-    )
-    if not hydrated_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    result = serialize_queue_item(hydrated_item)
-    await _emit_queue(
-        session, queue_id, "tasks_changed", result.model_dump(mode="json")
-    )
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1117,7 +1049,7 @@ async def set_queue_grants(
     hydrated = await _refetch_queue(session, queue_id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_queue(
         session,

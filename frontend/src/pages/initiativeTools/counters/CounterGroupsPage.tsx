@@ -11,6 +11,11 @@ import { ToolImportAction, useToolImportAction } from "@/components/imports/Tool
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
+import {
+  archivedParam,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
@@ -35,8 +40,13 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const router = useRouter();
   const gp = useGuildPath();
 
+  // Which of the tool's two states the list is showing. Archived rows are
+  // off the live list, so this is the only place they can be reached.
+  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+
   const groupsQuery = useCounterGroupsList({
     initiative_id: fixedInitiativeId,
+    archived: archivedParam(archiveState),
     page: 1,
     page_size: 50,
   });
@@ -92,6 +102,13 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   return (
     <div className="space-y-6">
       <ToolListToolbar
+        leading={
+          <ToolArchiveFilter
+            tool={Tool.counter_group}
+            value={archiveState}
+            onChange={setArchiveState}
+          />
+        }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,

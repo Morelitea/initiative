@@ -6,7 +6,7 @@ an app holds at any moment is an answer to the call in front of it rather than a
 standing key to a deployment. Three properties are worth stating because they
 are what the shape buys:
 
-* **Guild-pinned and per-call.** ``guild_id`` is a claim, not a parameter, and
+* **Guild-pinned and per-call.** ``guild_ref`` is a claim, not a parameter, and
   the token is minted for the request it accompanies. An app never holds a
   credential naming more than one guild, and never holds one for long.
 * **It carries no person.** There is no ``sub``, no email, no display name. Where
@@ -88,7 +88,7 @@ def _b64u(value: int) -> str:
 def mint_context_token(
     *,
     public_id: str,
-    guild_id: int,
+    guild_ref: str,
     app_install_id: int,
     scope: str,
     endpoint_id: Optional[str] = None,
@@ -96,6 +96,10 @@ def mint_context_token(
     lifetime: timedelta = CONTEXT_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Sign one context token and return it with its lifetime in seconds.
+
+    ``guild_ref`` is what this install calls the guild — the same sector the
+    member references use, so an app installed twice holds two unrelated values
+    for one guild. No row id of ours is a parameter here.
 
     ``connection_refs`` maps a connection id to the opaque handle the app knows
     that member's credential by. It is present only where the call genuinely
@@ -115,7 +119,7 @@ def mint_context_token(
         "aud": app_platform_audience(public_id),
         "iat": int(now.timestamp()),
         "exp": now + lifetime,
-        "guild_id": guild_id,
+        "guild_ref": guild_ref,
         "app_install_id": app_install_id,
         "scope": scope,
     }

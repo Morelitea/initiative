@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import (
     ARRAY,
@@ -15,7 +15,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
-from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -27,7 +27,9 @@ class AuthSession(SQLModel, table=True):
     uuid, so it is non-enumerable and leaks no session count. ``satisfied_providers``
     / ``amr`` record which providers/factors this session authenticated against,
     mirrored into the access token so the per-guild auth-policy gate and step-up
-    read them locally without a lookup.
+    read them locally without a lookup. ``provider_auth`` holds each satisfied
+    provider's own account of its authentication event, kept per provider
+    because one session can span several.
 
     **app_admin-only.** Session validation is a pre-auth lookup *by refresh-token
     hash* (the user is unknown until it resolves), so it structurally cannot run
@@ -82,6 +84,16 @@ class AuthSession(SQLModel, table=True):
     amr: list[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+    # What each satisfied provider said about the authentication it performed —
+    # ``auth_time``/``amr``/``acr`` from its verified id_token, keyed by
+    # provider id as a string. Per provider rather than per session: one
+    # session can satisfy several guilds' identity sources, and each guild's
+    # requirement is about its own provider's event. See
+    # ``services.auth.assurance``.
+    provider_auth: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
 
     # Rotation chain: each refresh mints a new row pointing at the one it replaced;

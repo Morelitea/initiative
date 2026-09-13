@@ -46,7 +46,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_new_access_token,
+    get_legacy_auth_headers,
     set_auth_scope,
 )
 from app.testing.oidc import (
@@ -697,7 +697,7 @@ async def test_new_access_token_authenticates(
     on the session path alongside legacy JWTs — the accept-before-issue half of
     the cutover."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_auth_token(user)
 
     response = await client.get(
         "/api/v1/users/me",
@@ -715,7 +715,7 @@ async def test_new_access_token_stale_version_returns_401(
     """The new token still carries ``ver``, so a token_version bump (logout /
     password change) revokes it exactly like a legacy token."""
     user = await create_user(session)
-    token = get_new_access_token(user)
+    token = get_auth_token(user)
     user.token_version += 1
     session.add(user)
     await session.commit()
@@ -758,7 +758,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     satisfied = await client.post(
         "/api/v1/auth/upload-token",
         headers={
-            "Authorization": f"Bearer {get_new_access_token(user, satisfied_providers=[7, 3])}"
+            "Authorization": f"Bearer {get_auth_token(user, satisfied_providers=[7, 3])}"
         },
     )
     assert satisfied.status_code == 200, satisfied.text
@@ -766,7 +766,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     assert sat == frozenset({3, 7})
 
     legacy = await client.post(
-        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+        "/api/v1/auth/upload-token", headers=get_legacy_auth_headers(user)
     )
     _, sat = verify_upload_token(legacy.json()["upload_token"])
     assert sat == frozenset()
@@ -1119,6 +1119,106 @@ async def test_oidc_callback_establishes_refresh_session(
     assert claims["sid"] == str(auth_session.id)
     assert claims["amr"] == [f"oidc:{PLATFORM_OIDC_SLUG}"]
     assert claims["sat"] == [provider.id]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The id_token's own account of the authentication — which methods, which
+    context class, when — is kept against the provider that performed it, and
+    its methods join the session's ``amr``."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-assurance@example.com",
+            "username": "sso-assurance",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+            "auth_time": 1757600000,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    user = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("sso-assurance@example.com")
+            )
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {
+        str(provider.id): {
+            "auth_time": 1757600000,
+            "amr": ["pwd", "mfa"],
+            "acr": "phr",
+        }
+    }
+    # The session's own factors gain what the IdP named, alongside the marker
+    # that says which provider it was.
+    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An IdP that asserts none of it records none of it, and the access token
+    carries no ``satd`` at all."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-silent@example.com",
+            "username": "sso-silent",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("sso-silent@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.provider_auth == {}
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert "satd" not in claims
 
 
 @pytest.mark.integration
@@ -2142,3 +2242,59 @@ async def test_password_change_revokes_refresh_session(
     client.cookies.set("refresh_token", captured, path="/api/v1/auth")
     replay = await client.post("/api/v1/auth/refresh")
     assert replay.status_code == 401
+
+
+async def test_registering_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    from sqlmodel import select
+
+    from app.core.encryption import hash_email
+    from app.models.platform.user import User
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "stamped@example.com",
+            "username": "stamped",
+            "full_name": "Stamped",
+            "password": "a-perfectly-fine-secret-1",
+        },
+    )
+    assert response.status_code == 201
+
+    session.expire_all()
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("stamped@example.com"))
+        )
+    ).one()
+    assert user.password_set_at is not None
+
+
+async def test_password_reset_records_when_the_password_was_set(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account carrying a hash nobody set — the pre-0152 SSO case — becomes
+    known the moment somebody actually sets one."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="reset-stamp@example.com")
+    user.password_set_at = None
+    session.add(user)
+    await session.commit()
+    user_id = user.id
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert response.status_code == 200
+
+    session.expire_all()
+    refreshed = await session.get(User, user_id)
+    assert refreshed.password_set_at is not None

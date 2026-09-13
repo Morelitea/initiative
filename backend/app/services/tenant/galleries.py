@@ -34,7 +34,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.image_headers import ImageHeader, read_image_header
-from app.core.tools import Tool
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -166,7 +165,6 @@ def list_loader_options() -> list:
         selectinload(Gallery.grants).selectinload(ResourceGrant.role),
         selectinload(Gallery.initiative).selectinload(Initiative.memberships),
         selectinload(Gallery.cover_image),
-        tags_service.TOOL_TAG_LINKS[Tool.gallery].load_options(),
     ]
 
 
@@ -179,7 +177,6 @@ def image_loader_options() -> list:
     """Eager-load what a picture needs to be drawn: who uploaded it, its tags."""
     return [
         selectinload(GalleryImage.uploader),
-        tags_service.TAG_LINKS["gallery_image"].load_options(),
     ]
 
 
@@ -223,7 +220,10 @@ async def get_gallery(
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    gallery = result.one_or_none()
+    if gallery is not None:
+        await tags_service.annotate_tags(session, [gallery])
+    return gallery
 
 
 async def get_image(
@@ -243,7 +243,10 @@ async def get_image(
     )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
-    return (await session.exec(stmt)).one_or_none()
+    image = (await session.exec(stmt)).one_or_none()
+    if image is not None:
+        await tags_service.annotate_tags(session, [image])
+    return image
 
 
 async def annotate_image_counts(session: AsyncSession, rows: Sequence[Gallery]) -> None:

@@ -21,6 +21,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Provenance, RelationshipType
+from app.core.search import SearchEntityType
+from app.models.tenant.relationship import EntityRelationship
+from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
     hash_email,
@@ -72,7 +76,6 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
-    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
@@ -86,6 +89,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
 
@@ -338,37 +342,29 @@ async def create_guild_membership(
     return membership
 
 
-def get_auth_token(user: User) -> str:
-    """
-    Generate a valid JWT access token for a user.
-
-    Args:
-        user: User to generate token for
-
-    Returns:
-        JWT access token string
-
-    Example:
-        token = get_auth_token(test_user)
-        headers = {"Authorization": f"Bearer {token}"}
-        response = await client.get("/api/v1/users/me", headers=headers)
-    """
-    return create_access_token(subject=str(user.id), token_version=user.token_version)
-
-
-def get_new_access_token(
+def get_auth_token(
     user: User,
     *,
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
 ) -> str:
-    """Mint a *new-model* access token (aud ``initiative:access``) for a user.
+    """A session credential for ``user`` — the token the app actually issues.
 
-    Mirrors :func:`get_auth_token` but for the dual-verify path: exercises that
-    the session-JWT verifiers accept the new scheme. ``session_id``/``amr``/
-    ``sat`` default to a throwaway session with ``pwd`` since the verify path
-    only checks ``sub``/``ver``.
+    ``aud=initiative:access``, carrying ``sid``/``amr``/``sat``, so a test
+    authenticates through the same verification a signed-in browser does.
+    ``sid`` is a throwaway uuid: the access token is stateless and nothing on
+    the request path resolves it against an ``auth_sessions`` row.
+
+    ``sat`` defaults to empty, which is what a password sign-in carries — a
+    test that needs a guild's sign-in policy satisfied passes the provider ids.
+
+    Use :func:`get_legacy_auth_token` where the pre-session scheme is itself
+    the thing under test.
+
+    Example:
+        headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
+        response = await client.get("/api/v1/users/me", headers=headers)
     """
     token, _ = mint_access_token(
         user_id=user.id,
@@ -380,6 +376,22 @@ def get_new_access_token(
         else [],
     )
     return token
+
+
+def get_legacy_auth_token(user: User) -> str:
+    """A pre-session-model token: no ``aud``/``iss``, and none of
+    ``sid``/``amr``/``sat``.
+
+    ``decode_session_token`` accepts both schemes, and this is what exercises
+    that half. For tests about the legacy scheme itself — everything else wants
+    :func:`get_auth_token`.
+    """
+    return create_access_token(subject=str(user.id), token_version=user.token_version)
+
+
+def get_legacy_auth_headers(user: User) -> dict[str, str]:
+    """:func:`get_legacy_auth_token` as an Authorization header."""
+    return {"Authorization": f"Bearer {get_legacy_auth_token(user)}"}
 
 
 def get_auth_headers(user: User) -> dict[str, str]:
@@ -1912,30 +1924,28 @@ async def create_tag(
     return tag
 
 
-async def create_subtask(
-    session: AsyncSession,
-    task: Task,
-    *,
-    content: str = "A test subtask",
-    commit: bool = True,
-    **overrides: Any,
-) -> Subtask:
-    """Create a subtask under ``task``."""
-    await route_session_to_guild(session, task.guild_id)
+async def assign_tag(session, entity, tag, *, commit: bool = False):
+    """Put a tag on something — the edge a tagging surface writes.
 
-    defaults = {
-        "guild_id": task.guild_id,
-        "task_id": task.id,
-        "content": content,
-    }
-    subtask = Subtask(**{**defaults, **overrides})
-    session.add(subtask)
+    ``guild_id`` is stated rather than left to the table's trigger: a tenant
+    write has to be routable at the moment it is added, and the tag already
+    knows which guild it belongs to.
+    """
+    from app.services.tenant import tags as tags_service
 
+    row = tags_service.tag_edge(tags_service.spec_for(entity), entity.id, tag.id)
+    row.guild_id = tag.guild_id
+    session.add(row)
     if commit:
         await session.commit()
-        await session.refresh(subtask)
+    return row
 
-    return subtask
+
+def checklist_items(*texts: str, done: bool = False) -> list[dict]:
+    """A checklist for ``create_task(checklist=...)`` — one item per text."""
+    return [
+        {"id": mint_checklist_item_id(), "text": text, "done": done} for text in texts
+    ]
 
 
 async def create_task_status(
@@ -2208,3 +2218,60 @@ async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Ini
     await session.commit()
     await session.refresh(fresh)
     return fresh
+
+
+async def create_relationship(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    source: tuple[SearchEntityType, int],
+    target: tuple[SearchEntityType, int],
+    relationship_type: RelationshipType = RelationshipType.attached,
+    provenance: Provenance = Provenance.manual,
+    created_by: int | None = None,
+    commit: bool = True,
+) -> EntityRelationship:
+    """Create one edge between two things.
+
+    Endpoints are ``(kind, id)`` pairs, and a symmetric type is stored in the
+    order the constraint requires, so a test may name its two ends in whichever
+    order reads better.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    source_endpoint = relationships_service.Endpoint(*source)
+    target_endpoint = relationships_service.Endpoint(*target)
+    row = await relationships_service.create(
+        session,
+        source=source_endpoint,
+        relationship_type=relationship_type,
+        target=target_endpoint,
+        provenance=provenance,
+        created_by=created_by,
+    )
+    if row is None:  # already present — hand back the live one
+        row = await relationships_service.find(
+            session,
+            source=source_endpoint,
+            relationship_type=relationship_type,
+            target=target_endpoint,
+        )
+    assert row is not None
+
+    if commit:
+        await session.commit()
+        await session.refresh(row)
+
+    return row
+
+
+async def billing_guild_ref(guild_id: int) -> str:
+    """The reference the billing service knows one guild by, minted on demand.
+
+    Billing names a guild by its reference and never by a row id, so a test
+    that posts to the billing boundary needs the value that boundary would
+    actually receive — which is the one the service itself would mint.
+    """
+    from app.services.platform import identity_refs
+
+    return await identity_refs.billing_guild_ref(guild_id=guild_id)

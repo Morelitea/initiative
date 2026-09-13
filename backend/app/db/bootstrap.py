@@ -261,14 +261,25 @@ DO $$ BEGIN
 END $$;
 """
 
+#: The name of the match function :data:`_SEARCH_MATCH_FUNCTION` installs.
+#: ``schema_provisioning`` reads it from here so the name has one home.
+SEARCH_MATCH_FUNCTION = "search_tsmatch"
+
+#: Functions this module installs itself, over the bootstrap connection rather
+#: than the provisioning one. Every boot re-asserts them with CREATE OR REPLACE
+#: on that same connection, and replacing a function is an owner's right, so
+#: the handover below leaves these with the login that has them.
+BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
+
+
 # Hand the app's objects to the provisioning role, for a database that has been
 # running under another login. Postgres renders each statement so identifiers
 # are quoted at the source; the caller executes what comes back and logs it.
 #
 # Scope is what the app can show is its own: the shared tables named in its own
-# registry, the guild schemas and everything in them, and the enums those
-# tables use. An object in ``public`` that the registry does not name is left
-# where it is. Extension members are never taken.
+# registry, the guild schemas and everything in them, the enums those tables
+# use, and the functions in ``public`` the outgoing login created. Extension
+# members and the bootstrap's own functions are never taken.
 _TRANSFER_STATEMENTS = """
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
@@ -320,27 +331,13 @@ SELECT format('function %s', p.oid::regprocedure),
  WHERE p.pronamespace = 'public'::regnamespace
    AND p.proowner = current_user::regrole
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
-   AND EXISTS (
-       SELECT 1 FROM pg_trigger tg
-         JOIN pg_class c3 ON c3.oid = tg.tgrelid
-         JOIN pg_namespace n3 ON n3.oid = c3.relnamespace
-        WHERE tg.tgfoid = p.oid
-          AND (n3.nspname ~ '^guild_([0-9]+|template)$'
-               OR (n3.nspname = 'public'
-                   AND c3.relname IN (SELECT name FROM app_tables)))
-       UNION ALL
-       -- The catalog records what a policy actually calls, so this is an
-       -- exact dependency rather than a match on the rendered expression.
-       SELECT 1 FROM pg_depend dep
-         JOIN pg_policy pol ON pol.oid = dep.objid
-         JOIN pg_class c4 ON c4.oid = pol.polrelid
-         JOIN pg_namespace n4 ON n4.oid = c4.relnamespace
-        WHERE dep.classid = 'pg_policy'::regclass
-          AND dep.refclassid = 'pg_proc'::regclass
-          AND dep.refobjid = p.oid
-          AND (n4.nspname ~ '^guild_([0-9]+|template)$'
-               OR (n4.nspname = 'public'
-                   AND c4.relname IN (SELECT name FROM app_tables))))
+   -- Every function the outgoing login left in ``public``, less the ones the
+   -- bootstrap keeps. What calls a function is not something the catalog can
+   -- be asked: a plpgsql body records no dependency on what it PERFORMs, so a
+   -- helper reached only from another function's body, or only from the app's
+   -- own SQL, is indistinguishable from an unused one.
+   AND p.proname <> ALL (
+       string_to_array(current_setting('app._bootstrap_functions'), ','))
 UNION ALL
 SELECT format('schema %I', n.nspname),
        format('ALTER SCHEMA %I OWNER TO %I', n.nspname, target.role)
@@ -587,6 +584,9 @@ async def _transfer_ownership(conn) -> None:
     await _set_local(
         conn, "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
     )
+    await _set_local(
+        conn, "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
+    )
     rows = (await conn.execute(text(_TRANSFER_STATEMENTS))).all()
     if not rows:
         return
@@ -661,6 +661,10 @@ def bootstrap_sql() -> str:
         "-- Ownership handover, for a database already running under another",
         "-- login. Each statement is rendered by the query below; run what it",
         "-- returns. Nothing to do on a fresh install.",
+        setting("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+        setting(
+            "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
+        ),
         _TRANSFER_STATEMENTS.strip() + ";",
         _DEFAULT_PRIVILEGES.strip(),
         "",

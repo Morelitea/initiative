@@ -47,6 +47,8 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   tags: [],
   grants: [],
   comments_enabled: true,
+  archived_at: null,
+  can_unarchive: false,
   ...overrides,
 });
 
@@ -154,6 +156,46 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByText("Permission required")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("offers the way back out of the archive, which the capped level hides", async () => {
+    resetFactories();
+    // What an archived entity actually arrives as: read-only, because the
+    // server caps it there so the edit affordances go off. Reading that for
+    // the unarchive button as well is what left archived tools with no way
+    // back, so the button reads `can_unarchive` instead.
+    renderSection(
+      ToolSettingsAdvancedPage,
+      buildEntity({
+        my_permission_level: "read",
+        archived_at: "2026-09-01T00:00:00Z",
+        can_unarchive: true,
+      })
+    );
+
+    expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument();
+  });
+
+  it("offers no way back to someone who could not write it anyway", async () => {
+    resetFactories();
+    renderSection(
+      ToolSettingsAdvancedPage,
+      buildEntity({
+        my_permission_level: "read",
+        archived_at: "2026-09-01T00:00:00Z",
+        can_unarchive: false,
+      })
+    );
+
+    expect(await screen.findByText("Permission required")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument();
+  });
+
+  it("offers archiving on a live tool to someone who may write it", async () => {
+    resetFactories();
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "write" }));
+
+    expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
 });
 

@@ -31,6 +31,10 @@ interface CommentInputProps {
   submitLabel?: string;
   isSubmitting?: boolean;
   initiativeId: number;
+  /** The thing being commented on, as a reference (`document:12`). A comment
+   *  does not point at what it is a remark about — that is the page it is
+   *  already on — so it is never offered. */
+  subject?: string | null;
   error?: string | null;
   onClearError?: () => void;
   autoFocus?: boolean;
@@ -54,6 +58,7 @@ export const CommentInput = ({
   submitLabel,
   isSubmitting = false,
   initiativeId,
+  subject,
   error,
   onClearError,
   autoFocus = false,
@@ -222,6 +227,7 @@ export const CommentInput = ({
           <MentionPopover
             active={mentionTrigger}
             initiativeId={initiativeId}
+            subject={subject}
             anchor={mentionAnchor}
             onSelect={handleMentionSelect}
             onClose={handleCloseMention}

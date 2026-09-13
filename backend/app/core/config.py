@@ -737,6 +737,21 @@ class Settings(BaseSettings):
     # let billing start signing with it, then drop the old block. A token is
     # accepted if any block verifies it. (The shared secret takes one value —
     # rotating it is a separate change on both sides.)
+    # --- A bundled service's own channel ----------------------------------
+    # An app this deployment ships rather than installs from the marketplace,
+    # named by the ``public_id`` its registration carries, plus the secret it
+    # signs its calls on that channel with.
+    #
+    # What it is for: a reference is minted per sector, so one party's name for
+    # a guild is unrelated to another's and only this deployment holds both. A
+    # bundled service that has to reconcile two of them asks here.
+    #
+    # Named rather than inferred from a grant: ``delegation`` says an app may
+    # act for a member, which is a different question. Either value unset ⇒ the
+    # channel answers 503 and nothing on it is reachable.
+    BUNDLED_SERVICE_PUBLIC_ID: str | None = None
+    BUNDLED_SERVICE_SHARED_SECRET: str | None = None
+
     BILLING_PUBLIC_KEY_PEM: str | None = None
     BILLING_HMAC_SECRET: str | None = None
     BILLING_AUDIENCE: str = "initiative:billing"

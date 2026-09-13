@@ -112,7 +112,7 @@ describe("buildTaskConditions", () => {
     const params = buildTaskListParams(spec({ include_archived: true }), { projectId: 1 });
 
     expect(params.include_archived).toBe(true);
-    expect(fields(params.conditions as never)).not.toContain("is_archived");
+    expect(fields(params.conditions as never)).not.toContain("archived_at");
   });
 
   it("omits include_archived entirely when it is off", () => {

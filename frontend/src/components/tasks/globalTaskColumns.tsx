@@ -27,7 +27,9 @@ import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {
   activeGuildId: number | null;
-  isUpdatingTaskStatus: boolean;
+  /** Whether THIS row has a status change in flight — one row saving must not
+   *  disable the rest of the table. */
+  isUpdatingTask: (task: TaskListRead) => boolean;
   changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
   changeTaskStatusById: (task: TaskListRead, statusId: number) => Promise<void>;
   fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
@@ -45,7 +47,7 @@ interface GlobalTaskColumnsOptions {
 
 export function globalTaskColumns({
   activeGuildId,
-  isUpdatingTaskStatus,
+  isUpdatingTask,
   changeTaskStatus,
   changeTaskStatusById,
   fetchProjectStatuses,
@@ -114,14 +116,14 @@ export function globalTaskColumns({
           <Checkbox
             checked={task.task_status.category === "done"}
             onCheckedChange={(value) => {
-              if (isUpdatingTaskStatus) {
+              if (isUpdatingTask(task)) {
                 return;
               }
               const targetCategory: TaskStatusCategory = value ? "done" : "in_progress";
               void changeTaskStatus(task, targetCategory);
             }}
             className="h-6 w-6"
-            disabled={isUpdatingTaskStatus}
+            disabled={isUpdatingTask(task)}
             aria-label={
               task.task_status.category === "done"
                 ? t("checkbox.markInProgress")
@@ -210,7 +212,7 @@ export function globalTaskColumns({
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>
             <TaskChecklistProgress
-              progress={task.subtask_progress}
+              progress={task.checklist_progress}
               className="mt-2 max-w-[200px]"
             />
           </div>
@@ -332,7 +334,7 @@ export function globalTaskColumns({
           <TaskPrioritySelector
             task={task}
             guildId={task.guild_id ?? activeGuildId}
-            disabled={isUpdatingTaskStatus}
+            disabled={isUpdatingTask(task)}
           />
         );
       },
@@ -375,7 +377,7 @@ export function globalTaskColumns({
             <TaskStatusSelector
               task={task}
               activeGuildId={activeGuildId}
-              isUpdatingTaskStatus={isUpdatingTaskStatus}
+              isUpdatingTaskStatus={isUpdatingTask(task)}
               changeTaskStatusById={changeTaskStatusById}
               fetchProjectStatuses={fetchProjectStatuses}
               projectStatusCache={projectStatusCache}

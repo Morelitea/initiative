@@ -14,6 +14,11 @@
   "submit": "Envoyer",
   "reset": "Réinitialiser",
   "done": "Terminé",
+  "toolArchiveFilter": {
+    "label": "Afficher",
+    "active": "Actifs",
+    "archived": "Archivés"
+  },
   "yes": "Oui",
   "no": "Non",
   "ok": "OK",
@@ -86,6 +91,17 @@
   },
   "deletedUserName": "Utilisateur supprimé #{{id}}",
   "toolSettings": {
+    "archive": {
+      "title": "Archive",
+      "isActive": "Archiver signifie que c'est terminé. L'élément et tout ce qu'il contient passent en lecture seule jusqu'à ce que vous le restauriez.",
+      "isArchived": "Archivé. Cet élément et tout ce qu'il contient sont en lecture seule jusqu'à ce que vous le restauriez.",
+      "archive": "Archiver",
+      "unarchive": "Désarchiver",
+      "archiving": "Archivage…",
+      "unarchiving": "Désarchivage…",
+      "archived": "« {{name}} » archivé",
+      "unarchived": "« {{name}} » est de retour"
+    },
     "title": "Paramètres",
     "description": "Gérez les détails, l'accès et les options avancées.",
     "tabDetails": "Détails",
@@ -168,5 +184,7 @@
     "permission": "Initiative a besoin d'accéder à votre appareil photo et à vos photos. Autorisez-le dans les réglages de l'appareil, puis réessayez.",
     "unavailable": "Cet appareil n'a pas d'appareil photo pour prendre une photo.",
     "failed": "Cette photo n'a pas pu être lue. Réessayez."
-  }
+  },
+  "archiveError": "Impossible d'archiver cet élément. Veuillez réessayer.",
+  "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer."
 }

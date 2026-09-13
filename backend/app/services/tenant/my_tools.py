@@ -30,6 +30,7 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.services import permissions as permissions_service
+from app.services.tenant import archive as archive_service
 from app.services.tenant import posts as posts_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import search as search_service
@@ -93,10 +94,13 @@ def scope_conditions(
     if enabled is not None:
         conditions.append(enabled)
 
+    # Archived work is off the working list, for every tool — the guild-wide
+    # lists say the same. Every tool carries the archive, so this is read off
+    # the model rather than named per kind.
+    conditions.append(archive_service.archive_filter_clause(model, archived=None))
+
     if tool is Tool.project:
-        # An archived project and a template are both off the working list;
-        # the guild-wide project list says the same.
-        conditions.append(Project.is_archived.is_(False))
+        # A template is the project list's own second state, and not work.
         conditions.append(Project.is_template.is_(False))
 
     if tool is Tool.post:

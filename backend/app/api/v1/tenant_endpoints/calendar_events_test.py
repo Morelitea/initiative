@@ -787,12 +787,20 @@ class TestGuildCalendarEvents:
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         document = await create_document(session, a.initiative, a.user)
         calendar = await create_guild_calendar(session, a.guild, a.user)
-        event = await create_calendar_event(session, calendar, a.user)
 
-        response = await client.put(
-            a.g(f"/calendar-events/{event.id}/documents"),
+        # Asked of the create path, which is where an event names its documents
+        # now that the per-tool attach route is one generic one. The generic
+        # surface refuses the same pairing — see ``relationships_test``.
+        response = await client.post(
+            a.g("/calendar-events/"),
             headers=a.headers,
-            json=[document.id],
+            json={
+                "title": "Guild night",
+                "calendar_id": calendar.id,
+                "start_at": "2026-10-01T18:00:00Z",
+                "end_at": "2026-10-01T20:00:00Z",
+                "document_ids": [document.id],
+            },
         )
         assert response.status_code == 400
         assert (

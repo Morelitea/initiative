@@ -5,12 +5,12 @@ from pydantic import ConfigDict
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
-class GenerateSubtasksResponse(SanitizedBaseModel):
-    """Response schema for subtask generation."""
+class GenerateChecklistResponse(SanitizedBaseModel):
+    """Suggested checklist lines, as text — the caller decides which to keep."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    subtasks: list[str]
+    items: list[str]
 
 
 class GenerateDescriptionResponse(SanitizedBaseModel):

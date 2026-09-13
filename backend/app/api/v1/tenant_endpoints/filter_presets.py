@@ -62,7 +62,7 @@ async def _require_manageable_project(
         guild_id=guild_context.guild_id,
         access="read",
     )
-    if project.is_archived:
+    if project.archived_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.IS_ARCHIVED,

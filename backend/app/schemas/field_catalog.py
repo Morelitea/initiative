@@ -10,7 +10,7 @@ real unions rather than bare strings and a client cannot name a control or an
 operator this build does not have.
 """
 
-from typing import List
+from typing import Any, List
 
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.query import FilterOp
@@ -56,6 +56,19 @@ class RelationDescription(SanitizedBaseModel):
     dataset: str
 
 
+class DefaultFilter(SanitizedBaseModel):
+    """One condition a new statement about this dataset starts with.
+
+    Shaped as the builder's own condition so a client seeds its filter rows
+    with it rather than translating: what comes back is an ordinary filter,
+    shown like every other and removed the same way.
+    """
+
+    field: str
+    op: FilterOp
+    value: Any = None
+
+
 class FieldCatalogResponse(SanitizedBaseModel):
     """Every field a dataset offers, in the order a client lists them."""
 
@@ -64,3 +77,9 @@ class FieldCatalogResponse(SanitizedBaseModel):
     #: What else it can be read alongside. A client offering a related field
     #: reads that dataset's own description for what may be named.
     relations: List[RelationDescription] = []
+    #: What a new statement leaves out until its author says otherwise —
+    #: archived rows and templates. A starting point rather than a rule: the
+    #: conditions arrive as ordinary filter rows, and deleting one asks the
+    #: question it was keeping out. The trash is NOT here; the query surface
+    #: removes it in the database, and nothing can ask for it back.
+    default_filters: List[DefaultFilter] = []

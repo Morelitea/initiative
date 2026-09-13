@@ -31,6 +31,7 @@ from app.testing.delegation import (
     foreign_jwks,
     mint_delegation_token,
     register_delegate,
+    delegate_guild_ref,
 )
 
 
@@ -66,12 +67,12 @@ async def _acting_in_a_guild_that_installed_it(session: AsyncSession, email: str
     return await delegate_subject(session, guild, user), guild
 
 
-async def _call_as_delegate(client: AsyncClient, subject: str, guild_id: int) -> int:
+async def _call_as_delegate(client: AsyncClient, subject: str, guild_ref: str) -> int:
     response = await client.get(
         "/api/v1/users/me",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild_id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_ref=guild_ref)}"
             )
         },
     )
@@ -87,7 +88,12 @@ async def test_a_granted_registration_verifies_the_token(
     )
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, subject, guild.id) == 200
+    assert (
+        await _call_as_delegate(
+            client, subject, await delegate_guild_ref(session, guild)
+        )
+        == 200
+    )
 
 
 @pytest.mark.integration
@@ -99,7 +105,12 @@ async def test_the_kill_switch_ends_delegation(
     )
     await register_delegate(session, enabled=False)
 
-    assert await _call_as_delegate(client, subject, guild.id) == 401
+    assert (
+        await _call_as_delegate(
+            client, subject, await delegate_guild_ref(session, guild)
+        )
+        == 401
+    )
 
 
 @pytest.mark.integration
@@ -112,7 +123,12 @@ async def test_keys_without_the_grant_verify_nothing(
     )
     await register_delegate(session, grants=())
 
-    assert await _call_as_delegate(client, subject, guild.id) == 401
+    assert (
+        await _call_as_delegate(
+            client, subject, await delegate_guild_ref(session, guild)
+        )
+        == 401
+    )
 
 
 @pytest.mark.integration
@@ -124,7 +140,12 @@ async def test_a_kid_no_registration_published_verifies_nothing(
     )
     await register_delegate(session, key_set=delegation_jwks("some-other-generation"))
 
-    assert await _call_as_delegate(client, subject, guild.id) == 401
+    assert (
+        await _call_as_delegate(
+            client, subject, await delegate_guild_ref(session, guild)
+        )
+        == 401
+    )
 
 
 @pytest.mark.integration
@@ -146,7 +167,12 @@ async def test_a_shared_kid_does_not_shadow_the_app_that_signed(
     )
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, subject, guild.id) == 200
+    assert (
+        await _call_as_delegate(
+            client, subject, await delegate_guild_ref(session, guild)
+        )
+        == 200
+    )
 
 
 @pytest.mark.integration
@@ -190,7 +216,7 @@ async def test_an_app_acts_only_where_it_was_installed(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"
             )
         },
     )
@@ -202,7 +228,7 @@ async def test_an_app_acts_only_where_it_was_installed(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"
             )
         },
     )
@@ -230,7 +256,7 @@ async def test_a_switched_off_install_stops_the_app(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"
             )
         },
     )
@@ -245,7 +271,10 @@ async def test_a_token_naming_no_guild_is_refused_not_an_error(
     refused the way every other delegation refusal is rather than faulting."""
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, "subject-for-no-guild", 9_999_999) == 401
+    assert (
+        await _call_as_delegate(client, "subject-for-no-guild", "gapp_never-minted")
+        == 401
+    )
 
 
 @pytest.mark.integration
@@ -280,4 +309,9 @@ async def test_another_apps_install_does_not_let_this_one_act(
 
     # No subject exists for this app here, and the one the other app's install
     # would mint is not one this app may present.
-    assert await _call_as_delegate(client, "not-minted-here", guild.id) == 401
+    assert (
+        await _call_as_delegate(
+            client, "not-minted-here", await delegate_guild_ref(session, guild)
+        )
+        == 401
+    )

@@ -25,6 +25,7 @@ from app.testing.delegation import (
     install_delegate,
     mint_delegation_token,
     register_delegate,
+    delegate_guild_ref,
 )
 from app.testing.factories import create_guild_app
 from app.testing.schema_harness import route_session_to_guild
@@ -108,9 +109,9 @@ async def scene(session: AsyncSession, acting_user):
     return actor, subject
 
 
-def _headers(subject: str, guild_id: int, jti: str) -> dict[str, str]:
+def _headers(subject: str, guild_ref: str, jti: str) -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {mint_delegation_token(subject=subject, guild_id=guild_id, jti=jti)}"
+        "Authorization": f"Bearer {mint_delegation_token(subject=subject, guild_ref=guild_ref, jti=jti)}"
     }
 
 
@@ -125,7 +126,9 @@ async def test_a_live_delegate_is_told_where_the_app_answers(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/apps/{app.id}/service",
-        headers=_headers(subject, guild.id, "svc-ok-001"),
+        headers=_headers(
+            subject, await delegate_guild_ref(session, guild), "svc-ok-001"
+        ),
     )
 
     assert response.status_code == 200, response.text
@@ -149,7 +152,9 @@ async def test_the_answer_says_nothing_about_the_person(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/apps/{app.id}/service",
-        headers=_headers(subject, guild.id, "svc-shape-001"),
+        headers=_headers(
+            subject, await delegate_guild_ref(session, guild), "svc-shape-001"
+        ),
     )
 
     assert set(response.json()) == {"public_id", "base_url", "available"}
@@ -173,7 +178,9 @@ async def test_a_switched_off_install_still_answers_and_says_so(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/apps/{app.id}/service",
-        headers=_headers(subject, guild.id, "svc-disabled-001"),
+        headers=_headers(
+            subject, await delegate_guild_ref(session, guild), "svc-disabled-001"
+        ),
     )
 
     assert response.status_code == 200, response.text
@@ -225,7 +232,7 @@ async def test_a_delegate_that_may_not_act_is_refused(
     guild, installer = actor.guild, actor.user
     await _register_target(session)
     app = await _install_target(session, guild, installer)
-    headers = _headers(subject, guild.id, f"svc-{case}")
+    headers = _headers(subject, await delegate_guild_ref(session, guild), f"svc-{case}")
 
     # Re-register the delegate with the operator's edit applied. Done after the
     # token is minted, because what is being tested is the check at use rather
@@ -264,7 +271,9 @@ async def test_a_delegate_without_the_directory_grant_is_refused(
     guild, installer = actor.guild, actor.user
     await _register_target(session)
     app = await _install_target(session, guild, installer)
-    headers = _headers(subject, guild.id, "svc-no-directory")
+    headers = _headers(
+        subject, await delegate_guild_ref(session, guild), "svc-no-directory"
+    )
 
     from sqlmodel import delete
 
@@ -308,7 +317,9 @@ async def test_an_app_with_no_service_behind_it_has_no_address(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/apps/{app.id}/service",
-        headers=_headers(subject, guild.id, "svc-no-service-001"),
+        headers=_headers(
+            subject, await delegate_guild_ref(session, guild), "svc-no-service-001"
+        ),
     )
 
     assert response.status_code == 404
@@ -326,7 +337,9 @@ async def test_a_service_this_deployment_never_wired_up_has_no_address(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/apps/{app.id}/service",
-        headers=_headers(subject, guild.id, "svc-unregistered-001"),
+        headers=_headers(
+            subject, await delegate_guild_ref(session, guild), "svc-unregistered-001"
+        ),
     )
 
     assert response.status_code == 404

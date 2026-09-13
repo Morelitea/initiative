@@ -16,6 +16,8 @@ Create Date: 2026-09-01
 
 from alembic import op
 
+from app.db.guild_migrations import guild_schema_names
+
 revision = "20260901_0209"
 down_revision = "20260901_0208"
 branch_labels = None
@@ -80,7 +82,22 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # CASCADE because by the time this runs, the rendered RLS calls it: every
+    # content table's sharing leg is a call to this function, and a rollback to
+    # before it existed is a rollback to a rendering that does not. A plain drop
+    # is refused while anything still calls it, which is every database that has
+    # booted since, so CASCADE is what lets the rollback complete.
     op.execute(
         "DROP FUNCTION IF EXISTS public.resource_access("
-        "text, integer, integer, integer, boolean)"
+        "text, integer, integer, integer, boolean) CASCADE"
     )
+
+    # CASCADE took the policies with it, and a table with row-level security
+    # enabled and no policy on it answers nobody. Provisioning is what writes
+    # policies here, and it skips a schema whose stamp already matches what it
+    # would render — which this drop does not change. Clearing the stamp is what
+    # asks for the rendering back: the next boot re-provisions every guild and
+    # writes the shape that revision's own registry describes.
+    connection = op.get_bind()
+    for schema in guild_schema_names(connection):
+        op.execute(f'COMMENT ON SCHEMA "{schema}" IS NULL')

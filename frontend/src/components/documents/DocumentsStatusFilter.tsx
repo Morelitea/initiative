@@ -1,11 +1,11 @@
-import { LayoutTemplate } from "lucide-react";
+import { Archive, LayoutTemplate } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TOOL_ICONS } from "@/lib/tools";
 
-export const DOCUMENT_STATUSES = ["documents", "templates"] as const;
+export const DOCUMENT_STATUSES = ["documents", "templates", "archived"] as const;
 
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
@@ -15,6 +15,7 @@ export const isDocumentStatus = (value: unknown): value is DocumentStatus =>
 const STATUS_ICONS = {
   documents: TOOL_ICONS[Tool.document],
   templates: LayoutTemplate,
+  archived: Archive,
 } as const;
 
 type DocumentsStatusFilterProps = {
@@ -25,10 +26,13 @@ type DocumentsStatusFilterProps = {
 };
 
 /**
- * Which documents the list is showing. Templates are a state of the same list
- * rather than a separate destination — same cards, filters, and bulk actions —
- * so this sits beside the list the way the projects list splits its own
- * templates out, with both totals visible instead of hidden behind a menu.
+ * Which documents the list is showing. Templates and the archive are states of
+ * the same list rather than separate destinations — same cards, filters, and
+ * bulk actions — so this sits beside the list the way the projects list splits
+ * its own out, with every total visible instead of hidden behind a menu.
+ *
+ * The archived state is not decoration: an archived document is off the live
+ * list, so this is where it is found and where it is taken back out.
  */
 export const DocumentsStatusFilter = ({ value, onChange, counts }: DocumentsStatusFilterProps) => {
   const { t } = useTranslation("documents");

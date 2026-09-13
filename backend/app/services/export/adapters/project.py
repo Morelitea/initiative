@@ -113,7 +113,7 @@ def build_project_item(
 
 
 def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
-    tasks = [t for t in envelope.tasks if not t.is_archived]
+    tasks = [t for t in envelope.tasks if t.archived_at is None]
     loc = export_locale(user)
     generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts

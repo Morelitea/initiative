@@ -10,7 +10,8 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.task import Task, TaskPriority, Subtask
+from app.models.tenant.task import Task, TaskPriority
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant import task_completion
 from app.schemas.tenant.import_data import (
     ImportResult,
@@ -170,7 +171,7 @@ def parse_todoist_csv(csv_content: str) -> Tuple[TodoistParseResult, List[dict]]
     sections: Dict[str, int] = {}  # section_name -> task_count
     tasks: List[dict] = []
     current_section: Optional[str] = None
-    has_subtasks = False
+    has_checklist_items = False
 
     for row in reader:
         row_type = row.get("TYPE", "").strip().lower()
@@ -193,7 +194,7 @@ def parse_todoist_csv(csv_content: str) -> Tuple[TodoistParseResult, List[dict]]
 
             indent = int(row.get("INDENT", "1") or "1")
             if indent > 1:
-                has_subtasks = True
+                has_checklist_items = True
 
             # Get priority (Todoist uses 1-4, where 1 is highest)
             try:
@@ -224,7 +225,7 @@ def parse_todoist_csv(csv_content: str) -> Tuple[TodoistParseResult, List[dict]]
     parse_result = TodoistParseResult(
         sections=section_list,
         task_count=len([t for t in tasks if t["indent"] == 1]),  # Only top-level tasks
-        has_subtasks=has_subtasks,
+        has_checklist_items=has_checklist_items,
     )
 
     return parse_result, tasks
@@ -270,9 +271,8 @@ async def import_todoist_tasks(
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, project_id)
 
-    # Track parent tasks for subtask creation
+    # An indented Todoist row is a step of the row above it, not a task.
     last_parent_task: Optional[Task] = None
-    subtask_position = 0
 
     for task_data in tasks:
         try:
@@ -313,27 +313,26 @@ async def import_todoist_tasks(
                 await session.flush()
 
                 last_parent_task = task
-                subtask_position = 0
                 next_position += 1
                 result.tasks_created += 1
             else:
-                # Subtask (indent > 1)
+                # Indented row (indent > 1)
                 if last_parent_task is None:
                     result.errors.append(
-                        f"Subtask without parent task, skipping: {task_data['title']}"
+                        f"Checklist line without a task, skipping: {task_data['title']}"
                     )
                     result.tasks_failed += 1
                     continue
 
-                subtask = Subtask(
-                    task_id=last_parent_task.id,
-                    content=task_data["title"],
-                    is_completed=False,
-                    position=subtask_position,
-                )
-                session.add(subtask)
-                subtask_position += 1
-                result.subtasks_created += 1
+                last_parent_task.checklist = [
+                    *last_parent_task.checklist,
+                    {
+                        "id": mint_checklist_item_id(),
+                        "text": task_data["title"],
+                        "done": False,
+                    },
+                ]
+                result.checklist_items_created += 1
 
         except Exception as e:
             result.errors.append(
@@ -346,7 +345,7 @@ async def import_todoist_tasks(
     except Exception as e:
         await session.rollback()
         result.tasks_created = 0
-        result.subtasks_created = 0
+        result.checklist_items_created = 0
         result.tasks_failed = len(tasks)
         result.errors = [f"Failed to commit import: {str(e)}"]
 
@@ -496,10 +495,10 @@ async def import_vikunja_tasks(
 
             # Extract task list items and convert remaining HTML to markdown
             description_html = task_data.get("description", "")
-            subtask_items: list[dict] = []
+            checked_items: list[dict] = []
             description: Optional[str] = None
             if description_html:
-                subtask_items, remaining_html = extract_task_list_items(
+                checked_items, remaining_html = extract_task_list_items(
                     description_html
                 )
                 description = html_to_markdown(remaining_html) or None
@@ -511,21 +510,19 @@ async def import_vikunja_tasks(
                 description=description,
                 priority=priority,
                 position=next_position,
+                checklist=[
+                    {
+                        "id": mint_checklist_item_id(),
+                        "text": item["content"],
+                        "done": item["is_completed"],
+                    }
+                    for item in checked_items
+                ],
             )
             task_completion.sync_completed_at(task, categories.get(status_id), now=now)
             session.add(task)
-            await session.flush()  # Get task ID for subtasks
-
-            # Create subtasks from extracted task list items
-            for position, item in enumerate(subtask_items):
-                subtask = Subtask(
-                    task_id=task.id,
-                    content=item["content"],
-                    is_completed=item["is_completed"],
-                    position=position,
-                )
-                session.add(subtask)
-                result.subtasks_created += 1
+            await session.flush()
+            result.checklist_items_created += len(checked_items)
 
             next_position += 1
             result.tasks_created += 1
@@ -541,7 +538,7 @@ async def import_vikunja_tasks(
     except Exception as e:
         await session.rollback()
         result.tasks_created = 0
-        result.subtasks_created = 0
+        result.checklist_items_created = 0
         result.tasks_failed = len(tasks)
         result.errors = [f"Failed to commit import: {str(e)}"]
 
@@ -592,7 +589,7 @@ def parse_ticktick_csv(csv_content: str) -> TickTickParseResult:
         title = row.get("Title", "").strip()
         parent_id = row.get("parentId", "").strip()
 
-        # Skip subtasks for list/column counting (they'll be imported with parent)
+        # Child rows land on their parent's checklist, not in the count
         if parent_id:
             continue
 
@@ -662,9 +659,9 @@ async def import_ticktick_tasks(
     csv_data = "".join(lines[header_idx:])
     reader = csv.DictReader(io.StringIO(csv_data))
 
-    # Collect tasks and subtasks
+    # Collect tasks and the child rows that become their checklists
     tasks_by_id: Dict[str, dict] = {}
-    subtasks: List[dict] = []
+    child_rows: List[dict] = []
 
     for row in reader:
         list_name = row.get("List Name", "").strip()
@@ -691,7 +688,7 @@ async def import_ticktick_tasks(
         }
 
         if parent_id:
-            subtasks.append(task_data)
+            child_rows.append(task_data)
         else:
             tasks_by_id[task_id] = task_data
 
@@ -709,7 +706,7 @@ async def import_ticktick_tasks(
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, project_id)
 
-    # Track created tasks for subtask linking
+    # Track created tasks so child rows can find their parent
     created_tasks: Dict[str, Task] = {}
 
     # Import tasks
@@ -761,31 +758,27 @@ async def import_ticktick_tasks(
             )
             result.tasks_failed += 1
 
-    # Import subtasks
-    subtask_positions: Dict[str, int] = {}  # parent_id -> next position
-    for subtask_data in subtasks:
-        parent_task = created_tasks.get(subtask_data["parent_id"])
+    # Fold the child rows onto their parents' checklists
+    for child in child_rows:
+        parent_task = created_tasks.get(child["parent_id"])
         if not parent_task:
             # Parent wasn't imported (maybe different list or failed)
             continue
 
         try:
-            parent_id = subtask_data["parent_id"]
-            position = subtask_positions.get(parent_id, 0)
-            subtask_positions[parent_id] = position + 1
-
-            subtask = Subtask(
-                task_id=parent_task.id,
-                content=subtask_data["title"],
-                is_completed=subtask_data["status"] == 1,
-                position=position,
-            )
-            session.add(subtask)
-            result.subtasks_created += 1
+            parent_task.checklist = [
+                *parent_task.checklist,
+                {
+                    "id": mint_checklist_item_id(),
+                    "text": child["title"],
+                    "done": child["status"] == 1,
+                },
+            ]
+            result.checklist_items_created += 1
 
         except Exception as e:
             result.errors.append(
-                f"Failed to import subtask '{subtask_data.get('title', 'unknown')}': {str(e)}"
+                f"Failed to import checklist line '{child.get('title', 'unknown')}': {str(e)}"
             )
 
     try:
@@ -793,7 +786,7 @@ async def import_ticktick_tasks(
     except Exception as e:
         await session.rollback()
         result.tasks_created = 0
-        result.subtasks_created = 0
+        result.checklist_items_created = 0
         result.tasks_failed = len(tasks_by_id)
         result.errors = [f"Failed to commit import: {str(e)}"]
 

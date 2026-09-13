@@ -22,7 +22,6 @@ from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventTag,
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -44,6 +43,7 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
     resolve_property_values,
 )
+from app.services.tenant import tags as tags_service
 
 
 class CalendarImporter:
@@ -231,7 +231,9 @@ class CalendarImporter:
             else:
                 tags_matched += 1
             session.add(
-                CalendarEventTag(calendar_event_id=event.id, tag_id=resolved.id)
+                tags_service.tag_edge(
+                    tags_service.TAG_LINKS["calendar_event"], event.id, resolved.id
+                )
             )
 
         attached = await resolve_property_values(

@@ -6,6 +6,11 @@ import { useTranslation } from "react-i18next";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateGalleryDialog } from "@/components/initiativeTools/galleries/CreateGalleryDialog";
 import { GalleryCard } from "@/components/initiativeTools/galleries/GalleryCard";
+import {
+  archivedParam,
+  ToolArchiveFilter,
+  type ToolArchiveState,
+} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -44,8 +49,13 @@ export const GalleriesView = ({ fixedInitiativeId, canCreate }: GalleriesViewPro
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useDebouncedValue(searchQuery, 300);
 
+  // Which of the tool's two states the list is showing. Archived rows are
+  // off the live list, so this is the only place they can be reached.
+  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+
   const galleriesQuery = useGalleriesList({
     initiative_id: fixedInitiativeId,
+    archived: archivedParam(archiveState),
     ...(search.trim() ? { search: search.trim() } : {}),
   });
 
@@ -71,6 +81,9 @@ export const GalleriesView = ({ fixedInitiativeId, canCreate }: GalleriesViewPro
   return (
     <div className="space-y-6">
       <ToolListToolbar
+        leading={
+          <ToolArchiveFilter tool={Tool.gallery} value={archiveState} onChange={setArchiveState} />
+        }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,

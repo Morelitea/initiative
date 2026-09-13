@@ -7,10 +7,12 @@ login role, assume the billing context exactly as the endpoints do
 (``set_billing_context``), and assert the role is denied everything outside
 its four verbs:
 
-* columns beyond the lifecycle surface of ``guilds`` (name, description, …)
-  and beyond the tier/cap surface of ``guild_administration``, where the caps
+* columns beyond the lifecycle surface of ``guilds`` (description, created_by,
+  …) and beyond the tier/cap surface of ``guild_administration``, where the caps
   and plan label now live (migration 0178) — ``guild_auth_enabled`` shares that
-  table but is not billing's, so it must be denied;
+  table but is not billing's, so it must be denied. ``guilds.name`` is the one
+  addition (migration 0257): readable so a page can title itself, and readable
+  only — writing it is refused like the rest;
 * member identities (``guild_memberships.user_id``) — headcount only;
 * any other shared table (``users`` is the canary);
 * rows of any guild other than the pinned one (RLS, both read and write);
@@ -109,7 +111,14 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
 
     # --- Column confinement: nothing beyond the tier/cap surface ------------
     await set_billing_context(s, guild_id=guild_a.id)
-    await _denied(s, f"SELECT name FROM guilds WHERE id = {guild_a.id}")
+    # ``name`` is readable (migration 0257) so a billing page can title itself.
+    # It is the one column beyond the lifecycle surface, and read-only.
+    named = (
+        await s.exec(
+            text("SELECT name FROM guilds WHERE id = :gid"), params={"gid": guild_a.id}
+        )
+    ).one()
+    assert named.name == "Billing Probe A"
     await _denied(s, f"SELECT description FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"SELECT created_by FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"UPDATE guilds SET name = 'pwned' WHERE id = {guild_a.id}")
@@ -151,6 +160,13 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
         )
     ).one_or_none()
     assert invisible is None, "RLS must hide every guild but the pinned one"
+
+    invisible_name = (
+        await s.exec(
+            text("SELECT name FROM guilds WHERE id = :gid"), params={"gid": guild_b.id}
+        )
+    ).one_or_none()
+    assert invisible_name is None, "the name grant is pinned like every other read"
 
     cross_caps = (
         await s.exec(

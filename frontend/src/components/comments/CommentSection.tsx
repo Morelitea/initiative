@@ -11,6 +11,8 @@ import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/us
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { entityMentionSyntax } from "@/lib/mentions";
+import { referenceTypeFor } from "@/lib/references";
+import { referenceRef } from "@/lib/smartChips";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 import { CommentInput } from "./CommentInput";
@@ -80,6 +82,14 @@ export const CommentSection = ({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const { user } = useAuth();
+
+  // What this thread is a remark about. A comment on a page does not link to
+  // the page it is written on, so no composer here offers it — the box at the
+  // top, and every reply and edit below.
+  const subject = useMemo(
+    () => referenceRef(referenceTypeFor(entityType), entityId),
+    [entityType, entityId]
+  );
 
   const createComment = useCreateComment({
     onSuccess: (comment) => {
@@ -222,6 +232,7 @@ export const CommentSection = ({
               onSubmit={handleSubmit}
               isSubmitting={createComment.isPending}
               initiativeId={initiativeId}
+              subject={subject}
               error={error}
               onClearError={() => setError(null)}
             />
@@ -244,6 +255,7 @@ export const CommentSection = ({
                   canModerate={canModerate}
                   currentUserId={user?.id}
                   initiativeId={initiativeId}
+                  subject={subject}
                   isSubmitting={
                     createComment.isPending || deleteComment.isPending || updateComment.isPending
                   }

@@ -41,14 +41,14 @@ function Grab(): null {
   return null;
 }
 
-function Harness() {
+function Harness({ subject }: { subject?: string }) {
   const extension = useMemo(() => documentExtension({ collaborative: false, editable: true }), []);
   return (
     <SmartChipScope>
       <LexicalExtensionComposer extension={extension} contentEditable={null}>
         <TooltipProvider>
           <Grab />
-          <Plugins showToolbar={false} initiativeId={7} supportsEntityMentions />
+          <Plugins showToolbar={false} initiativeId={7} subject={subject} supportsEntityMentions />
         </TooltipProvider>
       </LexicalExtensionComposer>
     </SmartChipScope>
@@ -98,5 +98,45 @@ describe("probe: # in a document", () => {
       }
     );
     expect(screen.getByText(/Only this document.s initiative/)).toBeInTheDocument();
+  });
+});
+
+describe("a page does not point at itself", () => {
+  /** The page the link would open is the page the words are on. The server is
+   *  what leaves it out — asked before `limit`, so a picker wanting five rows
+   *  is offered five — and this is the half that asks. */
+  it("names what is being written in, so it is not offered", async () => {
+    const asked: (string | null)[] = [];
+    server.use(
+      guildHttp.get("/search/suggest", ({ request }) => {
+        asked.push(new URL(request.url).searchParams.get("subject"));
+        return HttpResponse.json([]);
+      })
+    );
+
+    renderPage(() => <Harness subject="document:42" />);
+    await waitFor(() => expect(editor).toBeTruthy());
+    type("#ship");
+
+    await waitFor(() => expect(asked).toContain("document:42"), { timeout: 4000 });
+  });
+
+  it("asks for everything when there is nothing to be written in yet", async () => {
+    const asked: (string | null)[] = [];
+    server.use(
+      guildHttp.get("/search/suggest", ({ request }) => {
+        asked.push(new URL(request.url).searchParams.get("subject"));
+        return HttpResponse.json([suggestion]);
+      })
+    );
+
+    renderPage(() => <Harness />);
+    await waitFor(() => expect(editor).toBeTruthy());
+    type("#ship");
+
+    await waitFor(() => expect(screen.getByText("Ship the release")).toBeInTheDocument(), {
+      timeout: 4000,
+    });
+    expect(asked.every((value) => value === null)).toBe(true);
   });
 });

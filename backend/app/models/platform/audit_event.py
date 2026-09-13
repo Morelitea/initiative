@@ -54,8 +54,12 @@ class AuditEvent(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    #: Who did it. No FK — see the class docstring.
-    actor_user_id: int = Field(sa_column=Column(Integer, nullable=False))
+    #: Who did it. No FK — see the class docstring. NULL where nobody signed
+    #: in did it: a refused sign-in is an unauthenticated request, and the
+    #: account it named is the ``target_user_id``, not the actor.
+    actor_user_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
     #: Who it was done to, when the subject is an account. No FK.
     target_user_id: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)

@@ -12,6 +12,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
+from app.core.references import parse_ref
 from app.core.search import SearchEntityType
 from app.db.search_index import entity_types
 from app.models.platform.user import User
@@ -30,6 +31,11 @@ _ARCHIVED_DESCRIPTION = (
 _TEMPLATE_DESCRIPTION = (
     "Omit for both. ``true`` returns only templates (a template picker), "
     "``false`` only real content (a picker choosing where content goes)."
+)
+_SUBJECT_DESCRIPTION = (
+    "The thing being written in, as a reference (``document:12``). It is left "
+    "out of the answer: a thing does not point at itself. A reference that "
+    "names nothing narrows nothing."
 )
 _TYPE_DESCRIPTION = (
     "Restrict to these entity types. Omit for the default scope "
@@ -89,6 +95,7 @@ async def recent_guild(
         default=None, description="Restrict to one initiative."
     ),
     template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    subject: Optional[str] = Query(default=None, description=_SUBJECT_DESCRIPTION),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
     """What a picker offers before anything has been typed.
@@ -105,6 +112,7 @@ async def recent_guild(
             types=types,
             initiative_id=initiative_id,
             template=template,
+            subject=parse_ref(subject) if subject else None,
         ),
         limit=limit,
     )
@@ -123,6 +131,7 @@ async def suggest_guild(
         default=None, description="Restrict to one initiative."
     ),
     template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    subject: Optional[str] = Query(default=None, description=_SUBJECT_DESCRIPTION),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
     """Titles for the command palette — a way to reach one thing quickly.
@@ -139,6 +148,7 @@ async def suggest_guild(
             types=types,
             initiative_id=initiative_id,
             template=template,
+            subject=parse_ref(subject) if subject else None,
         ),
         limit=limit,
     )

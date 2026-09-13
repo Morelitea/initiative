@@ -95,7 +95,7 @@ async def export_tasks(
         description=(
             "Report layout. Markdown: a table (default) or a GitHub-style task "
             "list (checklist). PDF: the default table, or 'detailed' for a "
-            "one-task-per-page report with description, subtasks and comments. "
+            "one-task-per-page report with description, checklist and comments. "
             "Ignored by csv/xlsx."
         ),
     ),

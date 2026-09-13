@@ -14,8 +14,9 @@ import { useTranslation } from "react-i18next";
 import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
 import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/InitiativeSettingsDangerTab";
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
+import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
-import { useDeleteInitiative, useUpdateInitiative } from "@/hooks/useInitiatives";
+import { useDeleteInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -29,14 +30,8 @@ export const InitiativeSettingsDangerPage = () => {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const updateInitiative = useUpdateInitiative({
-    onSuccess: () => {
-      toast.success(t("settings.updated"));
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:settings.updateError"));
-    },
-  });
+  const archiveInitiative = useArchiveEntity();
+  const unarchiveInitiative = useUnarchiveEntity();
 
   const deleteInitiative = useDeleteInitiative({
     onSuccess: () => {
@@ -60,13 +55,13 @@ export const InitiativeSettingsDangerPage = () => {
     <>
       <InitiativeSettingsDangerTab
         isDefault={initiative.is_default}
-        isArchived={initiative.is_archived}
+        isArchived={initiative.archived_at !== null}
         canArchiveInitiative={isGuildAdmin}
-        isArchiving={updateInitiative.isPending}
+        isArchiving={archiveInitiative.isPending || unarchiveInitiative.isPending}
         onToggleArchive={() =>
-          updateInitiative.mutate({
-            initiativeId,
-            data: { is_archived: !initiative.is_archived },
+          (initiative.archived_at === null ? archiveInitiative : unarchiveInitiative).mutate({
+            entityType: "initiative",
+            entityId: initiativeId,
           })
         }
         canDeleteInitiative={canDeleteInitiative}

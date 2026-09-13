@@ -44,7 +44,6 @@ def list_loader_options() -> list:
         # The question it asks, if it asks one. A board renders its polls, so
         # the options come with the row rather than costing a query per card.
         selectinload(Post.poll).selectinload(PostPoll.options),
-        tags_service.TOOL_TAG_LINKS[Tool.post].load_options(),
     ]
 
 
@@ -437,6 +436,7 @@ async def get_post_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=PostMessages.NOT_FOUND,
         )
+    await tags_service.annotate_tags(session, [post])
     return post
 
 

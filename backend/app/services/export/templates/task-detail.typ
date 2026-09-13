@@ -1,4 +1,4 @@
-// Detailed task report: one task per page, with description, subtasks and
+// Detailed task report: one task per page, with description, checklist and
 // comments. All data arrives as ONE json string via sys.inputs (never
 // interpolated into this source) — user text stays data. The template holds
 // NO natural-language content: every field label arrives already localized
@@ -208,12 +208,12 @@
     #text(fill: luma(150), style: "italic", labels.at("noDescription", default: ""))
   ]
 
-  // Subtasks (checkboxes from completion state).
-  let subs = task.at("subtasks", default: ())
-  if subs.len() > 0 {
-    section(labels.at("subtasks", default: "Subtasks"))
-    for sub in subs [
-      #box(if sub.at("done", default: false) [☑] else [☐]) #sub.at("content", default: "")
+  // Checklist (checkboxes from completion state).
+  let steps = task.at("checklist", default: ())
+  if steps.len() > 0 {
+    section(labels.at("checklist", default: "Checklist"))
+    for step in steps [
+      #box(if step.at("done", default: false) [☑] else [☐]) #step.at("text", default: "")
       #linebreak()
     ]
   }

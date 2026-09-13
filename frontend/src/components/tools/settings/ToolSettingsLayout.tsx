@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
+import { canUseArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
 import {
   type ToolMutation,
   type ToolSettingsEntity,
@@ -126,9 +127,12 @@ export const ToolSettingsLayout = ({
       label: tab.label,
       path: sectionPath(tab.value),
     })),
-    // Advanced holds a tool's own extra operations plus deletion, so it is
-    // offered only when this entity has one of them to offer.
-    ...(advancedExtra || isOwner
+    // Advanced holds a tool's own extra operations, archiving, and deletion,
+    // so it is offered only when this entity has one of them to offer. The
+    // archive leg reads its own answer rather than `canManage`: an archived
+    // entity caps that at read, which would hide the tab that holds the only
+    // way back out.
+    ...(advancedExtra || isOwner || canUseArchiveCard(entity)
       ? [
           {
             value: "advanced",

@@ -25,6 +25,8 @@ import {
   sanitizeRowFmt,
 } from "@/lib/spreadsheet/styles";
 
+import { SPREADSHEET_ORIGINS } from "./origins";
+
 /**
  * Collaborative store for one sheet's formatting structures (schema v2's
  * model, now per sheet): per-column, per-row, and per-cell style/format
@@ -242,7 +244,7 @@ export const useSpreadsheetFormatting = ({
         const next = applyColumnPatch(yColumns.get(key) as ColumnFmt, patch);
         if (next) yColumns.set(key, next);
         else yColumns.delete(key);
-      }, "spreadsheet-fmt-edit");
+      }, SPREADSHEET_ORIGINS.FMT_EDIT);
     },
     [yDoc, yColumns]
   );
@@ -259,7 +261,7 @@ export const useSpreadsheetFormatting = ({
         const next = applyRowPatch(yRows.get(key) as RowFmt, patch);
         if (next) yRows.set(key, next);
         else yRows.delete(key);
-      }, "spreadsheet-fmt-edit");
+      }, SPREADSHEET_ORIGINS.FMT_EDIT);
     },
     [yDoc, yRows]
   );
@@ -276,7 +278,7 @@ export const useSpreadsheetFormatting = ({
         const next = applyCellPatch(yCellStyles.get(key) as CellFmt, patch);
         if (next) yCellStyles.set(key, next);
         else yCellStyles.delete(key);
-      }, "spreadsheet-fmt-edit");
+      }, SPREADSHEET_ORIGINS.FMT_EDIT);
     },
     [yDoc, yCellStyles]
   );
@@ -287,14 +289,14 @@ export const useSpreadsheetFormatting = ({
       yDoc.transact(() => {
         yMeta.set(META_FROZEN_ROWS, clampFrozen(next.rows));
         yMeta.set(META_FROZEN_COLS, clampFrozen(next.cols));
-      }, "spreadsheet-fmt-edit");
+      }, SPREADSHEET_ORIGINS.FMT_EDIT);
     },
     [yDoc, yMeta]
   );
 
   const batch = useCallback(
     (fn: () => void) => {
-      if (yDoc) yDoc.transact(fn, "spreadsheet-fmt-batch");
+      if (yDoc) yDoc.transact(fn, SPREADSHEET_ORIGINS.FMT_BATCH);
       else fn();
     },
     [yDoc]
@@ -315,7 +317,7 @@ export const useSpreadsheetFormatting = ({
         for (const [k, v] of Object.entries(next.cellStyles)) yCellStyles.set(k, v);
         yMeta.set(META_FROZEN_ROWS, clampFrozen(next.frozen.rows));
         yMeta.set(META_FROZEN_COLS, clampFrozen(next.frozen.cols));
-      }, "spreadsheet-fmt-replace-all");
+      }, SPREADSHEET_ORIGINS.FMT_REPLACE_ALL);
     },
     [yDoc, yColumns, yRows, yCellStyles, yMeta]
   );

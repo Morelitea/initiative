@@ -1186,7 +1186,13 @@
     "empty": "Nothing has been recorded yet.",
     "pageOf": "Page {{page}} of {{total}} entries",
     "actions": {
-      "user.avatar_removed": "Profile picture removed"
+      "user.avatar_removed": "Profile picture removed",
+      "auth.signed_in": "Signed in",
+      "auth.sign_in_failed": "Sign-in refused",
+      "auth.signed_out": "Signed out",
+      "auth.password_changed": "Password changed",
+      "auth.identity_linked": "Single sign-on linked",
+      "auth.refresh_reuse_detected": "Reused session token rejected"
     }
   },
   "account": {

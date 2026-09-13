@@ -12,7 +12,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
    collision, create a new definition named ``<name>_<type>`` instead
    of mutating the target's existing one.
 7. Insert each task; resolve status / tag / assignee / property refs
-   via the maps; insert subtasks and property values.
+   via the maps; insert property values.
 8. Return :class:`ProjectImportResult` so the UI can warn about dropped
    assignees etc.
 """
@@ -33,9 +33,7 @@ from app.models.tenant.property import (
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.tenant.tag import ProjectTag, TaskTag
 from app.models.tenant.task import (
-    Subtask,
     Task,
     TaskAssignee,
     TaskStatus,
@@ -49,6 +47,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectImportResult,
 )
+from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -57,6 +56,7 @@ from app.services.import_engine.common import (
     handle_key,
     resolve_property_definitions,
 )
+from app.services.tenant import tags as tags_service
 
 
 async def import_project(
@@ -110,7 +110,7 @@ async def import_project(
         icon=envelope.project.icon,
         description=envelope.project.description,
         is_template=envelope.project.is_template,
-        is_archived=envelope.project.is_archived,
+        archived_at=envelope.project.archived_at,
         start_date=envelope.project.start_date,
         end_date=envelope.project.end_date,
         initiative_id=target_initiative.id,
@@ -178,7 +178,11 @@ async def import_project(
         else:
             tag_match_count += 1
         tag_name_to_id[t.name] = tag_id.id
-        session.add(ProjectTag(project_id=project.id, tag_id=tag_id.id))
+        session.add(
+            tags_service.tag_edge(
+                tags_service.TAG_LINKS["project"], project.id, tag_id.id
+            )
+        )
 
     # 4. Property definitions → (name, type) → id map (shared conventions:
     # match by name+type with option compatibility, rename on collision).
@@ -265,7 +269,7 @@ async def _import_task(
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
 ) -> int:
-    """Insert one task, its subtasks, tags, assignees, and property
+    """Insert one task, its checklist, tags, assignees, and property
     values. Returns the number of distinct assignees matched & linked.
     """
     status_id = status_name_to_id.get(envelope_task.status_name) or default_status_id
@@ -290,9 +294,17 @@ async def _import_task(
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,
-        is_archived=envelope_task.is_archived,
+        archived_at=envelope_task.archived_at,
         completed_at=envelope_task.completed_at,
         created_by=importer_id,
+        checklist=[
+            {
+                "id": mint_checklist_item_id(),
+                "text": item.text,
+                "done": item.done,
+            }
+            for item in envelope_task.checklist
+        ],
     )
     # A restore keeps the completion time the envelope carries; envelopes taken
     # before the field existed carry none, so it's derived from the restored
@@ -304,18 +316,6 @@ async def _import_task(
     )
     session.add(task)
     await session.flush()
-
-    # Subtasks
-    for sub in envelope_task.subtasks:
-        session.add(
-            Subtask(
-                task_id=task.id,
-                guild_id=guild_id,
-                content=sub.content,
-                is_completed=sub.is_completed,
-                position=sub.position,
-            )
-        )
 
     # Tag links — match-or-create against the target guild for any tag
     # that wasn't already in the project-level set (tasks can have tags
@@ -331,7 +331,7 @@ async def _import_task(
             )
             tid = resolved.id
             tag_name_to_id[task_tag.name] = tid
-        session.add(TaskTag(task_id=task.id, tag_id=tid))
+        session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
 
     # Assignees: match by handle against initiative members; drop misses
     seen_user_ids: set[int] = set()

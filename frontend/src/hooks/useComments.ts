@@ -80,7 +80,7 @@ export const useCreateComment = (
   useGuildMutation<CommentRead, Parameters<typeof createCommentApiV1GGuildIdCommentsPost>[1]>(
     {
       mutationFn: (guildId, data) => createCommentApiV1GGuildIdCommentsPost(guildId, data),
-      invalidate: () => invalidate(q.allComments()),
+      invalidate: () => invalidate(q.allComments(), q.relationships()),
       errorKey: "common:error",
     },
     options
@@ -105,7 +105,7 @@ export const useUpdateComment = (
     {
       mutationFn: (guildId, { commentId, data }) =>
         updateCommentApiV1GGuildIdCommentsCommentIdPatch(guildId, commentId, data),
-      invalidate: () => invalidate(q.allComments()),
+      invalidate: () => invalidate(q.allComments(), q.relationships()),
       errorKey: "common:error",
     },
     options
@@ -116,7 +116,7 @@ export const useDeleteComment = (options?: MutationOpts<void, number>) =>
     {
       mutationFn: (guildId, commentId) =>
         deleteCommentApiV1GGuildIdCommentsCommentIdDelete(guildId, commentId),
-      invalidate: () => invalidate(q.allComments()),
+      invalidate: () => invalidate(q.allComments(), q.relationships()),
       errorKey: "common:error",
     },
     options

@@ -138,6 +138,7 @@ def maximal_manifest() -> dict:
                 "identity": {"kind": "issue", "key": ["number"]},
             },
         ],
+        "guild_summary": READ_ENDPOINT,
         "widgets": [
             {
                 "id": "tile",

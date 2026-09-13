@@ -46,7 +46,7 @@ async def get_project(session: AsyncSession, project_id: int) -> Project | None:
 def ensure_grantable(project: Project) -> None:
     """Sharing can't be changed on an archived project (mirrors the other
     write paths that reject archived projects)."""
-    if project.is_archived:
+    if project.archived_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )

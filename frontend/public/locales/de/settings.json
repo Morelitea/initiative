@@ -1186,7 +1186,13 @@
     "empty": "Bisher wurde nichts aufgezeichnet.",
     "pageOf": "Seite {{page}} von {{total}} Einträgen",
     "actions": {
-      "user.avatar_removed": "Profilbild entfernt"
+      "user.avatar_removed": "Profilbild entfernt",
+      "auth.signed_in": "Angemeldet",
+      "auth.sign_in_failed": "Anmeldung abgelehnt",
+      "auth.signed_out": "Abgemeldet",
+      "auth.password_changed": "Passwort geändert",
+      "auth.identity_linked": "Single Sign-on verknüpft",
+      "auth.refresh_reuse_detected": "Wiederverwendetes Sitzungstoken abgelehnt"
     }
   },
   "account": {

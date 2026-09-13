@@ -124,7 +124,7 @@ export const ProjectListPanel = ({
   // An archived project refuses sharing changes server-side, so the bulk
   // action is disabled up front rather than failing when the dialog submits.
   // Export is unaffected — it only reads.
-  const archivedSelected = selection.selectedItems.some((project) => project.is_archived);
+  const archivedSelected = selection.selectedItems.some((project) => project.archived_at !== null);
   const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
   const reorderProjects = useReorderProjects();
 

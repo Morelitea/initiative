@@ -19,12 +19,18 @@ time, under the caller's RLS session.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
 from app.models.platform.user import User
+from app.models.tenant.document import Document
+from app.models.tenant.task import Task
+from app.services.tenant import relationships
 from app.models.tenant.queue import Queue, QueueItem
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
@@ -80,11 +86,20 @@ class QueueAdapter:
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
         now = localize_now(datetime.now(timezone.utc), params.get("tz"))
+        # Every item across every queue, in one pass: the payload builders below
+        # are synchronous and hold no session, and an export of a dozen queues
+        # is exactly where a per-item fetch would show.
+        attachments = await queue_attachments_for(
+            session, [item for queue in queues for item in queue.items]
+        )
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=tuple(build_queue_item(queue, format, user, now) for queue in queues),
+            batch=tuple(
+                build_queue_item(queue, format, user, now, attachments)
+                for queue in queues
+            ),
         )
 
     async def _queues(
@@ -101,8 +116,40 @@ class QueueAdapter:
         ]
 
 
+async def queue_attachments_for(
+    session: AsyncSession, items: list[QueueItem]
+) -> "Attachments":
+    """Documents and tasks for many queue items, two queries each."""
+    ids = [item.id for item in items if item.id is not None]
+    documents = await relationships.related_for_many(
+        session,
+        SearchEntityType.queue_item,
+        ids,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+    tasks = await relationships.related_for_many(
+        session,
+        SearchEntityType.queue_item,
+        ids,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        model=Task,
+    )
+    return Attachments(documents=documents, tasks=tasks)
+
+
+@dataclass(frozen=True)
+class Attachments:
+    """What each queue item has pinned to it, keyed by item id."""
+
+    documents: dict[int, list[Related]]
+    tasks: dict[int, list[Related]]
+
+
 def build_queue_item(
-    queue: Queue, format: str, user: User, now: datetime
+    queue: Queue, format: str, user: User, now: datetime, attachments: Attachments
 ) -> RenderItem:
     items = _rotation_order(queue.items)
     date = now.strftime("%Y-%m-%d")
@@ -112,7 +159,7 @@ def build_queue_item(
         # localized (translating field keys / enum values breaks import).
         return RenderItem(
             key=f"{stem}-{date}.initiative-queue",
-            data=_envelope(queue, items),
+            data=_envelope(queue, items, attachments),
         )
     return RenderItem(
         key=f"{stem}-{date}", data=_report_payload(queue, items, user, now)
@@ -126,7 +173,9 @@ def _rotation_order(items: list[QueueItem]) -> list[QueueItem]:
     return sorted(items, key=lambda i: (-i.position, i.id or 0))
 
 
-def _envelope(queue: Queue, items: list[QueueItem]) -> dict[str, Any]:
+def _envelope(
+    queue: Queue, items: list[QueueItem], attachments: Attachments
+) -> dict[str, Any]:
     return {
         "type": "initiative-queue",
         "schema_version": 1,
@@ -148,12 +197,14 @@ def _envelope(queue: Queue, items: list[QueueItem]) -> dict[str, Any]:
                 "member": _member(item),
                 "tags": _tags(item),
                 "documents": sorted(
-                    link.document.name
-                    for link in item.document_links
-                    if link.document is not None
+                    related.entity.name
+                    for related in attachments.documents.get(item.id, [])
+                    if related.entity is not None
                 ),
                 "tasks": sorted(
-                    link.task.title for link in item.task_links if link.task is not None
+                    related.entity.title
+                    for related in attachments.tasks.get(item.id, [])
+                    if related.entity is not None
                 ),
             }
             for item in items
@@ -217,4 +268,4 @@ def _member(item: QueueItem) -> str | None:
 
 
 def _tags(item: QueueItem) -> list[str]:
-    return sorted(link.tag.name for link in item.tag_links if link.tag is not None)
+    return sorted(tag.name for tag in item.tags or [])

@@ -2,7 +2,8 @@
 
 Mention patterns in comment text:
 - Users: @[Display Name](id) - e.g., @[John Doe](42)
-- Tasks: #task[Title](id) - e.g., #task[Fix bug](123)
+- Anything else: #kind[Title](id) - e.g., #task[Fix bug](123). That half is the
+  reference vocabulary, read by ``app.core.references``.
 
 Native documents and posts embed mentions differently — as Lexical
 ``mention`` nodes carrying ``mentionName`` / ``mentionUserId`` / ``text`` in
@@ -22,6 +23,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.references import references_in_text
+from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.post import Post
@@ -29,7 +32,6 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
 USER_PATTERN = re.compile(r"@\[[^\]]+\]\((\d+)\)")
-TASK_PATTERN = re.compile(r"#task\[[^\]]+\]\((\d+)\)")
 
 # Placeholder written over an anonymized user's display name wherever it was
 # embedded in content. Matches the frontend's rendering of anonymized users
@@ -43,8 +45,17 @@ def extract_mentioned_user_ids(content: str) -> Set[int]:
 
 
 def extract_mentioned_task_ids(content: str) -> Set[int]:
-    """Extract all task IDs mentioned in the content."""
-    return {int(match) for match in TASK_PATTERN.findall(content)}
+    """Extract all task IDs mentioned in the content.
+
+    Read through the reference vocabulary rather than a pattern of its own: a
+    ``#`` in a comment is the same syntax wherever it is read, and it is also
+    what the content-reference sync records.
+    """
+    return {
+        entity_id
+        for kind, entity_id in references_in_text(content)
+        if kind is SearchEntityType.task
+    }
 
 
 def _scrub_mention_nodes(content: dict[str, Any], user_id: int) -> bool:

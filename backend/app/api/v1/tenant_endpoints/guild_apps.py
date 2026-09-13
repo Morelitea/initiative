@@ -36,7 +36,7 @@ from typing import Annotated, Any, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -79,6 +79,7 @@ from app.schemas.tenant.guild_app import (
     serialize_member_delegation,
 )
 from app.services import rls as rls_service
+from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 from app.services.marketplace import registrations as registrations_service
@@ -99,6 +100,9 @@ from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import app_updates as app_updates_service
 from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import (
+    webhook_subscriptions as webhook_subscriptions_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -561,6 +565,12 @@ async def uninstall_guild_app(
     )
     await connections_service.delete_app_connections(session, app=app)
     await delegations_service.delete_app_delegations(session, app_id=app.id)
+    # An install is what makes an app present in a guild, so removing it ends
+    # what that app is sent. Switched off rather than deleted: the row records
+    # what was going where, and a reinstall registers afresh.
+    await webhook_subscriptions_service.deactivate_for_install(
+        session, guild_id=app.guild_id, app_install_id=app.id
+    )
     if app.config_secrets or app.config:
         revocation_service.queue_revocation(
             session,
@@ -578,9 +588,24 @@ async def uninstall_guild_app(
         deleted_by_user_id=current_user.id,
         retention_days=retention_days,
     )
+    install_id = app.id
+    guild_id = app.guild_id
     await session.delete(app)
     await session.commit()
     await _flush_revocations(session)
+    # What this install called each member. Removed explicitly, because the
+    # reference lives in a platform-wide table that no foreign key reaches from
+    # here — and last, after the revocations the commit above queued, so those
+    # are dispatched either way. A reference left behind names an install that
+    # no longer exists, so it resolves to nobody.
+    try:
+        await app_refs.drop_install_refs(guild_id=guild_id, app_install_id=install_id)
+    except SQLAlchemyError:
+        logger.warning(
+            "app refs: references for install %s in guild %s were not removed",
+            install_id,
+            guild_id,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -858,7 +883,9 @@ async def connect_guild_app(
 
     return await _connect_start(
         registration,
-        guild_id=app.guild_id,
+        guild_ref=await app_refs.ensure_app_guild_ref(
+            guild_id=app.guild_id, app_install_id=app.id
+        ),
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
         connect_path=connect_path,
@@ -910,7 +937,9 @@ async def _start_guild_connect(
     )
     return await _connect_start(
         registration,
-        guild_id=app.guild_id,
+        guild_ref=await app_refs.ensure_app_guild_ref(
+            guild_id=app.guild_id, app_install_id=app.id
+        ),
         connection_id=connection_id,
         connection_ref=connection_ref,
         connect_path=connect_path,
@@ -921,7 +950,7 @@ async def _start_guild_connect(
 async def _connect_start(
     registration: Any,
     *,
-    guild_id: int,
+    guild_ref: str,
     connection_id: str,
     connection_ref: str,
     connect_path: str,
@@ -934,12 +963,13 @@ async def _connect_start(
 
     The guild travels with the ref because the channel addresses every install
     by guild: the app writes its result back to
-    ``/installs/{guild_id}/connections/{ref}``, and a ref on its own names
-    nothing it can look up.
+    ``/installs/{guild_ref}/connections/{ref}``, and a ref on its own names
+    nothing it can look up. It is the reference minted for this install — the
+    same name the app is given everywhere else — and not a row id.
     """
     query = [
         ("connection_ref", connection_ref),
-        ("guild_id", str(guild_id)),
+        ("guild_ref", guild_ref),
     ]
     query += await _return_address(registration.public_id, connection_id)
 

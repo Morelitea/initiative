@@ -20,7 +20,7 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from sqlalchemy import MetaData
+from sqlalchemy import DateTime, MetaData
 from sqlmodel import SQLModel
 
 from app.core.search import SearchEntityType
@@ -181,6 +181,19 @@ def _document_text(row: str) -> str:
     )
 
 
+def _task_text(row: str) -> str:
+    """A task's searchable text: its description, and its checklist lines.
+
+    The lines are content someone wrote on the task, so a phrase typed onto one
+    finds the task it belongs to. There is no separate row to find instead.
+    """
+    lines = (
+        "coalesce((SELECT string_agg(entry->>'text', ' ') "
+        f"FROM jsonb_array_elements({row}.checklist) AS entry), '')"
+    )
+    return f"coalesce({row}.description, '') || ' ' || {lines}"
+
+
 def _comment_preview(row: str) -> str:
     """The opening of a comment, as the line a result is shown by.
 
@@ -222,17 +235,26 @@ def _title_expr(source: "SearchSource", row: str = ROW) -> str:
     return f"{row}.{source.title}"
 
 
-#: Boolean columns that say a row is not part of the working set. Having the
-#: column IS the declaration — a source states nothing, the same way ``deleted_at``
-#: is read off the table rather than declared.
-FLAG_COLUMNS: dict[str, str] = {"archived": "is_archived", "template": "is_template"}
+#: Columns that say a row is not part of the working set. Having the column IS
+#: the declaration — a source states nothing, the same way ``deleted_at`` is read
+#: off the table rather than declared.
+FLAG_COLUMNS: dict[str, str] = {"archived": "archived_at", "template": "is_template"}
 
 
 def _flag_expr(table: str, flag: str, row: str) -> str | None:
-    """Row expression for one flag, or ``None`` where the table cannot carry it."""
+    """Row expression for one flag, or ``None`` where the table cannot carry it.
+
+    A flag is a boolean either way, but the column behind it need not be: a
+    lifecycle column answers "when", and "whether" is that column being set. The
+    shape comes off the column's own type rather than a second declaration
+    saying how to read it.
+    """
     column = FLAG_COLUMNS[flag]
-    if column not in SQLModel.metadata.tables[table].columns:
+    columns = SQLModel.metadata.tables[table].columns
+    if column not in columns:
         return None
+    if isinstance(columns[column].type, DateTime):
+        return f"{row}.{column} IS NOT NULL"
     return f"{row}.{column}"
 
 
@@ -284,7 +306,8 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
     "tasks": SearchSource(
         SearchEntityType.task,
         title="title",
-        body=("description",),
+        body=("description", "checklist"),
+        body_sql=_task_text,
         dac_tool=Tool.project,
         dac_id="project_id",
     ),
@@ -357,8 +380,6 @@ NOT_SEARCHABLE: dict[str, str] = {
     "task_statuses": "column names, reached from the project",
     "document_file_versions": "history of a document already indexed",
     "gallery_image_versions": "history of a picture already indexed",
-    "document_links": "derived wikilink graph",
-    "subtasks": "checklist lines, reached from the task",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",
@@ -366,6 +387,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "task_assignment_digest_items": "scheduler bookkeeping",
     "reaction_digest_items": "scheduler bookkeeping",
     "reactions": "a gesture with no text of its own",
+    "relationships": "an edge between two things, each indexed on its own",
 }
 
 

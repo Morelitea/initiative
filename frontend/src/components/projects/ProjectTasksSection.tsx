@@ -772,7 +772,8 @@ export const ProjectTasksSection = ({
 
   // Count of archivable done tasks (non-archived tasks in done category)
   const archivableDoneTasksCount = useMemo(() => {
-    return tasks.filter((task) => task.task_status.category === "done" && !task.is_archived).length;
+    return tasks.filter((task) => task.task_status.category === "done" && task.archived_at === null)
+      .length;
   }, [tasks]);
 
   // Count of archivable tasks per done status
@@ -780,7 +781,9 @@ export const ProjectTasksSection = ({
     const counts: Record<number, number> = {};
     sortedTaskStatuses.forEach((status) => {
       if (status.category === "done") {
-        counts[status.id] = (groupedTasks[status.id] ?? []).filter((t) => !t.is_archived).length;
+        counts[status.id] = (groupedTasks[status.id] ?? []).filter(
+          (t) => t.archived_at === null
+        ).length;
       }
     });
     return counts;

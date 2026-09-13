@@ -295,7 +295,18 @@
     "hideFilters": "Masquer les filtres",
     "updating": "Mise à jour..."
   },
+  "outline": {
+    "title": "Sommaire",
+    "show": "Afficher le sommaire",
+    "hide": "Masquer le sommaire",
+    "empty": "Les titres que vous ajoutez apparaissent ici.",
+    "untitled": "Titre sans intitulé",
+    "expand": "Afficher ce qui se trouve sous {{heading}}",
+    "collapse": "Masquer ce qui se trouve sous {{heading}}"
+  },
   "page": {
+    "noArchivedDescription": "Les documents que vous archivez arrivent ici, en lecture seule, jusqu'à ce que vous les restauriez.",
+    "noArchivedTitle": "Rien d'archivé",
     "title": "Documents",
     "subtitle": "Gardez les connaissances de l'initiative organisées et attachez des documents aux projets.",
     "newDocument": "Nouveau document",
@@ -572,7 +583,14 @@
       "hideLastBlocked": "Une feuille de calcul doit garder au moins une feuille visible.",
       "hiddenCount_one": "{{count}} feuille masquée",
       "hiddenCount_other": "{{count}} feuilles masquées",
-      "unhideNamed": "Afficher « {{name}} »"
+      "unhideNamed": "Afficher « {{name}} »",
+      "import": "Importer un fichier",
+      "importing": "Lecture du fichier…",
+      "imported_one": "{{count}} feuille importée.",
+      "imported_other": "{{count}} feuilles importées.",
+      "importFailed": "Ce fichier n'a pas pu être importé.",
+      "importedPartly_one": "{{count}} feuille importée ; {{skipped}} laissées de côté — ce tableur est plein.",
+      "importedPartly_other": "{{count}} feuilles importées ; {{skipped}} laissées de côté — ce tableur est plein."
     },
     "pasteClipped_one": "{{count}} cellule ne tenait pas sur la feuille et n'a pas été collée.",
     "pasteClipped_other": "{{count}} cellules ne tenaient pas sur la feuille et n'ont pas été collées.",
@@ -600,7 +618,8 @@
   "status": {
     "label": "Afficher",
     "documents": "Documents",
-    "templates": "Modèles"
+    "templates": "Modèles",
+    "archived": "Archivés"
   },
   "summary": {
     "aiNotEnabled": "Les fonctionnalités IA ne sont pas activées. Configurez les paramètres IA pour générer des résumés de documents.",

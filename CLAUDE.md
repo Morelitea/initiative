@@ -421,7 +421,7 @@ Available factories:
 - `create_initiative(session, guild, creator, **overrides)` — creates an `Initiative` with built-in roles and adds the creator as project manager
 - `create_initiative_member(session, initiative, user, role_name="member")` — adds a user to an initiative with proper role lookup
 - `create_project(session, initiative, owner, **overrides)` — creates a `Project` with owner grant
-- `create_task(session, project, status_category=..., assignees=[...])`, `create_task_status`, `create_subtask`
+- `create_task(session, project, status_category=..., assignees=[...], checklist=checklist_items(...))`, `create_task_status`
 - `create_document(session, initiative, creator)` — native document + owner grant
 - `create_comment(session, author, task=... | document=...)`
 - `create_tag(session, guild)`, `create_upload(session, guild, uploader)`

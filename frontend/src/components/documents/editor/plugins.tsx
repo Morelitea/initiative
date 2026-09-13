@@ -91,6 +91,7 @@ export function Plugins({
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
+  subject,
   supportsEntityMentions = false,
   variant = "document",
   maxLength,
@@ -103,6 +104,10 @@ export function Plugins({
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
+  /** This page, as a reference (`document:12`). Neither trigger offers it: a
+   *  page does not point at itself, and a link to it would open the page the
+   *  words are already on. */
+  subject?: string | null;
   /** Whether this is a standard document — prose with a caret. `#` is offered
    *  only here: a whiteboard and a spreadsheet are not written into, and a file
    *  or a linked page has no body of its own to write in. */
@@ -154,12 +159,18 @@ export function Plugins({
     // the actions bar's `sticky bottom-0` has somewhere to stick to even when
     // the document is shorter than the viewport.
     <div className="relative flex min-h-full flex-col">
+      {/* `data-editor-toolbar` marks what sits over the top of the scrollport:
+          it sticks there, so anything scrolled to has to clear it. Measured
+          rather than assumed, because the wide row wraps. */}
       {showToolbar && (
         <ToolbarPlugin>
           {({ blockType }) => (
             <>
               {/* Desktop toolbar - all options inline */}
-              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex">
+              <div
+                data-editor-toolbar
+                className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex"
+              >
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -222,7 +233,10 @@ export function Plugins({
               </div>
 
               {/* Compact toolbar - overflow menu */}
-              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden">
+              <div
+                data-editor-toolbar
+                className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden"
+              >
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -295,10 +309,11 @@ export function Plugins({
             array. */}
         <SmartChipRefsPlugin />
         {supportsEntityMentions && !readOnly && (
-          <EntityMentionsPlugin initiativeId={initiativeId} />
+          <EntityMentionsPlugin initiativeId={initiativeId} subject={subject} />
         )}
         <WikilinksPlugin
           initiativeId={initiativeId}
+          subject={subject}
           onNavigate={onWikilinkNavigate}
           onCreateThing={onCreateReferencedThing}
         />

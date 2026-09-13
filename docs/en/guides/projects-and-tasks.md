@@ -47,7 +47,7 @@ A task can hold:
 | **Start date** | When work should begin. |
 | **Due date** | When it's due. Optional, and you don't have to be brave about it. |
 | **Assignees** | One person or several. |
-| **Subtasks** | A checklist of smaller steps, with a progress count. |
+| **Checklist** | The smaller steps, ticked off, with a progress count. |
 | **Tags** | Labels for finding things later — see [Tags](tags.md). |
 | **Recurring** | Make it come back on a schedule. |
 
@@ -61,9 +61,11 @@ Every project starts with four:
 
 You can rename them, add your own, and give each one an icon and colour, from **Project settings → Task statuses**. Each one still belongs to one of the four underlying stages, which is how "archive done tasks" knows what counts as done.
 
-### Subtasks
+### Checklists
 
-Break a big task into a checklist. As you tick them off, the task shows its progress — "3/5 subtasks" — which is more motivating on a bad Tuesday than it has any right to be.
+Break a big task into steps. As you tick them off, the task shows its progress — "3/5 items" — which is more motivating on a bad Tuesday than it has any right to be.
+
+Enter starts the next line. Paste a list and you get one item per line, which saves a surprising amount of your life.
 
 Good for the tasks that are secretly three tasks wearing a coat.
 

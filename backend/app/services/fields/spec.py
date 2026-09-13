@@ -312,7 +312,7 @@ class Dataset:
 
     ``tool`` names the tool whose **sharing governs** these rows, which is not
     always the tool they are — a task is governed by its project, the same
-    answer ``dac_scope_clause`` reaches for. Naming it lets everything the enum
+    answer the sharing gate reaches for. Naming it lets everything the enum
     already derives be derived rather than restated: the default dataset name,
     and in turn the master switch and resource type the gates read off it. Only
     the field list is genuinely per-dataset.

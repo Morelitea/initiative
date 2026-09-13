@@ -1031,6 +1031,14 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     ON DELETE CASCADE FKs — ``session.delete`` would walk ORM relationships and
     attempt sync loads in the async context (MissingGreenlet).
 
+    **Callers must follow a successful commit with**
+    ``app_refs.drop_guild_app_refs(guild_id=...)`` — what this guild's installed
+    apps called its members lives in a platform-wide table that neither the
+    guild row's cascade nor the schema drop reaches. After the commit rather
+    than here: those references are on a different connection and cannot join
+    this transaction, so removing them first would leave a guild whose deletion
+    then failed holding none of the identities its apps know its members by.
+
     Everyone in the guild is poked first, because the cascade that clears the
     roster runs in the database: by the time this returns there is no membership
     row left for anything in Python to read, and every one of those people has

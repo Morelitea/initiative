@@ -33,11 +33,23 @@ class AuditEventType(str, Enum):
     USER_UNSUSPENDED = "user.unsuspended"
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
 
+    # Authentication: who got in, who did not, and what changed about the
+    # credentials. A failed attempt is recorded only when it resolved to an
+    # account — an address nobody holds is not an action on anybody, and
+    # writing it down would put an unowned address in the log.
+    AUTH_SIGNED_IN = "auth.signed_in"
+    AUTH_SIGN_IN_FAILED = "auth.sign_in_failed"
+    AUTH_SIGNED_OUT = "auth.signed_out"
+    AUTH_PASSWORD_CHANGED = "auth.password_changed"
+    AUTH_IDENTITY_LINKED = "auth.identity_linked"
+    AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
+
 
 class AuditCategory(str, Enum):
     """Which family an event belongs to. The board groups by this."""
 
     MODERATION = "moderation"
+    AUTHENTICATION = "authentication"
 
 
 @dataclass(frozen=True)
@@ -67,6 +79,26 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.USER_AGE_BLOCK_CLEARED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    # A sign-in opens a session, so it is a write; a refused one changed
+    # nothing and is not.
+    AuditEventType.AUTH_SIGNED_IN: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SIGN_IN_FAILED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
+    ),
+    AuditEventType.AUTH_SIGNED_OUT: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_PASSWORD_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_IDENTITY_LINKED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_REFRESH_REUSE_DETECTED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
 }
 

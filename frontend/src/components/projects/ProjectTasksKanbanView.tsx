@@ -175,7 +175,7 @@ const TaskDragOverlay = ({
           <p>{t("kanban.due", { date: new Date(task.due_date).toLocaleString() })}</p>
         ) : null}
       </div>
-      <TaskChecklistProgress progress={task.subtask_progress} />
+      <TaskChecklistProgress progress={task.checklist_progress} />
       <Badge variant={priorityVariant[task.priority]}>
         {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
       </Badge>

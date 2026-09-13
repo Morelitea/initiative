@@ -44,7 +44,7 @@ interface TickTickParseResult {
 
 interface ImportResult {
   tasks_created: number;
-  subtasks_created: number;
+  checklist_items_created: number;
   tasks_failed: number;
   errors: string[];
 }
@@ -195,7 +195,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   // PAM grants) instead of re-deriving from the raw permissions list on the client.
   const activeProjects =
     projectsQuery.data?.items?.filter((p) => {
-      if (p.is_archived || p.is_template) return false;
+      if (p.archived_at !== null || p.is_template) return false;
       return hasWriteAccess(p.my_permission_level);
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
@@ -410,8 +410,8 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {t("common.tasksCreated", { count: importResult.tasks_created })}
-                  {importResult.subtasks_created > 0 &&
-                    `, ${t("common.subtasksCount", { count: importResult.subtasks_created })}`}
+                  {importResult.checklist_items_created > 0 &&
+                    `, ${t("common.checklistItemsCount", { count: importResult.checklist_items_created })}`}
                   {importResult.tasks_failed > 0 &&
                     `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
                 </p>

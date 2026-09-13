@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import GuildAppMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
 from app.testing import (
@@ -414,7 +415,9 @@ class TestConnect:
         )
         query = parse_qs(connect.query)
         assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_id"] == [str(a.guild.id)]
+        assert query["guild_ref"] == [
+            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
+        ]
 
     async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -509,7 +512,9 @@ class TestConnect:
         )
         query = parse_qs(connect.query)
         assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_id"] == [str(a.guild.id)]
+        assert query["guild_ref"] == [
+            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
+        ]
 
         # On the install row, because that is where a guild-wide credential
         # lives — and no member row was minted for it.

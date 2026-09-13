@@ -65,6 +65,10 @@
         "$ref": "#/$defs/endpoint"
       }
     },
+    "guild_summary": {
+      "$ref": "#/$defs/namespacedId",
+      "description": "A read endpoint whose declared returns describe this guild's standing with your service — what it has used, what it is allowed. A deployment may render them on the guild's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
+    },
     "widgets": {
       "type": "array",
       "maxItems": 12,

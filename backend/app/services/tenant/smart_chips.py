@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.smart_chips import SmartChipAspect, SmartChipTone
-from app.core.references import REF_SEPARATOR, is_referenceable
+from app.core.references import REF_SEPARATOR, parse_ref as parse_bare_ref
 from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.core.user_display import display_name
@@ -264,24 +264,21 @@ def parse_ref(
     parts = ref.split(REF_SEPARATOR)
     if len(parts) not in (2, 3):
         return None
-    kind, raw_id = parts[0], parts[1]
-    if not raw_id.isdigit():
+    # The name half is the bare reference every trigger writes, read by the
+    # one parser that owns that shape.
+    named = parse_bare_ref(REF_SEPARATOR.join(parts[:2]))
+    if named is None:
         return None
-    try:
-        entity_type = SearchEntityType(kind)
-    except ValueError:
-        return None
-    if not is_referenceable(entity_type):
-        return None
+    entity_type, entity_id = named
     if len(parts) == 2:
-        return entity_type, int(raw_id), None
+        return entity_type, entity_id, None
     try:
         aspect = SmartChipAspect(parts[2])
     except ValueError:
         return None
     if (entity_type, aspect) not in SMART_CHIP_SOURCES:
         return None
-    return entity_type, int(raw_id), aspect
+    return entity_type, entity_id, aspect
 
 
 async def _titles(

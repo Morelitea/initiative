@@ -701,3 +701,117 @@ async def test_v3_empty_sheets_list_yields_one_sheet(
     sheets = response.json()["content"]["sheets"]
     assert len(sheets) == 1
     assert sheets[0]["name"] == "Sheet1"
+
+
+# ── import ───────────────────────────────────────────────────────────────────
+
+
+async def _spreadsheet(client: AsyncClient, env: _SpreadsheetEnv) -> int:
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "name": "Inventory",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": []},
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+@pytest.mark.integration
+async def test_import_returns_sheets_without_writing_the_document(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """The document is the permission scope, not the destination — the editor
+    adds what comes back to its live workbook itself."""
+    doc_id = await _spreadsheet(client, env)
+
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
+        headers=env.headers,
+        files={"file": ("Q1 sales.csv", b"Item,Qty\nWidget,3\n", "text/csv")},
+    )
+
+    assert response.status_code == 200, response.text
+    sheets = response.json()["sheets"]
+    assert len(sheets) == 1
+    assert sheets[0]["name"] == "Q1 sales"
+    assert sheets[0]["cells"] == {
+        "0:0": "Item",
+        "0:1": "Qty",
+        "1:0": "Widget",
+        "1:1": 3,
+    }
+
+    # The document itself is untouched.
+    response = await client.get(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}", headers=env.headers
+    )
+    assert _sheet(response.json()["content"])["cells"] == {}
+
+
+@pytest.mark.integration
+async def test_import_refuses_a_file_it_cannot_read(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    doc_id = await _spreadsheet(client, env)
+
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
+        headers=env.headers,
+        files={"file": ("notes.pdf", b"%PDF-1.4", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_UNREADABLE_FILE"
+
+
+@pytest.mark.integration
+async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "name": "Just notes",
+            "initiative_id": env.initiative.id,
+            "document_type": "native",
+            "content": {},
+        },
+    )
+    doc_id = response.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
+        headers=env.headers,
+        files={"file": ("x.csv", b"a,b\n", "text/csv")},
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.integration
+async def test_import_needs_write_access(
+    client: AsyncClient, env: _SpreadsheetEnv, acting_user
+):
+    """Reading a file through somebody else's document is still a write to it
+    as far as permission goes — it is their workbook the sheets are for."""
+    doc_id = await _spreadsheet(client, env)
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=env.guild,
+        initiative=env.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
+        headers=reader.headers,
+        files={"file": ("x.csv", b"a,b\n", "text/csv")},
+    )
+
+    assert response.status_code in (403, 404)

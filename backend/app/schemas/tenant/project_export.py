@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, List, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -31,7 +31,7 @@ class ProjectExportProject(SanitizedBaseModel):
     icon: Optional[str] = None
     description: Optional[str] = None
     is_template: bool = False
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -85,10 +85,9 @@ class ProjectExportPropertyValue(SanitizedBaseModel):
     value_json: Optional[Any] = None
 
 
-class ProjectExportSubtask(SanitizedBaseModel):
-    content: str
-    is_completed: bool = False
-    position: int = 0
+class ProjectExportChecklistItem(SanitizedBaseModel):
+    text: str
+    done: bool = False
 
 
 class ProjectExportTask(SanitizedBaseModel):
@@ -101,7 +100,7 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
     position: float = 0.0
-    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the
     # importer derives it from the restored status in that case.
     completed_at: Optional[datetime] = None
@@ -113,22 +112,8 @@ class ProjectExportTask(SanitizedBaseModel):
     # emits these, so the field is always present anyway.
     tags: List[ProjectExportTag]
     assignee_handles: List[str]
-    subtasks: List[ProjectExportSubtask]
+    checklist: List[ProjectExportChecklistItem]
     property_values: List[ProjectExportPropertyValue]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_legacy_sort_order(cls, data: Any) -> Any:
-        # Exports created before the task ``sort_order`` field was renamed to
-        # ``position`` carry the old key. Map it through so those files import
-        # with their ordering intact instead of silently defaulting to 0.0.
-        if (
-            isinstance(data, dict)
-            and data.get("position") is None
-            and "sort_order" in data
-        ):
-            data = {**data, "position": data["sort_order"]}
-        return data
 
 
 class ProjectExportEnvelope(SanitizedBaseModel):

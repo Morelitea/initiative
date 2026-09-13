@@ -8,8 +8,8 @@
   "long_description": "A read-only pulse of the initiative's people. How the work spreads across the team, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-team-activity.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "Adds a board dealing every open task into a column per person, and what is still open beside what is finished.",
+  "version": "1.2.0",
+  "release_notes": "Counts only live work: archived tasks, and tasks in template projects, no longer reach anybody's column or the figures above them.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL"
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Finished"
       },
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS open FROM tasks WHERE completed_at IS NULL"
+          "sql": "SELECT count(*) AS open FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Still open"
       },
@@ -58,7 +58,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT date_trunc('day', completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL GROUP BY date_trunc('day', completed_at) ORDER BY date_trunc('day', completed_at)"
+          "sql": "SELECT date_trunc('day', tasks.completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL AND tasks.archived_at IS NULL AND project.is_template = false GROUP BY date_trunc('day', tasks.completed_at) ORDER BY date_trunc('day', tasks.completed_at)"
         },
         "title": "Finished, day by day"
       },
@@ -73,7 +73,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT assignee.display_name AS person, count(*) AS open FROM tasks WHERE completed_at IS NULL GROUP BY assignee.display_name ORDER BY count(*) DESC"
+          "sql": "SELECT assignee.display_name AS person, count(*) AS open FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false GROUP BY assignee.display_name ORDER BY count(*) DESC"
         },
         "title": "Open work by person",
         "options": {
@@ -93,7 +93,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT priority, count(*) AS tasks FROM tasks WHERE completed_at IS NULL GROUP BY priority"
+          "sql": "SELECT priority, count(*) AS tasks FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false GROUP BY priority"
         },
         "title": "Open work by priority",
         "options": {
@@ -111,7 +111,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT concat(project.name, ' · ', title) AS card, assignee.display_name AS person, due_date FROM tasks WHERE completed_at IS NULL ORDER BY project.name, due_date"
+          "sql": "SELECT concat(project.name, ' · ', title) AS card, assignee.display_name AS person, due_date FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false ORDER BY project.name, due_date"
         },
         "title": "Who is carrying what",
         "options": {

@@ -13,6 +13,8 @@ import { DEFAULT_COLS, DEFAULT_ROWS } from "@/lib/spreadsheet/bounds";
 import { type CellValue, keyOf } from "@/lib/spreadsheet/coords";
 import type { SheetId } from "@/lib/spreadsheet/sheets";
 
+import { SPREADSHEET_ORIGINS } from "./origins";
+
 /**
  * Write access to one sheet's cell map, plus its grid dimensions.
  *
@@ -149,7 +151,7 @@ export const useSpreadsheetCells = ({
       yDoc.transact(() => {
         if (value === null || value === "") cells.delete(key);
         else cells.set(key, value);
-      }, "spreadsheet-edit");
+      }, SPREADSHEET_ORIGINS.EDIT);
     },
     [yDoc, partsFor]
   );
@@ -181,7 +183,7 @@ export const useSpreadsheetCells = ({
         for (const key of prev.keys()) {
           if (!next.has(key)) cells.delete(key);
         }
-      }, "spreadsheet-bulk");
+      }, SPREADSHEET_ORIGINS.BULK);
     },
     [yDoc, partsFor]
   );
@@ -203,7 +205,7 @@ export const useSpreadsheetCells = ({
         // transiently see (new cells, old dimensions).
         yMeta.set(META_ROWS, nextDimensions.rows);
         yMeta.set(META_COLS, nextDimensions.cols);
-      }, "spreadsheet-replace-all");
+      }, SPREADSHEET_ORIGINS.REPLACE_ALL);
       // A structural change is the authority on canvas size; drop the local
       // growth so deleting a band actually shrinks the grid.
       setGrown(null);

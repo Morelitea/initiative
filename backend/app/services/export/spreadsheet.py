@@ -207,15 +207,28 @@ def _unique_title(title: str, used: set[str]) -> str:
 def _effective_style(
     columns: dict, row_fmts: dict, cell_styles: dict, r: int, c: int
 ) -> dict[str, Any]:
-    """Merge column -> row -> cell styles, later layers winning per key."""
+    """Merge column -> row -> cell styles, later layers winning per key.
+
+    All three layers store the same ``{style, format}`` wrapper, so the look
+    is read out of ``style`` and the number format out of ``format``. Reading
+    a layer as though it were the look itself finds neither.
+    """
     merged: dict[str, Any] = {}
+    number_format: Any = None
     for layer in (
-        (columns.get(str(c)) or {}).get("style"),
-        (row_fmts.get(str(r)) or {}).get("style"),
+        columns.get(str(c)),
+        row_fmts.get(str(r)),
         cell_styles.get(f"{r}:{c}"),
     ):
-        if isinstance(layer, dict):
-            merged.update(layer)
+        if not isinstance(layer, dict):
+            continue
+        style = layer.get("style")
+        if isinstance(style, dict):
+            merged.update(style)
+        if isinstance(layer.get("format"), dict):
+            number_format = layer["format"]
+    if number_format is not None:
+        merged["format"] = number_format
     return merged
 
 

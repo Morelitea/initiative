@@ -756,19 +756,6 @@ async def update_initiative(
     )
 
     update_data = initiative_in.model_dump(exclude_unset=True)
-    # Archiving hides the initiative from every member's sidebar — a guild-wide
-    # visibility change. The UI only exposes the toggle to guild admins; this is
-    # the matching server-side backstop, using the existing guild-admin-required
-    # code (no new message to maintain).
-    if (
-        update_data.get("is_archived") is not None
-        and update_data["is_archived"] != initiative.is_archived
-        and not rls_service.is_guild_admin(guild_context.role)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
-        )
     # Auto-join enrols every future guild member, so it shapes onboarding for
     # the whole guild rather than for one initiative — guild admins only, the
     # same shape as the archive toggle above. join_policy stays with whoever may

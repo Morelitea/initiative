@@ -159,7 +159,7 @@ async def list_initiative_statuses(
 ) -> list[InitiativeTaskStatusRead]:
     """The distinct status columns across an initiative's readable projects.
 
-    Visibility is the project listing's own rule — ``dac_scope_clause`` narrows
+    Visibility is the project listing's own rule — the sharing gate narrows
     the scan to the projects this request may read — so both the columns and
     the counts describe the caller's view of the initiative. The scan is
     confined to one initiative, so it also passes ``initiative_id`` and picks up
@@ -168,7 +168,7 @@ async def list_initiative_statuses(
     """
     project_conditions = [
         Project.initiative_id == initiative_id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
 

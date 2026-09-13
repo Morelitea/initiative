@@ -5,6 +5,7 @@ from sqlalchemy import Column, Date, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import (
+    ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     SoftDeleteMixin,
@@ -17,13 +18,13 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.task import Task, TaskStatus
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.project_activity import ProjectFavorite
-    from app.models.tenant.document import ProjectDocument
     from app.models.platform.guild import Guild
-    from app.models.tenant.tag import ProjectTag
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
+class Project(
+    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+):
     __tablename__ = "projects"
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and
@@ -56,12 +57,7 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    is_archived: bool = Field(default=False, nullable=False)
     is_template: bool = Field(default=False, nullable=False)
-    archived_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
     pinned_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
@@ -96,14 +92,6 @@ class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     favorite_entries: List["ProjectFavorite"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    document_links: List["ProjectDocument"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    tag_links: List["ProjectTag"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

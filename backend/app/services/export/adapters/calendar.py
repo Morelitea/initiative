@@ -25,6 +25,7 @@ from typing import Any
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.services.tenant.ical_service import documents_for_events
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -88,12 +89,18 @@ class CalendarAdapter:
         date = localize_now(datetime.now(timezone.utc), params.get("tz")).strftime(
             "%Y-%m-%d"
         )
+        # Every event across every calendar, once: the builders below are
+        # synchronous and hold no session.
+        documents_by_event = await documents_for_events(
+            session, [event for calendar in calendars for event in calendar.events]
+        )
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
             batch=tuple(
-                build_calendar_item(calendar, format, date) for calendar in calendars
+                build_calendar_item(calendar, format, date, documents_by_event)
+                for calendar in calendars
             ),
         )
 
@@ -124,12 +131,21 @@ class CalendarAdapter:
         ]
 
 
-def build_calendar_item(calendar: Calendar, format: str, date: str) -> RenderItem:
+def build_calendar_item(
+    calendar: Calendar,
+    format: str,
+    date: str,
+    documents: dict[int, list] | None = None,
+) -> RenderItem:
     """One render item per calendar: an ``ics`` VCALENDAR or an importable
     ``initiative-calendar`` JSON envelope, both carrying every event."""
     from app.services.tenant.ical_service import event_export_dict
 
-    dicts = [event_export_dict(event) for event in calendar.events]
+    by_event = documents or {}
+    dicts = [
+        event_export_dict(event, by_event.get(event.id, []))
+        for event in calendar.events
+    ]
     stem = safe_filename_component(calendar.name).lower()
     if format == "json":
         # The envelope is importable machine data — stays canonical, never

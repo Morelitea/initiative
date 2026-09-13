@@ -22,7 +22,7 @@ from app.core.messages import (
     TaskMessages,
 )
 from app.core.tools import Tool
-from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
+from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.tenant.project import Project
 from app.models.tenant.document import Document
@@ -341,9 +341,10 @@ async def get_tag_entities(
     # Get tasks with this tag that user can access
     tasks_stmt = (
         select(Task)
-        .join(TaskTag, TaskTag.task_id == Task.id)
         .where(
-            TaskTag.tag_id == tag.id,
+            Task.id.in_(
+                tags_service.tagged_entity_ids(tags_service.TAG_LINKS["task"], [tag.id])
+            ),
             _project_scope(Task.project_id),
         )
         .options(selectinload(Task.project))
@@ -363,9 +364,12 @@ async def get_tag_entities(
     # Get projects with this tag that user can access
     projects_stmt = (
         select(Project)
-        .join(ProjectTag, ProjectTag.project_id == Project.id)
         .where(
-            ProjectTag.tag_id == tag.id,
+            Project.id.in_(
+                tags_service.tagged_entity_ids(
+                    tags_service.TAG_LINKS["project"], [tag.id]
+                )
+            ),
             _project_scope(Project.id),
         )
         .options(selectinload(Project.initiative))
@@ -392,9 +396,12 @@ async def get_tag_entities(
     # Get documents with this tag that user can access
     documents_stmt = (
         select(Document)
-        .join(DocumentTag, DocumentTag.document_id == Document.id)
         .where(
-            DocumentTag.tag_id == tag.id,
+            Document.id.in_(
+                tags_service.tagged_entity_ids(
+                    tags_service.TAG_LINKS["document"], [tag.id]
+                )
+            ),
             doc_scope,
         )
         .options(selectinload(Document.initiative))

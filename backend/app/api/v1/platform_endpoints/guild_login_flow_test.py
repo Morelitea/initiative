@@ -468,6 +468,51 @@ async def test_step_up_unions_satisfied_providers(
     assert prior is not None and prior.revoked_at is not None
 
 
+async def test_step_up_rewrites_only_the_stepping_providers_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Each provider's account of its own authentication stands on its own: a
+    step-up into one guild's IdP records that IdP's claims and leaves the
+    other provider's entry exactly as it was."""
+    guild, provider = await _guild_provider(session)
+    user = await create_user(session)
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    elsewhere = {"41414": {"auth_time": 1757000000, "amr": ["pwd"], "acr": "loa1"}}
+    issued = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[41414],
+        provider_auth=elsewhere,
+    )
+    await session.commit()
+    provider_id = provider.id
+    refresh_token = issued.refresh_token
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    client.cookies.set(REFRESH_COOKIE_NAME, refresh_token)
+    try:
+        response = await _run_guild_flow(
+            client,
+            idp,
+            guild.id,
+            id_token_claims={"amr": ["mfa", "hwk"], "auth_time": 1757600000},
+        )
+    finally:
+        client.cookies.delete(REFRESH_COOKIE_NAME)
+    assert response.status_code in (302, 307), response.text
+
+    row = await _latest_session(session)
+    assert row is not None
+    assert row.provider_auth == {
+        "41414": {"auth_time": 1757000000, "amr": ["pwd"], "acr": "loa1"},
+        str(provider_id): {"auth_time": 1757600000, "amr": ["mfa", "hwk"]},
+    }
+
+
 async def test_step_up_revokes_racing_rotation_child(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

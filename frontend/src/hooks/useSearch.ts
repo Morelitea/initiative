@@ -41,6 +41,47 @@ export const useGuildSearch = (
 export type SuggestFilters = Omit<SuggestGuildApiV1GGuildIdSearchSuggestGetParams, "q">;
 
 /**
+ * Every field a lookup narrows by, named once.
+ *
+ * Both hooks below take one object holding two different things — the
+ * narrowing the server is sent, and the React Query options it is not — and
+ * have to tell them apart. The type is what makes that safe: `Record` over
+ * `keyof SuggestFilters` demands an entry for each, so a field the backend
+ * adds is a compile error here until it is listed, rather than something that
+ * silently lands in the query options and is never sent.
+ */
+const FILTER_FIELDS: Record<keyof SuggestFilters, true> = {
+  types: true,
+  initiative_id: true,
+  template: true,
+  subject: true,
+  limit: true,
+};
+
+/**
+ * A caller's object split into what the server is sent and what React Query is
+ * given. A field left unset is omitted rather than sent empty, so it stays out
+ * of the request and out of the cache key.
+ */
+const splitFilters = <TData>(
+  options: (QueryOpts<TData> & SuggestFilters) | undefined
+): { filters: SuggestFilters; queryOptions: QueryOpts<TData> } => {
+  const filters: Record<string, unknown> = {};
+  const queryOptions: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(options ?? {})) {
+    if (key in FILTER_FIELDS) {
+      if (value != null) filters[key] = value;
+    } else {
+      queryOptions[key] = value;
+    }
+  }
+  return {
+    filters: filters as SuggestFilters,
+    queryOptions: queryOptions as QueryOpts<TData>,
+  };
+};
+
+/**
  * Titles to jump to. Matches a partial last word, so it answers while the
  * reader is still typing.
  *
@@ -58,14 +99,8 @@ export const useGuildSearchSuggest = (
   options?: QueryOpts<SearchSuggestion[]> & SuggestFilters
 ) => {
   const guildId = useActiveGuildId();
-  const { limit, types, initiative_id, template, ...queryOptions } = options ?? {};
-  const params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
-    q: query,
-    ...(limit != null ? { limit } : {}),
-    ...(types ? { types } : {}),
-    ...(initiative_id != null ? { initiative_id } : {}),
-    ...(template != null ? { template } : {}),
-  };
+  const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
+  const params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams = { q: query, ...filters };
   return useQuery<SearchSuggestion[]>({
     queryKey: getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey(guildId, params),
     queryFn: () => suggestGuildApiV1GGuildIdSearchSuggestGet(guildId, params),
@@ -86,13 +121,8 @@ export const useGuildSearchSuggest = (
  */
 const useGuildRecentSuggestions = (options?: QueryOpts<SearchSuggestion[]> & SuggestFilters) => {
   const guildId = useActiveGuildId();
-  const { limit, types, initiative_id, template, ...queryOptions } = options ?? {};
-  const params = {
-    ...(limit != null ? { limit } : {}),
-    ...(types ? { types } : {}),
-    ...(initiative_id != null ? { initiative_id } : {}),
-    ...(template != null ? { template } : {}),
-  };
+  const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
+  const params = { ...filters };
   return useQuery<SearchSuggestion[]>({
     queryKey: getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey(guildId, params),
     queryFn: () => recentGuildApiV1GGuildIdSearchRecentGet(guildId, params),

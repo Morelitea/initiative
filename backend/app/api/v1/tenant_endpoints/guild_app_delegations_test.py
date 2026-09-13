@@ -18,6 +18,7 @@ from app.testing.delegation import (
     install_delegate,
     mint_delegation_token,
     register_delegate,
+    delegate_guild_ref,
 )
 
 
@@ -68,7 +69,8 @@ async def _delegated(session, guild, user) -> dict[str, str]:
     app was given, and the platform resolves it.
     """
     token = mint_delegation_token(
-        subject=await delegate_subject(session, guild, user), guild_id=guild.id
+        subject=await delegate_subject(session, guild, user),
+        guild_ref=await delegate_guild_ref(session, guild),
     )
     return {"Authorization": f"Bearer {token}"}
 

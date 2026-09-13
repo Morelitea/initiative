@@ -237,9 +237,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
         "document_type": _doc_type(document),
         "name": document.name,
         "content": content,
-        "tags": sorted(
-            link.tag.name for link in document.tag_links or [] if link.tag is not None
-        ),
+        "tags": sorted(tag.name for tag in document.tags or []),
         "properties": [
             property_export_dict(pv)
             for pv in document.property_values or []

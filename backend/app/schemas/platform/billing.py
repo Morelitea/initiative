@@ -13,6 +13,7 @@ from pydantic import Field, model_validator
 
 from app.core.messages import BillingMessages
 from app.models.platform.billing import BillingSource
+from app.models.platform.identity_ref import REF_MAX_LENGTH
 from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
@@ -33,7 +34,7 @@ class BillingGuildTierApply(SanitizedBaseModel):
     same id is a safe no-op.
     """
 
-    guild_id: int = Field(ge=1)
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     event_id: str = Field(min_length=1, max_length=128)
     source: BillingSource
     # Acting human for manual ops (support grant id / staff id); NULL for
@@ -65,9 +66,12 @@ class BillingGuildTierRead(SanitizedBaseModel):
 
     ``applied`` is False when the event id had already been claimed — the
     values shown are the current state, untouched by the replayed delivery.
+
+    The guild is echoed by the reference the caller sent, which is the only
+    name for it the two services share.
     """
 
-    guild_id: int
+    guild_ref: str
     tier_name: Optional[str] = None
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
@@ -83,7 +87,7 @@ class BillingUsageRequest(SanitizedBaseModel):
     HMAC covers it, like every other verb on this boundary.
     """
 
-    guild_id: int = Field(ge=1)
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
 class BillingUsageRead(SanitizedBaseModel):
@@ -91,8 +95,30 @@ class BillingUsageRead(SanitizedBaseModel):
     ``enforce_storage_quota`` reads. Read-only; the app never pushes usage
     anywhere."""
 
-    guild_id: int
+    guild_ref: str
     usage_bytes: int
+
+
+class BillingGuildNameRequest(SanitizedBaseModel):
+    """Body of ``POST /billing/guild-name``.
+
+    The guild rides the signed body rather than a query string, so the
+    envelope's HMAC covers it — like every other verb on this boundary.
+    """
+
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+
+
+class BillingGuildNameRead(SanitizedBaseModel):
+    """What a guild calls itself, so a person is shown that and not a reference.
+
+    A reference is what the two services key on and is unreadable by design;
+    somebody looking at a page about their own community should see its name.
+    Nothing else about the guild travels with it.
+    """
+
+    guild_ref: str
+    name: str
 
 
 class BillingPortalHandoffResponse(SanitizedBaseModel):

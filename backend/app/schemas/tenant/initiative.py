@@ -78,7 +78,6 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     name: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
-    is_archived: Optional[bool] = None
     # Settable by whoever may already update the initiative (managers, guild
     # admins).
     join_policy: Optional[InitiativeJoinPolicy] = None
@@ -205,8 +204,8 @@ class InitiativeRead(InitiativeBase):
     id: int
     guild_id: int
     is_default: bool = False
-    # Hidden from the main sidebar when true (see Initiative.is_archived).
-    is_archived: bool = False
+    # Hidden from the main sidebar once set (see Initiative.archived_at).
+    archived_at: Optional[datetime] = None
     # How guild members may join (see InitiativeJoinPolicy). Never consulted by
     # RLS — it governs how a membership row comes to exist, nothing more.
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
@@ -373,7 +372,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         description=initiative.description,
         color=initiative.color,
         is_default=initiative.is_default,
-        is_archived=getattr(initiative, "is_archived", False),
+        archived_at=getattr(initiative, "archived_at", None),
         join_policy=getattr(
             initiative, "join_policy", InitiativeJoinPolicy.private.value
         ),

@@ -32,7 +32,7 @@ class AuditEventRead(SanitizedBaseModel):
     category: str
     tier: int
     occurred_at: datetime
-    actor: AuditActor
+    actor: Optional[AuditActor] = None
     target_user: Optional[AuditActor] = None
     guild_id: Optional[int] = None
     target_type: Optional[str] = None

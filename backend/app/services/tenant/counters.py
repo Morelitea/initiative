@@ -13,8 +13,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.tools import Tool
-from app.services.tenant import tags as tags_service
 from app.services.permissions import (
     DAC_RESOURCES,
     compute_permission,
@@ -28,6 +26,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.services.tenant import tags as tags_service
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +72,6 @@ def list_loader_options() -> list:
         selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
         selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
-        tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
     ]
 
 
@@ -90,13 +88,15 @@ async def get_counter_group(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
             selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
-            tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
         )
     )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
-    return result.one_or_none()
+    group = result.one_or_none()
+    if group is not None:
+        await tags_service.annotate_tags(session, [group])
+    return group
 
 
 async def get_counter_group_for_export(

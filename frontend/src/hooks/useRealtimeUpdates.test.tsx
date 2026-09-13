@@ -151,23 +151,6 @@ describe("realtime resource frames", () => {
     expect(project(), "project").toBe(true);
   });
 
-  it("refreshes a task's subtask list from a subtask frame", () => {
-    const subtasks = seed([`/api/v1/g/${GUILD}/tasks/${ENTITY_ID}/subtasks`]);
-
-    applyChanges([
-      {
-        resource: { type: "subtasks", id: 3 },
-        parents: [
-          { type: "tasks", id: ENTITY_ID },
-          { type: "projects", id: 7 },
-        ],
-        action: "created",
-      },
-    ]);
-
-    expect(subtasks()).toBe(true);
-  });
-
   it("refreshes the roster, the roles and what they permit", () => {
     // A membership row and a role row have no route of their own, so all three
     // of these report as the initiative — one frame has to cover them.

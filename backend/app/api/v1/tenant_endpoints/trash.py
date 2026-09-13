@@ -55,6 +55,7 @@ from app.schemas.tenant.trash import (
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import ownership as ownership_service
 from app.core.user_display import display_name
+from app.services.tenant import content_references
 from app.services.tenant.soft_delete import (
     hard_purge_entity,
     restore_entity,
@@ -326,6 +327,12 @@ async def restore_trash_entity(
         )
 
     await restore_entity(session, entity)
+
+    # A comment back in the conversation puts back what it alone pointed at.
+    if isinstance(entity, Comment):
+        await content_references.sync_for_comment(
+            session, entity, author_id=current_user.id
+        )
 
     # Quality-of-life: a tool trashed before its owner left comes back unowned.
     # If whoever wrote it is still in the guild, give it back to them. If not,

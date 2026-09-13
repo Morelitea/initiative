@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
+import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
@@ -291,15 +292,13 @@ export const TaskEditPage = () => {
     },
   });
 
-  const toggleArchive = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskRead>(
-        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
-        updatedTask
-      );
-      toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
-    },
+  const archiveTask = useArchiveEntity({
+    onSuccess: () => toast.success(t("edit.taskArchived")),
   });
+  const unarchiveTask = useUnarchiveEntity({
+    onSuccess: () => toast.success(t("edit.taskUnarchived")),
+  });
+  const toggleArchive = task?.archived_at !== null ? unarchiveTask : archiveTask;
 
   const generateDescription = useGenerateTaskDescription({
     onSuccess: (data) => {
@@ -404,7 +403,7 @@ export const TaskEditPage = () => {
   // capped at "read" when the guild's content is frozen (read_only status).
   const hasWritePermission = hasWriteAccess(project?.my_permission_level);
   const canWriteProject = hasWritePermission;
-  const projectIsArchived = project?.is_archived ?? false;
+  const projectIsArchived = (project?.archived_at ?? null) !== null;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
     ? t("edit.readOnlyNoAccess")
@@ -682,8 +681,17 @@ export const TaskEditPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        <Card className="flex-1 shadow-sm sm:min-w-100">
+      {/* Two columns once there is room for both at their full 25rem, one
+          otherwise. The track definition decides that from the CONTAINER's
+          width, so it holds wherever this page is mounted and at whatever
+          width the sidebar leaves — and `min(25rem,100%)` lets the single
+          column shrink below 25rem on a phone instead of overflowing, which is
+          what a bare min-width could not do. It replaces a flex row that wrapped
+          only because each half claimed a min-width above `sm`: between 468px
+          and 639px nothing claimed one, so the halves sat side by side at a
+          width neither was meant to be used at. */}
+      <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
+        <Card className="shadow-sm">
           <CardContent className="pt-6">
             {isReadOnly && readOnlyMessage ? (
               <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
@@ -770,12 +778,12 @@ export const TaskEditPage = () => {
                         disabled={toggleArchive.isPending}
                         onSelect={() =>
                           toggleArchive.mutate({
-                            taskId: parsedTaskId,
-                            data: { is_archived: !task?.is_archived } as never,
+                            entityType: "task",
+                            entityId: parsedTaskId,
                           })
                         }
                       >
-                        {task?.is_archived ? (
+                        {task?.archived_at !== null ? (
                           <>
                             <ArchiveRestore className="h-4 w-4" />
                             {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
@@ -804,10 +812,10 @@ export const TaskEditPage = () => {
           </CardContent>
         </Card>
 
-        <div className="flex-1 space-y-4 sm:min-w-100">
+        <div className="space-y-4">
           <TaskChecklist
             taskId={parsedTaskId}
-            projectId={task?.project_id ?? null}
+            items={task?.checklist ?? []}
             canEdit={!isReadOnly}
           />
         </div>

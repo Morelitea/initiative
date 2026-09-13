@@ -8,10 +8,8 @@ import {
   deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
   duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost,
-  getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet,
   getDocumentCountsApiV1GGuildIdDocumentsCountsGet,
   getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet,
-  getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey,
   getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey,
   getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
@@ -30,7 +28,6 @@ import {
 import type {
   BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost,
-  DocumentBacklink,
   DocumentCountsResponse,
   DocumentCreate,
   DocumentFileVersionRead,
@@ -45,8 +42,9 @@ import type {
   ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { relate } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -124,21 +122,6 @@ export const useInitiativeDocuments = (
       });
       return response.items;
     },
-    ...options,
-  });
-};
-
-export const useDocumentBacklinks = (
-  documentId: number,
-  options?: QueryOpts<DocumentBacklink[]>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<DocumentBacklink[]>({
-    queryKey: getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey(
-      guildId,
-      documentId
-    ),
-    queryFn: () => getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet(guildId, documentId),
     ...options,
   });
 };
@@ -270,10 +253,10 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
       // Auto-attach to project if specified
       if (project_id) {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+        await relate(
           guildId,
-          project_id,
-          newDocument.id
+          { type: SearchEntityType.project, id: project_id },
+          { type: SearchEntityType.document, id: newDocument.id }
         );
       }
 
@@ -332,10 +315,10 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
 
       // Auto-attach to project if specified
       if (project_id) {
-        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+        await relate(
           guildId,
-          project_id,
-          newDocument.id
+          { type: SearchEntityType.project, id: project_id },
+          { type: SearchEntityType.document, id: newDocument.id }
         );
       }
 
@@ -462,7 +445,9 @@ export const useUpdateDocument = (
         getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
         updated
       );
-      void invalidate(q.allDocuments());
+      // A save rewrites what the body refers to, which is what the other end's
+      // "linked from" panel is reading.
+      void invalidate(q.allDocuments(), q.relationships());
       onSuccess?.(...args);
     },
     onError: (...args) => {

@@ -40,7 +40,6 @@ from app.models.tenant.counter import (
 )
 from app.models.tenant.initiative import (
     Initiative,
-    PermissionKey,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
@@ -62,6 +61,7 @@ from app.schemas.tenant.counter import (
     serialize_counter_group_summary,
     _validate_counter_constraints,
 )
+from app.services.tenant import archive as archive_service
 from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
@@ -69,19 +69,19 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
-from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.services.tenant import tags as tags_service
 
 
 router = APIRouter()
 
-#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
-#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
-#: to be addressable by its own id — a nested path would need a parent the
-#: envelope never carries. Writes stay nested under their group, where the
-#: caller is already working inside one.
+#: Flat read-back route, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the resource has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Writes stay nested under their group, where the caller is
+#: already working inside one.
 counters_router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -143,28 +143,6 @@ async def _get_initiative_for_counter_group(
     return initiative
 
 
-async def _check_initiative_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-    permission_key: PermissionKey,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=permission_key,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _get_counter_group_with_access(
     session: RLSSessionDep,
     group_id: int,
@@ -202,10 +180,6 @@ async def _get_counter_for_group(
             detail=CounterMessages.NOT_FOUND,
         )
     return counter
-
-
-def _compute_my_permission(group: CounterGroup, user: User) -> str | None:
-    return resource_access.my_permission_level(group, Tool.counter_group, user)
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -247,10 +221,16 @@ async def list_counter_groups(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> CounterGroupListResponse:
-    conditions = [CounterGroup.guild_id == guild_context.guild_id]
+    conditions = [
+        CounterGroup.guild_id == guild_context.guild_id,
+        archive_service.archive_filter_clause(CounterGroup, archived),
+    ]
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
@@ -308,11 +288,12 @@ async def list_counter_groups(
     )
     result = await session.exec(stmt)
     groups = result.unique().all()
+    await tags_service.annotate_tags(session, groups)
 
     items = [
         serialize_counter_group_summary(
             g,
-            my_permission_level=_compute_my_permission(g, current_user),
+            user_id=current_user.id,
         )
         for g in groups
     ]
@@ -378,7 +359,7 @@ async def read_counter_group(
     )
     return serialize_counter_group(
         group,
-        my_permission_level=_compute_my_permission(group, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -397,12 +378,8 @@ async def create_counter_group(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CounterMessages.FEATURE_DISABLED,
         )
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_counter_groups,
+    await resource_access.require_create(
+        session, Tool.counter_group, initiative, current_user, guild_context
     )
 
     group = CounterGroup(
@@ -443,7 +420,7 @@ async def create_counter_group(
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -480,7 +457,7 @@ async def duplicate_counter_group(
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
 
 
@@ -513,7 +490,7 @@ async def update_counter_group(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     if updated:
         await _emit_counter(
@@ -870,7 +847,7 @@ async def reset_all_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session, group_id, "counters_reset", result.model_dump(mode="json")
@@ -897,7 +874,7 @@ async def sort_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session, group_id, "counters_reordered", result.model_dump(mode="json")
@@ -931,7 +908,7 @@ async def set_counter_group_grants(
     hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user),
+        user_id=current_user.id,
     )
     await _emit_counter(
         session,

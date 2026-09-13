@@ -48,6 +48,7 @@ from app.models.platform.app_service_registration import (
 )
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
@@ -587,7 +588,11 @@ class TestContextToken:
             options={"verify_signature": False},
             algorithms=["RS256"],
         )
-        assert claims["guild_id"] == a.guild.id
+        # Named the way this install knows the guild, and by nothing else.
+        assert claims["guild_ref"] == await ensure_app_guild_ref(
+            guild_id=a.guild.id, app_install_id=app.id
+        )
+        assert "guild_id" not in claims
         assert claims["app_install_id"] == app.id
         assert claims["scope"] == "endpoint"
         assert claims["endpoint_id"] == ORDERS_SUMMARY

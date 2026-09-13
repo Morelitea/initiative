@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildTask } from "@/__tests__/factories";
+import { buildProjectTaskStatus, buildTask } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
@@ -97,5 +97,120 @@ describe("MyTasksPage grouping", () => {
     first.unmount();
     renderMyTasks();
     await waitFor(() => expect(groupSelect()).toHaveTextContent(/none/i));
+  });
+});
+
+describe("MyTasksPage status changes", () => {
+  /**
+   * One task per guild so the per-row rules are observable: checking either
+   * must not take the other away.
+   */
+  function stubTwoTasksAndStatuses({ patchDelayMs = 0 } = {}) {
+    const todo = buildProjectTaskStatus({
+      id: 10,
+      project_id: 5,
+      name: "To Do",
+      category: "todo",
+      position: 0,
+      is_default: true,
+    });
+    const done = buildProjectTaskStatus({
+      id: 11,
+      project_id: 5,
+      name: "Done",
+      category: "done",
+      position: 1,
+    });
+    const items = [
+      buildTask({
+        id: 101,
+        title: "Write the thing",
+        guild_id: 3,
+        project_id: 5,
+        task_status_id: todo.id,
+        task_status: todo,
+      }),
+      buildTask({
+        id: 102,
+        title: "Read the thing",
+        guild_id: 3,
+        project_id: 5,
+        task_status_id: todo.id,
+        task_status: todo,
+      }),
+    ];
+    let patched = 0;
+    server.use(
+      // Only the table's page carries these rows. The focus summary reads the
+      // same endpoint with a page size of its own, and answering it too would
+      // put a second copy of every row on the screen.
+      http.get("/api/v1/me/tasks", ({ request }) => {
+        const forTable = new URL(request.url).searchParams.get("page_size") === "20";
+        return HttpResponse.json({
+          items: forTable ? items : [],
+          total_count: forTable ? items.length : 0,
+          page: 1,
+          page_size: 20,
+          has_next: false,
+        });
+      }),
+      http.get("/api/v1/g/:guildId/projects/:projectId/task-statuses", () =>
+        HttpResponse.json([todo, done])
+      ),
+      http.patch("/api/v1/g/:guildId/tasks/:taskId", async () => {
+        patched += 1;
+        if (patchDelayMs > 0) await delay(patchDelayMs);
+        return HttpResponse.json({
+          ...items[0],
+          task_status_id: done.id,
+          task_status: done,
+          assignees: [],
+        });
+      })
+    );
+    return { patchCount: () => patched };
+  }
+
+  /** The table's Done checkboxes, in row order. */
+  const doneBoxes = () =>
+    within(screen.getByRole("table")).getAllByRole("checkbox", {
+      name: /mark task as (done|in progress)/i,
+    });
+
+  /** A row title, looked for in the table rather than anywhere on the page. */
+  const rowTitle = (title: string) => within(screen.getByRole("table")).findByText(title);
+
+  it("shows the row checked before the server answers", async () => {
+    const user = userEvent.setup();
+    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    renderMyTasks();
+
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    await rowTitle("Write the thing");
+    const [first] = doneBoxes();
+    expect(first).not.toBeChecked();
+
+    await user.click(first);
+
+    // The check lands on the optimistic write, with the PATCH still in flight
+    // and the cross-guild list not yet refetched.
+    await waitFor(() => expect(doneBoxes()[0]).toBeChecked());
+  });
+
+  it("leaves every other row usable while one is saving", async () => {
+    const user = userEvent.setup();
+    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    renderMyTasks();
+
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    await rowTitle("Read the thing");
+    await user.click(doneBoxes()[0]);
+
+    // The row being saved is held so it can't be double-submitted; the other
+    // one — and the table around it — stays live. The old blocking overlay
+    // disabled the whole page for the length of the request.
+    await waitFor(() => expect(doneBoxes()[0]).toBeDisabled());
+    expect(doneBoxes()[1]).toBeEnabled();
+    await rowTitle("Read the thing");
   });
 });

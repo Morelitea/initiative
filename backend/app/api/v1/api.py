@@ -15,6 +15,7 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    archive,
     query,
     smart_chips,
     search as guild_search,
@@ -46,6 +47,7 @@ from app.api.v1.tenant_endpoints import (
     queues,
     reactions,
     recents,
+    relationships,
     resource_grants,
     storage,
     tags,
@@ -68,6 +70,8 @@ from app.api.v1.platform_endpoints import (
     billing,
     config,
     contacts,
+    delegation_exchange,
+    guild_reference,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -131,6 +135,15 @@ api_router.include_router(
 api_router.include_router(
     app_platform.router, prefix="/app-platform", tags=["app-platform"]
 )
+# Same prefix, but authenticated: a delegate trades the token it holds for one
+# addressed to the app it is about to call, because only this side holds both
+# sectors' references (history/opaque-identity-design.md §12).
+api_router.include_router(
+    delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
+)
+api_router.include_router(
+    guild_reference.router, prefix="/app-platform", tags=["app-platform"]
+)
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —
 # no user, no session, no guild in a header. The guild each call operates in is
@@ -176,7 +189,6 @@ guild_router.include_router(task_statuses.initiative_router, tags=["task-statuse
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -236,6 +248,9 @@ guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
 guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
+guild_router.include_router(
+    relationships.router, prefix="/relationships", tags=["relationships"]
+)
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
@@ -249,6 +264,9 @@ guild_router.include_router(
     tags=["property-definitions"],
 )
 guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
+# No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},
+# one pair for every archivable kind (see tenant_endpoints/archive.py).
+guild_router.include_router(archive.router, tags=["archive"])
 # Guild member management (guild-admin). The /me/* + platform user endpoints
 # stay top-level on users.router.
 guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])

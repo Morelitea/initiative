@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from operator import attrgetter
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, Any, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, func, or_
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -45,9 +45,7 @@ from app.models.tenant.task import (
     TaskPriority,
     TaskStatus,
     TaskStatusCategory,
-    Subtask,
 )
-from app.models.tenant.tag import TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -55,6 +53,8 @@ from app.models.tenant.comment import Comment
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.tenant.task import (
+    ChecklistItem,
+    ChecklistItemToggle,
     TaskCreate,
     TaskListRead,
     TaskListResponse,
@@ -64,27 +64,21 @@ from app.schemas.tenant.task import (
     TaskRecurrence,
     TaskUpdate,
 )
-from app.schemas.tenant.subtask import (
-    SubtaskBatchCreate,
-    SubtaskCreate,
-    SubtaskRead,
-    SubtaskReorderRequest,
-    SubtaskUpdate,
-    TaskSubtaskProgress,
-)
 from app.schemas.ai_generation import (
-    GenerateSubtasksResponse,
+    GenerateChecklistResponse,
     GenerateDescriptionResponse,
 )
 from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
+from app.api import resource_access
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant import task_checklist as checklist_service
 from app.services import ai_generation as ai_generation_service
 from app.services import fields as fields_registry
 from app.services.fields.spec import FieldContext, SortContext
@@ -95,7 +89,7 @@ from app.core.messages import (
     ProjectMessages,
     QueryMessages,
     TaskMessages,
-    SubtaskMessages,
+    ChecklistMessages,
 )
 
 router = APIRouter()
@@ -134,7 +128,7 @@ TASK_DEFAULT_SORT = [(Task.position, "asc"), (Task.id, "asc")]
 # Attribute sorters for the cross-guild merge. attrgetter is faster than a
 # lambda and avoids per-row closure overhead on large result sets. ``priority``
 # and ``date_group`` need custom handling (enum order / SQL-carried value) and
-# are resolved separately in _sort_global_task_reads.
+# are resolved separately in _sort_global_task_keys.
 _GLOBAL_SORT_ATTRGETTERS = {
     "position": attrgetter("position"),
     "title": attrgetter("title"),
@@ -150,45 +144,70 @@ _GLOBAL_SORT_ATTRGETTERS = {
 _PRIORITY_SORT_ORDER = {p: i for i, p in enumerate(TaskPriority)}
 
 
-def _sort_global_task_reads(
-    items: list[tuple[TaskListRead, int]],
+def _global_ordering_selectables(tz: str | None = None):
+    """The columns the cross-guild ordering pass selects.
+
+    Every sort key the /me task views accept is a plain ``tasks`` column (plus
+    the SQL-computed ``date_group``), so the whole matching set can be ordered
+    from rows this narrow — no relationships, no annotations. Labelled with the
+    sort field names so :func:`_sort_global_task_keys` reads a row by the name
+    the caller sorted on.
+    """
+    return (
+        Task.id.label("id"),
+        _date_group_expression(tz).label("date_group"),
+        Task.position.label("position"),
+        Task.title.label("title"),
+        Task.due_date.label("due_date"),
+        Task.start_date.label("start_date"),
+        Task.created_at.label("created_at"),
+        Task.updated_at.label("updated_at"),
+        Task.priority.label("priority"),
+    )
+
+
+def _sort_global_task_keys(
+    items: list[tuple[int, Any]],
     sort_fields: list | None,
-) -> list[TaskListRead]:
-    """Order the merged cross-guild rows and drop the carried date_group.
+) -> list[tuple[int, Any]]:
+    """Order the merged cross-guild ordering rows.
 
     Cross-schema results can't be ordered by a single SQL query, so this is the
     *only* sort for the /me task views (the per-guild queries deliberately skip
-    ORDER BY). ``items`` are ``(TaskListRead, date_group)`` pairs where the
-    date_group was computed in SQL — the same :func:`_date_group_expression`
-    used by the guild-scoped endpoint, so there is one source of truth.
+    ORDER BY). ``items`` are ``(guild_id, row)`` pairs where ``row`` is a
+    :func:`_global_ordering_selectables` row — the guild id travels alongside
+    because task ids are unique per schema, not across them.
 
     Matches the guild-scoped list's ordering conventions: NULLs sort last
     regardless of direction, and ``id`` ascending breaks ties.
     """
-    reads = [read for read, _ in items]
+    rows = list(items)
     if not sort_fields:
         # Deterministic default when the caller doesn't sort. position is
         # per-guild so it can't truly order across guilds, but the id tiebreaker
         # keeps the merge stable; mirrors the SQL endpoint's position-then-id.
-        reads.sort(key=attrgetter("position", "id"))
-        return reads
-
-    date_groups = {id(read): group for read, group in items}
+        rows.sort(key=lambda pair: (pair[1].position, pair[1].id))
+        return rows
 
     def _getter(field):
         if field == "date_group":
-            return lambda r: date_groups[id(r)]
+            return lambda pair: pair[1].date_group
         if field == "priority":
             # None priority → None so the nulls-last partition applies it in
             # both directions (mirrors apply_sorting()'s nulls_last()).
-            return lambda r: (
-                _PRIORITY_SORT_ORDER.get(r.priority) if r.priority is not None else None
+            return lambda pair: (
+                _PRIORITY_SORT_ORDER.get(pair[1].priority)
+                if pair[1].priority is not None
+                else None
             )
-        return _GLOBAL_SORT_ATTRGETTERS.get(field)
+        base = _GLOBAL_SORT_ATTRGETTERS.get(field)
+        if base is None:
+            return None
+        return lambda pair: base(pair[1])
 
     # Stable radix sort: apply the least-significant key first. ``id`` asc is the
     # final tiebreaker, so it sorts first here.
-    reads.sort(key=attrgetter("id"))
+    rows.sort(key=lambda pair: pair[1].id)
     for sf in reversed(sort_fields):
         getter = _getter(sf.field)
         if getter is None:
@@ -196,11 +215,11 @@ def _sort_global_task_reads(
             # absent from allowed_fields.
             continue
         reverse = sf.dir == SortDir.desc
-        non_null = [r for r in reads if getter(r) is not None]
-        nulls = [r for r in reads if getter(r) is None]
+        non_null = [r for r in rows if getter(r) is not None]
+        nulls = [r for r in rows if getter(r) is None]
         non_null.sort(key=getter, reverse=reverse)
-        reads = non_null + nulls
-    return reads
+        rows = non_null + nulls
+    return rows
 
 
 def _build_task_filter_fields(
@@ -226,7 +245,6 @@ def _build_task_filter_fields(
     )
 
 
-subtasks_router = APIRouter()
 # Cross-guild "my tasks" aggregates (My Tasks / Created Tasks pages). Mounted
 # under /api/v1/me; user-scoped (no guild context), routes per member guild
 # itself via gather_across_guilds.
@@ -309,66 +327,56 @@ async def _rebalance_if_needed(
     return changed
 
 
-async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
-    """Annotate tasks with comment counts and subtask progress in a single query."""
+def _comment_count_expression():
+    """A task's comment count, as a column on the row that carries the task.
+
+    For a read that is bounded by round trips rather than by rows — the
+    cross-guild lists pay per guild they touch — the count travels with the
+    task instead of costing a query of its own. Correlated on ``Task``, so it
+    resolves against whichever ``tasks`` the caller's search_path names.
+    """
+    return (
+        select(func.count(Comment.id))
+        .where(Comment.task_id == Task.id)
+        .correlate(Task)
+        .scalar_subquery()
+        .label("comment_count")
+    )
+
+
+async def _annotate_tasks(
+    session: SessionDep,
+    tasks: list[Task],
+    *,
+    comment_counts: dict[int, int] | None = None,
+) -> None:
+    """Annotate tasks with comment counts and checklist progress.
+
+    Checklist progress is read from the column the row already carries, so only
+    the comment count needs a query — and ``comment_counts`` skips even that,
+    for a caller that selected the counts alongside the rows
+    (:func:`_comment_count_expression`).
+    """
     task_ids = [task.id for task in tasks if task.id is not None]
     if not task_ids:
         return
 
-    ids_tuple = tuple(task_ids)
+    if comment_counts is None:
+        ids_tuple = tuple(task_ids)
 
-    # Single query: LEFT JOIN comments and subtasks aggregations via subqueries
-    comment_subq = (
-        select(
-            Comment.task_id.label("task_id"),
-            func.count(Comment.id).label("comment_count"),
+        stmt = (
+            select(Comment.task_id, func.count(Comment.id))
+            .where(Comment.task_id.in_(ids_tuple))
+            .group_by(Comment.task_id)
         )
-        .where(Comment.task_id.in_(ids_tuple))
-        .group_by(Comment.task_id)
-        .subquery()
-    )
-    subtask_subq = (
-        select(
-            Subtask.task_id.label("task_id"),
-            func.count(Subtask.id).label("total"),
-            func.sum(case((Subtask.is_completed.is_(True), 1), else_=0)).label(
-                "completed"
-            ),
-        )
-        .where(Subtask.task_id.in_(ids_tuple))
-        .group_by(Subtask.task_id)
-        .subquery()
-    )
-
-    stmt = (
-        select(
-            Task.id,
-            func.coalesce(comment_subq.c.comment_count, 0),
-            subtask_subq.c.total,
-            subtask_subq.c.completed,
-        )
-        .outerjoin(comment_subq, comment_subq.c.task_id == Task.id)
-        .outerjoin(subtask_subq, subtask_subq.c.task_id == Task.id)
-        .where(Task.id.in_(ids_tuple))
-    )
-    result = await session.exec(stmt)
-    annotations: dict[int, tuple] = {
-        row[0]: (row[1], row[2], row[3]) for row in result.all()
-    }
+        result = await session.exec(stmt)
+        comment_counts = {row[0]: row[1] for row in result.all()}
 
     for task in tasks:
-        comment_count, sub_total, sub_completed = annotations.get(
-            task.id, (0, None, None)
+        object.__setattr__(task, "comment_count", comment_counts.get(task.id, 0))
+        object.__setattr__(
+            task, "checklist_progress", checklist_service.progress(task.checklist)
         )
-        object.__setattr__(task, "comment_count", comment_count)
-        if sub_total is not None:
-            progress = TaskSubtaskProgress(
-                completed=int(sub_completed or 0),
-                total=int(sub_total),
-            )
-            object.__setattr__(task, "subtask_progress", progress)
-        else:
-            object.__setattr__(task, "subtask_progress", None)
 
 
 def _annotate_task_guild(tasks: list[Task]) -> None:
@@ -427,7 +435,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         updated_at=task.updated_at,
         completed_at=task.completed_at,
         position=task.position,
-        is_archived=task.is_archived,
+        archived_at=task.archived_at,
         created_by=task.created_by,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
@@ -438,48 +446,10 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         initiative_id=initiative.id if initiative else None,
         initiative_name=initiative.name if initiative else None,
         initiative_color=initiative.color if initiative else None,
-        subtask_progress=getattr(task, "subtask_progress", None),
+        checklist_progress=getattr(task, "checklist_progress", None),
         tags=getattr(task, "tags", []),
         properties=getattr(task, "properties", []),
     )
-
-
-async def _list_subtasks_for_task(
-    session: SessionDep, task_id: int
-) -> Sequence[Subtask]:
-    stmt = (
-        select(Subtask)
-        .where(Subtask.task_id == task_id)
-        .order_by(Subtask.position.asc(), Subtask.id.asc())
-    )
-    result = await session.exec(stmt)
-    return result.all()
-
-
-async def _clone_subtasks(
-    session: SessionDep, source_task_id: int, target_task_id: int
-) -> None:
-    subtasks = await _list_subtasks_for_task(session, source_task_id)
-    if not subtasks:
-        return
-    clones = [
-        Subtask(
-            task_id=target_task_id,
-            content=subtask.content,
-            position=subtask.position,
-            is_completed=False,
-        )
-        for subtask in subtasks
-    ]
-    session.add_all(clones)
-
-
-async def _next_subtask_position(session: SessionDep, task_id: int) -> int:
-    result = await session.exec(
-        select(func.max(Subtask.position)).where(Subtask.task_id == task_id)
-    )
-    max_value = result.one_or_none()
-    return (max_value or 0) + 1
 
 
 def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
@@ -523,7 +493,6 @@ async def _fetch_task(
             selectinload(Task.assignees),
             selectinload(Task.creator),
             selectinload(Task.task_status),
-            selectinload(Task.tag_links).selectinload(TaskTag.tag),
             selectinload(Task.property_values).selectinload(
                 TaskPropertyValue.property_definition
             ),
@@ -543,7 +512,7 @@ async def _fetch_task(
     if task:
         await _annotate_tasks(session, [task])
         _annotate_task_guild([task])
-        tags_service.annotate_tags([task])
+        await tags_service.annotate_tags(session, [task])
         _annotate_task_properties([task])
     return task
 
@@ -704,11 +673,11 @@ async def _advance_recurrence_if_needed(
         position=await _next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
         created_by=task.created_by,
+        checklist=checklist_service.cloned(task.checklist),
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
-    await _clone_subtasks(session, task.id, new_task.id)
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
     await tags_service.copy_entity_tags(
@@ -719,20 +688,18 @@ async def _advance_recurrence_if_needed(
     )
     await session.flush()
     # Reload through a select rather than ``session.refresh``: refresh takes no
-    # loader options, so it would populate ``tag_links`` while leaving each
-    # link's ``tag`` unloaded — and the annotation below reads ``link.tag``,
-    # which then has to emit IO from sync context. ``populate_existing`` applies
-    # the freshly loaded rows to the identity-mapped instance.
+    # loader options, so the assignees would come back unloaded and the
+    # serializer would have to emit IO from sync context. ``populate_existing``
+    # applies the freshly loaded rows to the identity-mapped instance.
     await session.exec(
         select(Task)
         .where(Task.id == new_task.id)
         .options(
             selectinload(Task.assignees),
-            tags_service.TAG_LINKS["task"].load_options(),
         )
         .execution_options(populate_existing=True)
     )
-    tags_service.annotate_tags([new_task])
+    await tags_service.annotate_tags(session, [new_task])
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
@@ -749,11 +716,14 @@ async def _get_project_with_access(
     guild_id: int,
     access: str = "read",
 ) -> Project:
-    """Get project with DAC permission check.
+    """Load the project a task hangs off, and authorize against it.
 
-    Tasks inherit access from their project's permission levels:
-    - read: any permission level (owner, write, read) — user or role-based
-    - write: owner or write permission level — user or role-based
+    A task has no sharing of its own: it is reached through the project, at
+    the project's level. Which tool that is comes from
+    ``resource_access.governing_tool("tasks")`` rather than a literal here —
+    the same registry entry the ``tasks`` policy is rendered from, where the
+    row's sharing leg is an EXISTS onto ``projects``. One declaration, so the
+    endpoint and the policy cannot disagree about a task's parent.
     """
     project_stmt = (
         select(Project)
@@ -775,13 +745,15 @@ async def _get_project_with_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
         )
-    if project.is_archived and access == "write":
+    if project.archived_at is not None and access == "write":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
 
-    # project.grants is eager-loaded above; require_project_access reads it.
-    permissions_service.require_project_access(project, user, access=access)
+    # project.grants is eager-loaded above; the DAC engine reads it.
+    resource_access.authorize(
+        resource_access.governing_tool("tasks"), project, user, access=access
+    )
 
     return project
 
@@ -853,7 +825,7 @@ async def _allowed_project_ids(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        Project.is_archived == False,  # noqa: E712
+        Project.archived_at.is_(None),
     ]
     if project_id is None:
         # Spanning initiatives, the answer is what has been shared with the
@@ -872,13 +844,20 @@ async def _allowed_project_ids(
 
 
 def _global_task_options():
+    """Loaders for the hydration pass of a cross-guild task list.
+
+    project → initiative → guild is a chain of many-to-one links, so it is
+    joined onto the row rather than fetched with a query per level: a
+    ``selectinload`` there cost three extra round trips per guild the page draws
+    from, and this endpoint is bounded by round trips. The collections stay on
+    ``selectinload``, which is what it is for.
+    """
     return (
-        selectinload(Task.project)
-        .selectinload(Project.initiative)
-        .selectinload(Initiative.guild),
+        joinedload(Task.project)
+        .joinedload(Project.initiative)
+        .joinedload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -895,44 +874,104 @@ async def _gather_global_task_reads(
     page: int,
     page_size: int,
     sort_fields: list | None = None,
+    tz: str | None = None,
 ) -> tuple[list[TaskListRead], int, int]:
     """Run a per-guild task query across every guild the user belongs to and
     merge into TaskListReads.
 
-    A single SQL query can't order across guild schemas, so ``build_query`` emits
-    ``(Task, date_group)`` rows *without* ORDER BY and the merged set is sorted
-    once, globally, by :func:`_sort_global_task_reads` before pagination.
-    Annotation + conversion happen inside each guild's routed context.
+    Two passes, because a single SQL query can't order across guild schemas and
+    the ordering has to see the whole matching set before anything can be paged:
 
-    ``build_query`` receives the guild id so it can compile the guild-local
-    filter fields (tag/property subqueries resolve against that guild's schema).
+    1. **Order.** Each guild returns :func:`_global_ordering_selectables` rows —
+       the sort keys and the id, nothing else — *without* ORDER BY, and the
+       merged set is sorted once, globally, by :func:`_sort_global_task_keys`
+       and then sliced to the requested page.
+    2. **Hydrate.** Only the ids on that page are loaded with their
+       relationships and annotations, and only from the guilds that actually
+       contribute to it. By id alone: the filters are not re-applied, so a
+       concurrent edit cannot drop a row the ordering pass already counted.
+
+    The split is what keeps the cost of this endpoint proportional to the page
+    rather than to everything the filter matches: a reader with hundreds of
+    assigned tasks across half a dozen guilds used to pay the relationship
+    loads, comment counts, tag and property annotation for every one of them to
+    show twenty.
+
+    ``build_query(guild_id, *selectables)`` receives the guild id so it can
+    compile the guild-local filter fields (tag/property subqueries resolve
+    against that guild's schema), and what to select.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
 
-    async def _fetch(
-        guild_session: AsyncSession, _guild_id: int
-    ) -> list[tuple[TaskListRead, int]]:
-        rows = list((await guild_session.exec(build_query(_guild_id))).all())
-        tasks = [row[0] for row in rows]
-        await _annotate_tasks(guild_session, tasks)
-        tags_service.annotate_tags(tasks)
-        _annotate_task_properties(tasks)
-        # row[1] is the SQL-computed date_group, carried for the global sort.
-        return [(_task_to_list_read(task), row[1]) for task, row in zip(tasks, rows)]
+    ordering = _global_ordering_selectables(tz)
 
-    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    async def _order_keys(
+        guild_session: AsyncSession, _guild_id: int
+    ) -> list[tuple[int, Any]]:
+        rows = (await guild_session.exec(build_query(_guild_id, *ordering))).all()
+        return [(_guild_id, row) for row in rows]
+
+    keys = await gather_across_guilds(
+        session, current_user.id, target_guilds, _order_keys
+    )
     # Sort across ALL guilds before slicing — the per-guild queries return rows
     # unordered, so this is where global ordering is established.
-    items = _sort_global_task_reads(items, sort_fields)
-    total_count = len(items)
+    keys = _sort_global_task_keys(keys, sort_fields)
+    total_count = len(keys)
     actual_page = clamp_page(page, page_size, total_count)
     # One slicing rule for every page_size, including the windowed
     # page_size<=0 "fetch all" protocol (bounded response, nothing
     # unreachable — the caller walks pages until has_next is false).
-    items = paginate_sequence(items, actual_page, page_size)
-    return items, total_count, actual_page
+    window = paginate_sequence(keys, actual_page, page_size)
+    if not window:
+        return [], total_count, actual_page
+
+    # (guild, task) -> where it sits on the page, so the hydrated rows come back
+    # in the order the global sort established rather than in guild order.
+    placement: dict[tuple[int, int], int] = {}
+    wanted: dict[int, list[int]] = {}
+    for index, (guild_id, row) in enumerate(window):
+        wanted.setdefault(guild_id, []).append(row.id)
+        placement[(guild_id, row.id)] = index
+
+    async def _hydrate(
+        guild_session: AsyncSession, _guild_id: int
+    ) -> list[tuple[int, TaskListRead]]:
+        ids = wanted.get(_guild_id)
+        if not ids:
+            return []
+        # By id ALONE — deliberately not through ``build_query``. Re-applying
+        # the filters here would let a concurrent edit drop a row the ordering
+        # pass already counted: a task that goes done, gets reassigned or is
+        # archived between the two statements would stop matching, and the page
+        # would come back a row short of the ``total_count`` and ``has_next``
+        # computed from the first pass. Access does not rest on those filters —
+        # it rests on the guild schema this session is routed into and on
+        # ``initiative_access``, and both apply to this statement exactly as
+        # they did to the one that chose the ids a moment ago.
+        statement = (
+            select(Task, _comment_count_expression())
+            .where(Task.id.in_(tuple(ids)))
+            .options(*_global_task_options())
+        )
+        rows = list((await guild_session.exec(statement)).unique().all())
+        tasks = [row[0] for row in rows]
+        comment_counts = {row[0].id: row[1] for row in rows}
+        await _annotate_tasks(guild_session, tasks, comment_counts=comment_counts)
+        await tags_service.annotate_tags(guild_session, tasks)
+        _annotate_task_properties(tasks)
+        return [
+            (placement[(_guild_id, task.id)], _task_to_list_read(task))
+            for task in tasks
+        ]
+
+    hydrated = await gather_across_guilds(
+        session, current_user.id, sorted(wanted), _hydrate
+    )
+    hydrated.sort(key=lambda pair: pair[0])
+    return [read for _, read in hydrated], total_count, actual_page
 
 
 async def _list_global_tasks(
@@ -962,25 +1001,25 @@ async def _list_global_tasks(
     """
     base_conditions = [
         TaskAssignee.user_id == current_user.id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        base_conditions.append(Task.is_archived.is_(False))
+        base_conditions.append(Task.archived_at.is_(None))
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         base_conditions.append(window)
 
-    def _build(guild_id: int):
-        # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
-        # BY is omitted because _sort_global_task_reads orders the merged set.
+    def _build(guild_id: int, *selectables):
+        # Defines the filtered set for the ordering pass, which selects the
+        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
+        # the merged set, which no single schema's query can do.
         stmt = (
-            select(Task, _date_group_expression(tz).label("date_group"))
+            select(*selectables)
             .join(TaskAssignee, TaskAssignee.task_id == Task.id)
             .join(Task.project)
             .join(Project.initiative)
             .where(*base_conditions)
-            .options(*_global_task_options())
         )
         return apply_filters(
             stmt,
@@ -1002,6 +1041,7 @@ async def _list_global_tasks(
         page=page,
         page_size=page_size,
         sort_fields=sort_fields,
+        tz=tz,
     )
 
 
@@ -1025,21 +1065,21 @@ async def _list_global_created_tasks(
     """
     base_conditions = [
         Task.created_by == current_user.id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        base_conditions.append(Task.is_archived.is_(False))
+        base_conditions.append(Task.archived_at.is_(None))
 
-    def _build(guild_id: int):
-        # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
-        # BY is omitted because _sort_global_task_reads orders the merged set.
+    def _build(guild_id: int, *selectables):
+        # Defines the filtered set for the ordering pass, which selects the
+        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
+        # the merged set, which no single schema's query can do.
         stmt = (
-            select(Task, _date_group_expression(tz).label("date_group"))
+            select(*selectables)
             .join(Task.project)
             .join(Project.initiative)
             .where(*base_conditions)
-            .options(*_global_task_options())
         )
         return apply_filters(
             stmt,
@@ -1061,6 +1101,7 @@ async def _list_global_created_tasks(
         page=page,
         page_size=page_size,
         sort_fields=sort_fields,
+        tz=tz,
     )
 
 
@@ -1209,7 +1250,7 @@ async def _guild_task_query_builder(
     access_conditions = [Initiative.guild_id == guild_id]
 
     if not include_archived:
-        access_conditions.append(Task.is_archived.is_(False))
+        access_conditions.append(Task.archived_at.is_(None))
 
     allowed_ids = await _allowed_project_ids(
         session,
@@ -1299,7 +1340,9 @@ async def query_tasks_for_export(
         allowed_fields=_task_sort_fields(q.tz),
         default_sort=TASK_DEFAULT_SORT,
     )
-    return list(await session.exec(statement.limit(max_rows)))
+    tasks = list(await session.exec(statement.limit(max_rows)))
+    await tags_service.annotate_tags(session, tasks)
+    return tasks
 
 
 async def query_tasks_for_detailed_export(
@@ -1315,7 +1358,7 @@ async def query_tasks_for_detailed_export(
 ) -> tuple[list[Task], dict[int, list[Comment]]]:
     """Detailed-report seam: the same ``list_tasks`` visibility/filter/sort
     pipeline as ``query_tasks_for_export``, but with the extra eager loads a
-    one-task-per-page report needs (subtasks, tags) plus each task's comments
+    one-task-per-page report needs (tags) plus each task's comments
     batch-loaded by id. Comments have no ``Task`` relationship, so they are
     fetched separately — under the caller's RLS session, scoped to the same
     initiatives the tasks came from (the tasks are already visibility-filtered,
@@ -1330,8 +1373,6 @@ async def query_tasks_for_detailed_export(
         selectinload(Task.project),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.subtasks),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
     statement = apply_sorting(
         statement,
@@ -1341,6 +1382,7 @@ async def query_tasks_for_detailed_export(
         default_sort=TASK_DEFAULT_SORT,
     )
     tasks = list(await session.exec(statement.limit(max_rows)))
+    await tags_service.annotate_tags(session, tasks)
     comments = await _load_comments_for_tasks(session, [t.id for t in tasks if t.id])
     return tasks, comments
 
@@ -1517,7 +1559,6 @@ async def query_guild_tasks(
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -1533,7 +1574,7 @@ async def query_guild_tasks(
     result = await session.exec(statement)
     tasks = list(result.unique().all())
     await _annotate_tasks(session, tasks)
-    tags_service.annotate_tags(tasks)
+    await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
     return [_task_to_list_read(task) for task in tasks]
 
@@ -1641,7 +1682,6 @@ async def list_tasks(
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
@@ -1659,7 +1699,7 @@ async def list_tasks(
         session, statement, count_stmt, page, page_size
     )
     await _annotate_tasks(session, tasks)
-    tags_service.annotate_tags(tasks)
+    await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
     items = [_task_to_list_read(task) for task in tasks]
     return TaskListResponse(
@@ -1713,7 +1753,13 @@ async def create_task(
         )
 
     task_data = task_in.model_dump(
-        exclude={"assignee_ids", "task_status_id", "tag_ids", "property_values"}
+        exclude={
+            "assignee_ids",
+            "task_status_id",
+            "tag_ids",
+            "property_values",
+            "checklist",
+        }
     )
 
     # Serialize recurrence to JSON if present
@@ -1730,6 +1776,7 @@ async def create_task(
         position=position,
         task_status_id=selected_status.id,
         created_by=current_user.id,
+        checklist=checklist_service.normalize(task_in.checklist),
     )
     sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
@@ -1840,6 +1887,7 @@ async def update_task(
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
     property_values = update_data.pop("property_values", None)
+    checklist_sent = update_data.pop("checklist", None) is not None
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
 
@@ -1873,6 +1921,10 @@ async def update_task(
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    if checklist_sent:
+        task.checklist = checklist_service.normalize(
+            task_in.checklist or [], existing=task.checklist
+        )
     now = datetime.now(timezone.utc)
     task.updated_at = now
     sync_completed_at(
@@ -1941,12 +1993,10 @@ async def update_task(
         await session.rollback()
         raise
 
-    # The services above issue bulk DELETEs on the junction/value rows, leaving
-    # the ORM-loaded collections stale. Expire them so ``session.add(task)``
-    # below doesn't cascade the now-deleted instances (they reload fresh in the
+    # The property service issues a bulk DELETE on the value rows, leaving the
+    # ORM-loaded collection stale. Expire it so ``session.add(task)`` below
+    # doesn't cascade the now-deleted instances (they reload fresh in the
     # populate_existing fetch that builds the response).
-    if tag_ids is not None:
-        session.expire(task, ["tag_links"])
     if property_values is not None:
         session.expire(task, ["property_values"])
 
@@ -2051,12 +2101,11 @@ async def duplicate_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
-    # Fetch the original task with its subtasks and tags
+    # Fetch the original task with its tags
     task_stmt = (
         select(Task)
         .options(
             selectinload(Task.assignees),
-            selectinload(Task.tag_links),
             selectinload(Task.task_status),
         )
         .join(Task.project)
@@ -2080,13 +2129,6 @@ async def duplicate_task(
         guild_id=guild_context.guild_id,
     )
 
-    # Fetch subtasks
-    subtasks_stmt = (
-        select(Subtask).where(Subtask.task_id == task_id).order_by(Subtask.position)
-    )
-    subtasks_result = await session.exec(subtasks_stmt)
-    original_subtasks = list(subtasks_result.all())
-
     # Get next sort order for the new task
     position = await _next_position(session, original_task.project_id)
 
@@ -2103,6 +2145,7 @@ async def duplicate_task(
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,
+        checklist=checklist_service.cloned(original_task.checklist),
     )
     # The copy keeps the source's status, so a duplicated done task is complete
     # from the moment it exists — stamped now, not inherited: the copy was not
@@ -2118,16 +2161,6 @@ async def duplicate_task(
     # Copy assignees
     assignee_ids = [assignee.id for assignee in original_task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
-
-    # Copy subtasks
-    for original_subtask in original_subtasks:
-        new_subtask = Subtask(
-            task_id=new_task.id,
-            content=original_subtask.content,
-            is_completed=False,  # Reset completion status
-            position=original_subtask.position,
-        )
-        session.add(new_subtask)
 
     # Copy tags (active only — links to trashed tags are not carried forward)
     await tags_service.copy_entity_tags(
@@ -2371,7 +2404,7 @@ async def archive_done_tasks(
         .join(Task.task_status)
         .where(
             Task.project_id == project_id,
-            Task.is_archived.is_(False),
+            Task.archived_at.is_(None),
             TaskStatus.category == TaskStatusCategory.done,
         )
     )
@@ -2388,7 +2421,7 @@ async def archive_done_tasks(
 
     now = datetime.now(timezone.utc)
     for task in tasks:
-        task.is_archived = True
+        task.archived_at = now
         task.updated_at = now
         session.add(task)
 
@@ -2397,41 +2430,25 @@ async def archive_done_tasks(
     return ArchiveDoneResponse(archived_count=len(tasks))
 
 
-@router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])
-async def list_subtasks(
-    task_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Sequence[Subtask]:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-        access="read",
-    )
-    return await _list_subtasks_for_task(session, task.id)
-
-
-@router.post(
-    "/{task_id}/subtasks",
-    response_model=SubtaskRead,
-    status_code=status.HTTP_201_CREATED,
+@router.patch(
+    "/{task_id}/checklist/{item_id}",
+    response_model=List[ChecklistItem],
 )
-async def create_subtask(
+async def toggle_checklist_item(
     task_id: int,
-    subtask_in: SubtaskCreate,
+    item_id: str,
+    toggle_in: ChecklistItemToggle,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Subtask:
+) -> List[ChecklistItem]:
+    """Tick or untick one checklist item.
+
+    Adding, renaming, reordering and deleting go through ``PATCH /tasks/{id}``
+    with the whole list. A tick gets its own route because it is the write
+    several people make to the same task at once: it names one item and rewrites
+    only that item, so two ticks on different items both land.
+    """
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(
@@ -2445,264 +2462,40 @@ async def create_subtask(
         guild_id=guild_context.guild_id,
     )
 
-    content = subtask_in.content.strip()
-    if not content:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=SubtaskMessages.CONTENT_EMPTY,
-        )
-
-    position = await _next_subtask_position(session, task.id)
-    subtask = Subtask(
-        task_id=task.id,
-        content=content,
-        position=position,
-    )
     now = datetime.now(timezone.utc)
-    subtask.updated_at = now
-    _touch_task(task, timestamp=now)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(subtask)
-    session.add(task)
-    await session.commit()
-    await session.refresh(subtask)
-    return subtask
-
-
-@router.post("/{task_id}/subtasks/batch", response_model=List[SubtaskRead])
-async def create_subtasks_batch(
-    task_id: int,
-    subtask_batch: SubtaskBatchCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[Subtask]:
-    """Create multiple subtasks at once."""
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    # Get current max position
-    existing = await _list_subtasks_for_task(session, task.id)
-    position = max((s.position for s in existing), default=-1) + 1
-
-    now = datetime.now(timezone.utc)
-    created_subtasks = []
-
-    for content in subtask_batch.contents:
-        content = content.strip()
-        if not content or len(content) > 2000:
-            continue  # Skip empty or too-long content
-
-        subtask = Subtask(
+    result = await session.exec(
+        checklist_service.toggle_statement(),
+        params=checklist_service.toggle_params(
             task_id=task.id,
-            content=content,
-            position=position,
-            updated_at=now,
-        )
-        session.add(subtask)
-        created_subtasks.append(subtask)
-        position += 1
-
-    if created_subtasks:
-        _touch_task(task, timestamp=now)
-        await _touch_project(session, task.project_id, timestamp=now)
-        session.add(task)
-        await session.commit()
-        for subtask in created_subtasks:
-            await session.refresh(subtask)
-
-    return created_subtasks
-
-
-@router.put("/{task_id}/subtasks/order", response_model=List[SubtaskRead])
-async def reorder_subtasks(
-    task_id: int,
-    reorder_in: SubtaskReorderRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Sequence[Subtask]:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
+            item_id=item_id,
+            done=toggle_in.done,
+            now=now,
+        ),
     )
-
-    if not reorder_in.items:
-        return await _list_subtasks_for_task(session, task.id)
-
-    subtask_ids = [item.id for item in reorder_in.items]
-    stmt = select(Subtask).where(
-        Subtask.task_id == task.id,
-        Subtask.id.in_(tuple(subtask_ids)),
-    )
-    result = await session.exec(stmt)
-    subtasks = result.all()
-    subtask_map = {subtask.id: subtask for subtask in subtasks}
-    if len(subtask_map) != len(subtask_ids):
+    row = result.one_or_none()
+    if row is None:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=SubtaskMessages.NOT_FOUND_FOR_TASK,
+            detail=ChecklistMessages.ITEM_NOT_FOUND,
         )
 
-    now = datetime.now(timezone.utc)
-    for item in reorder_in.items:
-        subtask = subtask_map[item.id]
-        subtask.position = item.position
-        subtask.updated_at = now
-        session.add(subtask)
-    _touch_task(task, timestamp=now)
     await _touch_project(session, task.project_id, timestamp=now)
-    session.add(task)
     await session.commit()
-    return await _list_subtasks_for_task(session, task.id)
-
-
-@subtasks_router.get("/subtasks/{subtask_id}", response_model=SubtaskRead)
-async def read_subtask(
-    subtask_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Subtask:
-    """One subtask by id — the read-back for a ``subtasks.*`` event. Gated by
-    read access on the parent task's project, like reading the task."""
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-    await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-        access="read",
-    )
-    return subtask
-
-
-@subtasks_router.patch("/subtasks/{subtask_id}", response_model=SubtaskRead)
-async def update_subtask(
-    subtask_id: int,
-    subtask_in: SubtaskUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Subtask:
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    update_data = subtask_in.model_dump(exclude_unset=True)
-    if not update_data:
-        return subtask
-
-    if "content" in update_data and update_data["content"] is not None:
-        content_value = update_data["content"].strip()
-        if not content_value:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SubtaskMessages.CONTENT_EMPTY,
-            )
-        subtask.content = content_value
-
-    if "is_completed" in update_data and update_data["is_completed"] is not None:
-        subtask.is_completed = bool(update_data["is_completed"])
-
-    now = datetime.now(timezone.utc)
-    subtask.updated_at = now
-    _touch_task(task, timestamp=now)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(subtask)
-    session.add(task)
-    await session.commit()
-    await session.refresh(subtask)
-    return subtask
-
-
-@subtasks_router.delete(
-    "/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_subtask(
-    subtask_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    subtask = await session.get(Subtask, subtask_id)
-    if not subtask:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
-        )
-
-    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        guild_id=guild_context.guild_id,
-    )
-
-    await session.delete(subtask)
-    now = _touch_task(task)
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(task)
-    await session.commit()
-    return None
+    # The statement wrote behind the ORM's back, so the loaded row is stale.
+    session.expire(task)
+    return checklist_service.read(row[0])
 
 
 # AI Generation endpoints
-@router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
-async def generate_task_subtasks(
+@router.post("/{task_id}/ai/checklist", response_model=GenerateChecklistResponse)
+async def generate_task_checklist(
     task_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> GenerateSubtasksResponse:
-    """Generate AI-powered subtask suggestions for a task."""
+) -> GenerateChecklistResponse:
+    """Suggest checklist steps for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(
@@ -2719,7 +2512,7 @@ async def generate_task_subtasks(
     )
 
     try:
-        subtasks = await ai_generation_service.generate_subtasks(
+        items = await ai_generation_service.generate_checklist(
             session,
             current_user,
             guild_context.guild_id,
@@ -2727,7 +2520,7 @@ async def generate_task_subtasks(
             initiative_name=project.initiative.name if project.initiative else None,
             project_name=project.name,
         )
-        return GenerateSubtasksResponse(subtasks=subtasks)
+        return GenerateChecklistResponse(items=items)
     except ai_generation_service.AIGenerationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -2810,8 +2603,8 @@ async def set_task_tags(
     await session.commit()
 
     # Single fetch with all relationships for the response —
-    # populate_existing so the identity-mapped task's tag_links refresh
-    # (expire_on_commit=False keeps the pre-write collection otherwise).
+    # populate_existing so the identity-mapped task's collections refresh
+    # (expire_on_commit=False keeps the pre-write ones otherwise).
     task = await _fetch_task(
         session, task_id_to_update, guild_context.guild_id, populate_existing=True
     )

@@ -54,6 +54,9 @@ export function entityMatch(text: string): MenuTextMatch | null {
 export interface EntityMentionsPluginProps {
   /** Initiative the document belongs to — what a mention may reach. */
   initiativeId?: number | null;
+  /** The thing being written in, as a reference (`document:12`). Never
+   *  offered: a thing does not point at itself. */
+  subject?: string | null;
 }
 
 /**
@@ -65,6 +68,7 @@ export interface EntityMentionsPluginProps {
  */
 export function EntityMentionsPlugin({
   initiativeId,
+  subject,
 }: EntityMentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { t } = useTranslation("documents");
@@ -86,6 +90,7 @@ export function EntityMentionsPlugin({
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     template: false,
+    subject,
     limit: SUGGESTION_LIMIT,
     enabled: active !== null && (initiativeId ?? 0) > 0,
   });

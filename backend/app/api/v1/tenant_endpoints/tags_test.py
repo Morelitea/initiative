@@ -6,8 +6,10 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 
+from app.core.relationships import node_id
+from app.core.search import SearchEntityType
 from app.models.platform.guild import GuildRole
-from app.models.tenant.tag import TaskTag
+from app.models.tenant.relationship import EntityRelationship
 from app.testing import (
     create_initiative,
     create_tag,
@@ -22,7 +24,11 @@ async def _task_tag_ids(session, guild_id: int, task_id: int) -> set[int]:
     clear_rls_context(session)
     await route_session_to_guild(session, guild_id)
     result = await session.exec(
-        select(TaskTag.tag_id).where(TaskTag.task_id == task_id)
+        select(EntityRelationship.target_id).where(
+            EntityRelationship.source_node == node_id(SearchEntityType.task, task_id),
+            EntityRelationship.relationship_type == "tagged_with",
+            EntityRelationship.removed_at.is_(None),
+        )
     )
     return set(result.all())
 
@@ -164,13 +170,20 @@ async def test_generic_tool_tags_route_covers_every_tool(
         assert response.status_code == 200, (tool, response.text)
         assert [t["id"] for t in response.json()] == [tag.id], tool
 
-    # The assignment is served back through the tool's own read path.
-    listing = await client.get(a.g("/queues/"), headers=a.headers)
-    assert listing.status_code == 200
-    (queue_row,) = [
-        q for q in listing.json()["items"] if q["id"] == entities[Tool.queue].id
-    ]
-    assert [t["id"] for t in queue_row["tags"]] == [tag.id]
+    # Every tool's own read path serves the assignment back. Asked of all of
+    # them rather than one: a tag lives in the shared edge table now, so what
+    # differs between one tool's listing and the next is only whether it
+    # remembered to ask for them.
+    for tool, entity in entities.items():
+        # The route segment is the plural in kebab: counter_groups is served
+        # at /counter-groups/, the way every event's resource type resolves.
+        segment = tool.plural.replace("_", "-")
+        listing = await client.get(a.g(f"/{segment}/"), headers=a.headers)
+        assert listing.status_code == 200, (tool, listing.text)
+        body = listing.json()
+        rows = body["items"] if isinstance(body, dict) else body
+        (row,) = [r for r in rows if r["id"] == entity.id]
+        assert [t["id"] for t in row["tags"]] == [tag.id], tool
 
 
 @pytest.mark.integration

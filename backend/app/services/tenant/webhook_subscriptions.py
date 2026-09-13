@@ -5,10 +5,12 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 
+from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -112,6 +114,7 @@ async def create_subscription(
     payload: WebhookSubscriptionCreate,
     created_by: int,
     guild_id: int,
+    app_install_id: int | None = None,
 ) -> tuple[WebhookSubscription, str]:
     """Persist a fresh subscription and return ``(row, plaintext_secret)``.
 
@@ -119,6 +122,11 @@ async def create_subscription(
     We persist it in the DB column too because we need it server-side
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
+
+    ``app_install_id`` is the install that registered this, when an app did. It
+    decides how a delivery names the guild and the actor: an app already holds
+    references for both at its install, and an envelope should arrive under
+    those (``webhook_refs``).
     """
     assert_vocabulary(list(payload.event_types), payload.fields)
 
@@ -129,6 +137,7 @@ async def create_subscription(
         guild_id=guild_id,
         initiative_id=payload.initiative_id,
         created_by=created_by,
+        app_install_id=app_install_id,
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),
@@ -186,6 +195,60 @@ async def update_subscription(
     await session.commit()
     await session.refresh(subscription)
     return subscription
+
+
+async def deactivate_for_install(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    app_install_id: int,
+) -> int:
+    """Switch off the subscriptions one install registered. Returns the count.
+
+    An install is what makes an app present in a guild, so removing it ends
+    what that app receives. Deactivated rather than deleted: the row is the
+    record of what was being sent where, and a reinstall registers afresh.
+
+    Called from the uninstall path, which runs as a guild admin — the authority
+    the guild-wide ones need, and more than enough for the rest.
+
+    **Staged, not committed.** Uninstall removes connections, delegations, these
+    and the install itself, and commits once at the end so the whole thing
+    happens or none of it does. Committing here would make everything staked
+    before it durable while the install is still there to fail on.
+    """
+    rows = (
+        await session.exec(
+            select(WebhookSubscription).where(
+                WebhookSubscription.guild_id == guild_id,
+                WebhookSubscription.app_install_id == app_install_id,
+                WebhookSubscription.active.is_(True),
+            )
+        )
+    ).all()
+    for row in rows:
+        row.active = False
+        row.updated_at = datetime.now(timezone.utc)
+        session.add(row)
+    return len(rows)
+
+
+def registered_install_is_live():
+    """A subscription whose install is still there, or that never had one.
+
+    Deactivating at uninstall is what stops deliveries promptly; this is what
+    makes it true regardless. ``app_install_id`` carries no foreign key —
+    ``guild_apps`` rows and these are both guild content, but nothing enforces
+    the link — so the delivery paths ask rather than assume. It rides inside the
+    selector they already run, and ``guild_apps`` is guild-level, so any routed
+    session can answer it.
+    """
+    return or_(
+        WebhookSubscription.app_install_id.is_(None),
+        select(GuildApp.id)
+        .where(GuildApp.id == WebhookSubscription.app_install_id)
+        .exists(),
+    )
 
 
 async def delete_subscription(

@@ -5,17 +5,17 @@ Four channels, and the split between them is the point:
 * **``/installs``** says where the app is installed and nothing else. It is what
   an app reconciles against — an install that has disappeared from this list is
   one whose credentials the app must let go of.
-* **``/installs/{guild_id}/config``** is the custody channel. Initiative holds
+* **``/installs/{guild_ref}/config``** is the custody channel. Initiative holds
   the credentials; the app that uses them pulls them here, over its own
   authenticated connection, and caches them in memory. Every refusal on this
   route — the operator's kill switch, the guild's own switch, an install that
   is not this app's — stops that pull immediately, which is what makes revoking
   real rather than advisory.
-* **``/installs/{guild_id}/connections``** reports which per-member handles are
+* **``/installs/{guild_ref}/connections``** reports which per-member handles are
   live, by reference, carrying no values at all. Its ``/resolve`` leg answers
   the one question a delegated call needs: which of those handles belongs to
   the member a delegate's token named.
-* **``/installs/{guild_id}/status``** is the app answering the one question this
+* **``/installs/{guild_ref}/status``** is the app answering the one question this
   build cannot: whether the credentials it was given actually work.
 
 The guild is named in the path because one app serves many. The *app* is never
@@ -49,7 +49,8 @@ from app.schemas.tenant.app_channel import (
 from app.models.tenant.guild_app_user_connection import CONNECTION_ID_LENGTH
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.app_channel_auth import MAX_APP_ID_LENGTH
-from app.services.marketplace.app_subjects import SUBJECT_LENGTH
+from app.services.marketplace import app_refs
+from app.services.marketplace.app_refs import REF_MAX_LENGTH
 from app.services.tenant import app_channels as channels_service
 from app.services.tenant.app_channels import AppChannelError
 
@@ -76,9 +77,9 @@ async def list_installs(
     )
 
 
-@router.get("/{guild_id}/config", response_model=AppInstallConfigRead)
+@router.get("/{guild_ref}/config", response_model=AppInstallConfigRead)
 async def read_install_config(
-    guild_id: int, session: AdminSessionDep, caller: CallerDep
+    guild_ref: str, session: AdminSessionDep, caller: CallerDep
 ) -> AppInstallConfigRead:
     """The decrypted configuration for one install.
 
@@ -92,8 +93,9 @@ async def read_install_config(
     access ended stops being able to pull at that moment.
     """
     try:
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         payload = await channels_service.config_payload(session, app)
     except AppChannelError as exc:
@@ -101,9 +103,9 @@ async def read_install_config(
     return AppInstallConfigRead(**payload)
 
 
-@router.get("/{guild_id}/connections", response_model=AppConnectionsResponse)
+@router.get("/{guild_ref}/connections", response_model=AppConnectionsResponse)
 async def list_install_connections(
-    guild_id: int, session: AdminSessionDep, caller: CallerDep
+    guild_ref: str, session: AdminSessionDep, caller: CallerDep
 ) -> AppConnectionsResponse:
     """The app's per-member connections for one guild.
 
@@ -112,8 +114,9 @@ async def list_install_connections(
     value to do it, and this route has none to give.
     """
     try:
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         rows = await channels_service.connection_payload(session, app)
     except AppChannelError as exc:
@@ -125,9 +128,26 @@ async def list_install_connections(
 DelegateParam = Annotated[str, Query(min_length=1, max_length=MAX_APP_ID_LENGTH)]
 #: The pairwise subject itself, bounded to the width the column stores so an
 #: oversized value is refused before it reaches a lookup.
-SubjectParam = Annotated[str, Query(min_length=1, max_length=SUBJECT_LENGTH)]
+SubjectParam = Annotated[str, Query(min_length=1, max_length=REF_MAX_LENGTH)]
 #: Which of the install's connections is meant, by manifest id.
 ConnectionParam = Annotated[Optional[str], Query(max_length=CONNECTION_ID_LENGTH)]
+
+
+async def _resolve_install(guild_ref: str) -> tuple[int, int]:
+    """The guild and the install this reference names.
+
+    An app knows the guild by the reference minted for its own install, so
+    every route below crosses this edge first and works on the ids after it.
+    Both halves travel on, because a reference names one install rather than a
+    guild: the install it names is checked against the one that is loaded, so a
+    value minted before a reinstall does not address what replaced it.
+    """
+    resolved = await app_refs.resolve_app_guild_ref(ref=guild_ref)
+    if resolved is None:
+        raise to_http(
+            AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
+        )
+    return resolved
 
 
 async def _delegated_member(guild_id: int, delegate: str, subject: str) -> int:
@@ -157,9 +177,9 @@ async def _delegated_member(guild_id: int, delegate: str, subject: str) -> int:
 # Declared ahead of the ``{connection_ref}`` route below: the two differ by
 # method today, but a literal segment has to be matched before a parameterized
 # one or a request for ``resolve`` is read as a reference spelled that way.
-@router.get("/{guild_id}/connections/resolve", response_model=AppConnectionRead)
+@router.get("/{guild_ref}/connections/resolve", response_model=AppConnectionRead)
 async def resolve_delegated_connection(
-    guild_id: int,
+    guild_ref: str,
     delegate: DelegateParam,
     subject: SubjectParam,
     session: AdminSessionDep,
@@ -189,8 +209,9 @@ async def resolve_delegated_connection(
     asking after.
     """
     try:
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id
+            session, caller.registration, guild_id, app_install_id=install_id
         )
         user_id = await _delegated_member(guild_id, delegate, subject)
         row = await channels_service.connection_for_member(
@@ -202,10 +223,10 @@ async def resolve_delegated_connection(
 
 
 @router.put(
-    "/{guild_id}/connections/{connection_ref}", response_model=AppConnectionRead
+    "/{guild_ref}/connections/{connection_ref}", response_model=AppConnectionRead
 )
 async def write_install_connection(
-    guild_id: int,
+    guild_ref: str,
     connection_ref: str,
     request: Request,
     session: AdminSessionDep,
@@ -224,8 +245,13 @@ async def write_install_connection(
     """
     payload = parse_body(request, AppConnectionWrite)
     try:
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id, for_write=True
+            session,
+            caller.registration,
+            guild_id,
+            app_install_id=install_id,
+            for_write=True,
         )
         row = await channels_service.write_connection_values(
             session,
@@ -240,9 +266,9 @@ async def write_install_connection(
     return AppConnectionRead(**row)
 
 
-@router.post("/{guild_id}/status", response_model=AppStatusRead)
+@router.post("/{guild_ref}/status", response_model=AppStatusRead)
 async def report_install_status(
-    guild_id: int,
+    guild_ref: str,
     request: Request,
     session: AdminSessionDep,
     caller: CallerDep,
@@ -257,8 +283,13 @@ async def report_install_status(
     """
     payload = parse_body(request, AppStatusReport)
     try:
+        guild_id, install_id = await _resolve_install(guild_ref)
         app = await channels_service.load_install(
-            session, caller.registration, guild_id, for_write=True
+            session,
+            caller.registration,
+            guild_id,
+            app_install_id=install_id,
+            for_write=True,
         )
         result = await channels_service.report_config_state(
             session, app, state=payload.state, detail=payload.detail

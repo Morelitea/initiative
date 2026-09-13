@@ -11,7 +11,7 @@ import pathlib
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, text
 from sqlmodel import delete, select
 
 from app.api import resource_access
@@ -25,24 +25,23 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
+from app.db.session import set_rls_context
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
     audience_user_ids,
     compute_permission,
-    dac_scope_clause,
     effective_level,
+    granted_scope_clause,
     has_project_write_access,
+    listing_scope_clause,
     require_access,
+    writable_scope_clause,
 )
 from app.testing.factories import TOOL_FACTORIES
 
-# The tools whose rows are gated on initiative membership as well as on grants
-# (``scope_gate``); the rest are guild-level and skip that leg.
-SCOPE_GATED = [t for t, r in DAC_RESOURCES.items() if r.scope_gate]
 ALL_TOOLS = list(DAC_RESOURCES)
 
 # The canonical per-tool factory registry rather than a copy of it: that one
@@ -300,21 +299,43 @@ async def test_membership_alone_grants_nothing(session, acting_user, clean_conte
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("tool", SCOPE_GATED, ids=lambda t: t.value)
-async def test_a_grant_left_behind_after_removal_is_denied(
+@pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
+async def test_a_grant_left_behind_after_removal_reaches_nothing(
     session, acting_user, clean_context, tool: Tool
 ):
-    """A grant row outliving the user's initiative membership must not carry
-    access — the scope gate is checked before the grant is read."""
+    """A grant row outliving the user's initiative membership carries no access.
+
+    Leaving an initiative does not sweep the grants written for you, so the row
+    is still there naming you at owner. What answers it is the table's own
+    policy: every content table ANDs ``public.initiative_access`` onto its
+    sharing leg, so the resource stops being visible the moment the membership
+    goes — asserted here as the guild role, against the database, because that
+    is where the answer comes from.
+    """
     w = await build_world(session, acting_user, tool)
-    set_active_role(w.guild.id, GuildRole.member.value)
-    loaded = await w.grant("owner", user=w.co_member.user)
-    require_access(w.resource, loaded, w.co_member.user, access="read")
+    await w.grant("owner", user=w.co_member.user)
+    model = type(w.row)
+
+    async def visible() -> bool:
+        await set_rls_context(
+            session,
+            user_id=w.co_member.user.id,
+            guild_id=w.guild.id,
+            guild_role=GuildRole.member.value,
+        )
+        try:
+            rows = (
+                await session.exec(select(model.id).where(model.id == w.row.id))
+            ).all()
+            return bool(rows)
+        finally:
+            await session.exec(text("RESET ROLE"))
+
+    assert await visible(), "the grant should reach it while the membership stands"
 
     await _remove_from_initiative(session, w.initiative, w.co_member.user)
-    loaded = await w.load()
-    assert refused(w.resource, loaded, w.co_member.user, access="read").detail == (
-        w.resource.denied_msg
+    assert not await visible(), (
+        "a grant that outlived the membership must reach nothing"
     )
 
 
@@ -447,49 +468,86 @@ async def test_a_frozen_guild_caps_everyone_at_read(
     refused(w.resource, loaded, w.admin.user, access="write")
 
 
-# ── dac_scope_clause: the query-shaped half of the DAC decision ──────────────
+# ── The clauses that survive the policies ───────────────────────────────────
+#
+# A statement confined to one initiative asks nothing: the table's own policy
+# already applied the sharing gate. What is left here is the listing rule for a
+# statement that SPANS initiatives, which is narrower than the policy on
+# purpose, and the writable rule, which is narrower than any read policy.
 
 
 def _compiled(clause: ColumnElement[bool]) -> str:
     return str(clause.compile(compile_kwargs={"literal_binds": True}))
 
 
-def test_dac_scope_clause_is_a_no_op_for_a_guild_wide_request():
-    """A guild admin, or a live PAM grant, reaches the whole guild — so the
-    clause adds nothing and the caller needs no branch around it."""
+def test_a_confined_listing_adds_nothing():
+    """Named an initiative, the clause is a no-op whoever is asking.
+
+    The rows come from a table whose policy has already asked gate 4, so a
+    second copy of the question could only cost a query.
+    """
     set_active_grant(None, None)
     set_override_sharing_initiatives(None)
     try:
-        set_active_role(7, GuildRole.admin.value)
-        assert _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7)) == (
-            "true"
-        )
-
-        set_active_role(None, None)
-        set_active_grant(7, "read")
-        assert (
-            _compiled(dac_scope_clause(Tool.document, Document.id, 1, guild_id=7))
-            == "true"
-        )
+        for role in (None, GuildRole.member.value, GuildRole.admin.value):
+            set_active_role(7 if role else None, role)
+            assert (
+                _compiled(
+                    listing_scope_clause(
+                        Tool.project, Project.id, 1, guild_id=7, initiative_id=3
+                    )
+                )
+                == "true"
+            )
     finally:
         set_active_role(None, None)
-        set_active_grant(None, None)
 
 
-def test_dac_scope_clause_respects_the_grant_level():
-    """A grant opens the guild only at the level it was issued at, so a read
-    grant is a no-op for a read but not for a write."""
+def test_a_listing_across_initiatives_still_narrows_a_guild_admin():
+    """Spanning initiatives, the question is what reaches the reader.
+
+    A guild admin's authority is not a leg here — their sidebar lists what was
+    shared with them, and they reach the rest by naming an initiative.
+    """
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_role(7, GuildRole.admin.value)
+    try:
+        sql = _compiled(listing_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+        assert sql != "true"
+        assert "resource_grants" in sql
+    finally:
+        set_active_role(None, None)
+
+
+def test_a_pam_window_is_a_no_op_across_initiatives():
+    """A grantee holds no membership and no grant row, so the grant legs would
+    answer nothing at all — the window is what they navigate by."""
     set_active_role(None, None)
     set_override_sharing_initiatives(None)
     set_active_grant(7, "read")
     try:
         assert (
-            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            _compiled(granted_scope_clause(Tool.document, Document.id, 1, guild_id=7))
+            == "true"
+        )
+    finally:
+        set_active_grant(None, None)
+
+
+def test_the_window_opens_only_at_the_level_it_was_issued_at():
+    """A read grant is a no-op for a read and not for a write."""
+    set_active_role(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_grant(7, "read")
+    try:
+        assert (
+            _compiled(granted_scope_clause(Tool.project, Project.id, 1, guild_id=7))
             == "true"
         )
         assert (
             _compiled(
-                dac_scope_clause(
+                granted_scope_clause(
                     Tool.project, Project.id, 1, guild_id=7, access="write"
                 )
             )
@@ -498,7 +556,7 @@ def test_dac_scope_clause_respects_the_grant_level():
         set_active_grant(7, "read_write")
         assert (
             _compiled(
-                dac_scope_clause(
+                granted_scope_clause(
                     Tool.project, Project.id, 1, guild_id=7, access="write"
                 )
             )
@@ -508,37 +566,42 @@ def test_dac_scope_clause_respects_the_grant_level():
         set_active_grant(None, None)
 
 
-def test_dac_scope_clause_narrows_an_ordinary_member():
-    """A member is scoped to the resources granted to them, and the clause names
-    the tool it was asked about."""
-    set_active_grant(None, None)
+def test_a_window_on_another_guild_opens_nothing_here():
+    """PAM is keyed by guild, and no guild at all narrows rather than opens."""
+    set_active_role(None, None)
     set_override_sharing_initiatives(None)
-    set_active_role(7, GuildRole.member.value)
+    set_active_grant(8, "read_write")
     try:
-        sql = _compiled(dac_scope_clause(Tool.queue, Queue.id, 1, guild_id=7))
-        assert "resource_grants" in sql
-        assert "queue" in sql
-        assert sql != "true"
+        assert (
+            _compiled(granted_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            != "true"
+        )
+        assert (
+            _compiled(granted_scope_clause(Tool.project, Project.id, 1, guild_id=None))
+            != "true"
+        )
     finally:
-        set_active_role(None, None)
+        set_active_grant(None, None)
 
 
-def test_dac_scope_clause_narrows_when_the_role_is_for_another_guild():
-    """Role context is keyed by guild, so being an admin of guild 8 grants
-    nothing in guild 7."""
+def test_the_writable_clause_does_not_collapse_when_confined():
+    """Unlike the read listing, this one still has something to ask.
+
+    A read policy admits a row shared at any level, so "which of these may I
+    change" is a narrower question than the one already answered — the grant
+    rows have to be filtered by level whatever the scope.
+    """
+    set_active_role(7, GuildRole.member.value)
     set_active_grant(None, None)
     set_override_sharing_initiatives(None)
-    set_active_role(8, GuildRole.admin.value)
     try:
-        assert (
-            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
-            != "true"
+        sql = _compiled(
+            writable_scope_clause(
+                Tool.project, Project.id, 1, guild_id=7, initiative_id=3
+            )
         )
-        # ...and no guild at all narrows too, rather than opening up.
-        assert (
-            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=None))
-            != "true"
-        )
+        assert sql != "true"
+        assert "resource_grants" in sql
     finally:
         set_active_role(None, None)
 
@@ -550,17 +613,14 @@ def test_every_tool_can_be_scoped(tool):
     set_active_role(None, None)
     set_active_grant(None, None)
     set_override_sharing_initiatives(None)
-    sql = _compiled(dac_scope_clause(tool, Project.id, 1, guild_id=7))
+    sql = _compiled(granted_scope_clause(tool, Project.id, 1, guild_id=7))
     assert "resource_grants" in sql
     assert tool.value in sql
 
 
-def test_the_grants_subquery_has_one_caller():
-    """``dac_scope_clause`` is the single entry point for narrowing a listing.
-
-    ``_granted_resource_ids`` is one part of what it composes, and is private so
-    that composition happens in one place.
-    """
+def test_the_grants_subquery_has_one_home():
+    """``_granted_resource_ids`` is private so the composition happens in one
+    place — the clause builders in ``permissions.py`` and nowhere else."""
     root = pathlib.Path(__file__).resolve().parents[1]
     offenders = [
         str(path.relative_to(root))
@@ -569,8 +629,8 @@ def test_the_grants_subquery_has_one_caller():
         and "_granted_resource_ids" in path.read_text()
     ]
     assert offenders == [], (
-        "these modules reach for the grants subquery directly instead of "
-        f"permissions.dac_scope_clause: {offenders}"
+        "these modules reach for the grants subquery directly instead of the "
+        f"clause builders in permissions.py: {offenders}"
     )
 
 

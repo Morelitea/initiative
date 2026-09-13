@@ -7,10 +7,18 @@ carry the guild with it.
 """
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
-from app.services.tenant.collaboration import CollaborationManager, DocumentRoom
+from app.services.stream_authz import RoomMember
+from app.services.tenant import collaboration as collaboration_module
+from app.services.tenant.collaboration import (
+    CollaborationManager,
+    DocumentRoom,
+    room_roster,
+    user_has_connection,
+)
 
 
 class FakeResult:
@@ -40,9 +48,9 @@ class SlowSession:
         return FakeResult(self.document)
 
 
-def loaded_room(document_id: int) -> DocumentRoom:
+def loaded_room(guild_id: int, document_id: int) -> DocumentRoom:
     """A room as it stands once its one read of the database is done."""
-    room = DocumentRoom(document_id)
+    room = DocumentRoom(guild_id, document_id)
     room._loaded = True
     return room
 
@@ -50,8 +58,8 @@ def loaded_room(document_id: int) -> DocumentRoom:
 @pytest.mark.unit
 async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(5)
-    manager._rooms[(2, 5)] = loaded_room(5)
+    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, 5)] = loaded_room(2, 5)
 
     first = manager.get_room(1, 5)
     second = manager.get_room(2, 5)
@@ -65,7 +73,7 @@ async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
 @pytest.mark.unit
 async def test_a_room_is_reached_only_from_its_own_guild() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(5)
+    manager._rooms[(1, 5)] = loaded_room(1, 5)
 
     assert manager.get_room(1, 5) is not None
     assert manager.get_room(2, 5) is None
@@ -75,8 +83,8 @@ async def test_a_room_is_reached_only_from_its_own_guild() -> None:
 @pytest.mark.unit
 async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(5)
-    manager._rooms[(2, 5)] = loaded_room(5)
+    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, 5)] = loaded_room(2, 5)
 
     # Both are empty of collaborators, so both are removable — only the one
     # named should go.
@@ -89,8 +97,8 @@ async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
 @pytest.mark.unit
 async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(5)
-    manager._rooms[(2, 5)] = loaded_room(5)
+    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, 5)] = loaded_room(2, 5)
 
     assert await manager.invalidate_room_if_empty(1, 5) is True
 
@@ -159,3 +167,324 @@ async def test_a_room_being_read_in_is_not_collected_as_idle() -> None:
     # Once it has been read in, an empty room is collectable as before.
     assert await manager.invalidate_room_if_empty(1, 5) is True
     assert manager.get_room(1, 5) is None
+
+
+# ── the connection register is the only register ─────────────────────────────
+
+
+class FakeAuthority:
+    """Stands in for the streaming spine, holding connections per room."""
+
+    def __init__(self) -> None:
+        self.rooms: dict[tuple, list[RoomMember]] = {}
+
+    def add(self, guild_id, document_id, member) -> None:
+        self.rooms.setdefault((guild_id, "document", document_id), []).append(member)
+
+    def room_size(self, guild_id, resource_type, resource_id) -> int:
+        return len(self.rooms.get((guild_id, resource_type, resource_id), []))
+
+    def room_members(self, guild_id, resource_type, resource_id):
+        return list(self.rooms.get((guild_id, resource_type, resource_id), []))
+
+
+def member(user_id: int, *, name: str = "Ada", can_write: bool = True) -> RoomMember:
+    return RoomMember(
+        user=SimpleNamespace(id=user_id),
+        meta={"name": name, "can_write": can_write, "avatar_url": None},
+    )
+
+
+@pytest.fixture
+def authority(monkeypatch):
+    fake = FakeAuthority()
+    monkeypatch.setattr(collaboration_module, "stream_authority", fake)
+    return fake
+
+
+@pytest.mark.unit
+async def test_two_tabs_of_one_account_are_one_collaborator(authority) -> None:
+    """The roster is about people; delivery is about connections."""
+    authority.add(1, 5, member(7, name="Ada"))
+    authority.add(1, 5, member(7, name="Ada"))
+    authority.add(1, 5, member(9, name="Grace"))
+
+    roster = room_roster(1, 5)
+
+    assert sorted(entry["user_id"] for entry in roster) == [7, 9]
+
+
+@pytest.mark.unit
+async def test_a_reader_who_opens_a_writable_tab_can_write(authority) -> None:
+    authority.add(1, 5, member(7, can_write=False))
+    authority.add(1, 5, member(7, can_write=True))
+
+    assert room_roster(1, 5)[0]["can_write"] is True
+
+
+@pytest.mark.unit
+async def test_a_room_is_kept_while_any_connection_is_in_it(authority) -> None:
+    """A room is retired on its connections, one per socket — so one tab
+    closing leaves a room that another tab is still holding."""
+    manager = CollaborationManager()
+    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    authority.add(1, 5, member(7))
+
+    await manager.remove_room(1, 5)
+    assert manager.get_room(1, 5) is not None
+
+    assert await manager.invalidate_room_if_empty(1, 5) is False
+    assert manager.get_room(1, 5) is not None
+
+
+@pytest.mark.unit
+async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
+    """Nothing is dropped while it still owes the database something."""
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.offer_content({"root": {}})
+
+    await manager.remove_room(1, 5)
+
+    assert manager.get_room(1, 5) is room
+    assert room.detached is False
+
+
+# ── persistence ──────────────────────────────────────────────────────────────
+
+
+class FakeExecResult:
+    def __init__(self, rowcount: int) -> None:
+        self.rowcount = rowcount
+
+
+class RecordingSession:
+    def __init__(self, rowcount: int = 1) -> None:
+        self.rowcount = rowcount
+        self.statements: list = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    async def exec(self, statement):
+        self.statements.append(statement)
+        return FakeExecResult(self.rowcount)
+
+    async def commit(self) -> None:
+        self.commits += 1
+
+    async def rollback(self) -> None:
+        self.rollbacks += 1
+
+
+@pytest.mark.unit
+async def test_a_room_is_clean_once_its_revision_reaches_the_row() -> None:
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+    assert room.is_dirty is True
+
+    await manager.persist_room(1, 5, RecordingSession())
+
+    assert room.is_dirty is False
+
+
+@pytest.mark.unit
+async def test_a_write_that_reaches_no_row_leaves_the_room_unsaved() -> None:
+    """A save that matched nothing is not a save.
+
+    A room reports itself clean on the strength of rows actually written, so
+    a write that reached none leaves it owing the same work.
+    """
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+
+    await manager.persist_room(1, 5, RecordingSession(rowcount=0))
+
+    assert room.is_dirty is True
+
+
+@pytest.mark.unit
+async def test_an_edit_during_a_write_survives_it() -> None:
+    """The revision saved is the one that was serialized, not whatever is
+    current when the commit returns."""
+    room = loaded_room(1, 5)
+    revision, _state, _content = room.snapshot()
+    room.apply_update(_an_update())  # lands while the write is in flight
+    room.mark_persisted(revision)
+
+    assert room.is_dirty is True
+
+
+@pytest.mark.unit
+async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
+    """Idle documents cost nothing to keep open."""
+    manager = CollaborationManager()
+    clean = loaded_room(1, 5)
+    dirty = loaded_room(1, 6)
+    dirty.apply_update(_an_update())
+    manager._rooms[(1, 5)] = clean
+    manager._rooms[(1, 6)] = dirty
+
+    written: list[int] = []
+
+    async def fake_write(room, _session):
+        written.append(room.document_id)
+        room.mark_persisted(room._revision)
+
+    monkeypatch.setattr(manager, "_write_room", fake_write)
+
+    class NullSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_a):
+            return False
+
+    monkeypatch.setattr(collaboration_module, "AsyncSessionLocal", NullSession)
+
+    async def no_context(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(collaboration_module, "set_rls_context", no_context)
+
+    assert await manager.persist_dirty_rooms() == 1
+    assert written == [6]
+
+
+def _an_update() -> bytes:
+    """A real Yjs update, so the room's document genuinely moves."""
+    from pycrdt import Doc, Map
+
+    doc = Doc()
+    doc["cells"] = Map()
+    doc["cells"]["A1"] = "value"
+    return bytes(doc.get_update())
+
+
+@pytest.mark.unit
+async def test_a_person_is_still_here_while_one_of_their_tabs_remains(
+    authority,
+) -> None:
+    authority.add(1, 5, member(7))
+
+    assert user_has_connection(1, 5, 7) is True
+    assert user_has_connection(1, 5, 9) is False
+
+
+@pytest.mark.unit
+async def test_a_room_being_joined_is_not_retired(authority) -> None:
+    """A connection is handed its room before it reaches the register.
+
+    The room is held across that gap, so the last connection leaving during it
+    retires nothing.
+    """
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.hold()
+
+    await manager.remove_room(1, 5)
+    assert manager.get_room(1, 5) is room
+    assert await manager.invalidate_room_if_empty(1, 5) is False
+
+    room.release()
+    await manager.remove_room(1, 5)
+    assert manager.get_room(1, 5) is None
+
+
+@pytest.mark.unit
+async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> None:
+    """External invalidation holds the same line as retirement."""
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+
+    assert await manager.invalidate_room_if_empty(1, 5) is False
+    assert manager.get_room(1, 5) is room
+
+
+@pytest.mark.unit
+async def test_only_the_tab_that_last_moved_the_document_sets_its_content() -> None:
+    """A rendering is current only if it came from the tab that last typed."""
+    room = loaded_room(1, 5)
+    tab_a, tab_b = object(), object()
+    room.apply_update(_an_update(), connection=tab_a)
+
+    assert room.offer_content({"root": "as tab b saw it"}, connection=tab_b) is False
+    assert room.offer_content({"root": "as tab a saw it"}, connection=tab_a) is True
+    assert room.snapshot()[2] == {"root": "as tab a saw it"}
+
+
+@pytest.mark.unit
+async def test_two_writes_of_one_room_do_not_interleave() -> None:
+    """A sweep and a disconnect can reach one room together.
+
+    They take the room's write lock in turn, so the row ends up holding the
+    later snapshot rather than whichever commit returns last.
+    """
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, 5)] = room
+    room.apply_update(_an_update())
+
+    concurrent: list[int] = []
+    active = {"n": 0}
+
+    class SlowWriteSession:
+        async def exec(self, _statement):
+            active["n"] += 1
+            concurrent.append(active["n"])
+            await asyncio.sleep(0.02)
+            active["n"] -= 1
+            return FakeExecResult(1)
+
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+    await asyncio.gather(
+        manager.persist_room(1, 5, SlowWriteSession()),
+        manager.persist_room(1, 5, SlowWriteSession()),
+    )
+
+    assert max(concurrent) == 1
+    assert room.is_dirty is False
+
+
+@pytest.mark.unit
+async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
+    authority,
+) -> None:
+    """A rendering made before the document moved is held back while editors
+    are still here — the tab that moved it reports a current one next pass."""
+    room = loaded_room(1, 5)
+    tab = object()
+    room.apply_update(_an_update(), connection=tab)
+    assert room.offer_content({"root": "as it stood"}, connection=tab) is True
+    assert room.snapshot()[2] == {"root": "as it stood"}
+
+    # The document moves again; the held rendering is now of an older state.
+    authority.add(1, 5, member(7))
+    room.apply_update(_an_update(), connection=tab)
+
+    assert room.snapshot()[2] is None
+
+
+@pytest.mark.unit
+async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
+    """With nobody left to send a fresher one, the best held is what is saved."""
+    room = loaded_room(1, 5)
+    tab = object()
+    room.apply_update(_an_update(), connection=tab)
+    room.offer_content({"root": "the last thing seen"}, connection=tab)
+    room.apply_update(_an_update(), connection=tab)
+
+    assert room.is_empty() is True
+    assert room.snapshot()[2] == {"root": "the last thing seen"}

@@ -918,7 +918,7 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
         name="Archived",
         join_policy="open",
         auto_join=True,
-        is_archived=True,
+        archived_at=datetime.now(timezone.utc),
     )
     deleted = await create_initiative(
         session,

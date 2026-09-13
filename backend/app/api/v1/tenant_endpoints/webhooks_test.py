@@ -416,3 +416,78 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
         "second patch was judged against the events it replaced"
     )
     assert second.json()["detail"] == "WEBHOOK_UNKNOWN_FIELD"
+
+
+# ── what a subscription is told the guild is called ──────────────────────────
+
+
+async def test_a_subscription_names_the_guild_by_reference(client, acting_user):
+    """A row id would be the same value everywhere, and every receiver would
+    hold it. The reference is this subscription's own."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    with _mock_public_dns():
+        response = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+
+    body = response.json()
+    assert response.status_code == 201, response.text
+    assert body["guild_ref"].startswith("gweb_")
+    assert body["created_by_ref"].startswith("uweb_")
+    assert "guild_id" not in body
+    assert "created_by" not in body
+    assert str(a.guild.id) != body["guild_ref"]
+
+
+async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
+    client, acting_user
+):
+    """The property that makes the name worth minting: two receivers cannot put
+    their envelopes side by side and see the same guild."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    with _mock_public_dns():
+        first = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+        second = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+
+    assert first.json()["guild_ref"] != second.json()["guild_ref"]
+    assert first.json()["created_by_ref"] != second.json()["created_by_ref"]
+
+
+async def test_the_name_a_subscription_is_given_is_the_one_it_keeps(
+    client, acting_user
+):
+    """Read back on the list and on a patch, because a receiver matching an
+    envelope against what it stored has to find the same value."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    with _mock_public_dns():
+        created = (
+            await client.post(
+                _url(a.guild.id),
+                json=_body(initiative_id=a.initiative.id),
+                headers=a.headers,
+            )
+        ).json()
+        patched = await client.patch(
+            _url(a.guild.id, f"/{created['id']}"),
+            json={"active": False},
+            headers=a.headers,
+        )
+
+    listing = await client.get(_url(a.guild.id), headers=a.headers)
+    (listed,) = [row for row in listing.json() if row["id"] == created["id"]]
+
+    assert listed["guild_ref"] == created["guild_ref"]
+    assert patched.json()["guild_ref"] == created["guild_ref"]

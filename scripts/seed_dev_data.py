@@ -68,8 +68,6 @@ from app.models.tenant.calendar import (  # noqa: E402
 from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
-    CalendarEventDocument,
-    CalendarEventTag,
     RSVPStatus,
 )
 from app.models.tenant.comment import Comment  # noqa: E402
@@ -81,9 +79,7 @@ from app.models.tenant.counter import (  # noqa: E402
 from app.models.tenant.dashboard import Dashboard  # noqa: E402
 from app.models.tenant.document import (  # noqa: E402
     Document,
-    DocumentLink,
     DocumentType,
-    ProjectDocument,
 )
 from app.models.platform.access_grant import (  # noqa: E402
     AccessGrant,
@@ -99,7 +95,6 @@ from app.models.platform.guild import (  # noqa: E402
 from app.models.tenant.queue import (  # noqa: E402
     Queue,
     QueueItem,
-    QueueItemTag,
 )
 from app.models.tenant.guild_setting import GuildSetting  # noqa: E402
 from app.models.tenant.initiative import (  # noqa: E402
@@ -124,7 +119,7 @@ from app.models.tenant.property import (  # noqa: E402
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.tenant.post import Post, PostTag  # noqa: E402
+from app.models.tenant.post import Post  # noqa: E402
 from app.models.tenant.post_poll import (  # noqa: E402
     PostPoll,
     PostPollOption,
@@ -134,17 +129,22 @@ from app.models.tenant.post_read import PostRead  # noqa: E402
 from app.models.tenant.gallery import (  # noqa: E402
     Gallery,
     GalleryImage,
-    GalleryImageTag,
     GalleryImageVersion,
-    GalleryTag,
 )
 from app.models.tenant.upload import Upload  # noqa: E402
 from app.services.storage import get_guild_storage  # noqa: E402
 from app.services.tenant import galleries as galleries_service  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
-from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
+from app.core.relationships import (  # noqa: E402
+    Provenance,
+    RelationshipType,
+    node_id,
+)
+from app.core.search import SearchEntityType  # noqa: E402
+from app.models.tenant.relationship import EntityRelationship  # noqa: E402
+from app.services.tenant import relationships as relationships_service  # noqa: E402
+from app.models.tenant.tag import Tag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
-    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
@@ -152,6 +152,7 @@ from app.models.tenant.task import (  # noqa: E402
     TaskStatusCategory,
 )
 from app.models.platform.user import User, UserRole, UserStatus  # noqa: E402
+from app.schemas.tenant.task import mint_checklist_item_id  # noqa: E402
 from app.services.platform.app_settings import (  # noqa: E402
     get_app_settings,
     get_or_create_guild_settings,
@@ -172,6 +173,56 @@ STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids
 
 # Consistent "now" for seeding
 NOW = datetime.now(timezone.utc)
+
+
+def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
+    """A tag assignment, as the edge the app stores.
+
+    ``tagged_with`` is directional — a tag is a label, so the edge describes the
+    thing carrying it — which is why the tagged entity is always the source.
+    ``guild_id`` is stated rather than left to the table's trigger: a tenant
+    write has to be routable when it is added, and the tag knows its guild.
+    """
+    return EntityRelationship(
+        source_type=kind,
+        source_id=entity_id,
+        relationship_type="tagged_with",
+        target_type="tag",
+        target_id=tag.id,
+        provenance="manual",
+        guild_id=tag.guild_id,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def _attachment_edge(
+    first: tuple[str, int],
+    second: tuple[str, int],
+    *,
+    guild_id: int,
+    created_by: int | None = None,
+) -> EntityRelationship:
+    """Two things placed together, as the edge the app stores.
+
+    ``attached`` is symmetric — it describes the pair, not either end — so it is
+    stored once with the lower node id as source, which is what the table's own
+    CHECK constraint requires. Ordering here rather than at the call sites keeps
+    every one of them free to name its two ends in whichever order reads best.
+    """
+    source, target = sorted(
+        (first, second), key=lambda end: node_id(SearchEntityType(end[0]), end[1])
+    )
+    return EntityRelationship(
+        source_type=source[0],
+        source_id=source[1],
+        relationship_type="attached",
+        target_type=target[0],
+        target_id=target[1],
+        provenance="manual",
+        guild_id=guild_id,
+        created_by=created_by,
+        created_at=datetime.now(timezone.utc),
+    )
 
 
 def _round(days: int) -> datetime:
@@ -533,9 +584,9 @@ def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
         if _rng.random() < 0.08:
             td["start_days"] = _rng.randint(-10, 5)
 
-        # ~5% have subtasks
+        # ~5% carry a checklist
         if _rng.random() < 0.05:
-            td["subtasks"] = [
+            td["checklist"] = [
                 f"Check {area} entrance",
                 f"Search {area} for treasure",
                 f"Neutralize {area} hazards",
@@ -617,11 +668,10 @@ class IDTracker:
             "task_statuses": [],
             "project_filter_presets": [],
             "tasks": [],
-            "subtasks": [],
             "task_assignees": [],
             "documents": [],
             "document_permissions": [],
-            "document_links": [],
+            "content_references": [],
             "document_tags": [],
             "project_documents": [],
             "tags": [],
@@ -1256,7 +1306,7 @@ async def _create_tasks(
     task_defs: list[dict],
     all_users: dict[str, User],
 ) -> dict[str, Task]:
-    """Create tasks, subtasks, and assignees from definitions."""
+    """Create tasks, their checklists, and assignees from definitions."""
     created: dict[str, Task] = {}
     for i, td in enumerate(task_defs):
         status = status_map[td["category"]]
@@ -1273,23 +1323,19 @@ async def _create_tasks(
             due_date=(NOW + timedelta(days=due)) if due is not None else None,
             start_date=(NOW + timedelta(days=start)) if start is not None else None,
             is_archived=td.get("archived", False),
+            checklist=[
+                {
+                    "id": mint_checklist_item_id(),
+                    "text": text,
+                    "done": td.get("checklist_done", False),
+                }
+                for text in td.get("checklist", [])
+            ],
         )
         session.add(task)
         await session.flush()
         ids.add("tasks", task.id)
         created[td["title"]] = task
-
-        for pos, content in enumerate(td.get("subtasks", [])):
-            sub = Subtask(
-                guild_id=guild.id,
-                task_id=task.id,
-                content=content,
-                position=pos,
-                is_completed=td.get("subtasks_done", False),
-            )
-            session.add(sub)
-            await session.flush()
-            ids.add("subtasks", sub.id)
 
         for assignee_name in td.get("assignees", []):
             user = all_users.get(assignee_name)
@@ -1334,8 +1380,7 @@ async def _link_task_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            tt = TaskTag(task_id=task.id, tag_id=tag.id)
-            session.add(tt)
+            session.add(_tag_edge("task", task.id, tag))
             ids.add("task_tags", {"task_id": task.id, "tag_id": tag.id})
     await session.flush()
 
@@ -1351,8 +1396,7 @@ async def _link_project_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            pt = ProjectTag(project_id=proj_id, tag_id=tag.id)
-            session.add(pt)
+            session.add(_tag_edge("project", proj_id, tag))
             ids.add("project_tags", {"project_id": proj_id, "tag_id": tag.id})
     await session.flush()
 
@@ -1472,13 +1516,14 @@ async def _link_doc_projects(
     links: list[tuple[int, int, User]],
 ) -> None:
     for proj_id, doc_id, user in links:
-        pd = ProjectDocument(
-            project_id=proj_id,
-            document_id=doc_id,
-            guild_id=guild.id,
-            attached_by_id=user.id,
+        session.add(
+            _attachment_edge(
+                ("project", proj_id),
+                ("document", doc_id),
+                guild_id=guild.id,
+                created_by=user.id,
+            )
         )
-        session.add(pd)
         ids.add("project_documents", {"project_id": proj_id, "document_id": doc_id})
     await session.flush()
 
@@ -1498,8 +1543,7 @@ async def _link_doc_tags(
             tag = tags.get(tn)
             if not tag:
                 continue
-            dt = DocumentTag(document_id=doc.id, tag_id=tag.id)
-            session.add(dt)
+            session.add(_tag_edge("document", doc.id, tag))
             ids.add("document_tags", {"document_id": doc.id, "tag_id": tag.id})
     await session.flush()
 
@@ -1576,24 +1620,31 @@ async def _create_recent_views(
 async def _create_document_links(
     session: AsyncSession,
     ids: IDTracker,
-    guild: Guild,
     docs: dict[str, Document],
     links: list[tuple[str, str]],
 ) -> None:
-    """Create wikilinks between documents (source -> target)."""
+    """Record what one document's body names in another (source -> target).
+
+    A wikilink is no longer a row of its own: it is a ``references`` edge with
+    ``content`` provenance, which is what the save-path sync writes when it
+    reads a body. Written through the same service for the same reason — it
+    orders the pair, skips one that is already there, and lets the database
+    derive the node ids and the guild.
+    """
     for source_title, target_title in links:
         source = docs.get(source_title)
         target = docs.get(target_title)
         if not source or not target:
             continue
-        dl = DocumentLink(
-            source_document_id=source.id,
-            target_document_id=target.id,
-            guild_id=guild.id,
+        await relationships_service.create(
+            session,
+            source=relationships_service.Endpoint(SearchEntityType.document, source.id),
+            relationship_type=RelationshipType.references,
+            target=relationships_service.Endpoint(SearchEntityType.document, target.id),
+            provenance=Provenance.content,
         )
-        session.add(dl)
         ids.add(
-            "document_links",
+            "content_references",
             {
                 "source_document_id": source.id,
                 "target_document_id": target.id,
@@ -1823,11 +1874,7 @@ async def _create_queues(
             for tag_name in item_def.get("tags", []):
                 tag = tags.get(tag_name)
                 if tag:
-                    qit = QueueItemTag(
-                        queue_item_id=qi.id,
-                        tag_id=tag.id,
-                    )
-                    session.add(qit)
+                    session.add(_tag_edge("queue_item", qi.id, tag))
                     ids.add(
                         "queue_item_tags",
                         {
@@ -2308,11 +2355,7 @@ async def _create_calendar_events(
             tag = tags.get(tag_name)
             if tag is None:
                 continue
-            link = CalendarEventTag(
-                calendar_event_id=event.id,
-                tag_id=tag.id,
-            )
-            session.add(link)
+            session.add(_tag_edge("calendar_event", event.id, tag))
             ids.add(
                 "calendar_event_tags",
                 {
@@ -2326,13 +2369,14 @@ async def _create_calendar_events(
             doc = documents.get(doc_title)
             if doc is None:
                 continue
-            link = CalendarEventDocument(
-                calendar_event_id=event.id,
-                document_id=doc.id,
-                guild_id=guild.id,
-                attached_by_id=creator.id,
+            session.add(
+                _attachment_edge(
+                    ("calendar_event", event.id),
+                    ("document", doc.id),
+                    guild_id=guild.id,
+                    created_by=creator.id,
+                )
             )
-            session.add(link)
             ids.add(
                 "calendar_event_documents",
                 {
@@ -2435,7 +2479,7 @@ async def _create_posts(
         for tag_name in pd.get("tags", []):
             tag = tags.get(tag_name)
             if tag is not None:
-                session.add(PostTag(post_id=post.id, tag_id=tag.id))
+                session.add(_tag_edge("post", post.id, tag))
                 ids.add("post_tags", (post.id, tag.id))
 
         # Receipts. Never the author's — the roster counts who a notice
@@ -2560,7 +2604,7 @@ async def _create_galleries(
         for tag_name in gd.get("tags", []):
             tag = tags.get(tag_name)
             if tag is not None:
-                session.add(GalleryTag(gallery_id=gallery.id, tag_id=tag.id))
+                session.add(_tag_edge("gallery", gallery.id, tag))
                 ids.add("gallery_tags", (gallery.id, tag.id))
 
         cover_title = gd.get("cover")
@@ -2670,9 +2714,7 @@ async def _create_galleries(
             for tag_name in im.get("tags", []):
                 tag = tags.get(tag_name)
                 if tag is not None:
-                    session.add(
-                        GalleryImageTag(gallery_image_id=image.id, tag_id=tag.id)
-                    )
+                    session.add(_tag_edge("gallery_image", image.id, tag))
                     ids.add("gallery_image_tags", (image.id, tag.id))
             if cover_title and im.get("title") == cover_title:
                 gallery.cover_image_id = image.id
@@ -3397,7 +3439,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Explore the basement",
                     "Find the hidden altar",
                     "Escape before the house collapses",
@@ -3443,7 +3485,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.done,
                 "assignees": ["Seraphina Dawnlight", "Thorn Ironforge"],
-                "subtasks": [
+                "checklist": [
                     "Pack supplies for the journey",
                     "Guard Ireena through the Svalich Woods",
                     "Arrive at Vallaki gates",
@@ -3457,7 +3499,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Map the main floor",
                     "Map the crypts",
                     "Map the towers",
@@ -3511,12 +3553,12 @@ async def seed() -> None:
                 "description": "A tribe of goblins ambushed the party. Their hideout must be cleared.",
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.done,
-                "subtasks": [
+                "checklist": [
                     "Find the Cragmaw Hideout",
                     "Defeat Klarg the bugbear",
                     "Free Sildar Hallwinter",
                 ],
-                "subtasks_done": True,
+                "checklist_done": True,
             },
             {
                 "project_id": g1_phandalin.id,
@@ -3540,7 +3582,7 @@ async def seed() -> None:
                 "description": "Nezznar the Black Spider seeks the Forge of Spells.",
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.backlog,
-                "subtasks": [
+                "checklist": [
                     "Find the entrance to Wave Echo Cave",
                     "Navigate the mine tunnels",
                     "Confront Nezznar",
@@ -3611,7 +3653,7 @@ async def seed() -> None:
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Dungeon Master"],
-                "subtasks": [
+                "checklist": [
                     "Slashing crits",
                     "Piercing crits",
                     "Bludgeoning crits",
@@ -3682,7 +3724,7 @@ async def seed() -> None:
                 "description": "Investigation, complication, confrontation.",
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.todo,
-                "subtasks": ["Investigation", "Complication", "Confrontation"],
+                "checklist": ["Investigation", "Complication", "Confrontation"],
             },
             {
                 "project_id": g1_oneshot_tpl.id,
@@ -4166,7 +4208,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g1,
             g1_docs,
             [
                 (
@@ -5733,7 +5774,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Diagnose the plasma leak",
                     "Source replacement crystals",
                     "Recalibrate the nav array",
@@ -5788,7 +5829,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Admin User"],
-                "subtasks": [
+                "checklist": [
                     "Deploy orbital probes",
                     "Analyze atmospheric data",
                     "Check for hostile fauna",
@@ -5827,7 +5868,7 @@ async def seed() -> None:
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Vex Shadowstep", "Finley Goldtongue"],
-                "subtasks": [
+                "checklist": [
                     "Forge ID badges",
                     "Disable security cameras on Level 3",
                     "Create a distraction",
@@ -6345,7 +6386,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g2,
             g2_docs,
             [
                 (
@@ -7219,7 +7259,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Thorn Ironforge", "Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Patch the port breach",
                     "Reinforce the keel",
                     "Replace the damaged mast",
@@ -7256,7 +7296,7 @@ async def seed() -> None:
                 "priority": TaskPriority.urgent,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Finley Goldtongue", "Admin User"],
-                "subtasks": [
+                "checklist": [
                     "Find a translator in Port Havoc",
                     "Cross-reference with known charts",
                     "Identify the three key landmarks",
@@ -7268,7 +7308,7 @@ async def seed() -> None:
                 "description": "Legend says three enchanted stones unlock the Leviathan's vault.",
                 "priority": TaskPriority.high,
                 "category": TaskStatusCategory.backlog,
-                "subtasks": [
+                "checklist": [
                     "Tidestone of Storms (Tempest Isle)",
                     "Tidestone of Depths (Abyssal Trench)",
                     "Tidestone of Calm (Sanctuary Reef)",
@@ -7306,7 +7346,7 @@ async def seed() -> None:
                 "priority": TaskPriority.medium,
                 "category": TaskStatusCategory.in_progress,
                 "assignees": ["Kael Windrunner"],
-                "subtasks": [
+                "checklist": [
                     "Chart the coastline",
                     "Find the source of the whispers",
                     "Locate the ruined temple",
@@ -7823,7 +7863,6 @@ async def seed() -> None:
         await _create_document_links(
             session,
             ids,
-            g3,
             g3_docs,
             [
                 (
@@ -8913,7 +8952,7 @@ async def seed() -> None:
     )
     print(f"  {len(ids.data['comments'])} comments")
     print(
-        f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links"
+        f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['content_references'])} content references"
     )
     print(
         f"  {len(ids.data['access_grants'])} PAM access grants (pending/live/break-glass/denied/expired)"

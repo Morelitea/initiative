@@ -63,6 +63,7 @@ from app.core.security import (
     BillingSupportHandoffNotConfiguredError,
     create_billing_support_handoff_token,
 )
+from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import platform_provider as platform_provider_service
 from app.services.platform import app_settings as app_settings_service
@@ -654,11 +655,16 @@ async def create_platform_guild_billing_service_handoff(
             ) from exc
 
     try:
+        user_ref, guild_ref = await billing_refs(user_id=admin.id, guild_id=guild_id)
         token, expires_in_seconds = create_billing_support_handoff_token(
-            user_id=admin.id,
-            guild_id=guild_id,
             grant_id=grant.id,
-            approver_id=grant.approved_by_id,
+            user_ref=user_ref,
+            guild_ref=guild_ref,
+            approver_ref=(
+                await billing_user_ref(user_id=grant.approved_by_id)
+                if grant.approved_by_id is not None
+                else None
+            ),
         )
     except BillingSupportHandoffNotConfiguredError as exc:
         raise HTTPException(

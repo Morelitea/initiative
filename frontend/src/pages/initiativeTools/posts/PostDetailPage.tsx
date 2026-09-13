@@ -13,7 +13,7 @@ import {
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ReactionTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import {
@@ -54,6 +54,7 @@ import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
+import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -335,6 +336,7 @@ export function PostDetailPage() {
               readOnly={!canEdit}
               showToolbar={canEdit}
               initiativeId={post.initiative_id}
+              subject={referenceRef(SearchEntityType.post, post.id)}
               supportsEntityMentions
               variant="post"
               maxLength={MAX_POST_TEXT_CHARS}

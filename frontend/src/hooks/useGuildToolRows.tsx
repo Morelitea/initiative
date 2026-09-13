@@ -38,6 +38,11 @@ export interface GuildToolQuery {
   /** One of `name`, `initiative`, `updated_at`. */
   sortBy?: string;
   sortDir?: "asc" | "desc";
+  /** `true` shows what has been archived instead of what is live. Every tool
+   *  can be archived, and a calendar has no list page of its own, so this table
+   *  is where some of them are found — and the only place they can be taken
+   *  back out. */
+  archived?: true;
 }
 
 export function useGuildToolRows(
@@ -57,6 +62,7 @@ export function useGuildToolRows(
     page_size: pageSize,
     ...(view.search ? { search: view.search } : {}),
     ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),
+    ...(view.archived ? { archived: true } : {}),
   };
   // Only the selected tool fetches; the rest stay mounted but idle. The
   // selected one keeps the rows it already has while a new page, search or

@@ -27,7 +27,9 @@ export type FocusSummaryProps = {
   activeGuildId: number | null;
   /** Reused from the page's table so status resolution has one implementation. */
   changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
-  isUpdatingTaskStatus: boolean;
+  /** Whether THIS task has a status change in flight, so one row saving leaves
+   *  the rest of the section usable. */
+  isUpdatingTask: (task: TaskListRead) => boolean;
 };
 
 const taskHref = (task: TaskListRead, activeGuildId: number | null) => {
@@ -175,7 +177,7 @@ export const FocusSummary = ({
   focus,
   activeGuildId,
   changeTaskStatus,
-  isUpdatingTaskStatus,
+  isUpdatingTask,
 }: FocusSummaryProps) => {
   const { t } = useTranslation(["tasks", "common"]);
   const { pinned, upcoming, completedToday, truncated, doneCount, totalCount, prefs } = focus;
@@ -191,7 +193,7 @@ export const FocusSummary = ({
       isPinned={focus.isPinned(task)}
       onTogglePin={() => focus.togglePin(task)}
       onToggleDone={() => void changeTaskStatus(task, done ? "in_progress" : "done")}
-      disabled={isUpdatingTaskStatus}
+      disabled={isUpdatingTask(task)}
       done={done}
     />
   );

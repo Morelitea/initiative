@@ -75,13 +75,14 @@ async def test_configured_dispatches_one_ping(billing_configured, sent_pings):
 
 
 def test_payload_has_no_pii_and_verifiable_signature(billing_configured):
-    url, body, headers = billing_ping.build_membership_ping(42)
+    url, body, headers = billing_ping.build_membership_ping("gbil_test42")
     assert url == "https://billing.internal/api/v1/pings/membership"
 
     payload = json.loads(body)
-    # guild id + event id ONLY: no emails, names, user ids, or member counts.
-    assert set(payload) == {"guild_id", "event_id"}
-    assert payload["guild_id"] == 42
+    # The guild's reference + an event id ONLY: no emails, names, user ids or
+    # member counts, and no row id of ours either.
+    assert set(payload) == {"guild_ref", "event_id"}
+    assert payload["guild_ref"] == "gbil_test42"
     assert payload["event_id"]
 
     message = "\n".join(
@@ -98,7 +99,7 @@ def test_payload_has_no_pii_and_verifiable_signature(billing_configured):
 
 def test_event_ids_are_unique_per_ping(billing_configured):
     ids = {
-        json.loads(billing_ping.build_membership_ping(1)[1])["event_id"]
+        json.loads(billing_ping.build_membership_ping("gbil_test1")[1])["event_id"]
         for _ in range(5)
     }
     assert len(ids) == 5

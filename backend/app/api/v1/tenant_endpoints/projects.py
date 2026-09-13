@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, func
@@ -8,6 +8,9 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related, RelationshipType
+from app.core.search import SearchEntityType
+from app.services.tenant import relationships
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -31,7 +34,6 @@ from app.models.tenant.task import (
     TaskAssignee,
     TaskStatus,
     TaskStatusCategory,
-    Subtask,
 )
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import (
@@ -43,8 +45,7 @@ from app.models.tenant.initiative import (
 from app.core import usernames
 from app.models.platform.user import User, UserStatus
 from app.models.platform.guild import GuildRole
-from app.models.tenant.document import Document, ProjectDocument
-from app.models.tenant.tag import ProjectTag
+from app.models.tenant.document import Document
 from app.api import resource_access
 from app.core.user_display import handle_of
 from app.core.tools import Tool
@@ -52,7 +53,6 @@ from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
-from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import my_tools as my_tools_service
@@ -62,6 +62,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
@@ -102,6 +103,7 @@ from app.schemas.tenant.project_export import (
 from app.services.tenant import project_export as project_export_service
 from app.services.tenant import recent_views as recent_views_service
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter()
 # Cross-guild "my projects" aggregate (My Projects page). Mounted under
@@ -116,24 +118,33 @@ GuildAdminContext = Annotated[
 MAX_RECENT_PROJECTS = 20
 
 
-def _project_documents(
-    project: Project,
-    *,
-    user_id: int | None = None,
-) -> List[ProjectDocumentSummary]:
-    """Serialize project document links, filtering by DAC permission.
+async def _documents_for_projects(
+    session: AsyncSession, projects: Sequence[Project]
+) -> dict[int, list[Related]]:
+    """Attached documents for a whole page of projects, in two queries."""
+    return await relationships.related_for_many(
+        session,
+        SearchEntityType.project,
+        [p.id for p in projects if p.id is not None],
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
 
-    Pass ``user_id`` so only documents the user can access are included.
+
+def _project_documents(
+    attached: Sequence[Related],
+) -> List[ProjectDocumentSummary]:
+    """Serialize a project's attached documents.
+
+    No sharing check here. The edge row carries the document's own gate 4 —
+    ``relationships`` asks ``resource_access`` of BOTH ends — so a document this
+    reader holds no grant on never arrives, and the entity query behind
+    ``Related`` passes the documents' policies a second time. Restating it here
+    would be a rule said twice, which can only agree or drift.
     """
     documents: List[ProjectDocumentSummary] = []
-    for link in getattr(project, "document_links", []) or []:
-        doc = getattr(link, "document", None)
-        if user_id is not None and doc is not None:
-            # Single source of truth: the document DAC engine (per-user / per-role /
-            # all-initiative-members grants, plus guild-admin, Full-access, and PAM
-            # overrides) — no re-implementation here.
-            if permissions_service.compute_document_permission(doc, user_id) is None:
-                continue
+    for link in attached:
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
@@ -193,20 +204,11 @@ async def _get_project_or_404(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.task_statuses),
         )
     )
     if populate_existing:
-        # Refresh identity-mapped collections (tag_links etc.) after a commit —
+        # Refresh identity-mapped collections after a commit —
         # expire_on_commit=False keeps the pre-write state otherwise.
         statement = statement.execution_options(populate_existing=True)
     if guild_id is not None:
@@ -253,14 +255,6 @@ async def _get_initiative_or_404(
             detail=ProjectMessages.INITIATIVE_NOT_FOUND,
         )
     return initiative
-
-
-def _compute_my_permission_level(
-    project: Project,
-    user_id: int,
-) -> str | None:
-    """Compute the effective permission level for a user on a project."""
-    return permissions_service.compute_project_permission(project, user_id)
 
 
 def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
@@ -344,7 +338,7 @@ async def _ensure_user_in_initiative(
 
 
 def _ensure_not_archived(project: Project) -> None:
-    if project.is_archived:
+    if project.archived_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
@@ -394,8 +388,6 @@ async def _duplicate_template_tasks(
         .options(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
-            selectinload(Task.subtasks),
-            selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
         .order_by(Task.position.asc(), Task.id.asc())
@@ -437,6 +429,7 @@ async def _duplicate_template_tasks(
             start_date=start_date,
             due_date=due_date,
             position=template_task.position,
+            checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
         )
         task_completion.sync_completed_at(
             new_task, categories.get(mapped_status_id), now=now
@@ -448,18 +441,6 @@ async def _duplicate_template_tasks(
                 [
                     TaskAssignee(task_id=new_task.id, user_id=assignee.id)
                     for assignee in template_task.assignees
-                ]
-            )
-        if template_task.subtasks:
-            session.add_all(
-                [
-                    Subtask(
-                        task_id=new_task.id,
-                        content=subtask.content,
-                        is_completed=subtask.is_completed,
-                        position=subtask.position,
-                    )
-                    for subtask in template_task.subtasks
                 ]
             )
         await tags_service.copy_entity_tags(
@@ -485,15 +466,6 @@ def _full_project_load_options() -> list:
                 InitiativeRoleModel.permissions
             ),
         ),
-        selectinload(Project.document_links)
-        .selectinload(ProjectDocument.document)
-        .options(
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            # Linked-doc visibility defers to the shared document DAC, which
-            # reads the doc's own initiative memberships (all-members grants).
-            selectinload(Document.initiative).selectinload(Initiative.memberships),
-        ),
-        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
     ]
 
 
@@ -520,9 +492,10 @@ def _visible_project_conditions(
 
     ``archived``/``template``/``search``/``initiative_id`` are pushed into SQL
     (mirroring the old ``_matches_filters``: ``None`` means "exclude" for the
-    boolean flags, and "every initiative" for the initiative). ``dac_scope_clause``
-    supplies the sharing gate — it resolves to a no-op for a request that reaches
-    the whole guild, so there is nothing to branch on here.
+    boolean flags, and "every initiative" for the initiative). The projects
+    table carries its own sharing gate, so ``listing_scope_clause`` adds only
+    what a list spanning initiatives needs and there is nothing to branch on
+    here.
     """
     conditions = [
         Initiative.guild_id == guild_id,
@@ -543,9 +516,13 @@ def _visible_project_conditions(
         conditions.append(Project.is_template.is_(template))
 
     if archived is None:
-        conditions.append(Project.is_archived.is_(False))
+        conditions.append(Project.archived_at.is_(None))
     else:
-        conditions.append(Project.is_archived.is_(archived))
+        conditions.append(
+            Project.archived_at.isnot(None)
+            if archived
+            else Project.archived_at.is_(None)
+        )
 
     name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
     if name_match is not None:
@@ -591,9 +568,10 @@ async def _project_reads_with_order(
 
     project_ids = [project.id for project in projects if project.id is not None]
 
-    # Fetch task summaries, sort orders, favorites, and views in parallel-ish
-    # (all independent queries batched before we iterate projects)
+    # Fetch task summaries, tags, sort orders, favorites, and views in
+    # parallel-ish (all independent queries batched before we iterate projects)
     await _attach_task_summaries(session, projects)
+    await tags_service.annotate_tags(session, projects)
     order_map, favorite_ids, view_map = await _project_metadata_for_user(
         session,
         current_user.id,
@@ -614,17 +592,17 @@ async def _project_reads_with_order(
 
         sorted_projects = sorted(projects, key=sort_key)
 
+    attached = await _documents_for_projects(session, sorted_projects)
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
-        my_level = _compute_my_permission_level(project, current_user.id)
         payloads.append(
             _build_project_payload(
                 project,
                 sort_order=order_map.get(project.id),
                 favorite_ids=favorite_ids,
                 view_map=view_map,
-                my_permission_level=my_level,
                 user_id=current_user.id,
+                attached_documents=attached.get(project.id, []),
             )
         )
     return payloads
@@ -650,13 +628,10 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 initiative_id=project.initiative_id,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
-                is_archived=project.is_archived,
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
-                my_permission_level=permissions_service.compute_project_permission(
-                    project, user_id
-                ),
+                **permissions_service.client_access(Tool.project, project, user_id),
             )
         )
     return reads
@@ -756,15 +731,6 @@ async def _projects_by_ids(
                     InitiativeRoleModel.permissions
                 ),
             ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
     result = await session.exec(stmt)
@@ -809,8 +775,8 @@ def _build_project_payload(
     sort_order: Optional[float],
     favorite_ids: set[int],
     view_map: dict[int, datetime],
-    my_permission_level: str | None = None,
     user_id: int | None = None,
+    attached_documents: Sequence[Related] = (),
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
@@ -824,12 +790,12 @@ def _build_project_payload(
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
-            "documents": _project_documents(project, user_id=user_id),
+            "documents": _project_documents(attached_documents),
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
-            "tags": tags_service.tag_summaries(project.tag_links),
+            "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
-            "my_permission_level": my_permission_level,
+            **permissions_service.client_access(Tool.project, project, user_id),
             "owner_id": ownership_service.owner_id_of(project),
             "owner": _project_owner(project),
         }
@@ -882,10 +848,13 @@ async def _require_project_membership(
     access: str = "read",
     require_manager: bool = False,
     manage_access: bool = False,
+    allow_frozen: bool = False,
 ):
     """Authorize a project via the shared engine. ``manage_access=True`` (member/
     permission ops) additionally rejects PAM grantees — a grant never manages
-    access. Loads the permission row first in case it wasn't eager-loaded."""
+    access. ``allow_frozen=True`` is unarchiving, which asks for write on a
+    project that is archived by definition. Loads the permission row first in
+    case it wasn't eager-loaded."""
     await _get_project_permission(project, current_user.id, session)
     resource_access.authorize(
         Tool.project,
@@ -894,6 +863,7 @@ async def _require_project_membership(
         access=access,
         require_owner=require_manager,
         manage_access=manage_access,
+        allow_frozen=allow_frozen,
     )
 
 
@@ -967,17 +937,6 @@ async def _list_global_projects(
                         InitiativeRoleModel.permissions
                     ),
                 ),
-                selectinload(Project.document_links)
-                .selectinload(ProjectDocument.document)
-                .options(
-                    selectinload(Document.grants).selectinload(ResourceGrant.role),
-                    # Linked-doc visibility defers to the shared document DAC, which
-                    # reads the doc's own initiative memberships (all-members grants).
-                    selectinload(Document.initiative).selectinload(
-                        Initiative.memberships
-                    ),
-                ),
-                selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             )
         )
         projects = list((await guild_session.exec(statement)).all())
@@ -1149,7 +1108,7 @@ async def get_project_counts_by_initiative(
     """
     conditions = [
         Initiative.guild_id == guild_context.guild_id,
-        Project.is_archived.is_(False),
+        Project.archived_at.is_(None),
         Project.is_template.is_(False),
         permissions_service.granted_scope_clause(
             Tool.project,
@@ -1394,38 +1353,6 @@ async def create_project(
     )
 
 
-@router.post("/{project_id}/archive", response_model=ProjectRead)
-async def archive_project(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    if not project.is_archived:
-        project.is_archived = True
-        project.archived_at = datetime.now(timezone.utc)
-        session.add(project)
-        await session.commit()
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
-    )
-
-
 @router.post(
     "/{project_id}/duplicate",
     response_model=ProjectRead,
@@ -1567,38 +1494,6 @@ async def duplicate_project(
     )
 
 
-@router.post("/{project_id}/unarchive", response_model=ProjectRead)
-async def unarchive_project(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    if project.is_archived:
-        project.is_archived = False
-        project.archived_at = None
-        session.add(project)
-        await session.commit()
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
-    )
-
-
 # Note: ``GET /projects/recent`` has been removed. The polymorphic
 # ``GET /api/v1/recents`` endpoint replaces it for the layout tabs bar.
 
@@ -1625,6 +1520,8 @@ async def favorite_projects(
     favorite_ids, view_map = await _project_meta_for_user(
         session, current_user.id, project_ids
     )
+    attached = await _documents_for_projects(session, list(project_map.values()))
+    await tags_service.annotate_tags(session, list(project_map.values()))
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:
@@ -1646,11 +1543,8 @@ async def favorite_projects(
                 sort_order=None,
                 favorite_ids=favorite_ids,
                 view_map=view_map,
-                my_permission_level=_compute_my_permission_level(
-                    project,
-                    current_user.id,
-                ),
                 user_id=current_user.id,
+                attached_documents=attached.get(project.id, []),
             )
         )
     return payloads
@@ -1984,105 +1878,6 @@ async def update_project(
         session,
         current_user,
         project,
-    )
-
-
-@router.post("/{project_id}/documents/{document_id}", response_model=ProjectRead)
-async def attach_project_document(
-    project_id: int,
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    _ensure_not_archived(project)
-    document = await documents_service.get_document(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.DOCUMENT_NOT_FOUND,
-        )
-    if document.initiative_id != project.initiative_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE,
-        )
-    await documents_service.attach_document_to_project(
-        session,
-        document=document,
-        project=project,
-        user_id=current_user.id,
-    )
-    updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated_project])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated_project,
-    )
-
-
-@router.delete("/{project_id}/documents/{document_id}", response_model=ProjectRead)
-async def detach_project_document(
-    project_id: int,
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _require_project_membership(
-        project,
-        current_user,
-        session,
-        access="write",
-    )
-    _ensure_not_archived(project)
-    document = await documents_service.get_document(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.DOCUMENT_NOT_FOUND,
-        )
-    if document.initiative_id != project.initiative_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE,
-        )
-    await documents_service.detach_document_from_project(
-        session,
-        document_id=document.id,
-        project_id=project.id,
-    )
-    updated_project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await _attach_task_summaries(session, [updated_project])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated_project,
     )
 
 

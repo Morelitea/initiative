@@ -1349,8 +1349,12 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
         audience=BILLING_SUPPORT_HANDOFF_AUDIENCE,
         issuer=BILLING_SUPPORT_HANDOFF_ISSUER,
     )
-    assert payload["sub"] == str(owner.id)
-    assert payload["guild_id"] == guild.id
+    # Everyone on the token is named by reference, `sub` included; no row id
+    # of ours is in the claims at all.
+    assert payload["sub"] == payload["user_ref"]
+    assert payload["user_ref"].startswith("ubil_")
+    assert payload["guild_ref"].startswith("gbil_")
+    assert "guild_id" not in payload
     assert payload["jti"]
     # Lifetime stays inside the receiver's ceiling.
     assert payload["exp"] - payload["iat"] <= 300
@@ -1363,7 +1367,8 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
         )
     ).one()
     assert payload["grant_id"] == str(grant.id)
-    assert payload["approver"] == str(owner.id)
+    # The approver too — it names a person, so it is a reference like the rest.
+    assert payload["approver"] == payload["user_ref"]
     assert grant.access_level == "read"
     assert grant.status == "approved"
 

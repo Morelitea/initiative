@@ -58,7 +58,6 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   // the registry spread, which it extends rather than replaces.
   projects: (id) => [q.tool(Tool.project, id), q.projectActivity(id)],
   tasks: (id) => [q.task(id), q.allTasks()],
-  subtasks: (id) => [q.subtask(id)],
   // The guild's recent-activity list is a comment feed of its own. Which thread
   // moved is a question about the parent, below.
   comments: () => [q.recentComments()],
@@ -91,7 +90,6 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
  */
 const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
   comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
-  subtasks: (parent) => (parent.type === "tasks" ? [q.taskSubtasks(parent.id)] : []),
 };
 
 const isRef = (value: unknown): value is ResourceRef => {

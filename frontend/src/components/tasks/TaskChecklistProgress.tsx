@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
 
-import type { TaskSubtaskProgress } from "@/api/generated/initiativeAPI.schemas";
+import type { ChecklistProgress } from "@/api/generated/initiativeAPI.schemas";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 type TaskChecklistProgressProps = {
-  progress?: TaskSubtaskProgress | null;
+  progress?: ChecklistProgress | null;
   className?: string;
 };
 

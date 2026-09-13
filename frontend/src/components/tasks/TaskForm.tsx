@@ -367,7 +367,7 @@ export const TaskForm = ({
         autoFocus={autoFocusTitle}
         className={
           layout === "page"
-            ? "h-auto border-0 px-0 font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
+            ? "h-auto border-0 px-0 font-semibold text-lg tracking-tight shadow-none focus-visible:ring-0 md:text-xl"
             : undefined
         }
       />

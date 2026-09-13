@@ -25,6 +25,15 @@ export interface ToolSettingsEntity {
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
   comments_enabled: boolean;
+  /** When this was archived, or null while it is live. */
+  archived_at: string | null;
+  /**
+   * Whether this viewer may take it back out. Server-computed, and not the
+   * same question as `my_permission_level`: an archived entity reports `read`
+   * there — the cap that turns the edit affordances off — so the way back has
+   * to be read from here or it is capped away with everything else.
+   */
+  can_unarchive: boolean;
   /**
    * Posts only: reactions hang off comments and off posts and off nothing
    * else, so this is the one tool with a switch of its own for them. Absent

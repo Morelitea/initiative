@@ -144,3 +144,23 @@ export const newSheetId = (): SheetId => {
   if (uuid) return `s${uuid.replace(/-/g, "").slice(0, 12)}`;
   return `s${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
 };
+
+/**
+ * What to do with an in-progress cell edit, given the sheets that now exist.
+ *
+ * A draft belongs to the sheet it was started on, and that sheet can stop
+ * being available without going through the menu that hides it — an undo, a
+ * redo, or a peer doing either. The rule is the same wherever it happens:
+ * a sheet that is merely hidden still holds the value, so the edit is
+ * committed into it; a sheet that is gone has nowhere to put one, so the
+ * draft is dropped.
+ */
+export const draftResolution = (
+  sheets: readonly SheetMeta[],
+  editingSheetId: SheetId | null
+): "keep" | "commit" | "cancel" => {
+  if (!editingSheetId) return "keep";
+  const sheet = sheets.find((s) => s.id === editingSheetId);
+  if (!sheet) return "cancel";
+  return sheet.hidden ? "commit" : "keep";
+};

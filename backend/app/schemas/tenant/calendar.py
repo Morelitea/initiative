@@ -5,11 +5,13 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
@@ -48,7 +50,7 @@ class CalendarUpdate(SanitizedBaseModel):
     color: Optional[str] = Field(default=None, min_length=1, max_length=32)
 
 
-class CalendarSummary(CalendarBase):
+class CalendarSummary(CalendarBase, ArchiveState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -91,7 +93,7 @@ def serialize_calendar_summary(
     calendar: "Calendar", *, user_id: Optional[int] = None
 ) -> CalendarSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import compute_calendar_permission, serialize_grants
+    from app.services.permissions import client_access, serialize_grants
 
     return CalendarSummary(
         id=calendar.id,
@@ -103,13 +105,10 @@ def serialize_calendar_summary(
         created_by=calendar.created_by,
         created_at=calendar.created_at,
         updated_at=calendar.updated_at,
-        my_permission_level=(
-            compute_calendar_permission(calendar, user_id)
-            if user_id is not None
-            else None
-        ),
+        archived_at=calendar.archived_at,
+        **client_access(Tool.calendar, calendar, user_id),
         comments_enabled=calendar.comments_enabled,
-        tags=tag_summaries(getattr(calendar, "tag_links", None)),
+        tags=annotated_tags(calendar),
         grants=serialize_grants(calendar),
     )
 

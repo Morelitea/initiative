@@ -58,6 +58,6 @@ Coming from another tool? You do not have to retype four years of tasks by hand.
 3. **Map statuses** so the old columns line up with yours.
 4. **Review the results.**
 
-Supported sources: **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Subtasks come across too.
+Supported sources: **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Anything nested under a task arrives as that task's checklist.
 
 Anything that can't be matched gets reported rather than quietly dropped, so you find out what needs a hand now rather than in three weeks when somebody asks where their task went.

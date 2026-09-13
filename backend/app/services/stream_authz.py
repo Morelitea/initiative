@@ -25,9 +25,9 @@ Two triggers (per ``history/realtime-authorization-design.md`` + product decisio
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Set, Tuple
 
 from fastapi import WebSocket, status
 from sqlalchemy import text
@@ -81,6 +81,26 @@ class _StreamMember:
     # added mid-connection disconnects sockets whose session doesn't satisfy
     # it — same continuous-authorization rule as every other gate.
     satisfied_providers: frozenset[int] = frozenset()
+    # Per-connection state the channel owns and the spine only carries:
+    # collaboration keeps the display name and write level it computed at
+    # join here. It lives on the member so a channel never needs a second
+    # registry of its own sockets — the thing that has to be keyed by socket
+    # is keyed by socket exactly once, here.
+    meta: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RoomMember:
+    """One connection in a room, as a channel sees it.
+
+    ``user`` is the account that opened the socket and ``meta`` is whatever
+    the channel attached at join. Two connections from one account are two
+    members: a roster for *people* has to fold them together itself, which is
+    a display choice, not a delivery one.
+    """
+
+    user: User
+    meta: Mapping[str, Any]
 
 
 class StreamAuthority:
@@ -107,6 +127,7 @@ class StreamAuthority:
         resource_id: int,
         authorize: Authorizer,
         satisfied_providers: frozenset[int] = frozenset(),
+        meta: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """Register an already-authorized content socket: add it to its fan-out
         room and govern it for continuous re-auth.
@@ -126,6 +147,7 @@ class StreamAuthority:
                 room=room,
                 authorize=authorize,
                 satisfied_providers=satisfied_providers,
+                meta=dict(meta) if meta else {},
             )
             self._rooms.setdefault(room, set()).add(websocket)
         self._ensure_loop()
@@ -166,6 +188,50 @@ class StreamAuthority:
                 await websocket.send_json(message)
             except Exception:
                 await self.leave(websocket)
+
+    async def emit_bytes(
+        self,
+        guild_id: int,
+        resource_type: str,
+        resource_id: int,
+        payload: bytes,
+        *,
+        exclude: Optional[WebSocket] = None,
+    ) -> None:
+        """Fan a binary frame out to one resource's room (guild-namespaced).
+
+        The byte-stream counterpart of :meth:`emit`, for channels whose wire
+        format is not JSON — collaboration relays Yjs updates and awareness
+        this way.
+
+        ``exclude`` is the **connection** the frame came from, never a user.
+        One account can hold several connections, and each of them is a peer
+        of the others; the only frame worth withholding is the sender's own
+        echo. Pass the originating socket.
+        """
+        room: RoomKey = (guild_id, resource_type, resource_id)
+        async with self._lock:
+            sockets = [s for s in self._rooms.get(room, set()) if s is not exclude]
+        for websocket in sockets:
+            try:
+                await websocket.send_bytes(payload)
+            except Exception:
+                await self.leave(websocket)
+
+    def room_members(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> list[RoomMember]:
+        """Every connection in one room, with the state its channel attached.
+
+        One entry per socket. A channel presenting people rather than
+        connections folds by ``user.id`` itself.
+        """
+        room: RoomKey = (guild_id, resource_type, resource_id)
+        return [
+            RoomMember(user=member.user, meta=member.meta)
+            for websocket in self._rooms.get(room, set())
+            if (member := self._members.get(websocket)) is not None
+        ]
 
     def room_size(self, guild_id: int, resource_type: str, resource_id: int) -> int:
         return len(self._rooms.get((guild_id, resource_type, resource_id), set()))

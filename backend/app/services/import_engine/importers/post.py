@@ -19,13 +19,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.post import Post, PostTag
+from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import PostEnvelope
 from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.importers._base import parse_envelope
+from app.services.tenant import tags as tags_service
 
 
 #: What ``posts.name`` holds, and how much of it to leave for the " (2)" that
@@ -130,7 +131,11 @@ class PostImporter:
                 tags_created += 1
             else:
                 tags_matched += 1
-            session.add(PostTag(post_id=post.id, tag_id=resolved.id))
+            session.add(
+                tags_service.tag_edge(
+                    tags_service.TAG_LINKS["post"], post.id, resolved.id
+                )
+            )
 
         await session.flush()
         return EnvelopeImportResult(

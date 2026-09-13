@@ -74,7 +74,6 @@ const PERSIST_ALLOWLIST = [
   "/api/v1/g/{g}/initiatives",
   "/api/v1/g/{g}/projects",
   "/api/v1/g/{g}/tasks",
-  "/api/v1/g/{g}/subtasks",
   "/api/v1/g/{g}/task-statuses",
   "/api/v1/g/{g}/documents",
   "/api/v1/g/{g}/queues",

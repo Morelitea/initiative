@@ -9,8 +9,14 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.security import AUTH_ACCESS_AUDIENCE, AUTH_TOKEN_ISSUER
 from app.models.platform.user import UserStatus
-from app.testing.factories import create_user, get_auth_headers
+from app.testing.factories import (
+    create_user,
+    get_auth_headers,
+    get_auth_token,
+    get_legacy_auth_token,
+)
 
 
 @pytest.mark.unit
@@ -134,3 +140,60 @@ async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_
     with pytest.raises(RuntimeError, match="not routed to a guild schema"):
         await session.commit()
     await session.rollback()
+
+
+@pytest.mark.unit
+async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession):
+    """What the suite authenticates with is the shipped session credential, not
+    the pre-session scheme beside it. Every endpoint test rides on this, so it
+    is pinned here rather than left to whichever test happens to notice."""
+    import jwt as pyjwt
+
+    user = await create_user(session, email="factory-token@example.com")
+    claims = pyjwt.decode(
+        get_auth_token(user),
+        options={"verify_signature": False},
+        audience=AUTH_ACCESS_AUDIENCE,
+    )
+
+    assert claims["aud"] == AUTH_ACCESS_AUDIENCE
+    assert claims["iss"] == AUTH_TOKEN_ISSUER
+    assert claims["sub"] == str(user.id)
+    assert claims["ver"] == user.token_version
+    assert claims["sid"]
+    # What a password sign-in carries: a factor, and no provider satisfied.
+    assert claims["amr"] == ["pwd"]
+    assert claims["sat"] == []
+
+
+@pytest.mark.unit
+async def test_a_test_can_still_ask_for_the_legacy_token(session: AsyncSession):
+    """The scheme the app also accepts is reachable by name, for the tests
+    that are about that acceptance."""
+    import jwt as pyjwt
+
+    user = await create_user(session, email="factory-legacy@example.com")
+    claims = pyjwt.decode(
+        get_legacy_auth_token(user), options={"verify_signature": False}
+    )
+
+    assert claims["sub"] == str(user.id)
+    assert "aud" not in claims
+    assert "sid" not in claims
+
+
+@pytest.mark.unit
+async def test_a_factory_token_can_carry_a_satisfied_provider(session: AsyncSession):
+    """A guild's sign-in policy is satisfied by what the token says, so a test
+    of a policy-gated guild states it here."""
+    import jwt as pyjwt
+
+    user = await create_user(session, email="factory-sat@example.com")
+    claims = pyjwt.decode(
+        get_auth_token(user, satisfied_providers=[4, 9], amr=["oidc:corp"]),
+        options={"verify_signature": False},
+        audience=AUTH_ACCESS_AUDIENCE,
+    )
+
+    assert claims["sat"] == [4, 9]
+    assert claims["amr"] == ["oidc:corp"]

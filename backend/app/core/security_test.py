@@ -58,7 +58,9 @@ def _b64url_encode(raw: bytes) -> str:
 def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
-        user_id=42, guild_id=7, guild_role="admin"
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
     )
     assert seconds == int(BILLING_PORTAL_HANDOFF_LIFETIME.total_seconds())
     assert jwt.get_unverified_header(token)["alg"] == "RS256"
@@ -66,10 +68,14 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     payload = _decode_unverified(token)
     assert payload["aud"] == security.BILLING_PORTAL_AUDIENCE
     assert payload["iss"] == "initiative"
-    assert payload["sub"] == "42"
-    assert payload["guild_id"] == 7
     assert payload["guild_role"] == "admin"
     assert payload["jti"] and isinstance(payload["jti"], str)
+    # The two are named by reference and by nothing else — `sub` carries the
+    # user's, and no row id of ours appears anywhere in the claims.
+    assert payload["sub"] == "ubil_test42"
+    assert payload["user_ref"] == "ubil_test42"
+    assert payload["guild_ref"] == "gbil_test7"
+    assert "guild_id" not in payload
 
 
 @pytest.mark.unit
@@ -78,7 +84,9 @@ def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch)
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
     with pytest.raises(HandoffSigningNotConfiguredError):
         security.create_billing_portal_handoff_token(
-            user_id=1, guild_id=2, guild_role="admin"
+            guild_role="admin",
+            user_ref="ubil_test1",
+            guild_ref="gbil_test2",
         )
 
 
@@ -173,7 +181,9 @@ def test_verify_upload_token_rejects_wrong_audience():
     """A token signed with our secret but carrying a foreign audience (e.g. a
     handoff into another service) must not be honored as an upload token."""
     handoff, _ = security.create_billing_portal_handoff_token(
-        user_id=1, guild_id=2, guild_role="admin"
+        guild_role="admin",
+        user_ref="ubil_test1",
+        guild_ref="gbil_test2",
     )
     with pytest.raises(UploadTokenError):
         verify_upload_token(handoff)
@@ -291,7 +301,9 @@ def test_decode_session_token_rejects_scoped_upload_token():
 @pytest.mark.unit
 def test_decode_session_token_rejects_handoff_token():
     handoff, _ = security.create_billing_portal_handoff_token(
-        user_id=7, guild_id=1, guild_role="admin"
+        guild_role="admin",
+        user_ref="ubil_test7",
+        guild_ref="gbil_test1",
     )
     with pytest.raises(jwt.PyJWTError):
         decode_session_token(handoff)
@@ -423,6 +435,8 @@ def test_loader_refuses_a_private_key():
 #: for one member at one install, opaque to the app that holds it. These tests
 #: are about key selection and carry it only so it can be read back out.
 _SUBJECT = "mBqR7xK2wPL0vN4tZ8yC6sD1fG3hJ5nA"
+#: The reference the delegate knows the guild by, as it would arrive.
+_GUILD_REF = "gapp_wRkC8mBv1xQ2fTn6JhLpZs4dY7eA0uKq"
 
 
 def _mint_delegation(
@@ -437,7 +451,7 @@ def _mint_delegation(
             "iss": settings.AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
             "exp": now + timedelta(seconds=expires_in),
-            "guild_id": 9,
+            "guild_ref": _GUILD_REF,
         },
         private_pem(signed_by),
         algorithm="RS256",
@@ -450,7 +464,7 @@ def test_delegation_accepts_the_key_it_was_given():
     claims = security.verify_auto_delegation_token(
         _mint_delegation(signed_by=0), keys=[public_key(0)]
     )
-    assert (claims.subject, claims.guild_id) == (_SUBJECT, 9)
+    assert (claims.subject, claims.guild_ref) == (_SUBJECT, _GUILD_REF)
 
 
 @pytest.mark.unit

@@ -144,7 +144,7 @@ export const AppSidebar = () => {
     const map = new Map<number, ProjectRead[]>();
     const projects = projectsQuery.data?.items ?? [];
     projects.forEach((project) => {
-      if (!project.is_archived) {
+      if (project.archived_at === null) {
         const existing = map.get(project.initiative_id) ?? [];
         map.set(project.initiative_id, [...existing, project]);
       }

@@ -165,7 +165,7 @@ export const ProjectDetailPage = () => {
   const canAttachDocuments = canWriteProject;
   // Pure DAC: any permission grants view access
   const canViewTaskDetails = Boolean(project && myLevel);
-  const projectIsArchived = project.is_archived ?? false;
+  const projectIsArchived = project.archived_at !== null;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
   const handleTaskClick = (taskId: number) => {

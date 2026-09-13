@@ -10,6 +10,7 @@ import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +36,10 @@ export interface EditorProps {
   trackChanges?: boolean;
   isSynced?: boolean;
   initiativeId?: number | null;
+  /** What is being written, as a reference (`document:12`) — see
+   *  `Plugins.subject`. Absent while it does not exist yet, which is a thing
+   *  nothing can point at anyway. */
+  subject?: string | null;
   /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
   supportsEntityMentions?: boolean;
   /** Which surface this editor is on. `post` narrows the toolbar to what
@@ -64,6 +69,7 @@ export function Editor({
   trackChanges,
   isSynced = true,
   initiativeId = null,
+  subject,
   supportsEntityMentions = false,
   variant = "document",
   maxLength,
@@ -141,6 +147,7 @@ export function Editor({
               collaborative={useCollaborativeMode}
               cursorsContainerRef={cursorsContainerRef}
               initiativeId={initiativeId}
+              subject={subject}
               supportsEntityMentions={supportsEntityMentions}
               variant={variant}
               maxLength={maxLength}
@@ -148,6 +155,10 @@ export function Editor({
               onWikilinkNavigate={onWikilinkNavigate}
               onCreateReferencedThing={onCreateReferencedThing}
             />
+
+            {/* Publishes the headings to a `DocumentOutlineScope`, where the
+                page's contents list reads them. Inert without one. */}
+            <DocumentOutlineTracker />
 
             {useCollaborativeMode && providerFactory && (
               <LexicalCollaboration>

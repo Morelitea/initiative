@@ -1,41 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
   ArchiveDoneResponse,
+  ArchiveResponse,
+  ChecklistItem,
+  GenerateChecklistResponse,
   GenerateDescriptionResponse,
-  GenerateSubtasksResponse,
   ListTasksApiV1GGuildIdTasksGetParams,
-  SubtaskRead,
-  SubtaskReorderItem,
   TaskListRead,
   TaskListResponse,
   TaskRead,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete,
-  updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch,
-} from "@/api/generated/subtasks/subtasks";
 import { getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
 import {
   archiveDoneTasksApiV1GGuildIdTasksArchiveDonePost,
-  createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost,
-  createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost,
   createTaskApiV1GGuildIdTasksPost,
   deleteTaskApiV1GGuildIdTasksTaskIdDelete,
   duplicateTaskApiV1GGuildIdTasksTaskIdDuplicatePost,
+  generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost,
   generateTaskDescriptionApiV1GGuildIdTasksTaskIdAiDescriptionPost,
-  generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost,
-  getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey,
   getListTasksApiV1GGuildIdTasksGetQueryKey,
   getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
-  listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet,
   listTasksApiV1GGuildIdTasksGet,
   moveTaskApiV1GGuildIdTasksTaskIdMovePost,
   readTaskApiV1GGuildIdTasksTaskIdGet,
-  reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut,
   reorderTasksApiV1GGuildIdTasksReorderPost,
+  toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch,
   updateTaskApiV1GGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
@@ -88,15 +81,6 @@ export const usePrefetchTasks = () => {
       staleTime: 30_000,
     });
   };
-};
-
-export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) => {
-  const guildId = useActiveGuildId();
-  return useQuery<SubtaskRead[]>({
-    queryKey: getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey(guildId, taskId),
-    queryFn: () => listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet(guildId, taskId),
-    ...options,
-  });
 };
 
 // ── Task Mutations ──────────────────────────────────────────────────────────
@@ -154,7 +138,10 @@ export const useUpdateTask = (
        * personal surfaces use useUpdateTaskInGuild instead. */
       params?: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[3];
     }
-  >
+  >,
+  /** What a failure says. Defaults to the status-change wording, which is what
+   *  most callers of this are doing. */
+  errorKey = "tasks:errors.statusUpdate"
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
@@ -200,7 +187,7 @@ export const useUpdateTask = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tasks:errors.statusUpdate"));
+      toast.error(getErrorMessage(args[0], errorKey));
       onError?.(...args);
     },
     onSettled,
@@ -312,15 +299,13 @@ export const useBulkUpdateTasks = (
     options
   );
 
-export const useBulkArchiveTasks = (options?: MutationOpts<TaskRead[], number[]>) =>
-  useGuildMutation<TaskRead[], number[]>(
+export const useBulkArchiveTasks = (options?: MutationOpts<ArchiveResponse[], number[]>) =>
+  useGuildMutation<ArchiveResponse[], number[]>(
     {
       mutationFn: (guildId, taskIds) =>
         Promise.all(
           taskIds.map((taskId) =>
-            updateTaskApiV1GGuildIdTasksTaskIdPatch(guildId, taskId, {
-              is_archived: true,
-            } as Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2])
+            archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(guildId, "task", taskId)
           )
         ),
       invalidate: () => invalidate(q.allTasks()),
@@ -455,96 +440,33 @@ export const useGenerateTaskDescription = (
     options
   );
 
-// ── Subtask Mutations ───────────────────────────────────────────────────────
+// ── Checklist Mutations ─────────────────────────────────────────────────────
 
-const invalidateSubtaskRelated = (taskId: number) => {
-  void invalidate(q.taskSubtasks(taskId), q.task(taskId), q.allTasks());
-};
-
-export const useCreateSubtask = (
-  options?: MutationOpts<SubtaskRead, { taskId: number; content: string }>
+// Adding, renaming, reordering and deleting arrive as the whole list through
+// ``useUpdateTask``. A tick is its own call: it names one item, so two people
+// ticking different lines of the same task do not overwrite each other.
+export const useToggleChecklistItem = (
+  options?: MutationOpts<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>
 ) =>
-  useGuildMutation<SubtaskRead, { taskId: number; content: string }>(
+  useGuildMutation<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>(
     {
-      mutationFn: (guildId, { taskId, content }) =>
-        createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost(guildId, taskId, { content }),
-      invalidate: (_data, { taskId }) => invalidateSubtaskRelated(taskId),
-      errorKey: "tasks:checklist.addError",
-    },
-    options
-  );
-
-export const useCreateSubtasksBatch = (
-  options?: MutationOpts<SubtaskRead[], { taskId: number; contents: string[] }>
-) =>
-  useGuildMutation<SubtaskRead[], { taskId: number; contents: string[] }>(
-    {
-      mutationFn: (guildId, { taskId, contents }) =>
-        createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost(guildId, taskId, { contents }),
-      invalidate: (_data, { taskId }) => invalidateSubtaskRelated(taskId),
-      errorKey: "tasks:checklist.addError",
-    },
-    options
-  );
-
-export const useUpdateSubtask = (
-  options?: MutationOpts<
-    SubtaskRead,
-    {
-      subtaskId: number;
-      taskId: number;
-      data: Parameters<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>[2];
-    }
-  >
-) =>
-  useGuildMutation<
-    SubtaskRead,
-    {
-      subtaskId: number;
-      taskId: number;
-      data: Parameters<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>[2];
-    }
-  >(
-    {
-      mutationFn: (guildId, { subtaskId, data }) =>
-        updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch(guildId, subtaskId, data),
-      invalidate: (_data, { taskId }) => invalidateSubtaskRelated(taskId),
+      mutationFn: (guildId, { taskId, itemId, done }) =>
+        toggleChecklistItemApiV1GGuildIdTasksTaskIdChecklistItemIdPatch(guildId, taskId, itemId, {
+          done,
+        }),
+      invalidate: (_data, { taskId }) => {
+        void invalidate(q.task(taskId), q.allTasks());
+      },
       errorKey: "tasks:checklist.updateError",
     },
     options
   );
 
-export const useDeleteSubtask = (
-  options?: MutationOpts<void, { subtaskId: number; taskId: number }>
-) =>
-  useGuildMutation<void, { subtaskId: number; taskId: number }>(
-    {
-      mutationFn: (guildId, { subtaskId }) =>
-        deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete(guildId, subtaskId),
-      invalidate: (_data, { taskId }) => invalidateSubtaskRelated(taskId),
-      errorKey: "tasks:checklist.deleteError",
-    },
-    options
-  );
-
-export const useReorderSubtasks = (
-  options?: MutationOpts<SubtaskRead[], { taskId: number; items: SubtaskReorderItem[] }>
-) =>
-  useGuildMutation<SubtaskRead[], { taskId: number; items: SubtaskReorderItem[] }>(
-    {
-      mutationFn: (guildId, { taskId, items }) =>
-        reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut(guildId, taskId, { items }),
-      invalidate: (_data, { taskId }) => invalidateSubtaskRelated(taskId),
-      errorKey: "tasks:checklist.reorderError",
-    },
-    options
-  );
-
-export const useGenerateSubtasks = (options?: MutationOpts<GenerateSubtasksResponse, number>) =>
-  useGuildMutation<GenerateSubtasksResponse, number>(
+export const useGenerateChecklist = (options?: MutationOpts<GenerateChecklistResponse, number>) =>
+  useGuildMutation<GenerateChecklistResponse, number>(
     {
       mutationFn: (guildId, taskId) =>
-        generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost(guildId, taskId),
+        generateTaskChecklistApiV1GGuildIdTasksTaskIdAiChecklistPost(guildId, taskId),
       errorKey: "tasks:checklist.generateError",
     },
     options

@@ -18,7 +18,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import worker as export_worker
 from app.services.storage import get_guild_storage
-from app.testing.factories import create_task
+from app.testing.factories import assign_tag, create_task
 
 pytestmark = pytest.mark.integration
 
@@ -266,7 +266,9 @@ async def test_project_export_report_formats(client: AsyncClient, acting_user, s
     """pdf/csv/xlsx render the project report (unarchived tasks) from the same
     adapter that produces the json backup."""
     a = await _actor_with_tasks(acting_user, session)
-    await create_task(session, a.project, title="Old news", is_archived=True)
+    await create_task(
+        session, a.project, title="Old news", archived_at=datetime.now(timezone.utc)
+    )
 
     pdf = await client.get(
         a.g("/exports/project"),
@@ -583,7 +585,7 @@ async def test_document_export_spreadsheet_formats(
                 "1:0": "+not-a-formula",
                 "1:1": 42,
             },
-            "cellStyles": {"0:0": {"bold": True, "fill": "#ff0000"}},
+            "cellStyles": {"0:0": {"style": {"bold": True, "fill": "#ff0000"}}},
             "columns": {"0": {"width": 140}},
             "rows": {},
             "frozen": {"rows": 1, "cols": 0},
@@ -660,7 +662,7 @@ async def test_document_export_spreadsheet_survives_corrupt_snapshot(
             "dimensions": {"rows": 1, "cols": 1},
             "cells": {"0:0": "ok", "corrupt": "x", "1:2:3": "y", ":": "z"},
             "cellStyles": {
-                "0:0": {"fill": "#fff", "color": "not-a-color"},
+                "0:0": {"style": {"fill": "#fff", "color": "not-a-color"}},
             },
         },
     )
@@ -883,11 +885,12 @@ async def test_gc_expires_row_even_when_artifact_delete_fails(
 
 
 async def _queue_with_items(acting_user, session):
-    from app.models.tenant.queue import QueueItemDocument, QueueItemTag, QueueItemTask
+    from app.core.search import SearchEntityType
     from app.testing.factories import (
         create_document,
         create_queue,
         create_queue_item,
+        create_relationship,
         create_tag,
     )
 
@@ -910,16 +913,20 @@ async def _queue_with_items(acting_user, session):
         session, queue, label="Lurker", position=10, is_visible=False
     )
     tag = await create_tag(session, a.guild, name="npc")
-    session.add(QueueItemTag(queue_item_id=lurker.id, tag_id=tag.id))
+    await assign_tag(session, lurker, tag)
     doc = await create_document(session, a.initiative, a.user, name="Dungeon map")
     task = await create_task(session, a.project, title="Prep loot")
-    session.add(
-        QueueItemDocument(
-            queue_item_id=current.id, document_id=doc.id, guild_id=a.guild.id
-        )
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, current.id),
+        target=(SearchEntityType.document, doc.id),
     )
-    session.add(
-        QueueItemTask(queue_item_id=current.id, task_id=task.id, guild_id=a.guild.id)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, current.id),
+        target=(SearchEntityType.task, task.id),
     )
     queue.current_item_id = current.id
     session.add(queue)
@@ -1205,12 +1212,12 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     client: AsyncClient, acting_user, session
 ):
     """layout=detailed renders a one-task-per-page PDF carrying each task's
-    description, subtasks and comments — not the tabular line-per-task list."""
+    description, checklist and comments — not the tabular line-per-task list."""
     import io
 
     from pypdf import PdfReader
 
-    from app.testing.factories import create_comment, create_subtask
+    from app.testing.factories import checklist_items, create_comment
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     t1 = await create_task(
@@ -1220,9 +1227,11 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
         # Markdown, as the app treats descriptions: formatting must RENDER
         # (no literal ** in the PDF), paragraphs stay separate.
         description="Balance the **encounter**.\n\n- Check the second phase",
+        checklist=[
+            *checklist_items("Tune the HP", done=True),
+            *checklist_items("Write the dialogue"),
+        ],
     )
-    await create_subtask(session, t1, content="Tune the HP", is_completed=True)
-    await create_subtask(session, t1, content="Write the dialogue")
     root = await create_comment(session, a.user, task=t1, content="Started already.")
     # A reply must render nested under its parent, not appended chronologically
     # — even though it was created after the later root comment below.
@@ -1257,7 +1266,7 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     assert _pdf_has(text, "Balance the encounter")
     assert _pdf_has(text, "Check the second phase")  # the list item
     assert "**" not in text  # bold markers consumed, not printed
-    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # subtasks
+    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # checklist
     assert _pdf_has(text, "Started already")  # comment body
     # Threaded order: a reply renders directly under its parent, before the
     # later root comment — not in flat creation order. (Compare on the
@@ -1269,7 +1278,7 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
         < packed.index("Separatethreadhere")
     )
     # Localized section labels (en locale).
-    for label in ("Description", "Subtasks", "Comments"):
+    for label in ("Description", "Checklist", "Comments"):
         assert _pdf_has(text, label)
 
 
@@ -1856,7 +1865,6 @@ async def test_document_envelope_carries_tags_and_properties(
     name and custom properties in the shared flat encoding."""
     import json
 
-    from app.models.tenant.tag import DocumentTag
     from app.testing.factories import (
         create_document,
         create_document_property_value,
@@ -1873,7 +1881,7 @@ async def test_document_envelope_carries_tags_and_properties(
         content={"root": {"children": [], "type": "root"}},
     )
     tag = await create_tag(session, a.guild, name="worldbuilding")
-    session.add(DocumentTag(document_id=doc.id, tag_id=tag.id))
+    await assign_tag(session, doc, tag)
     await session.commit()
     definition = await create_property_definition(session, a.initiative, name="Status")
     await create_document_property_value(session, doc, definition, value_text="Draft")

@@ -21,21 +21,19 @@ import { useCallback, useEffect } from "react";
 
 import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListViewPreferencesApiV1UserViewPreferencesGetQueryKey,
   listViewPreferencesApiV1UserViewPreferencesGet,
   putViewPreferenceApiV1UserViewPreferencesScopeKeyPut,
 } from "@/api/generated/user-view-preferences/user-view-preferences";
 import { useAuth } from "@/hooks/useAuth";
+import { PREFERENCES_STALE_TIME_MS, VIEW_PREFERENCES_QUERY_KEY } from "@/lib/viewPreferences";
 
 /** Coalesce rapid edits into one PUT after the user pauses for this long. */
 const WRITE_DEBOUNCE_MS = 400;
 
-/**
- * The cache key for the full preferences map. Exported so the one-shot
- * localStorage migration can prime the cache before the query runs.
- */
-export const VIEW_PREFERENCES_QUERY_KEY =
-  getListViewPreferencesApiV1UserViewPreferencesGetQueryKey();
+// Re-exported so the many callers that read the map's cache key from this hook
+// keep working; it lives in lib/ because useAuth warms the map and cannot
+// import a module that imports useAuth back.
+export { VIEW_PREFERENCES_QUERY_KEY } from "@/lib/viewPreferences";
 
 /**
  * Module-level debounce map keyed by `scope_key`. Lifting this out of
@@ -79,7 +77,7 @@ export function useViewPreference<T>(
     // the source of truth in this client and write through, so a long
     // stale time is fine. Refetches on focus would clobber an optimistic
     // value if a PUT was still in flight.
-    staleTime: 5 * 60 * 1000,
+    staleTime: PREFERENCES_STALE_TIME_MS,
     refetchOnWindowFocus: false,
   });
 

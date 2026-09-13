@@ -163,3 +163,57 @@ def test_hidden_rows_and_columns_export_hidden() -> None:
     sheet = book.worksheets[0]
     assert sheet.column_dimensions["C"].hidden is True
     assert sheet.row_dimensions[5].hidden is True
+
+
+# ── per-cell formatting, in both shapes a document has had ───────────────────
+
+
+def _rendered(content: dict):
+    return load_workbook(io.BytesIO(render_xlsx(content, title="B"))).active
+
+
+@pytest.mark.unit
+def test_a_cells_own_look_reaches_the_workbook() -> None:
+    """A cell entry keeps its look under ``style``, beside its ``format`` —
+    the same wrapper the column and row layers use. Reading the entry as
+    though it were the look finds neither."""
+    sheet = _rendered(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                _sheet(
+                    "S",
+                    {"0:0": 1},
+                    cellStyles={
+                        "0:0": {
+                            "style": {"bold": True, "fill": "#ff0000"},
+                            "format": {"type": "percent", "decimals": 1},
+                        }
+                    },
+                )
+            ],
+        }
+    )
+
+    cell = sheet.cell(row=1, column=1)
+    assert cell.font.bold is True
+    assert cell.fill.start_color.rgb == "FFFF0000"
+    assert cell.number_format == "0.0%"
+
+
+@pytest.mark.unit
+def test_a_column_look_still_reaches_the_workbook() -> None:
+    """Column and row layers have always used the wrapper; a cell layer that
+    does must not cost them theirs."""
+    sheet = _rendered(
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                _sheet("S", {"0:0": 1}, columns={"0": {"style": {"italic": True}}})
+            ],
+        }
+    )
+
+    assert sheet.cell(row=1, column=1).font.italic is True

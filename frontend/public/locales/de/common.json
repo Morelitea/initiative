@@ -15,6 +15,11 @@
   "submit": "Absenden",
   "reset": "Zurücksetzen",
   "done": "Fertig",
+  "toolArchiveFilter": {
+    "label": "Anzeigen",
+    "active": "Aktiv",
+    "archived": "Archiviert"
+  },
   "yes": "Ja",
   "no": "Nein",
   "ok": "OK",
@@ -86,6 +91,17 @@
     "advancedOptions": "Erweiterte Optionen"
   },
   "toolSettings": {
+    "archive": {
+      "title": "Archiv",
+      "isActive": "Archivieren heißt: hiermit ist Schluss. Das Element und alles darin wird schreibgeschützt, bis du es zurückholst.",
+      "isArchived": "Archiviert. Dieses Element und alles darin ist schreibgeschützt, bis du es zurückholst.",
+      "archive": "Archivieren",
+      "unarchive": "Zurückholen",
+      "archiving": "Wird archiviert…",
+      "unarchiving": "Wird zurückgeholt…",
+      "archived": "„{{name}}“ archiviert",
+      "unarchived": "„{{name}}“ ist zurück"
+    },
     "title": "Einstellungen",
     "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
     "tabDetails": "Details",
@@ -168,5 +184,7 @@
     "permission": "Initiative braucht Zugriff auf Kamera und Fotos. Erlaube ihn in den Geräteeinstellungen und versuche es erneut.",
     "unavailable": "Dieses Gerät hat keine Kamera für ein Foto.",
     "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
-  }
+  },
+  "archiveError": "Das konnte nicht archiviert werden. Bitte versuche es erneut.",
+  "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut."
 }
