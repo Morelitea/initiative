@@ -1192,12 +1192,11 @@ async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_oidc_callback_survives_session_store_failure(
+async def test_an_oidc_callback_that_cannot_open_a_session_says_so(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The refresh session is additive, not load-bearing: a failure writing it
-    must not fail a successful SSO login — the redirect and legacy session
-    cookie still go out, just without a refresh cookie."""
+    """The provider authenticated them and the store could not record it. Back
+    to the app with a code rather than a credential that cannot renew."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1211,28 +1210,19 @@ async def test_oidc_callback_survives_session_store_failure(
         client,
         idp,
         id_token_claims={
-            "email": "sso-besteffort@example.com",
-            "username": "sso-besteffort",
+            "email": "sso-nostore@example.com",
+            "username": "sso-nostore",
             "email_verified": True,
         },
     )
     assert response.status_code in (302, 307)
-    assert response.headers["location"].endswith("/oidc/callback")
-    assert SESSION_COOKIE_NAME in response.cookies
+    assert "error=OIDC_SESSION_STORE_UNAVAILABLE" in response.headers["location"]
     assert response.cookies.get(REFRESH_COOKIE_NAME) is None
-    # The fallback cookie is a legacy (session-less) token.
-    import jwt as pyjwt
-
-    claims = pyjwt.decode(
-        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
-    )
-    assert "sid" not in claims
+    assert SESSION_COOKIE_NAME not in response.cookies
 
     user = (
         await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("sso-besteffort@example.com")
-            )
+            select(User).where(User.email_hash == hash_email("sso-nostore@example.com"))
         )
     ).one()
     rows = (
@@ -2056,38 +2046,24 @@ async def test_login_issues_session_access_token(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_login_session_store_failure_falls_back_to_legacy(
+async def test_a_login_that_cannot_open_a_session_is_refused(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A session-store failure must not block sign-in: login falls back to a
-    legacy long-lived token (no refresh cookie) that still authenticates."""
-    import jwt as pyjwt
-
-    _, password = await _make_login_user(session, "fallback@example.com")
+    """A sign-in is the session. If the store cannot be written there is
+    nothing to hand back, and the request says so rather than issuing a
+    credential that cannot renew."""
+    _, password = await _make_login_user(session, "nostore@example.com")
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("session store down")
 
     monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
 
-    resp = await _login(client, "fallback@example.com", password)
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    claims = pyjwt.decode(token, options={"verify_signature": False})
-    assert "sid" not in claims
+    resp = await _login(client, "nostore@example.com", password)
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
     assert resp.cookies.get(REFRESH_COOKIE_NAME) is None
-    # Any leftover refresh cookie is actively cleared so it can't ride the
-    # new login into a later silent renewal.
-    set_cookies = resp.headers.get_list("set-cookie")
-    assert any(
-        c.startswith(f"{REFRESH_COOKIE_NAME}=") and ("Max-Age=0" in c or "1970" in c)
-        for c in set_cookies
-    ), set_cookies
-
-    me = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert me.status_code == 200
+    assert SESSION_COOKIE_NAME not in resp.cookies
 
 
 @pytest.mark.integration

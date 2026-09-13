@@ -59,6 +59,9 @@ class AuthMessages:
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
+    #: The session store could not be written, so no session was opened.
+    #: A sign-in is the session; there is no lesser credential to hand back.
+    SESSION_STORE_UNAVAILABLE = "SESSION_STORE_UNAVAILABLE"
     CAPTCHA_INVALID = "CAPTCHA_INVALID"
 
 
@@ -264,6 +267,7 @@ class OidcMessages:
     REGISTRATION_DISABLED = "OIDC_REGISTRATION_DISABLED"
     EMAIL_UNVERIFIED = "OIDC_EMAIL_UNVERIFIED"
     ACCOUNT_INACTIVE = "OIDC_ACCOUNT_INACTIVE"
+    SESSION_STORE_UNAVAILABLE = "OIDC_SESSION_STORE_UNAVAILABLE"
 
 
 class AuthProviderMessages:

@@ -38,7 +38,6 @@ from app.core.usernames import UsernameError
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
-    create_access_token,
     create_upload_token,
     get_password_hash,
     mint_access_token,
@@ -436,37 +435,6 @@ async def _record_sign_in_failure(
     await admin_session.commit()
 
 
-async def _record_sign_in_fallback(
-    admin_session: AsyncSession,
-    *,
-    user_id: int,
-    detail: dict[str, Any],
-    guild_id: int | None = None,
-) -> None:
-    """Write down a sign-in whose session write failed, on its own commit.
-
-    The record is normally staged beside the session so the two land together;
-    when that write fails, the rollback takes the record with it. The sign-in
-    itself still succeeded — the caller is about to hand out a legacy token —
-    so the log still owes its reader the event.
-
-    Best-effort by construction: whatever stopped the session write may stop
-    this too, and a login that has already succeeded must not fail here.
-    """
-    try:
-        await audit_service.record(
-            admin_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            guild_id=guild_id,
-            detail={**detail, "session": "legacy"},
-        )
-        await admin_session.commit()
-    except Exception:
-        await admin_session.rollback()
-        logger.warning("sign-in for user %s was not recorded in the audit log", user_id)
-
-
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -512,18 +480,18 @@ async def login_access_token(
     # telling an address in use from one nobody has signed in with.
     await addresses.note_sign_in(admin_session, email=normalized_email)
 
-    # The new login model end-to-end (history/auth-detailed-design.md §3): the
+    # The login model end-to-end (history/auth-detailed-design.md §3): the
     # server-side session is load-bearing — the access token carries sid/amr/sat
     # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
     # session (the SPA renews silently). Session writes run on the system engine
     # (auth_sessions is app_admin-only).
     #
-    # Fallback: a transient session-store failure must not block sign-in — issue
-    # a legacy long-lived token instead (the dual-verify window accepts both);
-    # that session just can't renew silently.
+    # A sign-in *is* the session. If it cannot be written the request says so
+    # rather than handing back a lesser credential — ``auth_sessions`` shares a
+    # database with everything the next request would need anyway.
+    #
     # ``user`` is attached to ``admin_session``, so the rollback below expires
-    # its attributes; the plain values are captured up front so the failure
-    # path never touches the ORM object again.
+    # its attributes; the plain values are captured up front.
     user_id, token_version = user.id, user.token_version
     try:
         issued = await session_service.create_session(
@@ -541,27 +509,13 @@ async def login_access_token(
             detail={"method": "password"},
         )
         await admin_session.commit()
-    except Exception:
+    except Exception as exc:
         await admin_session.rollback()
-        logger.exception(
-            "Failed to establish refresh session for user %s; "
-            "falling back to a legacy access token",
-            user_id,
-        )
-        await _record_sign_in_fallback(
-            admin_session, user_id=user_id, detail={"method": "password"}
-        )
-        access_token = create_access_token(
-            subject=str(user_id), token_version=token_version
-        )
-        set_session_cookie(
-            response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-        # A leftover refresh cookie from an earlier session (possibly another
-        # account on this browser) must not ride the new login — clear it so a
-        # later silent renewal can't swap the session out from under the user.
-        clear_refresh_cookie(response)
-        return Token(access_token=access_token)
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
 
     access_token, access_max_age = mint_access_token(
         user_id=user_id,
@@ -1507,34 +1461,10 @@ async def _complete_provider_login(
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
-        logger.exception(
-            "Failed to establish refresh session for user %s; "
-            "falling back to a legacy access token",
-            user_id,
-        )
-        await _record_sign_in_fallback(
-            admin_session,
-            user_id=user_id,
-            guild_id=provider_guild_id,
-            detail={
-                "method": "oidc",
-                "provider": provider_slug,
-                "step_up": prior is not None,
-                **assurance.as_record(),
-            },
-        )
-        legacy_token = create_access_token(
-            subject=str(user_id), token_version=token_version
-        )
-        set_session_cookie(
-            oidc_response,
-            legacy_token,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        )
-        # Same rule as the password-login fallback: a leftover refresh cookie
-        # must not ride the new login.
-        clear_refresh_cookie(oidc_response)
-        return oidc_response
+        logger.exception("Could not open a session for user %s", user_id)
+        # The provider authenticated them; we could not record it. Back to the
+        # app with a code rather than a credential that cannot renew.
+        return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
 
     app_token, access_max_age = mint_access_token(
         user_id=user_id,
