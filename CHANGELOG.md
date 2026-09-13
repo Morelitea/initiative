@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Published containers include available operating-system security updates** — the final image now applies the Debian repository's current package fixes during its build instead of keeping vulnerable packages inherited from an older base-image rebuild. The build fails if any package is left behind, so the claim is checked rather than assumed.
 - **The trash stays out of dashboards** — a dashboard could count deleted tasks in its figures, so the same board did not always show the same number to everybody reading it. Queries now report on live content only. The trash screen itself is unchanged.
 - **"Finished, last 30 days" counts again** — the tile failed to load on all four dashboards that carry it, as did any query measuring a stretch of time.
 - **A board widget with a lot of cards draws them** — a column holding more cards than fit shared its height out among them instead of scrolling, so a board of a few hundred tasks drew every card as a hairline with its title spilling over the next. Columns overflow and scroll now, at any number of cards.

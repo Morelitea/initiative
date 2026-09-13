@@ -5,6 +5,7 @@
   "CAPTCHA_INVALID": "Captcha verification failed. Please try again.",
   "UNABLE_TO_CREATE_USER": "Unable to create user",
   "INCORRECT_CREDENTIALS": "Incorrect email or password",
+  "REQUEST_ORIGIN_NOT_RECOGNIZED": "This request didn't come from a page on this site. If you're using an API client, sign in with an access token instead of a browser session.",
   "PASSWORD_TOO_SHORT": "Password must be at least 12 characters.",
   "PASSWORD_BREACHED": "This password has appeared in a known data breach. Please choose a different one.",
   "INACTIVE_USER": "Inactive user",

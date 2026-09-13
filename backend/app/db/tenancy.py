@@ -126,6 +126,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "federated_identities",  # (provider, subject) -> user links
         "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
         "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
+        "user_emails",  # the addresses an account signs in with; app_admin-only
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
