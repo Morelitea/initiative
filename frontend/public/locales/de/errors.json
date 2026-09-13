@@ -620,5 +620,10 @@
   "SESSION_STORE_UNAVAILABLE": "Ihre Sitzung konnte gerade nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
   "OIDC_SESSION_STORE_UNAVAILABLE": "Ihr Identitätsanbieter hat Sie angemeldet, aber Ihre Sitzung konnte nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
   "OIDC_REGISTRATION_DISABLED": "Dieser Server erstellt keine Konten über Single Sign-on. Bitten Sie eine Administratorin oder einen Administrator um eine Einladung.",
-  "OIDC_ACCOUNT_INACTIVE": "Dieses Konto wurde deaktiviert. Eine Administratorin oder ein Administrator kann es wieder aktivieren."
+  "OIDC_ACCOUNT_INACTIVE": "Dieses Konto wurde deaktiviert. Eine Administratorin oder ein Administrator kann es wieder aktivieren.",
+  "ADDRESS_NOT_FOUND": "Diese Adresse gehört nicht zu Ihrem Konto.",
+  "PRIMARY_ADDRESS": "An diese Adresse geht Ihre Kontopost. Legen Sie zuerst eine andere als Hauptadresse fest.",
+  "LAST_VERIFIED_ADDRESS": "Das ist die einzige bestätigte Adresse Ihres Kontos. Bestätigen Sie zuerst eine weitere.",
+  "ADDRESS_NOT_VERIFIED": "Bestätigen Sie diese Adresse, bevor Ihre Kontopost dorthin geht.",
+  "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann."
 }

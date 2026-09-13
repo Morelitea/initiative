@@ -6758,6 +6758,30 @@ export interface UserCreate {
   captcha_token?: string | null;
 }
 
+export interface UserEmailCreate {
+  email: string;
+}
+
+/**
+ * One address on the account reading it.
+ *
+ * Served only to its owner, so the address is in full — every other shape
+ * that carries one either masks it or does not have it at all.
+ */
+export interface UserEmailRead {
+  id: number;
+  email: string;
+  verified: boolean;
+  is_primary: boolean;
+  source: string;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface UserEmailListResponse {
+  items: UserEmailRead[];
+}
+
 /**
  * A member, for the guild's own member-management surface.
  *

@@ -33,7 +33,7 @@ from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.usernames import UsernameError
-from app.core.rate_limit import get_inet_client_ip
+from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.security import (
     get_password_hash,
     mint_access_token,
@@ -57,6 +57,9 @@ from app.schemas.platform.guild import (
     GuildCategory,
 )
 from app.schemas.platform.user import (
+    UserEmailCreate,
+    UserEmailListResponse,
+    UserEmailRead,
     AgeConfirmation,
     DecorationPack,
     DecorationPackListResponse,
@@ -88,7 +91,9 @@ from app.schemas.tenant.ownership import (
     OwnershipTransferResponse,
 )
 from app.schemas.tenant.stats import UserStatsResponse
-from app.core.messages import AuthMessages, UserMessages
+from app.core.encryption import SALT_EMAIL, decrypt_field
+from app.core.messages import AddressMessages, AuthMessages, UserMessages
+from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -118,6 +123,10 @@ from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import csv_export
 from app.services.tenant import stats_service
+from app.models.platform.user_token import UserTokenPurpose
+from app.schemas.platform.auth import VerificationSendResponse
+from app.services import email as email_service
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
@@ -786,6 +795,144 @@ async def confirm_my_age(
         await session.refresh(current_user)
 
     return UserRead.model_validate(current_user)
+
+
+def _address_read(row) -> UserEmailRead:
+    """One stored address in the shape its owner reads."""
+    return UserEmailRead(
+        id=row.id,
+        email=decrypt_field(row.email_encrypted, SALT_EMAIL),
+        verified=row.verified_at is not None,
+        is_primary=row.is_primary,
+        source=row.source,
+        created_at=row.created_at,
+        last_login_at=row.last_login_at,
+    )
+
+
+@router.get("/me/emails", response_model=UserEmailListResponse)
+async def list_my_addresses(
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserEmailListResponse:
+    """Every address this account holds.
+
+    On the system engine: ``user_emails`` carries no request-path grants,
+    because resolving an address happens before anybody is authenticated.
+    """
+    rows = await addresses.list_for_user(admin_session, user_id=current_user.id)
+    return UserEmailListResponse(items=[_address_read(row) for row in rows])
+
+
+@router.post(
+    "/me/emails",
+    response_model=VerificationSendResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit("5/15minutes")
+async def add_my_address(
+    request: Request,
+    payload: UserEmailCreate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> VerificationSendResponse:
+    """Start holding another address, and write to it to prove it.
+
+    The answer is the same whoever holds the address already. What differs is
+    where the mail goes: a free address gets a link to confirm it, and one that
+    is taken gets nothing.
+    """
+    # Whether this deployment can send at all is settled before the address is
+    # looked at, so the refusal is about the server rather than about who holds
+    # what. Everything after this point answers identically.
+    app_settings = await app_settings_service.get_app_settings(session)
+    if not (app_settings.smtp_host and app_settings.smtp_from_address):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.SMTP_NOT_CONFIGURED,
+        )
+
+    try:
+        added = await addresses.add_for_user(
+            admin_session, user_id=current_user.id, email=payload.email
+        )
+    except addresses.AddressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+    # ``added`` is the new claim, or the one this account already had — asking
+    # again is how a letter that did not arrive is sent again. ``None`` means
+    # somebody has proven the address, and nothing is written.
+    if added is not None:
+        await admin_session.commit()
+        await admin_session.refresh(added)
+        token = await user_tokens_service.create_token(
+            session,
+            user_id=current_user.id,
+            purpose=UserTokenPurpose.email_verification,
+            user_email_id=added.id,
+        )
+        try:
+            await email_service.send_address_verification_email(
+                session, current_user, address=payload.email, token=token
+            )
+        except Exception:
+            # The address is held and unproven either way; a send that failed
+            # is retried by adding it again.
+            logger.exception(
+                "verification mail for a new address could not be sent (user %s)",
+                current_user.id,
+            )
+    return VerificationSendResponse(status="sent")
+
+
+@router.delete("/me/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_my_address(
+    address_id: int,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    try:
+        await addresses.remove_for_user(
+            admin_session, user_id=current_user.id, address_id=address_id
+        )
+    except addresses.AddressError as exc:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
+                else status.HTTP_400_BAD_REQUEST
+            ),
+            detail=exc.code,
+        ) from exc
+    await admin_session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/me/emails/{address_id}/primary", response_model=UserEmailRead)
+async def make_my_address_primary(
+    address_id: int,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserEmailRead:
+    """Move where account mail goes."""
+    try:
+        row = await addresses.set_primary_for_user(
+            admin_session, user_id=current_user.id, address_id=address_id
+        )
+    except addresses.AddressError as exc:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
+                else status.HTTP_400_BAD_REQUEST
+            ),
+            detail=exc.code,
+        ) from exc
+    await admin_session.commit()
+    await admin_session.refresh(row)
+    return _address_read(row)
 
 
 @router.patch("/me", response_model=UserRead)

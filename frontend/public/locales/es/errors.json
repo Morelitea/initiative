@@ -620,5 +620,10 @@
   "SESSION_STORE_UNAVAILABLE": "No hemos podido iniciar tu sesión en este momento. Inténtalo de nuevo en unos instantes.",
   "OIDC_SESSION_STORE_UNAVAILABLE": "Tu proveedor de identidad te ha autenticado, pero no hemos podido iniciar tu sesión. Inténtalo de nuevo en unos instantes.",
   "OIDC_REGISTRATION_DISABLED": "Este servidor no crea cuentas mediante inicio de sesión único. Pide una invitación a un administrador.",
-  "OIDC_ACCOUNT_INACTIVE": "Esa cuenta está desactivada. Un administrador puede volver a activarla."
+  "OIDC_ACCOUNT_INACTIVE": "Esa cuenta está desactivada. Un administrador puede volver a activarla.",
+  "ADDRESS_NOT_FOUND": "Esa dirección no está en tu cuenta.",
+  "PRIMARY_ADDRESS": "Ahí va el correo de tu cuenta. Haz principal otra dirección primero.",
+  "LAST_VERIFIED_ADDRESS": "Es la única dirección confirmada de tu cuenta. Confirma otra primero.",
+  "ADDRESS_NOT_VERIFIED": "Confirma esa dirección antes de que el correo de tu cuenta se envíe ahí.",
+  "TOO_MANY_ADDRESSES": "Tu cuenta ya tiene todas las direcciones que puede tener."
 }

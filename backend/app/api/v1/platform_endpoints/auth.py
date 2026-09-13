@@ -458,11 +458,11 @@ async def login_access_token(
         form_data.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the log is no place to
-        # keep one. Those attempts are bounded by the rate limit above.
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Recorded whether or not the address resolved: a run of refusals
+        # against addresses nobody holds is the shape worth seeing, and the
+        # record keeps no identity when there was none to keep. The volume is
+        # bounded by the rate limit above.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -742,8 +742,8 @@ async def create_device_token(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        # Recorded either way, like the token route.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -1608,11 +1608,28 @@ async def confirm_verification(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # A token minted for one address proves that address; the older
+    # account-level tokens carry none and prove the account.
+    if record.user_email_id is not None:
+        try:
+            await addresses.verify_for_user(
+                admin_session, user_id=user.id, address_id=record.user_email_id
+            )
+        except addresses.AddressError as exc:
+            # Somebody else proved the same address first. The claim is over,
+            # and the token that carried it is spent either way.
+            await admin_session.rollback()
+            record.consumed_at = datetime.now(timezone.utc)
+            session.add(record)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
-        await admin_session.commit()
+    await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)
