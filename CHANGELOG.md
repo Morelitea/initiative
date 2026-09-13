@@ -7,12 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Security warnings can go somewhere** — set `SECURITY_ALERT_WEBHOOK_URL` and warnings that until now only reached the server log are also delivered as a message to Slack, Discord, Mattermost or Teams. The first rule to use it reports a run of refused sign-ins against one account. Leave it unset and nothing changes: the warnings are still logged, and no deployment has to do anything. There is nothing else to configure — what counts as a run lives with the rule, not in your environment.
+
 ### Changed
 
 - **A dashboard reports on live work** — a question asked of your tasks was answered with all of them, so a board of "who is carrying what" dealt out the steps of every template project alongside real work, and archived work counted the same as current work. New widgets now start by leaving out archived rows and templates, as ordinary filters you can see and delete when the question really is about archived work. The five dashboards that ship with the app ask the same way.
 
 ### Fixed
 
+- **Published containers include available operating-system security updates** — the final image now applies the Debian repository's current package fixes during its build instead of keeping vulnerable packages inherited from an older base-image rebuild. The build fails if any package is left behind, so the claim is checked rather than assumed.
 - **The trash stays out of dashboards** — a dashboard could count deleted tasks in its figures, so the same board did not always show the same number to everybody reading it. Queries now report on live content only. The trash screen itself is unchanged.
 - **"Finished, last 30 days" counts again** — the tile failed to load on all four dashboards that carry it, as did any query measuring a stretch of time.
 - **A board widget with a lot of cards draws them** — a column holding more cards than fit shared its height out among them instead of scrolling, so a board of a few hundred tasks drew every card as a hairline with its title spilling over the next. Columns overflow and scroll now, at any number of cards.

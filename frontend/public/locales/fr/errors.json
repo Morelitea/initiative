@@ -11,6 +11,7 @@
   "SETTINGS_EMAIL_SEND_FAILED": "Échec de l'envoi de l'e-mail de test. Consultez les journaux du serveur pour plus de détails.",
   "UNABLE_TO_CREATE_USER": "Impossible de créer l'utilisateur",
   "INCORRECT_CREDENTIALS": "Adresse e-mail ou mot de passe incorrect",
+  "REQUEST_ORIGIN_NOT_RECOGNIZED": "Cette requête ne provient pas d'une page de ce site. Si vous utilisez un client d'API, authentifiez-vous avec un jeton d'accès plutôt qu'avec une session de navigateur.",
   "PASSWORD_TOO_SHORT": "Le mot de passe doit comporter au moins 12 caractères.",
   "PASSWORD_BREACHED": "Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
   "INACTIVE_USER": "Utilisateur inactif",

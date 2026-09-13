@@ -149,13 +149,41 @@ async def test_dispatch_logs_even_with_no_destination(monkeypatch, caplog):
     assert "something happened" in "\n".join(r.getMessage() for r in caplog.records)
 
 
+def test_a_rule_carries_its_own_numbers_rather_than_settings():
+    """One switch for an operator, not one per rule.
+
+    Review asked for this shape: setting the destination turns alerting on, and
+    a rule applies its own threshold. Every rule that needs a number of its own
+    would otherwise add two more environment variables a self-hoster has to read
+    past, and the second rule is the one that makes it a pattern rather than a
+    pair.
+
+    Asserted rather than described, because the pressure to add "just one more
+    knob" arrives with the next rule and this is what refuses it.
+    """
+    for gone in (
+        "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD",
+        "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES",
+    ):
+        assert not hasattr(settings, gone), (
+            f"{gone} is a per-rule knob. A rule's numbers belong beside the rule "
+            "in security_alerts.py; SECURITY_ALERT_WEBHOOK_URL is the only "
+            "setting an operator should need."
+        )
+
+    # And the rule does carry them, so removing the settings did not remove the
+    # behaviour along with them.
+    assert security_alerts.FAILED_SIGN_IN_THRESHOLD > 0
+    assert security_alerts.FAILED_SIGN_IN_WINDOW > timedelta(0)
+
+
 @pytest.mark.database
 async def test_the_threshold_alerts_once_per_window(
     session: AsyncSession, destination, monkeypatch
 ):
     # One delivery per window, not one per refusal.
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 3)
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES", 15)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 3)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_WINDOW", timedelta(minutes=15))
     user_id = 987_654
 
     for _ in range(5):
@@ -173,7 +201,7 @@ async def test_the_alert_names_the_account_and_not_the_address(
 ):
     # An address typed at a sign-in form is the one part of a refusal that may
     # belong to nobody, so it does not leave the building.
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 1)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 1)
     user_id = 987_655
     await _record_refusal(session, user_id)
 
@@ -189,8 +217,8 @@ async def test_the_alert_names_the_account_and_not_the_address(
 async def test_failures_outside_the_window_do_not_count(
     session: AsyncSession, destination, monkeypatch
 ):
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 2)
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES", 15)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 2)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_WINDOW", timedelta(minutes=15))
     user_id = 987_656
     old = datetime.now(UTC) - timedelta(hours=2)
     await _record_refusal(session, user_id, at=old)
@@ -203,17 +231,28 @@ async def test_failures_outside_the_window_do_not_count(
 
 
 @pytest.mark.database
-async def test_a_threshold_of_zero_disables_the_rule_not_the_sink(
+async def test_unsetting_the_destination_is_what_turns_alerting_off(
     session: AsyncSession, destination, monkeypatch
 ):
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 0)
+    """The one switch, from the other side.
 
+    This replaces a case that set the threshold to 0 to disable the rule while
+    leaving the destination working. That was a per-rule off switch, and review
+    asked for the rule's numbers to stop being operator configuration -- so the
+    capability went with the setting. Said plainly rather than quietly dropped:
+    an operator can no longer silence this rule and keep others, and with the
+    URL as the only switch, silencing everything is what unsetting it does.
+
+    Worth revisiting only when a second rule exists and somebody actually wants
+    one of them quiet. Until then it is a knob nobody asked for.
+    """
+    monkeypatch.setattr(settings, "SECURITY_ALERT_WEBHOOK_URL", None)
+    for _ in range(security_alerts.FAILED_SIGN_IN_THRESHOLD + 1):
+        await _record_refusal(session, 987_657)
     await security_alerts.note_failed_sign_in(session, 987_657)
     await _settle()
-    assert destination.calls == []
 
-    # The sink itself still works, which is what "disables the rule" means.
-    assert await security_alerts.send_test_alert() is True
+    assert destination.calls == []
 
 
 @pytest.mark.database
@@ -249,7 +288,7 @@ async def test_a_burst_that_skips_the_exact_threshold_still_alerts(
     and every later count in the window is above the threshold too, so nothing
     would arrive for the rest of it.
     """
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 3)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 3)
     user_id = 987_660
 
     # Four refusals recorded before anything counts: the first count this
@@ -270,8 +309,8 @@ async def test_a_second_window_alerts_again(
 ):
     # Once per window, not once ever: an account still under attempt an hour
     # later has to be reported again.
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 1)
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES", 15)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 1)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_WINDOW", timedelta(minutes=15))
     user_id = 987_661
     await _record_refusal(session, user_id)
 
@@ -291,7 +330,7 @@ async def test_a_second_window_alerts_again(
 async def test_one_account_alerting_does_not_silence_another(
     session: AsyncSession, destination, monkeypatch
 ):
-    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 1)
+    monkeypatch.setattr(security_alerts, "FAILED_SIGN_IN_THRESHOLD", 1)
     first, second = 987_662, 987_663
     await _record_refusal(session, first)
     await _record_refusal(session, second)

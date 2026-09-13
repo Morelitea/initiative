@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
@@ -83,6 +84,13 @@ async def lifespan(app: FastAPI):
     from app.db.bootstrap import ensure_database_bootstrap
 
     await ensure_database_bootstrap()
+    # Before any DDL runs: check the connection is the least-privilege
+    # provisioning login. Ahead of the migrations rather than beside the other
+    # heals below, so a misconfigured connection is caught before it reshapes
+    # the schema.
+    from app.db.schema_provisioning import reject_privileged_database_url
+
+    await reject_privileged_database_url()
     await check_pre_baseline_db()
     await run_migrations()
     # Re-run the idempotent per-guild provisioning for every guild so any
@@ -96,7 +104,6 @@ async def lifespan(app: FastAPI):
         ensure_system_engine_bypassrls,
         verify_effective_shared_grants,
         verify_engine_identities,
-        warn_if_privileged_database_url,
         backfill_guild_search,
         warn_if_search_operator_missing,
     )
@@ -119,7 +126,6 @@ async def lifespan(app: FastAPI):
     # logins actually hold the audited privileges, stopping with the exact
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
-    await warn_if_privileged_database_url()
     await warn_if_search_operator_missing()
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
@@ -520,6 +526,15 @@ app.add_middleware(SecurityHeadersMiddleware)
 # oversized (or chunked, length-less) request is refused before its body is
 # buffered, not after FastAPI has already parsed it.
 app.add_middleware(BodySizeLimitMiddleware)
+
+# Origin checking for cookie-authenticated writes; see app/core/csrf.py.
+#
+# Added BEFORE CORSMiddleware. Starlette applies middleware in reverse order of
+# addition, so CORS ends up outermost and answers a preflight before this runs.
+# A refusal from here carries no Access-Control-Allow-Origin, so a caller whose
+# origin is not on the allowlist reads it as a CORS error rather than as the
+# 403 body -- which is why the body is a code for logs and same-origin clients.
+app.add_middleware(CsrfOriginMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

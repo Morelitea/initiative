@@ -1,10 +1,11 @@
 import re
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, EmailStr, Field, field_validator
+from pydantic import AwareDatetime, AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -167,6 +168,15 @@ class Settings(BaseSettings):
     # Unset it and the app verifies those prerequisites instead of applying
     # them; a deployment that provisions its database out of band never sets it.
     DATABASE_URL_BOOTSTRAP: str | None = None
+    # An escape hatch, not a supported configuration. The application's
+    # database connection is meant to be the least-privilege provisioning
+    # login; startup refuses one that is not, because the access rules
+    # described in SECURITY.md are enforced by the database and assume it.
+    #
+    # An operator who cannot migrate in the same maintenance window can set an
+    # absolute deadline to keep booting temporarily. It is recorded at WARNING
+    # on every boot and stops working once the deadline is reached.
+    ALLOW_PRIVILEGED_DATABASE_UNTIL: AwareDatetime | None = None
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
     # engines above. Unset (the common case) it uses ``DATABASE_URL``; set it
@@ -208,6 +218,14 @@ class Settings(BaseSettings):
     QUERY_MAX_COST: float = Field(default=1_000_000.0, gt=0)
     #: Rows one query may return.
     QUERY_MAX_ROWS: int = Field(default=5_000, gt=0)
+
+    @field_validator("ALLOW_PRIVILEGED_DATABASE_UNTIL")
+    @classmethod
+    def normalize_privileged_database_deadline(
+        cls, value: AwareDatetime | None
+    ) -> datetime | None:
+        """Store the operator's absolute deadline in UTC for one comparison path."""
+        return value.astimezone(timezone.utc) if value is not None else None
 
     @field_validator("QUERY_WORK_MEM")
     @classmethod
@@ -735,8 +753,8 @@ class Settings(BaseSettings):
     # The public key accepts more than one key, as concatenated PEM blocks, so
     # billing can rotate its signing key without downtime: append the new key,
     # let billing start signing with it, then drop the old block. A token is
-    # accepted if any block verifies it. (The shared secret takes one value —
-    # rotating it is a separate change on both sides.)
+    # accepted if any block verifies it. The HMAC has a second accepted value
+    # for the same staged rotation protocol.
     # --- A bundled service's own channel ----------------------------------
     # An app this deployment ships rather than installs from the marketplace,
     # named by the ``public_id`` its registration carries, plus the secret it
@@ -754,6 +772,10 @@ class Settings(BaseSettings):
 
     BILLING_PUBLIC_KEY_PEM: str | None = None
     BILLING_HMAC_SECRET: str | None = None
+    # Second accepted HMAC value during a staged rotation. It may hold the next
+    # value before the cutover or the old value afterwards; clear it only once
+    # every billing instance signs with BILLING_HMAC_SECRET.
+    BILLING_HMAC_SECRET_PREVIOUS: str | None = None
     BILLING_AUDIENCE: str = "initiative:billing"
     BILLING_ISSUER: str = "initiative-billing"
     # Max |now - signed timestamp| accepted, in seconds. Never 0.
@@ -852,16 +874,12 @@ class Settings(BaseSettings):
     # and the same warnings are delivered as one JSON POST carrying a `text`
     # field, which is the shape Slack, Discord, Mattermost and Teams incoming
     # webhooks read. See docs/runbooks/security-alerts.md.
+    # This is the whole of the operator surface. What each rule considers
+    # worth reporting is the rule's own business and lives beside it in
+    # app/services/platform/security_alerts.py -- a setting per rule would
+    # grow by two every time a rule is added, and a self-hoster would read
+    # past all of them to find the one that matters.
     SECURITY_ALERT_WEBHOOK_URL: str | None = None
-    # Refused sign-ins against ONE account inside the window. A single failure
-    # is somebody mistyping; a rate is worth interrupting someone for. 0
-    # disables the threshold without disabling the sink.
-    SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD: int = Field(default=10, ge=0)
-    # Positive, and not merely non-negative. Zero or below makes the cutoff
-    # equal to or later than now, every count comes back zero, and alerting is
-    # off while the threshold above still says it is on. Zero on the threshold
-    # is the documented way to turn the rule off; a mistyped window is not.
-    SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES: int = Field(default=15, ge=1)
 
     RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory

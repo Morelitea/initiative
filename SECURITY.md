@@ -59,7 +59,7 @@ Initiative connects through **three PostgreSQL logins**, each least-privilege fo
 | **`app_admin`** | Background jobs, startup seeding, bootstrapping endpoints | Yes — the standard Postgres trusted-batch actor, bounded by enumerated per-table `GRANT`s, and never serving a user request as itself. Entering a guild schema requires `SET ROLE`, which **drops** the bypass |
 | **`app_provisioner`** | Migrations and DDL (`CREATE SCHEMA`, `CREATE ROLE`) | No — `NOSUPERUSER CREATEROLE`, and `FORCE ROW LEVEL SECURITY` keeps it policy-bound for data |
 
-**The application never holds Postgres superuser credentials.** A superuser `DATABASE_URL` is deprecated; the app logs a warning at boot, and a future release will refuse to start with one.
+**The application never holds Postgres superuser credentials.** A superuser (or `BYPASSRLS`) `DATABASE_URL` **stops the boot** — every guarantee above is enforced by row-level security, and those attributes are the right to ignore it. The refusal names the one-minute migration to `app_provisioner`. If that migration cannot fit the same maintenance window, the operator can set `ALLOW_PRIVILEGED_DATABASE_UNTIL` to an absolute, timezone-aware deadline; the app warns on every boot and refuses startup once that deadline is reached. The operator chooses the deadline, and this expiry assumes the host system clock is trustworthy. A far-future deadline is still finite but deliberately keeps the weaker posture for longer, so it remains an explicit operator risk. `DATABASE_URL_BOOTSTRAP` is unaffected — creating the least-privilege roles is the one job that legitimately needs the privilege.
 
 ### No standing bypass, and no superuser account
 
@@ -75,6 +75,7 @@ Either way the session is routed through that guild's own roles and PAM context 
 ### Authentication and secrets
 
 - **HttpOnly `SameSite=Lax` cookie sessions** rather than `localStorage`, so the session isn't readable by scripts in the page. Native (Capacitor) apps store device tokens in secure platform storage.
+- **A second layer under `SameSite` for cookie-authenticated writes.** An unsafe method authenticated by the session cookie must also arrive from an origin this deployment serves — `Sec-Fetch-Site: same-origin`, or an `Origin` on the CORS allowlist. A cross-site form cannot produce either, and it cannot suppress the real one. This matters because a cross-site `multipart/form-data` POST is a *simple* request: no preflight, so CORS never sees it, and this API has multipart routes that write. Callers using an `Authorization` header — bearer tokens, API keys, device tokens — are unaffected, because a browser does not attach that header cross-site.
 - **Passwords** are a minimum of 12 characters and are never stored in recoverable form.
 - **OpenID Connect (OIDC) SSO** with PKCE, and optional claim-to-role mapping for guild and initiative membership.
 - **Encryption at rest** for sensitive fields (AI provider keys, OIDC secrets, SMTP passwords, email addresses) using Fernet (AES-128-CBC) with a key derived from `SECRET_KEY`, with support for key rotation.

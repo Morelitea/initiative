@@ -42,10 +42,12 @@ and an incident is the wrong time to find out.
 
 ## Thresholds
 
-| Setting | Default | What it means |
-| --- | --- | --- |
-| `SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD` | `10` | Refused sign-ins against **one account** before alerting. `0` disables the rule and leaves the destination working. |
-| `SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES` | `15` | The window those failures are counted over. |
+There is one setting, and it is the URL. What each rule considers worth
+reporting is the rule's own business and lives beside it in
+`backend/app/services/platform/security_alerts.py` -- failed sign-ins alert at
+**10 refusals against one account in 15 minutes**. Change those by changing the
+rule, in a pull request somebody reviews, rather than by an environment
+variable a deployment can drift on.
 
 A single refused sign-in is somebody mistyping their password and belongs in
 the audit log and nowhere else. The alert fires **on the crossing only**, not

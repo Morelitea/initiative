@@ -11,6 +11,7 @@
   "SETTINGS_EMAIL_SEND_FAILED": "No se pudo enviar el correo de prueba. Consulta los registros del servidor para más detalles.",
   "UNABLE_TO_CREATE_USER": "No se pudo crear el usuario",
   "INCORRECT_CREDENTIALS": "Email o contraseña incorrectos",
+  "REQUEST_ORIGIN_NOT_RECOGNIZED": "Esta solicitud no procede de una página de este sitio. Si usas un cliente de API, inicia sesión con un token de acceso en lugar de una sesión de navegador.",
   "PASSWORD_TOO_SHORT": "La contraseña debe tener al menos 12 caracteres.",
   "PASSWORD_BREACHED": "Esta contraseña ha aparecido en una filtración de datos conocida. Elige otra.",
   "INACTIVE_USER": "Usuario inactivo",

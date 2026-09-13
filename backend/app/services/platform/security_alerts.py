@@ -184,6 +184,20 @@ async def failed_sign_ins_for(
 _last_alerted: dict[int, datetime] = {}
 
 
+#: What this rule considers worth reporting, beside the rule rather than in
+#: settings. Turning alerting on is one decision an operator makes -- setting
+#: SECURITY_ALERT_WEBHOOK_URL -- and these are the numbers that decision
+#: implies. A rule that needed its own knob would add two environment
+#: variables, and the rule after it two more.
+#:
+#: Ten refusals against ONE account: a single failure is somebody mistyping,
+#: a rate is worth interrupting somebody for.
+FAILED_SIGN_IN_THRESHOLD = 10
+#: The stretch those refusals are counted over, and the quiet period after an
+#: alert -- one value, because they are the same window seen from either end.
+FAILED_SIGN_IN_WINDOW = timedelta(minutes=15)
+
+
 async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
     """Alert once per window when an account is over the failure threshold.
 
@@ -197,10 +211,8 @@ async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
     Once per window rather than once per event, so a count that stays high
     delivers one notification rather than one per refusal.
     """
-    threshold = settings.SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD
-    if threshold <= 0:
-        return
-    window = timedelta(minutes=settings.SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES)
+    threshold = FAILED_SIGN_IN_THRESHOLD
+    window = FAILED_SIGN_IN_WINDOW
     try:
         count = await failed_sign_ins_for(session, user_id, window=window)
     except Exception:  # noqa: BLE001 - counting must never fail a sign-in
