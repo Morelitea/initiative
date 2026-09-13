@@ -458,16 +458,11 @@ async def login_access_token(
         form_data.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Recorded either way, and identity-free when nothing resolved.
+        # Invariant: every refusal takes the same path, whether or not the
+        # address resolved. Not conditional -- see T20.
         #
-        # Writing the row only for an address that resolved puts an INSERT and
-        # a COMMIT on the request path for one and not the other, which is a
-        # difference an unauthenticated caller can measure. The invariant this
-        # route holds is that refusing costs the same whoever asks.
-        #
-        # Nothing about a stranger is retained: the row keeps no submitted
-        # address and no target when nothing resolved, only that a password
-        # refusal happened. See T20.
+        # The row is identity-free when nothing resolved: no submitted address
+        # and no target, only that a password refusal happened.
         await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -748,7 +743,7 @@ async def create_device_token(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Same invariant as the token route: refusing costs the same either way.
+        # Same invariant as the token route, and not conditional here either.
         await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
