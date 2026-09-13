@@ -440,6 +440,37 @@ describe("remembered peer device keys", () => {
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
   });
+
+  it("holds the change in the same breath as recording the key", async () => {
+    // The window this closes: reconcile writes the new fingerprint, and until
+    // the hold is written too, a second send reconciling against that same
+    // fingerprint finds nothing changed and nothing held -- so the device
+    // reads as addressable and the message goes to the unacknowledged key.
+    //
+    // `await` is where that interleaving happens. Two sends in flight, or a
+    // send and a background collection, are enough; nothing needs to be
+    // running in parallel for the second to observe the gap.
+    await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-1" }]);
+
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-2" },
+    ]);
+    expect(changes).toHaveLength(1);
+
+    // Read as the racing send would, before the caller records anything.
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toContain("their-phone");
+  });
+
+  it("leaves a first sighting unheld, so a new conversation is not interrupted", async () => {
+    // The other direction. Trust-on-first-use is the design, and a hold
+    // written here would fire on every new conversation.
+    const changes = await peerDeviceKeys.reconcile(9, [
+      { deviceId: "first-seen", fingerprint: "fp-1" },
+    ]);
+
+    expect(changes).toEqual([]);
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).not.toContain("first-seen");
+  });
 });
 
 describe("the list of changes waiting to be seen", () => {

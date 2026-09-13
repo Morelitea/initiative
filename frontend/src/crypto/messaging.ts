@@ -592,12 +592,18 @@ async function readPeerDirectory(otherUserId: number) {
     }))
   );
   if (changes.length > 0) {
-    // The session in hand was negotiated with the key that has just been
-    // replaced, so the far end cannot read anything sent through it. Drop the
-    // pointer and the next send opens a fresh one against the key the
-    // directory now returns.
+    // The hold is already recorded -- `reconcile` writes it in the same
+    // transaction that records the key, so no send can see one without the
+    // other. Not repeated here: two places writing the same fact is how they
+    // come to disagree.
+    //
+    // This is the rest of it. The session in hand was negotiated with the key
+    // that has just been replaced, so the far end cannot read anything sent
+    // through it. Drop the pointer and the next send opens a fresh one against
+    // the key the directory now returns. Safe to do after the hold rather than
+    // with it: a held device is not addressable, so nothing reaches for the
+    // session in between.
     await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
-    await peerKeyChanges.add(changes);
   }
 
   // Keep the key out of every retry, not only the send that first noticed it.

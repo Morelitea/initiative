@@ -65,6 +65,42 @@ async function write(key: string, value: unknown): Promise<void> {
  * connection to the database, so this holds between tabs. A JavaScript lock
  * cannot: it lives in one tab's module scope, and the second tab never sees it.
  */
+/**
+ * Read-modify-write two keys inside ONE transaction.
+ *
+ * Two `update` calls are two transactions, and anything awaiting between them
+ * observes the first without the second. Where those two writes are halves of
+ * one fact -- this key changed, and it is held pending a check -- a reader that
+ * sees only the first half draws the wrong conclusion from it.
+ */
+async function updatePair<A, B>(
+  keyA: string,
+  keyB: string,
+  change: (a: A | undefined, b: B | undefined) => { a?: A; b?: B }
+): Promise<void> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    const requestA = store.get(keyA);
+    const requestB = store.get(keyB);
+    let pending = 2;
+    const both = () => {
+      if (--pending > 0) return;
+      const next = change(requestA.result as A | undefined, requestB.result as B | undefined);
+      if (next.a !== undefined) store.put(next.a, keyA);
+      if (next.b !== undefined) store.put(next.b, keyB);
+    };
+    requestA.onsuccess = both;
+    requestB.onsuccess = both;
+    requestA.onerror = () => reject(requestA.error);
+    requestB.onerror = () => reject(requestB.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 async function update<T>(
   key: string,
   change: (current: T | undefined) => T | undefined
@@ -644,11 +680,22 @@ export const peerDeviceKeys = {
   all: async (userId: number): Promise<Record<string, string>> =>
     (await read<Record<string, string>>(PEER_KEYS_PREFIX + userId)) ?? {},
   /**
-   * Record what the directory returned, and report the keys that changed.
+   * Record what the directory returned, report the keys that changed, and hold
+   * them pending a check -- all in one transaction.
    *
-   * Remembering and comparing are one step on purpose. Split in two they can
-   * interleave -- two sends racing, the first writing the new key before the
-   * second compares -- and the comparison then sees no change.
+   * Remembering, comparing and holding are one step on purpose. Any split lets
+   * them interleave, and both splits are reachable through an ordinary `await`
+   * with two sends in flight:
+   *
+   * - remember and compare apart: the first send writes the new key before the
+   *   second compares, and the second sees no change;
+   * - compare and hold apart: the first send has written the new key but not
+   *   yet the hold, and the second finds nothing changed AND nothing held, so
+   *   the device reads as addressable and the message goes to a key nobody has
+   *   checked.
+   *
+   * The second is the one that matters, because the whole point of the hold is
+   * that a send finds it.
    */
   reconcile: async (
     userId: number,
@@ -656,22 +703,30 @@ export const peerDeviceKeys = {
   ): Promise<PeerKeyChange[]> => {
     const changes: PeerKeyChange[] = [];
     const at = new Date().toISOString();
-    await update<Record<string, string>>(PEER_KEYS_PREFIX + userId, (existing) => {
-      const known = existing ?? {};
-      const hasBaseline = Object.keys(known).length > 0;
-      const next = { ...known };
-      for (const { deviceId, fingerprint } of seen) {
-        const knownFingerprint = known[deviceId];
-        if (knownFingerprint !== fingerprint && (knownFingerprint !== undefined || hasBaseline)) {
-          changes.push({ userId, deviceId, now: fingerprint, at });
+    await updatePair<Record<string, string>, PeerKeyChange[]>(
+      PEER_KEYS_PREFIX + userId,
+      PEER_CHANGES,
+      (existing, heldNow) => {
+        const known = existing ?? {};
+        const hasBaseline = Object.keys(known).length > 0;
+        const next = { ...known };
+        for (const { deviceId, fingerprint } of seen) {
+          const knownFingerprint = known[deviceId];
+          if (knownFingerprint !== fingerprint && (knownFingerprint !== undefined || hasBaseline)) {
+            changes.push({ userId, deviceId, now: fingerprint, at });
+          }
+          next[deviceId] = fingerprint;
         }
-        next[deviceId] = fingerprint;
+        // Devices that stopped being listed are left in place, so a device that
+        // disappears and comes back with a different key is still a change
+        // rather than a first sighting.
+        if (changes.length === 0) return { a: next };
+        // One entry per device, the same rule `peerKeyChanges.add` applies.
+        const byDevice = new Map((heldNow ?? []).map((change) => [change.deviceId, change]));
+        for (const change of changes) byDevice.set(change.deviceId, change);
+        return { a: next, b: [...byDevice.values()] };
       }
-      // Devices that stopped being listed are left in place, so a device that
-      // disappears and comes back with a different key is still a change
-      // rather than a first sighting.
-      return next;
-    });
+    );
     return changes;
   },
   forget: async (userId: number): Promise<void> => {
