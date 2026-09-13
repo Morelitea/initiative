@@ -27,7 +27,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+from app.core.encryption import (
+    SALT_EMAIL,
+    decrypt_field,
+    encrypt_field,
+    hash_email,
+)
 from app.core.messages import AddressMessages
 from app.models.platform.user import User
 from app.models.platform.user_email import UserEmail
@@ -98,6 +103,68 @@ async def note_sign_in(
         .where(UserEmail.email_hash == hash_email(normalize(email)))
         .values(last_login_at=now or datetime.now(timezone.utc))
     )
+
+
+async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
+    """Every address this account has proved, in full.
+
+    Where account mail goes (§6.2 rule 4): a letter about the account itself
+    reaches all of them, so somebody who no longer reads one address still
+    hears about a change they did not make.
+
+    Falls back to the address ``users`` carries when the set holds none, for
+    the same reason the lookup does — an account whose row did not come across
+    still gets its mail.
+    """
+    rows = (
+        await session.exec(
+            select(UserEmail)
+            .where(
+                UserEmail.user_id == user_id,
+                UserEmail.verified_at.is_not(None),
+                UserEmail.source != SOURCE_SYNTHETIC,
+            )
+            .order_by(UserEmail.is_primary.desc(), UserEmail.id)
+        )
+    ).all()
+    if rows:
+        return [decrypt_field(row.email_encrypted, SALT_EMAIL) for row in rows]
+
+    carried = await session.get(User, user_id)
+    if carried is None:  # pragma: no cover - the caller holds the account
+        return []
+    logger.warning(
+        "account mail fell back to users.email_encrypted (account %s): "
+        "user_emails holds no proven address",
+        user_id,
+    )
+    return [carried.email]
+
+
+async def held_hashes(session: AsyncSession, *, user_id: int) -> set[str]:
+    """The hashes of every address this account holds, proven or not.
+
+    What erasure needs: an unproven claim is still a recorded address, and an
+    invite bound to one keeps the same trace as an invite bound to a proven
+    one.
+    """
+    rows = (
+        await session.exec(
+            select(UserEmail.email_hash).where(UserEmail.user_id == user_id)
+        )
+    ).all()
+    return set(rows)
+
+
+async def holds_address(session: AsyncSession, *, user_id: int, email: str) -> bool:
+    """Whether this account holds ``email`` — any of its addresses, not just
+    the one it was created with.
+
+    Resolves through the same lookup a sign-in uses, so the fallback and the
+    proven-only rule are stated once.
+    """
+    resolved = await find_user_by_address(session, email)
+    return resolved is not None and resolved.id == user_id
 
 
 def record_address(

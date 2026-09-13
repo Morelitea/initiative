@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
@@ -26,6 +26,7 @@ from app.models.platform.guild import (
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
+from app.services.auth import addresses
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
@@ -1082,16 +1083,18 @@ async def redeem_invite_for_user(
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
-    # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
-    # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
-    # any authenticated user may redeem it. When it *is* set, the invite is bound
-    # to that address and only the matching user may redeem it — otherwise the
-    # binding is decorative and gives a false sense of security (SEC-15). We
-    # compare via ``hash_email`` so normalization (lowercase/strip) matches the
-    # users.email_hash unique-constraint exactly; ``user.email_hash`` is already
-    # populated in both the register and accept-invite flows.
+    # Email binding. An invite with no bound address
+    # (``invitee_email_encrypted`` is NULL) is a shareable link that any
+    # authenticated account may redeem. One with an address is for the person
+    # holding that address, and redeeming it requires holding it.
+    #
+    # Any of the account's addresses, not only the one it was created with: an
+    # invite sent to somebody's work address is for them. Resolved through the
+    # same lookup a sign-in uses, so "proved they hold it" is stated once.
     bound_email = invite.invitee_email
-    if bound_email and user.email_hash != hash_email(bound_email):
+    if bound_email and not await addresses.holds_address(
+        session, user_id=user.id, email=bound_email
+    ):
         raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
     await ensure_membership(
