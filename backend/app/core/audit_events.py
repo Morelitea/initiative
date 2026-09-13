@@ -34,9 +34,9 @@ class AuditEventType(str, Enum):
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
 
     # Authentication: who got in, who did not, and what changed about the
-    # credentials. A failed attempt is recorded only when it resolved to an
-    # account — an address nobody holds is not an action on anybody, and
-    # writing it down would put an unowned address in the log.
+    # credentials. Every failed attempt is recorded, whether or not it
+    # resolved to an account; one that did not carries no target and no
+    # submitted address, so nothing unowned reaches the log. See T123.
     AUTH_SIGNED_IN = "auth.signed_in"
     AUTH_SIGN_IN_FAILED = "auth.sign_in_failed"
     AUTH_SIGNED_OUT = "auth.signed_out"
