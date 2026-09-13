@@ -191,9 +191,8 @@ async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
 
     At or above, not exactly equal. Two refusals committing at once can carry
     the count from one below the threshold to one above it, and both readers
-    then see the higher number -- so an equality test lets a burst through
-    silently, and every later count in that window is above it too. A burst is
-    the case this exists for.
+    then see the higher number, which no equality test would match. Every later
+    count in that window is above it too. A burst is the case this exists for.
 
     Once per window rather than once per event, so a count that stays high
     delivers one notification rather than one per refusal.

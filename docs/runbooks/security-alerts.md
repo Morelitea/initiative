@@ -49,9 +49,9 @@ and an incident is the wrong time to find out.
 
 A single refused sign-in is somebody mistyping their password and belongs in
 the audit log and nowhere else. The alert fires **on the crossing only**, not
-on every failure past it: an attacker who keeps going would otherwise send one
-alert per attempt, which is how a destination gets muted and the next real
-alert is missed.
+on every failure past it, so a sustained run produces one notification per
+window instead of a volume that buries whatever arrives next. Do not change
+this to alert per failure.
 
 The alert names the **account id**, never the address that was typed. An
 address submitted to a sign-in form is the one part of a refusal that may
