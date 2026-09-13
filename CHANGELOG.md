@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A changed device key is pointed out** — when someone you message starts using a different key on a device you had already written to, the messages panel now says so and shows the pictures to compare, naming who it is about. Most often that means they replaced or reinstalled a device. A key seen for the first time is not flagged.
+
 ### Changed
 
 - **A dashboard reports on live work** — a question asked of your tasks was answered with all of them, so a board of "who is carrying what" dealt out the steps of every template project alongside real work, and archived work counted the same as current work. New widgets now start by leaving out archived rows and templates, as ordinary filters you can see and delete when the question really is about archived work. The five dashboards that ship with the app ask the same way.
@@ -68,7 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **A changed device key is pointed out** — when someone you message starts using a different key on a device you had already written to, the messages panel now says so and shows the pictures to compare, naming who it is about. Most often that means they replaced or reinstalled a device. A key seen for the first time is not flagged.
 - **Galleries: a home for the pictures** — a new tool beside Documents and Posts for the visual half of the work: mockups, screenshots, app icons, the four logos that lost. A gallery is a named wall of pictures with its own sharing, comments and tags, browsed as a masonry, a grid, or a timeline of what arrived when — and grouped by tag, so "everything still awaiting a decision" is one click. Drop a folder onto the page to add them, tag or remove a selection together, and replace a picture with a new version while keeping the rounds it went through. Off by default per initiative, like every non-core tool.
 
 - **Spreadsheets import CSV and Excel files again** — bring a `.csv`, `.tsv` or `.xlsx` file in from the button beside the sheet tabs and every tab it holds arrives as a new sheet, named after the file or its own tab. Nothing already open is touched, and the whole file is a single thing to undo if it was the wrong one. Values, formulas, bold and colour, borders, number and currency formats, column widths and frozen panes come across, so a sheet exported from here and brought back reads the same both ways.
