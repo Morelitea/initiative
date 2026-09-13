@@ -219,6 +219,12 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.16
         version: 1.2.16(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@react-sigma/core':
+        specifier: ^5.0.6
+        version: 5.0.6(graphology@0.26.0(graphology-types@0.24.8))(react@19.2.8)(sigma@3.0.3(graphology-types@0.24.8))
+      '@sigma/node-image':
+        specifier: ^3.0.0
+        version: 3.0.0(sigma@3.0.3(graphology-types@0.24.8))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -276,6 +282,12 @@ importers:
       fuse.js:
         specifier: ^7.5.0
         version: 7.5.0
+      graphology:
+        specifier: ^0.26.0
+        version: 0.26.0(graphology-types@0.24.8)
+      graphology-layout-forceatlas2:
+        specifier: ^0.10.1
+        version: 0.10.1(graphology-types@0.24.8)
       i18next:
         specifier: ^26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -330,6 +342,9 @@ importers:
       robot-toast:
         specifier: ^2.2.0
         version: 2.2.0(react@19.2.8)
+      sigma:
+        specifier: ^3.0.3
+        version: 3.0.3(graphology-types@0.24.8)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -2354,6 +2369,13 @@ packages:
   '@radix-ui/rect@1.1.3':
     resolution: {integrity: sha512-JtyZR+mqgBibTo8xea3B6ZRmzZiM/YeVBtUkas6zMuXjAlfIFIW2FgqeM9eLyvEaYX66vr6DJMK+4U6LV0KhNw==}
 
+  '@react-sigma/core@5.0.6':
+    resolution: {integrity: sha512-Xu2qXyvDZIhmvGC1n8d7Kcxm5Ntcz4HbPIM7CPDD2e4h3s/oxVpVPX7wtsNreJRRPj9mK+3oqB6SWXNI4mTqVg==}
+    peerDependencies:
+      graphology: ^0.26.0
+      react: ^18.0.0 || ^19.0.0
+      sigma: ^3.0.2
+
   '@reduxjs/toolkit@2.12.0':
     resolution: {integrity: sha512-KiT+RzZbp6mQET+Mg+h2c97+9j1sNflUxQkIHI7Yuzf6Peu+OYpmkn6nbHWmLLWj+1ZODUJFwGZ7gx3L9R9EOw==}
     peerDependencies:
@@ -2505,6 +2527,11 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
+
+  '@sigma/node-image@3.0.0':
+    resolution: {integrity: sha512-i4WLNPugDY4jgQEZtNSiSVj4HHXOraciXLtlgdygeUxMVEhH8PJ/+Q1vQ9f/SlKFnZQ+7vH3HnsSDW6FD9aP+g==}
+    peerDependencies:
+      sigma: '>=3.0.0-beta.10'
 
   '@sindresorhus/merge-streams@4.0.0':
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
@@ -4101,6 +4128,10 @@ packages:
   events-universal@1.0.1:
     resolution: {integrity: sha512-LUd5euvbMLpwOF8m6ivPCbhQeSiYVNb8Vs0fQ8QjXo0JTkEHpz8pxdQf0gStltaPpw0Cca8b39KxvK9cfKRiAw==}
 
+  events@3.3.0:
+    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
+    engines: {node: '>=0.8.x'}
+
   execa@9.6.1:
     resolution: {integrity: sha512-9Be3ZoN4LmYR90tUoVu2te2BsbzHfhJyfEiAVfz7N5/zv+jduIfLrV2xdQXOHbaD6KgpGdO9PRPM1Y4Q9QkPkA==}
     engines: {node: ^18.19.0 || >=20.5.0}
@@ -4319,6 +4350,24 @@ packages:
   gradle-to-js@2.0.1:
     resolution: {integrity: sha512-is3hDn9zb8XXnjbEeAEIqxTpLHUiGBqjegLmXPuyMBfKAggpadWFku4/AP8iYAGBX6qR9/5UIUIp47V0XI3aMw==}
     hasBin: true
+
+  graphology-layout-forceatlas2@0.10.1:
+    resolution: {integrity: sha512-ogzBeF1FvWzjkikrIFwxhlZXvD2+wlY54lqhsrWprcdPjopM2J9HoMweUmIgwaTvY4bUYVimpSsOdvDv1gPRFQ==}
+    peerDependencies:
+      graphology-types: '>=0.19.0'
+
+  graphology-types@0.24.8:
+    resolution: {integrity: sha512-hDRKYXa8TsoZHjgEaysSRyPdT6uB78Ci8WnjgbStlQysz7xR52PInxNsmnB7IBOM1BhikxkNyCVEFgmPKnpx3Q==}
+
+  graphology-utils@2.5.2:
+    resolution: {integrity: sha512-ckHg8MXrXJkOARk56ZaSCM1g1Wihe2d6iTmz1enGOz4W/l831MBCKSayeFQfowgF8wd+PQ4rlch/56Vs/VZLDQ==}
+    peerDependencies:
+      graphology-types: '>=0.23.0'
+
+  graphology@0.26.0:
+    resolution: {integrity: sha512-8SSImzgUUYC89Z042s+0r/vMibY7GX/Emz4LDO5e7jYXhuoWfHISPFJYjpRLUSJGq6UQ6xlenvX1p/hJdfXuXg==}
+    peerDependencies:
+      graphology-types: '>=0.24.0'
 
   graphql@16.14.2:
     resolution: {integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==}
@@ -5834,6 +5883,9 @@ packages:
 
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
+
+  sigma@3.0.3:
+    resolution: {integrity: sha512-5H0zFlx6/NTQpqBg4Rm569ZOpnBOXMaS25UQThIWMU3XyzI5AhmorK/gnl87BvJBLhQd0tW4C0LIp3enWzMoNw==}
 
   signal-exit@3.0.7:
     resolution: {integrity: sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==}
@@ -8714,6 +8766,12 @@ snapshots:
 
   '@radix-ui/rect@1.1.3': {}
 
+  '@react-sigma/core@5.0.6(graphology@0.26.0(graphology-types@0.24.8))(react@19.2.8)(sigma@3.0.3(graphology-types@0.24.8))':
+    dependencies:
+      graphology: 0.26.0(graphology-types@0.24.8)
+      react: 19.2.8
+      sigma: 3.0.3(graphology-types@0.24.8)
+
   '@reduxjs/toolkit@2.12.0(react-redux@9.3.0(@types/react@19.2.18)(react@19.2.8)(redux@5.0.1))(react@19.2.8)':
     dependencies:
       '@standard-schema/spec': 1.1.0
@@ -8823,6 +8881,10 @@ snapshots:
       '@types/hast': 3.0.5
 
   '@shikijs/vscode-textmate@10.0.2': {}
+
+  '@sigma/node-image@3.0.0(sigma@3.0.3(graphology-types@0.24.8))':
+    dependencies:
+      sigma: 3.0.3(graphology-types@0.24.8)
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
@@ -10419,6 +10481,8 @@ snapshots:
     transitivePeerDependencies:
       - bare-abort-controller
 
+  events@3.3.0: {}
+
   execa@9.6.1:
     dependencies:
       '@sindresorhus/merge-streams': 4.0.0
@@ -10641,6 +10705,22 @@ snapshots:
   gradle-to-js@2.0.1:
     dependencies:
       lodash.merge: 4.6.2
+
+  graphology-layout-forceatlas2@0.10.1(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
+
+  graphology-types@0.24.8: {}
+
+  graphology-utils@2.5.2(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+
+  graphology@0.26.0(graphology-types@0.24.8):
+    dependencies:
+      events: 3.3.0
+      graphology-types: 0.24.8
 
   graphql@16.14.2: {}
 
@@ -12352,6 +12432,13 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   siginfo@2.0.0: {}
+
+  sigma@3.0.3(graphology-types@0.24.8):
+    dependencies:
+      events: 3.3.0
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
+    transitivePeerDependencies:
+      - graphology-types
 
   signal-exit@3.0.7: {}
 

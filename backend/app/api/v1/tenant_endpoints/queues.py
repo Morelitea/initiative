@@ -105,11 +105,69 @@ async def _queue_item_attachments(
     return documents, tasks
 
 
+async def _serialized_queue(
+    session: AsyncSession, queue: Queue, *, user_id: int
+) -> QueueRead:
+    """A queue and its items, each with what is pinned to it.
+
+    ``serialize_queue`` takes no session, so nothing fetched the attachments for
+    a queue read as a whole and every item came back with none — which is what
+    a reader sees when they open a queue rather than one item of it.
+
+    Batched rather than per item: two queries for the documents on the whole
+    page and two for the tasks, however many items the queue holds.
+    """
+    items = getattr(queue, "items", None) or []
+    item_ids = [item.id for item in items]
+    documents = await relationships.related_for_many(
+        session,
+        SearchEntityType.queue_item,
+        item_ids,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+        model=Document,
+    )
+    tasks = await relationships.related_for_many(
+        session,
+        SearchEntityType.queue_item,
+        item_ids,
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        model=Task,
+    )
+    # Counted over every kind, not summed from the two above: an item may be
+    # pinned to any of the fourteen.
+    counts = await relationships.counts_for_many(
+        session,
+        SearchEntityType.queue_item,
+        item_ids,
+        relationship_type=RelationshipType.attached,
+    )
+    return serialize_queue(
+        queue,
+        user_id=user_id,
+        documents=documents,
+        tasks=tasks,
+        attachment_counts=counts,
+    )
+
+
 async def _serialized_queue_item(
     session: AsyncSession, item: QueueItem
 ) -> QueueItemRead:
     documents, tasks = await _queue_item_attachments(session, item)
-    return serialize_queue_item(item, documents=documents, tasks=tasks)
+    counts = await relationships.counts_for_many(
+        session,
+        SearchEntityType.queue_item,
+        [item.id],
+        relationship_type=RelationshipType.attached,
+    )
+    return serialize_queue_item(
+        item,
+        documents=documents,
+        tasks=tasks,
+        attachment_count=counts.get(item.id, 0),
+    )
 
 
 router = APIRouter()
@@ -418,10 +476,7 @@ async def read_queue(
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context
     )
-    return serialize_queue(
-        queue,
-        user_id=current_user.id,
-    )
+    return await _serialized_queue(session, queue, user_id=current_user.id)
 
 
 @router.post("/", response_model=QueueRead, status_code=status.HTTP_201_CREATED)
@@ -483,10 +538,7 @@ async def create_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    return serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    return await _serialized_queue(session, hydrated, user_id=current_user.id)
 
 
 @router.patch("/{queue_id}", response_model=QueueRead)
@@ -517,10 +569,7 @@ async def update_queue(
         await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     if updated:
         await _emit_queue(
             session, queue_id, "queue_updated", result.model_dump(mode="json")
@@ -747,10 +796,7 @@ async def reorder_queue_items(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "items_reordered", result.model_dump(mode="json")
     )
@@ -777,10 +823,7 @@ async def start_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "queue_started", result.model_dump(mode="json")
     )
@@ -802,10 +845,7 @@ async def stop_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "queue_stopped", result.model_dump(mode="json")
     )
@@ -827,10 +867,7 @@ async def advance_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(session, queue_id, "turn_advance", result.model_dump(mode="json"))
     return result
 
@@ -850,10 +887,7 @@ async def previous_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "turn_previous", result.model_dump(mode="json")
     )
@@ -876,10 +910,7 @@ async def set_active_item(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "turn_set_active", result.model_dump(mode="json")
     )
@@ -901,10 +932,7 @@ async def reset_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(session, queue_id, "queue_reset", result.model_dump(mode="json"))
     return result
 
@@ -929,10 +957,7 @@ async def hold_current_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(session, queue_id, "turn_held", result.model_dump(mode="json"))
     return result
 
@@ -968,10 +993,7 @@ async def release_held_item(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session, queue_id, "turn_released", result.model_dump(mode="json")
     )
@@ -1047,10 +1069,7 @@ async def set_queue_grants(
     )
 
     hydrated = await _refetch_queue(session, queue_id)
-    result = serialize_queue(
-        hydrated,
-        user_id=current_user.id,
-    )
+    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
     await _emit_queue(
         session,
         queue_id,

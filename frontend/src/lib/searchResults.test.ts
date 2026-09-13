@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { Tag } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { buildSearchHit } from "@/__tests__/factories";
@@ -17,13 +18,14 @@ import {
   COMMENT_ENTITY_TYPE,
   categoryEntityTypes,
   hitCategory,
+  hitIcon,
   SEARCH_CATEGORIES,
   type SearchTarget,
   searchHitPath,
   TAG_ENTITY_TYPE,
   TOOL_ENTITY_TYPES,
 } from "@/lib/searchResults";
-import { TOOLS } from "@/lib/tools";
+import { TOOL_ICONS, TOOLS } from "@/lib/tools";
 
 const target = (
   overrides: Partial<SearchTarget> & Pick<SearchTarget, "entity_type">
@@ -165,5 +167,36 @@ describe("labels", () => {
     for (const entityType of Object.values(SearchEntityType)) {
       expect(labels[entityType], `search.json is missing types.${entityType}`).toBeTruthy();
     }
+  });
+});
+
+describe("hitIcon", () => {
+  it("marks a tool from its kind when nobody filled in the tool", () => {
+    // A relation being composed knows what kind it points at and not the tool
+    // that governs it — which for a tool's own row is the same thing. Falling
+    // through to the tag mark made every queue and gallery look like a label.
+    expect(hitIcon(target({ entity_type: SearchEntityType.queue }))).toBe(TOOL_ICONS[Tool.queue]);
+    expect(hitIcon(target({ entity_type: SearchEntityType.gallery }))).toBe(
+      TOOL_ICONS[Tool.gallery]
+    );
+    expect(hitIcon(target({ entity_type: SearchEntityType.document }))).toBe(
+      TOOL_ICONS[Tool.document]
+    );
+  });
+
+  it("still takes the tool a hit names", () => {
+    expect(hitIcon(target({ entity_type: SearchEntityType.queue, tool: Tool.queue }))).toBe(
+      TOOL_ICONS[Tool.queue]
+    );
+  });
+
+  it("marks a thing inside a tool with its own icon, not its tool's", () => {
+    expect(hitIcon(target({ entity_type: SearchEntityType.task, tool: Tool.project }))).not.toBe(
+      TOOL_ICONS[Tool.project]
+    );
+  });
+
+  it("leaves the guild's vocabulary as a label", () => {
+    expect(hitIcon(target({ entity_type: SearchEntityType.tag }))).toBe(Tag);
   });
 });

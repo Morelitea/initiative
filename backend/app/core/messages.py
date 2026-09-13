@@ -414,6 +414,10 @@ class RelationshipMessages:
     """
 
     BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"
+    #: A directional link describes its source, so making one asks to change
+    #: that end. Refused here with a name, rather than left to arrive as the
+    #: database declining the write.
+    SOURCE_NOT_WRITABLE = "RELATIONSHIP_SOURCE_NOT_WRITABLE"
     ENDPOINT_NOT_FOUND = "RELATIONSHIP_ENDPOINT_NOT_FOUND"
     CROSS_INITIATIVE = "RELATIONSHIP_CROSS_INITIATIVE"
     ENDPOINT_ARCHIVED = "RELATIONSHIP_ENDPOINT_ARCHIVED"

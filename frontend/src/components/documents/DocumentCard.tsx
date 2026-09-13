@@ -9,7 +9,8 @@ import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { getDocumentIcon, getDocumentIconColor, getFileTypeLabel } from "@/lib/fileUtils";
+import { documentIcon } from "@/lib/documentIcon";
+import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
 import { toolDetailRoute } from "@/lib/tools";
@@ -33,28 +34,18 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
     ? getFileTypeLabel(document.file_content_type, document.original_filename)
     : null;
 
-  // Smart-link docs use the matched provider's brand icon when we recognize
-  // the URL. The provider registry falls back to a generic Link icon for
-  // unknown URLs, which is still a better default than the scroll icon
-  // getDocumentIcon would produce for smart_link.
+  // The mark this document draws, by what sort of document it is — shared with
+  // the relations card so the two cannot drift apart.
+  const { Icon: FileIcon, colorClass: fileIconColor } = documentIcon({
+    document_type: document.document_type,
+    mime_type: document.file_content_type,
+    original_filename: document.original_filename,
+    smart_link_url: document.smart_link_url,
+  });
   const smartLinkMatch =
     document.document_type === "smart_link" && document.smart_link_url
       ? matchSmartLinkProvider(document.smart_link_url)
       : null;
-  const FileIcon = smartLinkMatch
-    ? smartLinkMatch.icon
-    : getDocumentIcon(
-        document.document_type,
-        document.file_content_type,
-        document.original_filename
-      );
-  const fileIconColor = smartLinkMatch
-    ? "text-muted-foreground"
-    : getDocumentIconColor(
-        document.document_type,
-        document.file_content_type,
-        document.original_filename
-      );
 
   return (
     <Link

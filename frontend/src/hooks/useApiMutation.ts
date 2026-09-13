@@ -39,9 +39,31 @@ export function useApiMutation<TData, TVariables = void>(
   return useMutation<TData, Error, TVariables>({
     ...rest,
     mutationFn: (variables) => config.mutationFn(variables),
+    // The caller's own work is waited on, but its failure is not the save's.
+    //
+    // React Query waits on what `onSuccess` returns before it calls a mutation
+    // settled, and dropping it let the Save button come back while a caller's
+    // follow-up was still in flight — long enough to press it again, which for
+    // an item whose tags and links go in requests of their own means saving it
+    // twice. So it is returned.
+    //
+    // Returned *settled*, though: a caller that follows a save by refreshing
+    // something would otherwise have a failed refresh reported as a failed
+    // save, and be told to retry a change that already landed. What happens
+    // after the write is the caller's to report — several already do — and all
+    // this needs from it is how long to stay pending.
+    //
+    // Settled, not swallowed: it is written down, because a follow-up that
+    // quietly fails leaves the screen showing something the server no longer
+    // says, and nothing else would ever mention it.
     onSuccess: (...args) => {
       void config.invalidate?.(args[0], args[1]);
-      onSuccess?.(...args);
+      const following = onSuccess?.(...args);
+      return following instanceof Promise
+        ? following.catch((error: unknown) => {
+            console.error("Work after a successful save did not finish:", error);
+          })
+        : following;
     },
     onError: (...args) => {
       if (config.errorKey) toast.error(getErrorMessage(args[0], config.errorKey));
