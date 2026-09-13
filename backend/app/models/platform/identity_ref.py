@@ -21,8 +21,9 @@ generalised: ``purpose`` is the sector. A sector that lives inside one guild —
 an installed app — also carries ``sector_guild_id`` + ``sector_id``; see
 ``services.marketplace.app_refs``.
 
-Reached only on the system engine — the request-path roles hold nothing on this
-table.
+Minted on the system engine, and read there for every sector but one: the
+request path holds ``SELECT`` and a policy admitting ``client``, the sector an
+account's own access token names it by (``services.auth.subject``).
 """
 
 from datetime import datetime, timezone

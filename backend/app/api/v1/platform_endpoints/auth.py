@@ -587,6 +587,17 @@ async def refresh_access_token(
             target_type="user",
             target_id=result.user_id,
         )
+    # The name the replacement token will carry, in the rotation's own
+    # transaction. The raw refresh secret the rotation mints exists only in
+    # ``issued`` until the response sets it, so anything that can fail belongs
+    # before the commit that spends the presented one.
+    subject = (
+        await subject_service.subject_for_user(
+            admin_session, user_id=result.issued.session.user_id
+        )
+        if result.ok and result.issued is not None
+        else None
+    )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
     # uncommitted (see RotationResult).
@@ -605,11 +616,6 @@ async def refresh_access_token(
         await session_service.revoke_chain(admin_session, session_id=issued.session.id)
         await admin_session.commit()
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
-
-    # Already minted at sign-in for anything that signed in on this build; a
-    # session older than it acquires one here on its first renewal.
-    subject = await subject_service.subject_for_user(admin_session, user_id=user.id)
-    await admin_session.commit()
 
     access_token, access_max_age = mint_access_token(
         subject=subject,

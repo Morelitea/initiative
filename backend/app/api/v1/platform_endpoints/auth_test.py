@@ -2191,6 +2191,39 @@ async def test_refresh_rotates_and_new_token_authenticates(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_a_refresh_that_cannot_finish_leaves_the_cookie_usable(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A rotation spends the presented cookie and mints a replacement whose
+    secret only the response carries, so the name the new token will use is
+    minted in that same transaction. A failure therefore leaves the presented
+    cookie live, and it rotates on the next attempt."""
+    from app.api.v1.platform_endpoints import auth as auth_endpoints
+
+    _, password = await _make_login_user(session, "stranded@example.com")
+    login = await _login(client, "stranded@example.com", password)
+    presented = login.cookies.get("refresh_token")
+
+    async def _fails(*args, **kwargs):
+        raise RuntimeError("no name for you")
+
+    monkeypatch.setattr(
+        auth_endpoints.subject_service, "subject_for_user", _fails, raising=True
+    )
+    with pytest.raises(RuntimeError):
+        await client.post("/api/v1/auth/refresh")
+    monkeypatch.undo()
+
+    # The same cookie still rotates: the failed attempt spent nothing.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", presented, path="/api/v1/auth")
+    retry = await client.post("/api/v1/auth/refresh")
+    assert retry.status_code == 200
+    assert retry.cookies.get("refresh_token") != presented
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_refresh_without_cookie_returns_401(client: AsyncClient):
     resp = await client.post("/api/v1/auth/refresh")
     assert resp.status_code == 401

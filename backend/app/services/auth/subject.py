@@ -54,10 +54,10 @@ async def subject_for_user(session: AsyncSession, *, user_id: int) -> str:
 async def user_for_subject(session: AsyncSession, *, subject: str) -> User | None:
     """Which account a token's ``sub`` names, or None.
 
-    Live references only. A re-issue is invisible to the person holding the
-    old one: their access token stops resolving, the refresh cookie mints a
-    replacement carrying the new reference, and the SPA's 401 interceptor
-    already does that round trip.
+    Live references only, and nothing re-issues one in this sector. A token
+    holding a replaced reference resolves to nobody until it lapses: the
+    caller turns that into 404, and the SPA renews on 401 alone. Wiring
+    re-issue up means settling that first.
     """
     if not subject or len(subject) > REF_MAX_LENGTH:
         return None
