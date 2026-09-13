@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EntityLinkField } from "@/components/entities/EntityLinkField";
@@ -59,34 +60,57 @@ export const AddQueueItemDialog = ({
 
   const setLinksMutation = useSetQueueItemLinks(queueId);
 
+  /**
+   * The item this sitting already made, if it made one.
+   *
+   * An item is created first and its links written against the id that comes
+   * back, so a link that fails leaves a real item behind. Pressing Add again
+   * has to finish *that* item rather than make a second one — a link failing
+   * twice would otherwise leave two items behind it.
+   */
+  const created = useRef<number | null>(null);
+  useEffect(() => {
+    created.current = null;
+  }, [open]);
+
+  /** Write the links, and only then call the whole thing done. */
+  const finish = async (itemId: number) => {
+    if (links.length > 0) {
+      await setLinksMutation.mutateAsync({ itemId, links, previous: [] });
+    }
+    created.current = null;
+    toast.success(t("itemAdded"));
+    onOpenChange(false);
+    onSuccess?.();
+  };
+
   const createItem = useCreateQueueItem(queueId, {
-    onSuccess: async (created) => {
-      // The links can only be recorded once the thing they point from exists,
-      // so they are written against the id the create came back with — and
-      // awaited, because saying "added" before they land would be claiming
-      // something that may still fail. A failure leaves the dialog open with
-      // everything still in it, so it can be tried again.
-      if (links.length > 0) {
-        try {
-          await setLinksMutation.mutateAsync({ itemId: created.id, links, previous: [] });
-        } catch {
-          // `useSetQueueItemLinks` has already said what went wrong.
-          onSuccess?.();
-          return;
-        }
+    onSuccess: async (item) => {
+      created.current = item.id;
+      try {
+        await finish(item.id);
+      } catch {
+        // `useSetQueueItemLinks` has already said what went wrong, and the
+        // dialog stays open holding everything, ready to try the links again.
+        onSuccess?.();
       }
-      toast.success(t("itemAdded"));
-      onOpenChange(false);
-      onSuccess?.();
     },
   });
 
-  const isAdding = createItem.isPending;
+  const isAdding = createItem.isPending || setLinksMutation.isPending;
   const canSubmit = label.trim() && !isAdding;
 
   const handleSubmit = () => {
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
+
+    const already = created.current;
+    if (already !== null) {
+      // The item is there; it was its links that did not land.
+      void finish(already).catch(() => {});
+      return;
+    }
+
     createItem.mutate({
       label: trimmedLabel,
       position: position ? Number(position) : undefined,

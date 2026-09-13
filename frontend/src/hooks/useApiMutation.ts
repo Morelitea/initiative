@@ -39,9 +39,15 @@ export function useApiMutation<TData, TVariables = void>(
   return useMutation<TData, Error, TVariables>({
     ...rest,
     mutationFn: (variables) => config.mutationFn(variables),
+    // The caller's result is handed back rather than dropped. React Query waits
+    // on what `onSuccess` returns before it calls the mutation settled, so a
+    // caller that follows a save with more saves — an item's tags and its links
+    // go in requests of their own — keeps `isPending` true until those finish.
+    // Swallowing it let the Save button come back while the rest was still in
+    // flight, which is long enough to press it again.
     onSuccess: (...args) => {
       void config.invalidate?.(args[0], args[1]);
-      onSuccess?.(...args);
+      return onSuccess?.(...args);
     },
     onError: (...args) => {
       if (config.errorKey) toast.error(getErrorMessage(args[0], config.errorKey));
