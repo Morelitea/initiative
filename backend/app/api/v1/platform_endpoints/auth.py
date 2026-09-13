@@ -1276,6 +1276,19 @@ async def _complete_provider_login(
             email_verified=email_verified,
         )
 
+    # The address this provider asserts for the account. A provisioned account
+    # already holds it; a linked one existed first, so this is where a work
+    # address arrives beside whatever the person signed up with.
+    if email:
+        await addresses.ensure_address(
+            admin_session,
+            user_id=user.id,
+            email=email,
+            source=addresses.SOURCE_OIDC,
+            verified=email_verified,
+            provider_id=provider_row.id,
+        )
+
     # Profile refresh from the verified claims.
     if email_verified and not user.email_verified:
         user.email_verified = True

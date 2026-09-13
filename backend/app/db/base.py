@@ -90,6 +90,7 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
+from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -125,6 +126,7 @@ __all__ = [
     "AuthProviderSecret",
     "AuthSession",
     "UserEmail",
+    "UserEmailAssertion",
     "FederatedIdentity",
     "FederatedIdentitySecret",
     "IdentityRef",

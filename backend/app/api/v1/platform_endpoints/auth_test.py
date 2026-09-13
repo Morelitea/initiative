@@ -40,6 +40,7 @@ from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
     create_auth_provider,
+    create_federated_identity,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -1148,6 +1149,59 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
         response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
     )
     assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_the_platform_provider_asserts_a_platform_identity(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Under platform posture the one provider is operator-global, so the
+    address it asserts belongs to no guild — ``auth_providers.guild_id`` is
+    NULL and the per-guild derivation has nothing to match."""
+    from app.models.platform.user_email import UserEmail
+    from app.models.platform.user_email_assertion import UserEmailAssertion
+
+    await _enable_platform_oidc(session)
+    user = await create_user(session, email="alice@personal.example.com")
+    user_id = user.id
+    identity_provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    provider_id = identity_provider.id
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=identity_provider
+    )
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "alice@work.example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    session.expire_all()
+    rows = (
+        await session.exec(select(UserEmail).where(UserEmail.user_id == user_id))
+    ).all()
+    work = {r.email_hash: r for r in rows}[hash_email("alice@work.example.com")]
+    claim = (
+        await session.exec(
+            select(UserEmailAssertion).where(
+                UserEmailAssertion.user_email_id == work.id
+            )
+        )
+    ).one()
+    assert claim.provider_id == provider_id
+    # The provider it came from serves the platform, not a guild.
+    assert (await session.get(AuthProvider, provider_id)).guild_id is None
 
 
 @pytest.mark.integration

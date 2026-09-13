@@ -80,6 +80,7 @@ _RLS_SHARED_TABLES = {
     "user_dm_guild_optouts",
     "user_dm_settings",
     "user_emails",
+    "user_email_assertions",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

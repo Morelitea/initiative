@@ -468,6 +468,63 @@ async def test_step_up_unions_satisfied_providers(
     assert prior is not None and prior.revoked_at is not None
 
 
+async def test_a_guilds_provider_records_the_address_it_asserts(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An account a guild's directory *links* rather than provisions already
+    had an address. The one the directory asserts for it is new information,
+    and it is kept against the provider that asserted it."""
+    from sqlmodel import select as sqlmodel_select
+
+    from app.core.encryption import hash_email
+    from app.models.platform.user_email import UserEmail
+    from app.models.platform.user_email_assertion import UserEmailAssertion
+
+    guild, provider = await _guild_provider(session)
+    user = await create_user(session, email="alice@personal.example.com")
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    user_id, provider_id = user.id, provider.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(
+        client,
+        idp,
+        guild.id,
+        id_token_claims={
+            "email": "alice@acme.example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307), response.text
+    assert "error=" not in response.headers["location"]
+
+    session.expire_all()
+    rows = (
+        await session.exec(
+            sqlmodel_select(UserEmail).where(UserEmail.user_id == user_id)
+        )
+    ).all()
+    held = {r.email_hash: r for r in rows}
+    personal = held[hash_email("alice@personal.example.com")]
+    work = held[hash_email("alice@acme.example.com")]
+    assert (personal.is_primary, work.is_primary) == (True, False)
+
+    claims = (
+        await session.exec(
+            sqlmodel_select(UserEmailAssertion).where(
+                UserEmailAssertion.user_email_id.in_([personal.id, work.id])
+            )
+        )
+    ).all()
+    # The directory claims the address it asserted, and only that one.
+    assert [(c.user_email_id, c.provider_id) for c in claims] == [
+        (work.id, provider_id)
+    ]
+
+
 async def test_step_up_rewrites_only_the_stepping_providers_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
