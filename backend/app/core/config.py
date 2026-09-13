@@ -846,6 +846,19 @@ class Settings(BaseSettings):
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
     # surfaced as config; it is evaluated at startup, not per request.
+    # --- Where a security-relevant warning goes -------------------------
+    # Unset is the behaviour that exists without it: warnings are logged and
+    # nothing is sent, so no deployment has to change to keep working. Set it
+    # and the same warnings are delivered as one JSON POST carrying a `text`
+    # field, which is the shape Slack, Discord, Mattermost and Teams incoming
+    # webhooks read. See docs/runbooks/security-alerts.md.
+    SECURITY_ALERT_WEBHOOK_URL: str | None = None
+    # Refused sign-ins against ONE account inside the window. A single failure
+    # is somebody mistyping; a rate is worth interrupting someone for. 0
+    # disables the threshold without disabling the sink.
+    SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD: int = 10
+    SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES: int = 15
+
     RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a

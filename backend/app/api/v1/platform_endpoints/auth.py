@@ -79,6 +79,7 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+from app.services.platform import security_alerts
 from app.services.auth import sessions as session_service
 from app.services.auth.assurance import (
     read_assurance,
@@ -426,6 +427,10 @@ async def _record_sign_in_failure(
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
+    # After the commit, so the count this reads includes the refusal just
+    # recorded. Alerting can never fail the request it was called from -- see
+    # app/services/platform/security_alerts.py.
+    await security_alerts.note_failed_sign_in(admin_session, user.id)
 
 
 async def _record_sign_in_fallback(
