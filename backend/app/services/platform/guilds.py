@@ -1083,10 +1083,10 @@ async def redeem_invite_for_user(
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
-    # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
-    # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
-    # any authenticated user may redeem it. When it *is* set, the invite is bound
-    # to that address and only the person holding it may redeem it (SEC-15).
+    # Email binding. An invite with no bound address
+    # (``invitee_email_encrypted`` is NULL) is a shareable link that any
+    # authenticated account may redeem. One with an address is for the person
+    # holding that address, and redeeming it requires holding it.
     #
     # Any of the account's addresses, not only the one it was created with: an
     # invite sent to somebody's work address is for them. Resolved through the

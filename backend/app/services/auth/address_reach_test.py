@@ -19,7 +19,9 @@ from app.testing.factories import create_user
 pytestmark = [pytest.mark.auth]
 
 
-async def _second_address(session: AsyncSession, user_id: int, email: str, **kw):
+async def _second_address(
+    session: AsyncSession, user_id: int, email: str, **kw: bool
+) -> UserEmail:
     row = addresses.record_address(
         session,
         user_id=user_id,
