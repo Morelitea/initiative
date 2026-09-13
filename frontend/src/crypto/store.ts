@@ -620,20 +620,18 @@ export const approvedDevices = {
  * The directory is served by the platform, so a key it returns is worth
  * remembering rather than simply trusting each time.
  *
- * A key seen for the first time says nothing: that is trust-on-first-use, and
- * warning on it would warn on every new conversation, which is how a warning
- * gets dismissed without being read. A key that REPLACES one already used is
- * the event worth interrupting for -- most often a partner's new or
- * reinstalled device, which is the thing a person can confirm for themselves.
+ * The first directory read says nothing: that is trust-on-first-use, and a
+ * warning there would fire on every new conversation. Once this browser has a
+ * baseline for the partner, both a replaced key and a newly introduced device
+ * are changes worth interrupting for. Replacement registration receives a new
+ * server UUID, so comparing only matching device ids would miss the ordinary
+ * reinstall case and a server-injected recipient alike.
  *
- * Per partner, keyed by their device id. A new device id is a new device, not
- * a changed one, so it is a first sighting and stays silent.
+ * Per partner, keyed by their device id.
  */
 export interface PeerKeyChange {
   userId: number;
   deviceId: string;
-  /** What this browser used before. */
-  was: string;
   /** What the directory returned now. */
   now: string;
   at: string;
@@ -660,12 +658,12 @@ export const peerDeviceKeys = {
     const at = new Date().toISOString();
     await update<Record<string, string>>(PEER_KEYS_PREFIX + userId, (existing) => {
       const known = existing ?? {};
+      const hasBaseline = Object.keys(known).length > 0;
       const next = { ...known };
       for (const { deviceId, fingerprint } of seen) {
-        const was = known[deviceId];
-        // Absent: first sighting, remember it silently.
-        if (was !== undefined && was !== fingerprint) {
-          changes.push({ userId, deviceId, was, now: fingerprint, at });
+        const knownFingerprint = known[deviceId];
+        if (knownFingerprint !== fingerprint && (knownFingerprint !== undefined || hasBaseline)) {
+          changes.push({ userId, deviceId, now: fingerprint, at });
         }
         next[deviceId] = fingerprint;
       }

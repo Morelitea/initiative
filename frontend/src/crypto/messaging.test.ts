@@ -101,6 +101,7 @@ vi.mock("./client", () => ({
 }));
 
 import {
+  acknowledgePeerKeyChange,
   answerHistoryRequest,
   collect,
   ensureDevice,
@@ -123,6 +124,7 @@ import {
   forgetDevice,
   historyAsk,
   messageLog,
+  peerKeyChanges,
   sessionPickle,
 } from "./store";
 
@@ -1106,6 +1108,44 @@ describe("history between this account's own devices", () => {
 });
 
 describe("sending", () => {
+  it("does not send private text to a newly introduced peer device", async () => {
+    await sendText("conv-1", 7, "establishes the directory baseline");
+    api.sendMessages.mockClear();
+    api.readDirectory.mockResolvedValue({
+      user_id: 7,
+      devices: [{ device_id: "replacement", identity_key: "new-key", fingerprint_key: "new-fp" }],
+    });
+    api.claimSessionKeys.mockResolvedValue({
+      user_id: 7,
+      devices: [
+        {
+          device_id: "replacement",
+          identity_key: "new-key",
+          fingerprint_key: "new-fp",
+          one_time_key: { key_id: "replacement-key", public_key: "replacement-public-key" },
+        },
+      ],
+    });
+
+    await expect(sendText("conv-1", 7, "private after replacement")).rejects.toBeInstanceOf(
+      RecipientHasNoDeviceError
+    );
+
+    expect(api.sendMessages).not.toHaveBeenCalled();
+    expect(await peerKeyChanges.all()).toEqual([
+      expect.objectContaining({ deviceId: "replacement", now: "new-fp" }),
+    ]);
+
+    await expect(sendText("conv-1", 7, "still private")).rejects.toBeInstanceOf(
+      RecipientHasNoDeviceError
+    );
+    expect(api.sendMessages).not.toHaveBeenCalled();
+
+    await acknowledgePeerKeyChange("replacement");
+    await sendText("conv-1", 7, "verified out of band");
+    expect(api.sendMessages).toHaveBeenCalledTimes(1);
+  });
+
   it("spends a prekey opening a conversation and none keeping it going", async () => {
     // Claiming deletes a single-use key from the recipient's pool. Doing it per
     // message drains the pool of a busy conversation for nothing: the session

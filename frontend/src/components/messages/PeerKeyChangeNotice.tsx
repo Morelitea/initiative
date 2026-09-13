@@ -14,8 +14,8 @@ import { useAcknowledgePeerKeyChange, usePeerKeyChanges } from "@/hooks/useMyMes
  *
  * The new code is drawn so it can be compared out of band -- the same
  * comparison the history panels ask for, reused here because it is the same
- * question. Dismissing records that the interruption was read, which is not
- * the same as approving; the key was already in use by the time this appeared.
+ * question. Acknowledging records that the comparison was completed and lets
+ * future messages use the device; until then, sends withhold its key.
  */
 export const PeerKeyChangeNotice = ({
   nameOf,

@@ -382,7 +382,6 @@ describe("remembered peer device keys", () => {
       expect.objectContaining({
         userId: 7,
         deviceId: "their-phone",
-        was: "fp-1",
         now: "fp-2",
       }),
     ]);
@@ -401,15 +400,20 @@ describe("remembered peer device keys", () => {
     expect(changes).toEqual([]);
   });
 
-  it("treats a new device id as a first sighting, not a change", async () => {
+  it("reports a new device id after a relationship is established", async () => {
     await peerDeviceKeys.reconcile(7, [{ deviceId: "their-phone", fingerprint: "fp-1" }]);
 
     const changes = await peerDeviceKeys.reconcile(7, [
-      { deviceId: "their-phone", fingerprint: "fp-1" },
       { deviceId: "their-laptop", fingerprint: "fp-2" },
     ]);
 
-    expect(changes).toEqual([]);
+    expect(changes).toEqual([
+      expect.objectContaining({
+        userId: 7,
+        deviceId: "their-laptop",
+        now: "fp-2",
+      }),
+    ]);
   });
 
   it("keeps one person's devices out of another's", async () => {
@@ -442,7 +446,6 @@ describe("the list of changes waiting to be seen", () => {
   const change = (deviceId: string, now: string) => ({
     userId: 7,
     deviceId,
-    was: "fp-1",
     now,
     at: new Date().toISOString(),
   });

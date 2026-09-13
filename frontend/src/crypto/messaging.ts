@@ -562,10 +562,9 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * Every path that addresses another person reads the directory, so this is
  * where a key that differs from the one last used is noticed.
  *
- * The change is recorded rather than thrown. A send that found one still has
- * to complete: stopping it would mean a conversation could be silenced from
- * outside, and a person whose partner genuinely did get a new phone would be
- * unable to write to them until they worked out why.
+ * A changed or newly introduced device is withheld from this send. Otherwise
+ * the warning would arrive only after private text had already been encrypted
+ * to the unverified key. Unchanged devices can still receive the message.
  */
 async function readPeerDirectory(otherUserId: number) {
   const theirs = await readDirectory(otherUserId);
@@ -584,7 +583,19 @@ async function readPeerDirectory(otherUserId: number) {
     await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
     await peerKeyChanges.add(changes);
   }
-  return theirs;
+
+  // Keep the key out of every retry, not only the send that first noticed it.
+  // Acknowledgement means the person has completed the out-of-band check and
+  // deliberately allows future messages to use that device.
+  const unverified = new Set(
+    (await peerKeyChanges.all())
+      .filter((change) => change.userId === otherUserId)
+      .map((change) => change.deviceId)
+  );
+  return {
+    ...theirs,
+    devices: theirs.devices.filter((device) => !unverified.has(device.device_id)),
+  };
 }
 
 async function sendEnvelope(
@@ -1042,13 +1053,10 @@ export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
 }
 
 /**
- * The person has seen a change and is carrying on.
+ * The person has checked a changed device key and is carrying on.
  *
- * The new key was already remembered when it was noticed -- it had to be, or
- * the next send would report it again -- so this only takes the notice down.
- * Acknowledging is therefore not approving; it says the interruption has been
- * read. Declining to use the new key would be a different action and is not
- * offered here.
+ * Until this acknowledgement, sends withhold that device. The new key remains
+ * remembered so a retry cannot disguise it as a first sighting.
  */
 export async function acknowledgePeerKeyChange(deviceId: string): Promise<void> {
   await peerKeyChanges.acknowledge(deviceId);
