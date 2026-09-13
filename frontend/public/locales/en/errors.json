@@ -616,5 +616,9 @@
   "RELATIONSHIP_NOT_FOUND": "That link no longer exists",
   "RELATIONSHIP_REMOVE_DENIED": "You can only remove links you made, or links on something you can edit",
   "RELATIONSHIP_ENDPOINT_ARCHIVED": "That has been archived",
-  "RELATIONSHIP_DERIVED": "Links like this are written by mentioning something, and removed by editing the mention out"
+  "RELATIONSHIP_DERIVED": "Links like this are written by mentioning something, and removed by editing the mention out",
+  "SESSION_STORE_UNAVAILABLE": "We couldn't start your session just now. Please try again in a moment.",
+  "OIDC_SESSION_STORE_UNAVAILABLE": "Your identity provider signed you in, but we couldn't start your session. Please try again in a moment.",
+  "OIDC_REGISTRATION_DISABLED": "This server doesn't create accounts from single sign-on. Ask an administrator to invite you first.",
+  "OIDC_ACCOUNT_INACTIVE": "That account has been deactivated. An administrator can reactivate it."
 }

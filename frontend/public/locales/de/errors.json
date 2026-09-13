@@ -616,5 +616,9 @@
   "RELATIONSHIP_NOT_FOUND": "Diese Verknüpfung existiert nicht mehr",
   "RELATIONSHIP_REMOVE_DENIED": "Du kannst nur Verknüpfungen entfernen, die du erstellt hast, oder solche an etwas, das du bearbeiten darfst",
   "RELATIONSHIP_ENDPOINT_ARCHIVED": "Das wurde archiviert",
-  "RELATIONSHIP_DERIVED": "Solche Verknüpfungen entstehen durch eine Erwähnung und verschwinden, wenn du die Erwähnung entfernst"
+  "RELATIONSHIP_DERIVED": "Solche Verknüpfungen entstehen durch eine Erwähnung und verschwinden, wenn du die Erwähnung entfernst",
+  "SESSION_STORE_UNAVAILABLE": "Ihre Sitzung konnte gerade nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
+  "OIDC_SESSION_STORE_UNAVAILABLE": "Ihr Identitätsanbieter hat Sie angemeldet, aber Ihre Sitzung konnte nicht gestartet werden. Bitte versuchen Sie es in einem Moment erneut.",
+  "OIDC_REGISTRATION_DISABLED": "Dieser Server erstellt keine Konten über Single Sign-on. Bitten Sie eine Administratorin oder einen Administrator um eine Einladung.",
+  "OIDC_ACCOUNT_INACTIVE": "Dieses Konto wurde deaktiviert. Eine Administratorin oder ein Administrator kann es wieder aktivieren."
 }

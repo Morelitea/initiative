@@ -26,18 +26,15 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.session_cookies import (
-    clear_refresh_cookie,
     set_refresh_cookie,
     set_session_cookie,
 )
-from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
-    create_access_token,
     get_password_hash,
     mint_access_token,
     verify_password,
@@ -847,9 +844,8 @@ async def update_users_me(
         # local accounts; nothing for the SSO-exempt path (no factor was
         # presented here).
         #
-        # Fallback: a transient session-store failure must not fail the
-        # password change — re-issue a legacy long-lived token instead (the
-        # dual-verify window accepts both); that session just can't renew.
+        # A session is the only credential there is, so a store that cannot be
+        # written ends the request rather than downgrading it.
         try:
             issued = await session_service.create_session(
                 admin_session,
@@ -869,26 +865,16 @@ async def update_users_me(
             )
             set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
             set_refresh_cookie(response, issued.refresh_token)
-        except Exception:
+        except Exception as exc:
             await admin_session.rollback()
             logger.exception(
-                "Failed to establish refresh session for user %s after password "
-                "change; falling back to a legacy access token",
+                "Could not open a session for user %s after a password change",
                 current_user.id,
             )
-            refreshed_token = create_access_token(
-                subject=str(current_user.id),
-                token_version=current_user.token_version,
-            )
-            set_session_cookie(
-                response,
-                refreshed_token,
-                max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            )
-            # The browser still holds the refresh cookie whose chain was just
-            # revoked above — clear it so the SPA doesn't resend a dead token
-            # on its next silent renewal.
-            clear_refresh_cookie(response)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+            ) from exc
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]

@@ -616,5 +616,9 @@
   "RELATIONSHIP_NOT_FOUND": "Ese vínculo ya no existe",
   "RELATIONSHIP_REMOVE_DENIED": "Solo puedes quitar vínculos que hayas creado, o vínculos en algo que puedas editar",
   "RELATIONSHIP_ENDPOINT_ARCHIVED": "Eso está archivado",
-  "RELATIONSHIP_DERIVED": "Los vínculos de este tipo se crean al mencionar algo y se quitan al borrar la mención"
+  "RELATIONSHIP_DERIVED": "Los vínculos de este tipo se crean al mencionar algo y se quitan al borrar la mención",
+  "SESSION_STORE_UNAVAILABLE": "No hemos podido iniciar tu sesión en este momento. Inténtalo de nuevo en unos instantes.",
+  "OIDC_SESSION_STORE_UNAVAILABLE": "Tu proveedor de identidad te ha autenticado, pero no hemos podido iniciar tu sesión. Inténtalo de nuevo en unos instantes.",
+  "OIDC_REGISTRATION_DISABLED": "Este servidor no crea cuentas mediante inicio de sesión único. Pide una invitación a un administrador.",
+  "OIDC_ACCOUNT_INACTIVE": "Esa cuenta está desactivada. Un administrador puede volver a activarla."
 }
