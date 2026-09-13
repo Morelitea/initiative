@@ -1,23 +1,11 @@
 """The order of your guild list is yours to set
 
-Reordering the guild list is a personal action. It runs on the platform path,
-which carries a user and no guild, and the column it writes is ``position`` on
-the caller's own ``public.guild_memberships`` rows. The only UPDATE policy on
-that table matched ``guild_id = app.current_guild_id``, which a request with no
-guild never satisfies, so the write matched no rows and the new order was gone
-by the next page load.
+Reordering the guild list is a personal action. This migration lets callers
+update the position of their own guild memberships while keeping all other
+membership fields unchanged.
 
-Three changes, each of them narrowing:
-
-* ``guild_memberships_update`` matches the caller's own rows
-  (``user_id = app.current_user_id``) rather than the routed guild — the shape
-  0145 gave the self-leave DELETE.
-* The request-path floors (``app_guild_base``, ``platform_base``) hold UPDATE on
-  ``position`` alone, down from every column but ``role``. A role change and the
-  OIDC flag are written on the system engine, and nothing writes ``guild_id``,
-  ``user_id`` or ``joined_at`` after the row exists.
-* ``reorder_guild_memberships`` is dropped. It wrote nothing its caller could not
-  write itself, and the reorder is now an ordinary UPDATE of the caller's rows.
+It also removes the obsolete reorder helper now that ordinary membership
+updates persist the requested order.
 
 Revision ID: 20260913_0266
 Revises: 20260913_0265
