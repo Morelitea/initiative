@@ -652,8 +652,9 @@ async def reject_privileged_database_url(*, now: datetime | None = None) -> None
     legitimately holds the privilege, and which this does not touch.
 
     ``ALLOW_PRIVILEGED_DATABASE_UNTIL`` keeps such a deployment booting until
-    an operator-chosen absolute UTC deadline. It logs every boot and fails
-    closed once the deadline is reached.
+    an operator-chosen absolute UTC deadline. It logs every boot and refuses
+    the next start once the deadline has passed -- this is a startup check, so
+    a process already running when the deadline passes is not interrupted.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -687,7 +688,9 @@ async def reject_privileged_database_url(*, now: datetime | None = None) -> None
             "ALLOW_PRIVILEGED_DATABASE_UNTIL is %s, and DATABASE_URL connects\n"
             "as a %s role. The access rules described in SECURITY.md are NOT\n"
             "in force for this connection. This setting exists to buy a\n"
-            "maintenance window and expires automatically. Migrate (about a minute):\n"
+            "maintenance window. The deadline is checked at startup, so it\n"
+            "stops the NEXT start after it passes -- this process keeps\n"
+            "running until then. Migrate (about a minute):\n"
             "\n%s\n%s",
             "=" * 70,
             deadline.isoformat(),
@@ -714,7 +717,7 @@ async def reject_privileged_database_url(*, now: datetime | None = None) -> None
         f"{migration}\n\n"
         f"To keep booting for one maintenance window, set\n"
         f"ALLOW_PRIVILEGED_DATABASE_UNTIL to a future timezone-aware timestamp.\n"
-        f"It warns on every boot and refuses startup at the deadline.\n"
+        f"It warns on every boot and refuses the next start after it passes.\n"
         f"{'=' * 70}\n"
     )
 

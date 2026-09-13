@@ -1310,5 +1310,10 @@ async def test_future_privileged_database_deadline_boots_and_warns(monkeypatch, 
     joined = "\n".join(r.getMessage() for r in caplog.records)
     assert "ALLOW_PRIVILEGED_DATABASE_UNTIL" in joined
     assert deadline.isoformat() in joined
+    # The check runs at startup, so the deadline stops the NEXT boot -- a
+    # process already running when it passes keeps serving. The warning has to
+    # say that, or an operator reads "expires automatically" as "this shuts
+    # itself off" and schedules nothing.
+    assert "next start" in joined.lower()
     assert "SECURITY.md" in joined
     assert "NOT\nin force" in joined or "NOT in force" in joined
