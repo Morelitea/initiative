@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -633,7 +634,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
     )
 
 
-async def reject_privileged_database_url() -> None:
+async def reject_privileged_database_url(*, now: datetime | None = None) -> None:
     """Refuse to start when DATABASE_URL connects as a SUPERUSER/BYPASSRLS role.
 
     The application's own connection is meant to be ``app_provisioner``: the
@@ -650,9 +651,9 @@ async def reject_privileged_database_url() -> None:
     job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
     legitimately holds the privilege, and which this does not touch.
 
-    ``ALLOW_PRIVILEGED_DATABASE_URL`` keeps such a deployment booting for an
-    operator who cannot migrate in the same window. It logs every boot, so it
-    stays visible rather than becoming the quiet steady state.
+    ``ALLOW_PRIVILEGED_DATABASE_UNTIL`` keeps such a deployment booting until
+    an operator-chosen absolute UTC deadline. It logs every boot and fails
+    closed once the deadline is reached.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -678,20 +679,29 @@ async def reject_privileged_database_url() -> None:
         "deployment docs for details."
     )
 
-    if settings.ALLOW_PRIVILEGED_DATABASE_URL:
+    current_time = now or datetime.now(timezone.utc)
+    deadline = settings.ALLOW_PRIVILEGED_DATABASE_UNTIL
+    if deadline is not None and deadline > current_time:
         logger.warning(
             "\n%s\n"
-            "ALLOW_PRIVILEGED_DATABASE_URL is set, and DATABASE_URL connects\n"
+            "ALLOW_PRIVILEGED_DATABASE_UNTIL is %s, and DATABASE_URL connects\n"
             "as a %s role. The access rules described in SECURITY.md are NOT\n"
             "in force for this connection. This setting exists to buy a\n"
-            "maintenance window, not to be left on. Migrate (about a minute):\n"
+            "maintenance window and expires automatically. Migrate (about a minute):\n"
             "\n%s\n%s",
             "=" * 70,
+            deadline.isoformat(),
             held,
             migration,
             "=" * 70,
         )
         return
+
+    deadline_status = (
+        f"The configured deadline {deadline.isoformat()} has expired.\n\n"
+        if deadline is not None
+        else "No temporary startup deadline is configured.\n\n"
+    )
 
     raise SystemExit(
         f"\n{'=' * 70}\n"
@@ -699,10 +709,12 @@ async def reject_privileged_database_url() -> None:
         f"The app never needs these privileges, and the access rules\n"
         f"described in SECURITY.md are not in force for a connection that\n"
         f"holds them.\n\n"
+        f"{deadline_status}"
         f"Migrate once (about a minute):\n\n"
         f"{migration}\n\n"
         f"To keep booting for one maintenance window, set\n"
-        f"ALLOW_PRIVILEGED_DATABASE_URL=true. It warns on every boot.\n"
+        f"ALLOW_PRIVILEGED_DATABASE_UNTIL to a future timezone-aware timestamp.\n"
+        f"It warns on every boot and refuses startup at the deadline.\n"
         f"{'=' * 70}\n"
     )
 

@@ -136,6 +136,7 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `DATABASE_URL` | Provisioning PostgreSQL connection (migrations, guild/role creation; not a superuser) | Required |
 | `DATABASE_URL_APP` | RLS-enforced connection (`app_user` role) | Required |
 | `DATABASE_URL_ADMIN` | Admin connection for background jobs (`app_admin` role) | Required |
+| `ALLOW_PRIVILEGED_DATABASE_UNTIL` | Absolute timezone-aware deadline for a temporary privileged `DATABASE_URL` maintenance window | - |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
