@@ -270,6 +270,20 @@ class OidcMessages:
     SESSION_STORE_UNAVAILABLE = "OIDC_SESSION_STORE_UNAVAILABLE"
 
 
+class AddressMessages:
+    """Refusals from the account's own address list."""
+
+    ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND"
+    #: The address account mail goes to. Make another one primary first.
+    PRIMARY_ADDRESS = "PRIMARY_ADDRESS"
+    #: The only proven address an account has — removing it leaves no way back.
+    LAST_VERIFIED_ADDRESS = "LAST_VERIFIED_ADDRESS"
+    #: Account mail only goes to an address its holder has proved.
+    ADDRESS_NOT_VERIFIED = "ADDRESS_NOT_VERIFIED"
+    #: An account holds a bounded number of addresses.
+    TOO_MANY_ADDRESSES = "TOO_MANY_ADDRESSES"
+
+
 class AuthProviderMessages:
     NOT_FOUND = "AUTH_PROVIDER_NOT_FOUND"
     SLUG_RESERVED = "AUTH_PROVIDER_SLUG_RESERVED"

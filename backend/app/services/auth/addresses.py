@@ -24,10 +24,11 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+from app.core.messages import AddressMessages
 from app.models.platform.user import User
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
@@ -272,3 +273,132 @@ async def replace_all(
         source=source,
         verified=False,
     )
+
+
+class AddressError(Exception):
+    """A refused address operation, carrying the code the endpoint reports."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+async def list_for_user(session: AsyncSession, *, user_id: int) -> list[UserEmail]:
+    """The addresses an account has, oldest first.
+
+    Synthetic placeholders are left out: ``{subject}@oidc.local`` is not a
+    mailbox and there is nothing its owner can do with it.
+    """
+    rows = (
+        await session.exec(
+            select(UserEmail)
+            .where(
+                UserEmail.user_id == user_id,
+                UserEmail.source != SOURCE_SYNTHETIC,
+            )
+            .order_by(UserEmail.created_at, UserEmail.id)
+        )
+    ).all()
+    return list(rows)
+
+
+async def add_for_user(
+    session: AsyncSession, *, user_id: int, email: str, now: datetime | None = None
+) -> UserEmail | None:
+    """Start holding ``email`` for this account, unverified.
+
+    Returns the new row, or ``None`` when the address already belongs to
+    somebody — **including** to this account. The caller answers the same way
+    either way: what came back is for deciding who to write to, not what to
+    say.
+    """
+    digest = hash_email(normalize(email))
+    if await _by_hash(session, digest) is not None:
+        return None
+    return record_address(
+        session,
+        user_id=user_id,
+        email=email,
+        source=SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+        now=now,
+    )
+
+
+async def verify_for_user(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    address_id: int,
+    now: datetime | None = None,
+) -> UserEmail:
+    """Mark one address proven. Idempotent — proving it twice is proving it."""
+    row = await _owned(session, user_id=user_id, address_id=address_id)
+    if row.verified_at is None:
+        row.verified_at = now or datetime.now(timezone.utc)
+        session.add(row)
+    return row
+
+
+async def remove_for_user(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """Stop holding one address.
+
+    The primary stays until another address is made primary, and the last
+    verified address stays full stop — an account has to keep a way back in
+    and a place to be written to.
+    """
+    row = await _owned(session, user_id=user_id, address_id=address_id)
+    if row.is_primary:
+        raise AddressError(AddressMessages.PRIMARY_ADDRESS)
+    if row.verified_at is not None and await _verified_count(session, user_id) <= 1:
+        raise AddressError(AddressMessages.LAST_VERIFIED_ADDRESS)
+    await session.delete(row)
+    return row
+
+
+async def set_primary_for_user(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """Move the address account mail goes to.
+
+    Only to one this account has proved it holds: the primary is where a
+    password reset lands, so moving it is a change of that destination.
+    """
+    row = await _owned(session, user_id=user_id, address_id=address_id)
+    if row.verified_at is None:
+        raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
+    if row.is_primary:
+        return row
+    # One primary per account is a partial unique index, so the old one is
+    # stood down in the same flush that raises the new one.
+    for other in await list_for_user(session, user_id=user_id):
+        if other.is_primary:
+            other.is_primary = False
+            session.add(other)
+    await session.flush()
+    row.is_primary = True
+    session.add(row)
+    return row
+
+
+async def _owned(session: AsyncSession, *, user_id: int, address_id: int) -> UserEmail:
+    row = await session.get(UserEmail, address_id)
+    if row is None or row.user_id != user_id or row.source == SOURCE_SYNTHETIC:
+        raise AddressError(AddressMessages.ADDRESS_NOT_FOUND)
+    return row
+
+
+async def _verified_count(session: AsyncSession, user_id: int) -> int:
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(UserEmail)
+            .where(
+                UserEmail.user_id == user_id,
+                UserEmail.verified_at.is_not(None),
+            )
+        )
+    ).one()

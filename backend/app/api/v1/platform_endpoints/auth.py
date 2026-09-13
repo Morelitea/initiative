@@ -1608,11 +1608,17 @@ async def confirm_verification(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # A token minted for one address proves that address; the older
+    # account-level tokens carry none and prove the account.
+    if record.user_email_id is not None:
+        await addresses.verify_for_user(
+            admin_session, user_id=user.id, address_id=record.user_email_id
+        )
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
-        await admin_session.commit()
+    await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)

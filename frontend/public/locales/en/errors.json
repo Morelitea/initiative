@@ -620,5 +620,10 @@
   "SESSION_STORE_UNAVAILABLE": "We couldn't start your session just now. Please try again in a moment.",
   "OIDC_SESSION_STORE_UNAVAILABLE": "Your identity provider signed you in, but we couldn't start your session. Please try again in a moment.",
   "OIDC_REGISTRATION_DISABLED": "This server doesn't create accounts from single sign-on. Ask an administrator to invite you first.",
-  "OIDC_ACCOUNT_INACTIVE": "That account has been deactivated. An administrator can reactivate it."
+  "OIDC_ACCOUNT_INACTIVE": "That account has been deactivated. An administrator can reactivate it.",
+  "ADDRESS_NOT_FOUND": "That address is not on your account.",
+  "PRIMARY_ADDRESS": "That is where your account mail goes. Make another address primary first.",
+  "LAST_VERIFIED_ADDRESS": "That is the only confirmed address on your account. Confirm another one first.",
+  "ADDRESS_NOT_VERIFIED": "Confirm that address before your account mail is sent to it.",
+  "TOO_MANY_ADDRESSES": "Your account is holding as many addresses as it can."
 }

@@ -472,6 +472,33 @@ class UserProfile(SanitizedBaseModel):
     joined_at: datetime
 
 
+class UserEmailRead(SanitizedBaseModel):
+    """One address on the account reading it.
+
+    Served only to its owner, so the address is in full — every other shape
+    that carries one either masks it or does not have it at all.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    verified: bool
+    is_primary: bool
+    #: signup | added | oidc — how the account came to hold it.
+    source: str
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+
+
+class UserEmailCreate(SanitizedBaseModel):
+    email: EmailStr
+
+
+class UserEmailListResponse(SanitizedBaseModel):
+    items: List[UserEmailRead]
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
