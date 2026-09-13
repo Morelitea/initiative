@@ -159,3 +159,78 @@ def test_a_cookie_whose_name_merely_ends_in_the_session_name_is_not_a_session(cl
     )
 
     assert response.status_code == 200
+
+
+# --- WebSocket handshakes ----------------------------------------------------
+#
+# WebSockets carry the session cookie and are not bound by the same-origin
+# policy, and five routes fall back to that cookie when the first message
+# supplies no token (collaboration, counters, events, queues, notifications).
+# The HTTP rule above does not reach them: the middleware returned early on any
+# non-HTTP scope.
+
+
+def _ws_scope(*, cookie: str | None = None, origin: str | None = None) -> dict:
+    headers = []
+    if cookie is not None:
+        headers.append((b"cookie", cookie.encode()))
+    if origin is not None:
+        headers.append((b"origin", origin.encode()))
+    return {"type": "websocket", "path": "/ws", "headers": headers}
+
+
+async def _handshake(scope: dict) -> list[dict]:
+    """Drive one handshake through the middleware and collect what it sent."""
+    sent: list[dict] = []
+    connected = {"value": False}
+
+    async def app(_scope, _receive, send):
+        connected["value"] = True
+        await send({"type": "websocket.accept"})
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(message):
+        sent.append(message)
+
+    await CsrfOriginMiddleware(app)(scope, receive, send)
+    return [*sent, {"reached_app": connected["value"]}]
+
+
+@pytest.mark.unit
+async def test_a_cross_site_websocket_with_a_session_cookie_is_refused(monkeypatch):
+    monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
+
+    result = await _handshake(
+        _ws_scope(
+            cookie=f"{SESSION_COOKIE_NAME}=a-session", origin="https://attacker.test"
+        )
+    )
+
+    assert result[0]["type"] == "websocket.close"
+    assert result[-1]["reached_app"] is False
+
+
+@pytest.mark.unit
+async def test_a_same_origin_websocket_connects(monkeypatch):
+    monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
+
+    result = await _handshake(
+        _ws_scope(cookie=f"{SESSION_COOKIE_NAME}=a-session", origin=SERVED)
+    )
+
+    assert result[-1]["reached_app"] is True
+
+
+@pytest.mark.unit
+async def test_a_websocket_without_a_session_cookie_is_not_this_rule_s_business(
+    monkeypatch,
+):
+    # A token-authenticated client. Whether it may connect is the route's
+    # decision, and refusing it here would hide that answer.
+    monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
+
+    result = await _handshake(_ws_scope(origin="https://attacker.test"))
+
+    assert result[-1]["reached_app"] is True

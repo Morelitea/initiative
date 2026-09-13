@@ -12,8 +12,10 @@ Scope, and why it is drawn here:
   attached by a browser on someone else's behalf, so bearer tokens, API keys
   and device tokens are not asked for anything. That is also what keeps mobile
   shells and API scripts working unchanged.
-* **Only unsafe methods.** ``OPTIONS`` is excluded along with the read methods:
-  it is the CORS preflight and is answered before this runs.
+* **Unsafe methods, and every WebSocket handshake.** ``OPTIONS`` is excluded
+  along with the read methods: it is the CORS preflight and is answered before
+  this runs. A handshake has no method to branch on and opens a two-way
+  channel, so it is treated as state-changing.
 * **No token to mint, store or rotate.** A synchroniser or double-submit token
   is a stronger primitive and can be added on top of this later. It also needs
   every client that writes to carry it, which is a change across the whole
@@ -96,6 +98,10 @@ class CsrfOriginMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "websocket":
+            await self._websocket(scope, receive, send)
+            return
+
         if scope["type"] != "http" or scope["method"] in SAFE_METHODS:
             await self.app(scope, receive, send)
             return
@@ -110,3 +116,29 @@ class CsrfOriginMiddleware:
         # code constants".
         response = JSONResponse(status_code=403, content={"detail": CSRF_ERROR_CODE})
         await response(scope, receive, send)
+
+    async def _websocket(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Apply the same rule to a handshake.
+
+        A WebSocket carries the session cookie like any other request and is not
+        bound by the same-origin policy, and the routes here fall back to that
+        cookie when the first message supplies no token. There is no method to
+        branch on -- a handshake is always the start of a two-way channel, so it
+        is treated as state-changing.
+
+        Refused before the route sees it, by closing in response to the connect
+        rather than accepting first: a channel that is accepted and then closed
+        has already run whatever the route does on accept.
+        """
+        headers = Headers(scope=scope)
+        if not _carries_session_cookie(headers) or intent_is_proven(headers):
+            await self.app(scope, receive, send)
+            return
+
+        # Drain the connect so the close is a valid reply to it.
+        message = await receive()
+        if message["type"] != "websocket.connect":  # pragma: no cover - spec order
+            return
+        # 1008 policy violation, which is what the routes here already use for a
+        # handshake they refuse.
+        await send({"type": "websocket.close", "code": 1008})
