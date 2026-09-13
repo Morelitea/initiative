@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Sequence, TYPE_CHECKING
+from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -81,6 +81,11 @@ class QueueItemRead(QueueItemBase):
     tags: List[TagSummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
     tasks: List[QueueItemTaskRead] = Field(default_factory=list)
+    #: How many things are pinned to this item, of whatever kind. Not
+    #: ``len(documents) + len(tasks)``: an item may be attached to any of the
+    #: fourteen kinds a link can name, and a row saying "3 attachments" means
+    #: three things rather than the two sorts that used to have their own lists.
+    attachment_count: int = 0
     # Round in which the user held this item (NULL = not held). The rotation
     # auto-releases the item at its natural slot in ``held_at_round + 1`` so
     # held participants can't be forgotten.
@@ -209,6 +214,7 @@ def serialize_queue_item(
     *,
     documents: Sequence[Related] = (),
     tasks: Sequence[Related] = (),
+    attachment_count: int = 0,
 ) -> QueueItemRead:
     """One queue item.
 
@@ -231,6 +237,7 @@ def serialize_queue_item(
         tags=annotated_tags(item),
         documents=_serialize_queue_item_documents(documents),
         tasks=_serialize_queue_item_tasks(tasks),
+        attachment_count=attachment_count,
         created_at=item.created_at,
     )
 
@@ -268,9 +275,27 @@ def serialize_queue(
     queue: "Queue",
     *,
     user_id: Optional[int] = None,
+    documents: Optional[Mapping[int, Sequence[Related]]] = None,
+    tasks: Optional[Mapping[int, Sequence[Related]]] = None,
+    attachment_counts: Optional[Mapping[int, int]] = None,
 ) -> QueueRead:
+    """A queue and everything in it.
+
+    ``documents`` and ``tasks`` are keyed by item id — what one batched read
+    gives for the whole page. Omitting them says the items have no attachments
+    rather than that nobody asked, so a caller with a session should pass them:
+    ``_serialized_queue`` in the queues router is the one that does.
+    """
     items = getattr(queue, "items", None) or []
-    serialized_items = [serialize_queue_item(item) for item in items]
+    serialized_items = [
+        serialize_queue_item(
+            item,
+            documents=(documents or {}).get(item.id, ()),
+            tasks=(tasks or {}).get(item.id, ()),
+            attachment_count=(attachment_counts or {}).get(item.id, 0),
+        )
+        for item in items
+    ]
     current_item = None
     if queue.current_item_id:
         for item in serialized_items:

@@ -1195,6 +1195,41 @@ async def _create_community_guild(
     return guild
 
 
+#: Projects to archive once the seed has finished filling them, as
+#: ``(guild id, project id, when)``. See ``_create_project``.
+_ARCHIVE_LAST: list[tuple[int, int, datetime]] = []
+
+
+async def _apply_deferred_archives(session: AsyncSession, admin: User) -> None:
+    """Archive the projects that were meant to start out archived.
+
+    Run once everything they contain exists, because archiving is what makes all
+    of it read-only. A project lives in its community's own schema, so this
+    routes into each one in turn rather than assuming wherever the seed happened
+    to leave the session — which by this point is the shared tables.
+    """
+    by_guild: dict[int, list[tuple[int, datetime]]] = {}
+    for guild_id, project_id, when in _ARCHIVE_LAST:
+        by_guild.setdefault(guild_id, []).append((project_id, when))
+
+    for guild_id, rows in by_guild.items():
+        await set_rls_context(
+            session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
+        )
+        for project_id, when in rows:
+            # Stated as a statement rather than through the ORM: project ids
+            # start again in every community's schema, so the identity map would
+            # hand back whichever community's row 12 it loaded first.
+            await session.exec(
+                update(Project)
+                .where(Project.id == project_id)
+                .values(archived_at=when)
+            )
+        await session.flush()
+
+    await set_rls_context(session)
+
+
 async def _create_project(
     session: AsyncSession,
     ids: IDTracker,
@@ -1222,6 +1257,10 @@ async def _create_project(
     archives it that many days back so the Archive tab has a spread of dates to
     sort by.
     """
+    # Archived last, not first. Archived work is read-only all the way down, so
+    # a project created archived refuses the task statuses, tasks and documents
+    # the seed is about to give it. The date is remembered and stamped once the
+    # project holds everything it is meant to hold.
     project = Project(
         guild_id=guild.id,
         name=name,
@@ -1233,6 +1272,10 @@ async def _create_project(
     session.add(project)
     await session.flush()
     ids.add("projects", project.id)
+    if archived_days_ago is not None:
+        _ARCHIVE_LAST.append(
+            (guild.id, project.id, NOW - timedelta(days=archived_days_ago))
+        )
 
     # Owner permission
     perm = ResourceGrant(
@@ -8942,6 +8985,7 @@ async def seed() -> None:
                 },
             ],
         )
+        await _apply_deferred_archives(session, admin_user)
         await session.commit()
 
     _save_state(ids.data)

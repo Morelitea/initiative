@@ -1,0 +1,90 @@
+{
+  "title": "Beziehungen",
+  "description": "Verknüpfe dies mit allem anderen in der Initiative und sag, wie beides zusammenhängt.",
+  "untitled": "Ohne Titel",
+  "empty": "Hiermit ist noch nichts verknüpft.",
+  "loadFailed": "Beziehungen antworten nicht. Versuche es in einem Moment erneut.",
+  "add": "Beziehung hinzufügen",
+  "graph": {
+    "alt": "{{title}} und die {{count}} damit verknüpften Dinge",
+    "hops": "Schritte",
+    "hopsN_one": "{{count}} Schritt",
+    "hopsN_other": "{{count}} Schritte",
+    "walking": "Sucht weiter…",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "reset": "Ansicht zurücksetzen",
+    "showTags": "Tags anzeigen"
+  },
+  "layout": {
+    "label": "Darstellung",
+    "tiles": "Kacheln",
+    "rows": "Liste",
+    "carousel": "Karussell",
+    "graph": "Graph"
+  },
+  "addError": "Diese Verknüpfung konnte nicht erstellt werden.",
+  "removeError": "Diese Verknüpfung konnte nicht entfernt werden.",
+  "added": "Verknüpft.",
+  "removed": "Verknüpfung entfernt.",
+  "dialog": {
+    "title": "Beziehung hinzufügen",
+    "description": "Gib an, wie die beiden zusammenhängen, und wähle dann das Objekt.",
+    "relationship": "Beziehung",
+    "entity": "Objekt",
+    "entityPlaceholder": "Nach Namen suchen…",
+    "noResults": "Keine Treffer.",
+    "submit": "Beziehung hinzufügen",
+    "submitting": "Wird hinzugefügt…",
+    "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen."
+  },
+  "card": {
+    "kindLinked": "{{kind}} · verknüpft {{date}}",
+    "unreachable": "Diese Version der App kann das nicht öffnen.",
+    "remove": "Verknüpfung zu {{title}} entfernen"
+  },
+  "derived": "Aus dem Inhalt gelesen. Ändere den Text, um das anzupassen.",
+  "groups": {
+    "attached": {
+      "title": "Angehängt",
+      "empty": "Noch nichts angehängt.",
+      "option": "Ist angehängt an"
+    },
+    "blockedBy": {
+      "title": "Blockiert von",
+      "empty": "Nichts steht im Weg.",
+      "option": "Wird blockiert von"
+    },
+    "blocks": {
+      "title": "Blockiert",
+      "empty": "Hält nichts auf.",
+      "option": "Blockiert"
+    },
+    "partOf": {
+      "title": "Teil von",
+      "empty": "Nicht Teil von etwas Größerem.",
+      "option": "Ist Teil von"
+    },
+    "parts": {
+      "title": "Teile",
+      "empty": "Nichts gehört hierzu.",
+      "option": "Hat als Teil"
+    },
+    "related": {
+      "title": "Verwandt",
+      "empty": "Noch nichts Verwandtes.",
+      "option": "Ist verwandt mit"
+    },
+    "referencedBy": {
+      "title": "Erwähnt von",
+      "empty": "Nichts erwähnt das hier.",
+      "option": "Verweist auf"
+    },
+    "tagged": {
+      "title": "Markiert",
+      "empty": "Keine Tags.",
+      "option": "Ist markiert"
+    }
+  },
+  "loading": "Wird geladen…"
+}

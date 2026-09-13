@@ -5720,6 +5720,7 @@ export interface QueueItemRead {
   tags: TagSummary[];
   documents: QueueItemDocumentRead[];
   tasks: QueueItemTaskRead[];
+  attachment_count: number;
   held_at_round: number | null;
   created_at: string;
 }
@@ -5935,6 +5936,10 @@ export interface RegistryStatusRead {
 
 /**
  * The far end of an edge, as the caller's side sees it.
+ *
+ * Enough to draw the thing and link to it, because a list of edges is a list of
+ * mixed kinds and a reader should not have to fetch each one to find out what it
+ * is called, what it looks like or where it lives.
  */
 export interface RelatedEnd {
   type: SearchEntityType;
@@ -5942,6 +5947,15 @@ export interface RelatedEnd {
   title: string | null;
   initiative_id: number | null;
   updated_at: string | null;
+  tool: Tool | null;
+  tool_id: number | null;
+  image_urls: string[];
+  icon: string | null;
+  color: string | null;
+  document_type: string | null;
+  mime_type: string | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
 }
 
 /**
@@ -6096,6 +6110,7 @@ export interface SearchSuggestion {
   initiative_id?: number | null;
   tool?: Tool | null;
   tool_id?: number | null;
+  can_write?: boolean;
 }
 
 /**

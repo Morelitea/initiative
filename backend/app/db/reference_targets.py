@@ -18,15 +18,17 @@ derivation, and the two kinds that are deliberately not referenceable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Sequence
 
-from sqlalchemy import Select, Table, func, literal, null, select, text
+from sqlalchemy import Select, Table, case, func, literal, null, select, text
+from sqlalchemy.dialects.postgresql import array as pg_array
 from sqlmodel import SQLModel
 
 from app.core.references import NOT_REFERENCEABLE
 from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
 
@@ -61,6 +63,91 @@ def title_column(entity_type: SearchEntityType):
 def id_column(entity_type: SearchEntityType):
     """The column addressing a row of this kind."""
     return SQLModel.metadata.tables[_table_for(entity_type)].c["id"]
+
+
+@dataclass(frozen=True)
+class Preview:
+    """Pictures that live on another table — a gallery's are its own images.
+
+    The chosen one stands alone; with none chosen, the newest few stand in for
+    it. That is what a gallery shows of itself everywhere else, and a gallery
+    nobody has picked a cover for is the usual kind.
+    """
+
+    #: The table the pictures are on.
+    table: str
+    #: Column there pointing back at this row.
+    parent_fk: str
+    #: Column here naming the one picture somebody chose, if any.
+    chosen_fk: str
+    #: Columns on a picture, coalesced in preference order.
+    columns: tuple[str, ...]
+    #: Column deciding which are newest.
+    newest_by: str
+    #: How many stand in when none was chosen.
+    limit: int = 4
+
+
+@dataclass(frozen=True)
+class Visual:
+    """What a kind shows of itself besides its name.
+
+    Three possibilities, in the order a mixed list tries them: a picture, an
+    emoji, a colour. Most kinds declare none and draw as their kind's own icon,
+    which is the honest answer for a thing with no look of its own rather than a
+    blank where a picture would go.
+
+    ``image`` names columns coalesced in preference order, because a gallery
+    thumbnail is absent whenever the source was already small enough not to need
+    one — so the full picture is the fallback, decided here rather than by every
+    surface that draws one.
+    """
+
+    image: tuple[str, ...] = ()
+    preview: Preview | None = None
+    icon: str | None = None
+    color: str | None = None
+    #: Columns saying what SORT of thing this is within its kind, for a kind
+    #: whose icon depends on that rather than being fixed: a spreadsheet, a
+    #: whiteboard and a PDF are all documents and none of them should draw as a
+    #: scroll. These are the same three facts a recent item already carries, plus
+    #: the link a smart link points at, so a client picks the icon with the
+    #: helper it already has instead of fetching each row to find out.
+    document_type: str | None = None
+    mime: str | None = None
+    filename: str | None = None
+    #: A JSON column and the key inside it holding a link, for a kind that keeps
+    #: one there rather than in a column of its own. Only that key is read, never
+    #: the whole body — which for a document is the largest thing it has.
+    link_in_json: tuple[str, str] | None = None
+
+
+#: Keyed by table, the way :data:`~app.db.search_index.SEARCH_SOURCES` is. A
+#: table with no entry has no look of its own, which is most of them.
+VISUALS: dict[str, Visual] = {
+    "documents": Visual(
+        image=("featured_image_url",),
+        document_type="document_type",
+        mime="file_content_type",
+        filename="original_filename",
+        link_in_json=("content", "url"),
+    ),
+    "gallery_images": Visual(image=("thumbnail_url", "file_url")),
+    "galleries": Visual(
+        preview=Preview(
+            table="gallery_images",
+            parent_fk="gallery_id",
+            chosen_fk="cover_image_id",
+            columns=("thumbnail_url", "file_url"),
+            newest_by="created_at",
+        )
+    ),
+    "projects": Visual(icon="icon"),
+    "calendars": Visual(color="color"),
+    "counters": Visual(color="color"),
+    "queue_items": Visual(color="color"),
+    "tags": Visual(color="color"),
+}
 
 
 def _live(table: Table):
@@ -166,6 +253,99 @@ async def unfrozen_ids(
     return {row[0] for row in rows.all()}
 
 
+def _coalesced(columns):
+    """One expression from columns tried in order."""
+    return func.coalesce(*columns) if len(columns) > 1 else columns[0]
+
+
+def _urls_of(picked, column: str):
+    """The URLs a subquery selected, as one array. NULL when it picked none."""
+    rows = picked.subquery()
+    return select(func.array_agg(rows.c[column])).scalar_subquery()
+
+
+def _preview_expr(table: Table, preview: Preview):
+    """The pictures a row shows of itself, as an array of URLs.
+
+    One when somebody chose it, the newest few when nobody did. Ordering and
+    limiting happen in the database rather than over a page of rows here,
+    because this runs once per kind for a whole page of edges.
+    """
+    other = SQLModel.metadata.tables[preview.table]
+    url = _coalesced([other.c[name] for name in preview.columns]).label("url")
+    live = _live(other)
+
+    chosen = select(url).where(other.c["id"] == table.c[preview.chosen_fk])
+    newest = (
+        select(url)
+        .where(other.c[preview.parent_fk] == table.c["id"])
+        .order_by(other.c[preview.newest_by].desc())
+        .limit(preview.limit)
+    )
+    if live is not None:
+        # A picture in the trash is not one to draw.
+        chosen = chosen.where(live)
+        newest = newest.where(live)
+
+    return case(
+        (
+            table.c[preview.chosen_fk].isnot(None),
+            _urls_of(chosen, "url"),
+        ),
+        else_=_urls_of(newest, "url"),
+    )
+
+
+def _visual_exprs(table_name: str, table: Table):
+    """How one kind draws, as select expressions: the picture, the emoji, the
+    colour, and the four facts that pick an icon for a kind that has no fixed
+    one.
+
+    A kind declaring nothing selects NULLs rather than being special-cased by the
+    caller, so the shape of the row is the same whatever is asked for.
+    """
+    visual = VISUALS.get(table_name, Visual())
+
+    if visual.image:
+        # A row with no picture reports no pictures, not one that is null.
+        one = _coalesced([table.c[name] for name in visual.image])
+        images = case((one.isnot(None), pg_array([one])), else_=null())
+    elif visual.preview is not None:
+        images = _preview_expr(table, visual.preview)
+    else:
+        images = null()
+
+    icon = table.c[visual.icon] if visual.icon else null()
+    color = table.c[visual.color] if visual.color else null()
+    facets = tuple(
+        table.c[name] if name else null()
+        for name in (visual.document_type, visual.mime, visual.filename)
+    )
+    if visual.link_in_json is not None:
+        # One key out of the JSON, never the body around it.
+        column, key = visual.link_in_json
+        link_url = table.c[column][key].astext
+    else:
+        link_url = null()
+    return (images, icon, color, *facets, link_url)
+
+
+def _governing_tool(table_name: str, table: Table):
+    """``(tool, id-expression)`` naming what a row of this kind is addressed
+    inside — its project for a task, its calendar for an event.
+
+    The same pair a search hit carries, from the same declaration, because a
+    link to a thing with no page of its own needs its parent's id to be built at
+    all. A kind whose governing tool differs per row (only a comment, which is
+    not referenceable) reports none rather than a guess.
+    """
+    source = SEARCH_SOURCES[table_name]
+    if source.dac_tool is None or source.dac_sql is not None:
+        return None, null()
+    local = table.c[source.dac_id] if source.dac_id else table.c["id"]
+    return source.dac_tool, local
+
+
 @dataclass(frozen=True)
 class Resolved:
     """What a reference turned out to name."""
@@ -190,6 +370,23 @@ class Resolved:
     #: When the row last changed, for the surfaces that order by recency. None
     #: for a kind that records no such moment.
     updated_at: datetime | None = None
+    #: The tool this row is addressed inside, and which one of them. A task is
+    #: addressed in its project and an event in its calendar, so a link to one
+    #: cannot be built from its own id alone.
+    tool: Tool | None = None
+    tool_id: int | None = None
+    #: What the row shows of itself beside its name — see :class:`Visual`. At
+    #: most one of the three is set, and most kinds set none. A picture is a
+    #: list because a gallery shows several when nobody picked one.
+    image_urls: list[str] = field(default_factory=list)
+    icon: str | None = None
+    color: str | None = None
+    #: What sort of thing it is within its kind, for the kinds whose icon
+    #: depends on that. Only documents report these.
+    document_type: str | None = None
+    mime_type: str | None = None
+    original_filename: str | None = None
+    smart_link_url: str | None = None
 
 
 async def resolve_many(
@@ -216,6 +413,10 @@ async def resolve_many(
         else literal(False)
     )
     updated = table.c["updated_at"] if "updated_at" in table.c else null()
+    images, icon, color, doc_type, mime, filename, link_url = _visual_exprs(
+        table_name, table
+    )
+    tool, tool_id = _governing_tool(table_name, table)
 
     rows = await session.exec(
         select(
@@ -224,6 +425,14 @@ async def resolve_many(
             initiative,
             archived,
             updated,
+            tool_id,
+            images,
+            icon,
+            color,
+            doc_type,
+            mime,
+            filename,
+            link_url,
         ).where(
             table.c["id"].in_(wanted),
             table.c["id"].in_(visible_ids(entity_type, user_id)),
@@ -238,6 +447,15 @@ async def resolve_many(
             scoped_kind=path is not None,
             archived=bool(row[3]),
             updated_at=row[4],
+            tool=tool,
+            tool_id=row[5],
+            image_urls=list(row[6] or ()),
+            icon=row[7],
+            color=row[8],
+            document_type=row[9],
+            mime_type=row[10],
+            original_filename=row[11],
+            smart_link_url=row[12],
         )
         for row in rows.all()
     }
