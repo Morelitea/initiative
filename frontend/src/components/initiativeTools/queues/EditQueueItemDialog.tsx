@@ -79,21 +79,34 @@ export const EditQueueItemDialog = ({
   const setLinksMutation = useSetQueueItemLinks(queueId);
 
   const updateItem = useUpdateQueueItem(queueId, {
-    onSuccess: (_data, vars) => {
+    onSuccess: async (_data, vars) => {
       // Tags are compared as sets: the rows are rebuilt on every read, so the
       // order they arrive in says nothing about whether they changed.
       const newTagIds = selectedTags.map((tg) => tg.id);
-      if (
-        !sameIds(
-          newTagIds,
-          item.tags.map((tg) => tg.id)
-        )
-      ) {
-        setTags.mutate({ itemId: vars.itemId, tagIds: newTagIds });
+      // Awaited, both of them: an item's tags and its links are saved by
+      // requests of their own, and reporting the save before those land would
+      // call it done while part of it may still fail. A failure leaves the
+      // dialog open with the change still in it, to be tried again.
+      try {
+        if (
+          !sameIds(
+            newTagIds,
+            item.tags.map((tg) => tg.id)
+          )
+        ) {
+          await setTags.mutateAsync({ itemId: vars.itemId, tagIds: newTagIds });
+        }
+        // One call for every kind of link, which works out per kind what moved.
+        await setLinksMutation.mutateAsync({
+          itemId: vars.itemId,
+          links,
+          previous: initialLinks,
+        });
+      } catch {
+        // The hooks have already said what went wrong.
+        onSuccess?.();
+        return;
       }
-
-      // One call for every kind of link, which works out per kind what moved.
-      setLinksMutation.mutate({ itemId: vars.itemId, links, previous: initialLinks });
 
       toast.success(t("itemUpdated"));
       onOpenChange(false);

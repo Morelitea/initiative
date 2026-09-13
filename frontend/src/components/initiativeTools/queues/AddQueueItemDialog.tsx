@@ -60,11 +60,20 @@ export const AddQueueItemDialog = ({
   const setLinksMutation = useSetQueueItemLinks(queueId);
 
   const createItem = useCreateQueueItem(queueId, {
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
       // The links can only be recorded once the thing they point from exists,
-      // so they are written against the id the create came back with.
+      // so they are written against the id the create came back with — and
+      // awaited, because saying "added" before they land would be claiming
+      // something that may still fail. A failure leaves the dialog open with
+      // everything still in it, so it can be tried again.
       if (links.length > 0) {
-        setLinksMutation.mutate({ itemId: created.id, links, previous: [] });
+        try {
+          await setLinksMutation.mutateAsync({ itemId: created.id, links, previous: [] });
+        } catch {
+          // `useSetQueueItemLinks` has already said what went wrong.
+          onSuccess?.();
+          return;
+        }
       }
       toast.success(t("itemAdded"));
       onOpenChange(false);

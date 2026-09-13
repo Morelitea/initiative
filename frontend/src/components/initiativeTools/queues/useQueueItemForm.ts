@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   type QueueItemRead,
@@ -9,7 +9,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { useRelationshipsFor } from "@/hooks/useRelationships";
 import { useServerForm } from "@/hooks/useServerForm";
-import { type LinkedRef, refKey } from "@/lib/relationships";
+import type { LinkedRef } from "@/lib/relationships";
 
 const DEFAULT_COLOR = "#6366F1";
 
@@ -22,7 +22,6 @@ const serializeItem = (value: {
   isVisible: boolean;
   selectedTags: { id: number }[];
   userId: number | null;
-  links: LinkedRef[];
 }): string =>
   JSON.stringify([
     value.label,
@@ -32,7 +31,6 @@ const serializeItem = (value: {
     value.isVisible,
     value.userId,
     value.selectedTags.map((tag) => tag.id),
-    value.links.map(refKey),
   ]);
 
 /**
@@ -80,6 +78,26 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
   );
   const loadedLinks = useMemo(() => attachmentsOf(linkQuery.data ?? []), [linkQuery.data]);
 
+  /**
+   * Held apart from the rest of the form on purpose.
+   *
+   * `useServerForm` stops following the server the moment anything is typed —
+   * which is what you want for a field somebody is filling in, and exactly wrong
+   * for a list that has not arrived yet. Typing a label before the links landed
+   * would have left this empty for good, and saving then compares an empty list
+   * against the loaded one and takes every link off.
+   *
+   * So the links follow their own answer until somebody actually touches them.
+   */
+  const [editedLinks, setEditedLinks] = useState<LinkedRef[] | null>(null);
+  // A new sitting starts from what the server says, the same way every other
+  // field here does when the dialog reopens. Keyed on the sitting rather than on
+  // the links: re-reading those must not throw away an edit in progress.
+  useEffect(() => {
+    setEditedLinks(null);
+  }, [open, item?.id]);
+  const links = editedLinks ?? loadedLinks;
+
   // Selections carry their titles: the typeahead only returns rows matching
   // the live query, so a chip's label can't be looked up from the results.
   // An edited item's own links already ship theirs.
@@ -93,13 +111,11 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
       isVisible: loaded?.is_visible ?? true,
       selectedTags: loaded?.tags ?? ([] as TagSummary[]),
       userId: loaded?.user_id ?? null,
-      links: loadedLinks,
     }),
     [open, item?.id],
     (a, b) => serializeItem(a) === serializeItem(b)
   );
   const { label, position, color, notes, isVisible, selectedTags, userId } = form.values;
-  const { links } = form.values;
   const setLabel = (next: string) => form.set({ label: next });
   const setPosition = (next: string) => form.set({ position: next });
   const setColor = (next: string) => form.set({ color: next });
@@ -107,7 +123,6 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
   const setIsVisible = (next: boolean) => form.set({ isVisible: next });
   const setSelectedTags = (next: TagSummary[]) => form.set({ selectedTags: next });
   const setUserId = (next: number | null) => form.set({ userId: next });
-  const setLinks = (next: LinkedRef[]) => form.set({ links: next });
 
   // The user picker is a server typeahead over the initiative's members
   // (`MemberSelect`), so the form no longer pulls the full roster. An edited
@@ -131,7 +146,7 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     userId,
     setUserId,
     links,
-    setLinks,
+    setLinks: setEditedLinks,
     /** The saved set, so a submit can work out what actually moved. */
     initialLinks: loadedLinks,
     linksLoading: linkQuery.isLoading,

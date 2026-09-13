@@ -755,3 +755,89 @@ async def test_an_empty_gallery_shows_no_pictures_rather_than_a_blank_one(
     end = await _attach(client, a, "gallery", gallery.id)
 
     assert end["image_urls"] == []
+
+
+async def test_asserting_a_link_from_something_you_may_read_but_not_edit(
+    client: AsyncClient, acting_user, session
+):
+    """ "This blocks that" is stored as *that* depending on this, so the far end
+    is the source — and a directional edge asks write on its source.
+
+    So a reader who may open the far end but not change it cannot assert one, and
+    has to be told so rather than the refusal arriving as a server error.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    mine = await create_task(session, a.project)
+    theirs = await create_project(session, a.initiative, b.user)
+    # Readable by everyone in the initiative, writable only by its owner.
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=theirs.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=theirs.guild_id,
+            initiative_id=theirs.initiative_id,
+        )
+    )
+    await session.commit()
+
+    readable = await client.get(a.g(f"/projects/{theirs.id}"), headers=a.headers)
+    assert readable.status_code == 200, "the case needs a readable far end"
+
+    response = await client.post(
+        _url(a),
+        headers=a.headers,
+        json={
+            "source": {"type": "project", "id": theirs.id},
+            "relationship_type": "depends_on",
+            "target": {"type": "task", "id": mine.id},
+        },
+    )
+    # Refused by name, so the client can say which end the problem is at —
+    # rather than as a bare privilege error with nothing to show for it.
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == RelationshipMessages.SOURCE_NOT_WRITABLE
+
+
+async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
+    client: AsyncClient, acting_user, session
+):
+    """`attached` describes the pair rather than either end, so it modifies
+    neither — and being able to open both is the whole of what it asks."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_document(session, a.initiative, b.user)
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=theirs.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=theirs.guild_id,
+            initiative_id=theirs.initiative_id,
+        )
+    )
+    await session.commit()
+
+    response = await client.post(
+        _url(a),
+        headers=a.headers,
+        json={
+            "source": {"type": "document", "id": theirs.id},
+            "relationship_type": "attached",
+            "target": {"type": "project", "id": a.project.id},
+        },
+    )
+    assert response.status_code == 201, response.text

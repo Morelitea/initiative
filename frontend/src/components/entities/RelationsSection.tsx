@@ -240,7 +240,15 @@ export const RelationsSection = ({
     );
   };
 
-  const total = rows.length;
+  /**
+   * What is actually going to be drawn, not what came back.
+   *
+   * An edge no shown heading claims — a tag, on a surface that leaves tags to
+   * the tag picker — is fetched and then not drawn, so counting the answer
+   * would report "some" and then render an empty panel.
+   */
+  const visible = useMemo(() => rows.filter((row) => groupOf(row, shown) !== null), [rows, shown]);
+  const total = visible.length;
 
   return (
     <Collapsible
@@ -347,7 +355,7 @@ export const RelationsSection = ({
              short shelves. What each link says rides on its own card. */
           <Carousel className="relative">
             <CarouselContent className="-ml-4">
-              {rows.map((edge) => {
+              {visible.map((edge) => {
                 const group = groupOf(edge, shown);
                 if (!group) return null;
                 return (

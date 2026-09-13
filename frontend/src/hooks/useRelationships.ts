@@ -117,6 +117,18 @@ export const useUnrelate = (
 /** How far out the graph will walk. */
 export const MAX_HOPS = 3;
 
+/**
+ * How many things a hop may ask about.
+ *
+ * Each one is a request, and a thing at the centre of a busy initiative can name
+ * a great many. Without a ceiling, "show me three hops" is an unbounded fan-out
+ * over somebody's whole community — and a picture of a thousand nodes says less
+ * than a picture of forty anyway, so the limit costs nothing that was worth
+ * drawing. The nearest are kept: what came back first is what the thing itself
+ * names, before anything further out.
+ */
+export const HOP_BUDGET = 40;
+
 /** One thing in a neighbourhood, and how many hops out it was found. */
 export interface GraphNode {
   ref: EndpointRef;
@@ -196,7 +208,10 @@ export const useRelationsNeighbourhood = (
   const firstRows = useMemo(() => (first[0]?.data ?? []).filter(keep), [first[0]?.data, keep]);
 
   const secondRefs = useMemo(
-    () => (hops >= 2 ? firstRows.map((row) => ({ type: row.other.type, id: row.other.id })) : []),
+    () =>
+      hops >= 2
+        ? firstRows.slice(0, HOP_BUDGET).map((row) => ({ type: row.other.type, id: row.other.id }))
+        : [],
     [firstRows, hops]
   );
   const second = useQueries({
@@ -209,6 +224,7 @@ export const useRelationsNeighbourhood = (
     const next: EndpointRef[] = [];
     for (const query of second) {
       for (const row of (query.data ?? []).filter(keep)) {
+        if (next.length >= HOP_BUDGET) return next;
         const ref = { type: row.other.type, id: row.other.id };
         if (seen.has(keyOf(ref))) continue;
         seen.add(keyOf(ref));

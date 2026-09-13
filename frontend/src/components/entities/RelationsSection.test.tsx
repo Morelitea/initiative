@@ -162,6 +162,15 @@ describe("RelationsSection", () => {
     expect(await screen.findByText("Nothing is connected to this yet.")).toBeInTheDocument();
   });
 
+  it("says nothing is connected when nothing it shows is", async () => {
+    // A tag is fetched with everything else and drawn by no heading here, so
+    // counting the answer rather than what is drawn reported "some" over an
+    // empty panel.
+    renderSection([{ ...row("tagged_with", "outbound", "combat"), other: { ...tagEnd } }]);
+
+    expect(await screen.findByText("Nothing is connected to this yet.")).toBeInTheDocument();
+  });
+
   it("does not offer to unlink something read out of a body", async () => {
     // A `references` edge is withdrawn by editing the words that made it, so
     // there is nothing here to click.

@@ -41,6 +41,7 @@ from app.core.relationships import (
     ENDPOINT_KINDS,
     Provenance,
     RelationshipType,
+    is_symmetric,
 )
 from app.core.search import SearchEntityType
 from app.db import reference_targets
@@ -172,6 +173,37 @@ def _endpoint_kind(value: SearchEntityType) -> SearchEntityType:
     return value
 
 
+async def _refuse_unwritable_source(
+    session: RLSSessionDep,
+    ref: EndpointRef,
+    relationship_type: RelationshipType,
+    user_id: int,
+) -> None:
+    """A directional link is the source's to make.
+
+    Direction is chosen so the source is the end an edge describes, which is
+    what makes "who may write this" derivable: changing what is said *about*
+    something asks to change that thing. A symmetric link describes neither end
+    and asks only that both be readable, which resolving them already proved.
+
+    The table says the same thing and would refuse the write on its own. Asking
+    here is so the refusal arrives with a name the caller can act on — "you can
+    only read that" — rather than as a bare privilege error.
+    """
+    if is_symmetric(relationship_type):
+        return
+    writable = await session.exec(
+        reference_targets.visible_ids(ref.type, user_id, need_write=True).where(
+            reference_targets.id_column(ref.type) == ref.id
+        )
+    )
+    if writable.first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=RelationshipMessages.SOURCE_NOT_WRITABLE,
+        )
+
+
 def _render(
     row: EntityRelationship,
     *,
@@ -295,6 +327,9 @@ async def create_relationship(
     target = await _resolve(session, body.target, current_user.id)
     _refuse_across_initiatives(source, target)
     _refuse_archived(source, target)
+    await _refuse_unwritable_source(
+        session, body.source, body.relationship_type, current_user.id
+    )
 
     try:
         row = await relationships_service.create(
