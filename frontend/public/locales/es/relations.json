@@ -35,7 +35,8 @@
     "entityPlaceholder": "Buscar por nombre…",
     "noResults": "No hay coincidencias.",
     "submit": "Añadir relación",
-    "submitting": "Añadiendo…"
+    "submitting": "Añadiendo…",
+    "readOnlyTarget": "Algunos vínculos solo pueden crearse desde algo que puedas cambiar, y eso solo puedes leerlo."
   },
   "card": {
     "kindLinked": "{{kind}} · enlazado {{date}}",

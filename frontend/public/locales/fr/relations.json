@@ -35,7 +35,8 @@
     "entityPlaceholder": "Chercher par nom…",
     "noResults": "Aucun résultat.",
     "submit": "Ajouter la relation",
-    "submitting": "Ajout…"
+    "submitting": "Ajout…",
+    "readOnlyTarget": "Certains liens ne peuvent partir que de quelque chose que tu peux modifier, et tu peux seulement lire ceci."
   },
   "card": {
     "kindLinked": "{{kind}} · relié {{date}}",

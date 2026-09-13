@@ -35,7 +35,8 @@
     "entityPlaceholder": "Nach Namen suchen…",
     "noResults": "Keine Treffer.",
     "submit": "Beziehung hinzufügen",
-    "submitting": "Wird hinzugefügt…"
+    "submitting": "Wird hinzugefügt…",
+    "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen."
   },
   "card": {
     "kindLinked": "{{kind}} · verknüpft {{date}}",

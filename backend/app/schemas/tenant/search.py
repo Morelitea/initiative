@@ -51,3 +51,8 @@ class SearchSuggestion(BaseModel):
     initiative_id: Optional[int] = None
     tool: Optional[Tool] = None
     tool_id: Optional[int] = None
+    #: Whether this reader may change the thing, not only open it. A picker
+    #: needs it to know which links are theirs to make: a relation describing
+    #: its source is the source's to assert, so a thing somebody can only read
+    #: cannot be the source of one.
+    can_write: bool = False

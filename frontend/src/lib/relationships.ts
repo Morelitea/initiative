@@ -173,6 +173,20 @@ export const edgeFor = (
     ? { source: other, relationship_type: group.relationshipType, target: anchor }
     : { source: anchor, relationship_type: group.relationshipType, target: other };
 
+/**
+ * Whether this link is the anchor's to make, given what was picked.
+ *
+ * A group listing the *inbound* side asserts its edge from the far end — "this
+ * blocks that" is the fact that *that* depends on this — and a relation that
+ * describes its source is the source's to assert. So those groups need the
+ * picked thing to be one the reader may change, not merely one they may open.
+ *
+ * A symmetric group describes neither end and asks only that both be readable,
+ * which having found it in the picker already proved.
+ */
+export const canAssert = (group: RelationGroup, otherIsWritable: boolean): boolean =>
+  group.direction !== "inbound" || otherIsWritable;
+
 /** The `relations` namespace key for a group's heading. */
 export const groupTitleKey = (key: RelationGroupKey) => `groups.${key}.title` as const;
 

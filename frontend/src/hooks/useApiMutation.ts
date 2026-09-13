@@ -52,10 +52,18 @@ export function useApiMutation<TData, TVariables = void>(
     // save, and be told to retry a change that already landed. What happens
     // after the write is the caller's to report — several already do — and all
     // this needs from it is how long to stay pending.
+    //
+    // Settled, not swallowed: it is written down, because a follow-up that
+    // quietly fails leaves the screen showing something the server no longer
+    // says, and nothing else would ever mention it.
     onSuccess: (...args) => {
       void config.invalidate?.(args[0], args[1]);
       const following = onSuccess?.(...args);
-      return following instanceof Promise ? following.catch(() => undefined) : following;
+      return following instanceof Promise
+        ? following.catch((error: unknown) => {
+            console.error("Work after a successful save did not finish:", error);
+          })
+        : following;
     },
     onError: (...args) => {
       if (config.errorKey) toast.error(getErrorMessage(args[0], config.errorKey));

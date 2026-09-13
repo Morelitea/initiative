@@ -35,7 +35,8 @@
     "entityPlaceholder": "Search by name…",
     "noResults": "Nothing matches.",
     "submit": "Add relation",
-    "submitting": "Adding…"
+    "submitting": "Adding…",
+    "readOnlyTarget": "Some links can only be made from something you can change, and you can only read that."
   },
   "card": {
     "kindLinked": "{{kind}} · linked {{date}}",

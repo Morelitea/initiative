@@ -6110,6 +6110,7 @@ export interface SearchSuggestion {
   initiative_id?: number | null;
   tool?: Tool | null;
   tool_id?: number | null;
+  can_write?: boolean;
 }
 
 /**

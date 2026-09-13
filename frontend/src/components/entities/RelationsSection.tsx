@@ -60,6 +60,7 @@ import {
 } from "@/hooks/useRelationships";
 import { toast } from "@/lib/chesterToast";
 import {
+  canAssert,
   edgeFor,
   groupEdges,
   groupOf,
@@ -193,7 +194,22 @@ export const RelationsSection = ({
 
   // Attaching is what nearly every one of these is, so the dialog opens on it
   // rather than on an empty box somebody has to answer before they can search.
-  const chosenGroup = groupKey ?? assertable[0]?.key ?? null;
+  /**
+   * The links that can actually be made to what was picked.
+   *
+   * Reversing groups — "Blocks", "Has as a part" — assert their edge from the
+   * far end, which the server will only accept from somebody who may change it.
+   * Offering them for a thing you can only read is offering a refusal.
+   */
+  const offered = useMemo(
+    () => assertable.filter((group) => canAssert(group, picked?.can_write !== false)),
+    [assertable, picked]
+  );
+
+  const chosenGroup =
+    (groupKey && offered.some((group) => group.key === groupKey) ? groupKey : null) ??
+    offered[0]?.key ??
+    null;
 
   const { data: rows = [], isLoading, isError } = useRelationshipsFor(entity);
   // Only walked while the picture is the thing on screen: a second hop is a
@@ -440,7 +456,7 @@ export const RelationsSection = ({
                   <SelectValue placeholder={t("dialog.relationship")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {assertable.map((group) => (
+                  {offered.map((group) => (
                     <SelectItem key={group.key} value={group.key}>
                       {t(`groups.${group.key}.option`)}
                     </SelectItem>
@@ -457,6 +473,9 @@ export const RelationsSection = ({
                 onChange={setPicked}
                 disabled={!chosenGroup}
               />
+              {picked && offered.length < assertable.length ? (
+                <p className="text-muted-foreground text-xs">{t("dialog.readOnlyTarget")}</p>
+              ) : null}
             </div>
           </div>
           <DialogFooter>

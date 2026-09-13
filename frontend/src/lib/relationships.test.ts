@@ -8,6 +8,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   ASSERTABLE_GROUPS,
+  canAssert,
   edgeFor,
   groupEdges,
   groupOf,
@@ -131,6 +132,31 @@ describe("the vocabulary", () => {
   it("shows references, so a body's mentions are readable", () => {
     expect(RELATION_GROUPS.referencedBy.assertable).toBe(false);
     expect(RELATION_GROUP_ORDER).toContain("referencedBy");
+  });
+});
+
+describe("canAssert", () => {
+  it("lets a symmetric link be made with anything you can open", () => {
+    // It describes neither end, so it changes neither — finding it in the
+    // picker is the whole of what it asks.
+    expect(canAssert(RELATION_GROUPS.attached, false)).toBe(true);
+    expect(canAssert(RELATION_GROUPS.related, false)).toBe(true);
+  });
+
+  it("lets an outbound link be made with anything you can open", () => {
+    // "This is blocked by that" describes *this*, which is already yours.
+    expect(canAssert(RELATION_GROUPS.blockedBy, false)).toBe(true);
+    expect(canAssert(RELATION_GROUPS.partOf, false)).toBe(true);
+  });
+
+  it("asks that a reversed link's far end be yours to change", () => {
+    // "This blocks that" is stored as *that* depending on this, so it is a
+    // statement about that one — and the server will only take it from
+    // somebody who may change it.
+    expect(canAssert(RELATION_GROUPS.blocks, false)).toBe(false);
+    expect(canAssert(RELATION_GROUPS.parts, false)).toBe(false);
+    expect(canAssert(RELATION_GROUPS.blocks, true)).toBe(true);
+    expect(canAssert(RELATION_GROUPS.parts, true)).toBe(true);
   });
 });
 
