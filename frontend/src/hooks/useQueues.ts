@@ -688,19 +688,34 @@ export const useSetQueueItemTags = (
  * kind that has lost all its links is written as an empty set rather than
  * skipped — otherwise removing the last document of a kind would not stick.
  */
+interface QueueItemLinks {
+  itemId: number;
+  links: LinkedRef[];
+  previous: LinkedRef[];
+  /**
+   * Write every kind, even one whose set of ids has not moved.
+   *
+   * For a retry. Skipping the unchanged is an optimisation that assumes the
+   * unchanged already landed, and the one case where that is not true is the
+   * one being retried: the kind that failed still reads as "no change" against
+   * what was asked for the first time.
+   */
+  force?: boolean;
+}
+
 export const useSetQueueItemLinks = (
   queueId: number,
-  options?: MutationOpts<void, { itemId: number; links: LinkedRef[]; previous: LinkedRef[] }>
+  options?: MutationOpts<void, QueueItemLinks>
 ) =>
-  useGuildMutation<void, { itemId: number; links: LinkedRef[]; previous: LinkedRef[] }>(
+  useGuildMutation<void, QueueItemLinks>(
     {
-      mutationFn: async (guildId, { itemId, links, previous }) => {
+      mutationFn: async (guildId, { itemId, links, previous, force }) => {
         const wanted = idsByKind(links);
         const had = idsByKind(previous);
 
         for (const kind of new Set([...wanted.keys(), ...had.keys()])) {
           const next = wanted.get(kind) ?? [];
-          if (sameIds(next, had.get(kind) ?? [])) continue;
+          if (!force && sameIds(next, had.get(kind) ?? [])) continue;
           await setRelated(guildId, { type: SearchEntityType.queue_item, id: itemId }, kind, next);
         }
       },

@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
+import type { LinkedRef } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -69,16 +70,33 @@ export const AddQueueItemDialog = ({
    * twice would otherwise leave two items behind it.
    */
   const created = useRef<number | null>(null);
+  /**
+   * What the last attempt asked for.
+   *
+   * A retry has to undo as well as finish: links are written a kind at a time,
+   * so an earlier kind may already be on the item while a later one failed —
+   * and if somebody takes one of those off before trying again, the item is
+   * still carrying it. Handing the previous attempt back as what is already
+   * there is what lets the difference be worked out.
+   */
+  const attempted = useRef<LinkedRef[]>([]);
   useEffect(() => {
     created.current = null;
+    attempted.current = [];
   }, [open]);
 
   /** Write the links, and only then call the whole thing done. */
   const finish = async (itemId: number) => {
-    if (links.length > 0) {
-      await setLinksMutation.mutateAsync({ itemId, links, previous: [] });
+    const retry = created.current !== null && attempted.current.length > 0;
+    if (links.length > 0 || retry) {
+      const previous = attempted.current;
+      attempted.current = links;
+      // A retry writes every kind rather than only the ones that look changed:
+      // the kind that failed reads as unchanged against what was asked before.
+      await setLinksMutation.mutateAsync({ itemId, links, previous, force: retry });
     }
     created.current = null;
+    attempted.current = [];
     toast.success(t("itemAdded"));
     onOpenChange(false);
     onSuccess?.();
