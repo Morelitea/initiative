@@ -89,6 +89,8 @@
   "addresses": {
     "title": "Direcciones de correo",
     "description": "Cualquier dirección confirmada te permite entrar, y el correo de tu cuenta llega a todas.",
+    "loadFailed": "No se pudieron cargar tus direcciones.",
+    "retry": "Reintentar",
     "primary": "Principal",
     "unverified": "Sin confirmar",
     "makePrimary": "Hacer principal",

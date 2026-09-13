@@ -89,6 +89,8 @@
   "addresses": {
     "title": "E-Mail-Adressen",
     "description": "Mit jeder bestätigten Adresse melden Sie sich an, und Ihre Kontopost geht an alle.",
+    "loadFailed": "Ihre Adressen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
     "primary": "Hauptadresse",
     "unverified": "Nicht bestätigt",
     "makePrimary": "Als Hauptadresse festlegen",

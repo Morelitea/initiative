@@ -89,6 +89,8 @@
   "addresses": {
     "title": "Adresses e-mail",
     "description": "Toute adresse confirmée vous connecte, et le courrier de votre compte arrive sur toutes.",
+    "loadFailed": "Vos adresses n'ont pas pu être chargées.",
+    "retry": "Réessayer",
     "primary": "Principale",
     "unverified": "Non confirmée",
     "makePrimary": "Définir comme principale",

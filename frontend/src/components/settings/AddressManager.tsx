@@ -41,7 +41,7 @@ export const AddressManager = () => {
   const [pending, setPending] = useState("");
   const [removeTarget, setRemoveTarget] = useState<UserEmailRead | null>(null);
 
-  const { data, isLoading } = useMyAddresses();
+  const { data, isLoading, isError, refetch } = useMyAddresses();
   const addresses = visibleAddresses(data);
 
   const addAddress = useAddAddress({
@@ -83,6 +83,16 @@ export const AddressManager = () => {
         <div className="space-y-2">
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
+        </div>
+      ) : isError ? (
+        // Said, not drawn as an empty list. A request that did not arrive and
+        // an account holding nothing render the same way otherwise, and the
+        // second is alarming on the page that says how you get in.
+        <div className="space-y-2 rounded-md border border-dashed p-4 text-center">
+          <p className="text-muted-foreground text-sm">{t("settings:addresses.loadFailed")}</p>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            {t("settings:addresses.retry")}
+          </Button>
         </div>
       ) : (
         <ul className="space-y-2">

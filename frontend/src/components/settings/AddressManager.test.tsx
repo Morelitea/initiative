@@ -7,11 +7,14 @@
  * address do not go, an unproven one is not offered as primary, and the ones
  * an IdP minted are not shown at all.
  */
+
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUserEmail } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { UserEmailRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { AddressManager } from "./AddressManager";
 
@@ -30,33 +33,24 @@ vi.mock("@/hooks/useAddresses", async (importOriginal) => ({
   useMakeAddressPrimary: () => ({ mutate: mocks.makePrimary, isPending: false }),
 }));
 
-const address = (overrides: Record<string, unknown> = {}) => ({
-  id: 1,
-  email: "primary@example.com",
-  verified: true,
-  is_primary: true,
-  source: "signup",
-  created_at: "2026-01-01T00:00:00Z",
-  last_login_at: null,
-  ...overrides,
-});
-
-const listing = (...items: ReturnType<typeof address>[]) => ({
+const listing = (...items: UserEmailRead[]) => ({
   data: { items },
   isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
 });
 
 describe("AddressManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.list.mockReturnValue(listing(address()));
+    mocks.list.mockReturnValue(listing(buildUserEmail()));
   });
 
   it("shows the addresses the account holds, primary first", () => {
     mocks.list.mockReturnValue(
       listing(
-        address({ id: 2, email: "second@example.com", is_primary: false }),
-        address({ id: 1, email: "primary@example.com", is_primary: true })
+        buildUserEmail({ email: "second@example.com", is_primary: false }),
+        buildUserEmail({ email: "primary@example.com", is_primary: true })
       )
     );
 
@@ -69,9 +63,8 @@ describe("AddressManager", () => {
   it("does not show an address a provider minted", () => {
     mocks.list.mockReturnValue(
       listing(
-        address(),
-        address({
-          id: 2,
+        buildUserEmail(),
+        buildUserEmail({
           email: "abc123@oidc.local",
           verified: false,
           is_primary: false,
@@ -88,8 +81,8 @@ describe("AddressManager", () => {
   it("does not remove the primary while it is the primary", () => {
     mocks.list.mockReturnValue(
       listing(
-        address(),
-        address({ id: 2, email: "second@example.com", verified: true, is_primary: false })
+        buildUserEmail({ email: "primary@example.com" }),
+        buildUserEmail({ email: "second@example.com", verified: true, is_primary: false })
       )
     );
 
@@ -107,8 +100,8 @@ describe("AddressManager", () => {
     // in is not the primary. Removing it is the case the primary check misses.
     mocks.list.mockReturnValue(
       listing(
-        address({ verified: false }),
-        address({ id: 2, email: "proven@example.com", verified: true, is_primary: false })
+        buildUserEmail({ email: "primary@example.com", verified: false }),
+        buildUserEmail({ email: "proven@example.com", verified: true, is_primary: false })
       )
     );
 
@@ -120,9 +113,13 @@ describe("AddressManager", () => {
   it("offers primary only on an address that has been proven", () => {
     mocks.list.mockReturnValue(
       listing(
-        address(),
-        address({ id: 2, email: "unproven@example.com", verified: false, is_primary: false }),
-        address({ id: 3, email: "proven@example.com", verified: true, is_primary: false })
+        buildUserEmail(),
+        buildUserEmail({
+          email: "unproven@example.com",
+          verified: false,
+          is_primary: false,
+        }),
+        buildUserEmail({ email: "proven@example.com", verified: true, is_primary: false })
       )
     );
 
@@ -130,6 +127,22 @@ describe("AddressManager", () => {
 
     // One button, for the one address that could take the mail.
     expect(screen.getAllByRole("button", { name: /make primary/i })).toHaveLength(1);
+  });
+
+  it("says so when the list could not be read, rather than showing none", () => {
+    const refetch = vi.fn();
+    mocks.list.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch,
+    });
+
+    renderWithProviders(<AddressManager />);
+
+    // An account with addresses must not read as an account with none.
+    expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
   it("says the same thing whether or not the address was free", async () => {

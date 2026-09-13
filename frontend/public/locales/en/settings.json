@@ -89,6 +89,8 @@
   "addresses": {
     "title": "Email addresses",
     "description": "Any confirmed address signs you in, and account mail reaches all of them.",
+    "loadFailed": "Your addresses could not be loaded.",
+    "retry": "Try again",
     "primary": "Primary",
     "unverified": "Unconfirmed",
     "makePrimary": "Make primary",
