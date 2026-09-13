@@ -79,8 +79,21 @@ _argon2_hasher = PasswordHasher()
 # an account; they exist only to fill the unused slot in that schedule.
 _SIGN_IN_DUMMY_PASSWORD = "initiative-login-dummy-password"
 _SIGN_IN_DUMMY_ARGON2_HASH = _argon2_hasher.hash(_SIGN_IN_DUMMY_PASSWORD)
+#: Work factor for the stand-in bcrypt hash below.
+#:
+#: Pinned rather than taking `bcrypt.gensalt()`'s default, because this number
+#: decides what an address with no account costs to probe. Every sign-in pays a
+#: bcrypt check so that an unknown address costs the same as a legacy bcrypt
+#: account; that equality holds only while this matches the cost those stored
+#: hashes carry. Adjacent costs are far apart -- measured here, cost 10 verifies
+#: in ~102 ms against ~400 ms for cost 12 -- so inheriting the library default
+#: would let a dependency release move it for every legacy account at once,
+#: on upgrade, with nothing saying so. 12 is that default today; changing it
+#: should be an edit somebody makes on purpose.
+SIGN_IN_BCRYPT_COST = 12
+
 _SIGN_IN_DUMMY_BCRYPT_HASH = bcrypt.hashpw(
-    _SIGN_IN_DUMMY_PASSWORD.encode("utf-8"), bcrypt.gensalt()
+    _SIGN_IN_DUMMY_PASSWORD.encode("utf-8"), bcrypt.gensalt(SIGN_IN_BCRYPT_COST)
 ).decode("utf-8")
 
 

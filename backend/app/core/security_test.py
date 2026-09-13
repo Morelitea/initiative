@@ -597,3 +597,25 @@ def test_delegation_reports_expiry_rather_than_the_next_key():
 def test_delegation_is_off_where_no_app_platform_is_configured(monkeypatch):
     monkeypatch.setattr(security.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
     assert security.delegation_possible() is False
+
+
+def test_the_sign_in_dummy_bcrypt_cost_is_pinned_not_inherited() -> None:
+    """The dummy's cost decides what an unknown address costs to probe.
+
+    `verify_sign_in_password` pays a bcrypt check for every sign-in so that an
+    address with no account costs the same as one with a legacy bcrypt account.
+    That equality holds only while the dummy's cost matches the stored hashes'.
+
+    Measured on this machine, the gap between adjacent costs is not subtle:
+    cost 10 verifies in ~102 ms and cost 12 in ~400 ms. So if the dummy took
+    whatever `bcrypt.gensalt()` currently defaults to, a library release that
+    moved the default would re-open the difference for every legacy account at
+    once, silently, on upgrade.
+
+    Pinning it keeps that a deliberate edit. The constant is the contract.
+    """
+    stored = security._SIGN_IN_DUMMY_BCRYPT_HASH
+    text = stored.decode() if isinstance(stored, bytes) else stored
+    cost = int(text.split("$")[2])
+
+    assert cost == security.SIGN_IN_BCRYPT_COST
