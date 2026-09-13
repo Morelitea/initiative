@@ -459,7 +459,7 @@ async def login_access_token(
     )
     if not user or not password_matches:
         # Invariant: every refusal takes the same path, whether or not the
-        # address resolved. Not conditional -- see T20.
+        # address resolved. Not conditional -- see T123.
         #
         # The row is identity-free when nothing resolved: no submitted address
         # and no target, only that a password refusal happened.
