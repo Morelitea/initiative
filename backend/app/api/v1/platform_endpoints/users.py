@@ -834,8 +834,11 @@ async def update_users_me(
         current_user.password_set_at = datetime.now(timezone.utc)
         # Bump token_version and revoke device tokens + API keys + refresh
         # sessions so no stale credential can survive the password change.
+        #
+        # Staged, not committed: the replacement session below joins them in
+        # one transaction, so the account keeps what it had if that fails.
         await user_tokens_service.revoke_user_sessions(
-            session, user=current_user, admin_session=admin_session
+            session, user=current_user, admin_session=admin_session, commit=False
         )
         # ...but keep THIS device signed in: the revocation above killed the
         # caller's own access token AND refresh chain, so open a fresh session

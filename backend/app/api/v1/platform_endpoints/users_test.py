@@ -1234,6 +1234,16 @@ async def test_a_password_change_that_cannot_open_a_session_is_refused(
     assert change.status_code == 503
     assert change.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
 
+    # The revocations were staged alongside the replacement, so the account
+    # still holds what it had: once the store is back, the old password still
+    # signs in.
+    monkeypatch.undo()
+    again = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwfall@example.com", "password": "testpassword123"},
+    )
+    assert again.status_code == 200
+
 
 @pytest.mark.integration
 async def test_users_me_reports_linked_identity(

@@ -258,6 +258,7 @@ async def revoke_user_sessions(
     *,
     user: User,
     admin_session: AsyncSession,
+    commit: bool = True,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
     change.
@@ -275,13 +276,19 @@ async def revoke_user_sessions(
     writes (``token_version``, device tokens) and the caller commits it;
     ``admin_session`` is the system engine, the only role that may touch the
     ``app_admin``-only tables — ``auth_sessions`` and ``user_api_keys``. The
-    API-key deactivation and refresh-session revocation are both committed here
-    (on ``admin_session``) so they can't be forgotten by a caller — revoking
-    ahead of a password write that later fails just logs the user out, which is
-    the fail-safe direction.
+    API-key deactivation and refresh-session revocation are committed here by
+    default so they can't be forgotten by a caller — revoking ahead of a
+    password write that later fails just logs the user out, which is the
+    fail-safe direction.
+
+    ``commit=False`` leaves them staged, for the one caller that opens a
+    replacement session immediately afterwards: staged together, the
+    revocations and their replacement land in one transaction, so a failure to
+    open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
     await revoke_active_device_tokens(session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
     await session_service.revoke_all_for_user(admin_session, user_id=user.id)
-    await admin_session.commit()
+    if commit:
+        await admin_session.commit()
