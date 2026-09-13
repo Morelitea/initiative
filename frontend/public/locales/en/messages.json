@@ -54,6 +54,7 @@
   "send": "Send",
   "sendFailed": "That message could not be sent.",
   "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
+  "recipientDevicesUnverified": "{{name}} is using a device you haven't checked yet, so this wasn't sent. Compare the pictures above with them, then choose \"I've checked this\".",
   "deviceFailed": "Encrypted messages could not be set up on this device.",
   "loading": "Loading…",
   "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app.",

@@ -54,6 +54,7 @@
   "send": "Envoyer",
   "sendFailed": "Ce message n'a pas pu être envoyé.",
   "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
+  "recipientDevicesUnverified": "{{name}} utilise un appareil que vous n'avez pas encore vérifié, donc le message n'a pas été envoyé. Comparez les images ci-dessus ensemble, puis choisissez « J'ai vérifié ».",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
   "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application.",

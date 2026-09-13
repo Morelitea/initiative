@@ -54,6 +54,7 @@
   "send": "Senden",
   "sendFailed": "Diese Nachricht konnte nicht gesendet werden.",
   "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
+  "recipientDevicesUnverified": "{{name}} verwendet ein Gerät, das du noch nicht geprüft hast, daher wurde die Nachricht nicht gesendet. Vergleicht die Bilder oben miteinander und wähle dann „Ich habe das geprüft“.",
   "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
   "loading": "Wird geladen …",
   "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App.",

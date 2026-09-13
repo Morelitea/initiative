@@ -74,6 +74,22 @@ export class RecipientHasNoDeviceError extends Error {
   }
 }
 
+/**
+ * Every device the recipient has is being withheld pending a check.
+ *
+ * Separate from having no device at all, because the two need different
+ * sentences and different next actions. "They have not set up encrypted
+ * messages" is about the other person and there is nothing the reader can do;
+ * this one is about a check the reader has not finished, on the notice beside
+ * the composer, and it clears as soon as they do.
+ */
+export class RecipientDevicesUnverifiedError extends Error {
+  constructor() {
+    super("every device for that account is waiting on a safety-code check");
+    this.name = "RecipientDevicesUnverifiedError";
+  }
+}
+
 /** One destination for a message: a device, and whose it is. */
 interface Destination {
   id: string;
@@ -592,9 +608,13 @@ async function readPeerDirectory(otherUserId: number) {
       .filter((change) => change.userId === otherUserId)
       .map((change) => change.deviceId)
   );
+  const addressable = theirs.devices.filter((device) => !unverified.has(device.device_id));
   return {
     ...theirs,
-    devices: theirs.devices.filter((device) => !unverified.has(device.device_id)),
+    devices: addressable,
+    // How many were held back, so a send left with nothing to address can say
+    // which of the two reasons it was.
+    withheld: theirs.devices.length - addressable.length,
   };
 }
 
@@ -609,7 +629,12 @@ async function sendEnvelope(
   // The directory rather than a claim: reading it spends nothing, and most
   // messages go to devices this one already has a session with.
   const theirs = await readPeerDirectory(otherUserId);
-  if (theirs.devices.length === 0) return false;
+  if (theirs.devices.length === 0) {
+    // Withholding is this client's own doing and is undone by acknowledging the
+    // notice, so it is not the same outcome as an account with no device.
+    if (theirs.withheld > 0) throw new RecipientDevicesUnverifiedError();
+    return false;
+  }
 
   const destinations: Destination[] = [
     ...theirs.devices.map((device) => ({

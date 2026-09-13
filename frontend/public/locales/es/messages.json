@@ -54,6 +54,7 @@
   "send": "Enviar",
   "sendFailed": "No se pudo enviar ese mensaje.",
   "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
+  "recipientDevicesUnverified": "{{name}} usa un dispositivo que aún no has comprobado, así que no se envió. Comparad las imágenes de arriba y luego elige «Lo he comprobado».",
   "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
   "loading": "Cargando…",
   "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación.",

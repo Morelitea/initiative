@@ -30,7 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
-import { RecipientHasNoDeviceError } from "@/crypto/messaging";
+import { RecipientDevicesUnverifiedError, RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -1037,9 +1037,11 @@ function Thread({
       {send.isError ? (
         <div className="px-3 pb-3">
           <p className="text-destructive text-sm">
-            {send.error instanceof RecipientHasNoDeviceError
-              ? t("recipientHasNoDevice", { name })
-              : t("sendFailed")}
+            {send.error instanceof RecipientDevicesUnverifiedError
+              ? t("recipientDevicesUnverified", { name })
+              : send.error instanceof RecipientHasNoDeviceError
+                ? t("recipientHasNoDevice", { name })
+                : t("sendFailed")}
           </p>
         </div>
       ) : null}
