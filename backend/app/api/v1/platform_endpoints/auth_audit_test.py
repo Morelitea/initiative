@@ -112,16 +112,32 @@ async def test_an_inactive_account_is_recorded_separately_from_a_wrong_password(
     assert rows[0].envelope["detail"]["reason"] == "inactive"
 
 
-async def test_an_address_nobody_holds_is_not_written_down(
+async def test_password_endpoints_finalize_unknown_account_refusals_without_identity(
     client: AsyncClient, session: AsyncSession
 ):
-    """A refusal that resolved to no account is not an action on anybody, and
-    recording it would put an unowned address in the log."""
+    """Every refusal lands the same identity-free audit write and commit."""
     before = len(await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED))
-    response = await _sign_in(client, "nobody-at-all@example.com")
-    assert response.status_code == 400
+    login_response = await _sign_in(client, "nobody-at-all@example.com")
+    device_response = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "still-nobody@example.com",
+            "password": PASSWORD,
+            "device_name": "test-phone",
+        },
+    )
+    assert login_response.status_code == device_response.status_code == 400
 
-    assert len(await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)) == before
+    rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
+    new_rows = rows[before:]
+    assert len(new_rows) == 2
+    assert [row.actor_user_id for row in new_rows] == [None, None]
+    assert [row.target_user_id for row in new_rows] == [None, None]
+    assert [row.envelope["target"] for row in new_rows] == [None, None]
+    assert [row.envelope["detail"] for row in new_rows] == [
+        {"method": "password", "reason": "bad_password"},
+        {"method": "password", "reason": "bad_password"},
+    ]
 
 
 async def test_signing_out_is_recorded(client: AsyncClient, session: AsyncSession):

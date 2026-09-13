@@ -42,7 +42,7 @@ from app.core.security import (
     get_password_hash,
     mint_access_token,
     password_needs_rehash,
-    verify_password,
+    verify_sign_in_password,
 )
 from app.core.user_input_validators import (
     is_safe_next_path,
@@ -220,10 +220,12 @@ async def register_user(
         # first-user path because there's no bot economics on a fresh
         # deployment with zero users — and operators shouldn't be
         # locked out by a captcha they haven't fully wired up yet.
-        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
-        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
-        # ALB / Cloudflare the captcha provider sees the real client IP
-        # for its anti-abuse heuristics — not the proxy's.
+        # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+        # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
+        # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
+        # captcha provider sees the client address rather than the proxy's.
+        # A deployment that starts uvicorn some other way has to pass those
+        # flags itself, or this is the proxy's address.
         if not is_first_user:
             from app.core.rate_limit import get_real_client_ip
             from app.services import captcha as captcha_service
@@ -411,25 +413,26 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 
 
 async def _record_sign_in_failure(
-    admin_session: AsyncSession, user: User, *, reason: str
+    admin_session: AsyncSession, user: User | None, *, reason: str
 ) -> None:
     """Write down a refused sign-in and commit it.
 
-    The account is the **target**, and there is no actor: the request that made
-    the attempt is unauthenticated, so the account named by the address is what
-    the attempt was against rather than who made it.
+    The account is the **target**, when one resolved, and there is no actor: the
+    request that made the attempt is unauthenticated. An unknown address still
+    records the refusal but retains no submitted identity.
 
     Its own commit because the request is about to raise, and ``audit_events``
     is reached on the system engine — the request-path role holds nothing on
     that table.
     """
+    target_user_id = user.id if user is not None else None
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
+        target_user_id=target_user_id,
+        target_type="user" if target_user_id is not None else None,
+        target_id=target_user_id,
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
@@ -448,7 +451,13 @@ async def login_access_token(
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(admin_session, normalized_email)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    # Unconditionally, and NOT inside the `or` below: `not user or verify(...)`
+    # short-circuits, so an address nobody holds would answer without paying
+    # the hash and answer sooner for it. Every sign-in pays the same work.
+    password_matches = verify_sign_in_password(
+        form_data.password, user.hashed_password if user is not None else None
+    )
+    if not user or not password_matches:
         # Only a refusal that resolved to an account is recorded: an address
         # nobody holds is not an action on anybody, and the log is no place to
         # keep one. Those attempts are bounded by the rate limit above.
@@ -459,6 +468,7 @@ async def login_access_token(
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
+    # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
         await _record_sign_in_failure(admin_session, user, reason="inactive")
         raise HTTPException(
@@ -727,7 +737,13 @@ async def create_device_token(
     """
     normalized_email = payload.email.lower().strip()
     user = await addresses.find_user_by_address(admin_session, normalized_email)
-    if not user or not verify_password(payload.password, user.hashed_password):
+    # Same reason as the token route: paid before the branch, never inside it.
+    password_matches = verify_sign_in_password(
+        payload.password, user.hashed_password if user is not None else None
+    )
+    if not user or not password_matches:
+        if user is not None:
+            await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,

@@ -55,6 +55,63 @@ def _b64url_encode(raw: bytes) -> str:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("stored_hash", "expected_match"),
+    [
+        (None, False),
+        ("!", False),
+        ("$argon2id$independent-fixture", True),
+        ("$2b$12$independent-fixture", True),
+    ],
+)
+def test_sign_in_password_check_runs_every_supported_kdf_step(
+    monkeypatch, stored_hash: str | None, expected_match: bool
+) -> None:
+    """Account state selects a result, not how much KDF work is scheduled."""
+    observed: list[tuple[str, str]] = []
+
+    class FakeArgon2:
+        def verify(self, hashed: str, plain: str) -> bool:
+            assert plain == "candidate"
+            observed.append(("argon2", hashed))
+            return hashed == stored_hash
+
+    def fake_bcrypt_check(plain: bytes, hashed: bytes) -> bool:
+        assert plain == b"candidate"
+        decoded = hashed.decode("utf-8")
+        observed.append(("bcrypt", decoded))
+        return decoded == stored_hash
+
+    monkeypatch.setattr(security, "_argon2_hasher", FakeArgon2())
+    monkeypatch.setattr(security.bcrypt, "checkpw", fake_bcrypt_check)
+
+    assert security.verify_sign_in_password("candidate", stored_hash) is expected_match
+    assert [scheme for scheme, _ in observed] == ["argon2", "bcrypt"]
+    selected_hashes = [hashed for _, hashed in observed]
+    if expected_match:
+        assert stored_hash in selected_hashes
+    else:
+        assert stored_hash not in selected_hashes
+
+
+@pytest.mark.unit
+def test_sign_in_password_check_accepts_only_a_matching_account_hash() -> None:
+    """Dummy work can never turn an absent or unusable credential into a login."""
+    password = "independent-password-fixture"
+    argon_hash = security.get_password_hash(password)
+    bcrypt_hash = security.bcrypt.hashpw(
+        password.encode("utf-8"), security.bcrypt.gensalt()
+    ).decode("utf-8")
+
+    assert security.verify_sign_in_password(password, argon_hash) is True
+    assert security.verify_sign_in_password("wrong", argon_hash) is False
+    assert security.verify_sign_in_password(password, bcrypt_hash) is True
+    assert security.verify_sign_in_password("wrong", bcrypt_hash) is False
+    assert security.verify_sign_in_password(password, None) is False
+    assert security.verify_sign_in_password(password, "!") is False
+
+
+@pytest.mark.unit
 def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
@@ -540,3 +597,25 @@ def test_delegation_reports_expiry_rather_than_the_next_key():
 def test_delegation_is_off_where_no_app_platform_is_configured(monkeypatch):
     monkeypatch.setattr(security.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
     assert security.delegation_possible() is False
+
+
+def test_the_sign_in_dummy_bcrypt_cost_is_pinned_not_inherited() -> None:
+    """The dummy's cost decides what an unknown address costs to probe.
+
+    `verify_sign_in_password` pays a bcrypt check for every sign-in so that an
+    address with no account costs the same as one with a legacy bcrypt account.
+    That equality holds only while the dummy's cost matches the stored hashes'.
+
+    Measured on this machine, the gap between adjacent costs is not subtle:
+    cost 10 verifies in ~102 ms and cost 12 in ~400 ms. So if the dummy took
+    whatever `bcrypt.gensalt()` currently defaults to, a library release that
+    moved the default would re-open the difference for every legacy account at
+    once, silently, on upgrade.
+
+    Pinning it keeps that a deliberate edit. The constant is the contract.
+    """
+    stored = security._SIGN_IN_DUMMY_BCRYPT_HASH
+    text = stored.decode() if isinstance(stored, bytes) else stored
+    cost = int(text.split("$")[2])
+
+    assert cost == security.SIGN_IN_BCRYPT_COST

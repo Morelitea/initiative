@@ -427,6 +427,53 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
+@pytest.mark.parametrize("endpoint", ["token", "device-token"])
+async def test_password_token_refusal_does_not_reveal_account_resolution(
+    client: AsyncClient, session: AsyncSession, endpoint: str
+) -> None:
+    """Known, unknown, and non-password accounts have one public refusal shape."""
+    await create_user(session, email=f"known-{endpoint}@example.com")
+    # Built through the factory rather than by hand: an account is more than
+    # its row now that addresses are resolved separately, and a test that
+    # assembles one itself asserts against a shape it invented.
+    await create_user(
+        session,
+        email=f"sso-{endpoint}@example.com",
+        full_name="No Password",
+        hashed_password=None,
+    )
+
+    async def refuse(email: str):
+        if endpoint == "token":
+            return await client.post(
+                "/api/v1/auth/token",
+                data={"username": email, "password": "wrong-password"},
+            )
+        return await client.post(
+            "/api/v1/auth/device-token",
+            json={
+                "email": email,
+                "password": "wrong-password",
+                "device_name": "test-phone",
+            },
+        )
+
+    responses = [
+        await refuse(f"known-{endpoint}@example.com"),
+        await refuse(f"missing-{endpoint}@example.com"),
+        await refuse(f"sso-{endpoint}@example.com"),
+    ]
+    fingerprints = [
+        (response.status_code, response.json(), response.headers.get("set-cookie"))
+        for response in responses
+    ]
+    assert fingerprints == [
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+    ]
+
+
 async def test_login_refused_for_account_without_password(
     client: AsyncClient, session: AsyncSession
 ):

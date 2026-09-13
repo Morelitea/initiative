@@ -74,6 +74,28 @@ USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
 
+# Sign-in refuses an unknown address, an account without a usable password,
+# and a wrong password through one fixed KDF schedule. Neither hash belongs to
+# an account; they exist only to fill the unused slot in that schedule.
+_SIGN_IN_DUMMY_PASSWORD = "initiative-login-dummy-password"
+_SIGN_IN_DUMMY_ARGON2_HASH = _argon2_hasher.hash(_SIGN_IN_DUMMY_PASSWORD)
+#: Work factor for the stand-in bcrypt hash below.
+#:
+#: Pinned rather than taking `bcrypt.gensalt()`'s default, because this number
+#: decides what an address with no account costs to probe. Every sign-in pays a
+#: bcrypt check so that an unknown address costs the same as a legacy bcrypt
+#: account; that equality holds only while this matches the cost those stored
+#: hashes carry. Adjacent costs are far apart -- measured here, cost 10 verifies
+#: in ~102 ms against ~400 ms for cost 12 -- so inheriting the library default
+#: would let a dependency release move it for every legacy account at once,
+#: on upgrade, with nothing saying so. 12 is that default today; changing it
+#: should be an edit somebody makes on purpose.
+SIGN_IN_BCRYPT_COST = 12
+
+_SIGN_IN_DUMMY_BCRYPT_HASH = bcrypt.hashpw(
+    _SIGN_IN_DUMMY_PASSWORD.encode("utf-8"), bcrypt.gensalt(SIGN_IN_BCRYPT_COST)
+).decode("utf-8")
+
 
 def get_password_hash(password: str) -> str:
     """Hash a plaintext password using argon2id."""
@@ -107,6 +129,26 @@ def verify_password(plain_password: str, hashed_password: str | None) -> bool:
         except ValueError:
             return False
     return False
+
+
+def verify_sign_in_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Verify a sign-in while always paying one Argon2 and one bcrypt check.
+
+    The stored credential replaces the dummy for its own scheme. The other
+    scheme still runs, and an absent or unsupported credential uses both
+    dummies. Only a match against the stored credential can authenticate.
+    """
+    is_argon2 = bool(hashed_password and hashed_password.startswith(ARGON2_HASH_PREFIX))
+    is_bcrypt = bool(
+        hashed_password and hashed_password.startswith(BCRYPT_HASH_PREFIXES)
+    )
+    argon2_hash = hashed_password if is_argon2 else _SIGN_IN_DUMMY_ARGON2_HASH
+    bcrypt_hash = hashed_password if is_bcrypt else _SIGN_IN_DUMMY_BCRYPT_HASH
+
+    argon2_matches = verify_password(plain_password, argon2_hash)
+    bcrypt_matches = verify_password(plain_password, bcrypt_hash)
+
+    return bool((is_argon2 and argon2_matches) or (is_bcrypt and bcrypt_matches))
 
 
 def password_needs_rehash(hashed_password: str | None) -> bool:
