@@ -142,12 +142,6 @@ def verify_billing_envelope(
             matched_index = index
     if matched_index < 0:
         raise BillingEnvelopeError(BillingMessages.INVALID_SIGNATURE)
-    if matched_index > 0:
-        logger.warning(
-            "billing.envelope_verified_with_previous_secret "
-            "rotation is still in progress; clear BILLING_HMAC_SECRET_PREVIOUS "
-            "once this stops appearing"
-        )
 
     try:
         keys = load_verification_keys(settings.BILLING_PUBLIC_KEY_PEM)
@@ -184,6 +178,13 @@ def verify_billing_envelope(
     jti = str(payload["jti"])
     if not jti or len(jti) > 64:
         raise BillingEnvelopeError(BillingMessages.INVALID_TOKEN)
+
+    if matched_index > 0:
+        logger.warning(
+            "billing.envelope_verified_with_previous_secret "
+            "rotation is still in progress; clear BILLING_HMAC_SECRET_PREVIOUS "
+            "once this stops appearing"
+        )
 
     return BillingClaims(
         jti=jti,

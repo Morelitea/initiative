@@ -94,6 +94,26 @@ def test_previous_hmac_secret_verifies_during_rotation(envelope, caplog) -> None
     ), "traffic on the retiring key produced no cutover signal"
 
 
+def test_previous_hmac_secret_does_not_log_until_jwt_verifies(envelope, caplog) -> None:
+    headers, _ = envelope
+    headers["Authorization"] = "Bearer not-a-valid-jwt"
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(BillingEnvelopeError) as exc_info:
+            verify_billing_envelope(
+                method=METHOD,
+                path=PATH,
+                headers=headers,
+                body=BODY,
+            )
+
+    assert exc_info.value.code == BillingMessages.INVALID_TOKEN
+    assert not any(
+        "billing.envelope_verified_with_previous_secret" in record.getMessage()
+        for record in caplog.records
+    ), "an unauthenticated request produced the old-key cutover signal"
+
+
 def test_previous_hmac_secret_is_rejected_after_overlap(envelope, monkeypatch) -> None:
     headers, _ = envelope
     monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET_PREVIOUS", None)
