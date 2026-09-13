@@ -53,9 +53,25 @@ COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 COPY --from=frontend-build /ota/bundle.zip ./ota/bundle.zip
 COPY --from=frontend-build /ota/bundle.sha256 ./ota/bundle.sha256
+# dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
+# version when the new one "cannot be upgraded without changing the install
+# status of another package", and it never removes one -- so a security update
+# that needs a dependency change is held back, silently, while this line still
+# looks like it applied everything available.
+#
+# Then assert it: a simulated pass must find nothing left to install. Without
+# that the claim "available security updates are applied" is a claim nothing
+# checks, and the image that quietly kept a vulnerable package looks exactly
+# like the image that had nothing to keep.
 RUN apt-get update \
-    && apt-get upgrade -y \
+    && apt-get dist-upgrade -y \
     && apt-get install -y --no-install-recommends gosu \
+    && remaining="$(apt-get --simulate dist-upgrade | grep '^Inst ' || true)" \
+    && if [ -n "$remaining" ]; then \
+         echo "packages still upgradable after dist-upgrade:" >&2; \
+         echo "$remaining" >&2; \
+         exit 1; \
+       fi \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app/uploads
 COPY backend/entrypoint.sh /entrypoint.sh
