@@ -26,6 +26,7 @@ from app.core.messages import (
 )
 from app.core.security import (
     SESSION_COOKIE_NAME,
+    STEP_UP_CHALLENGE,
     AutoDelegationVerificationError,
     UploadTokenError,
     delegation_possible,
@@ -718,11 +719,17 @@ async def get_guild_membership(
     except GuildAccessError as exc:
         if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
             # 401, not 403: the session lacks an auth factor, not a permission.
-            # The header names the provider the client must step up with.
+            #
+            # Said twice, for two audiences. ``WWW-Authenticate`` is the
+            # standard form (RFC 9470), which an OAuth client library can act
+            # on knowing nothing about this app. The ``X-Auth-Step-Up`` pair
+            # names *which* provider serves the factor and which guild's login
+            # flow reaches it — ours to answer, and what our own SPA reads.
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=exc.detail,
                 headers={
+                    "WWW-Authenticate": STEP_UP_CHALLENGE,
                     "X-Auth-Step-Up": exc.step_up_provider_slug or "",
                     "X-Auth-Step-Up-Guild": (
                         str(exc.step_up_guild_id)

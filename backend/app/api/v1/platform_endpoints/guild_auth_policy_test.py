@@ -299,6 +299,12 @@ async def test_required_guild_steps_up_unsatisfied_sessions(
     assert blocked.status_code == 401
     assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
     assert blocked.headers["X-Auth-Step-Up"] == "corp"
+    # And the same answer in the standard form (RFC 9470 §3), for a client
+    # that knows OAuth and nothing about this app.
+    assert (
+        blocked.headers["WWW-Authenticate"]
+        == 'Bearer error="insufficient_user_authentication"'
+    )
 
     # A session that satisfied the provider passes.
     allowed = await client.get(
@@ -306,6 +312,22 @@ async def test_required_guild_steps_up_unsatisfied_sessions(
         headers=_sat_headers(member, [provider.id]),
     )
     assert allowed.status_code == 200
+
+
+async def test_the_step_up_challenge_is_not_what_an_ordinary_401_says(
+    client: AsyncClient, session: AsyncSession
+):
+    """Both answers are 401 and both name Bearer, and a client has to tell them
+    apart: one is renewed by refreshing, the other by presenting a factor. The
+    ``error`` parameter is the difference, so an ordinary 401 must not carry
+    it."""
+    guild = await create_guild(session)
+
+    no_credential = await client.get(f"/api/v1/g/{guild.id}/initiatives/")
+
+    assert no_credential.status_code == 401
+    assert no_credential.headers["WWW-Authenticate"] == "Bearer"
+    assert "error=" not in no_credential.headers["WWW-Authenticate"]
 
 
 async def test_open_guild_admits_any_session(
