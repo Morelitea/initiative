@@ -345,6 +345,15 @@ async def send_verification_email(
     )
 
 
+async def _account_recipients(session: AsyncSession, user: User) -> list[str]:
+    """Where a letter about the account itself goes: every address its holder
+    has proved (§6.2 rule 4), so a change nobody made is still seen by somebody
+    who no longer reads one of them."""
+    from app.services.auth import addresses
+
+    return await addresses.proven_addresses(session, user_id=user.id)
+
+
 async def send_address_verification_email(
     session: AsyncSession, user: User, *, address: str, token: str
 ) -> None:
@@ -405,7 +414,7 @@ async def send_password_reset_email(
     )
     await send_email(
         session,
-        recipients=[user.email],
+        recipients=await _account_recipients(session, user),
         subject=email_t("passwordReset.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
