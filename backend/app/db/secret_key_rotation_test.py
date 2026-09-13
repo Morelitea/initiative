@@ -328,9 +328,10 @@ async def test_every_encrypted_shared_column_is_registered_for_rotation(engine):
         ).all()
 
     registered = {(table, column) for table, column, _salt in _PUBLIC_FERNET_COLUMNS}
-    # users.email_encrypted moves with the email_hash HMAC, so it is rotated by
-    # its own pass rather than by the column sweep.
+    # Both address tables move their ciphertext with the email_hash HMAC beside
+    # it, so they are rotated by their own pass rather than by the column sweep.
     registered.add(("users", "email_encrypted"))
+    registered.add(("user_emails", "email_encrypted"))
 
     missing = sorted(
         (table, column)

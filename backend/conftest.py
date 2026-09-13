@@ -895,7 +895,19 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     try:
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            # What a browser on this origin actually sends. Every unsafe method
+            # from a page carries it, and CsrfOriginMiddleware requires it (or
+            # an allowlisted Origin) before it will let a COOKIE-authenticated
+            # write through -- so a client that omits it is not modelling the
+            # SPA, it is modelling a script.
+            #
+            # Set here rather than per test so the fixture is faithful by
+            # default. The middleware's own behaviour, including what it does
+            # when this is absent or says cross-site, is covered directly in
+            # app/core/csrf_test.py against a bare app.
+            headers={"sec-fetch-site": "same-origin"},
         ) as test_client:
             yield test_client
     finally:

@@ -18,12 +18,9 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import usernames
 from app.core.encryption import (
     decrypt_token,
-    encrypt_field,
     hash_email,
-    SALT_EMAIL,
 )
 from app.core.messages import OidcMessages
 from app.core.security import (
@@ -378,18 +375,14 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     """Test successful login returns access token."""
     # Create user with known password
     password = "testpassword123"
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("login@example.com"),
-        email_encrypted=encrypt_field("login@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="login@example.com",
         full_name="Login User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     # Attempt login
     response = await client.post(
@@ -412,18 +405,14 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
 async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     """Test that login fails with wrong password."""
     password = "correct_password"
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("test@example.com"),
-        email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="test@example.com",
         full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     response = await client.post(
         "/api/v1/auth/token",
@@ -443,18 +432,15 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
 ) -> None:
     """Known, unknown, and non-password accounts have one public refusal shape."""
     await create_user(session, email=f"known-{endpoint}@example.com")
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email(f"sso-{endpoint}@example.com"),
-        email_encrypted=encrypt_field(f"sso-{endpoint}@example.com", SALT_EMAIL),
+    # Built through the factory rather than by hand: an account is more than
+    # its row now that addresses are resolved separately, and a test that
+    # assembles one itself asserts against a shape it invented.
+    await create_user(
+        session,
+        email=f"sso-{endpoint}@example.com",
         full_name="No Password",
         hashed_password=None,
-        status=UserStatus.active,
-        email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     async def refuse(email: str):
         if endpoint == "token":
@@ -493,18 +479,14 @@ async def test_login_refused_for_account_without_password(
     """An SSO-only account (NULL hashed_password) can never password-login —
     any password yields the same incorrect-credentials refusal, with no 500
     from verifying against a missing hash."""
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("sso-only@example.com"),
-        email_encrypted=encrypt_field("sso-only@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="sso-only@example.com",
         full_name="SSO Only",
         hashed_password=None,
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     response = await client.post(
         "/api/v1/auth/token",
@@ -523,18 +505,14 @@ async def test_login_refused_for_account_without_password(
 async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot login."""
     password = "testpassword"
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("inactive@example.com"),
-        email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="inactive@example.com",
         full_name="Inactive User",
         hashed_password=get_password_hash(password),
         status=UserStatus.deactivated,  # Deactivated user
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     response = await client.post(
         "/api/v1/auth/token",
@@ -553,18 +531,14 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
 async def test_login_unverified_email(client: AsyncClient, session: AsyncSession):
     """Test that users with unverified emails cannot login."""
     password = "testpassword"
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("unverified@example.com"),
-        email_encrypted=encrypt_field("unverified@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="unverified@example.com",
         full_name="Unverified User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=False,  # Email not verified
     )
-    session.add(user)
-    await session.commit()
 
     response = await client.post(
         "/api/v1/auth/token",
@@ -599,18 +573,14 @@ async def test_login_nonexistent_user(client: AsyncClient):
 async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncSession):
     """Test that login email is case-insensitive."""
     password = "testpassword"
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("test@example.com"),
-        email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="test@example.com",
         full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     # Login with uppercase email
     response = await client.post(
@@ -644,18 +614,14 @@ async def test_login_rehashes_legacy_bcrypt_password(
     )
     assert legacy_hash.startswith("$2"), "test setup expected a real bcrypt hash"
 
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("legacy@example.com"),
-        email_encrypted=encrypt_field("legacy@example.com", SALT_EMAIL),
+    user = await create_user(
+        session,
+        email="legacy@example.com",
         full_name="Legacy User",
         hashed_password=legacy_hash,
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
     await session.refresh(user)
 
     response = await client.post(
@@ -1907,18 +1873,14 @@ async def test_login_grandfathers_existing_short_password(
     logging in. The policy applies only to flows that *set* a new
     password — never to ``verify_password`` on the login path."""
     short_password = "shortpw"  # 7 chars — would fail the policy if applied
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("legacy-short@example.com"),
-        email_encrypted=encrypt_field("legacy-short@example.com", SALT_EMAIL),
+    await create_user(
+        session,
+        email="legacy-short@example.com",
         full_name="Legacy Short",
         hashed_password=get_password_hash(short_password),
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
 
     response = await client.post(
         "/api/v1/auth/token",
@@ -2079,18 +2041,14 @@ async def _make_login_user(
     email: str = "refresh@example.com",
     password: str = "testpassword123",
 ) -> tuple[User, str]:
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email(email),
-        email_encrypted=encrypt_field(email, SALT_EMAIL),
+    user = await create_user(
+        session,
+        email=email,
         full_name="Refresh User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
     )
-    session.add(user)
-    await session.commit()
     return user, password
 
 
