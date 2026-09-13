@@ -856,8 +856,12 @@ class Settings(BaseSettings):
     # Refused sign-ins against ONE account inside the window. A single failure
     # is somebody mistyping; a rate is worth interrupting someone for. 0
     # disables the threshold without disabling the sink.
-    SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD: int = 10
-    SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES: int = 15
+    SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD: int = Field(default=10, ge=0)
+    # Positive, and not merely non-negative. Zero or below makes the cutoff
+    # equal to or later than now, every count comes back zero, and alerting is
+    # off while the threshold above still says it is on. Zero on the threshold
+    # is the documented way to turn the rule off; a mistyped window is not.
+    SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES: int = Field(default=15, ge=1)
 
     RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory

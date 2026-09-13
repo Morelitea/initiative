@@ -18,9 +18,9 @@ This is the destination. One HTTPS POST per alert, to a URL the operator sets:
 **Thresholds, not every event.** A single refused sign-in is somebody
 mistyping their password; it belongs in the audit log and nowhere else. What
 is worth interrupting a person for is a rate: several failures against one
-account inside a window. The count comes from ``audit_events``, which already
-records each refusal, and uses the ``(target_user_id, occurred_at)`` index
-that is already there.
+account inside a window, delivered once per window. The count comes from
+``audit_events``, which already records each refusal, and uses the
+``(target_user_id, occurred_at)`` index that is already there.
 
 **It never breaks the request it was called from.** Delivery failure is logged
 and swallowed. An alert sink that can fail a sign-in has turned a detective
@@ -136,6 +136,24 @@ def dispatch(alert: SecurityAlert) -> None:
 _in_flight: set[asyncio.Task[bool]] = set()
 
 
+async def drain(timeout: float = DELIVERY_TIMEOUT_SECONDS) -> None:
+    """Let deliveries already in flight finish, at shutdown.
+
+    Without this a restart during a POST cancels the only attempt: there is no
+    retry and nothing is persisted, so the alert exists as a log line and
+    nowhere else. Bounded, because shutdown cannot wait on an unreachable
+    destination indefinitely.
+    """
+    if not _in_flight:
+        return
+    pending = list(_in_flight)
+    done, still_running = await asyncio.wait(pending, timeout=timeout)
+    for task in still_running:
+        task.cancel()
+    if still_running:
+        logger.warning("security_alert.drain_incomplete pending=%d", len(still_running))
+
+
 async def failed_sign_ins_for(
     session: AsyncSession, user_id: int, *, window: timedelta
 ) -> int:
@@ -156,14 +174,29 @@ async def failed_sign_ins_for(
     return int(result.one()[0])
 
 
+#: When this account was last alerted about, so a count that stays above the
+#: threshold produces one alert per window rather than one per attempt.
+#:
+#: In process, deliberately. Persisting it would put a write on the sign-in
+#: path to schedule a notification, and the cost of getting it wrong is a
+#: duplicate alert per replica per window -- which a person reads fine, and
+#: which is much better than the alternative failure of sending none.
+_last_alerted: dict[int, datetime] = {}
+
+
 async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
-    """Alert when one account crosses the failure threshold in the window.
+    """Alert once per window when an account is over the failure threshold.
 
     Called after the refusal has been recorded, so the count includes it.
 
-    Fires on the crossing only, not on every failure past it. An attacker who
-    keeps going would otherwise send one alert per attempt, which is how a
-    destination gets muted and the next real one is missed.
+    At or above, not exactly equal. Two refusals committing at once can carry
+    the count from one below the threshold to one above it, and both readers
+    then see the higher number -- so an equality test lets a burst through
+    silently, and every later count in that window is above it too. A burst is
+    the case this exists for.
+
+    Once per window rather than once per event, so a count that stays high
+    delivers one notification rather than one per refusal.
     """
     threshold = settings.SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD
     if threshold <= 0:
@@ -178,8 +211,16 @@ async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
         # rather than leaving it to be discovered.
         logger.exception("security_alert.count_failed user_id=%s", user_id)
         return
-    if count != threshold:
+    if count < threshold:
         return
+
+    now = datetime.now(UTC)
+    previous = _last_alerted.get(user_id)
+    if previous is not None and now - previous < window:
+        return
+    _last_alerted[user_id] = now
+    _forget_stale_alert_marks(now, window)
+
     dispatch(
         SecurityAlert(
             kind="auth.failed_sign_in_threshold",
@@ -196,6 +237,13 @@ async def note_failed_sign_in(session: AsyncSession, user_id: int) -> None:
             },
         )
     )
+
+
+def _forget_stale_alert_marks(now: datetime, window: timedelta) -> None:
+    """Drop marks older than the window, so the map cannot grow without bound."""
+    cutoff = now - window
+    for user_id in [uid for uid, at in _last_alerted.items() if at < cutoff]:
+        del _last_alerted[user_id]
 
 
 async def send_test_alert() -> bool:

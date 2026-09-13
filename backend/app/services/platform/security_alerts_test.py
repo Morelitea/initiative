@@ -40,6 +40,14 @@ class _Recorder:
         return httpx.Response(self.status, request=httpx.Request(method, url))
 
 
+@pytest.fixture(autouse=True)
+def _forget_alert_marks():
+    """Each case starts with nothing already alerted about."""
+    security_alerts._last_alerted.clear()
+    yield
+    security_alerts._last_alerted.clear()
+
+
 @pytest.fixture
 def destination(monkeypatch):
     recorder = _Recorder()
@@ -142,11 +150,10 @@ async def test_dispatch_logs_even_with_no_destination(monkeypatch, caplog):
 
 
 @pytest.mark.database
-async def test_the_threshold_alerts_once_at_the_crossing(
+async def test_the_threshold_alerts_once_per_window(
     session: AsyncSession, destination, monkeypatch
 ):
-    # Every failure past the threshold would be one alert per attempt, which is
-    # how a destination gets muted and the next real one is missed.
+    # One delivery per window, not one per refusal.
     monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 3)
     monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES", 15)
     user_id = 987_654
@@ -229,3 +236,126 @@ async def test_a_counting_failure_is_swallowed_but_logged(
 
     assert destination.calls == []
     assert "count_failed" in "\n".join(r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.database
+async def test_a_burst_that_skips_the_exact_threshold_still_alerts(
+    session: AsyncSession, destination, monkeypatch
+):
+    """The count can pass the threshold without ever equalling it.
+
+    Two refusals committing at once carry it from one below to one above, and
+    both readers see the higher number. An equality test delivered nothing --
+    and every later count in the window is above the threshold too, so nothing
+    would arrive for the rest of it.
+    """
+    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 3)
+    user_id = 987_660
+
+    # Four refusals recorded before anything counts: the first count this
+    # sees is 4, and the threshold of 3 was never observed exactly.
+    for _ in range(4):
+        await _record_refusal(session, user_id)
+
+    await security_alerts.note_failed_sign_in(session, user_id)
+    await _settle()
+
+    assert len(destination.calls) == 1
+    assert destination.calls[0]["json"]["detail"]["count"] == 4
+
+
+@pytest.mark.database
+async def test_a_second_window_alerts_again(
+    session: AsyncSession, destination, monkeypatch
+):
+    # Once per window, not once ever: an account still under attempt an hour
+    # later has to be reported again.
+    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 1)
+    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_WINDOW_MINUTES", 15)
+    user_id = 987_661
+    await _record_refusal(session, user_id)
+
+    await security_alerts.note_failed_sign_in(session, user_id)
+    await _settle()
+    assert len(destination.calls) == 1
+
+    # The window has passed.
+    security_alerts._last_alerted[user_id] = datetime.now(UTC) - timedelta(hours=1)
+    await security_alerts.note_failed_sign_in(session, user_id)
+    await _settle()
+
+    assert len(destination.calls) == 2
+
+
+@pytest.mark.database
+async def test_one_account_alerting_does_not_silence_another(
+    session: AsyncSession, destination, monkeypatch
+):
+    monkeypatch.setattr(settings, "SECURITY_ALERT_FAILED_SIGN_IN_THRESHOLD", 1)
+    first, second = 987_662, 987_663
+    await _record_refusal(session, first)
+    await _record_refusal(session, second)
+
+    await security_alerts.note_failed_sign_in(session, first)
+    await security_alerts.note_failed_sign_in(session, second)
+    await _settle()
+
+    assert {c["json"]["detail"]["user_id"] for c in destination.calls} == {
+        first,
+        second,
+    }
+
+
+@pytest.mark.unit
+async def test_a_mark_older_than_the_window_is_forgotten():
+    # The map is keyed by account and would otherwise grow for the life of the
+    # process.
+    now = datetime.now(UTC)
+    security_alerts._last_alerted.update({1: now - timedelta(hours=2), 2: now})
+
+    security_alerts._forget_stale_alert_marks(now, timedelta(minutes=15))
+
+    assert set(security_alerts._last_alerted) == {2}
+
+
+@pytest.mark.unit
+async def test_draining_waits_for_a_delivery_in_flight(monkeypatch):
+    started = asyncio.Event()
+    release = asyncio.Event()
+    delivered: list[bool] = []
+
+    async def slow(*_args, **_kwargs):
+        started.set()
+        await release.wait()
+        delivered.append(True)
+        return httpx.Response(200, request=httpx.Request("POST", WEBHOOK))
+
+    monkeypatch.setattr(security_alerts, "request_public_target", slow)
+    monkeypatch.setattr(settings, "SECURITY_ALERT_WEBHOOK_URL", WEBHOOK)
+
+    security_alerts.dispatch(
+        security_alerts.SecurityAlert(kind="k", summary="s", detail={})
+    )
+    await started.wait()
+    release.set()
+
+    await security_alerts.drain(timeout=5)
+
+    assert delivered == [True]
+
+
+@pytest.mark.unit
+async def test_draining_gives_up_rather_than_hanging_shutdown(monkeypatch):
+    # A destination that never answers must not hold the process open.
+    async def never(*_args, **_kwargs):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(security_alerts, "request_public_target", never)
+    monkeypatch.setattr(settings, "SECURITY_ALERT_WEBHOOK_URL", WEBHOOK)
+
+    security_alerts.dispatch(
+        security_alerts.SecurityAlert(kind="k", summary="s", detail={})
+    )
+    await asyncio.sleep(0)
+
+    await asyncio.wait_for(security_alerts.drain(timeout=0.05), timeout=5)

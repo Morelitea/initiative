@@ -28,8 +28,12 @@ operator configured.
 ## Prove it works before you need it
 
 ```
-python -m app.services.platform.security_alerts
+cd backend && python -m app.services.platform.security_alerts
 ```
+
+`app` lives under `backend/`, so this fails with `ModuleNotFoundError` from
+the repository root. In a container, run it from the working directory the
+image already uses for the app.
 
 Exit `0` delivered, `1` the destination refused it, `2` no destination is
 configured. Run it when you set the URL, and again after changing it. A

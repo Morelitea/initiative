@@ -328,6 +328,12 @@ async def lifespan(app: FastAPI):
     finally:
         await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
+        # Let an alert already being delivered finish. There is no retry and
+        # nothing is persisted, so a cancelled POST is an alert that only ever
+        # existed as a log line.
+        from app.services.platform import security_alerts
+
+        await security_alerts.drain()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])
         for task in tasks:
