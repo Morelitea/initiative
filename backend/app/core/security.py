@@ -196,6 +196,17 @@ def create_access_token(
 AUTH_ACCESS_AUDIENCE = "initiative:access"
 AUTH_TOKEN_ISSUER = "initiative"
 
+#: The ``WWW-Authenticate`` challenge for a session that authenticated, but not
+#: to the level the guild being addressed asks for — RFC 9470 §3. A protocol
+#: constant rather than a message: ``error`` is the part a client matches on,
+#: and ``AuthMessages``/``errors.json`` carry what a person reads.
+#:
+#: RFC 9470 also defines ``acr_values`` and ``max_age``, both optional and both
+#: absent here. ``guild_auth_policies`` names a provider and nothing about
+#: assurance or freshness, so there is no value to put in either; they arrive
+#: with the columns that hold one (phases E and C2b).
+STEP_UP_CHALLENGE = 'Bearer error="insufficient_user_authentication"'
+
 
 def mint_access_token(
     *,
