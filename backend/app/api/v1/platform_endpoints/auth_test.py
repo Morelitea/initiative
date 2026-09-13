@@ -1160,6 +1160,7 @@ async def test_the_platform_provider_asserts_a_platform_identity(
     address it asserts belongs to no guild — ``auth_providers.guild_id`` is
     NULL and the per-guild derivation has nothing to match."""
     from app.models.platform.user_email import UserEmail
+    from app.models.platform.user_email_assertion import UserEmailAssertion
 
     await _enable_platform_oidc(session)
     user = await create_user(session, email="alice@personal.example.com")
@@ -1190,10 +1191,15 @@ async def test_the_platform_provider_asserts_a_platform_identity(
     rows = (
         await session.exec(select(UserEmail).where(UserEmail.user_id == user_id))
     ).all()
-    asserted = {r.email_hash: r.provider_id for r in rows}[
-        hash_email("alice@work.example.com")
-    ]
-    assert asserted == provider_id
+    work = {r.email_hash: r for r in rows}[hash_email("alice@work.example.com")]
+    claim = (
+        await session.exec(
+            select(UserEmailAssertion).where(
+                UserEmailAssertion.user_email_id == work.id
+            )
+        )
+    ).one()
+    assert claim.provider_id == provider_id
     # The provider it came from serves the platform, not a guild.
     assert (await session.get(AuthProvider, provider_id)).guild_id is None
 

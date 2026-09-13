@@ -478,6 +478,7 @@ async def test_a_guilds_provider_records_the_address_it_asserts(
 
     from app.core.encryption import hash_email
     from app.models.platform.user_email import UserEmail
+    from app.models.platform.user_email_assertion import UserEmailAssertion
 
     guild, provider = await _guild_provider(session)
     user = await create_user(session, email="alice@personal.example.com")
@@ -506,9 +507,22 @@ async def test_a_guilds_provider_records_the_address_it_asserts(
             sqlmodel_select(UserEmail).where(UserEmail.user_id == user_id)
         )
     ).all()
-    held = {r.email_hash: (r.provider_id, r.is_primary) for r in rows}
-    assert held[hash_email("alice@personal.example.com")] == (None, True)
-    assert held[hash_email("alice@acme.example.com")] == (provider_id, False)
+    held = {r.email_hash: r for r in rows}
+    personal = held[hash_email("alice@personal.example.com")]
+    work = held[hash_email("alice@acme.example.com")]
+    assert (personal.is_primary, work.is_primary) == (True, False)
+
+    claims = (
+        await session.exec(
+            sqlmodel_select(UserEmailAssertion).where(
+                UserEmailAssertion.user_email_id.in_([personal.id, work.id])
+            )
+        )
+    ).all()
+    # The directory claims the address it asserted, and only that one.
+    assert [(c.user_email_id, c.provider_id) for c in claims] == [
+        (work.id, provider_id)
+    ]
 
 
 async def test_step_up_rewrites_only_the_stepping_providers_account(

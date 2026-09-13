@@ -48,7 +48,6 @@ class UserEmail(SQLModel, table=True):
         # users.email_hash carries today.
         UniqueConstraint("email_hash", name="uq_user_emails_email_hash"),
         Index("ix_user_emails_user_id", "user_id"),
-        Index("ix_user_emails_provider_id", "provider_id"),
         # One primary per account, as a partial unique index rather than a
         # pointer on ``users`` — no nullable column and no circular foreign key.
         Index(
@@ -91,19 +90,6 @@ class UserEmail(SQLModel, table=True):
     )
     # signup | added | oidc | synthetic — see EmailSource.
     source: str = Field(sa_column=Column(Text, nullable=False))
-
-    # The provider that asserted this address, or NULL when nobody did — a
-    # personal address somebody typed. Which guild the address belongs to
-    # follows from ``auth_providers.guild_id`` rather than being stored again
-    # here, so the two cannot disagree.
-    provider_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("auth_providers.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-    )
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
