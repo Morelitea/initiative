@@ -21,8 +21,9 @@ generalised: ``purpose`` is the sector. A sector that lives inside one guild —
 an installed app — also carries ``sector_guild_id`` + ``sector_id``; see
 ``services.marketplace.app_refs``.
 
-Reached only on the system engine — the request-path roles hold nothing on this
-table.
+Minted on the system engine, and read there for every sector but one: the
+request path holds ``SELECT`` and a policy admitting ``client``, the sector an
+account's own access token names it by (``services.auth.subject``).
 """
 
 from datetime import datetime, timezone
@@ -72,11 +73,18 @@ class IdentityPurpose(str, Enum):
     knows: a member's own URL rather than an installed app. A subscription an
     app registered is named in that app's ``app`` sector instead, so the guild
     and the member arrive under the names it already holds.
+
+    ``client``'s sector is the deployment's own front ends — the browser tab
+    and the native app, one sector for the platform. It names the account in an
+    access token's ``sub`` (see ``services.auth.subject``), which makes it the
+    one sector the request path resolves; the rest are read on the system
+    engine.
     """
 
     billing = "billing"
     app = "app"
     webhook = "webhook"
+    client = "client"
 
     @property
     def code(self) -> str:

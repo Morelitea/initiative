@@ -251,10 +251,11 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # Written and read on the system engine only — the request path never
     # touches the log, in either direction.
     "audit_events": None,
-    # Minted and resolved on the system engine, behind the surfaces that
-    # hand a reference to an outside party; the request path never reads
-    # the mapping in either direction.
-    "identity_refs": None,
+    # Minted on the system engine, behind the surfaces that hand a reference to
+    # an outside party. SELECT covers the table and one policy admits the rows:
+    # ``purpose = 'client'``, the sector an account's own access token names it
+    # by and every authenticated request resolves (migration 0267).
+    "identity_refs": frozenset({"SELECT"}),
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,

@@ -28,6 +28,7 @@ from app.core.auth_context import set_satisfied_providers
 from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.token import TokenPayload
+from app.services.auth.subject import user_for_subject
 from app.services.platform import user_tokens
 
 
@@ -56,9 +57,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
         payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
         if token_data.sub:
-            statement = select(User).where(User.id == int(token_data.sub))
-            result = await session.exec(statement)
-            user = result.one_or_none()
+            user = await user_for_subject(session, subject=token_data.sub)
             if (
                 user
                 and user.status == UserStatus.active
