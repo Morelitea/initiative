@@ -625,5 +625,6 @@
   "PRIMARY_ADDRESS": "C'est là qu'arrive le courrier de votre compte. Définissez d'abord une autre adresse principale.",
   "LAST_VERIFIED_ADDRESS": "C'est la seule adresse confirmée de votre compte. Confirmez-en une autre d'abord.",
   "ADDRESS_NOT_VERIFIED": "Confirmez cette adresse avant que le courrier de votre compte y soit envoyé.",
+  "ADDRESS_TAKEN": "Quelqu'un a confirmé cette adresse pendant que votre demande était en attente.",
   "TOO_MANY_ADDRESSES": "Votre compte contient déjà autant d’adresses qu’il le peut."
 }

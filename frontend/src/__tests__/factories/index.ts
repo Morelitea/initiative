@@ -84,6 +84,7 @@ export {
 export {
   buildOwnedDecoration,
   buildUser,
+  buildUserEmail,
   buildUserGuildMember,
   buildUserProfile,
   buildUserPublic,

@@ -625,5 +625,6 @@
   "PRIMARY_ADDRESS": "That is where your account mail goes. Make another address primary first.",
   "LAST_VERIFIED_ADDRESS": "That is the only confirmed address on your account. Confirm another one first.",
   "ADDRESS_NOT_VERIFIED": "Confirm that address before your account mail is sent to it.",
+  "ADDRESS_TAKEN": "Somebody confirmed that address while your request was waiting.",
   "TOO_MANY_ADDRESSES": "Your account is holding as many addresses as it can."
 }

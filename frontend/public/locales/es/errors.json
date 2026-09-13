@@ -625,5 +625,6 @@
   "PRIMARY_ADDRESS": "Ahí va el correo de tu cuenta. Haz principal otra dirección primero.",
   "LAST_VERIFIED_ADDRESS": "Es la única dirección confirmada de tu cuenta. Confirma otra primero.",
   "ADDRESS_NOT_VERIFIED": "Confirma esa dirección antes de que el correo de tu cuenta se envíe ahí.",
+  "ADDRESS_TAKEN": "Alguien confirmó esa dirección mientras tu solicitud estaba pendiente.",
   "TOO_MANY_ADDRESSES": "Tu cuenta ya tiene todas las direcciones que puede tener."
 }
