@@ -617,15 +617,15 @@ export const approvedDevices = {
 /**
  * The device keys this browser has seen for each conversation partner.
  *
- * The directory is served by the platform, so a key it returns is worth
- * remembering rather than simply trusting each time.
+ * The directory is served by the platform, so a key it returns is remembered
+ * here rather than trusted afresh on every read.
  *
  * The first directory read says nothing: that is trust-on-first-use, and a
  * warning there would fire on every new conversation. Once this browser has a
  * baseline for the partner, both a replaced key and a newly introduced device
- * are changes worth interrupting for. Replacement registration receives a new
- * server UUID, so comparing only matching device ids would miss the ordinary
- * reinstall case and a server-injected recipient alike.
+ * are changes worth interrupting for. Registering a replacement receives a new
+ * server UUID, so matching on device id alone would treat either as a first
+ * sighting.
  *
  * Per partner, keyed by their device id.
  */
