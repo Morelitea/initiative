@@ -43,7 +43,7 @@ from app.core.security import (
     get_password_hash,
     mint_access_token,
     password_needs_rehash,
-    verify_password,
+    verify_sign_in_password,
 )
 from app.core.user_input_validators import (
     is_safe_next_path,
@@ -146,10 +146,6 @@ async def _upgrade_password_hash(
 
 
 logger = logging.getLogger(__name__)
-
-# Keep the password-verification path uniform when an address does not resolve
-# to a password account. This value never belongs to a user.
-_DUMMY_PASSWORD_HASH = get_password_hash("initiative-login-dummy-password")
 
 # Shared across requests so provider discovery + JWKS caching work; the
 # per-request OidcProvider is just configuration composed around them.
@@ -410,25 +406,26 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 
 
 async def _record_sign_in_failure(
-    admin_session: AsyncSession, user: User, *, reason: str
+    admin_session: AsyncSession, user: User | None, *, reason: str
 ) -> None:
     """Write down a refused sign-in and commit it.
 
-    The account is the **target**, and there is no actor: the request that made
-    the attempt is unauthenticated, so the account named by the address is what
-    the attempt was against rather than who made it.
+    The account is the **target**, when one resolved, and there is no actor: the
+    request that made the attempt is unauthenticated. An unknown address still
+    records the refusal but retains no submitted identity.
 
     Its own commit because the request is about to raise, and ``audit_events``
     is reached on the system engine — the request-path role holds nothing on
     that table.
     """
+    target_user_id = user.id if user is not None else None
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
+        target_user_id=target_user_id,
+        target_type="user" if target_user_id is not None else None,
+        target_id=target_user_id,
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
@@ -478,22 +475,11 @@ async def login_access_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    # The hashing cost is paid whatever the address resolves to. Checking
-    # `not user` first and short-circuiting -- which is what this line used to
-    # do -- returns without hashing when nobody holds the address, and the
-    # difference is measurable from outside: it times which addresses have
-    # accounts here. An account with no password at all (SSO-only, hash None)
-    # is the same case and gets the same treatment.
-    password_hash = (
-        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    password_matches = verify_sign_in_password(
+        form_data.password, user.hashed_password if user is not None else None
     )
-    password_matches = verify_password(form_data.password, password_hash)
     if not user or not password_matches:
-        # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the audit log is no
-        # place to keep one. Those attempts are bounded by the rate limit above.
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -776,14 +762,11 @@ async def create_device_token(
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
-    # Same constant work as the password sign-in above, for the same reason:
-    # short-circuiting on a missing user returns without hashing, and the
-    # difference between that and a wrong password is measurable from outside.
-    password_hash = (
-        user.hashed_password if user and user.hashed_password else _DUMMY_PASSWORD_HASH
+    password_matches = verify_sign_in_password(
+        payload.password, user.hashed_password if user is not None else None
     )
-    password_matches = verify_password(payload.password, password_hash)
     if not user or not password_matches:
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,

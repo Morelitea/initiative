@@ -74,6 +74,15 @@ USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
 
+# Sign-in refuses an unknown address, an account without a usable password,
+# and a wrong password through one fixed KDF schedule. Neither hash belongs to
+# an account; they exist only to fill the unused slot in that schedule.
+_SIGN_IN_DUMMY_PASSWORD = "initiative-login-dummy-password"
+_SIGN_IN_DUMMY_ARGON2_HASH = _argon2_hasher.hash(_SIGN_IN_DUMMY_PASSWORD)
+_SIGN_IN_DUMMY_BCRYPT_HASH = bcrypt.hashpw(
+    _SIGN_IN_DUMMY_PASSWORD.encode("utf-8"), bcrypt.gensalt()
+).decode("utf-8")
+
 
 def get_password_hash(password: str) -> str:
     """Hash a plaintext password using argon2id."""
@@ -107,6 +116,26 @@ def verify_password(plain_password: str, hashed_password: str | None) -> bool:
         except ValueError:
             return False
     return False
+
+
+def verify_sign_in_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Verify a sign-in while always paying one Argon2 and one bcrypt check.
+
+    The stored credential replaces the dummy for its own scheme. The other
+    scheme still runs, and an absent or unsupported credential uses both
+    dummies. Only a match against the stored credential can authenticate.
+    """
+    is_argon2 = bool(hashed_password and hashed_password.startswith(ARGON2_HASH_PREFIX))
+    is_bcrypt = bool(
+        hashed_password and hashed_password.startswith(BCRYPT_HASH_PREFIXES)
+    )
+    argon2_hash = hashed_password if is_argon2 else _SIGN_IN_DUMMY_ARGON2_HASH
+    bcrypt_hash = hashed_password if is_bcrypt else _SIGN_IN_DUMMY_BCRYPT_HASH
+
+    argon2_matches = verify_password(plain_password, argon2_hash)
+    bcrypt_matches = verify_password(plain_password, bcrypt_hash)
+
+    return bool((is_argon2 and argon2_matches) or (is_bcrypt and bcrypt_matches))
 
 
 def password_needs_rehash(hashed_password: str | None) -> bool:

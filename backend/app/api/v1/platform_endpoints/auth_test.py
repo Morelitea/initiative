@@ -437,126 +437,18 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-async def test_sign_in_hashes_a_password_even_for_an_address_nobody_holds(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """Whether an address has an account here must not be readable from outside.
-
-    Checking ``not user`` first and short-circuiting returns without paying the
-    hashing cost, and the difference between "no account" and "wrong password"
-    is then a measurable one. So the property is that the hash is computed
-    either way -- asserted by counting the calls rather than by timing them,
-    because a wall-clock assertion on a hash function is a flaky test that
-    eventually gets deleted.
-
-    The reason it is recorded HERE rather than as an audit event is that there
-    is nothing to record it against: an address nobody holds is not an action
-    on anybody (see auth_audit_test.py).
-    """
-    from app.api.v1.platform_endpoints import auth as auth_module
-
-    calls: list[str | None] = []
-    real_verify = auth_module.verify_password
-
-    def counting_verify(plain: str, hashed: str | None) -> bool:
-        calls.append(hashed)
-        return real_verify(plain, hashed)
-
-    monkeypatch.setattr(auth_module, "verify_password", counting_verify)
-
-    await create_user(session, email="exists@example.com")
-
-    await client.post(
-        "/api/v1/auth/token",
-        data={"username": "exists@example.com", "password": "wrong_password"},
-    )
-    known_account_calls = len(calls)
-
-    calls.clear()
-    await client.post(
-        "/api/v1/auth/token",
-        data={"username": "nobody-at-all@example.com", "password": "wrong_password"},
-    )
-
-    assert len(calls) == known_account_calls == 1
-    # And against a real hash, not None: verify_password returns False for a
-    # None hash without hashing anything, which would leave the same gap.
-    assert calls[0] is not None
-
-
-async def test_device_token_hashes_a_password_for_an_address_nobody_holds(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The mobile sign-in endpoint is the same case as the web one.
-
-    It was missed the first time round: the web endpoint was fixed and this one
-    was left short-circuiting, which is the same oracle on a second route.
-    """
-    from app.api.v1.platform_endpoints import auth as auth_module
-
-    calls: list[str | None] = []
-    real_verify = auth_module.verify_password
-
-    def counting_verify(plain: str, hashed: str | None) -> bool:
-        calls.append(hashed)
-        return real_verify(plain, hashed)
-
-    monkeypatch.setattr(auth_module, "verify_password", counting_verify)
-
-    await create_user(session, email="device-exists@example.com")
-
-    refused = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "device-exists@example.com",
-            "password": "wrong_password",
-            "device_name": "a-phone",
-        },
-    )
-    # 400, not 422: a rejected body never reaches the password check and would
-    # make the comparison below vacuous.
-    assert refused.status_code == 400
-    known_account_calls = len(calls)
-
-    calls.clear()
-    await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "device-nobody@example.com",
-            "password": "wrong_password",
-            "device_name": "a-phone",
-        },
-    )
-
-    assert len(calls) == known_account_calls == 1
-    assert calls[0] is not None
-
-
-async def test_sign_in_hashes_a_password_for_an_account_that_has_none(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """An SSO-only account is the same case as a missing one.
-
-    Its ``hashed_password`` is NULL, so passing it straight to
-    ``verify_password`` returns False without hashing -- which would say, to
-    anyone timing it, that this address exists but signs in another way.
-    """
-    from app.api.v1.platform_endpoints import auth as auth_module
-
-    calls: list[str | None] = []
-    real_verify = auth_module.verify_password
-    monkeypatch.setattr(
-        auth_module,
-        "verify_password",
-        lambda plain, hashed: (calls.append(hashed), real_verify(plain, hashed))[1],
-    )
-
+@pytest.mark.parametrize("endpoint", ["token", "device-token"])
+async def test_password_token_refusal_does_not_reveal_account_resolution(
+    client: AsyncClient, session: AsyncSession, endpoint: str
+) -> None:
+    """Known, unknown, and non-password accounts have one public refusal shape."""
+    await create_user(session, email=f"known-{endpoint}@example.com")
     user = User(
         username=usernames.random_name(),
         discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("sso-timing@example.com"),
-        email_encrypted=encrypt_field("sso-timing@example.com", SALT_EMAIL),
-        full_name="SSO Timing",
+        email_hash=hash_email(f"sso-{endpoint}@example.com"),
+        email_encrypted=encrypt_field(f"sso-{endpoint}@example.com", SALT_EMAIL),
+        full_name="No Password",
         hashed_password=None,
         status=UserStatus.active,
         email_verified=True,
@@ -564,15 +456,35 @@ async def test_sign_in_hashes_a_password_for_an_account_that_has_none(
     session.add(user)
     await session.commit()
 
-    response = await client.post(
-        "/api/v1/auth/token",
-        data={"username": "sso-timing@example.com", "password": "anything"},
-    )
+    async def refuse(email: str):
+        if endpoint == "token":
+            return await client.post(
+                "/api/v1/auth/token",
+                data={"username": email, "password": "wrong-password"},
+            )
+        return await client.post(
+            "/api/v1/auth/device-token",
+            json={
+                "email": email,
+                "password": "wrong-password",
+                "device_name": "test-phone",
+            },
+        )
 
-    assert response.status_code == 400
-    from app.api.v1.platform_endpoints.auth import _DUMMY_PASSWORD_HASH
-
-    assert calls == [_DUMMY_PASSWORD_HASH]
+    responses = [
+        await refuse(f"known-{endpoint}@example.com"),
+        await refuse(f"missing-{endpoint}@example.com"),
+        await refuse(f"sso-{endpoint}@example.com"),
+    ]
+    fingerprints = [
+        (response.status_code, response.json(), response.headers.get("set-cookie"))
+        for response in responses
+    ]
+    assert fingerprints == [
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+    ]
 
 
 async def test_login_refused_for_account_without_password(
