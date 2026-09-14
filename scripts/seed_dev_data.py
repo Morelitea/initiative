@@ -56,6 +56,8 @@ from app.core.config import settings  # noqa: E402
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
+from app.services.auth import addresses  # noqa: E402
+from app.services.platform import dm_settings  # noqa: E402
 from app.services.platform.usernames import allocate_from_seed  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
@@ -755,6 +757,10 @@ async def _create_users(
             if not existing.username_chosen:
                 existing.username_chosen = True
                 session.add(existing)
+            # An account seeded before addresses became rows of their own has
+            # none, and nothing backfills a dev database. Re-running the seed
+            # is how that account catches up.
+            await _ensure_seeded_account_rows(session, existing, ud["email"])
             ids.add("users", existing.id)
             users[ud["full_name"]] = existing
             continue
@@ -787,9 +793,41 @@ async def _create_users(
         )
         session.add(user)
         await session.flush()
+        # Everything that makes an account records its address and seeds its
+        # direct-message policy. A seeded account that skipped both signs in
+        # through the lookup's fallback and shows an empty address list on
+        # Settings -> Account.
+        await _ensure_seeded_account_rows(session, user, ud["email"])
         ids.add("users", user.id)
         users[ud["full_name"]] = user
     return users
+
+
+async def _ensure_seeded_account_rows(
+    session: AsyncSession, user: User, email: str
+) -> None:
+    """Give a seeded account the rows a real one gets when it is created.
+
+    Idempotent, because the seed is re-runnable: an account that already holds
+    its address keeps it, and seeding the direct-message policy twice is a
+    no-op.
+    """
+    # Asked of ``user_emails`` alone. ``holds_address`` resolves through the
+    # sign-in lookup, which falls back to the ``users`` column — so it answers
+    # yes for exactly the accounts this is here to give a row to.
+    digest = hash_email(addresses.normalize(email))
+    if digest not in await addresses.held_hashes(session, user_id=user.id):
+        addresses.record_address(
+            session,
+            user_id=user.id,
+            email=email,
+            source=addresses.SOURCE_SIGNUP,
+            # Seeded accounts are set up ready to use, so the address is
+            # proved: it signs them in and takes their account mail.
+            verified=True,
+        )
+    await dm_settings.seed_for_new_account(session, user_id=user.id)
+    await session.flush()
 
 
 def _expunge_guild_scoped(session: AsyncSession) -> None:
@@ -1221,9 +1259,7 @@ async def _apply_deferred_archives(session: AsyncSession, admin: User) -> None:
             # start again in every community's schema, so the identity map would
             # hand back whichever community's row 12 it loaded first.
             await session.exec(
-                update(Project)
-                .where(Project.id == project_id)
-                .values(archived_at=when)
+                update(Project).where(Project.id == project_id).values(archived_at=when)
             )
         await session.flush()
 
