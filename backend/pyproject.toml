@@ -44,7 +44,7 @@ dependencies = [
     # major line tracks a server major: 7.x is PostgreSQL 17, 8.x is 18. Keep
     # it on the line matching the server we run, so what the validator reads is
     # what the server will parse.
-    "pglast>=7.18,<8",
+    "pglast>=7.18,<9",
     "pillow>=12.3.0",
 ]
 
