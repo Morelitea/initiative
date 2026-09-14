@@ -452,9 +452,8 @@ async def login_access_token(
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(admin_session, normalized_email)
-    # Unconditionally, and NOT inside the `or` below: `not user or verify(...)`
-    # short-circuits, so an address nobody holds would answer without paying
-    # the hash and answer sooner for it. Every sign-in pays the same work.
+    # Unconditional, and deliberately not folded into the `or` below: that
+    # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
         form_data.password, user.hashed_password if user is not None else None
     )
