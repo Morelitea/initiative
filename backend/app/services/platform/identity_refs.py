@@ -1,8 +1,9 @@
 """Minting and resolving the references outside parties know entities by.
 
 The table is ``public.identity_refs`` and every function here expects a session
-on the **system engine** (``AdminSessionDep``) — the request-path roles hold no
-grants on it.
+on the **system engine** (``AdminSessionDep``): these mint and remove, which is
+where that stays. The request path reads one sector of its own, in
+``services.auth.subject``.
 
 Forward (entity -> reference) is ``ensure_ref``, which mints on first use, so a
 new purpose needs no migration and no backfill: every existing user and guild

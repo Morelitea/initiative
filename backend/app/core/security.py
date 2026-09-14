@@ -196,10 +196,21 @@ def create_access_token(
 AUTH_ACCESS_AUDIENCE = "initiative:access"
 AUTH_TOKEN_ISSUER = "initiative"
 
+#: The ``WWW-Authenticate`` challenge for a session that authenticated, but not
+#: to the level the guild being addressed asks for — RFC 9470 §3. A protocol
+#: constant rather than a message: ``error`` is the part a client matches on,
+#: and ``AuthMessages``/``errors.json`` carry what a person reads.
+#:
+#: RFC 9470 also defines ``acr_values`` and ``max_age``, both optional and both
+#: absent here. ``guild_auth_policies`` names a provider and nothing about
+#: assurance or freshness, so there is no value to put in either; they arrive
+#: with the columns that hold one (phases E and C2b).
+STEP_UP_CHALLENGE = 'Bearer error="insufficient_user_authentication"'
+
 
 def mint_access_token(
     *,
-    user_id: int,
+    subject: str,
     token_version: int,
     session_id: uuid.UUID,
     amr: list[str],
@@ -210,7 +221,8 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (user id), ``sid``
+    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
     provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
@@ -225,7 +237,7 @@ def mint_access_token(
     issued = now or datetime.now(timezone.utc)
     ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
     payload: dict[str, Any] = {
-        "sub": str(user_id),
+        "sub": subject,
         "sid": str(session_id),
         "ver": token_version,
         "amr": amr,

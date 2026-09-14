@@ -80,6 +80,7 @@ from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
+from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     read_assurance,
     record_for_provider,
@@ -457,11 +458,10 @@ async def login_access_token(
         form_data.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Invariant: every refusal takes the same path, whether or not the
-        # address resolved. Not conditional -- see T123.
-        #
-        # The row is identity-free when nothing resolved: no submitted address
-        # and no target, only that a password refusal happened.
+        # Recorded whether or not the address resolved: a run of refusals
+        # against addresses nobody holds is the shape worth seeing, and the
+        # record keeps no identity when there was none to keep. The volume is
+        # bounded by the rate limit above.
         await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -518,6 +518,9 @@ async def login_access_token(
             actor_user_id=user_id,
             detail={"method": "password"},
         )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
     except Exception as exc:
         await admin_session.rollback()
@@ -528,7 +531,7 @@ async def login_access_token(
         ) from exc
 
     access_token, access_max_age = mint_access_token(
-        user_id=user_id,
+        subject=subject,
         token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -583,6 +586,17 @@ async def refresh_access_token(
             target_type="user",
             target_id=result.user_id,
         )
+    # The name the replacement token will carry, in the rotation's own
+    # transaction. The raw refresh secret the rotation mints exists only in
+    # ``issued`` until the response sets it, so anything that can fail belongs
+    # before the commit that spends the presented one.
+    subject = (
+        await subject_service.subject_for_user(
+            admin_session, user_id=result.issued.session.user_id
+        )
+        if result.ok and result.issued is not None
+        else None
+    )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
     # uncommitted (see RotationResult).
@@ -603,7 +617,7 @@ async def refresh_access_token(
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     access_token, access_max_age = mint_access_token(
-        user_id=user.id,
+        subject=subject,
         token_version=user.token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -742,7 +756,7 @@ async def create_device_token(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
-        # Same invariant as the token route, and not conditional here either.
+        # Recorded either way, like the token route.
         await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1487,6 +1501,9 @@ async def _complete_provider_login(
             # running beside the stepped-up session. The new session is a
             # fresh chain root, so the walk never touches it.
             await session_service.revoke_chain(admin_session, session_id=prior.id)
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
@@ -1496,7 +1513,7 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
 
     app_token, access_max_age = mint_access_token(
-        user_id=user_id,
+        subject=subject,
         token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -1608,11 +1625,28 @@ async def confirm_verification(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # A token minted for one address proves that address; the older
+    # account-level tokens carry none and prove the account.
+    if record.user_email_id is not None:
+        try:
+            await addresses.verify_for_user(
+                admin_session, user_id=user.id, address_id=record.user_email_id
+            )
+        except addresses.AddressError as exc:
+            # Somebody else proved the same address first. The claim is over,
+            # and the token that carried it is spent either way.
+            await admin_session.rollback()
+            record.consumed_at = datetime.now(timezone.utc)
+            session.add(record)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
-        await admin_session.commit()
+    await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)

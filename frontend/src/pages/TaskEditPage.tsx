@@ -20,10 +20,11 @@ import { useTranslation } from "react-i18next";
 
 import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { RelationsSection } from "@/components/entities/RelationsSection";
 import { Markdown } from "@/components/Markdown";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -818,6 +819,22 @@ export const TaskEditPage = () => {
             items={task?.checklist ?? []}
             canEdit={!isReadOnly}
           />
+          {/* Under the checklist: what the task is waiting on is the next thing
+              you want after what it is made of. A task is addressed inside its
+              project, so that is the tool a link refreshes. */}
+          {task ? (
+            <RelationsSection
+              entity={{ type: SearchEntityType.task, id: parsedTaskId }}
+              initiativeId={task.project?.initiative_id ?? null}
+              anchorTool={{ tool: Tool.project, id: task.project_id }}
+              canEdit={!isReadOnly}
+              collapseKey={`task:${parsedTaskId}:relationsCollapsed`}
+              entityTitle={task.title}
+              /* Rows by default: this sits in half a row beside the form, and a
+                 dependency is read as a line rather than looked at as a tile. */
+              defaultLayout="rows"
+            />
+          ) : null}
         </div>
       </div>
 

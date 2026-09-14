@@ -146,7 +146,7 @@ class InitiativeMessages:
     NOT_A_MEMBER = "INITIATIVE_NOT_A_MEMBER"
     ROLE_NOT_FOUND = "INITIATIVE_ROLE_NOT_FOUND"
     ROLE_NAME_EXISTS = "INITIATIVE_ROLE_NAME_EXISTS"
-    CANNOT_MODIFY_PM_PERMISSIONS = "INITIATIVE_CANNOT_MODIFY_PM_PERMISSIONS"
+    CANNOT_MODIFY_BUILTIN_PERMISSIONS = "INITIATIVE_CANNOT_MODIFY_BUILTIN_PERMISSIONS"
     CANNOT_CHANGE_BUILTIN_MANAGER = "INITIATIVE_CANNOT_CHANGE_BUILTIN_MANAGER"
     MUST_HAVE_MANAGER = "INITIATIVE_MUST_HAVE_MANAGER"
     USER_NOT_IN_GUILD = "INITIATIVE_USER_NOT_IN_GUILD"
@@ -159,11 +159,9 @@ class InitiativeMessages:
     # hold the manager role (for manager-style features), never a standard
     # member or custom role.
     GUILD_ADMIN_ROLE_RESTRICTED = "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED"
-    # "Full access" (override_share_restrictions) may be changed only by a guild
-    # admin (so an initiative role can't escalate itself), and only on the
-    # built-in project_manager role.
+    # A role carrying "Full access" (override_share_restrictions) — the
+    # built-in moderator — is a guild admin's to assign.
     OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
-    OVERRIDE_PM_ONLY = "INITIATIVE_OVERRIDE_PM_ONLY"
     # Asked to self-join an initiative whose join policy is not 'open'. Reported
     # for 'private' and 'request' alike, so the answer says only "not by this
     # route" — a request-policy initiative is discoverable through the directory.
@@ -268,6 +266,22 @@ class OidcMessages:
     EMAIL_UNVERIFIED = "OIDC_EMAIL_UNVERIFIED"
     ACCOUNT_INACTIVE = "OIDC_ACCOUNT_INACTIVE"
     SESSION_STORE_UNAVAILABLE = "OIDC_SESSION_STORE_UNAVAILABLE"
+
+
+class AddressMessages:
+    """Refusals from the account's own address list."""
+
+    ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND"
+    #: The address account mail goes to. Make another one primary first.
+    PRIMARY_ADDRESS = "PRIMARY_ADDRESS"
+    #: The only proven address an account has — removing it leaves no way back.
+    LAST_VERIFIED_ADDRESS = "LAST_VERIFIED_ADDRESS"
+    #: Account mail only goes to an address its holder has proved.
+    ADDRESS_NOT_VERIFIED = "ADDRESS_NOT_VERIFIED"
+    #: An account holds a bounded number of addresses.
+    TOO_MANY_ADDRESSES = "TOO_MANY_ADDRESSES"
+    #: Somebody proved they hold it while this claim was pending.
+    ADDRESS_TAKEN = "ADDRESS_TAKEN"
 
 
 class AuthProviderMessages:
@@ -400,6 +414,10 @@ class RelationshipMessages:
     """
 
     BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"
+    #: A directional link describes its source, so making one asks to change
+    #: that end. Refused here with a name, rather than left to arrive as the
+    #: database declining the write.
+    SOURCE_NOT_WRITABLE = "RELATIONSHIP_SOURCE_NOT_WRITABLE"
     ENDPOINT_NOT_FOUND = "RELATIONSHIP_ENDPOINT_NOT_FOUND"
     CROSS_INITIATIVE = "RELATIONSHIP_CROSS_INITIATIVE"
     ENDPOINT_ARCHIVED = "RELATIONSHIP_ENDPOINT_ARCHIVED"

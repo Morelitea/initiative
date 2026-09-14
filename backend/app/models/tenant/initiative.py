@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, NamedTuple, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -86,12 +86,57 @@ DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
 }
 
 
-# Default permission sets for built-in roles: managers get everything, members
-# get view-only on the core (always-on) tools.
-BUILTIN_ROLE_PERMISSIONS = {
-    "project_manager": {key: True for key in PermissionKey},
-    "member": dict(DEFAULT_PERMISSION_VALUES),
-}
+class BuiltinRole(NamedTuple):
+    """One of the roles every initiative is created with.
+
+    The whole definition of a built-in lives here — its name, how it is
+    labelled, whether it manages the initiative, whether it carries "Full
+    access", and what it may do with each tool. ``create_builtin_roles`` walks
+    this tuple in order, and each role's ``position`` is its index, so the
+    order below is the order the settings screen lists them in.
+    """
+
+    name: str
+    display_name: str
+    is_manager: bool
+    override_share_restrictions: bool
+    permissions: dict["PermissionKey", bool]
+
+
+# The built-in roles, ordered. Moderator and project manager get every tool
+# permission; members get view-only on the core (always-on) tools.
+BUILTIN_ROLES: tuple[BuiltinRole, ...] = (
+    BuiltinRole(
+        name="moderator",
+        display_name="Moderator",
+        is_manager=True,
+        override_share_restrictions=True,
+        permissions={key: True for key in PermissionKey},
+    ),
+    BuiltinRole(
+        name="project_manager",
+        display_name="Project Manager",
+        is_manager=True,
+        override_share_restrictions=False,
+        permissions={key: True for key in PermissionKey},
+    ),
+    BuiltinRole(
+        name="member",
+        display_name="Member",
+        is_manager=False,
+        override_share_restrictions=False,
+        permissions=dict(DEFAULT_PERMISSION_VALUES),
+    ),
+)
+
+BUILTIN_ROLE_PERMISSIONS = {role.name: role.permissions for role in BUILTIN_ROLES}
+
+# The built-ins whose tool permissions are fixed: they already hold every key,
+# so there is nothing to configure and a screen that offered the switches would
+# only offer a way to lock somebody out.
+LOCKED_PERMISSION_ROLE_NAMES = frozenset(
+    role.name for role in BUILTIN_ROLES if all(role.permissions.values())
+)
 
 
 class InitiativeRoleModel(CreatedByMixin, table=True):
@@ -112,13 +157,14 @@ class InitiativeRoleModel(CreatedByMixin, table=True):
     )
     name: str = Field(max_length=100)  # e.g., "project_manager", "viewer"
     display_name: str = Field(max_length=100)  # e.g., "Project Manager"
-    is_builtin: bool = Field(default=False)  # true for PM/Member
+    is_builtin: bool = Field(default=False)  # true for the BUILTIN_ROLES
     is_manager: bool = Field(default=False)  # counts toward manager constraint
     # "Full access": members with this role view/edit ALL content in the
     # initiative regardless of how each item is shared, and may manage sharing
-    # (the gate-4 / DAC override, scoped to this one initiative). Off by default;
-    # only a guild admin may turn it on, and only on the built-in project_manager
-    # role. See history/initiative-admin-override-design.md.
+    # (the gate-4 / DAC override, scoped to this one initiative). Off by
+    # default; the built-in moderator role is the one that carries it, and a
+    # guild admin joining an initiative lands on that role. See
+    # history/initiative-admin-override-design.md.
     override_share_restrictions: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),

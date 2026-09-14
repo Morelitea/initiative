@@ -2158,7 +2158,8 @@ export const useCreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPos
 /**
  * Update a role's display name and/or permissions.
  *
- * Note: PM role permissions cannot be changed to prevent lockouts.
+ * Note: the built-ins that already hold every permission (moderator, project
+ * manager) cannot have theirs changed, to prevent lockouts.
  * @summary Update Initiative Role
  */
 export const updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch = (

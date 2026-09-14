@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 
 
@@ -26,6 +26,16 @@ class UserToken(SQLModel, table=True):
         sa_column=Column(
             SQLEnum(UserTokenPurpose, name="user_token_purpose", create_type=False),
             nullable=False,
+        ),
+    )
+    # Which address an email_verification token proves. NULL for the flows that
+    # name the account rather than one of its addresses.
+    user_email_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("user_emails.id", ondelete="CASCADE"),
+            nullable=True,
         ),
     )
     # Device name for device_auth tokens (e.g., "John's iPhone")

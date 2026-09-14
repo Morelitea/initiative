@@ -36,14 +36,18 @@ So a "Contributor" might view and create projects and documents, while a "Guest"
 
 ![A role's permissions](../images/sharing/role-permissions.png)
 
-## The built-in Manager role
+## The two built-in roles
 
-Every initiative comes with a **Manager** role (also called project manager, or PM). It's the lead role: fixed permissions, broad ones, and whoever creates an initiative starts as its Manager.
+Every initiative arrives with two roles you didn't make and can't delete.
 
-Manager is also the **only** role with **full access** — Managers reach everything in the initiative, including projects and documents that were never shared with them personally. No other role, built-in or custom, can be given this. It isn't a setting you've failed to find.
+**Manager** (also called project manager, or PM) is the lead role: every tool permission, fixed, and whoever creates an initiative starts as one. Per-item sharing still applies to them — a Manager can create documents all day and still not see the one three people are quietly working on.
 
-!!! warning "Managers see everything. Everything."
-    Because Manager overrides per-item sharing, anything kept private to a few people is still perfectly visible to one.
+**Moderator** is the role that overrides sharing. A Moderator reaches everything in the initiative whether or not it was ever shared with them, and can change who else has access. That's what **full access** means, and no other role gets it — not a custom one, not Manager. It isn't a setting you've failed to find.
+
+Handing out Moderator is a community admin's job. Managers staff everything else. Admins who join an initiative arrive as Moderators, because that's the standing they already had.
+
+!!! warning "Moderators see everything. Everything."
+    Because Moderator overrides per-item sharing, anything kept private to a few people is still perfectly visible to one.
 
     So hand it to the people who genuinely need the whole picture — not as a general reward for being helpful, and not because someone's been around a long time.
 

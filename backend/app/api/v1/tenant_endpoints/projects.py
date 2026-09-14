@@ -324,9 +324,11 @@ async def _ensure_user_in_initiative(
         )
         if not member_role:
             # Create roles if they don't exist (migration safety)
-            _, member_role = await initiatives_service.create_builtin_roles(
-                session, initiative_id=initiative_id
-            )
+            member_role = (
+                await initiatives_service.create_builtin_roles(
+                    session, initiative_id=initiative_id
+                )
+            )["member"]
         session.add(
             InitiativeMember(
                 initiative_id=initiative_id,

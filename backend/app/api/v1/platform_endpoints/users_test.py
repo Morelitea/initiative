@@ -14,8 +14,6 @@ from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import usernames
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
@@ -762,18 +760,12 @@ async def test_inactive_user_cannot_access_endpoints(
 ):
     """Test that inactive users cannot access protected endpoints."""
 
-    # Create inactive user
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("inactive@example.com"),
-        email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
+    user = await create_user(
+        session,
+        email="inactive@example.com",
         full_name="Inactive User",
-        hashed_password="dummy",
         status=UserStatus.deactivated,
     )
-    session.add(user)
-    await session.commit()
 
     headers = get_auth_headers(user)
 

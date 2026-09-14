@@ -488,25 +488,18 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
 
 
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
-    """A guild membership's ``role`` is changed only on the system engine (the
-    guild-admin endpoint). The request-path floors hold a column-scoped UPDATE
-    on ``guild_memberships`` that excludes ``role`` (so ``SELECT ... FOR UPDATE``
-    row locks still work), and ``app_admin`` keeps the full grant (migration
-    0145)."""
+    """``position`` is the only membership column a request writes.
+
+    A guild membership's ``role`` is changed on the system engine (the
+    guild-admin endpoint), as is the OIDC flag; ``guild_id``, ``user_id`` and
+    ``joined_at`` are set once, when the row is created. That leaves the guild
+    list's own order, so the request-path floors hold a column-scoped UPDATE of
+    ``position`` alone — enough for the ``SELECT ... FOR UPDATE`` row locks the
+    self-leave and last-admin checks take — and ``app_admin`` keeps the full
+    grant (migrations 0145, 0266)."""
     request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
     async with engine.connect() as conn:
-        all_columns = set(
-            (
-                await conn.execute(
-                    text(
-                        "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_schema = 'public' "
-                        "AND table_name = 'guild_memberships'"
-                    )
-                )
-            ).scalars()
-        )
-        expected = all_columns - {"role"}
+        expected = {"position"}
         for role in request_roles:
             rows = (
                 await conn.execute(
@@ -526,8 +519,8 @@ async def test_guild_membership_role_is_writable_only_by_the_system_engine(engin
                 "role change is system-engine-only"
             )
             assert writable == expected, (
-                f"{role} UPDATE columns on guild_memberships drifted from 'every "
-                f"column but role': missing {sorted(expected - writable)}, "
+                f"{role} UPDATE columns on guild_memberships drifted from "
+                f"'position alone': missing {sorted(expected - writable)}, "
                 f"unexpected {sorted(writable - expected)}"
             )
         admin_can = (
@@ -542,8 +535,13 @@ async def test_guild_membership_role_is_writable_only_by_the_system_engine(engin
 
 
 async def test_guild_membership_write_policies_are_tightened(engine):
-    """Self-leave DELETE is scoped to the caller's own row, and a request-path
-    insert is pinned to a plain member (migration 0145)."""
+    """Every request-path membership write is scoped to the caller's own row.
+
+    Self-leave DELETE and the reorder UPDATE both match on
+    ``app.current_user_id``, and a request-path insert is pinned to a plain
+    member (migrations 0145, 0266). The UPDATE matching the caller rather than
+    the routed guild is what lets the guild list be reordered from the platform
+    path, which carries no guild at all."""
     async with engine.connect() as conn:
         policies = {
             name: (permissive, cmd, qual, with_check)
@@ -561,6 +559,18 @@ async def test_guild_membership_write_policies_are_tightened(engine):
     assert delete_policy is not None, "guild_memberships_delete policy is missing"
     assert "current_user_id" in (delete_policy[2] or ""), (
         f"delete policy must scope to the caller's own row: {delete_policy[2]!r}"
+    )
+    update_policy = policies.get("guild_memberships_update")
+    assert update_policy is not None, "guild_memberships_update policy is missing"
+    assert "current_user_id" in (update_policy[2] or ""), (
+        f"update policy must scope to the caller's own row: {update_policy[2]!r}"
+    )
+    assert "current_user_id" in (update_policy[3] or ""), (
+        f"update policy must check the caller's own row: {update_policy[3]!r}"
+    )
+    assert "current_guild_id" not in (update_policy[2] or ""), (
+        "update policy must not require a routed guild — the guild list is "
+        f"reordered with none: {update_policy[2]!r}"
     )
     insert_policy = policies.get("guild_memberships_request_insert_member_only")
     assert insert_policy is not None, "member-only insert policy is missing"

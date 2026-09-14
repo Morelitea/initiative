@@ -1,7 +1,8 @@
 import { Loader2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -19,10 +20,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useCreateQueueItem } from "@/hooks/useQueues";
+import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
-import { entityRefRoute } from "@/lib/tools";
+import type { LinkedRef } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -38,8 +38,7 @@ export const AddQueueItemDialog = ({
   initiativeId,
   onSuccess,
 }: AddQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common"]);
-  const gp = useGuildPath();
+  const { t } = useTranslation(["queues", "common", "relations"]);
 
   const {
     label,
@@ -56,34 +55,80 @@ export const AddQueueItemDialog = ({
     setSelectedTags,
     userId,
     setUserId,
-    selectedDocs,
-    setSelectedDocs,
-    selectedTasks,
-    setSelectedTasks,
-    setDocSearch,
-    setDocPickerOpen,
-    setTaskSearch,
-    setTaskPickerOpen,
-    docResults,
-    docsLoading,
-    taskResults,
-    tasksLoading,
+    links,
+    setLinks,
   } = useQueueItemForm({ open, initiativeId });
 
+  const setLinksMutation = useSetQueueItemLinks(queueId);
+
+  /**
+   * The item this sitting already made, if it made one.
+   *
+   * An item is created first and its links written against the id that comes
+   * back, so a link that fails leaves a real item behind. Pressing Add again
+   * has to finish *that* item rather than make a second one — a link failing
+   * twice would otherwise leave two items behind it.
+   */
+  const created = useRef<number | null>(null);
+  /**
+   * What the last attempt asked for.
+   *
+   * A retry has to undo as well as finish: links are written a kind at a time,
+   * so an earlier kind may already be on the item while a later one failed —
+   * and if somebody takes one of those off before trying again, the item is
+   * still carrying it. Handing the previous attempt back as what is already
+   * there is what lets the difference be worked out.
+   */
+  const attempted = useRef<LinkedRef[]>([]);
+  useEffect(() => {
+    created.current = null;
+    attempted.current = [];
+  }, [open]);
+
+  /** Write the links, and only then call the whole thing done. */
+  const finish = async (itemId: number) => {
+    const retry = created.current !== null && attempted.current.length > 0;
+    if (links.length > 0 || retry) {
+      const previous = attempted.current;
+      attempted.current = links;
+      // A retry writes every kind rather than only the ones that look changed:
+      // the kind that failed reads as unchanged against what was asked before.
+      await setLinksMutation.mutateAsync({ itemId, links, previous, force: retry });
+    }
+    created.current = null;
+    attempted.current = [];
+    toast.success(t("itemAdded"));
+    onOpenChange(false);
+    onSuccess?.();
+  };
+
   const createItem = useCreateQueueItem(queueId, {
-    onSuccess: () => {
-      toast.success(t("itemAdded"));
-      onOpenChange(false);
-      onSuccess?.();
+    onSuccess: async (item) => {
+      created.current = item.id;
+      try {
+        await finish(item.id);
+      } catch {
+        // `useSetQueueItemLinks` has already said what went wrong, and the
+        // dialog stays open holding everything, ready to try the links again.
+        onSuccess?.();
+      }
     },
   });
 
-  const isAdding = createItem.isPending;
+  const isAdding = createItem.isPending || setLinksMutation.isPending;
   const canSubmit = label.trim() && !isAdding;
 
   const handleSubmit = () => {
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
+
+    const already = created.current;
+    if (already !== null) {
+      // The item is there; it was its links that did not land.
+      void finish(already).catch(() => {});
+      return;
+    }
+
     createItem.mutate({
       label: trimmedLabel,
       position: position ? Number(position) : undefined,
@@ -92,8 +137,6 @@ export const AddQueueItemDialog = ({
       is_visible: isVisible,
       tag_ids: selectedTags.length > 0 ? selectedTags.map((tg) => tg.id) : undefined,
       user_id: userId ?? undefined,
-      document_ids: selectedDocs.length > 0 ? selectedDocs.map((doc) => doc.id) : undefined,
-      task_ids: selectedTasks.length > 0 ? selectedTasks.map((task) => task.id) : undefined,
     });
   };
 
@@ -206,30 +249,14 @@ export const AddQueueItemDialog = ({
             </div>
           </div>
 
-          <LinkedEntityPicker
-            label={t("linkedDocuments")}
-            selected={selectedDocs}
-            onChange={setSelectedDocs}
-            results={docResults}
-            loading={docsLoading}
-            onSearchChange={setDocSearch}
-            onOpenChange={setDocPickerOpen}
-            hrefFor={(id) => gp(entityRefRoute("document", id))}
-            placeholder={t("selectDocument")}
-            emptyMessage={t("noDocuments")}
-          />
-
-          <LinkedEntityPicker
-            label={t("linkedTasks")}
-            selected={selectedTasks}
-            onChange={setSelectedTasks}
-            results={taskResults}
-            loading={tasksLoading}
-            onSearchChange={setTaskSearch}
-            onOpenChange={setTaskPickerOpen}
-            hrefFor={(id) => gp(entityRefRoute("task", id))}
-            placeholder={t("selectTask")}
-            emptyMessage={t("noTasks")}
+          {/* One list, any kind — in place of a documents-only picker beside a
+              tasks-only one. No subject to leave out: the item does not exist
+              yet. */}
+          <EntityLinkField
+            label={t("relations:groups.attached.title")}
+            initiativeId={initiativeId}
+            value={links}
+            onChange={setLinks}
           />
         </div>
 

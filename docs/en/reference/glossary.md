@@ -36,9 +36,9 @@ The dot under your picture: **online**, **idle**, **busy** or **offline**. Not t
 
 ### Full access
 
-The override held by the built-in **Manager** role: Managers reach everything in their initiative regardless of how individual items are shared.
+The override held by the built-in **Moderator** role: Moderators reach everything in their initiative regardless of how individual items are shared, and can change who else has access.
 
-It's unique to Manager. No custom role can be given it, however much you'd like to. See [Initiative roles](../sharing/initiative-roles.md#the-built-in-manager-role).
+It's unique to Moderator. No other role can be given it, however much you'd like to. See [Initiative roles](../sharing/initiative-roles.md#the-two-built-in-roles).
 
 ### Access level
 

@@ -2,8 +2,8 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { type QueueItemRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -24,14 +24,12 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useDeleteQueueItem,
-  useSetQueueItemDocuments,
+  useSetQueueItemLinks,
   useSetQueueItemTags,
-  useSetQueueItemTasks,
   useUpdateQueueItem,
 } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
-import { entityRefRoute } from "@/lib/tools";
+import { sameIds } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 
 type EditQueueItemDialogProps = DialogProps & {
@@ -51,8 +49,7 @@ export const EditQueueItemDialog = ({
   readOnly = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common"]);
-  const gp = useGuildPath();
+  const { t } = useTranslation(["queues", "common", "relations"]);
 
   const {
     label,
@@ -69,60 +66,46 @@ export const EditQueueItemDialog = ({
     setSelectedTags,
     userId,
     setUserId,
-    selectedDocs,
-    setSelectedDocs,
-    selectedTasks,
-    setSelectedTasks,
-    setDocSearch,
-    setDocPickerOpen,
-    setTaskSearch,
-    setTaskPickerOpen,
+    links,
+    setLinks,
+    initialLinks,
+    linksLoading,
     selectedUser,
-    docResults,
-    docsLoading,
-    taskResults,
-    tasksLoading,
   } = useQueueItemForm({ open, initiativeId, item });
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const setTags = useSetQueueItemTags(queueId);
-  const setDocuments = useSetQueueItemDocuments(queueId);
-  const setTasksMutation = useSetQueueItemTasks(queueId);
+  const setLinksMutation = useSetQueueItemLinks(queueId);
 
   const updateItem = useUpdateQueueItem(queueId, {
-    onSuccess: (_data, vars) => {
-      // Sync tags
+    onSuccess: async (_data, vars) => {
+      // Tags are compared as sets: the rows are rebuilt on every read, so the
+      // order they arrive in says nothing about whether they changed.
       const newTagIds = selectedTags.map((tg) => tg.id);
-      const currentTagIds = item.tags.map((tg) => tg.id);
-      const tagsChanged =
-        newTagIds.length !== currentTagIds.length ||
-        newTagIds.some((id, i) => id !== currentTagIds[i]);
-
-      if (tagsChanged) {
-        setTags.mutate({ itemId: vars.itemId, tagIds: newTagIds });
-      }
-
-      // Sync documents
-      const selectedDocIds = selectedDocs.map((doc) => doc.id);
-      const currentDocIds = item.documents.map((d) => d.document_id);
-      const docsChanged =
-        selectedDocIds.length !== currentDocIds.length ||
-        selectedDocIds.some((id, i) => id !== currentDocIds[i]);
-
-      if (docsChanged) {
-        setDocuments.mutate({ itemId: vars.itemId, documentIds: selectedDocIds });
-      }
-
-      // Sync tasks
-      const selectedTaskIds = selectedTasks.map((task) => task.id);
-      const currentTaskIds = item.tasks.map((tk) => tk.task_id);
-      const tasksChanged =
-        selectedTaskIds.length !== currentTaskIds.length ||
-        selectedTaskIds.some((id, i) => id !== currentTaskIds[i]);
-
-      if (tasksChanged) {
-        setTasksMutation.mutate({ itemId: vars.itemId, taskIds: selectedTaskIds });
+      // Awaited, both of them: an item's tags and its links are saved by
+      // requests of their own, and reporting the save before those land would
+      // call it done while part of it may still fail. A failure leaves the
+      // dialog open with the change still in it, to be tried again.
+      try {
+        if (
+          !sameIds(
+            newTagIds,
+            item.tags.map((tg) => tg.id)
+          )
+        ) {
+          await setTags.mutateAsync({ itemId: vars.itemId, tagIds: newTagIds });
+        }
+        // One call for every kind of link, which works out per kind what moved.
+        await setLinksMutation.mutateAsync({
+          itemId: vars.itemId,
+          links,
+          previous: initialLinks,
+        });
+      } catch {
+        // The hooks have already said what went wrong.
+        onSuccess?.();
+        return;
       }
 
       toast.success(t("itemUpdated"));
@@ -142,7 +125,9 @@ export const EditQueueItemDialog = ({
 
   const isSaving = updateItem.isPending;
   const isDeleting = deleteItem.isPending;
-  const canSubmit = !readOnly && label.trim() && !isSaving && !isDeleting;
+  // Not until the links have arrived: saving diffs what is on screen against
+  // what was loaded, and an empty screen would read as "take them all off".
+  const canSubmit = !readOnly && label.trim() && !isSaving && !isDeleting && !linksLoading;
 
   const handleSubmit = () => {
     const trimmedLabel = label.trim();
@@ -285,31 +270,14 @@ export const EditQueueItemDialog = ({
               </div>
             </div>
 
-            <LinkedEntityPicker
-              label={t("linkedDocuments")}
-              selected={selectedDocs}
-              onChange={setSelectedDocs}
-              results={docResults}
-              loading={docsLoading}
-              onSearchChange={setDocSearch}
-              onOpenChange={setDocPickerOpen}
-              hrefFor={(id) => gp(entityRefRoute("document", id))}
-              placeholder={t("selectDocument")}
-              emptyMessage={t("noDocuments")}
-              readOnly={readOnly}
-            />
-
-            <LinkedEntityPicker
-              label={t("linkedTasks")}
-              selected={selectedTasks}
-              onChange={setSelectedTasks}
-              results={taskResults}
-              loading={tasksLoading}
-              onSearchChange={setTaskSearch}
-              onOpenChange={setTaskPickerOpen}
-              hrefFor={(id) => gp(entityRefRoute("task", id))}
-              placeholder={t("selectTask")}
-              emptyMessage={t("noTasks")}
+            {/* One list, any kind — in place of a documents-only picker beside a
+                tasks-only one. */}
+            <EntityLinkField
+              label={t("relations:groups.attached.title")}
+              subject={{ type: SearchEntityType.queue_item, id: item.id }}
+              initiativeId={initiativeId}
+              value={links}
+              onChange={setLinks}
               readOnly={readOnly}
             />
           </div>
