@@ -1,7 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Archive, ChevronLeft, ChevronRight, MessageSquare, SquareCheckBig } from "lucide-react";
 import type { IconName } from "lucide-react/dynamic";
@@ -22,7 +22,6 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
@@ -38,7 +37,7 @@ interface KanbanColumnProps {
   tasks: TaskListRead[];
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
@@ -53,7 +52,7 @@ export const KanbanColumn = ({
   tasks,
   canWrite,
   priorityVariant,
-  onTaskClick,
+  taskHref,
   canOpenTask,
   collapsed,
   onToggleCollapse,
@@ -146,7 +145,7 @@ export const KanbanColumn = ({
                       ref={virtualizer.measureElement}
                       task={task}
                       priorityVariant={priorityVariant}
-                      onTaskClick={onTaskClick}
+                      taskHref={taskHref}
                       canOpenTask={canOpenTask}
                     />
                   ) : (
@@ -156,7 +155,7 @@ export const KanbanColumn = ({
                       ref={virtualizer.measureElement}
                       task={task}
                       priorityVariant={priorityVariant}
-                      onTaskClick={onTaskClick}
+                      taskHref={taskHref}
                       canOpenTask={canOpenTask}
                     />
                   );
@@ -170,7 +169,7 @@ export const KanbanColumn = ({
                   task={task}
                   canWrite={canWrite}
                   priorityVariant={priorityVariant}
-                  onTaskClick={onTaskClick}
+                  taskHref={taskHref}
                   canOpenTask={canOpenTask}
                 />
               ))
@@ -278,7 +277,7 @@ const CollapsedHeader = ({
 interface KanbanCardContentProps {
   task: TaskListRead;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   canOpenTask: boolean;
 }
 
@@ -286,29 +285,11 @@ const KanbanCardContent = memo(
   function KanbanCardContent({
     task,
     priorityVariant,
-    onTaskClick,
+    taskHref,
     canOpenTask,
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
-    const router = useRouter();
     const gp = useGuildPath();
-    const { activeGuildId } = useGuilds();
-
-    const handlePrefetch = () => {
-      // Preloading is an optimisation, so a task whose list row didn't name an
-      // initiative simply doesn't get one — the click still navigates.
-      if (canOpenTask && activeGuildId && task.initiative_id != null) {
-        router.preloadRoute({
-          to: "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
-          params: {
-            guildId: String(activeGuildId),
-            initiativeId: String(task.initiative_id),
-            projectId: String(task.project_id),
-            taskId: String(task.id),
-          },
-        });
-      }
-    };
 
     const recurrenceSummary = task.recurrence
       ? summarizeRecurrence(
@@ -327,22 +308,20 @@ const KanbanCardContent = memo(
 
     return (
       <>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!canOpenTask) {
-              return;
-            }
-            onTaskClick(task.id);
-          }}
-          onMouseEnter={handlePrefetch}
-          disabled={!canOpenTask}
-          className={`flex w-full min-w-0 flex-col items-start gap-1 text-left ${
-            canOpenTask ? "" : "cursor-not-allowed opacity-70"
-          }`}
-        >
-          <p className="wrap-break-word w-full min-w-0 font-medium">{task.title}</p>
+        <div className="flex w-full min-w-0 flex-col items-start gap-1 text-left">
+          {canOpenTask ? (
+            // Only the title opens the task: the rest of the card is the card,
+            // and a real link means middle-click and "open in new tab" work.
+            <Link
+              to={taskHref(task.id)}
+              draggable={false}
+              className="wrap-break-word w-full min-w-0 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {task.title}
+            </Link>
+          ) : (
+            <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">{task.title}</p>
+          )}
           {task.description ? (
             <Markdown content={task.description} className="line-clamp-2 w-full min-w-0" />
           ) : null}
@@ -355,7 +334,7 @@ const KanbanCardContent = memo(
             {recurrenceText ? <p>{recurrenceText}</p> : null}
           </div>
           <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
-        </button>
+        </div>
         <div className="flex min-w-0 flex-wrap gap-2">
           <Badge variant={priorityVariant[task.priority]}>
             {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
@@ -386,7 +365,7 @@ const KanbanCardContent = memo(
 interface KanbanTaskCardVirtualProps {
   task: TaskListRead;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   "data-index": number;
 }
@@ -395,7 +374,7 @@ const KanbanTaskCardSortable = memo(
   function KanbanTaskCardSortable({
     task,
     priorityVariant,
-    onTaskClick,
+    taskHref,
     canOpenTask,
     "data-index": dataIndex,
     ref,
@@ -439,7 +418,7 @@ const KanbanTaskCardSortable = memo(
         <KanbanCardContent
           task={task}
           priorityVariant={priorityVariant}
-          onTaskClick={onTaskClick}
+          taskHref={taskHref}
           canOpenTask={canOpenTask}
         />
       </div>
@@ -454,7 +433,7 @@ const KanbanTaskCardPlain = memo(
   function KanbanTaskCardPlain({
     task,
     priorityVariant,
-    onTaskClick,
+    taskHref,
     canOpenTask,
     "data-index": dataIndex,
     ref,
@@ -472,7 +451,7 @@ const KanbanTaskCardPlain = memo(
         <KanbanCardContent
           task={task}
           priorityVariant={priorityVariant}
-          onTaskClick={onTaskClick}
+          taskHref={taskHref}
           canOpenTask={canOpenTask}
         />
       </div>
@@ -487,7 +466,7 @@ interface KanbanTaskCardProps {
   task: TaskListRead;
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   canOpenTask: boolean;
 }
 
@@ -495,7 +474,7 @@ const KanbanTaskCard = ({
   task,
   canWrite,
   priorityVariant,
-  onTaskClick,
+  taskHref,
   canOpenTask,
 }: KanbanTaskCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -525,7 +504,7 @@ const KanbanTaskCard = ({
       <KanbanCardContent
         task={task}
         priorityVariant={priorityVariant}
-        onTaskClick={onTaskClick}
+        taskHref={taskHref}
         canOpenTask={canOpenTask}
       />
     </div>

@@ -52,7 +52,7 @@ const section = (options: { routerSearch?: Record<string, unknown> } = {}) =>
         canWriteProject
         projectIsArchived={false}
         canViewTaskDetails
-        onTaskClick={vi.fn()}
+        taskHref={(taskId) => `/tasks/${taskId}`}
       />
     ),
     { routerSearch: options.routerSearch ?? {} }
