@@ -25,11 +25,10 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeRoles, useUpdateRole } from "@/hooks/useInitiativeRoles";
+import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import {
   useAddInitiativeMember,
   useDeleteInitiative,
@@ -43,70 +42,6 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
-
-/**
- * Per-row "PM full access" toggle. The full-access flag is
- * ``override_share_restrictions`` on the built-in project_manager role — the
- * single source of truth — so this cell reads the initiative's roles and
- * toggles that role directly (no denormalized copy on the initiative).
- */
-const PmFullAccessCell = ({ initiativeId }: { initiativeId: number }) => {
-  const { t } = useTranslation("initiatives");
-  const rolesQuery = useInitiativeRoles(initiativeId);
-  const updateRole = useUpdateRole(initiativeId);
-
-  const pmRole = useMemo(
-    () => rolesQuery.data?.find((role) => role.name === "project_manager"),
-    [rolesQuery.data]
-  );
-
-  if (rolesQuery.isLoading) {
-    return <Skeleton className="h-6 w-11 rounded-full" />;
-  }
-
-  // A failed roles fetch (or a missing PM role) must NOT fall through to the
-  // loading spinner — that would spin forever. Show a clear, hoverable error
-  // marker instead so the admin knows this one row's access state is unknown.
-  if (rolesQuery.isError || !pmRole) {
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex text-destructive">
-              <CircleAlert className="h-4 w-4" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{t("manage.fullAccessUnavailable")}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {/* Span keeps a hoverable trigger even while the Switch is disabled
-              (disabled controls don't emit pointer events). */}
-          <span className="inline-flex">
-            <Switch
-              aria-label={t("settings.fullAccess")}
-              checked={pmRole.override_share_restrictions}
-              disabled={updateRole.isPending}
-              onCheckedChange={(checked) =>
-                updateRole.mutate({
-                  roleId: pmRole.id,
-                  data: { override_share_restrictions: checked },
-                })
-              }
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{t("settings.fullAccessDescription")}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-};
 
 /**
  * Per-row project-manager picker — how a guild admin staffs an initiative, and
@@ -131,10 +66,12 @@ const InitiativeManagersCell = ({
   const [open, setOpen] = useState(false);
   const rolesQuery = useInitiativeRoles(initiative.id);
 
+  // The project manager by name first: moderator is a manager role too, and
+  // this column staffs an initiative rather than hands out Full access.
   const managerRole = useMemo(
     () =>
-      rolesQuery.data?.find((role) => role.is_manager) ??
-      rolesQuery.data?.find((role) => role.name === "project_manager"),
+      rolesQuery.data?.find((role) => role.name === "project_manager") ??
+      rolesQuery.data?.find((role) => role.is_manager),
     [rolesQuery.data]
   );
   const memberRole = useMemo(
@@ -196,8 +133,8 @@ const InitiativeManagersCell = ({
     return <Skeleton className="h-9 w-36" />;
   }
 
-  // Same reasoning as the full-access toggle: an unusable picker must say so
-  // rather than sit on a spinner that never resolves.
+  // An unusable picker must say so rather than sit on a spinner that never
+  // resolves.
   if (rolesQuery.isError || !managerRole) {
     return (
       <TooltipProvider delayDuration={200}>
@@ -376,11 +313,6 @@ export const SettingsInitiativesPage = () => {
           adminUserIds={adminUserIds}
         />
       ),
-    },
-    {
-      id: "full_access",
-      header: t("manage.fullAccessColumn"),
-      cell: ({ row }) => <PmFullAccessCell initiativeId={row.original.id} />,
     },
     {
       id: "status",

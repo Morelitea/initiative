@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
     Actor,
@@ -676,3 +677,49 @@ async def test_a_subject_that_names_nothing_narrows_nothing(
 
     offered = await _recent(client, a, types="document", subject="sandwich:3")
     assert [item["entity_id"] for item in offered] == [doc.id]
+
+
+@pytest.mark.integration
+async def test_a_suggestion_says_whether_it_is_yours_to_change(
+    client, acting_user, session
+):
+    """Not every link is the anchor's to make.
+
+    A relation that describes its source is the source's to assert, so a picker
+    offering "this blocks that" needs to know whether the thing being pointed at
+    is one the reader may change — not merely one they may open.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_document(
+        session, a.initiative, b.user, name="Read only to me"
+    )
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=theirs.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=theirs.guild_id,
+            initiative_id=theirs.initiative_id,
+        )
+    )
+    mine = await create_document(session, a.initiative, a.user, name="Read only mine")
+    await session.commit()
+
+    response = await client.get(
+        a.g("/search/suggest"), headers=a.headers, params={"q": "Read only"}
+    )
+    assert response.status_code == 200, response.text
+    by_id = {row["entity_id"]: row for row in response.json()}
+
+    # Both are offered — they are both readable.
+    assert theirs.id in by_id and mine.id in by_id
+    # Only one of them is this reader's to change.
+    assert by_id[mine.id]["can_write"] is True
+    assert by_id[theirs.id]["can_write"] is False

@@ -10,35 +10,31 @@ from app.core.config import settings
 
 
 def get_real_client_ip(request: Request) -> str:
+    """Return the client address selected by the configured ASGI server.
+
+    Uvicorn resolves ``request.client`` from its own ``FORWARDED_ALLOW_IPS``
+    configuration before the application sees the request, so the address is
+    already whatever the deployment's proxy configuration says it is.
     """
-    Get the real client IP address, accounting for proxies.
-
-    Only trusts X-Forwarded-For/X-Real-IP headers when BEHIND_PROXY=True,
-    preventing header spoofing when directly exposed to the internet.
-    """
-    if settings.BEHIND_PROXY:
-        # X-Forwarded-For may contain multiple IPs: client, proxy1, proxy2, ...
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
-
-    # Direct connection IP (or BEHIND_PROXY not set)
     return get_remote_address(request)
 
 
 def get_inet_client_ip(request: Request) -> str | None:
     """The client IP as a value an INET column accepts, or ``None`` when it
     isn't a parseable address (e.g. the ``testclient`` peer). Guards session
-    bookkeeping writes from faulting on a non-IP host string."""
+    bookkeeping writes from faulting on a non-IP host string.
+
+    The address is normalized, and any IPv6 zone identifier is dropped because
+    Postgres ``inet`` stores network addresses without an interface scope.
+    """
+    raw = get_real_client_ip(request)
+    # A zone identifies a local interface and is not meaningful in stored data.
+    candidate = raw.split("%", 1)[0]
     try:
-        ipaddress.ip_address(get_real_client_ip(request))
+        parsed = ipaddress.ip_address(candidate)
     except ValueError:
         return None
-    return get_real_client_ip(request)
+    return str(parsed)
 
 
 def _default_limits() -> list[str]:

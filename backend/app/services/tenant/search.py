@@ -51,6 +51,33 @@ def search_scope_clause(
     )
 
 
+def writable_column(user_id: int):
+    """Whether this request may CHANGE the row, not just see it.
+
+    The same ``public.resource_access`` call the gate makes, asked at write
+    level and selected rather than filtered on. A picker needs it because not
+    every link is the anchor's to make: a relation that describes its source is
+    the source's to assert, so offering "this blocks that" for a thing somebody
+    can only read is offering something the server must refuse.
+
+    One more call per row, on rows the gate has already narrowed to a page.
+    """
+    # Coalesced to false: a row with no sharing gate of its own — the guild's
+    # tags — answers NULL, and "it did not say" is not a reason to offer
+    # somebody an action. Nothing here asks a tag to be the source of a link
+    # anyway; that is what the tag picker is for.
+    return func.coalesce(
+        func.resource_access(
+            SearchEntry.dac_tool,
+            SearchEntry.dac_id,
+            user_id,
+            SearchEntry.initiative_id,
+            True,
+        ),
+        False,
+    ).label("can_write")
+
+
 def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
     """The text-match predicate, using whichever operator this install can index.
 
@@ -383,6 +410,7 @@ async def suggest(
                 SearchEntry.dac_tool.label("tool"),
                 SearchEntry.dac_id.label("tool_id"),
                 SearchEntry.title,
+                writable_column(user_id),
             )
             .where(clause, SearchEntry.chunk_ix == 0)
             .order_by(
@@ -427,6 +455,7 @@ async def recent(
                 SearchEntry.dac_tool.label("tool"),
                 SearchEntry.dac_id.label("tool_id"),
                 SearchEntry.title,
+                writable_column(user_id),
             )
             # One row per thing: the index holds a row per body chunk as well.
             .where(clause, SearchEntry.chunk_ix == 0)

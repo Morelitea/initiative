@@ -103,7 +103,13 @@ async def test_search_project_members_returns_write_access_set(
     """The assignable roster is the project's write/owner DAC set: the owner
     and write-granted members, but not read-only members nor members with no
     grant. Returns the slim UserSummary envelope."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    # Every handle here is stated, the owner's included. The searches below
+    # assert an exact result set, and an account that seeds no handle gets
+    # ``{adjective}-{noun}`` — one of whose nouns is ``quill``, which the term
+    # this test filters on is a fragment of.
+    admin = await acting_user(
+        guild_role=GuildRole.admin, initiative=True, username="sparrow"
+    )
     project = await create_project(
         session, admin.initiative, admin.user, name="Assignable Project"
     )

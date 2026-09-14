@@ -41,6 +41,9 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  UserEmailCreate,
+  UserEmailListResponse,
+  UserEmailRead,
   UserGuildMember,
   UserGuildRead,
   UserProfile,
@@ -50,6 +53,7 @@ import type {
   UserStatsResponse,
   UserSummaryListResponse,
   UsernameClaim,
+  VerificationSendResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1311,6 +1315,412 @@ export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
 > => {
   return useMutation(
     getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Every address this account holds.
+ *
+ * On the system engine: ``user_emails`` carries no request-path grants,
+ * because resolving an address happens before anybody is authenticated.
+ * @summary List My Addresses
+ */
+export const listMyAddressesApiV1UsersMeEmailsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserEmailListResponse>(
+    { url: `/api/v1/users/me/emails`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyAddressesApiV1UsersMeEmailsGetQueryKey = () => {
+  return [`/api/v1/users/me/emails`] as const;
+};
+
+export const getListMyAddressesApiV1UsersMeEmailsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyAddressesApiV1UsersMeEmailsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+  > = ({ signal }) => listMyAddressesApiV1UsersMeEmailsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyAddressesApiV1UsersMeEmailsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+>;
+export type ListMyAddressesApiV1UsersMeEmailsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyAddressesApiV1UsersMeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1UsersMeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1UsersMeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Addresses
+ */
+
+export function useListMyAddressesApiV1UsersMeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyAddressesApiV1UsersMeEmailsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Start holding another address, and write to it to prove it.
+ *
+ * The answer is the same whoever holds the address already. What differs is
+ * where the mail goes: a free address gets a link to confirm it, and one that
+ * is taken gets nothing.
+ * @summary Add My Address
+ */
+export const addMyAddressApiV1UsersMeEmailsPost = (
+  userEmailCreate: BodyType<UserEmailCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    {
+      url: `/api/v1/users/me/emails`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAddMyAddressApiV1UsersMeEmailsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+    TError,
+    { data: BodyType<UserEmailCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+  TError,
+  { data: BodyType<UserEmailCreate> },
+  TContext
+> => {
+  const mutationKey = ["addMyAddressApiV1UsersMeEmailsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+    { data: BodyType<UserEmailCreate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addMyAddressApiV1UsersMeEmailsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddMyAddressApiV1UsersMeEmailsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>
+>;
+export type AddMyAddressApiV1UsersMeEmailsPostMutationBody = BodyType<UserEmailCreate>;
+export type AddMyAddressApiV1UsersMeEmailsPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Add My Address
+ */
+export const useAddMyAddressApiV1UsersMeEmailsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+      TError,
+      { data: BodyType<UserEmailCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+  TError,
+  { data: BodyType<UserEmailCreate> },
+  TContext
+> => {
+  return useMutation(getAddMyAddressApiV1UsersMeEmailsPostMutationOptions(options), queryClient);
+};
+/**
+ * @summary Remove My Address
+ */
+export const removeMyAddressApiV1UsersMeEmailsAddressIdDelete = (
+  addressId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/users/me/emails/${addressId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+    TError,
+    { addressId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+  TError,
+  { addressId: number },
+  TContext
+> => {
+  const mutationKey = ["removeMyAddressApiV1UsersMeEmailsAddressIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+    { addressId: number }
+  > = (props) => {
+    const { addressId } = props ?? {};
+
+    return removeMyAddressApiV1UsersMeEmailsAddressIdDelete(addressId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>
+>;
+
+export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove My Address
+ */
+export const useRemoveMyAddressApiV1UsersMeEmailsAddressIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+      TError,
+      { addressId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+  TError,
+  { addressId: number },
+  TContext
+> => {
+  return useMutation(
+    getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Move where account mail goes.
+ * @summary Make My Address Primary
+ */
+export const makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = (
+  addressId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserEmailRead>(
+    { url: `/api/v1/users/me/emails/${addressId}/primary`, method: "PUT", signal },
+    options
+  );
+};
+
+export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+    TError,
+    { addressId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+  TError,
+  { addressId: number },
+  TContext
+> => {
+  const mutationKey = ["makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+    { addressId: number }
+  > = (props) => {
+    const { addressId } = props ?? {};
+
+    return makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut(addressId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>
+>;
+
+export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Make My Address Primary
+ */
+export const useMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+      TError,
+      { addressId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+  TError,
+  { addressId: number },
+  TContext
+> => {
+  return useMutation(
+    getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions(options),
     queryClient
   );
 };

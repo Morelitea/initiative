@@ -13,8 +13,11 @@ from app.core.messages import SharingMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
+    create_document,
     create_initiative,
+    create_project,
     create_queue,
+    create_task,
     grant_role_permission,
 )
 
@@ -1049,3 +1052,76 @@ async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user)
 
     assert response.status_code == 200, response.text
     assert response.json()["id"] == item.id
+
+
+# ---------------------------------------------------------------------------
+# What is pinned to an item
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
+    client: AsyncClient, acting_user, session
+):
+    """Reading one item showed its attachments and reading the queue did not,
+    because the whole-queue serializer had no session to fetch them with — so a
+    reader opening a queue saw every item as holding nothing."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    queue_data = await _create_queue_via_api(client, a)
+    item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
+    doc = await create_document(session, a.initiative, a.user)
+
+    linked = await client.post(
+        a.g("/relationships/"),
+        headers=a.headers,
+        json={
+            "source": {"type": "queue_item", "id": item["id"]},
+            "relationship_type": "attached",
+            "target": {"type": "document", "id": doc.id},
+        },
+    )
+    assert linked.status_code == 201, linked.text
+
+    read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
+    assert read.status_code == 200
+    (row,) = read.json()["items"]
+    assert [d["document_id"] for d in row["documents"]] == [doc.id]
+
+
+@pytest.mark.integration
+async def test_an_items_attachment_count_covers_every_kind(
+    client: AsyncClient, acting_user, session
+):
+    """A row saying "3 attachments" means three things. An item may be pinned to
+    any of the fourteen kinds, so the count cannot be the two lists added up."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    queue_data = await _create_queue_via_api(client, a)
+    item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
+
+    doc = await create_document(session, a.initiative, a.user)
+    task = await create_task(session, a.project)
+    # Neither of the two kinds the item serialises a list for.
+    other_project = await create_project(session, a.initiative, a.user)
+
+    for kind, entity_id in (
+        ("document", doc.id),
+        ("task", task.id),
+        ("project", other_project.id),
+    ):
+        made = await client.post(
+            a.g("/relationships/"),
+            headers=a.headers,
+            json={
+                "source": {"type": "queue_item", "id": item["id"]},
+                "relationship_type": "attached",
+                "target": {"type": kind, "id": entity_id},
+            },
+        )
+        assert made.status_code == 201, made.text
+
+    read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
+    (row,) = read.json()["items"]
+    assert row["attachment_count"] == 3
+    # The typed lists still only know about their own two kinds, which is why
+    # the count is asked for separately.
+    assert len(row["documents"]) + len(row["tasks"]) == 2

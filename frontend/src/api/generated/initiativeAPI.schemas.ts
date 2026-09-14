@@ -4344,7 +4344,6 @@ export interface InitiativeRoleRead {
 export interface InitiativeRoleUpdate {
   display_name?: string | null;
   is_manager?: boolean | null;
-  override_share_restrictions?: boolean | null;
   permissions?: Partial<Record<PermissionKey, boolean>> | null;
 }
 
@@ -5721,6 +5720,7 @@ export interface QueueItemRead {
   tags: TagSummary[];
   documents: QueueItemDocumentRead[];
   tasks: QueueItemTaskRead[];
+  attachment_count: number;
   held_at_round: number | null;
   created_at: string;
 }
@@ -5936,6 +5936,10 @@ export interface RegistryStatusRead {
 
 /**
  * The far end of an edge, as the caller's side sees it.
+ *
+ * Enough to draw the thing and link to it, because a list of edges is a list of
+ * mixed kinds and a reader should not have to fetch each one to find out what it
+ * is called, what it looks like or where it lives.
  */
 export interface RelatedEnd {
   type: SearchEntityType;
@@ -5943,6 +5947,15 @@ export interface RelatedEnd {
   title: string | null;
   initiative_id: number | null;
   updated_at: string | null;
+  tool: Tool | null;
+  tool_id: number | null;
+  image_urls: string[];
+  icon: string | null;
+  color: string | null;
+  document_type: string | null;
+  mime_type: string | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
 }
 
 /**
@@ -6097,6 +6110,7 @@ export interface SearchSuggestion {
   initiative_id?: number | null;
   tool?: Tool | null;
   tool_id?: number | null;
+  can_write?: boolean;
 }
 
 /**
@@ -6756,6 +6770,30 @@ export interface UserCreate {
   password: string;
   timezone?: string | null;
   captcha_token?: string | null;
+}
+
+export interface UserEmailCreate {
+  email: string;
+}
+
+/**
+ * One address on the account reading it.
+ *
+ * Served only to its owner, so the address is in full — every other shape
+ * that carries one either masks it or does not have it at all.
+ */
+export interface UserEmailRead {
+  id: number;
+  email: string;
+  verified: boolean;
+  is_primary: boolean;
+  source: string;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface UserEmailListResponse {
+  items: UserEmailRead[];
 }
 
 /**

@@ -1,332 +1,72 @@
-import { ChevronDown, ChevronUp, FilePlus, Link, Loader2, Unlink } from "lucide-react";
-import { useMemo, useState } from "react";
+import { FilePlus } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  DocumentSummary,
-  ProjectDocumentSummary,
-} from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
-import { DocumentCard } from "@/components/documents/DocumentCard";
-import { AsyncCombobox } from "@/components/ui/async-combobox";
+import { RelationsSection } from "@/components/entities/RelationsSection";
 import { Button } from "@/components/ui/button";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useDocumentsList } from "@/hooks/useDocuments";
-import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
-import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
-import { toast } from "@/lib/chesterToast";
-import { MAX_DOCUMENT_IDS } from "@/lib/documentUtils";
-import { getItem, setItem } from "@/lib/storage";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;
+  projectName: string;
   initiativeId: number;
-  documents: ProjectDocumentSummary[];
   canCreate: boolean;
   canAttach: boolean;
 };
 
 /**
- * Live "Attached N ago" label for one attached document. A component (not an
- * inline hook) so `useRelativeTime` can run per row inside the documents map.
- * `addSuffix` is off because the "ago" wording lives in the translation string.
+ * What a project is connected to.
+ *
+ * This was a carousel of document cards with a documents-only picker, which
+ * could attach one kind of thing out of the fourteen a link may name. It is the
+ * generic relations surface now, and the shortcut that made a new document
+ * already attached to the project is kept — creating the thing you are about to
+ * attach is worth a button of its own, which searching for an existing one is
+ * not.
+ *
+ * A project holding only documents looks the way it always did: a heading with
+ * nothing under it is not drawn, so the other kinds of link appear only once
+ * somebody makes one.
  */
-const AttachedDocumentTime = ({ attachedAt }: { attachedAt: string }) => {
-  const { t } = useTranslation("projects");
-  const relative = useRelativeTime(attachedAt, { addSuffix: false });
-  return <>{t("documents.attachedAgo", { time: relative })}</>;
-};
-
 export const ProjectDocumentsSection = ({
   projectId,
+  projectName,
   initiativeId,
-  documents,
   canCreate,
   canAttach,
 }: ProjectDocumentsSectionProps) => {
   const { t } = useTranslation("projects");
-  const guildId = useActiveGuildId();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
-  // Server search only returns matches for the live query, so the trigger's
-  // label can't be looked up from the results once the query moves on.
-  const [selectedDocumentLabel, setSelectedDocumentLabel] = useState<string | null>(null);
-  const [docSearch, setDocSearch] = useState("");
-  const storageKey = `project:${projectId}:documentsCollapsed`;
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    return getItem(storageKey) === "true";
-  });
-
-  const attachedDocumentIds = useMemo(() => documents.map((doc) => doc.document_id), [documents]);
-
-  // Hydrate only the attached documents — the cards need the full summary
-  // (featured image, tags, badges), but nothing here needs the initiative's
-  // other documents.
-  const attachedDocsQuery = useDocumentsList(
-    { ids: attachedDocumentIds.slice(0, MAX_DOCUMENT_IDS), page_size: MAX_DOCUMENT_IDS },
-    { enabled: attachedDocumentIds.length > 0 }
-  );
-
-  // Attach picker — the shared lookup, only while the dialog is open. It opens
-  // on this initiative's most recent documents, so there is something to attach
-  // before anything is typed. A template is not a document to attach to a
-  // project.
-  const docPicker = useGuildPickerSuggestions(docSearch, {
-    types: [SearchEntityType.document],
-    initiative_id: initiativeId,
-    template: false,
-    enabled: dialogOpen,
-  });
-
-  const attachMutation = useAttachProjectDocument(projectId, {
-    onSuccess: () => {
-      toast.success(t("documents.attached"));
-      setDialogOpen(false);
-      setSelectedDocumentId("");
-      setSelectedDocumentLabel(null);
-    },
-  });
-
-  const detachMutation = useDetachProjectDocument(projectId, {
-    onSuccess: () => {
-      toast.success(t("documents.detached"));
-    },
-  });
-
-  const documentsById = useMemo(() => {
-    const map = new Map<number, DocumentSummary>();
-    (attachedDocsQuery.data?.items ?? []).forEach((doc) => {
-      map.set(doc.id, doc);
-    });
-    return map;
-  }, [attachedDocsQuery.data]);
-
-  // Filtering the already-attached out of a small result page — the server has
-  // no notion of which of them this project already holds.
-  const comboboxItems = useMemo(() => {
-    const attached = new Set(attachedDocumentIds);
-    return docPicker.items
-      .filter((doc) => !attached.has(doc.entity_id))
-      .map((doc) => ({ value: String(doc.entity_id), label: doc.title }));
-  }, [docPicker.items, attachedDocumentIds]);
+  const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <Collapsible
-      open={!isCollapsed}
-      onOpenChange={(open) => {
-        setIsCollapsed(!open);
-        setItem(storageKey, (!open).toString());
-      }}
-      className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="inline-flex items-center gap-2">
-            <h2 className="font-semibold text-xl">{t("documents.title")}</h2>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={() => {
-                setIsCollapsed((prev) => {
-                  const next = !prev;
-                  setItem(storageKey, next.toString());
-                  return next;
-                });
-              }}
-              aria-label={
-                isCollapsed ? t("documents.expandDocuments") : t("documents.collapseDocuments")
-              }
-            >
-              {isCollapsed ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronUp className="h-4 w-4" />
-              )}
+    <>
+      <RelationsSection
+        entity={{ type: SearchEntityType.project, id: projectId }}
+        initiativeId={initiativeId}
+        anchorTool={{ tool: Tool.project, id: projectId }}
+        canEdit={canAttach}
+        collapseKey={`project:${projectId}:documentsCollapsed`}
+        entityTitle={projectName}
+        /* The shelf this section has always been. A project's attachments are
+           browsed along rather than read down, and a carousel says "there is
+           more this way" where a grid just runs out. */
+        defaultLayout="carousel"
+        headerActions={
+          canCreate ? (
+            <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
+              <FilePlus className="h-4 w-4" />
+              {t("documents.newDocument")}
             </Button>
-          </div>
-          <p className="text-muted-foreground text-sm">{t("documents.description")}</p>
-        </div>
-        {(canCreate || canAttach) && (
-          <div className="flex items-center gap-2">
-            {canCreate && (
-              <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                <FilePlus className="h-4 w-4" />
-                {t("documents.newDocument")}
-              </Button>
-            )}
-            {canAttach && (
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button type="button" size="sm" variant="outline">
-                    <Link className="h-4 w-4" />
-                    {t("documents.attachExisting")}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>{t("documents.attachDocument")}</DialogTitle>
-                    <DialogDescription>{t("documents.attachDialogDescription")}</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <AsyncCombobox
-                        items={comboboxItems}
-                        value={selectedDocumentId || null}
-                        selectedLabel={selectedDocumentLabel}
-                        onValueChange={(value) => {
-                          setSelectedDocumentId(value);
-                          setSelectedDocumentLabel(
-                            comboboxItems.find((item) => item.value === value)?.label ?? null
-                          );
-                        }}
-                        onSearchChange={setDocSearch}
-                        loading={docPicker.isFetching}
-                        placeholder={t("documents.chooseDocument")}
-                        emptyMessage={t("documents.noMatchesFound")}
-                        buttonClassName="justify-between"
-                      />
-                      <p className="text-muted-foreground text-xs">{t("documents.attachHint")}</p>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      onClick={() => attachMutation.mutate(Number(selectedDocumentId))}
-                      disabled={attachMutation.isPending || !selectedDocumentId}
-                    >
-                      {attachMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          {t("documents.attaching")}
-                        </>
-                      ) : (
-                        t("documents.attach")
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        )}
-      </div>
-
+          ) : null
+        }
+      />
       <CreateDocumentDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
         initiativeId={initiativeId}
         projectId={projectId}
       />
-
-      <CollapsibleContent className="space-y-4 data-[state=closed]:hidden">
-        {documents.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {t("documents.noDocuments")} {canAttach ? t("documents.noDocumentsHint") : ""}
-          </p>
-        ) : (
-          <Carousel className="relative">
-            <CarouselContent className="-ml-4">
-              {documents.map((doc) => {
-                const summary =
-                  documentsById.get(doc.document_id) ??
-                  createFallbackSummary(doc, initiativeId, guildId);
-                return (
-                  <CarouselItem
-                    key={doc.document_id}
-                    className="pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4 2xl:basis-1/5"
-                  >
-                    <div className="space-y-2">
-                      <div className="relative">
-                        <DocumentCard document={summary} />
-                        {canAttach ? (
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="absolute top-3 right-3 z-10 rounded-full bg-background/90 text-foreground shadow-md"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              detachMutation.mutate(doc.document_id);
-                            }}
-                            disabled={detachMutation.isPending}
-                            aria-label={t("documents.detachDocument")}
-                          >
-                            {detachMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Unlink className="h-4 w-4" />
-                            )}
-                          </Button>
-                        ) : null}
-                      </div>
-                      <div className="text-muted-foreground text-xs">
-                        <AttachedDocumentTime attachedAt={doc.attached_at} />
-                      </div>
-                    </div>
-                  </CarouselItem>
-                );
-              })}
-            </CarouselContent>
-            <CarouselPrevious className="left-0 -translate-x-1/2" />
-            <CarouselNext className="right-0 translate-x-1/2" />
-          </Carousel>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+    </>
   );
 };
-
-const createFallbackSummary = (
-  doc: ProjectDocumentSummary,
-  initiativeId: number,
-  guildId: number
-): DocumentSummary => ({
-  id: doc.document_id,
-  guild_id: guildId,
-  initiative_id: initiativeId,
-  name: doc.name,
-  featured_image_url: null,
-  created_by: 0,
-  created_at: doc.updated_at,
-  updated_at: doc.updated_at,
-  initiative: null,
-  projects: [],
-  is_template: false,
-  comment_count: 0,
-  comments_enabled: true,
-  grants: [],
-  tags: [],
-  properties: [],
-  document_type: "native",
-  file_url: null,
-  file_content_type: null,
-  file_size: null,
-  original_filename: null,
-  smart_link_url: null,
-  my_permission_level: null,
-  archived_at: null,
-  can_unarchive: false,
-  yjs_updated_at: null,
-});

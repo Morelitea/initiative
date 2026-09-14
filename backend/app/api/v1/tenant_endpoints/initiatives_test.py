@@ -326,7 +326,8 @@ async def test_create_initiative_duplicate_name_fails(
 async def test_create_initiative_makes_creator_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that creating an initiative makes the creator a manager."""
+    """Creating an initiative makes the creator a manager — the moderator role
+    here, because the creator is a guild admin."""
     admin = await acting_user(guild_role=GuildRole.admin)
 
     payload = {"name": "New Initiative"}
@@ -339,7 +340,7 @@ async def test_create_initiative_makes_creator_manager(
     data = response.json()
     assert len(data["members"]) == 1
     assert data["members"][0]["user"]["id"] == admin.user.id
-    assert data["members"][0]["role_name"] == "project_manager"
+    assert data["members"][0]["role_name"] == "moderator"
 
 
 @pytest.mark.integration
@@ -916,7 +917,7 @@ async def test_inviting_a_guild_admin_lands_them_on_the_manager_role(
     """An invite naming a standard role for a guild admin still succeeds.
 
     A guild admin's standing already reaches every initiative, so their row
-    carries the manager role — the invite settles that rather than refusing,
+    carries the moderator role — the invite settles that rather than refusing,
     which is what lets a project manager add an admin without first checking
     who is one.
     """
@@ -945,7 +946,7 @@ async def test_inviting_a_guild_admin_lands_them_on_the_manager_role(
 
     assert response.status_code == 200
     member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
-    assert member_roles[target_admin.user.id] == "project_manager"
+    assert member_roles[target_admin.user.id] == "moderator"
 
 
 @pytest.mark.integration
@@ -1047,7 +1048,7 @@ async def test_a_project_manager_can_invite_a_guild_admin(
 
     assert response.status_code == 200
     member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
-    assert member_roles[target_admin.user.id] == "project_manager"
+    assert member_roles[target_admin.user.id] == "moderator"
 
 
 @pytest.mark.integration
@@ -1470,7 +1471,7 @@ async def test_self_join_rejected_for_non_open_policy(
 async def test_a_guild_admin_walks_into_a_closed_initiative_as_manager(
     client: AsyncClient, session: AsyncSession, acting_user, policy: str
 ):
-    """A guild admin joins whatever the policy says, on the manager role.
+    """A guild admin joins whatever the policy says, on the moderator role.
 
     Their sidebar is their memberships now, so this is how they put an
     initiative in it — the same act as ticking themselves in guild settings,
@@ -1490,7 +1491,7 @@ async def test_a_guild_admin_walks_into_a_closed_initiative_as_manager(
     entry = next(
         m for m in response.json()["members"] if m["user"]["id"] == admin.user.id
     )
-    assert entry["role_name"] == "project_manager"
+    assert entry["role_name"] == "moderator"
     assert entry["is_manager"] is True
 
 

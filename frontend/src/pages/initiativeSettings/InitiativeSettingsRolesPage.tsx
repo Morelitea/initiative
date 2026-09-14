@@ -12,7 +12,7 @@ import { InitiativeSettingsRolesTab } from "@/components/initiatives/settings/In
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 
 export const InitiativeSettingsRolesPage = () => {
-  const { initiativeId, initiative, canManageMembers, isGuildAdmin } = useInitiativeSettings();
+  const { initiativeId, initiative, canManageMembers } = useInitiativeSettings();
 
   const [showNewRoleDialog, setShowNewRoleDialog] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<InitiativeRoleRead | null>(null);
@@ -28,7 +28,6 @@ export const InitiativeSettingsRolesPage = () => {
         initiativeId={initiativeId}
         initiative={initiative}
         canManageMembers={canManageMembers}
-        isGuildAdmin={isGuildAdmin}
         onOpenCreateRoleDialog={() => setShowNewRoleDialog(true)}
         onDeleteRole={setRoleToDelete}
         onRenameRole={setRoleToRename}

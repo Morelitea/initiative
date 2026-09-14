@@ -1,4 +1,4 @@
-import { EyeOff, FileText, ListChecks, PauseCircle } from "lucide-react";
+import { EyeOff, Paperclip, PauseCircle } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -120,18 +120,15 @@ export const QueueItemRow = ({
         )}
       </div>
 
-      {/* Linked entity badges */}
+      {/* How much is pinned to this item — one number, because an item may be
+          pinned to any kind of thing and two of them no longer deserve a badge
+          each. Counted server-side over every kind, not summed from the two
+          lists the item still serialises. */}
       <div className="flex shrink-0 items-center gap-1.5">
-        {item.documents.length > 0 && (
+        {item.attachment_count > 0 && (
           <Badge variant="secondary" className="gap-1 px-1.5 py-0.5 text-xs">
-            <FileText className="h-3 w-3" />
-            {item.documents.length}
-          </Badge>
-        )}
-        {item.tasks.length > 0 && (
-          <Badge variant="secondary" className="gap-1 px-1.5 py-0.5 text-xs">
-            <ListChecks className="h-3 w-3" />
-            {item.tasks.length}
+            <Paperclip className="h-3 w-3" />
+            {item.attachment_count}
           </Badge>
         )}
       </div>

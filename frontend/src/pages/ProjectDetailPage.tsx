@@ -200,8 +200,8 @@ export const ProjectDetailPage = () => {
         <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
         <ProjectDocumentsSection
           projectId={project.id}
+          projectName={project.name}
           initiativeId={project.initiative_id}
-          documents={project.documents ?? []}
           canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
           canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
         />

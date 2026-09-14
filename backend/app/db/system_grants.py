@@ -186,6 +186,7 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # resolving an address to an account is a pre-auth lookup, like a session
     "user_emails": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_email_assertions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     # UPDATE joined the set for the rolled-up direct-message line: the system
@@ -250,10 +251,11 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # Written and read on the system engine only — the request path never
     # touches the log, in either direction.
     "audit_events": None,
-    # Minted and resolved on the system engine, behind the surfaces that
-    # hand a reference to an outside party; the request path never reads
-    # the mapping in either direction.
-    "identity_refs": None,
+    # Minted on the system engine, behind the surfaces that hand a reference to
+    # an outside party. SELECT covers the table and one policy admits the rows:
+    # ``purpose = 'client'``, the sector an account's own access token names it
+    # by and every authenticated request resolves (migration 0267).
+    "identity_refs": frozenset({"SELECT"}),
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,
@@ -335,6 +337,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "user_emails": None,
+    "user_email_assertions": None,
     "notifications": None,
     # An announcement is shown to a signed-in account, so nothing about it is
     # read before routing.

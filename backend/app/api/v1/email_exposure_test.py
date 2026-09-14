@@ -1,10 +1,11 @@
 """Which response shapes may carry an address, and which may not.
 
-``UserRead`` carries a stored address in full and is served on the ``/users/me``
-routes, where the reader is the address's owner. Every other route that returns
-an account returns ``AdminUserRead``, which masks it. The shapes that carry an
-address field alongside other data — the guild invite, the access grant — mask
-it too.
+Two shapes carry a stored address in full: ``UserRead`` on the ``/users/me``
+routes, and ``UserEmailRead`` on the routes listing the addresses an account
+holds. Both are served only to the address's owner. Every other route that
+returns an account returns ``AdminUserRead``, which masks it, and the shapes
+that carry an address field alongside other data — the guild invite, the
+access grant — mask it too.
 
 These tests read the OpenAPI schema and hold the app to that split, so a new
 route or a new shape has to be a deliberate addition to the lists below rather
@@ -20,15 +21,20 @@ from app.main import app
 
 pytestmark = pytest.mark.unit
 
-#: The shape that carries a stored address in full, and the routes that serve
-#: it — each of them returning the caller their own account.
-SELF_SCHEMA = "UserRead"
-SELF_ROUTES = {
-    "/api/v1/auth/register",
-    "/api/v1/users/me",
-    "/api/v1/users/me/username",
-    "/api/v1/users/me/age-confirmation",
-    "/api/v1/users/me/avatar",
+#: Shapes that carry a stored address in full, each mapped to the routes that
+#: serve it — every one of them returning the caller their own account.
+SELF_SHAPES = {
+    "UserRead": {
+        "/api/v1/auth/register",
+        "/api/v1/users/me",
+        "/api/v1/users/me/username",
+        "/api/v1/users/me/age-confirmation",
+        "/api/v1/users/me/avatar",
+    },
+    "UserEmailRead": {
+        "/api/v1/users/me/emails",
+        "/api/v1/users/me/emails/{address_id}/primary",
+    },
 }
 
 #: Shapes that carry an address field and mask it. Each has a validator
@@ -89,23 +95,24 @@ def test_the_walk_reaches_a_nested_shape() -> None:
     assert _reachable(node, schemas) == {"Envelope", "Inner"}
 
 
-def test_the_unmasked_shape_is_served_only_on_the_self_routes() -> None:
-    """``UserRead`` reaches a response only where the caller owns the account.
+def test_the_unmasked_shapes_are_served_only_on_their_own_routes() -> None:
+    """An unmasked shape reaches a response only where the caller owns it.
 
     A route serving somebody else's account uses ``AdminUserRead`` instead; one
-    that genuinely belongs on the list is added to it explicitly.
+    that genuinely belongs on a list is added to it explicitly.
     """
     spec = app.openapi()
     schemas = spec["components"]["schemas"]
 
     leaked = {
-        path
+        (name, path)
         for path, _method, operation in _operations()
-        if SELF_SCHEMA in _reachable(operation.get("responses") or {}, schemas)
-        and path not in SELF_ROUTES
+        for name, own_routes in SELF_SHAPES.items()
+        if name in _reachable(operation.get("responses") or {}, schemas)
+        and path not in own_routes
     }
     assert not leaked, (
-        f"{sorted(leaked)} return {SELF_SCHEMA}, which carries the stored "
+        f"{sorted(leaked)} — these routes return a shape carrying the stored "
         "address. Serve somebody else's account as AdminUserRead."
     )
 
@@ -130,7 +137,7 @@ def test_every_other_address_field_comes_from_a_masking_shape() -> None:
         if "email" in field.lower() and field != "email_verified"
     }
 
-    unaccounted = carrying - MASKED_SHAPES - {SELF_SCHEMA}
+    unaccounted = carrying - MASKED_SHAPES - set(SELF_SHAPES)
     assert not unaccounted, (
         f"{sorted(unaccounted)} carry an address field in a response without "
         "masking it."

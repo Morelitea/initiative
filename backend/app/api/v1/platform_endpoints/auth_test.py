@@ -40,6 +40,7 @@ from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
     create_auth_provider,
+    create_federated_identity,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -424,6 +425,53 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
 
     assert response.status_code == 400
     assert "incorrect" in response.json()["detail"].lower()
+
+
+@pytest.mark.parametrize("endpoint", ["token", "device-token"])
+async def test_password_token_refusal_does_not_reveal_account_resolution(
+    client: AsyncClient, session: AsyncSession, endpoint: str
+) -> None:
+    """Known, unknown, and non-password accounts have one public refusal shape."""
+    await create_user(session, email=f"known-{endpoint}@example.com")
+    # Built through the factory rather than by hand: an account is more than
+    # its row now that addresses are resolved separately, and a test that
+    # assembles one itself asserts against a shape it invented.
+    await create_user(
+        session,
+        email=f"sso-{endpoint}@example.com",
+        full_name="No Password",
+        hashed_password=None,
+    )
+
+    async def refuse(email: str):
+        if endpoint == "token":
+            return await client.post(
+                "/api/v1/auth/token",
+                data={"username": email, "password": "wrong-password"},
+            )
+        return await client.post(
+            "/api/v1/auth/device-token",
+            json={
+                "email": email,
+                "password": "wrong-password",
+                "device_name": "test-phone",
+            },
+        )
+
+    responses = [
+        await refuse(f"known-{endpoint}@example.com"),
+        await refuse(f"missing-{endpoint}@example.com"),
+        await refuse(f"sso-{endpoint}@example.com"),
+    ]
+    fingerprints = [
+        (response.status_code, response.json(), response.headers.get("set-cookie"))
+        for response in responses
+    ]
+    assert fingerprints == [
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+        (400, {"detail": "INCORRECT_CREDENTIALS"}, None),
+    ]
 
 
 async def test_login_refused_for_account_without_password(
@@ -1152,6 +1200,59 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_the_platform_provider_asserts_a_platform_identity(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Under platform posture the one provider is operator-global, so the
+    address it asserts belongs to no guild — ``auth_providers.guild_id`` is
+    NULL and the per-guild derivation has nothing to match."""
+    from app.models.platform.user_email import UserEmail
+    from app.models.platform.user_email_assertion import UserEmailAssertion
+
+    await _enable_platform_oidc(session)
+    user = await create_user(session, email="alice@personal.example.com")
+    user_id = user.id
+    identity_provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    provider_id = identity_provider.id
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=identity_provider
+    )
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "alice@work.example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    session.expire_all()
+    rows = (
+        await session.exec(select(UserEmail).where(UserEmail.user_id == user_id))
+    ).all()
+    work = {r.email_hash: r for r in rows}[hash_email("alice@work.example.com")]
+    claim = (
+        await session.exec(
+            select(UserEmailAssertion).where(
+                UserEmailAssertion.user_email_id == work.id
+            )
+        )
+    ).one()
+    assert claim.provider_id == provider_id
+    # The provider it came from serves the platform, not a guild.
+    assert (await session.get(AuthProvider, provider_id)).guild_id is None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1192,12 +1293,11 @@ async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_oidc_callback_survives_session_store_failure(
+async def test_an_oidc_callback_that_cannot_open_a_session_says_so(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The refresh session is additive, not load-bearing: a failure writing it
-    must not fail a successful SSO login — the redirect and legacy session
-    cookie still go out, just without a refresh cookie."""
+    """The provider authenticated them and the store could not record it. Back
+    to the app with a code rather than a credential that cannot renew."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1211,28 +1311,19 @@ async def test_oidc_callback_survives_session_store_failure(
         client,
         idp,
         id_token_claims={
-            "email": "sso-besteffort@example.com",
-            "username": "sso-besteffort",
+            "email": "sso-nostore@example.com",
+            "username": "sso-nostore",
             "email_verified": True,
         },
     )
     assert response.status_code in (302, 307)
-    assert response.headers["location"].endswith("/oidc/callback")
-    assert SESSION_COOKIE_NAME in response.cookies
+    assert "error=OIDC_SESSION_STORE_UNAVAILABLE" in response.headers["location"]
     assert response.cookies.get(REFRESH_COOKIE_NAME) is None
-    # The fallback cookie is a legacy (session-less) token.
-    import jwt as pyjwt
-
-    claims = pyjwt.decode(
-        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
-    )
-    assert "sid" not in claims
+    assert SESSION_COOKIE_NAME not in response.cookies
 
     user = (
         await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("sso-besteffort@example.com")
-            )
+            select(User).where(User.email_hash == hash_email("sso-nostore@example.com"))
         )
     ).one()
     rows = (
@@ -2056,38 +2147,24 @@ async def test_login_issues_session_access_token(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_login_session_store_failure_falls_back_to_legacy(
+async def test_a_login_that_cannot_open_a_session_is_refused(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A session-store failure must not block sign-in: login falls back to a
-    legacy long-lived token (no refresh cookie) that still authenticates."""
-    import jwt as pyjwt
-
-    _, password = await _make_login_user(session, "fallback@example.com")
+    """A sign-in is the session. If the store cannot be written there is
+    nothing to hand back, and the request says so rather than issuing a
+    credential that cannot renew."""
+    _, password = await _make_login_user(session, "nostore@example.com")
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("session store down")
 
     monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
 
-    resp = await _login(client, "fallback@example.com", password)
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    claims = pyjwt.decode(token, options={"verify_signature": False})
-    assert "sid" not in claims
+    resp = await _login(client, "nostore@example.com", password)
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
     assert resp.cookies.get(REFRESH_COOKIE_NAME) is None
-    # Any leftover refresh cookie is actively cleared so it can't ride the
-    # new login into a later silent renewal.
-    set_cookies = resp.headers.get_list("set-cookie")
-    assert any(
-        c.startswith(f"{REFRESH_COOKIE_NAME}=") and ("Max-Age=0" in c or "1970" in c)
-        for c in set_cookies
-    ), set_cookies
-
-    me = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert me.status_code == 200
+    assert SESSION_COOKIE_NAME not in resp.cookies
 
 
 @pytest.mark.integration
@@ -2110,6 +2187,39 @@ async def test_refresh_rotates_and_new_token_authenticates(
     )
     assert me.status_code == 200
     assert me.json()["email"] == "rot@example.com"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_refresh_that_cannot_finish_leaves_the_cookie_usable(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A rotation spends the presented cookie and mints a replacement whose
+    secret only the response carries, so the name the new token will use is
+    minted in that same transaction. A failure therefore leaves the presented
+    cookie live, and it rotates on the next attempt."""
+    from app.api.v1.platform_endpoints import auth as auth_endpoints
+
+    _, password = await _make_login_user(session, "stranded@example.com")
+    login = await _login(client, "stranded@example.com", password)
+    presented = login.cookies.get("refresh_token")
+
+    async def _fails(*args, **kwargs):
+        raise RuntimeError("no name for you")
+
+    monkeypatch.setattr(
+        auth_endpoints.subject_service, "subject_for_user", _fails, raising=True
+    )
+    with pytest.raises(RuntimeError):
+        await client.post("/api/v1/auth/refresh")
+    monkeypatch.undo()
+
+    # The same cookie still rotates: the failed attempt spent nothing.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", presented, path="/api/v1/auth")
+    retry = await client.post("/api/v1/auth/refresh")
+    assert retry.status_code == 200
+    assert retry.cookies.get("refresh_token") != presented
 
 
 @pytest.mark.integration

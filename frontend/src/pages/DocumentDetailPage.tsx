@@ -24,7 +24,6 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import {
   DocumentOutlinePanel,
@@ -34,6 +33,7 @@ import {
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
+import { RelationsSection } from "@/components/entities/RelationsSection";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
 import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
@@ -77,7 +77,6 @@ import type * as Y from "yjs";
 
 import { importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
 import type {
-  DocumentProjectLink,
   PropertyDefinitionRead,
   PropertySummary,
   TagSummary,
@@ -124,16 +123,6 @@ import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
-
-/**
- * Live "Attached N ago" label for one attached-project row. A component (not an
- * inline hook) so `useRelativeTime` can run per row inside the projects map.
- */
-const AttachedProjectTime = ({ attachedAt }: { attachedAt: string }) => {
-  const { t } = useTranslation("documents");
-  const relative = useRelativeTime(attachedAt);
-  return <>{t("detail.attached", { date: relative })}</>;
-};
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
@@ -1053,7 +1042,6 @@ export const DocumentDetailPage = () => {
     );
   }
 
-  const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
   const showSummaryTab = document.document_type === "native" && isAIEnabled;
   // Only prose has headings to navigate; a board, a sheet, an uploaded
   // file and a link to somewhere else have no contents of their own.
@@ -1566,46 +1554,17 @@ export const DocumentDetailPage = () => {
           </DocumentOutlineScope>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("detail.attachedProjects")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {attachedProjects.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("detail.noAttachedProjects")}</p>
-            ) : (
-              <div className="space-y-2">
-                {attachedProjects.map((link) => (
-                  <div
-                    key={`${document.id}-${link.project_id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
-                  >
-                    <div className="space-y-0.5">
-                      <Link
-                        to={gp(
-                          toolDetailRoute(
-                            Tool.project,
-                            link.project_initiative_id ?? null,
-                            link.project_id
-                          )
-                        )}
-                        className="font-medium hover:underline"
-                      >
-                        {link.project_name ?? t("detail.projectFallback", { id: link.project_id })}
-                      </Link>
-                      <p className="text-muted-foreground text-xs">
-                        <AttachedProjectTime attachedAt={link.attached_at} />
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Backlinks - documents that link to this one */}
-        <DocumentBacklinks documentId={parsedId} />
+        {/* Everything this document is connected to, in place of a read-only
+            list of projects and a read-only list of backlinks. The projects half
+            was editable only from the project's side, which meant the same fact
+            had two renderings and one of them could not be changed. */}
+        <RelationsSection
+          entity={{ type: SearchEntityType.document, id: parsedId }}
+          initiativeId={document.initiative_id}
+          anchorTool={{ tool: Tool.document, id: parsedId }}
+          canEdit={canEditDocument}
+          collapseKey={`document:${parsedId}:relationsCollapsed`}
+        />
 
         {/* The thread, at the width of the document it is about — the same
             place every other tool puts it. */}

@@ -19,7 +19,7 @@ import type {
   QueueUpdate,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { type RelationshipRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost,
   advanceTurnApiV1GGuildIdQueuesQueueIdNextPost,
@@ -51,6 +51,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { idsByKind, type LinkedRef, sameIds } from "@/lib/relationships";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -674,38 +675,50 @@ export const useSetQueueItemTags = (
     options
   );
 
-export const useSetQueueItemDocuments = (
-  queueId: number,
-  options?: MutationOpts<RelationshipRead[], { itemId: number; documentIds: number[] }>
-) =>
-  useGuildMutation<RelationshipRead[], { itemId: number; documentIds: number[] }>(
-    {
-      mutationFn: (guildId, { itemId, documentIds }) =>
-        setRelated(
-          guildId,
-          { type: SearchEntityType.queue_item, id: itemId },
-          SearchEntityType.document,
-          documentIds
-        ),
-      invalidate: () => invalidateQueueAndList(queueId),
-      errorKey: "queues:error",
-    },
-    options
-  );
+/**
+ * Set everything a queue item is linked to, whatever kinds those are.
+ *
+ * This was two hooks, one per kind, and the dialog that called them worked out
+ * whether each list had changed by comparing it to the old one **position by
+ * position** — so reordering the same documents counted as a change and swapping
+ * two of them did not.
+ *
+ * One slice of links is replaced per kind, which is the shape the endpoint is
+ * built for. A kind is written only when its set of ids actually differs, and a
+ * kind that has lost all its links is written as an empty set rather than
+ * skipped — otherwise removing the last document of a kind would not stick.
+ */
+interface QueueItemLinks {
+  itemId: number;
+  links: LinkedRef[];
+  previous: LinkedRef[];
+  /**
+   * Write every kind, even one whose set of ids has not moved.
+   *
+   * For a retry. Skipping the unchanged is an optimisation that assumes the
+   * unchanged already landed, and the one case where that is not true is the
+   * one being retried: the kind that failed still reads as "no change" against
+   * what was asked for the first time.
+   */
+  force?: boolean;
+}
 
-export const useSetQueueItemTasks = (
+export const useSetQueueItemLinks = (
   queueId: number,
-  options?: MutationOpts<RelationshipRead[], { itemId: number; taskIds: number[] }>
+  options?: MutationOpts<void, QueueItemLinks>
 ) =>
-  useGuildMutation<RelationshipRead[], { itemId: number; taskIds: number[] }>(
+  useGuildMutation<void, QueueItemLinks>(
     {
-      mutationFn: (guildId, { itemId, taskIds }) =>
-        setRelated(
-          guildId,
-          { type: SearchEntityType.queue_item, id: itemId },
-          SearchEntityType.task,
-          taskIds
-        ),
+      mutationFn: async (guildId, { itemId, links, previous, force }) => {
+        const wanted = idsByKind(links);
+        const had = idsByKind(previous);
+
+        for (const kind of new Set([...wanted.keys(), ...had.keys()])) {
+          const next = wanted.get(kind) ?? [];
+          if (!force && sameIds(next, had.get(kind) ?? [])) continue;
+          await setRelated(guildId, { type: SearchEntityType.queue_item, id: itemId }, kind, next);
+        }
+      },
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },

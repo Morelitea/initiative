@@ -144,7 +144,15 @@ export const AsyncCombobox = ({
                           item.value === value ? "opacity-100" : "opacity-0"
                         )}
                       />
+                      {item.icon ? (
+                        <item.icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : null}
                       <span className="truncate">{item.label}</span>
+                      {item.hint ? (
+                        <span className="ml-auto shrink-0 pl-2 text-muted-foreground text-xs">
+                          {item.hint}
+                        </span>
+                      ) : null}
                     </CommandItem>
                   ))}
                 </CommandGroup>

@@ -10,6 +10,7 @@
 
 import {
   type EndpointRef,
+  type RelationshipCreate,
   type RelationshipRead,
   RelationshipType,
   type SearchEntityType,
@@ -33,12 +34,19 @@ const ref = (end: EndpointRef) => `${end.type}:${end.id}`;
  */
 export type Direction = "inbound" | "outbound" | "both";
 
-/** Every live link of one type between a thing and one other kind. */
+/**
+ * Live links touching one thing.
+ *
+ * Both narrowings are optional, and passing neither asks the question a
+ * relations surface actually has: *everything* connected to this, however it
+ * runs. Each row says its own type and which way it points, so seven headings
+ * are seven filters over one answer rather than seven requests.
+ */
 export const listRelated = (
   guildId: number,
   entity: EndpointRef,
-  otherType: SearchEntityType,
-  relationshipType: RelationshipType = RelationshipType.attached,
+  otherType: SearchEntityType | null = null,
+  relationshipType: RelationshipType | null = null,
   direction: Direction = "both"
 ): Promise<RelationshipRead[]> =>
   listRelationshipsApiV1GGuildIdRelationshipsGet(guildId, {
@@ -60,6 +68,18 @@ export const relate = async (
     relationship_type: relationshipType,
     target,
   });
+
+/**
+ * Record one edge exactly as stated.
+ *
+ * The caller has already decided which end is the source — which is the whole
+ * of what a directional relation means — so this passes it through rather than
+ * assuming, as {@link relate} does, that the anchor describes the pair.
+ */
+export const createRelationship = (
+  guildId: number,
+  body: RelationshipCreate
+): Promise<RelationshipRead> => createRelationshipApiV1GGuildIdRelationshipsPost(guildId, body);
 
 /** Replace everything of one kind linked to a thing. */
 export const setRelated = (

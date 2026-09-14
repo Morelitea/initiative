@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "errors"]);
   const searchParams = useSearch({ strict: false }) as {
     token?: string;
     token_type?: string;
@@ -27,7 +27,10 @@ export const OidcCallbackPage = () => {
   useEffect(() => {
     const error = searchParams.error;
     if (error) {
-      setStatus(t("oidcCallback.failedWithError", { error }));
+      // The backend redirects with a machine-readable code. Show what it means
+      // where we have a sentence for it, and the code itself where we do not.
+      const explained = t(error, { ns: "errors", defaultValue: "" });
+      setStatus(explained || t("oidcCallback.failedWithError", { error }));
       return;
     }
     if (startedRef.current) {

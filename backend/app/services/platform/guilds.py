@@ -5,12 +5,11 @@ from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import Integer, bindparam, func, or_, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
@@ -26,6 +25,7 @@ from app.models.platform.guild import (
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
+from app.services.auth import addresses
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
@@ -434,18 +434,14 @@ async def reorder_memberships(
     )
     final_order.extend(m.guild_id for m in remaining)
 
-    # Persist via the SECURITY DEFINER reorder function. This runs in PERSONAL
-    # mode (no guild context) as a platform_<tier> role, which the
-    # guild_memberships_update RLS policy rejects (it requires
-    # guild_id = current_guild_id), so a direct ORM UPDATE would silently touch 0
-    # rows. The function updates ONLY `position`, scoped to this user's own rows —
-    # the same safe path for every platform tier.
-    await session.exec(
-        text("SELECT reorder_guild_memberships(:uid, :gids)").bindparams(
-            bindparam("gids", type_=ARRAY(Integer))
-        ),
-        params={"uid": user_id, "gids": final_order},
-    )
+    # ``position`` is the whole write, on rows the caller already holds, so the
+    # unit of work is left to issue it. Its row count is checked per row, which
+    # is what turns a write that lands nowhere into an error rather than a
+    # reorder that quietly reverts on the next read.
+    for index, guild_id in enumerate(final_order):
+        membership_by_guild[guild_id].position = index
+    session.add_all(memberships)
+    await session.flush()
 
 
 async def get_membership(
@@ -1082,16 +1078,18 @@ async def redeem_invite_for_user(
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
-    # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
-    # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
-    # any authenticated user may redeem it. When it *is* set, the invite is bound
-    # to that address and only the matching user may redeem it — otherwise the
-    # binding is decorative and gives a false sense of security (SEC-15). We
-    # compare via ``hash_email`` so normalization (lowercase/strip) matches the
-    # users.email_hash unique-constraint exactly; ``user.email_hash`` is already
-    # populated in both the register and accept-invite flows.
+    # Email binding. An invite with no bound address
+    # (``invitee_email_encrypted`` is NULL) is a shareable link that any
+    # authenticated account may redeem. One with an address is for the person
+    # holding that address, and redeeming it requires holding it.
+    #
+    # Any of the account's addresses, not only the one it was created with: an
+    # invite sent to somebody's work address is for them. Resolved through the
+    # same lookup a sign-in uses, so "proved they hold it" is stated once.
     bound_email = invite.invitee_email
-    if bound_email and user.email_hash != hash_email(bound_email):
+    if bound_email and not await addresses.holds_address(
+        session, user_id=user.id, email=bound_email
+    ):
         raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
     await ensure_membership(
