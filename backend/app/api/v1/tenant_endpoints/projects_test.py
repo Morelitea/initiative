@@ -508,6 +508,28 @@ async def test_create_refuses_when_projects_are_switched_off(
 
 
 @pytest.mark.integration
+async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative(
+    client: AsyncClient, acting_user, session
+):
+    """The RLS leg admits a guild admin and a PAM reader so a maintenance sweep
+    can still reach the rows. A list is not where that exemption should surface:
+    otherwise the two readers with the most authority are the only ones shown
+    content that the detail route then refuses them."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    listed = await client.get(a.g("/projects/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert [p["id"] for p in listed.json()["items"]] == [a.project.id]
+
+    a.initiative.projects_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    listed = await client.get(a.g("/projects/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
+
+
+@pytest.mark.integration
 async def test_create_project_with_dates(client: AsyncClient, acting_user):
     """Start/end dates round-trip through create, the detail read, and the list."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
