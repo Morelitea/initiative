@@ -47,16 +47,41 @@ logger = logging.getLogger(__name__)
 _running: set[asyncio.Task] = set()
 
 
+#: How long shutdown waits for rules in flight before going ahead without them.
+DRAIN_TIMEOUT_SECONDS = 10.0
+
+
 def watch(rule: Coroutine) -> None:
     """Run ``rule`` detached from the request that triggered it.
 
     A detective control is not worth an availability risk, so nothing a rule
     does can reach the caller: it runs on its own task, and the rule itself
-    swallows and logs. The reference is held until it finishes.
+    swallows and logs. The reference is held until it finishes, and
+    :func:`drain` is what gives it a chance to.
     """
     task = asyncio.create_task(rule)
     _running.add(task)
     task.add_done_callback(_running.discard)
+
+
+async def drain(timeout: float = DRAIN_TIMEOUT_SECONDS) -> None:
+    """Let rules already running finish, within a bound.
+
+    A rule starts after the row it reads has committed, so one that stops
+    partway leaves a crossing recorded and no case raised. Shutdown calls this
+    first, while the engines are still up. The wait is bounded because a
+    restart cannot be held open indefinitely, and anything still going when it
+    expires is counted in the log rather than passed over quietly.
+    """
+    if not _running:
+        return
+    _, unfinished = await asyncio.wait(set(_running), timeout=timeout)
+    if unfinished:
+        logger.warning(
+            "%d security rule(s) still running after %.0fs; shutting down anyway",
+            len(unfinished),
+            timeout,
+        )
 
 
 async def _count_since(

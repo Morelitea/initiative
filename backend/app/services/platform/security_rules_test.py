@@ -205,3 +205,48 @@ async def test_a_failure_is_logged_rather_than_hidden(
         await security_rules.note_failed_sign_in(subject.id)
 
     assert any("note_failed_sign_in" in record.message for record in caplog.records)
+
+
+async def test_a_rule_in_flight_is_waited_for_at_shutdown(session, bound):
+    """A crossing recorded and not yet raised must survive a restart."""
+    import asyncio
+
+    started = asyncio.Event()
+    finished: list[bool] = []
+
+    async def slow_rule() -> None:
+        started.set()
+        await asyncio.sleep(0.05)
+        finished.append(True)
+
+    security_rules.watch(slow_rule())
+    await started.wait()
+    assert finished == []
+
+    await security_rules.drain()
+    assert finished == [True]
+
+
+async def test_shutdown_is_not_held_open_by_a_rule_that_will_not_finish(
+    session, bound, caplog
+):
+    """A restart is bounded; what did not finish is counted in the log."""
+    import asyncio
+
+    started = asyncio.Event()
+
+    async def stuck_rule() -> None:
+        started.set()
+        await asyncio.sleep(30)
+
+    security_rules.watch(stuck_rule())
+    await started.wait()
+
+    with caplog.at_level("WARNING"):
+        await security_rules.drain(timeout=0.01)
+
+    assert any("still running" in record.message for record in caplog.records)
+
+
+async def test_draining_with_nothing_running_does_nothing(session):
+    await security_rules.drain()
