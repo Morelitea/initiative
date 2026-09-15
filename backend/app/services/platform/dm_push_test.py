@@ -398,6 +398,53 @@ class TestWakingOwnDevices:
 
         assert send.await_count == 0
 
+    async def test_a_wake_is_not_held_back_by_quiet_hours(
+        self, client, session, acting_user
+    ):
+        """The one notification in the app that quiet hours do not hold.
+
+        Everywhere else suppression only defers: the bell line is still written
+        and the morning summary collects it. This wake writes no bell line and
+        is sent once, because a device asks for its history once and never
+        again — so holding it back does not move the interruption to the
+        morning, it deletes it and leaves the new device waiting on an approval
+        nobody was told to give.
+        """
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, _, sender_device, sender_headers = await _channel(
+            client, session, a, b
+        )
+        await _install(client, session, a, seed=19)
+        # A window covering every hour, so the test does not depend on when it
+        # is run.
+        await set_notification_prefs(
+            session, a.user, {"quiet_hours": {"start": "00:00", "end": "23:59"}}
+        )
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+                json={
+                    "messages": [
+                        {
+                            "recipient_device_id": sender_device,
+                            "message_type": 0,
+                            "payload": base64.b64encode(b"ask").decode(),
+                        }
+                    ],
+                    "silent": True,
+                    "wake_own_devices": True,
+                },
+                headers=sender_headers,
+            )
+
+        assert send.await_count == 1
+
     async def test_an_ordinary_silent_send_still_wakes_nobody(
         self, client, session, acting_user
     ):
