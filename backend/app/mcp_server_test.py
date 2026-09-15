@@ -2,9 +2,9 @@
 
 Builds the route-backed server from the real app (no DB/network needed) and
 asserts the RouteMap curation holds: tools cover initiatives and the tools they
-hold (+ the shared comment surface), and the *write* surface is exactly the
-allow-list — create and edit each of those, and nothing destructive, bulk,
-AI-generating, sharing, or property/tag.
+hold (+ the shared comment surface, + the edges between them), and the *write*
+surface is exactly the allow-list — create and edit each of those, draw one
+edge, and nothing destructive, bulk, AI-generating, sharing, or property/tag.
 """
 
 import json
@@ -30,6 +30,7 @@ _WRITE_PREFIXES = (
     "batch_",
     "generate_",
     "put_",
+    "replace_",
     "patch_",
     "post_",
     "remove_",
@@ -89,6 +90,9 @@ _SAFE_WRITES = {
     "set_counter_count",
     "increment_counter",
     "decrement_counter",
+    # One edge between two of them. No ``update_`` pair: an edge has no fields
+    # to edit, only ends and a type, which are what it is.
+    "create_relationship",
 }
 
 
@@ -123,6 +127,8 @@ async def test_mcp_tools_are_curated():
         "task",
         "counter",
         "backlink",
+        # The edges between them, which belong to no one tool.
+        "relationship",
         "widget",
         *(tool.value for tool in Tool),
         *(tool.plural for tool in Tool),
@@ -184,6 +190,26 @@ async def test_comment_reads_are_exposed():
     assert "read_comment" in names
     assert "recent_comments" not in names
     assert "search_mentionables" not in names
+
+
+@pytest.mark.unit
+async def test_relationship_tools_are_read_and_draw_one():
+    """List one thing's edges and draw one, and nothing that unwires them.
+
+    ``relationships`` is deliberately neither a READ_TAG nor a writable segment:
+    the router's four routes divide two and two, so each side is named by path
+    shape. Replacing a thing's links wholesale is bulk and removes what it
+    doesn't mention; deleting one is a delete. Both fall through the
+    default-deny catch-all.
+    """
+    names = {
+        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
+    }
+
+    assert "list_relationships" in names
+    assert "create_relationship" in names
+    assert "replace_relationship_slice" not in names
+    assert "remove_relationship" not in names
 
 
 @pytest.mark.unit
