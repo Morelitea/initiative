@@ -35,6 +35,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db.session import SYSTEM_SATISFIED
@@ -246,7 +247,8 @@ async def apply_backup(
             tool_flags={
                 # "disabled" -> off; "included"/"excluded" -> on (the switch
                 # reflects the source's configuration, not the include map).
-                f"{tool}s_enabled": state != "disabled"
+                # Spelled through the enum — `tool + "s"` is wrong for gallery.
+                Tool(tool).view_permission: state != "disabled"
                 for tool, state in (mi.tools or {}).items()
             },
             manager_id=user.id,

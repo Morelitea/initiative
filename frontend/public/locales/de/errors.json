@@ -647,5 +647,7 @@
   "MODERATION_TARGET_NOT_FOUND": "Das können wir nicht finden",
   "MODERATION_NOT_A_MODERATOR": "Das können nur Moderatoren sehen",
   "SUPPORT_NOT_AVAILABLE": "Diese Community nimmt keine Hilfeanfragen entgegen. Sieh stattdessen in den FAQ nach.",
-  "SUPPORT_NOWHERE_TO_SEND": "Hilfeanfragen sind hier aktiviert, aber es ist noch niemand eingerichtet, der sie empfängt. Sag einem Community-Admin Bescheid."
+  "SUPPORT_NOWHERE_TO_SEND": "Hilfeanfragen sind hier aktiviert, aber es ist noch niemand eingerichtet, der sie empfängt. Sag einem Community-Admin Bescheid.",
+  "PROJECTS_NOT_ENABLED": "Projekte sind für diese Initiative nicht aktiviert",
+  "DOCUMENTS_NOT_ENABLED": "Dokumente sind für diese Initiative nicht aktiviert"
 }

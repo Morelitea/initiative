@@ -4,7 +4,7 @@ icon: lucide/wrench
 
 # Tools
 
-Everything that lives inside an initiative is a **tool**. There are eight kinds. Two you'll use from the first day; the rest sit quietly, entirely unbothered by whether you ever open them.
+Everything that lives inside an initiative is a **tool**. There are eight kinds. Two are switched on to begin with; the rest sit quietly, entirely unbothered by whether you ever open them.
 
 <div class="grid cards" markdown>
 
@@ -70,6 +70,8 @@ Most groups run on projects and documents for a good long while, and there is no
 - A **gallery**, when the mockups are in a folder called `final`, next to a folder called `final2`.
 
 Switching one on is not a commitment or a lifestyle change. Switching it off later doesn't delete anything.
+
+That goes for projects and documents too. They're the two an initiative starts with, because most groups want them — but they're switches like the rest, under **Initiative settings → Tools**. A book club that keeps notes and a reading schedule can turn Projects off rather than look at an empty tab forever; a game night that is a calendar and a pile of counters can turn both off. Nothing is deleted, and turning one back on brings it all back.
 
 ## Who can use what
 
