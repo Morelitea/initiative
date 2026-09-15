@@ -2300,13 +2300,19 @@ async def test_two_windows_renewing_at_once_both_stay_signed_in(
 
     assert second.status_code == 200
     assert second.json()["access_token"]
-    # And it is handed a live credential of its own, not the one it presented.
-    renewed = second.cookies.get("refresh_token")
-    assert renewed and renewed != shared
+    # It is told the session is live and given an access token for it, and no
+    # refresh cookie is sent back: the one the browser holds is the one the
+    # first window's rotation set, and this answer must not put anything over
+    # it — whichever order the two arrive in.
+    assert not any(
+        "refresh_token=" in header for header in second.headers.get_list("set-cookie")
+    )
 
-    # That credential works, so the session really did continue.
+    # And the token that rotation issued is still the live one, still good for
+    # exactly one more rotation.
+    rotated = first.cookies.get("refresh_token")
     client.cookies.clear()
-    client.cookies.set("refresh_token", renewed, path="/api/v1/auth")
+    client.cookies.set("refresh_token", rotated, path="/api/v1/auth")
     assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 

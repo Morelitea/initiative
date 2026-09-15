@@ -158,20 +158,34 @@ const emitUnauthorized = () => {
 // refresh cookie exists there yet.
 let refreshInFlight: Promise<boolean> | null = null;
 
-// Whether a failed renewal is an answer *about the session*. Only the refresh
-// endpoint refusing the credential is one; a timeout, a dropped connection, a
-// 5xx during a restart and a 429 are the server being briefly unreachable, and
-// the session is untouched by them. Staying signed in costs nothing there — the
-// next request renews again.
-const isCredentialRefused = (error: unknown): boolean => {
-  const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
-  return status === 401 || status === 403;
+// Whether a failed renewal is an answer *about the session*. The refresh
+// endpoint refuses a credential with 401 and nothing else, so that is the only
+// answer read as one. A timeout, a dropped connection, a 5xx during a restart
+// and a 429 are the server being briefly unreachable; a 403 is a request the
+// origin check declined before the endpoint read the cookie at all. None of
+// them say anything about the session, and the next request renews again.
+const isCredentialRefused = (error: unknown): boolean =>
+  (error as { response?: { status?: number } } | undefined)?.response?.status === 401;
+
+// One renewal at a time across every window of this origin. Each window holds
+// the same refresh cookie and renews on its own schedule, so two waking
+// together would otherwise present the same token at once — and the answers
+// could land in either order, leaving the cookie on whichever arrived last.
+// The lock makes the second window queue and then renew from what the first
+// one left. Where the browser has no lock manager the renewal simply proceeds,
+// which is what the server's grace window is there for.
+const REFRESH_LOCK = "initiative:auth:refresh";
+
+const withRefreshLock = <T>(run: () => Promise<T>): Promise<T> => {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  return locks ? locks.request(REFRESH_LOCK, run) : run();
 };
 
 const attemptSessionRefresh = (): Promise<boolean> => {
   if (!refreshInFlight) {
-    refreshInFlight = apiClient
-      .post<{ access_token: string }>("/auth/refresh")
+    refreshInFlight = withRefreshLock(() =>
+      apiClient.post<{ access_token: string }>("/auth/refresh")
+    )
       .then((response) => {
         // A Bearer token held in memory (web keeps one until reload) must
         // follow the rotation — the retried request would otherwise resend the

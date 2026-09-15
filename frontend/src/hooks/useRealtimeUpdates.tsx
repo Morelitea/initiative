@@ -1,7 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { getAuthToken } from "@/api/client";
+import { apiClient, getAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { openLiveSocket } from "@/lib/liveSocket";
@@ -210,11 +210,17 @@ export const useRealtimeUpdates = () => {
         }
       },
       onAuthRejected: () => {
-        // Stop, and leave the conclusion to the HTTP path. This close code
+        // Stop, and ask the question the socket cannot answer. This close code
         // covers everything from "the session is over" to "this guild is no
-        // longer yours", which the socket cannot tell apart; every screen
-        // reads over HTTP too, and that is where it is settled.
-        console.warn("Realtime socket was not admitted; it will not retry");
+        // longer yours", and only a read settles which: a refused one goes
+        // through the renewal path like any other, and a guild this account
+        // has lost leaves the account itself untouched. Asking here rather
+        // than waiting for the next screen matters for a tab left open —
+        // nothing else would ask, and it would sit on what it last drew.
+        console.warn("Realtime socket was not admitted; reading the account");
+        void apiClient.get("/users/me").catch(() => {
+          // Whatever it was, the answer has already been acted on.
+        });
       },
     });
 

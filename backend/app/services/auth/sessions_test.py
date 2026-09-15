@@ -160,6 +160,7 @@ async def test_reuse_of_spent_token_revokes_whole_chain(session):
     )
     assert result.outcome is RefreshOutcome.REUSED
     assert result.issued is None
+    assert result.session is None
 
     # The live tail (r3) is now revoked — the attacker gained nothing and the
     # real user is forced to re-authenticate.
@@ -170,7 +171,7 @@ async def test_reuse_of_spent_token_revokes_whole_chain(session):
 
 async def test_two_windows_racing_the_same_token_keep_the_session(session):
     """Two windows of one app renew at once: the second finds its token already
-    spent, and is handed the chain's live tip, so both carry on.
+    spent, and is pointed at the chain's live session, so both carry on.
     """
     user = await create_user(session)
     r1 = await session_service.create_session(
@@ -184,18 +185,23 @@ async def test_two_windows_racing_the_same_token_keep_the_session(session):
         session, raw_refresh_token=r1.refresh_token, now=_at(minutes=1, seconds=2)
     )
 
-    assert result.outcome is RefreshOutcome.ROTATED
-    assert result.issued is not None
-    # It continues from where the first window left the chain, and carries the
-    # session's context with it.
-    assert result.issued.session.parent_id == r2.session.id
-    assert result.issued.session.satisfied_providers == [3]
-    assert result.issued.session.revoked_at is None
-    assert result.issued.refresh_token != r2.refresh_token
+    assert result.outcome is RefreshOutcome.CONTINUED
+    assert result.ok
+    # It is named the session the first window rotated into — the one live row
+    # in the chain — with that session's context on it.
+    assert result.session is not None
+    assert result.session.id == r2.session.id
+    assert result.session.satisfied_providers == [3]
 
-    # The tip it was handed is spent (single-use holds), and nothing was killed.
+    # Nothing was minted for it, and nothing in the chain moved: the window that
+    # rotated keeps sole possession of the token it was given.
+    assert result.issued is None
     await session.refresh(r2.session)
-    assert r2.session.revoked_at == _at(minutes=1, seconds=2)
+    assert r2.session.revoked_at is None
+
+    # So the token the first window holds still rotates, exactly once.
+    r3 = await _rotate_ok(session, r2.refresh_token, _at(minutes=2))
+    assert r3.session.parent_id == r2.session.id
 
 
 async def test_replay_after_the_grace_window_still_kills_the_chain(session):

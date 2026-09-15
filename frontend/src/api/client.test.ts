@@ -122,6 +122,9 @@ describe("silent session renewal", () => {
   it.each([
     ["a server error", () => new HttpResponse(null, { status: 503 })],
     ["a rate limit", () => new HttpResponse(null, { status: 429 })],
+    // The origin check answers before the endpoint reads the cookie, so this
+    // is not the endpoint refusing a credential.
+    ["a declined origin", () => new HttpResponse(null, { status: 403 })],
     ["nothing answering", () => HttpResponse.error()],
   ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
     server.use(

@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 _forwarded_hint_logged = False
 
 
+def _is_infrastructure_peer(address: str) -> bool:
+    """Whether the request arrived from somewhere a proxy of this deployment's
+    own would sit — a container network, a private LAN, the host itself."""
+    try:
+        parsed = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    return parsed.is_private or parsed.is_loopback or parsed.is_link_local
+
+
 def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
     """Say so, once, when a proxy's ``X-Forwarded-For`` is being discarded.
 
@@ -24,6 +34,11 @@ def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
     container, another host — is not that peer, so every visitor resolves to
     the proxy's own address instead of their own. Nothing else reports that
     configuration, so this does.
+
+    Anyone can send the header, and this says nothing about whether to trust
+    it — it is a hint about configuration, not a control. It is held to a peer
+    on this deployment's own network so that a caller reaching the app from
+    somewhere else cannot spend the one time it is said.
     """
     global _forwarded_hint_logged
     if _forwarded_hint_logged:
@@ -32,8 +47,10 @@ def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
     if not forwarded:
         return
     # A trusted hop leaves the resolved address somewhere in the chain the
-    # header names; an ignored one leaves the proxy itself, which is not.
+    # header names; an ignored one leaves the peer itself, which is not.
     if resolved in {hop.strip() for hop in forwarded.split(",")}:
+        return
+    if not _is_infrastructure_peer(resolved):
         return
     _forwarded_hint_logged = True
     logger.warning(

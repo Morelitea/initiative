@@ -6,7 +6,8 @@ login; each ``/auth/refresh`` **rotates** it — mints a fresh row pointing at t
 one it replaces (``parent_id`` chain) and single-use-revokes the old one. Reuse
 of an already-spent refresh token is treated as **theft** and kills the whole
 chain, including its still-live tail. One client's own windows renewing
-together are told apart from that by :data:`REFRESH_REUSE_GRACE_SECONDS`.
+together are told apart from that by :data:`REFRESH_REUSE_GRACE_SECONDS`, and
+are pointed at the live session rather than given one of their own.
 
 **Runs on the system engine (``app_admin``).** Session validation is a pre-auth
 lookup *by refresh-token hash* — the user is unknown until it resolves — so it
@@ -74,16 +75,19 @@ SESSION_PURGE_POLL_SECONDS = 3600
 #: single client renewing from more than one window.
 #:
 #: A browser holds one refresh cookie for every window open on the app, and
-#: each renews on its own schedule, so two waking together present the same
-#: token milliseconds apart. Inside this window the second is continued from
-#: the chain's live tip, which leaves both windows holding a current
-#: credential. Kept short: it is sized for that, and nothing else.
+#: each renews on its own schedule, so two waking together can present the
+#: same token milliseconds apart. The client serialises its own renewals where
+#: the browser can (``navigator.locks``), and this is the floor under that for
+#: where it cannot.
+#:
+#: What it grants is deliberately the smaller half of a rotation: the caller is
+#: told the session is live and gets an access token for it, and no refresh
+#: token is minted, spent or returned. The chain is not touched, so the window
+#: that did rotate keeps sole possession of it, and the cookie the browser
+#: holds stays the one that rotation set — whichever order the two answers
+#: arrive in. Kept short: it is sized for two windows of one browser waking
+#: together, and nothing else.
 REFRESH_REUSE_GRACE_SECONDS = 10
-
-#: How many times a racing rotation re-reads the chain's tip before giving up.
-#: Each attempt loses only to another rotation landing in between, which is
-#: itself progress — a third window, not an unbounded retry.
-_TIP_ROTATE_ATTEMPTS = 3
 
 
 def _now() -> datetime:
@@ -121,6 +125,7 @@ class RefreshOutcome(str, Enum):
     readable codes the endpoint maps to an HTTP status + localized message."""
 
     ROTATED = "rotated"
+    CONTINUED = "continued"
     UNKNOWN = "unknown_refresh_token"
     EXPIRED = "refresh_token_expired"
     REUSED = "refresh_token_reused"
@@ -140,6 +145,10 @@ class RotationResult:
 
     outcome: RefreshOutcome
     issued: IssuedSession | None = None  # present iff ``outcome is ROTATED``
+    #: The session the caller is being pointed at without one being minted for
+    #: them — present iff ``outcome is CONTINUED``. Nothing was written; this
+    #: is the chain as another window already left it.
+    continued: AuthSession | None = None
     #: Whose session the token belonged to. Set whenever the token resolved to
     #: a row, so a ``REUSED`` rejection — where there is no ``issued`` — can
     #: still say whose chain was killed. ``None`` for a token that matched
@@ -148,7 +157,13 @@ class RotationResult:
 
     @property
     def ok(self) -> bool:
-        return self.outcome is RefreshOutcome.ROTATED
+        """Whether the caller comes away with a usable session."""
+        return self.outcome in (RefreshOutcome.ROTATED, RefreshOutcome.CONTINUED)
+
+    @property
+    def session(self) -> AuthSession | None:
+        """The session the caller now holds, however they came to hold it."""
+        return self.issued.session if self.issued is not None else self.continued
 
 
 @dataclass(frozen=True)
@@ -191,10 +206,10 @@ _REVOKE_CHAIN_SQL = text(
     """
 )
 
-# The one session in a chain that can still be spent, given any member id. A
-# chain is single-use all the way down, so at most one row satisfies this: every
-# rotation revokes the row it spent as it mints the successor. Walks descendants
-# only — ancestors are spent by definition, being what the walk started from.
+# The one session in a chain that is still live, given any member id. A chain is
+# single-use all the way down, so at most one row satisfies this: every rotation
+# revokes the row it spent as it mints the successor. Walks descendants only —
+# ancestors are spent by definition, being what the walk started from.
 _LIVE_TIP_SQL = text(
     """
     WITH RECURSIVE descendants AS (
@@ -276,7 +291,8 @@ async def rotate_session(
     ``REUSED`` are rejections. On ``REUSED`` the whole chain has been revoked on
     ``session`` (theft response). A token presented again within
     :data:`REFRESH_REUSE_GRACE_SECONDS` of being spent is one client renewing
-    from two windows, and ``ROTATED``s from the chain's live tip instead.
+    from two windows: that is ``CONTINUED``, which names the chain's live
+    session and writes nothing at all.
     Returning rather than raising is the point: the
     caller commits on its normal path, so one commit durably persists whichever
     write occurred and a rollback-on-exception handler can't drop the chain kill.
@@ -309,11 +325,9 @@ async def rotate_session(
     # renewing from two windows; anything older is a replay of a dead token.
     if row.revoked_at is not None:
         if issued - row.revoked_at <= timedelta(seconds=REFRESH_REUSE_GRACE_SECONDS):
-            raced = await _rotate_live_tip(
-                session, root_id=row.id, issued=issued, ttl=ttl, carried=carried
-            )
-            if raced is not None:
-                return RotationResult(RefreshOutcome.ROTATED, issued=raced)
+            tip = await _live_tip(session, root_id=row.id, now=issued)
+            if tip is not None:
+                return RotationResult(RefreshOutcome.CONTINUED, continued=tip)
         await revoke_chain(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
 
@@ -326,11 +340,9 @@ async def rotate_session(
     if minted is None:
         # Lost the single-use claim to a concurrent rotation. The winner held
         # the row lock until it committed, so its successor is readable now.
-        raced = await _rotate_live_tip(
-            session, root_id=row.id, issued=issued, ttl=ttl, carried=carried
-        )
-        if raced is not None:
-            return RotationResult(RefreshOutcome.ROTATED, issued=raced)
+        tip = await _live_tip(session, root_id=row.id, now=issued)
+        if tip is not None:
+            return RotationResult(RefreshOutcome.CONTINUED, continued=tip)
         await revoke_chain(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     return RotationResult(RefreshOutcome.ROTATED, issued=minted)
@@ -394,35 +406,15 @@ async def _spend_and_mint(
     return IssuedSession(session=child, refresh_token=raw)
 
 
-async def _rotate_live_tip(
-    session: AsyncSession,
-    *,
-    root_id: uuid.UUID,
-    issued: datetime,
-    ttl: timedelta,
-    carried: _Carried,
-) -> IssuedSession | None:
-    """Rotate the chain's live tip on behalf of a caller whose own token was
-    spent moments ago, or ``None`` when the chain has no spendable session.
-
-    The session continues from its newest point, which is where the window that
-    renewed first left it.
-    """
-    for _ in range(_TIP_ROTATE_ATTEMPTS):
-        tip_id = (
-            await session.exec(_LIVE_TIP_SQL, params={"sid": root_id, "now": issued})
-        ).first()
-        if tip_id is None:
-            return None
-        tip = await session.get(AuthSession, tip_id[0])
-        if tip is None:
-            return None
-        minted = await _spend_and_mint(
-            session, tip, issued=issued, ttl=ttl, carried=carried
-        )
-        if minted is not None:
-            return minted
-    return None
+async def _live_tip(
+    session: AsyncSession, *, root_id: uuid.UUID, now: datetime
+) -> AuthSession | None:
+    """The chain's live session, read and not touched, or ``None`` when it has
+    none — which is a chain that was signed out or has run out."""
+    found = (
+        await session.exec(_LIVE_TIP_SQL, params={"sid": root_id, "now": now})
+    ).first()
+    return await session.get(AuthSession, found[0]) if found is not None else None
 
 
 async def get_live_session_by_refresh_token(
