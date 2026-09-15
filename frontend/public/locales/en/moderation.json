@@ -50,5 +50,10 @@
     "counter": "A counter",
     "counter_group": "A counter group",
     "dashboard": "A dashboard"
+  },
+  "paging": {
+    "newer": "Newer",
+    "older": "Older",
+    "page": "Page {{page}}"
   }
 }

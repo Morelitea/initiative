@@ -50,5 +50,10 @@
     "counter": "Un contador",
     "counter_group": "Un grupo de contadores",
     "dashboard": "Un panel"
+  },
+  "paging": {
+    "newer": "Más recientes",
+    "older": "Más antiguas",
+    "page": "Página {{page}}"
   }
 }

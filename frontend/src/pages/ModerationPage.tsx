@@ -12,7 +12,7 @@
  * they get for any content they are not in.
  */
 
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,10 +24,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useModerationReports, useSettleReport } from "@/hooks/useModeration";
+import { REPORTS_PAGE_SIZE, useModerationReports, useSettleReport } from "@/hooks/useModeration";
 import { toast } from "@/lib/chesterToast";
+import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { guildPath } from "@/lib/guildUrl";
 
 /** The outcomes, in the order a moderator usually reaches for them. */
 const OUTCOMES: ReportOutcome[] = [
@@ -43,13 +45,28 @@ export const ModerationPage = () => {
   const { initiativeId } = useParams({ strict: false }) as { initiativeId?: string };
   const initiative = Number(initiativeId);
   const [tab, setTab] = useState<"open" | "settled">("open");
+  const [page, setPage] = useState(0);
 
   const { data, isLoading } = useModerationReports(
-    { guildId: guildId ?? 0, initiativeId: initiative, settled: tab === "settled" },
+    {
+      guildId: guildId ?? 0,
+      initiativeId: initiative,
+      settled: tab === "settled",
+      offset: page * REPORTS_PAGE_SIZE,
+    },
     { enabled: Boolean(guildId) && Number.isFinite(initiative) }
   );
 
   const reports = data?.items ?? [];
+  // The server answers with one page, so a full page is the signal there may
+  // be another. Settled reports accumulate without bound, which is what makes
+  // the second page reachable rather than theoretical.
+  const hasMore = reports.length === REPORTS_PAGE_SIZE;
+
+  const showTab = (next: "open" | "settled") => {
+    setTab(next);
+    setPage(0);
+  };
 
   return (
     <div className="space-y-6">
@@ -58,7 +75,7 @@ export const ModerationPage = () => {
         <p className="text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "open" | "settled")}>
+      <Tabs value={tab} onValueChange={(v) => showTab(v as "open" | "settled")}>
         <TabsList>
           <TabsTrigger value="open">{t("tabs.open")}</TabsTrigger>
           <TabsTrigger value="settled">{t("tabs.settled")}</TabsTrigger>
@@ -81,6 +98,30 @@ export const ModerationPage = () => {
               initiativeId={initiative}
             />
           ))}
+
+          {(page > 0 || hasMore) && (
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                {t("paging.newer")}
+              </Button>
+              <span className="text-muted-foreground text-sm">
+                {t("paging.page", { page: page + 1 })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasMore}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t("paging.older")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -107,15 +148,35 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
   const settledAs = report.outcome ?? null;
   const open = settledAs === null;
 
+  const label = t(`targets.${report.target_type}`, {
+    defaultValue: report.target_type,
+  });
+  // `null` for a kind with no page of its own — a counter, a queue item. Those
+  // stay plain text rather than linking somewhere that does not exist.
+  const refType = isSearchEntityType(report.target_type)
+    ? entityRefTypeFor(report.target_type)
+    : null;
+  const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
+
   return (
     <Card className="shadow-sm" role="region" aria-labelledby={`report-${report.id}`}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle id={`report-${report.id}`}>
-              {t(`targets.${report.target_type}`, {
-                defaultValue: report.target_type,
-              })}
+              {refType ? (
+                // Through the resolver every reference already uses, so a
+                // moderator reaches the thing the way any link to it does —
+                // and only for kinds that have a page of their own.
+                <Link
+                  to={gp(`/go/${refType}/${report.target_id}`)}
+                  className="underline-offset-4 hover:underline"
+                >
+                  {label}
+                </Link>
+              ) : (
+                label
+              )}
             </CardTitle>
             <CardDescription>
               {t("reportedCount", { count: report.reporter_count })} ·{" "}

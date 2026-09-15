@@ -50,5 +50,10 @@
     "counter": "Un compteur",
     "counter_group": "Un groupe de compteurs",
     "dashboard": "Un tableau de bord"
+  },
+  "paging": {
+    "newer": "Plus récents",
+    "older": "Plus anciens",
+    "page": "Page {{page}}"
   }
 }

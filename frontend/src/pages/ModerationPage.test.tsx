@@ -10,12 +10,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 
 const settleMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
+  offset: 0,
 }));
 
 const report = (overrides: Record<string, unknown> = {}) => ({
@@ -38,41 +39,47 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useModeration")>();
   return {
     ...actual,
-    useModerationReports: () => ({
-      data: { items: state.items, total: state.items.length },
-      isLoading: false,
-    }),
+    useModerationReports: (params: { offset?: number }) => {
+      state.offset = params.offset ?? 0;
+      return {
+        data: { items: state.items, total: state.items.length },
+        isLoading: false,
+      };
+    },
     useSettleReport: () => ({ mutate: settleMutate, isPending: false }),
   };
-});
-
-vi.mock("@tanstack/react-router", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
-  return { ...actual, useParams: () => ({ initiativeId: "7" }) };
 });
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
 
 import { ModerationPage } from "./ModerationPage";
 
-const renderPage = () => renderWithProviders(<ModerationPage />, { auth: { user: buildUser() } });
+// The real route tree, so `<Link>` has a router and the initiative comes from
+// the path the way it does in the app.
+const render = () =>
+  renderPage(ModerationPage, {
+    auth: { user: buildUser() },
+    initialRoute: "/c/$guildId/i/$initiativeId/moderation",
+    routeParams: { guildId: "3", initiativeId: "7" },
+  });
 
 describe("ModerationPage", () => {
   beforeEach(() => {
     settleMutate.mockClear();
     state.items = [];
+    state.offset = 0;
   });
 
-  it("says so when nothing has been reported", () => {
-    renderPage();
-    expect(screen.getByText("Nothing has been reported.")).toBeInTheDocument();
+  it("says so when nothing has been reported", async () => {
+    render();
+    expect(await screen.findByText("Nothing has been reported.")).toBeInTheDocument();
   });
 
-  it("shows how many people reported, and never who", () => {
+  it("shows how many people reported, and never who", async () => {
     state.items = [report({ reporter_count: 3, details: ["Abusive.", "Not on."] })];
-    renderPage();
+    render();
 
-    expect(screen.getByText(/Reported by 3 people/)).toBeInTheDocument();
+    expect(await screen.findByText(/Reported by 3 people/)).toBeInTheDocument();
     expect(screen.getByText("Abusive.")).toBeInTheDocument();
     expect(screen.getByText("Not on.")).toBeInTheDocument();
     // Nothing in the payload names a reporter, and nothing on the page does.
@@ -81,10 +88,10 @@ describe("ModerationPage", () => {
 
   it("offers every outcome, and each one closes the report", async () => {
     state.items = [report()];
-    renderPage();
+    render();
     const user = userEvent.setup();
 
-    const card = screen.getByRole("region", { name: "A comment" });
+    const card = await screen.findByRole("region", { name: "A comment" });
     for (const label of ["Dismiss", "Content removed", "Member warned", "Escalate"]) {
       expect(within(card).getByRole("button", { name: label })).toBeInTheDocument();
     }
@@ -98,10 +105,10 @@ describe("ModerationPage", () => {
 
   it("carries the moderator's note with the decision", async () => {
     state.items = [report()];
-    renderPage();
+    render();
     const user = userEvent.setup();
 
-    const card = screen.getByRole("region", { name: "A comment" });
+    const card = await screen.findByRole("region", { name: "A comment" });
     await user.type(within(card).getByRole("textbox"), "Checked it.");
     await user.click(within(card).getByRole("button", { name: "Member warned" }));
 
@@ -111,7 +118,7 @@ describe("ModerationPage", () => {
     });
   });
 
-  it("a settled report shows what was decided and offers no outcomes", () => {
+  it("a settled report shows what was decided and offers no outcomes", async () => {
     state.items = [
       report({
         outcome: "content_removed",
@@ -119,19 +126,55 @@ describe("ModerationPage", () => {
         decided_at: "2026-09-15T12:00:00Z",
       }),
     ];
-    renderPage();
+    render();
 
-    const card = screen.getByRole("region", { name: "A comment" });
+    const card = await screen.findByRole("region", { name: "A comment" });
     expect(within(card).getByText("Content removed")).toBeInTheDocument();
     expect(within(card).getByText("Removed it.")).toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument();
   });
 
-  it("sends a moderator to the thing itself rather than acting here", () => {
+  it("sends a moderator to the thing itself rather than acting here", async () => {
     state.items = [report()];
-    renderPage();
+    render();
     expect(
-      screen.getByText("Open the reported item to look at it in context, then decide here.")
+      await screen.findByText("Open the reported item to look at it in context, then decide here.")
     ).toBeInTheDocument();
+  });
+
+  it("links the reported item through the resolver", async () => {
+    state.items = [report({ target_type: "task", target_id: 88 })];
+    render();
+
+    const link = await screen.findByRole("link", { name: "A task" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/go/task/88"));
+  });
+
+  it("leaves a kind with no page of its own as plain text", async () => {
+    // A queue item is reached through its queue, so there is nowhere to link.
+    state.items = [report({ target_type: "queue_item", target_id: 5 })];
+    render();
+
+    expect(await screen.findByText("A queue item")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "A queue item" })).not.toBeInTheDocument();
+  });
+
+  it("offers a further page once one is full", async () => {
+    state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
+    render();
+    const user = userEvent.setup();
+
+    const older = await screen.findByRole("button", { name: "Older" });
+    expect(screen.getByRole("button", { name: "Newer" })).toBeDisabled();
+
+    await user.click(older);
+    expect(state.offset).toBe(50);
+  });
+
+  it("offers no paging when one page holds everything", async () => {
+    state.items = [report()];
+    render();
+    await screen.findByRole("region", { name: "A comment" });
+    expect(screen.queryByRole("button", { name: "Older" })).not.toBeInTheDocument();
   });
 });

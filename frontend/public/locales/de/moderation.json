@@ -50,5 +50,10 @@
     "counter": "Ein Zähler",
     "counter_group": "Eine Zählergruppe",
     "dashboard": "Ein Dashboard"
+  },
+  "paging": {
+    "newer": "Neuer",
+    "older": "Älter",
+    "page": "Seite {{page}}"
   }
 }
