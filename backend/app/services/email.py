@@ -345,6 +345,59 @@ async def send_verification_email(
     )
 
 
+async def _account_recipients(user: User) -> list[str]:
+    """Where a letter about the account itself goes: every address its holder
+    has proved (§6.2 rule 4), so a change nobody made is still seen by somebody
+    who no longer reads one of them.
+
+    On its own system-engine session rather than the caller's. Which addresses
+    an account holds is reached there and nowhere else, and the callers here
+    arrive with whichever session their endpoint runs on — a password reset
+    with the request-path one, an operator's reset with the admin one.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.services.auth import addresses
+
+    async with AdminSessionLocal() as admin_session:
+        return await addresses.proven_addresses(admin_session, user_id=user.id)
+
+
+async def send_address_verification_email(
+    session: AsyncSession, user: User, *, address: str, token: str
+) -> None:
+    """Prove one address, by writing to that address.
+
+    The same letter as the account-level verification, addressed to the one
+    being added rather than to the account's own — it is the only thing an
+    unverified address ever receives.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    link = _frontend_url(f"/verify-email?token={token}")
+    button = _cta_button(
+        email_t("verification.buttonLabel", locale=locale), link, accent
+    )
+    body = f"""
+    <p>{email_t("verification.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("verification.body", locale=locale)}</p>
+    <p style="margin:24px 0;">{button}</p>
+    <p>{email_t("verification.fallbackText", locale=locale)}<br/><code>{link}</code></p>
+    """
+    html_body = _build_html_layout(
+        email_t("verification.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = email_t("verification.textBody", locale=locale, link=link, escape=False)
+    await send_email(
+        session,
+        recipients=[address],
+        subject=email_t("verification.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_password_reset_email(
     session: AsyncSession, user: User, token: str
 ) -> None:
@@ -369,7 +422,7 @@ async def send_password_reset_email(
     )
     await send_email(
         session,
-        recipients=[user.email],
+        recipients=await _account_recipients(user),
         subject=email_t("passwordReset.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,

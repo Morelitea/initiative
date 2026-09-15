@@ -100,7 +100,7 @@ class InitiativeRoleRead(SanitizedBaseModel):
     is_builtin: bool
     is_manager: bool
     # "Full access": this role views/edits all initiative content regardless of
-    # sharing and may manage sharing. Guild-admin-settable, project_manager only.
+    # sharing and may manage sharing. Carried by the built-in moderator role.
     override_share_restrictions: bool = False
     position: int
     permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
@@ -121,9 +121,6 @@ class InitiativeRoleUpdate(SanitizedBaseModel):
 
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     is_manager: Optional[bool] = None
-    # "Full access" toggle. Only a guild admin may change it, and only on the
-    # built-in project_manager role (enforced in the endpoint).
-    override_share_restrictions: Optional[bool] = None
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 

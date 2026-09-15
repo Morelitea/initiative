@@ -357,6 +357,53 @@ async def related_for_many(
     return grouped
 
 
+async def counts_for_many(
+    session: AsyncSession,
+    kind: SearchEntityType,
+    entity_ids: Sequence[int],
+    *,
+    relationship_type: RelationshipType,
+) -> dict[int, int]:
+    """How many things of ANY kind a relation connects each entity to.
+
+    The counting form of :func:`related_for_many`, and one query rather than its
+    two: a count needs no far end resolved. No ``other_kind`` on purpose — a
+    surface that says "3 attachments" means three things, not three documents
+    and separately two tasks, and the far ends may be any of the fourteen kinds.
+
+    Gated the same way: the policy ANDs both endpoints, so something the reader
+    cannot open is not counted at them.
+    """
+    nodes = [node_id(kind, entity_id) for entity_id in entity_ids]
+    counted = {entity_id: 0 for entity_id in entity_ids}
+    if not nodes:
+        return counted
+
+    def arm(anchor):
+        return select(anchor.label("anchor")).where(
+            anchor.in_(nodes),
+            EntityRelationship.relationship_type == relationship_type.value,
+            EntityRelationship.removed_at.is_(None),  # type: ignore[union-attr]
+        )
+
+    rows = (
+        await session.exec(
+            union_all(
+                arm(EntityRelationship.source_node),
+                arm(EntityRelationship.target_node),
+            )
+        )
+    ).all()
+
+    by_node = {node_id(kind, entity_id): entity_id for entity_id in entity_ids}
+    for (node,) in rows:
+        # A symmetric edge is stored once, so neither arm double-counts it —
+        # but an edge between two of the entities asked about is one link for
+        # each of them, and both arms are meant to see it.
+        counted[by_node[node]] += 1
+    return counted
+
+
 async def related_for(
     session: AsyncSession,
     entity: Endpoint,
@@ -567,6 +614,7 @@ __all__ = [
     "purge_for_entities",
     "related_for",
     "related_for_many",
+    "counts_for_many",
     "related_ids",
     "remove",
     "set_related",

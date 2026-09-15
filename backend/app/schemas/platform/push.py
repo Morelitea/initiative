@@ -10,7 +10,6 @@ class PushTokenRegisterRequest(SanitizedBaseModel):
 
     push_token: str = Field(min_length=1, max_length=512)
     platform: str = Field(pattern="^(android|ios)$")
-    device_token_id: Optional[int] = None
 
 
 class PushTokenUnregisterRequest(SanitizedBaseModel):

@@ -127,15 +127,28 @@ def _split(name: str) -> tuple[Optional[str], str]:
     return (relation or None), field_name
 
 
-def _column_ref(name: str) -> ast.ColumnRef:
+def _column_ref(name: str, base: Optional[str] = None) -> ast.ColumnRef:
     """One column, qualified by the relation it belongs to where it names one.
 
     A related field is written ``assignee.display_name``, and reaches the tree
     as the relation's own name qualifying the column — which is the alias the
     join below gives it.
+
+    *base* names the dataset an unqualified field belongs to, and is passed
+    only when the statement joins something. A join puts two tables in scope
+    and a bare column name that exists on both is then ambiguous — which is
+    not hypothetical: every tool carries ``archived_at`` and ``created_at``, so
+    filtering one of those alongside any related field produced a statement
+    Postgres refuses. Naming the base says which side is meant. It is left off
+    when nothing is joined, where there is no second side and the qualification
+    would only make the stored statement longer to read.
     """
     relation, field_name = _split(name)
-    parts = (relation, field_name) if relation else (field_name,)
+    parts = (
+        (relation, field_name)
+        if relation
+        else ((base, field_name) if base else (field_name,))
+    )
     return ast.ColumnRef(fields=tuple(ast.String(sval=part) for part in parts))
 
 
@@ -179,10 +192,10 @@ def _relative(days: Any) -> ast.Node:
     )
 
 
-def _expression(column: Column) -> ast.Node:
+def _expression(column: Column, base: Optional[str] = None) -> ast.Node:
     """The select-list expression for one column, innermost first: the field,
     rounded if it is bucketed, reduced if it is aggregated."""
-    inner: ast.Node = _column_ref(column.field)
+    inner: ast.Node = _column_ref(column.field, base)
     if column.bucket:
         if column.bucket not in BUCKETS:
             raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, column.bucket)
@@ -248,9 +261,11 @@ def _value_node(is_viewer: bool, value: Any) -> ast.Node:
     return _literal(value)
 
 
-def _predicate(dataset_name: str, condition: Condition) -> ast.Node:
+def _predicate(
+    dataset_name: str, condition: Condition, base: Optional[str] = None
+) -> ast.Node:
     viewer = _viewer_value(dataset_name, condition)
-    left = _column_ref(condition.field)
+    left = _column_ref(condition.field, base)
     if condition.op is FilterOp.is_null:
         # The DSL's is_null carries whether it means null or not-null.
         return ast.NullTest(arg=left, nulltesttype=0 if condition.value else 1)
@@ -278,7 +293,10 @@ def _predicate(dataset_name: str, condition: Condition) -> ast.Node:
 
 
 def _where(
-    dataset_name: str, nodes: Sequence[Node], depth: int = 0
+    dataset_name: str,
+    nodes: Sequence[Node],
+    depth: int = 0,
+    base: Optional[str] = None,
 ) -> Optional[ast.Node]:
     """Everything the description asks of a row.
 
@@ -288,7 +306,7 @@ def _where(
     predicates = tuple(
         held
         for node in nodes
-        for held in (_node(dataset_name, node, depth),)
+        for held in (_node(dataset_name, node, depth, base),)
         if held is not None
     )
     if not predicates:
@@ -298,7 +316,9 @@ def _where(
     return ast.BoolExpr(boolop=BoolExprType.AND_EXPR, args=predicates)
 
 
-def _node(dataset_name: str, node: Node, depth: int) -> Optional[ast.Node]:
+def _node(
+    dataset_name: str, node: Node, depth: int, base: Optional[str] = None
+) -> Optional[ast.Node]:
     if depth > MAX_GROUP_DEPTH:
         raise QueryError(QueryMessages.UNSUPPORTED_SYNTAX, "group depth")
     if isinstance(node, Group):
@@ -307,7 +327,7 @@ def _node(dataset_name: str, node: Node, depth: int) -> Optional[ast.Node]:
         inner = tuple(
             held
             for entry in node.conditions
-            for held in (_node(dataset_name, entry, depth + 1),)
+            for held in (_node(dataset_name, entry, depth + 1, base),)
             if held is not None
         )
         if not inner:
@@ -317,7 +337,7 @@ def _node(dataset_name: str, node: Node, depth: int) -> Optional[ast.Node]:
         if len(inner) == 1:
             return inner[0]
         return ast.BoolExpr(boolop=_LOGIC[node.logic], args=inner)
-    predicate = _predicate(dataset_name, node)
+    predicate = _predicate(dataset_name, node, base)
     if node.negate:
         return ast.BoolExpr(boolop=BoolExprType.NOT_EXPR, args=(predicate,))
     return predicate
@@ -451,12 +471,18 @@ def build(spec: QuerySpec) -> str:
     # A bare column is already named after itself, so an alias there would read
     # as "priority AS priority". Anything computed needs one, because Postgres
     # would otherwise name it after the function that made it.
+    # A join puts a second table in scope, and a bare column that exists on
+    # both sides is then ambiguous. Only then is the base named — a statement
+    # about one table reads better without it.
+    joined = bool(_relations_named(spec))
+    base = spec.dataset if joined else None
+
     targets = tuple(
         ast.ResTarget(
             name=None
             if column.alias is None and not column.aggregate and not column.bucket
             else _alias(column),
-            val=_expression(column),
+            val=_expression(column, base),
         )
         for column in spec.columns
     )
@@ -467,7 +493,7 @@ def build(spec: QuerySpec) -> str:
     select = ast.SelectStmt(
         targetList=targets,
         fromClause=(_from(spec, _relations_named(spec)),),
-        whereClause=_where(spec.dataset, spec.where),
+        whereClause=_where(spec.dataset, spec.where, base=base),
         op=0,
     )
 

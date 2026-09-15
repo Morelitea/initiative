@@ -9,12 +9,13 @@ and never appear here.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.core.references import REF_SEPARATOR
 from app.core.relationships import ENDPOINT_KINDS, RelationshipType
+from app.core.tools import Tool
 from app.core.search import SearchEntityType
 from app.schemas.base import SanitizedBaseModel
 
@@ -49,7 +50,12 @@ class RelationshipCreate(SanitizedBaseModel):
 
 
 class RelatedEnd(SanitizedBaseModel):
-    """The far end of an edge, as the caller's side sees it."""
+    """The far end of an edge, as the caller's side sees it.
+
+    Enough to draw the thing and link to it, because a list of edges is a list of
+    mixed kinds and a reader should not have to fetch each one to find out what it
+    is called, what it looks like or where it lives.
+    """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -60,6 +66,31 @@ class RelatedEnd(SanitizedBaseModel):
     #: When the far end last changed, for the surfaces that order by recency.
     #: None for a kind that records no such moment.
     updated_at: Optional[datetime] = None
+    #: The tool this thing is addressed inside, and which one. A task is
+    #: addressed in its project and an event in its calendar, so these are what
+    #: an address is built from for the kinds that have no page of their own.
+    #: The same pair a search hit carries, from the same declaration.
+    tool: Optional[Tool] = None
+    tool_id: Optional[int] = None
+    #: What it shows of itself besides its name: a picture, an emoji, or a
+    #: colour. At most one is set, and most kinds set none — those draw as their
+    #: kind's own icon. A picture URL has already fallen back from a thumbnail to
+    #: the full image, so a caller renders what it is given.
+    #: Pictures to draw, newest first. A document has its featured image at
+    #: most; a gallery has the cover somebody chose, or the newest few when
+    #: nobody did — which is what a gallery shows of itself everywhere else.
+    image_urls: List[str] = Field(default_factory=list)
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    #: What sort of thing it is within its kind, for the kinds whose icon is not
+    #: fixed: a spreadsheet, a whiteboard and a PDF are all documents, and none
+    #: of them should be drawn as a scroll. The same three facts a recent item
+    #: carries, plus where a smart link points, so a client picks the icon with
+    #: the helper it already has. Only documents set any of these.
+    document_type: Optional[str] = None
+    mime_type: Optional[str] = None
+    original_filename: Optional[str] = None
+    smart_link_url: Optional[str] = None
 
 
 class RelationshipRead(SanitizedBaseModel):

@@ -62,7 +62,13 @@ function Card({ card }: { card: BoardCard }) {
   const edge = card.tone ? toneColor(card.tone) : undefined;
   return (
     <article
-      className="overflow-hidden rounded border border-border/60 bg-card"
+      // `shrink-0` is load-bearing, not decoration. The column is a flex
+      // column that scrolls, and a flex item's automatic minimum size is zero
+      // once it hides its own overflow — which this card does, to clip a long
+      // title. Without it a column of any length shares its height out among
+      // the cards instead of overflowing: at 170 cards each is a hairline with
+      // its text spilling over the next, and there is nothing to scroll.
+      className="shrink-0 overflow-hidden rounded border border-border/60 bg-card"
       style={edge ? { borderLeftColor: edge, borderLeftWidth: 3 } : undefined}
     >
       <div className="px-2 py-1.5">

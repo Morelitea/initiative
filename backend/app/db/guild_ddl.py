@@ -105,6 +105,28 @@ def _trash_read_policy(table: str) -> list[str]:
     ]
 
 
+# Reader-written SQL reports on live content only.
+#
+# The trash is a place to recover from, and recovering from it is what the
+# trash screen is for. A dashboard is a different question: what it counts
+# should be the same for everybody reading it, and a deleted row is not part of
+# that for anyone. RESTRICTIVE and keyed on the query flag, so it applies to the
+# statements a reader writes and to nothing else.
+_QUERY_TRASH_PREDICATE = (
+    "deleted_at IS NULL"
+    " OR current_setting('app.query'::text, true) IS DISTINCT FROM 'true'::text"
+)
+
+
+def _query_trash_policy(table: str) -> list[str]:
+    """Keep a trashed row out of what a reader's own statement returns."""
+    return [
+        f"DROP POLICY IF EXISTS query_excludes_trash ON {table};",
+        f"CREATE POLICY query_excludes_trash ON {table} AS RESTRICTIVE FOR SELECT",
+        f"  USING ({_QUERY_TRASH_PREDICATE});",
+    ]
+
+
 _HEADER = """\
 -- RENDERED AT RUNTIME from app/db/initiative_rls.py (INITIATIVE_PATHS).
 -- Initiative-member-level RLS for the per-guild CONTENT tables. Schema-relative
@@ -246,6 +268,7 @@ def _table_block(table: str, path: InitiativePath) -> str:
     lines.extend(_freeze_policies(table))
     if table in SOFT_DELETE_TABLES:
         lines.extend(_trash_read_policy(table))
+        lines.extend(_query_trash_policy(table))
     if table in _PURGE_GUARD_TABLES:
         # Admin-only hard delete (purge), AND-combined with the PERMISSIVE delete
         # policy above. RESTRICTIVE, so a write-member who clears the permissive
@@ -320,6 +343,7 @@ def _guild_level_guard_block(table: str) -> str:
             f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
             f"  USING ({_PURGE_GUARD_PREDICATE});",
             *_trash_read_policy(table),
+            *_query_trash_policy(table),
         ]
     )
 

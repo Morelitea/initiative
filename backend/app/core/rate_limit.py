@@ -1,6 +1,8 @@
 """Shared rate limiter configuration for the application."""
 
 import ipaddress
+import logging
+import time
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -8,37 +10,90 @@ from starlette.requests import Request
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
+#: How often the configuration hint below repeats. It describes a setting, so
+#: it is worth saying while the setting is still that way, and worth saying no
+#: more often than somebody would act on it.
+_FORWARDED_HINT_INTERVAL_SECONDS = 3600
+_forwarded_hint_at: float | None = None
+
+
+def _is_local_network_peer(address: str) -> bool:
+    """Whether the request arrived from this deployment's own network — a
+    container network, a private LAN, the host itself."""
+    try:
+        parsed = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    return parsed.is_private or parsed.is_loopback or parsed.is_link_local
+
+
+def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
+    """Note, occasionally, that ``X-Forwarded-For`` is arriving and not being
+    read.
+
+    Uvicorn reads that header only from a peer named in
+    ``--forwarded-allow-ips`` (``127.0.0.1`` unless told otherwise, which is
+    what ``BEHIND_PROXY=true`` does), so a proxy anywhere else leaves every
+    visitor resolving to the proxy's address rather than their own. Nothing
+    else reports that, so this does. It is a hint about configuration: the
+    header decides nothing here, and this changes no behaviour.
+    """
+    global _forwarded_hint_at
+    now = time.monotonic()
+    if (
+        _forwarded_hint_at is not None
+        and now - _forwarded_hint_at < _FORWARDED_HINT_INTERVAL_SECONDS
+    ):
+        return
+    forwarded = request.headers.get("x-forwarded-for")
+    if not forwarded:
+        return
+    # A hop that was read leaves the resolved address somewhere in the chain the
+    # header names; one that was not leaves the peer itself, which is not.
+    if resolved in {hop.strip() for hop in forwarded.split(",")}:
+        return
+    if not _is_local_network_peer(resolved):
+        return
+    _forwarded_hint_at = now
+    logger.warning(
+        "Requests carry X-Forwarded-For but this peer is not configured as a "
+        "trusted proxy, so every client resolves to %s. Set BEHIND_PROXY=true "
+        "(and FORWARDED_ALLOW_IPS to the proxy's address) so rate limits and "
+        "recorded sign-in addresses are per-visitor.",
+        resolved,
+    )
+
 
 def get_real_client_ip(request: Request) -> str:
+    """Return the client address selected by the configured ASGI server.
+
+    Uvicorn resolves ``request.client`` from its own ``FORWARDED_ALLOW_IPS``
+    configuration before the application sees the request, so the address is
+    already whatever the deployment's proxy configuration says it is.
     """
-    Get the real client IP address, accounting for proxies.
-
-    Only trusts X-Forwarded-For/X-Real-IP headers when BEHIND_PROXY=True,
-    preventing header spoofing when directly exposed to the internet.
-    """
-    if settings.BEHIND_PROXY:
-        # X-Forwarded-For may contain multiple IPs: client, proxy1, proxy2, ...
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
-
-    # Direct connection IP (or BEHIND_PROXY not set)
-    return get_remote_address(request)
+    resolved = get_remote_address(request)
+    _note_ignored_forwarded_header(request, resolved)
+    return resolved
 
 
 def get_inet_client_ip(request: Request) -> str | None:
     """The client IP as a value an INET column accepts, or ``None`` when it
     isn't a parseable address (e.g. the ``testclient`` peer). Guards session
-    bookkeeping writes from faulting on a non-IP host string."""
+    bookkeeping writes from faulting on a non-IP host string.
+
+    The address is normalized, and any IPv6 zone identifier is dropped because
+    Postgres ``inet`` stores network addresses without an interface scope.
+    """
+    raw = get_real_client_ip(request)
+    # A zone identifies a local interface and is not meaningful in stored data.
+    candidate = raw.split("%", 1)[0]
     try:
-        ipaddress.ip_address(get_real_client_ip(request))
+        parsed = ipaddress.ip_address(candidate)
     except ValueError:
         return None
-    return get_real_client_ip(request)
+    return str(parsed)
 
 
 def _default_limits() -> list[str]:

@@ -74,6 +74,28 @@ USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
 
+# Sign-in refuses an unknown address, an account without a usable password,
+# and a wrong password through one fixed KDF schedule. Neither hash belongs to
+# an account; they exist only to fill the unused slot in that schedule.
+_SIGN_IN_DUMMY_PASSWORD = "initiative-login-dummy-password"
+_SIGN_IN_DUMMY_ARGON2_HASH = _argon2_hasher.hash(_SIGN_IN_DUMMY_PASSWORD)
+#: Work factor for the stand-in bcrypt hash below.
+#:
+#: Pinned rather than taking `bcrypt.gensalt()`'s default, because this number
+#: decides what an address with no account costs to probe. Every sign-in pays a
+#: bcrypt check so that an unknown address costs the same as a legacy bcrypt
+#: account; that equality holds only while this matches the cost those stored
+#: hashes carry. Adjacent costs are far apart -- measured here, cost 10 verifies
+#: in ~102 ms against ~400 ms for cost 12 -- so inheriting the library default
+#: would let a dependency release move it for every legacy account at once,
+#: on upgrade, with nothing saying so. 12 is that default today; changing it
+#: should be an edit somebody makes on purpose.
+SIGN_IN_BCRYPT_COST = 12
+
+_SIGN_IN_DUMMY_BCRYPT_HASH = bcrypt.hashpw(
+    _SIGN_IN_DUMMY_PASSWORD.encode("utf-8"), bcrypt.gensalt(SIGN_IN_BCRYPT_COST)
+).decode("utf-8")
+
 
 def get_password_hash(password: str) -> str:
     """Hash a plaintext password using argon2id."""
@@ -109,6 +131,26 @@ def verify_password(plain_password: str, hashed_password: str | None) -> bool:
     return False
 
 
+def verify_sign_in_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Verify a sign-in while always paying one Argon2 and one bcrypt check.
+
+    The stored credential replaces the dummy for its own scheme. The other
+    scheme still runs, and an absent or unsupported credential uses both
+    dummies. Only a match against the stored credential can authenticate.
+    """
+    is_argon2 = bool(hashed_password and hashed_password.startswith(ARGON2_HASH_PREFIX))
+    is_bcrypt = bool(
+        hashed_password and hashed_password.startswith(BCRYPT_HASH_PREFIXES)
+    )
+    argon2_hash = hashed_password if is_argon2 else _SIGN_IN_DUMMY_ARGON2_HASH
+    bcrypt_hash = hashed_password if is_bcrypt else _SIGN_IN_DUMMY_BCRYPT_HASH
+
+    argon2_matches = verify_password(plain_password, argon2_hash)
+    bcrypt_matches = verify_password(plain_password, bcrypt_hash)
+
+    return bool((is_argon2 and argon2_matches) or (is_bcrypt and bcrypt_matches))
+
+
 def password_needs_rehash(hashed_password: str | None) -> bool:
     """Return True if the stored hash should be rewritten on next successful login.
 
@@ -129,8 +171,15 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
 def create_access_token(
     subject: str, *, token_version: int, expires_delta: timedelta | None = None
 ) -> str:
+    """Mint a **legacy-shape** session JWT — no ``aud``/``iss``/``sid``.
+
+    Nothing in the running app issues one any more: every sign-in goes through
+    :func:`mint_access_token`. It stays because :func:`decode_session_token`
+    still accepts the shape, and the tests that prove it need something that
+    produces one.
+    """
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
     )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
     return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
@@ -154,10 +203,21 @@ def create_access_token(
 AUTH_ACCESS_AUDIENCE = "initiative:access"
 AUTH_TOKEN_ISSUER = "initiative"
 
+#: The ``WWW-Authenticate`` challenge for a session that authenticated, but not
+#: to the level the guild being addressed asks for — RFC 9470 §3. A protocol
+#: constant rather than a message: ``error`` is the part a client matches on,
+#: and ``AuthMessages``/``errors.json`` carry what a person reads.
+#:
+#: RFC 9470 also defines ``acr_values`` and ``max_age``, both optional and both
+#: absent here. ``guild_auth_policies`` names a provider and nothing about
+#: assurance or freshness, so there is no value to put in either; they arrive
+#: with the columns that hold one (phases E and C2b).
+STEP_UP_CHALLENGE = 'Bearer error="insufficient_user_authentication"'
+
 
 def mint_access_token(
     *,
-    user_id: int,
+    subject: str,
     token_version: int,
     session_id: uuid.UUID,
     amr: list[str],
@@ -168,7 +228,8 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (user id), ``sid``
+    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
     provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
@@ -183,7 +244,7 @@ def mint_access_token(
     issued = now or datetime.now(timezone.utc)
     ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
     payload: dict[str, Any] = {
-        "sub": str(user_id),
+        "sub": subject,
         "sid": str(session_id),
         "ver": token_version,
         "amr": amr,

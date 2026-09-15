@@ -13,6 +13,7 @@ import pytest
 from app.core.messages import QueryMessages
 from app.schemas.query import FilterOp
 from app.services.query import QueryError
+from app.services.query.resolve import resolve
 from app.services.query.build import (
     Column,
     Condition,
@@ -479,3 +480,53 @@ class TestADateStaysADistance:
             )
         )
         assert "interval" in resolved.sql.lower()
+
+
+class TestAJoinedStatementSaysWhichSide:
+    """A bare column name with two tables in scope.
+
+    Every tool carries ``archived_at`` and ``created_at``, so filtering one of
+    those alongside any related field named a column Postgres could not resolve
+    — the builder produced a statement the validator then refused, which is the
+    one thing a builder must never do.
+    """
+
+    def test_a_filter_on_the_base_names_the_base(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="*", aggregate="count", alias="n"),),
+                where=(
+                    Condition(field="archived_at", op=FilterOp.is_null, value=True),
+                    Condition(field="project.is_template", value=False),
+                ),
+            )
+        )
+        assert "tasks.archived_at IS NULL" in sql
+        assert resolve(sql).relations == ("projects", "tasks")
+
+    def test_a_selected_column_does_too(self):
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(
+                    Column(field="created_at"),
+                    Column(field="assignee.display_name", alias="person"),
+                ),
+            )
+        )
+        assert "tasks.created_at" in sql
+        resolve(sql)
+
+    def test_a_statement_about_one_table_is_left_unqualified(self):
+        """Nothing to disambiguate, and the stored statement reads better."""
+        sql = build(
+            QuerySpec(
+                dataset="tasks",
+                columns=(Column(field="title"),),
+                where=(
+                    Condition(field="archived_at", op=FilterOp.is_null, value=True),
+                ),
+            )
+        )
+        assert sql == "SELECT title FROM tasks WHERE archived_at IS NULL"

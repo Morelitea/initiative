@@ -617,3 +617,37 @@ class TestTheReaderIsANameAStatementMayUse:
 
     def test_a_relation_may_not_be_called_it_either(self):
         assert refusal("SELECT me.title FROM tasks me") == QueryMessages.RESERVED_NAME
+
+
+class TestAConstantACastNamesTheTypeOf:
+    """``CAST('30 days' AS interval)`` and friends.
+
+    A constant is normally bound as a parameter, which is what lets
+    ``priority = $1`` take the column's type. A cast is the other way round:
+    the constant has no column to take a type from, the cast IS the type, and
+    binding it hands the driver a string where an interval wants a
+    ``timedelta``. Nothing caught it earlier — planning the statement succeeds,
+    and only running it binds anything — so a dashboard measuring a stretch of
+    time saved fine, described fine, and failed every time it drew.
+    """
+
+    def test_the_constant_is_written_through_rather_than_bound(self):
+        statement = resolve(
+            "SELECT count(*) AS n FROM tasks "
+            "WHERE completed_at >= now() - CAST('30 days' AS interval)"
+        )
+        assert "'30 days'" in statement.sql
+        assert "30 days" not in [str(value) for value in statement.parameters]
+
+    def test_a_constant_with_a_column_to_take_its_type_from_still_binds(self):
+        """The rule is about casts, not about constants."""
+        statement = resolve("SELECT title FROM tasks WHERE priority = 'high'")
+        assert statement.parameters == ("high",)
+
+    def test_both_in_one_statement(self):
+        statement = resolve(
+            "SELECT title FROM tasks WHERE priority = 'high' "
+            "AND completed_at >= now() - CAST('7 days' AS interval)"
+        )
+        assert statement.parameters == ("high",)
+        assert "'7 days'" in statement.sql

@@ -62,66 +62,21 @@ async def test_a_sign_in_is_recorded_with_its_method(
     assert rows[0].tier == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
 
 
-async def test_a_sign_in_that_falls_back_to_a_legacy_token_is_still_recorded(
+async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A failed session write rolls back the record staged beside it. The
-    sign-in succeeded, so it is written again on its own — naming the session
-    it ended up with, which cannot renew silently."""
-    user = await create_user(session, email="fallback-audit@example.com")
-    user_id = user.id
+    """The record is staged beside the session write, so a failure takes both.
+    Nothing signed in, so there is nothing to write down."""
+    await create_user(session, email="nostore-audit@example.com")
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("session store down")
 
     monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
-    assert (await _sign_in(client, "fallback-audit@example.com")).status_code == 200
+    refused = await _sign_in(client, "nostore-audit@example.com")
+    assert refused.status_code == 503
 
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
-    assert [r.actor_user_id for r in rows] == [user_id]
-    assert rows[0].envelope["detail"] == {"method": "password", "session": "legacy"}
-
-
-async def test_an_oidc_sign_in_that_falls_back_keeps_what_the_idp_asserted(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The provider's account of the authentication is read before the session
-    is written, so it survives the write failing."""
-    from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
-    from app.testing.oidc import FakeIdp
-
-    await _enable_platform_oidc(session)
-    idp = FakeIdp()
-    _wire_fake_idp(monkeypatch, idp)
-
-    async def _boom(*args, **kwargs):
-        raise RuntimeError("session store down")
-
-    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
-    response = await _run_oidc_flow(
-        client,
-        idp,
-        id_token_claims={
-            "email": "oidc-fallback@example.com",
-            "username": "oidc-fallback",
-            "email_verified": True,
-            "amr": ["pwd", "mfa"],
-            "auth_time": 1757600000,
-        },
-    )
-    assert response.status_code in (302, 307)
-
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
-    assert [r.envelope["detail"] for r in rows] == [
-        {
-            "method": "oidc",
-            "provider": PLATFORM_OIDC_SLUG,
-            "step_up": False,
-            "session": "legacy",
-            "auth_time": 1757600000,
-            "amr": ["pwd", "mfa"],
-        }
-    ]
+    assert await _events(session, AuditEventType.AUTH_SIGNED_IN) == []
 
 
 async def test_a_refused_sign_in_is_recorded_with_its_reason(
@@ -157,16 +112,32 @@ async def test_an_inactive_account_is_recorded_separately_from_a_wrong_password(
     assert rows[0].envelope["detail"]["reason"] == "inactive"
 
 
-async def test_an_address_nobody_holds_is_not_written_down(
+async def test_password_endpoints_finalize_unknown_account_refusals_without_identity(
     client: AsyncClient, session: AsyncSession
 ):
-    """A refusal that resolved to no account is not an action on anybody, and
-    recording it would put an unowned address in the log."""
+    """Every refusal lands the same identity-free audit write and commit."""
     before = len(await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED))
-    response = await _sign_in(client, "nobody-at-all@example.com")
-    assert response.status_code == 400
+    login_response = await _sign_in(client, "nobody-at-all@example.com")
+    device_response = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "still-nobody@example.com",
+            "password": PASSWORD,
+            "device_name": "test-phone",
+        },
+    )
+    assert login_response.status_code == device_response.status_code == 400
 
-    assert len(await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)) == before
+    rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
+    new_rows = rows[before:]
+    assert len(new_rows) == 2
+    assert [row.actor_user_id for row in new_rows] == [None, None]
+    assert [row.target_user_id for row in new_rows] == [None, None]
+    assert [row.envelope["target"] for row in new_rows] == [None, None]
+    assert [row.envelope["detail"] for row in new_rows] == [
+        {"method": "password", "reason": "bad_password"},
+        {"method": "password", "reason": "bad_password"},
+    ]
 
 
 async def test_signing_out_is_recorded(client: AsyncClient, session: AsyncSession):

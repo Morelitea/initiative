@@ -47,7 +47,7 @@ You don't have to click each card individually, either. Click the first, hold ++
 ## Three things worth remembering
 
 - **Initiative membership comes first.** You can only share with somebody already in the initiative. If they're not, [add them there](../guides/initiatives.md#adding-members) first — the box won't offer them otherwise.
-- **Managers see everything.** A member with the [Manager role](initiative-roles.md#the-built-in-manager-role) opens the item regardless of anything on this page. That's intended, and worth remembering for genuinely private material.
+- **Moderators see everything.** A member with the [Moderator role](initiative-roles.md#the-two-built-in-roles) opens the item regardless of anything on this page. That's intended, and worth remembering for genuinely private material.
 - **Community admins see everything in their community.** Also by design. Somebody has to be able to administer the place.
 
 ??? techspec "For the technically minded — how item sharing is stored and checked"

@@ -8,8 +8,8 @@
   "long_description": "A flow view of the initiative's work: the funnel from the widest stage to the narrowest, the same counts as a chart, and a calendar grid of day-by-day activity.\n\nUseful for spotting where work piles up rather than for tracking any one task.",
   "avatar_url": "/marketplace/core-task-flow.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "The stage chart repeated the funnel beside it; it now shows the oldest work still waiting, and what is past its date.",
+  "version": "1.2.0",
+  "release_notes": "Counts only live work: archived tasks, and tasks in template projects, no longer reach the stages, the figures or the pace.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",
@@ -28,7 +28,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT s.category AS stage, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id GROUP BY s.category"
+          "sql": "SELECT s.category AS stage, count(*) AS tasks FROM tasks t JOIN task_statuses s ON t.task_status_id = s.id WHERE t.archived_at IS NULL AND project.is_template = false GROUP BY s.category"
         },
         "title": "Stages"
       },
@@ -43,7 +43,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT title, project.name AS project, due_date FROM tasks WHERE completed_at IS NULL ORDER BY tasks.created_at LIMIT 12"
+          "sql": "SELECT title, project.name AS project, due_date FROM tasks WHERE completed_at IS NULL AND tasks.archived_at IS NULL AND project.is_template = false ORDER BY tasks.created_at LIMIT 12"
         },
         "title": "Waiting longest"
       },
@@ -58,7 +58,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now()"
+          "sql": "SELECT count(*) AS overdue FROM tasks WHERE completed_at IS NULL AND due_date < now() AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Past its date"
       },
@@ -73,7 +73,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval)"
+          "sql": "SELECT count(*) AS finished FROM tasks WHERE completed_at >= now() - CAST('30 days' AS interval) AND tasks.archived_at IS NULL AND project.is_template = false"
         },
         "title": "Finished, last 30 days"
       },
@@ -88,7 +88,7 @@
         },
         "binding": {
           "source": "query",
-          "sql": "SELECT date_trunc('day', completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL GROUP BY date_trunc('day', completed_at) ORDER BY date_trunc('day', completed_at)"
+          "sql": "SELECT date_trunc('day', tasks.completed_at) AS day, count(*) AS finished FROM tasks WHERE completed_at IS NOT NULL AND tasks.archived_at IS NULL AND project.is_template = false GROUP BY date_trunc('day', tasks.completed_at) ORDER BY date_trunc('day', tasks.completed_at)"
         },
         "title": "Finished, day by day"
       }

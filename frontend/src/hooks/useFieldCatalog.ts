@@ -15,13 +15,18 @@
 import { useMemo } from "react";
 
 import { useReadFieldCatalogApiV1FieldsDatasetGet } from "@/api/generated/fields/fields";
-import type { DatasetName, RelationDescription } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DatasetName,
+  DefaultFilter,
+  RelationDescription,
+} from "@/api/generated/initiativeAPI.schemas";
 import { type FilterFieldSpec, toFilterFieldSpec } from "@/lib/widgets/conditions";
 
 export type { DatasetName };
 
 const EMPTY: FilterFieldSpec[] = [];
 const NO_RELATIONS: RelationDescription[] = [];
+const NO_DEFAULTS: DefaultFilter[] = [];
 
 /**
  * The declarations, ready for the controls to read.
@@ -49,6 +54,12 @@ export function useFieldCatalog(dataset: DatasetName) {
      *  `<relation>.<field>`, and what may be named is that dataset's own
      *  description — so a consumer reads this and then reads that. */
     relations: query.data?.relations ?? NO_RELATIONS,
+    /** What a new statement about this dataset leaves out until its author
+     *  says otherwise: archived rows, and templates. Ordinary conditions, so
+     *  the builder seeds its filter list with them and they are shown and
+     *  removed like any other. The trash is not among them — the query surface
+     *  removes it in the database, and no filter can ask for it back. */
+    defaultFilters: query.data?.default_filters ?? NO_DEFAULTS,
     isLoading: query.isLoading,
   };
 }

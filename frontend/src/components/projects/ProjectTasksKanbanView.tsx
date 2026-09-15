@@ -33,7 +33,7 @@ type ProjectTasksKanbanViewProps = {
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   canOpenTask: boolean;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   sensors: DndContextProps["sensors"];
   activeTask: TaskListRead | null;
@@ -52,7 +52,7 @@ export const ProjectTasksKanbanView = ({
   collapsedStatusIds,
   canReorderTasks,
   canOpenTask,
-  onTaskClick,
+  taskHref,
   priorityVariant,
   sensors,
   activeTask,
@@ -94,7 +94,7 @@ export const ProjectTasksKanbanView = ({
                 canWrite={canReorderTasks}
                 canOpenTask={canOpenTask}
                 priorityVariant={priorityVariant}
-                onTaskClick={onTaskClick}
+                taskHref={taskHref}
                 collapsed={isCollapsed}
                 onToggleCollapse={onToggleCollapse}
                 taskCount={groupedTasks[status.id]?.length ?? 0}

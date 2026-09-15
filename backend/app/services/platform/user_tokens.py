@@ -37,15 +37,27 @@ def _hash_token(token: str) -> str:
 
 
 async def _delete_existing_tokens(
-    session: AsyncSession, user_id: int, purpose: UserTokenPurpose
+    session: AsyncSession,
+    user_id: int,
+    purpose: UserTokenPurpose,
+    user_email_id: int | None = None,
 ) -> None:
-    """Delete existing tokens for a user with a specific purpose (except device_auth)."""
-    # For device tokens, we allow multiple devices per user
+    """Drop the outstanding tokens a new one replaces.
+
+    Scoped to the address when there is one: an account proving two addresses
+    has one pending token per address, and issuing the second must not spend
+    the first. Device tokens are per device and replace nothing.
+    """
     if purpose == UserTokenPurpose.device_auth:
         return
     stmt = delete(UserToken).where(
         UserToken.user_id == user_id,
         UserToken.purpose == purpose,
+    )
+    stmt = stmt.where(
+        UserToken.user_email_id == user_email_id
+        if user_email_id is not None
+        else UserToken.user_email_id.is_(None)
     )
     await session.exec(stmt)
 
@@ -56,14 +68,16 @@ async def create_token(
     user_id: int,
     purpose: UserTokenPurpose,
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
+    user_email_id: int | None = None,
 ) -> str:
-    await _delete_existing_tokens(session, user_id, purpose)
+    await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     token = UserToken(
         user_id=user_id,
         token=_hash_token(token_value),
         purpose=purpose,
+        user_email_id=user_email_id,
         expires_at=expires_at,
     )
     session.add(token)
@@ -258,6 +272,7 @@ async def revoke_user_sessions(
     *,
     user: User,
     admin_session: AsyncSession,
+    commit: bool = True,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
     change.
@@ -275,13 +290,19 @@ async def revoke_user_sessions(
     writes (``token_version``, device tokens) and the caller commits it;
     ``admin_session`` is the system engine, the only role that may touch the
     ``app_admin``-only tables — ``auth_sessions`` and ``user_api_keys``. The
-    API-key deactivation and refresh-session revocation are both committed here
-    (on ``admin_session``) so they can't be forgotten by a caller — revoking
-    ahead of a password write that later fails just logs the user out, which is
-    the fail-safe direction.
+    API-key deactivation and refresh-session revocation are committed here by
+    default so they can't be forgotten by a caller — revoking ahead of a
+    password write that later fails just logs the user out, which is the
+    fail-safe direction.
+
+    ``commit=False`` leaves them staged, for the one caller that opens a
+    replacement session immediately afterwards: staged together, the
+    revocations and their replacement land in one transaction, so a failure to
+    open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
     await revoke_active_device_tokens(session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
     await session_service.revoke_all_for_user(admin_session, user_id=user.id)
-    await admin_session.commit()
+    if commit:
+        await admin_session.commit()

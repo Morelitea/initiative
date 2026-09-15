@@ -14,8 +14,6 @@ from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import usernames
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
@@ -762,18 +760,12 @@ async def test_inactive_user_cannot_access_endpoints(
 ):
     """Test that inactive users cannot access protected endpoints."""
 
-    # Create inactive user
-    user = User(
-        username=usernames.random_name(),
-        discriminator=usernames.random_discriminator(),
-        email_hash=hash_email("inactive@example.com"),
-        email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
+    user = await create_user(
+        session,
+        email="inactive@example.com",
         full_name="Inactive User",
-        hashed_password="dummy",
         status=UserStatus.deactivated,
     )
-    session.add(user)
-    await session.commit()
 
     headers = get_auth_headers(user)
 
@@ -1207,12 +1199,12 @@ async def test_password_change_keeps_this_device_signed_in(
 
 
 @pytest.mark.integration
-async def test_password_change_fallback_clears_dead_refresh_cookie(
+async def test_a_password_change_that_cannot_open_a_session_is_refused(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """If the session store fails right after the global revocation, the
-    legacy re-issue must also clear the (now revoked) refresh cookie so the
-    SPA doesn't resend a dead token on its next silent renewal."""
+    """The change keeps this device signed in by opening a fresh session. With
+    no session to open the request ends there — signing in again is the way
+    back, and it is the same session store either way."""
     await create_user(session, email="pwfall@example.com")
 
     login = await client.post(
@@ -1231,13 +1223,23 @@ async def test_password_change_fallback_clears_dead_refresh_cookie(
         "/api/v1/users/me",
         json={"password": "newpassword456", "current_password": "testpassword123"},
     )
-    assert change.status_code == 200
-    set_cookies = change.headers.get_list("set-cookie")
-    assert any(
-        c.startswith("refresh_token=") and ("Max-Age=0" in c or "1970" in c)
-        for c in set_cookies
-    ), set_cookies
-    assert any(c.startswith("session_token=") for c in set_cookies)
+    assert change.status_code == 503
+    assert change.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
+
+    # The revocations were staged alongside the replacement, so the account
+    # still holds what it had. The session opened before the attempt is the
+    # thing to ask: it rotates, which it could not do if its chain had been
+    # revoked on its own. Signing in afresh would pass either way.
+    monkeypatch.undo()
+    refreshed = await client.post("/api/v1/auth/refresh")
+    assert refreshed.status_code == 200, refreshed.text
+
+    # And the password is the one it always was.
+    again = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwfall@example.com", "password": "testpassword123"},
+    )
+    assert again.status_code == 200
 
 
 @pytest.mark.integration

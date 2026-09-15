@@ -1,0 +1,90 @@
+{
+  "title": "Relaciones",
+  "description": "Conecta esto con cualquier otra cosa de la iniciativa y di cómo se relacionan.",
+  "untitled": "Sin título",
+  "empty": "Todavía no hay nada conectado con esto.",
+  "loadFailed": "Las relaciones no responden. Inténtalo de nuevo en un momento.",
+  "add": "Añadir relación",
+  "graph": {
+    "alt": "{{title}} y las {{count}} cosas con las que está conectado",
+    "hops": "Saltos",
+    "hopsN_one": "{{count}} salto",
+    "hopsN_other": "{{count}} saltos",
+    "walking": "Buscando más lejos…",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "reset": "Ajustar a la vista",
+    "showTags": "Mostrar etiquetas"
+  },
+  "layout": {
+    "label": "Cómo mostrarlos",
+    "tiles": "Mosaico",
+    "rows": "Lista",
+    "carousel": "Carrusel",
+    "graph": "Grafo"
+  },
+  "addError": "No se pudo crear ese enlace.",
+  "removeError": "No se pudo quitar ese enlace.",
+  "added": "Enlazado.",
+  "removed": "Enlace eliminado.",
+  "dialog": {
+    "title": "Añadir una relación",
+    "description": "Di cómo se conectan las dos cosas y luego elige el elemento.",
+    "relationship": "Relación",
+    "entity": "Elemento",
+    "entityPlaceholder": "Buscar por nombre…",
+    "noResults": "No hay coincidencias.",
+    "submit": "Añadir relación",
+    "submitting": "Añadiendo…",
+    "readOnlyTarget": "Algunos vínculos solo pueden crearse desde algo que puedas cambiar, y eso solo puedes leerlo."
+  },
+  "card": {
+    "kindLinked": "{{kind}} · enlazado {{date}}",
+    "unreachable": "Esta versión de la aplicación no puede abrir eso.",
+    "remove": "Quitar el enlace con {{title}}"
+  },
+  "derived": "Se lee de lo que dice el contenido. Edita el texto para cambiarlo.",
+  "groups": {
+    "attached": {
+      "title": "Adjunto",
+      "empty": "Todavía no hay nada adjunto.",
+      "option": "Está adjunto a"
+    },
+    "blockedBy": {
+      "title": "Bloqueado por",
+      "empty": "Nada lo está frenando.",
+      "option": "Está bloqueado por"
+    },
+    "blocks": {
+      "title": "Bloquea",
+      "empty": "No está frenando nada.",
+      "option": "Bloquea"
+    },
+    "partOf": {
+      "title": "Parte de",
+      "empty": "No es parte de nada mayor.",
+      "option": "Es parte de"
+    },
+    "parts": {
+      "title": "Partes",
+      "empty": "No hay nada que pertenezca a esto.",
+      "option": "Tiene como parte"
+    },
+    "related": {
+      "title": "Relacionado",
+      "empty": "Todavía no hay nada relacionado.",
+      "option": "Está relacionado con"
+    },
+    "referencedBy": {
+      "title": "Mencionado por",
+      "empty": "Nada menciona esto.",
+      "option": "Hace referencia a"
+    },
+    "tagged": {
+      "title": "Etiquetado",
+      "empty": "Sin etiquetas.",
+      "option": "Está etiquetado"
+    }
+  },
+  "loading": "Cargando…"
+}

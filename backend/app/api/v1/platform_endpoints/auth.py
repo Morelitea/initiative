@@ -38,12 +38,11 @@ from app.core.usernames import UsernameError
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
-    create_access_token,
     create_upload_token,
     get_password_hash,
     mint_access_token,
     password_needs_rehash,
-    verify_password,
+    verify_sign_in_password,
 )
 from app.core.user_input_validators import (
     is_safe_next_path,
@@ -79,7 +78,9 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+from app.services.auth import addresses
 from app.services.auth import sessions as session_service
+from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     read_assurance,
     record_for_provider,
@@ -189,9 +190,9 @@ async def register_user(
         )
 
         normalized_email = user_in.email.lower().strip()
-        statement = select(User).where(User.email_hash == hash_email(normalized_email))
-        existing = await session.exec(statement)
-        if existing.one_or_none():
+        # Address-aware: the address is taken if it reaches ANY account, not
+        # only if it is the one that account was created with.
+        if await addresses.find_user_by_address(session, normalized_email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
@@ -220,10 +221,12 @@ async def register_user(
         # first-user path because there's no bot economics on a fresh
         # deployment with zero users — and operators shouldn't be
         # locked out by a captcha they haven't fully wired up yet.
-        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
-        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
-        # ALB / Cloudflare the captcha provider sees the real client IP
-        # for its anti-abuse heuristics — not the proxy's.
+        # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+        # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
+        # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
+        # captcha provider sees the client address rather than the proxy's.
+        # A deployment that starts uvicorn some other way has to pass those
+        # flags itself, or this is the proxy's address.
         if not is_first_user:
             from app.core.rate_limit import get_real_client_ip
             from app.services import captcha as captcha_service
@@ -282,6 +285,13 @@ async def register_user(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
+        addresses.record_address(
+            session,
+            user_id=user.id,
+            email=normalized_email,
+            source=addresses.SOURCE_SIGNUP,
+            verified=user.email_verified,
+        )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
         if normalized_invite:
@@ -404,59 +414,29 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 
 
 async def _record_sign_in_failure(
-    admin_session: AsyncSession, user: User, *, reason: str
+    admin_session: AsyncSession, user: User | None, *, reason: str
 ) -> None:
     """Write down a refused sign-in and commit it.
 
-    The account is the **target**, and there is no actor: the request that made
-    the attempt is unauthenticated, so the account named by the address is what
-    the attempt was against rather than who made it.
+    The account is the **target**, when one resolved, and there is no actor: the
+    request that made the attempt is unauthenticated. An unknown address still
+    records the refusal but retains no submitted identity.
 
     Its own commit because the request is about to raise, and ``audit_events``
     is reached on the system engine — the request-path role holds nothing on
     that table.
     """
+    target_user_id = user.id if user is not None else None
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
+        target_user_id=target_user_id,
+        target_type="user" if target_user_id is not None else None,
+        target_id=target_user_id,
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
-
-
-async def _record_sign_in_fallback(
-    admin_session: AsyncSession,
-    *,
-    user_id: int,
-    detail: dict[str, Any],
-    guild_id: int | None = None,
-) -> None:
-    """Write down a sign-in whose session write failed, on its own commit.
-
-    The record is normally staged beside the session so the two land together;
-    when that write fails, the rollback takes the record with it. The sign-in
-    itself still succeeded — the caller is about to hand out a legacy token —
-    so the log still owes its reader the event.
-
-    Best-effort by construction: whatever stopped the session write may stop
-    this too, and a login that has already succeeded must not fail here.
-    """
-    try:
-        await audit_service.record(
-            admin_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            guild_id=guild_id,
-            detail={**detail, "session": "legacy"},
-        )
-        await admin_session.commit()
-    except Exception:
-        await admin_session.rollback()
-        logger.warning("sign-in for user %s was not recorded in the audit log", user_id)
 
 
 @router.post("/token", response_model=Token)
@@ -469,20 +449,26 @@ async def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
     normalized_email = form_data.username.lower().strip()
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        # Only a refusal that resolved to an account is recorded: an address
-        # nobody holds is not an action on anybody, and the log is no place to
-        # keep one. Those attempts are bounded by the rate limit above.
-        if user is not None:
-            await _record_sign_in_failure(admin_session, user, reason="bad_password")
+    # Any of the account's addresses signs it in, resolved on the system engine
+    # because there is nobody to scope a policy to until it returns.
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Unconditional, and deliberately not folded into the `or` below: that
+    # short-circuits, and every sign-in pays the same work. See T123.
+    password_matches = verify_sign_in_password(
+        form_data.password, user.hashed_password if user is not None else None
+    )
+    if not user or not password_matches:
+        # Recorded whether or not the address resolved: a run of refusals
+        # against addresses nobody holds is the shape worth seeing, and the
+        # record keeps no identity when there was none to keep. The volume is
+        # bounded by the rate limit above.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
+    # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
         await _record_sign_in_failure(admin_session, user, reason="inactive")
         raise HTTPException(
@@ -500,19 +486,27 @@ async def login_access_token(
             admin_session, user=user, password=form_data.password
         )
 
-    # The new login model end-to-end (history/auth-detailed-design.md §3): the
+    # Which of the account's addresses was used, for the account page and for
+    # telling an address in use from one nobody has signed in with.
+    await addresses.note_sign_in(admin_session, email=normalized_email)
+
+    # The login model end-to-end (history/auth-detailed-design.md §3): the
     # server-side session is load-bearing — the access token carries sid/amr/sat
     # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
     # session (the SPA renews silently). Session writes run on the system engine
     # (auth_sessions is app_admin-only).
     #
-    # Fallback: a transient session-store failure must not block sign-in — issue
-    # a legacy long-lived token instead (the dual-verify window accepts both);
-    # that session just can't renew silently.
+    # A sign-in *is* the session. If it cannot be written the request says so
+    # rather than handing back a lesser credential — ``auth_sessions`` shares a
+    # database with everything the next request would need anyway.
+    #
+    # ``user`` is attached to ``admin_session``, so the rollback below expires
+    # its attributes; the plain values are captured up front.
+    user_id, token_version = user.id, user.token_version
     try:
         issued = await session_service.create_session(
             admin_session,
-            user_id=user.id,
+            user_id=user_id,
             amr=["pwd"],
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
@@ -521,35 +515,24 @@ async def login_access_token(
         await audit_service.record(
             admin_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user.id,
+            actor_user_id=user_id,
             detail={"method": "password"},
         )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
-    except Exception:
+    except Exception as exc:
         await admin_session.rollback()
-        logger.exception(
-            "Failed to establish refresh session for user %s; "
-            "falling back to a legacy access token",
-            user.id,
-        )
-        await _record_sign_in_fallback(
-            admin_session, user_id=user.id, detail={"method": "password"}
-        )
-        access_token = create_access_token(
-            subject=str(user.id), token_version=user.token_version
-        )
-        set_session_cookie(
-            response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-        # A leftover refresh cookie from an earlier session (possibly another
-        # account on this browser) must not ride the new login — clear it so a
-        # later silent renewal can't swap the session out from under the user.
-        clear_refresh_cookie(response)
-        return Token(access_token=access_token)
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
 
     access_token, access_max_age = mint_access_token(
-        user_id=user.id,
-        token_version=user.token_version,
+        subject=subject,
+        token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
@@ -603,6 +586,17 @@ async def refresh_access_token(
             target_type="user",
             target_id=result.user_id,
         )
+    # The name the replacement token will carry, in the rotation's own
+    # transaction. The raw refresh secret the rotation mints exists only in
+    # ``issued`` until the response sets it, so anything that can fail belongs
+    # before the commit that spends the presented one.
+    subject = (
+        await subject_service.subject_for_user(
+            admin_session, user_id=result.issued.session.user_id
+        )
+        if result.ok and result.issued is not None
+        else None
+    )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
     # uncommitted (see RotationResult).
@@ -623,7 +617,7 @@ async def refresh_access_token(
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     access_token, access_max_age = mint_access_token(
-        user_id=user.id,
+        subject=subject,
         token_version=user.token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -756,10 +750,14 @@ async def create_device_token(
     Device tokens do not expire and can be used instead of JWT tokens.
     """
     normalized_email = payload.email.lower().strip()
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if not user or not verify_password(payload.password, user.hashed_password):
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Same reason as the token route: paid before the branch, never inside it.
+    password_matches = verify_sign_in_password(
+        payload.password, user.hashed_password if user is not None else None
+    )
+    if not user or not password_matches:
+        # Recorded either way, like the token route.
+        await _record_sign_in_failure(admin_session, user, reason="bad_password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -1308,6 +1306,19 @@ async def _complete_provider_login(
             email_verified=email_verified,
         )
 
+    # The address this provider asserts for the account. A provisioned account
+    # already holds it; a linked one existed first, so this is where a work
+    # address arrives beside whatever the person signed up with.
+    if email:
+        await addresses.ensure_address(
+            admin_session,
+            user_id=user.id,
+            email=email,
+            source=addresses.SOURCE_OIDC,
+            verified=email_verified,
+            provider_id=provider_row.id,
+        )
+
     # Profile refresh from the verified claims.
     if email_verified and not user.email_verified:
         user.email_verified = True
@@ -1490,40 +1501,19 @@ async def _complete_provider_login(
             # running beside the stepped-up session. The new session is a
             # fresh chain root, so the walk never touches it.
             await session_service.revoke_chain(admin_session, session_id=prior.id)
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
-        logger.exception(
-            "Failed to establish refresh session for user %s; "
-            "falling back to a legacy access token",
-            user_id,
-        )
-        await _record_sign_in_fallback(
-            admin_session,
-            user_id=user_id,
-            guild_id=provider_guild_id,
-            detail={
-                "method": "oidc",
-                "provider": provider_slug,
-                "step_up": prior is not None,
-                **assurance.as_record(),
-            },
-        )
-        legacy_token = create_access_token(
-            subject=str(user_id), token_version=token_version
-        )
-        set_session_cookie(
-            oidc_response,
-            legacy_token,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        )
-        # Same rule as the password-login fallback: a leftover refresh cookie
-        # must not ride the new login.
-        clear_refresh_cookie(oidc_response)
-        return oidc_response
+        logger.exception("Could not open a session for user %s", user_id)
+        # The provider authenticated them; we could not record it. Back to the
+        # app with a code rather than a credential that cannot renew.
+        return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
 
     app_token, access_max_age = mint_access_token(
-        user_id=user_id,
+        subject=subject,
         token_version=token_version,
         session_id=issued.session.id,
         amr=issued.session.amr,
@@ -1635,11 +1625,28 @@ async def confirm_verification(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # A token minted for one address proves that address; the older
+    # account-level tokens carry none and prove the account.
+    if record.user_email_id is not None:
+        try:
+            await addresses.verify_for_user(
+                admin_session, user_id=user.id, address_id=record.user_email_id
+            )
+        except addresses.AddressError as exc:
+            # Somebody else proved the same address first. The claim is over,
+            # and the token that carried it is spent either way.
+            await admin_session.rollback()
+            record.consumed_at = datetime.now(timezone.utc)
+            session.add(record)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
-        await admin_session.commit()
+    await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)
@@ -1650,12 +1657,13 @@ async def confirm_verification(
 @router.post("/password/forgot", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def request_password_reset(
-    request: Request, payload: PasswordResetRequest, session: SessionDep
+    request: Request,
+    payload: PasswordResetRequest,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
-    stmt = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(stmt)
-    user = result.one_or_none()
+    user = await addresses.find_user_by_address(admin_session, normalized_email)
     if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:

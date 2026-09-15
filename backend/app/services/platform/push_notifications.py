@@ -45,6 +45,14 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.comment_on_resource: "comments",
     NotificationType.comment_reply: "comments",
     NotificationType.direct_message: "messages",
+    # Somebody asking to reach you, and the answer when you asked. Messaging
+    # news, so it rides the channel the installed app already registers for
+    # messages rather than asking for a new one — same reasoning as the join
+    # requests above: a new channel id would mean a native release.
+    NotificationType.message_request_received: "messages",
+    NotificationType.message_request_accepted: "messages",
+    NotificationType.connection_requested: "messages",
+    NotificationType.connection_accepted: "messages",
     # Its own channel rather than one of the above. A post is a category of
     # its own — nothing already here describes it, and filing it under
     # initiative news would mean muting one to mute the other. A channel is

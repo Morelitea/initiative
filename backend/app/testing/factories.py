@@ -154,11 +154,29 @@ async def create_user(
     await session.flush()
 
     # Every production path that makes an account seeds its direct-message
-    # policy row, so the factory does too — otherwise a test would be exercising
-    # the "no row at all" fallback rather than what a real account looks like.
+    # policy row and records its address, so the factory does too — otherwise a
+    # test would be exercising the "no row at all" fallback rather than what a
+    # real account looks like.
+    from app.services.auth import addresses
+    from app.services.auth import subject as subject_service
     from app.services.platform import dm_settings as dm_settings_service
 
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email=email_raw,
+        source=addresses.SOURCE_SIGNUP,
+        verified=bool(user_data.get("email_verified")),
+    )
     await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+    # The name this account's access tokens carry. Kept on the object because
+    # ``get_auth_token`` is called from hundreds of places that have the user
+    # and no session; see ``AUTH_SUBJECT_ATTR``.
+    setattr(
+        user,
+        AUTH_SUBJECT_ATTR,
+        await subject_service.subject_for_user(session, user_id=user.id),
+    )
 
     if commit:
         await session.commit()
@@ -342,6 +360,15 @@ async def create_guild_membership(
     return membership
 
 
+#: Where :func:`create_user` leaves the ``client``-sector reference an access
+#: token names the account by. Not a column — it is the value of a row in
+#: ``identity_refs``, carried on the object so the sync token helpers below can
+#: reach it. A user built any other way has none, and asking for a token for it
+#: says so rather than falling back to the row id, which would be the one form
+#: the shipped token no longer uses.
+AUTH_SUBJECT_ATTR = "auth_subject"
+
+
 def get_auth_token(
     user: User,
     *,
@@ -353,8 +380,9 @@ def get_auth_token(
 
     ``aud=initiative:access``, carrying ``sid``/``amr``/``sat``, so a test
     authenticates through the same verification a signed-in browser does.
-    ``sid`` is a throwaway uuid: the access token is stateless and nothing on
-    the request path resolves it against an ``auth_sessions`` row.
+    ``sub`` is the account's ``client``-sector reference, ``sid`` a throwaway
+    uuid: the access token is stateless and nothing on the request path
+    resolves it against an ``auth_sessions`` row.
 
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
@@ -366,8 +394,14 @@ def get_auth_token(
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
         response = await client.get("/api/v1/users/me", headers=headers)
     """
+    subject = getattr(user, AUTH_SUBJECT_ATTR, None)
+    if subject is None:
+        raise RuntimeError(
+            f"user {user.id} has no {AUTH_SUBJECT_ATTR}: build accounts with "
+            "create_user, which mints one the way registration does"
+        )
     token, _ = mint_access_token(
-        user_id=user.id,
+        subject=subject,
         token_version=user.token_version,
         session_id=session_id or uuid.uuid4(),
         amr=amr if amr is not None else ["pwd"],
@@ -472,10 +506,10 @@ async def create_initiative(
     if commit:
         await session.flush()
 
-        # Create built-in roles (PM + Member)
-        pm_role, member_role = await create_builtin_roles(
-            session, initiative_id=initiative.id
-        )
+        # Create built-in roles (moderator + PM + member)
+        builtin_roles = await create_builtin_roles(session, initiative_id=initiative.id)
+        pm_role = builtin_roles["project_manager"]
+        member_role = builtin_roles["member"]
 
         if member_tool_access:
             from sqlalchemy import update as sa_update

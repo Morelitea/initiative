@@ -212,7 +212,7 @@ type ProjectTasksSectionProps = {
   canWriteProject: boolean;
   projectIsArchived: boolean;
   canViewTaskDetails: boolean;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   initialComposerOpen?: boolean;
   onComposerOpenChange?: (isOpen: boolean) => void;
 };
@@ -226,7 +226,7 @@ export const ProjectTasksSection = ({
   canWriteProject,
   projectIsArchived,
   canViewTaskDetails,
-  onTaskClick,
+  taskHref,
   initialComposerOpen,
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
@@ -1146,7 +1146,7 @@ export const ProjectTasksSection = ({
             collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
             canOpenTask={canViewTaskDetails}
-            onTaskClick={onTaskClick}
+            taskHref={taskHref}
             priorityVariant={priorityVariant}
             sensors={kanbanSensors}
             activeTask={activeTask}
@@ -1207,7 +1207,7 @@ export const ProjectTasksSection = ({
                 data: { task_status_id: taskStatusId },
               })
             }
-            onTaskClick={onTaskClick}
+            taskHref={taskHref}
             onTaskSelectionChange={setSelectedTasks}
             onExitSelection={() => setSelectedTasks([])}
           />
@@ -1237,7 +1237,7 @@ export const ProjectTasksSection = ({
             onFocusDateChange={setCalendarFocusDate}
             onEntryClick={(entry) => {
               const meta = entry.meta as { taskId?: number } | undefined;
-              if (meta?.taskId && canViewTaskDetails) onTaskClick(meta.taskId);
+              if (meta?.taskId && canViewTaskDetails) void navigate({ to: taskHref(meta.taskId) });
             }}
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}

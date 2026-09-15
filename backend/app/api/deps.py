@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core import auth_context
-from app.core.auth_context import set_satisfied_providers
+from app.core.auth_context import set_device_token_id, set_satisfied_providers
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -26,6 +26,7 @@ from app.core.messages import (
 )
 from app.core.security import (
     SESSION_COOKIE_NAME,
+    STEP_UP_CHALLENGE,
     AutoDelegationVerificationError,
     UploadTokenError,
     delegation_possible,
@@ -51,6 +52,7 @@ from app.models.platform.user import (
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
+from app.services.auth.subject import user_for_subject
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.marketplace import registration_lookup
@@ -87,13 +89,23 @@ FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN
 async def _authenticate_device_token(
     session: AsyncSession, token: str
 ) -> Optional[User]:
-    """Authenticate using a device token and return the associated user."""
+    """Authenticate using a device token and return the associated user.
+
+    Records which token it was (see ``app.core.auth_context``). That row is the
+    server's only durable name for one installed client, and two registrations
+    that have to end up pointing at the same phone -- its push token and its
+    message key store -- both read it from there rather than being told an id
+    by the client.
+    """
     device_token = await user_tokens.get_device_token(session, token=token)
     if not device_token:
         return None
     statement = select(User).where(User.id == device_token.user_id)
     result = await session.exec(statement)
-    return result.one_or_none()
+    user = result.one_or_none()
+    if user is not None:
+        set_device_token_id(device_token.id)
+    return user
 
 
 async def _authenticate_auto_delegation(
@@ -273,6 +285,7 @@ async def get_current_user(
     # Start from the fail-closed empty satisfied-provider set; only the session
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_device_token_id(None)
     # Which kind of credential this turns out to be, for the few endpoints that
     # care (see `require_first_party_session`). Set before any branch can
     # return, so an unrecognized path reads as something other than a session.
@@ -347,9 +360,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    statement = select(User).where(User.id == int(token_data.sub))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    user = await user_for_subject(session, subject=token_data.sub)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
@@ -719,11 +730,17 @@ async def get_guild_membership(
     except GuildAccessError as exc:
         if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
             # 401, not 403: the session lacks an auth factor, not a permission.
-            # The header names the provider the client must step up with.
+            #
+            # Said twice, for two audiences. ``WWW-Authenticate`` is the
+            # standard form (RFC 9470), which an OAuth client library can act
+            # on knowing nothing about this app. The ``X-Auth-Step-Up`` pair
+            # names *which* provider serves the factor and which guild's login
+            # flow reaches it — ours to answer, and what our own SPA reads.
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=exc.detail,
                 headers={
+                    "WWW-Authenticate": STEP_UP_CHALLENGE,
                     "X-Auth-Step-Up": exc.step_up_provider_slug or "",
                     "X-Auth-Step-Up-Guild": (
                         str(exc.step_up_guild_id)
@@ -1093,6 +1110,7 @@ async def get_upload_user(
     # Fail-closed default; the session-JWT and scoped-token branches record the
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_device_token_id(None)
 
     auth_header = request.headers.get("Authorization", "")
 
@@ -1170,9 +1188,7 @@ async def get_upload_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    statement = select(User).where(User.id == int(token_data.sub))
-    result = await session.exec(statement)
-    user = result.one_or_none()
+    user = await user_for_subject(session, subject=token_data.sub)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND

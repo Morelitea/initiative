@@ -16,6 +16,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
 from app.services.platform import identity_refs
@@ -349,9 +350,12 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
 
 
 async def _scrub_invites_addressed_to(
-    session: AsyncSession, *, email_hash: str
+    session: AsyncSession, *, email_hashes: set[str]
 ) -> None:
-    """Erase a user's email from any guild invite addressed to them.
+    """Erase a user's addresses from any guild invite addressed to them.
+
+    Every address the account held, not only the one on ``users``: an invite
+    bound to a secondary address keeps the same recoverable trace.
 
     ``GuildInvite.invitee_email_encrypted`` holds the invited person's address
     as *reversible* Fernet ciphertext, so a lingering (unexpired or already
@@ -381,7 +385,7 @@ async def _scrub_invites_addressed_to(
     ).all()
     for invite in bound_invites:
         bound_email = invite.invitee_email  # decrypts invitee_email_encrypted
-        if bound_email and hash_email(bound_email) == email_hash:
+        if bound_email and hash_email(bound_email) in email_hashes:
             invite.invitee_email_encrypted = None
             invite.max_uses = 0
             session.add(invite)
@@ -440,7 +444,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     # Capture the real email hash before it's overwritten with the sentinel
     # below — it's how we find guild invites bound to this person's address.
-    original_email_hash = user.email_hash
+    original_email_hashes = await addresses.held_hashes(session, user_id=user_id)
+    original_email_hashes.add(user.email_hash)
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -469,6 +474,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     )
     user.email_hash = hash_email(sentinel_email)
     user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
+    # Every address the account held goes with it, not just the one on ``users``.
+    await addresses.replace_all(
+        session,
+        user_id=user_id,
+        email=sentinel_email,
+        source=addresses.SOURCE_SYNTHETIC,
+    )
 
     # No password: a NULL hash never verifies, so the husk cannot authenticate.
     user.hashed_password = None
@@ -507,8 +519,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # this, an unexpired/lingering invite keeps a recoverable copy of the very
     # email this erasure was meant to remove. Runs in the same public,
     # ``app_admin`` context as the auth-artifact deletes above.
-    if original_email_hash:
-        await _scrub_invites_addressed_to(session, email_hash=original_email_hash)
+    if original_email_hashes:
+        await _scrub_invites_addressed_to(session, email_hashes=original_email_hashes)
 
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
@@ -777,8 +789,11 @@ async def hard_delete_user(
     # row goes — a bound invite otherwise keeps a recoverable copy of the email
     # (the ``created_by`` NULLing above only covers invites this user
     # *sent*, not ones addressed *to* them).
+    held = await addresses.held_hashes(session, user_id=user.id)
     if user.email_hash:
-        await _scrub_invites_addressed_to(session, email_hash=user.email_hash)
+        held.add(user.email_hash)
+    if held:
+        await _scrub_invites_addressed_to(session, email_hashes=held)
 
     await session.delete(user)
 

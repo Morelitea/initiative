@@ -380,3 +380,66 @@ def test_every_declared_hop_walks_a_real_column_to_a_real_table():
                 )
 
     assert problems == [], problems
+
+
+_GID_QUERY_TRASH = 990_412
+
+#: What ``query_excludes_trash`` has to say, as Postgres normalises it.
+#:
+#: Pinned whole rather than matched loosely: the policy has to say exactly
+#: this, so the test is an equality against the rendered predicate. Postgres
+#: normalises it the same way for every table, which is what makes that stable
+#: to compare.
+_QUERY_TRASH_QUAL = (
+    "((deleted_at IS NULL) OR (current_setting('app.query'::text, true)"
+    " IS DISTINCT FROM 'true'::text))"
+)
+
+
+@pytest.mark.database
+async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engine):
+    """Every soft-delete table carries ``query_excludes_trash`` in a freshly
+    provisioned schema — RESTRICTIVE, FOR SELECT, and saying the same thing.
+
+    Asked of the whole set rather than one table, because the rule is that a
+    statement a reader wrote reports on live content — and that is a statement
+    about every dataset, not about the one a test happened to pick.
+
+    What the policy does is proved end to end against real rows in
+    ``query_test.py``: a trashed task is absent from a query, and still there
+    through the endpoint that manages the trash. This is the shape, for every
+    table, so that proof holds for more than the one table it was run on.
+    """
+    schema = guild_schema_name(_GID_QUERY_TRASH)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_QUERY_TRASH)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, permissive, cmd, qual FROM pg_policies "
+                    "WHERE schemaname = :s AND policyname = 'query_excludes_trash'"
+                ),
+                {"s": schema},
+            )
+            found = {tbl: (perm, cmd, qual) for tbl, perm, cmd, qual in rows}
+
+        missing = sorted(set(SOFT_DELETE_TABLES) - set(found))
+        assert not missing, (
+            f"these soft-delete tables have no query_excludes_trash policy: {missing}"
+        )
+
+        for tbl in sorted(SOFT_DELETE_TABLES):
+            permissive, cmd, qual = found[tbl]
+            assert (permissive, cmd) == ("RESTRICTIVE", "SELECT"), (
+                f"{tbl}.query_excludes_trash must be RESTRICTIVE FOR SELECT, got "
+                f"{permissive} FOR {cmd}."
+            )
+            assert qual == _QUERY_TRASH_QUAL, (
+                f"{tbl}.query_excludes_trash does not say what it must.\n"
+                f"  expected: {_QUERY_TRASH_QUAL}\n"
+                f"  got:      {qual}"
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_QUERY_TRASH)

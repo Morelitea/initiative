@@ -1,5 +1,6 @@
 import type {
   OwnedDecoration,
+  UserEmailRead,
   UserGuildMember,
   UserProfile,
   UserPublic,
@@ -88,6 +89,28 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
+    ...overrides,
+  };
+}
+
+/**
+ * One address on an account, as its owner reads it.
+ *
+ * Defaults describe the address somebody signed up with: confirmed, primary,
+ * and the one the account was made from. Pass `verified: false` for a claim
+ * still waiting on its link, or `source: "synthetic"` for the stand-in an IdP
+ * that asserted no address leaves behind.
+ */
+export function buildUserEmail(overrides: Partial<UserEmailRead> = {}): UserEmailRead {
+  counter++;
+  return {
+    id: counter,
+    email: `user-${counter}@example.com`,
+    verified: true,
+    is_primary: true,
+    source: "signup",
+    created_at: "2026-01-01T00:00:00Z",
+    last_login_at: null,
     ...overrides,
   };
 }

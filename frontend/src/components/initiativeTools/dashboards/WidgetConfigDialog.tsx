@@ -24,7 +24,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type AppDataParam, type AppEndpointRead, appWidgetEntry } from "@/api/appData";
+import {
+  type AppDataParam,
+  type AppEndpointRead,
+  appWidgetEntry,
+  appWidgetSource,
+} from "@/api/appData";
 import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { SqlEditor } from "@/components/initiativeTools/dashboards/SqlEditor";
@@ -49,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
+import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useQueryBuilder } from "@/hooks/useQueryBuilder";
@@ -61,6 +67,8 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
+import { canDraw, resolveMapping } from "@/lib/widgets/shape";
+import { shapeFor } from "@/lib/widgets/shapes";
 import {
   type EntityKind,
   type EntityParam,
@@ -503,6 +511,7 @@ export function WidgetConfigDialog({
             options={options}
             initiativeId={initiativeId}
             dashboardId={dashboardId}
+            moduleSource={isApp ? appWidgetSource(appCatalog.data, widget.type) : undefined}
           />
         </div>
 
@@ -863,15 +872,33 @@ function BindingPreview({
   options,
   initiativeId,
   dashboardId,
+  moduleSource,
 }: {
   widget: DefinitionWidget;
   binding: WidgetBinding;
   options: Record<string, string>;
   initiativeId: number;
   dashboardId?: number;
+  moduleSource?: string;
 }) {
   const { t } = useTranslation("dashboards");
   const live = useWidgetData(binding, initiativeId, dashboardId);
+
+  // Which columns fill the widget's slots. Resolved here for the same reason
+  // the canvas resolves it there — a widget is handed ordinals, never column
+  // names, and works out neither its own declared shape nor the author's
+  // corrections. Without this every slot reads as unfilled and a widget that
+  // draws numbers says it was given none, which is the opposite of what this
+  // pane promises.
+  const catalogQuery = useWidgetCatalog();
+  const shape = shapeFor(widget.type, catalogQuery.data);
+  const data = live.data;
+  const rows = data.source === "rows";
+  const slots = rows ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  // A statement that does not return the shape this widget draws falls back to
+  // the table, exactly as the placed tile does — the pane says it draws what
+  // the tile will draw, so the two cannot differ on this either.
+  const drawable = !rows || canDraw(data.columns, shape, widget.mapping);
 
   return (
     <aside className="space-y-2">
@@ -879,8 +906,11 @@ function BindingPreview({
       <div className="h-56 overflow-hidden rounded-lg border bg-card p-2">
         <WidgetTile
           type={widget.type}
-          data={live.data}
+          data={data}
           config={options}
+          slots={slots}
+          source={moduleSource}
+          view={drawable ? "scene" : "table"}
           isLoading={live.isLoading}
           errorCode={live.errorCode}
           chromeless

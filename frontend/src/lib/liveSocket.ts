@@ -111,13 +111,16 @@ export const openLiveSocket = ({
       frame[0] = MSG_AUTH;
       frame.set(payload, 1);
       next.send(frame);
-      authFailures = 0;
       lastFrameAt = Date.now();
       onStatus?.(true);
     };
 
     next.onmessage = (event) => {
-      // Any frame is proof the socket carries, whatever it says.
+      // Any frame is proof the socket carries, whatever it says — and the
+      // first of them is proof the credential was accepted, which is what
+      // clears the count. Opening is not: the auth frame is sent after the
+      // socket opens and answered after that, so opening says nothing yet.
+      authFailures = 0;
       lastFrameAt = Date.now();
       carriedUntil = lastFrameAt;
       let payload: unknown;
