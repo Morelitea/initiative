@@ -97,10 +97,14 @@ class IntakeBinding(CreatedByMixin, table=True):
 class IntakeCase(SQLModel, table=True):
     """One case the writer opened, and how often its source has recurred.
 
-    Keyed on the **project** rather than on the binding row. What the mark
-    answers is "is this incident already being worked?", and that is a question
-    about the project the work is in: repointing a stream at another project
-    starts fresh there, and unbinding and rebinding to the same one finds the
+    The case names its **task** and nothing else about where the work lives.
+    Which project it is in is the task's own column, read through it by the one
+    query that asks — so a task moved into another project takes its case with
+    it, and there is never a second answer to disagree with the first.
+
+    That also makes the mark mean what it should: "is this incident already
+    being worked *here*?" is asked of the bound project, so repointing a stream
+    starts fresh in the new project and rebinding to the same one finds the
     case that is still open.
 
     Every case gets a row, keyed or not, so "when did this stream last open a
@@ -112,13 +116,6 @@ class IntakeCase(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    project_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("projects.id", ondelete="CASCADE"),
-            nullable=False,
-        )
-    )
     stream: IntakeStream = Field(
         sa_column=Column(String(length=STREAM_LENGTH), nullable=False)
     )

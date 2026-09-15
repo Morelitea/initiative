@@ -141,13 +141,27 @@ async def _hold_key(
     )
 
 
-async def _latest_case(
+async def _open_case_for_key(
     session: AsyncSession, *, project_id: int, stream: IntakeStream, dedupe_key: str
 ) -> Optional[IntakeCase]:
-    return (
+    """The case this key already has open in this project, if there is one.
+
+    The project is read through the task rather than off the case, because the
+    task's column is where a case's work actually lives — a task somebody moved
+    into another project is that project's case now, and this one has none.
+
+    Whether it is still being worked is answered in the same query, from the
+    task's own status category, so open-or-closed is never something two rows
+    have to be kept in step about. A task in the trash counts as closed: there
+    is nothing to add to.
+    """
+    row = (
         await session.exec(
-            select(IntakeCase)
-            .where(IntakeCase.project_id == project_id)
+            select(IntakeCase, TaskStatus.category)
+            .join(Task, Task.id == IntakeCase.task_id)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(Task.project_id == project_id)
+            .where(Task.deleted_at.is_(None))
             .where(IntakeCase.stream == stream.value)
             .where(IntakeCase.dedupe_key == dedupe_key)
             .order_by(IntakeCase.opened_at.desc())
@@ -155,24 +169,10 @@ async def _latest_case(
             .execution_options(populate_existing=True)
         )
     ).first()
-
-
-async def _case_is_open(session: AsyncSession, case: IntakeCase) -> bool:
-    """Whether the task a case lives in is still being worked.
-
-    Asked of the task's own status category rather than of a column here, so
-    open-or-closed is never something two rows have to be kept in step about. A
-    task that has been deleted counts as closed: there is nothing to add to.
-    """
-    category = (
-        await session.exec(
-            select(TaskStatus.category)
-            .join(Task, Task.task_status_id == TaskStatus.id)
-            .where(Task.id == case.task_id)
-            .where(Task.deleted_at.is_(None))
-        )
-    ).first()
-    return category is not None and category != TaskStatusCategory.done
+    if row is None:
+        return None
+    case, category = row
+    return None if category == TaskStatusCategory.done else case
 
 
 async def _ensure_field_definitions(
@@ -328,13 +328,13 @@ async def open_case(
             await _hold_key(
                 session, guild_id=guild_id, stream=stream, dedupe_key=dedupe_key
             )
-            existing = await _latest_case(
+            existing = await _open_case_for_key(
                 session,
                 project_id=project.id,
                 stream=stream,
                 dedupe_key=dedupe_key,
             )
-            if existing is not None and await _case_is_open(session, existing):
+            if existing is not None:
                 # Every occurrence is counted and moves ``last_seen_at``; the
                 # window decides only how often the case is marked again, so a
                 # run in progress is not annotated once per event.
@@ -366,7 +366,6 @@ async def open_case(
         # open one" is read rather than inferred from the project's tasks.
         session.add(
             IntakeCase(
-                project_id=project.id,
                 stream=stream,
                 task_id=task.id,
                 dedupe_key=dedupe_key,

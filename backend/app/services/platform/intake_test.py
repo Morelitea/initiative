@@ -12,6 +12,7 @@ from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
+from app.services.tenant import task_statuses as task_statuses_service
 from app.models.tenant.property import PropertyDefinition
 from app.services.platform import intake as intake_service
 from app.services.platform.intake import CaseRefs
@@ -235,7 +236,6 @@ async def test_an_unkeyed_case_still_gets_a_row(session, bound):
     ).one()
     assert case.dedupe_key is None
     assert case.stream == IntakeStream.support
-    assert case.project_id == bound["project"].id
 
 
 async def test_a_closed_case_opens_a_new_one(session, bound):
@@ -271,3 +271,37 @@ async def test_a_key_longer_than_its_column_is_refused(session, bound):
         await intake_service.open_case(
             IntakeStream.support, title="x", dedupe_key="k" * 500
         )
+
+
+async def test_a_case_whose_task_was_moved_away_is_not_this_projects_case(
+    session, bound
+):
+    """The project a case is in is the task's column, so it moves with it."""
+    first = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert first is not None
+
+    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    elsewhere = await create_project(session, bound["initiative"], bound["user"])
+    await task_statuses_service.ensure_default_statuses(session, elsewhere.id)
+    task = (await session.exec(select(Task).where(Task.id == first.task_id))).one()
+    task.project_id = elsewhere.id
+    task.task_status_id = (
+        await session.exec(
+            select(TaskStatus.id).where(TaskStatus.project_id == elsewhere.id).limit(1)
+        )
+    ).first()
+    session.add(task)
+    await session.commit()
+
+    again = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert again is not None
+    assert again.opened is True
+    assert again.task_id != first.task_id
+
+    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
+    assert landed.project_id == bound["project"].id

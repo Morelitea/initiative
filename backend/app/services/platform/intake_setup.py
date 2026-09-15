@@ -28,7 +28,7 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
-from app.models.tenant.task import TaskStatus
+from app.models.tenant.task import Task, TaskStatus
 from app.services.platform.intake import operations_guild_id
 
 
@@ -272,10 +272,12 @@ async def _view(
         ).one_or_none()
     # Cases only — the seed task a blueprint imports and anything the team adds
     # by hand are ordinary tasks in the project, not cases this stream opened.
+    # Joined through the task, which is where the project a case is in lives.
     last_case_at = (
         await session.exec(
             select(IntakeCase.opened_at)
-            .where(IntakeCase.project_id == binding.project_id)
+            .join(Task, Task.id == IntakeCase.task_id)
+            .where(Task.project_id == binding.project_id)
             .where(IntakeCase.stream == binding.stream)
             .order_by(IntakeCase.opened_at.desc())
             .limit(1)

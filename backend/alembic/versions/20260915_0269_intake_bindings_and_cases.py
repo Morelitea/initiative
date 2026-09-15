@@ -6,10 +6,11 @@ Two guild-content tables.
 stream per guild, naming a project and optionally the status a new case starts
 in. Guild-schema because every id on it is a per-schema id.
 
-``intake_cases`` is one row per case the writer opened, keyed by the project
-and stream it landed in. A repeating source finds its open case there, and the
-row carries how often it has been seen and when it was last marked — state held
-in a row rather than in a process, so every replica reads the same one.
+``intake_cases`` is one row per case the writer opened. It names the task and
+the stream; which project the work is in is the task's own column, read through
+it. The row carries how often the source has been seen and when it was last
+marked — state held in a row rather than in a process, so every replica reads
+the same one.
 
 RLS policies, grants and the ``created_by`` trigger are NOT written here:
 provisioning renders those from the live ``guild_template`` and the registries
@@ -74,12 +75,6 @@ def _apply_upgrade() -> None:
     op.create_table(
         "intake_cases",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "project_id",
-            sa.Integer(),
-            sa.ForeignKey("projects.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
         sa.Column("stream", sa.String(length=32), nullable=False),
         sa.Column(
             "task_id",
@@ -96,13 +91,13 @@ def _apply_upgrade() -> None:
         ),
         sa.CheckConstraint(f"stream IN ({streams})", name="ck_intake_cases_stream"),
     )
+    # Both of the writer's reads join through the task, which is where the
+    # project a case is in is recorded.
     op.create_index("ix_intake_cases_task_id", "intake_cases", ["task_id"])
-    # The writer's two reads: the latest keyed case for a stream in a project,
-    # and the latest case of any kind for the settings page.
     op.create_index(
         "ix_intake_cases_key",
         "intake_cases",
-        ["project_id", "stream", "dedupe_key", sa.text("opened_at DESC")],
+        ["stream", "dedupe_key", sa.text("opened_at DESC")],
     )
 
 
