@@ -18,7 +18,7 @@ import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
@@ -230,6 +230,32 @@ async def update_provider(
     return admin_read(row, secret_set=await secret_is_set(session, row.id))
 
 
+async def _release_initiative_memberships(
+    session: AsyncSession, *, provider_id: int
+) -> None:
+    """Clear this provider from every guild's ``initiative_members``.
+
+    Guild by guild, because the table exists once per schema. Provider
+    deletion is rare and already does a per-account credential count, so the
+    loop is not on any hot path.
+    """
+    from app.db import session as db_session
+    from app.models.platform.guild import Guild
+    from app.models.tenant.initiative import InitiativeMember
+
+    guild_ids = (await session.exec(select(Guild.id))).all()
+    for guild_id in guild_ids:
+        session.expunge_all()
+        await db_session.set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await session.exec(
+            update(InitiativeMember)
+            .where(InitiativeMember.oidc_provider_id == provider_id)
+            .values(oidc_provider_id=None)
+        )
+    session.expunge_all()
+    await db_session.set_rls_context(session)
+
+
 async def delete_provider(
     session: AsyncSession, provider_id: int, *, guild_id: int | None
 ) -> None:
@@ -264,6 +290,13 @@ async def delete_provider(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthProviderMessages.SOLE_CREDENTIAL,
         )
+    # Guild-side memberships release their manager here. The shared table's
+    # foreign key does it on its own (``ON DELETE SET NULL``);
+    # ``initiative_members`` lives in a guild schema and carries no key across
+    # that line, so the same clearing is written by hand. The row is then
+    # unmanaged, which is what it is: no provider answers for it.
+    await _release_initiative_memberships(session, provider_id=row.id)
+
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
         await session.delete(secret)

@@ -1378,6 +1378,7 @@ async def _complete_provider_login(
                 sync_result = await sync_oidc_assignments(
                     sync_session,
                     user_id=user.id,
+                    provider_id=provider_row.id,
                     claim_values=claim_values,
                 )
                 logger.info(

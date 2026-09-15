@@ -560,17 +560,8 @@
     "mobileCallback": "Mobile app callback:",
     "mappingsTitle": "OIDC Claim Mappings",
     "mappingsDescription": "Map claim values from your identity provider to community and initiative memberships.",
-    "claimPathCardTitle": "OIDC claim path",
-    "claimPathCardDescription": "Dot-notation path to the claim array in the OIDC token. Common paths:",
-    "claimPathLabel": "Claim path",
-    "claimPathPlaceholder": "e.g. roles or realm_access.roles",
-    "claimPathHelp": "The dot-separated path to the claim in the ID token. Leave blank if not needed.",
-    "claimPathSave": "Save",
-    "claimPathSaving": "Saving…",
     "updateClaimPath": "Update",
     "updatingClaimPath": "Updating…",
-    "claimPathSuccess": "Claim path updated",
-    "claimPathError": "Unable to update claim path",
     "rulesTitle": "Mapping rules",
     "rulesDescription": "Map OIDC claim values to community and initiative memberships.",
     "addRule": "Add rule",
@@ -629,7 +620,10 @@
       "platformExplained": "Sign-in is the platform's: the providers below serve every community, and a community cannot add one of its own. Which of the two this instance runs is set when it is deployed, not here.",
       "guildExplained": "Communities may add providers of their own alongside the ones below, and people still sign in to one account whichever they use. Which of the two this instance runs is set when it is deployed, not here."
     },
-    "deploymentTitle": "This deployment"
+    "deploymentTitle": "This deployment",
+    "mappingProvider": "Provider",
+    "mappingProviderPlaceholder": "Which provider asserts this claim",
+    "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did."
   },
   "platformUsers": {
     "title": "Platform users",
@@ -1102,7 +1096,10 @@
     "deleted": "Provider deleted",
     "saveError": "Could not save the provider",
     "deleteError": "Could not delete the provider",
-    "callbackLabel": "Callback URL"
+    "callbackLabel": "Callback URL",
+    "claimPathLabel": "Groups claim",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Rules below read it."
   },
   "aiConnections": {
     "title": "Connections",

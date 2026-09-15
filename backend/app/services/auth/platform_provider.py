@@ -188,32 +188,6 @@ async def upsert_platform_provider(
     return provider
 
 
-async def set_platform_claim_path(
-    session: AsyncSession, claim_path: str | None
-) -> str | None:
-    """Set the platform provider's role-claim path (the OIDC mappings surface).
-
-    A missing platform row is created as a disabled skeleton so the path has a
-    home before the provider itself is configured — dormant until the operator
-    fills in issuer/client id.
-    """
-    provider = await get_platform_provider(session)
-    cleaned = _normalize(claim_path)
-    if provider is None:
-        provider = await _create_platform_row(
-            session, display_name="SSO", enabled=False, role_claim_path=cleaned
-        )
-    # Falls through in both branches: a fresh skeleton already carries the
-    # path (no-op), while a row from a lost concurrent-creation race carries
-    # the winner's — this caller's value must still land.
-    if provider.role_claim_path != cleaned:
-        provider.role_claim_path = cleaned
-        session.add(provider)
-        await session.commit()
-        await session.refresh(provider)
-    return provider.role_claim_path
-
-
 async def seed_platform_provider_from_env(session: AsyncSession) -> bool:
     """First-boot seed: create the platform row from ``OIDC_*`` env values.
 

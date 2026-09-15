@@ -4838,6 +4838,7 @@ export interface NotificationPreferencesUpdate {
 }
 
 export interface OIDCClaimMappingCreate {
+  provider_id: number;
   /**
    * @minLength 1
    * @maxLength 500
@@ -4852,35 +4853,27 @@ export interface OIDCClaimMappingCreate {
 
 export interface OIDCClaimMappingRead {
   id: number;
+  provider_id: number;
   claim_value: string;
   target_type: string;
   guild_id: number;
   guild_role: string;
   initiative_id: number | null;
   initiative_role_id: number | null;
+  provider_name: string | null;
   guild_name: string | null;
   initiative_name: string | null;
   initiative_role_name: string | null;
 }
 
 export interface OIDCClaimMappingUpdate {
+  provider_id?: number | null;
   claim_value?: string | null;
   target_type?: string | null;
   guild_id?: number | null;
   guild_role?: string | null;
   initiative_id?: number | null;
   initiative_role_id?: number | null;
-}
-
-/**
- * The role-claim path after an update (``None`` clears it).
- */
-export interface OIDCClaimPathResponse {
-  claim_path: string | null;
-}
-
-export interface OIDCClaimPathUpdate {
-  claim_path?: string | null;
 }
 
 export interface OIDCMappingOptionGuild {
