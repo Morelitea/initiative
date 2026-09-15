@@ -106,6 +106,29 @@ async def test_create_refuses_when_documents_are_switched_off(
 
 
 @pytest.mark.integration
+async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The mirror of the projects case: the RLS leg keeps a guild admin and a
+    PAM reader able to reach the rows for maintenance, and the list declines to
+    be the place that shows them."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+
+    listed = await client.get(a.g("/documents/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert doc.id in [d["id"] for d in listed.json()["items"]]
+
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    listed = await client.get(a.g("/documents/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
+
+
+@pytest.mark.integration
 async def test_create_document_with_permissions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

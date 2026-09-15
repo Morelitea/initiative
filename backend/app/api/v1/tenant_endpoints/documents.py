@@ -380,6 +380,11 @@ def _build_visible_docs_filters(
     """
     conditions = [
         Initiative.guild_id == guild_id,
+        # An initiative that has switched documents off has none to list. See
+        # the note on the projects equivalent: the RLS leg deliberately admits
+        # a guild admin and a PAM reader, and a list is not where that
+        # exemption should surface.
+        Initiative.documents_enabled.is_(True),
         permissions_service.listing_scope_clause(
             Tool.document,
             Document.id,
