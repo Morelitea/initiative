@@ -36,11 +36,13 @@ class PlatformReportTarget(str, Enum):
     directory_listing = "directory_listing"
     guild = "guild"
 
-    # Deliberately absent: a direct-message conversation. Its id is a UUID,
-    # and a report carries an integer id — so admitting it here would name
-    # something no report could actually carry. It needs its own reference
-    # shape, and reporting a private conversation needs its own thinking
-    # about what a moderator is shown.
+    # Direct messages are absent because **private conversations are not
+    # moderated**. The server holds ciphertext and no key to it, so there is
+    # nothing a report could show anybody — the same reason ``dm_transport``
+    # has nothing to configure about retention, moderation or search.
+    #
+    # This is not a gap waiting to be filled. A member's recourse in a private
+    # conversation is to block or ignore, which does not need us to read it.
 
 
 #: Which shared table a platform target's id names. Every member resolves to

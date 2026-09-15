@@ -79,13 +79,22 @@ def test_every_platform_target_names_a_table():
     assert set(PLATFORM_TARGET_TABLE.values()) <= {"users", "guilds"}
 
 
-def test_no_target_carries_an_id_a_report_cannot():
-    """Every target's id is an integer, because that is what a report holds."""
+def test_private_conversations_are_not_reportable():
+    """Direct messages are not moderated, so nothing can name one.
+
+    The server holds ciphertext and no key, so a report about a private
+    conversation could show a moderator nothing. Asserted rather than left to
+    the enum, because adding the member would be a policy change and should
+    fail here first.
+    """
+    assert "dm_conversation" not in {t.value for t in PlatformReportTarget}
+    assert "dm" not in {t.value for t in PlatformReportTarget}
+
+
+def test_every_target_carries_an_id_a_report_can_hold():
+    """A report holds an integer id, so every target must be keyed by one."""
     from app.core.moderation import PLATFORM_TARGET_TABLE
 
-    # A direct-message conversation is keyed by uuid, so it is deliberately
-    # absent rather than present and unusable.
-    assert "dm_conversation" not in {t.value for t in PlatformReportTarget}
     assert all(table in {"users", "guilds"} for table in PLATFORM_TARGET_TABLE.values())
 
 
