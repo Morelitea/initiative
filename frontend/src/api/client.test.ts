@@ -117,14 +117,11 @@ describe("silent session renewal", () => {
   });
 
   // A renewal can fail without saying anything about the session: a restart,
-  // a proxy hiccup, a rate limit, a dead network. The session outlives all of
-  // those; only the endpoint refusing the credential ends it.
+  // a proxy hiccup, a rate limit, a dead network. The session outlives those.
   it.each([
     ["a server error", () => new HttpResponse(null, { status: 503 })],
     ["a rate limit", () => new HttpResponse(null, { status: 429 })],
-    // The origin check answers before the endpoint reads the cookie, so this
-    // is not the endpoint refusing a credential.
-    ["a declined origin", () => new HttpResponse(null, { status: 403 })],
+    ["a request declined before it was handled", () => new HttpResponse(null, { status: 403 })],
     ["nothing answering", () => HttpResponse.error()],
   ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
     server.use(
@@ -144,9 +141,8 @@ describe("silent session renewal", () => {
     }
   });
 
-  // Every window of the app holds the same refresh cookie and renews on its
-  // own schedule. The in-tab guard above cannot see the others, so renewals are
-  // taken in turns through a lock the whole origin shares.
+  // The guard above sees only its own window, so renewals are taken in turns
+  // through a lock the whole origin shares.
   it("renews under a lock the other windows share", async () => {
     const held: string[] = [];
     let renewedInsideLock = false;

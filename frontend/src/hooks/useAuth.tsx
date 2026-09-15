@@ -398,12 +398,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void purgeOfflineCache();
   }, [replaceIdentity]);
 
-  /** The session this device was holding is over — the server refused it, and
-   *  nothing here asked for that.
+  /** The session this device was holding is over, and nothing here asked for
+   *  that.
    *
    *  Distinct from `logout()`, which is the account signing out everywhere and
-   *  says so to the server. This one is local: the scope is this device, and
-   *  the server is the party that already knows. */
+   *  tells the server so. This one is local: the scope is this device. */
   const endSessionLocally = useCallback(async () => {
     setHasActiveSession(false);
     clearJustSignedIn();

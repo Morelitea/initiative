@@ -210,13 +210,9 @@ export const useRealtimeUpdates = () => {
         }
       },
       onAuthRejected: () => {
-        // Stop, and ask the question the socket cannot answer. This close code
-        // covers everything from "the session is over" to "this guild is no
-        // longer yours", and only a read settles which: a refused one goes
-        // through the renewal path like any other, and a guild this account
-        // has lost leaves the account itself untouched. Asking here rather
-        // than waiting for the next screen matters for a tab left open —
-        // nothing else would ask, and it would sit on what it last drew.
+        // Stop, and read the account, which is the answer this cannot work out
+        // for itself. It matters for a tab left open: nothing else here would
+        // ask, and it would go on showing what it last drew.
         console.warn("Realtime socket was not admitted; reading the account");
         void apiClient.get("/users/me").catch(() => {
           // Whatever it was, the answer has already been acted on.

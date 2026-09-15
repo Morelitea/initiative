@@ -35,12 +35,10 @@ def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
 
     Uvicorn reads that header only from a peer named in
     ``--forwarded-allow-ips`` (``127.0.0.1`` unless told otherwise, which is
-    what ``BEHIND_PROXY=true`` does), so a reverse proxy anywhere else leaves
-    every visitor resolving to the proxy's address rather than their own.
-    Nothing else reports that, so this does.
-
-    It is a hint about configuration and nothing more: the header decides
-    nothing here, and this changes no behaviour.
+    what ``BEHIND_PROXY=true`` does), so a proxy anywhere else leaves every
+    visitor resolving to the proxy's address rather than their own. Nothing
+    else reports that, so this does. It is a hint about configuration: the
+    header decides nothing here, and this changes no behaviour.
     """
     global _forwarded_hint_at
     now = time.monotonic()

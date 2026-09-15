@@ -158,22 +158,17 @@ const emitUnauthorized = () => {
 // refresh cookie exists there yet.
 let refreshInFlight: Promise<boolean> | null = null;
 
-// Whether a failed renewal is an answer *about the session*. The refresh
-// endpoint refuses a credential with 401 and nothing else, so that is the only
-// answer read as one. A timeout, a dropped connection, a 5xx during a restart
-// and a 429 are the server being briefly unreachable; a 403 is a request the
-// origin check declined before the endpoint read the cookie at all. None of
-// them say anything about the session, and the next request renews again.
+// Whether a failed renewal is an answer about the session. Only a 401 is: it
+// is what the renewal endpoint answers about a credential. Everything else —
+// a timeout, a dropped connection, a 5xx, a 429 — is the request not getting
+// through, which says nothing either way, and the next one renews again.
 const isCredentialRefused = (error: unknown): boolean =>
   (error as { response?: { status?: number } } | undefined)?.response?.status === 401;
 
-// One renewal at a time across every window of this origin. Each window holds
-// the same refresh cookie and renews on its own schedule, so two waking
-// together would otherwise present the same token at once; the refresh token
-// is single-use, so the second is answered as a replay and the session ends.
-// The lock makes that window queue and then renew from what the first left.
-// Where a browser has no lock manager the renewal simply proceeds — that is
-// the behaviour it had before, and the in-tab guard still covers one window.
+// One renewal at a time across every window of this origin. Windows renew on
+// their own schedules and the guard above sees only its own, so the lock is
+// what makes a second window wait and then renew from what the first left.
+// Where a browser has no lock manager the renewal proceeds as it did before.
 const REFRESH_LOCK = "initiative:auth:refresh";
 
 const withRefreshLock = <T>(run: () => Promise<T>): Promise<T> => {

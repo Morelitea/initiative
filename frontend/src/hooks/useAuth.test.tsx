@@ -205,9 +205,8 @@ describe("useAuth identity ordering", () => {
   });
 
   it("ends an expired session here without signing out everywhere", async () => {
-    // The server refused this browser's credential. Signing out is a different
-    // act with a different scope — the account, everywhere — and nothing here
-    // asked for that one.
+    // Signing out is a different act with a different scope — the account,
+    // everywhere — and nothing here asked for that one.
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
