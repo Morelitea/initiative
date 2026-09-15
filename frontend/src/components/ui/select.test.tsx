@@ -7,7 +7,8 @@
  * empty string — which the status field read as a change to status 0, leaving
  * the field blank, the form permanently unsaved, and a save the API refused.
  */
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -52,5 +53,15 @@ describe("Select", () => {
     rerender(<Columns value="62" ids={[61, 62, 63, 64]} onValueChange={onValueChange} />);
 
     expect(onValueChange).not.toHaveBeenCalledWith("");
+  });
+
+  it("reports the column somebody picks", async () => {
+    const onValueChange = vi.fn();
+    render(<Columns value="62" ids={[61, 62, 63, 64]} onValueChange={onValueChange} />);
+
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Column 63" }));
+
+    expect(onValueChange).toHaveBeenCalledWith("63");
   });
 });
