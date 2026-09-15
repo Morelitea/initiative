@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  DEFAULT_ENABLED_TOOLS,
   TOGGLEABLE_TOOLS,
   toolCamelPlural,
   toolRouteSegment,
@@ -31,8 +32,8 @@ export const rolesThatCanView = (
   return { granted, nonManagerGranted: granted.filter((role) => !role.is_manager) };
 };
 
-export interface AdvancedToolsSectionProps {
-  /** Current master-switch value per toggleable tool. */
+export interface ToolsSectionProps {
+  /** Current master-switch value per tool. */
   values: Record<Tool, boolean> | Partial<Record<Tool, boolean>>;
   /** Toggle one tool's master switch. */
   onToggle: (tool: Tool, value: boolean) => void;
@@ -53,7 +54,7 @@ export interface AdvancedToolsSectionProps {
   onGrantToEveryone?: (tool: Tool) => void;
 }
 
-interface AdvancedToolToggleProps {
+interface ToolToggleProps {
   id: string;
   title: string;
   description: string;
@@ -63,7 +64,7 @@ interface AdvancedToolToggleProps {
   audience?: React.ReactNode;
 }
 
-const AdvancedToolToggle = ({
+const ToolToggle = ({
   id,
   title,
   description,
@@ -71,7 +72,7 @@ const AdvancedToolToggle = ({
   onCheckedChange,
   disabled,
   audience,
-}: AdvancedToolToggleProps) => (
+}: ToolToggleProps) => (
   <div className="space-y-2 rounded-md border p-3">
     <div className="flex items-center justify-between gap-4">
       <div className="space-y-0.5">
@@ -149,20 +150,22 @@ const ToolAudience = ({
 };
 
 /**
- * One master-switch row per toggleable tool, derived from the registry
- * (core tools are always on and never get a row).
+ * One master-switch row per tool, derived from the registry — projects and
+ * documents included. They were exempt when everything else hung off them;
+ * relationships ended that, so they are rows here like the rest and differ
+ * only in starting switched on.
  */
-export const AdvancedToolsSection = ({
+export const ToolsSection = ({
   values,
   onToggle,
   canManage,
   isSaving,
   layout = "card",
-  idPrefix = "advanced-tools",
+  idPrefix = "tools",
   roles,
   onManageRoles,
   onGrantToEveryone,
-}: AdvancedToolsSectionProps) => {
+}: ToolsSectionProps) => {
   const { t } = useTranslation("initiatives");
   const disabled = !canManage || isSaving;
 
@@ -170,9 +173,11 @@ export const AdvancedToolsSection = ({
     <div className="space-y-3">
       {TOGGLEABLE_TOOLS.map((tool) => {
         const camel = toolCamelPlural(tool);
-        const enabled = values[tool] ?? false;
+        // Unset means the tool's own default, not off — projects and documents
+        // are in this list now and start on.
+        const enabled = values[tool] ?? DEFAULT_ENABLED_TOOLS.has(tool);
         return (
-          <AdvancedToolToggle
+          <ToolToggle
             key={tool}
             id={`${idPrefix}-${toolRouteSegment(tool)}-toggle`}
             title={t(`${camel}Feature` as never)}

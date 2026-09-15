@@ -41,7 +41,7 @@ import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { renderableBanner } from "@/lib/banner";
 import { useGuildPath } from "@/lib/guildUrl";
-import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
+import { DEFAULT_ENABLED_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -103,7 +103,7 @@ export function GuildHomePage() {
   // yet) fall back to the always-on core tools rather than an empty rail.
   const tools = useMemo(() => {
     if (visibleInitiatives.length === 0) {
-      return TOOLS.filter((tool) => CORE_TOOLS.has(tool));
+      return TOOLS.filter((tool) => DEFAULT_ENABLED_TOOLS.has(tool));
     }
     return TOOLS.filter((tool) =>
       visibleInitiatives.some((initiative) => permissionsFor(initiative)[tool].view)

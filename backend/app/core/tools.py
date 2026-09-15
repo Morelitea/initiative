@@ -62,11 +62,19 @@ class Tool(str, Enum):
         return f"can_create_{self.plural}"
 
 
-# Core tools are always on: no ``*_enabled`` master switch on the initiative and
-# view defaults to True. Every other tool is opt-in per initiative via its
-# ``{plural}_enabled`` column.
-CORE_TOOLS = frozenset({Tool.project, Tool.document})
-TOGGLEABLE_TOOLS = tuple(t for t in Tool if t not in CORE_TOOLS)
+# EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
+# the initiative. Projects and documents used to be exempt — always on, with no
+# column at all — because they were the only places content could live and the
+# other tools hung off them. Relationships ended that: anything links to
+# anything, so an initiative that is only a calendar, or only a gallery, is a
+# coherent thing to want rather than a half-built one.
+#
+# They keep the *default*, which is the part that was ever load-bearing. An
+# initiative that says nothing about its tools still arrives with projects and
+# documents on, so nothing about making one changes; the switch is simply there
+# to turn off now.
+TOGGLEABLE_TOOLS = tuple(Tool)
+DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 
 # Tools that appear in the recent-items bar — every tool has a per-entity
 # detail route to return to.

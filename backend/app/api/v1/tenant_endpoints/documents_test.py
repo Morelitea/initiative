@@ -84,6 +84,28 @@ async def _create_file_document(
 
 
 @pytest.mark.integration
+async def test_create_refuses_when_documents_are_switched_off(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Documents are a tool like any other now: an initiative that has turned
+    them off refuses to hold one, and names the reason instead of failing at
+    the row."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    response = await client.post(
+        a.g("/documents/"),
+        headers=a.headers,
+        json={"name": "Nope", "initiative_id": a.initiative.id},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "DOCUMENTS_NOT_ENABLED"
+
+
+@pytest.mark.integration
 async def test_create_document_with_permissions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

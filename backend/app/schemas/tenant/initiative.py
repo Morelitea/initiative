@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, create_model
 
-from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.models.tenant.initiative import (
@@ -45,14 +45,17 @@ class InitiativeListScope(str, Enum):
     guild = "guild"
 
 
-# Derived bases: one `{tool.plural}_enabled` master-switch field per
-# toggleable Tool. A new Tool member grows these schemas automatically (the
-# SQLModel column itself is still declared on the Initiative model — real DDL
-# stays explicit, pinned by its migration and the drift test).
+# Derived bases: one `{tool.plural}_enabled` master-switch field per Tool. A new
+# Tool member grows these schemas automatically (the SQLModel column itself is
+# still declared on the Initiative model — real DDL stays explicit, pinned by
+# its migration and the drift test).
+#
+# The field default matches the column default, so a create that names no tools
+# gets projects and documents rather than an initiative with nothing in it.
 _InitiativeToolSwitches = create_model(
     "_InitiativeToolSwitches",
     __base__=SanitizedBaseModel,
-    **{t.view_permission: (bool, False) for t in TOGGLEABLE_TOOLS},
+    **{t.view_permission: (bool, t in DEFAULT_ENABLED_TOOLS) for t in TOGGLEABLE_TOOLS},
 )
 _InitiativeToolSwitchesPatch = create_model(
     "_InitiativeToolSwitchesPatch",
@@ -168,11 +171,12 @@ class InitiativeMemberUpdate(SanitizedBaseModel):
 
 
 # Derived: one `can_view_{tool.plural}` / `can_create_{tool.plural}` pair per
-# Tool, for UI filtering. View defaults True only for core tools.
+# Tool, for UI filtering. View defaults True only for the tools an initiative
+# starts with.
 _MemberToolFlags = create_model(
     "_MemberToolFlags",
     __base__=SanitizedBaseModel,
-    **{t.member_view_field: (bool, t in CORE_TOOLS) for t in Tool},
+    **{t.member_view_field: (bool, t in DEFAULT_ENABLED_TOOLS) for t in Tool},
     **{t.member_create_field: (bool, False) for t in Tool},
 )
 
@@ -312,14 +316,15 @@ def member_tool_flags(
     """Effective per-tool view/create flags for one membership.
 
     Derived per Tool from one rule instead of a hand-rolled branch per tool:
-    defaults (view core tools only) → manager gets everything → otherwise the
-    role's `{plural}_enabled` / `create_{plural}` permissions → the
-    initiative's master switch force-disables toggleable tools it turned off.
+    defaults (view the tools an initiative starts with) → manager gets
+    everything → otherwise the role's `{plural}_enabled` / `create_{plural}`
+    permissions → the initiative's master switch force-disables every tool it
+    turned off, projects and documents included.
     """
     role_ref = getattr(membership, "role_ref", None)
     is_manager = role_ref.is_manager if role_ref else False
     flags = {
-        **{t.member_view_field: t in CORE_TOOLS for t in Tool},
+        **{t.member_view_field: t in DEFAULT_ENABLED_TOOLS for t in Tool},
         **{t.member_create_field: False for t in Tool},
     }
     if is_manager:

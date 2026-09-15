@@ -15,8 +15,8 @@ import { useTranslation } from "react-i18next";
 
 import type { InitiativeCreate, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy } from "@/api/generated/initiativeAPI.schemas";
-import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
 import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
+import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import {
   Accordion,
   AccordionContent,
@@ -38,7 +38,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
-import { TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import { DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -54,7 +54,7 @@ export const CreateInitiativeDialog = ({ open, onOpenChange }: CreateInitiativeD
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(DEFAULT_INITIATIVE_COLOR);
   const [joinPolicy, setJoinPolicy] = useState<InitiativeJoinPolicy>(InitiativeJoinPolicy.private);
-  // Master-switch state per toggleable tool.
+  // Master-switch state per tool; unset means "that tool's default".
   const [toolSwitches, setToolSwitches] = useState<Partial<Record<Tool, boolean>>>({});
 
   const createInitiative = useCreateInitiative();
@@ -72,9 +72,15 @@ export const CreateInitiativeDialog = ({ open, onOpenChange }: CreateInitiativeD
         description: description.trim() || undefined,
         color,
         join_policy: joinPolicy,
-        // One `{plural}_enabled` field per toggleable tool, derived.
+        // One `{plural}_enabled` field per tool, derived. A tool the form never
+        // touched falls back to its own default, not to off: projects and
+        // documents are in this list now, and sending a bare `false` for them
+        // would build every new initiative with nothing in it.
         ...(Object.fromEntries(
-          TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), toolSwitches[tool] ?? false])
+          TOGGLEABLE_TOOLS.map((tool) => [
+            toolViewPermission(tool),
+            toolSwitches[tool] ?? DEFAULT_ENABLED_TOOLS.has(tool),
+          ])
         ) as Partial<InitiativeCreate>),
       },
       {
@@ -143,13 +149,13 @@ export const CreateInitiativeDialog = ({ open, onOpenChange }: CreateInitiativeD
             />
           </div>
           <Accordion type="single" collapsible>
-            <AccordionItem value="advanced-tools">
+            <AccordionItem value="tools">
               <AccordionTrigger>{t("advancedTools")}</AccordionTrigger>
               <AccordionContent>
                 <p className="mb-3 text-muted-foreground text-sm">
                   {t("advancedToolsDescription")}
                 </p>
-                <AdvancedToolsSection
+                <ToolsSection
                   layout="plain"
                   canManage={!createInitiative.isPending}
                   isSaving={createInitiative.isPending}

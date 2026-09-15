@@ -1222,7 +1222,10 @@ async def create_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.INITIATIVE_REQUIRED,
         )
-    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    resource_access.require_tool_enabled(Tool.project, initiative)
     if not rls_service.is_guild_admin(guild_context.role):
         has_perm = await rls_service.check_initiative_permission(
             session,

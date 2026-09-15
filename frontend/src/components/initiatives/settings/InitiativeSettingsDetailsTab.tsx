@@ -7,8 +7,8 @@ import type {
   InitiativeRoleRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
 import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
+import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -139,7 +139,7 @@ export const InitiativeSettingsDetailsTab = ({
         // field from them, so the control is not offered rather than shown inert.
         onChangeAutoJoin={canManageAutoJoin ? onChangeAutoJoin : undefined}
       />
-      <AdvancedToolsSection
+      <ToolsSection
         layout="card"
         canManage={canManageMembers}
         isSaving={isSaving}
