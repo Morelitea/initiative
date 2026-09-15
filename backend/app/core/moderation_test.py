@@ -69,3 +69,40 @@ def test_every_outcome_closes_a_report():
         ReportOutcome.member_warned,
         ReportOutcome.escalated,
     }
+
+
+def test_every_platform_target_names_a_table():
+    """A member added later cannot ship unresolvable."""
+    from app.core.moderation import PLATFORM_TARGET_TABLE
+
+    assert set(PLATFORM_TARGET_TABLE) == set(PlatformReportTarget)
+    assert set(PLATFORM_TARGET_TABLE.values()) <= {"users", "guilds"}
+
+
+def test_no_target_carries_an_id_a_report_cannot():
+    """Every target's id is an integer, because that is what a report holds."""
+    from app.core.moderation import PLATFORM_TARGET_TABLE
+
+    # A direct-message conversation is keyed by uuid, so it is deliberately
+    # absent rather than present and unusable.
+    assert "dm_conversation" not in {t.value for t in PlatformReportTarget}
+    assert all(table in {"users", "guilds"} for table in PLATFORM_TARGET_TABLE.values())
+
+
+def test_every_moderation_error_code_is_localized():
+    """A refusal reaches the reader as its own sentence."""
+    import json
+    from pathlib import Path
+
+    from app.core.messages import ModerationMessages
+
+    codes = {
+        value
+        for name, value in vars(ModerationMessages).items()
+        if not name.startswith("_") and isinstance(value, str)
+    }
+    locales = Path(__file__).resolve().parents[2].parent / "frontend/public/locales"
+    for locale in ("de", "en", "es", "fr"):
+        catalogue = json.loads((locales / locale / "errors.json").read_text())
+        missing = sorted(codes - set(catalogue))
+        assert not missing, f"{locale}/errors.json is missing {missing}"

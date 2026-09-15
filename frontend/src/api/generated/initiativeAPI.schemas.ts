@@ -7728,6 +7728,15 @@ export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
 
 export type ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams = {
   settled?: boolean;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
 };
 
 export type ListCommentsApiV1GGuildIdCommentsGetParams = {

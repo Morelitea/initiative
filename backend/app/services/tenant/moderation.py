@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.intake import IntakeStream
 from app.core.messages import ModerationMessages
 from app.core.moderation import (
+    PLATFORM_TARGET_TABLE,
     PlatformReportTarget,
     ReportOutcome,
     ReportReason,
@@ -134,14 +135,63 @@ async def file_report(
         # nowhere is a report nobody sees.
         logger.info("report on %s:%s fell back to the platform", target, target_id)
 
-    await _open_platform_case(
+    if isinstance(target, PlatformReportTarget) and not await _platform_target_exists(
+        reporter_session, target, target_id
+    ):
+        # Checked before it becomes somebody's work: an id nothing answers to
+        # would otherwise open an operations task naming a row that is not
+        # there. Refused the same way whatever the reason.
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.TARGET_NOT_FOUND,
+        )
+
+    opened = await _open_platform_case(
         target=target,
         target_id=target_id,
         reason=reason,
         detail=detail,
         moment=moment,
     )
+    if not opened:
+        # Nothing is bound to receive it. Say so rather than answering 202 to
+        # a report that reached nobody.
+        raise HTTPException(
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=ModerationMessages.NOWHERE_TO_SEND,
+        )
     return ReportFiled(ReportVenue.platform)
+
+
+async def _platform_target_exists(
+    session: AsyncSession,
+    target: PlatformReportTarget,
+    target_id: int,
+) -> bool:
+    """Whether a platform target names a row that is there.
+
+    Every member of the enum resolves to ``users`` or ``guilds``
+    (``PLATFORM_TARGET_TABLE``), both of which a signed-in reader can already
+    name. A listing is the narrower case: it exists only while the community
+    is one, so reporting one asks that too.
+    """
+    from app.db.session import set_rls_context
+
+    table = PLATFORM_TARGET_TABLE[target]
+    await set_rls_context(session)
+    clause = (
+        " AND is_community IS TRUE"
+        if target is PlatformReportTarget.directory_listing
+        else ""
+    )
+    found = (
+        await session.exec(
+            text(  # noqa: S608 — table comes from the registry above
+                f"SELECT 1 FROM public.{table} WHERE id = :target_id{clause}"
+            ).bindparams(target_id=target_id)
+        )
+    ).first()
+    return found is not None
 
 
 async def _locate_as_reporter(
@@ -191,6 +241,16 @@ async def _place_in_initiative(
 
     async with AdminSessionLocal() as session:
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        # Two people reporting the same thing in the same instant both look for
+        # an open row before either writes one. They queue here instead, so the
+        # second joins the first rather than losing the unique index. Held for
+        # the rest of the transaction; the guild id is one half of the key
+        # because advisory locks are cluster-wide where a schema is per-guild.
+        await session.exec(
+            text("SELECT pg_advisory_xact_lock(:guild, hashtext(:key))").bindparams(
+                guild=guild_id, key=f"{initiative_id}:{target.value}:{target_id}"
+            )
+        )
         existing = (
             await session.exec(
                 select(ModerationReport)
@@ -254,8 +314,12 @@ async def _open_platform_case(
     moment: datetime,
     note: Optional[str] = None,
     reporter_ids: tuple[int, ...] = (),
-) -> None:
+) -> bool:
     """File the report as an intake case in the operations guild.
+
+    Returns whether a case actually opened. ``open_case`` answers ``None`` on
+    a deployment that has bound no moderation project — which is every fresh
+    install — and a report that opened nothing has not been received.
 
     ``reporter_ids`` are carried only on an escalation, where judging whether a
     report was made in good faith is the platform's job and the reporters are
@@ -266,7 +330,7 @@ async def _open_platform_case(
     if reporter_ids:
         listed = ", ".join(str(i) for i in reporter_ids)
         parts.append(f"Reported by account(s): {listed}")
-    await open_case(
+    outcome = await open_case(
         IntakeStream.moderation,
         title=f"Reported {target.value} {target_id} ({reason.value})",
         body="\n\n".join(parts) or None,
@@ -280,6 +344,7 @@ async def _open_platform_case(
         ),
         dedupe_key=f"report:{target.value}:{target_id}",
     )
+    return outcome is not None
 
 
 async def settle_report(
@@ -297,10 +362,14 @@ async def settle_report(
     whether this reader may see the row at all.
     """
     moment = now or datetime.now(timezone.utc)
+    # Locked before it is read, so two moderators deciding at once resolve in
+    # order: the second finds it settled rather than overwriting the first's
+    # outcome, note and name.
     report = (
         await session.exec(
             select(ModerationReport)
             .where(ModerationReport.id == report_id)
+            .with_for_update()
             .execution_options(populate_existing=True)
         )
     ).one_or_none()
@@ -317,6 +386,12 @@ async def settle_report(
 
     if outcome is ReportOutcome.escalated:
         # The one crossing between the two shapes, and one direction only.
+        #
+        # The case is opened before the report closes, and on its own
+        # transaction. If closing then fails, the report stays open and a
+        # moderator escalates again — which opens no second case, because the
+        # writer keys on the target and joins the one already open. The other
+        # order would risk a closed report whose escalation never left.
         reporters = (
             await session.exec(
                 select(ModerationReportReporter.reporter_id).where(
@@ -344,11 +419,36 @@ async def settle_report(
     return report
 
 
+async def reporters_for(
+    session: AsyncSession, report_ids: list[int]
+) -> tuple[dict[int, int], dict[int, list[str]]]:
+    """How many people reported each, and what they said — never who."""
+    if not report_ids:
+        return {}, {}
+    rows = (
+        await session.exec(
+            select(
+                ModerationReportReporter.report_id,
+                ModerationReportReporter.detail,
+            ).where(ModerationReportReporter.report_id.in_(report_ids))
+        )
+    ).all()
+    counts: dict[int, int] = {}
+    details: dict[int, list[str]] = {}
+    for report_id, detail in rows:
+        counts[report_id] = counts.get(report_id, 0) + 1
+        if detail:
+            details.setdefault(report_id, []).append(detail)
+    return counts, details
+
+
 async def list_reports(
     session: AsyncSession,
     *,
     initiative_id: int,
     settled: bool = False,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[tuple[ModerationReport, int, list[str]]]:
     """Reports for one initiative, with how many people reported each.
 
@@ -366,29 +466,17 @@ async def list_reports(
     )
     reports = (
         await session.exec(
-            stmt.order_by(ModerationReport.reported_at.desc()).execution_options(
-                populate_existing=True
-            )
+            stmt.order_by(ModerationReport.reported_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .execution_options(populate_existing=True)
         )
     ).all()
     if not reports:
         return []
 
-    rows = (
-        await session.exec(
-            select(
-                ModerationReportReporter.report_id,
-                ModerationReportReporter.detail,
-            ).where(ModerationReportReporter.report_id.in_([r.id for r in reports]))
-        )
-    ).all()
-    by_report: dict[int, list[str]] = {}
-    counts: dict[int, int] = {}
-    for report_id, detail in rows:
-        counts[report_id] = counts.get(report_id, 0) + 1
-        if detail:
-            by_report.setdefault(report_id, []).append(detail)
+    counts, details = await reporters_for(session, [r.id for r in reports])
     return [
-        (report, counts.get(report.id, 0), by_report.get(report.id, []))
+        (report, counts.get(report.id, 0), details.get(report.id, []))
         for report in reports
     ]

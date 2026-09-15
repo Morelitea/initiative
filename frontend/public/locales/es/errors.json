@@ -638,5 +638,7 @@
   "MODERATION_REPORT_NOT_FOUND": "Denuncia no encontrada",
   "MODERATION_REPORT_ALREADY_SETTLED": "Esa denuncia ya se ha resuelto",
   "MODERATION_UNKNOWN_TARGET_TYPE": "Eso no se puede denunciar",
-  "MODERATION_CANNOT_REPORT_YOURSELF": "No puedes denunciar tu propio contenido"
+  "MODERATION_CANNOT_REPORT_YOURSELF": "No puedes denunciar tu propio contenido",
+  "MODERATION_NOWHERE_TO_SEND": "Las denuncias aún no están configuradas en esta instalación",
+  "MODERATION_TARGET_NOT_FOUND": "No encontramos eso"
 }

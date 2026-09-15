@@ -9,10 +9,17 @@ from app.core.moderation import ReportOutcome, ReportVenue
 from app.core.tools import Tool
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
+from app.core.intake import IntakeStream
+from app.models.platform.app_setting import AppSetting
+from app.models.tenant.intake import IntakeBinding
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
+from app.models.tenant.task import Task
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_comment,
+    create_guild,
+    create_initiative,
+    create_project,
     create_guild_membership,
     create_initiative_member,
     create_task,
@@ -74,6 +81,35 @@ async def scene(session, acting_user):
     }
 
 
+@pytest.fixture
+async def operations(session):
+    """A deployment with somewhere for platform reports to go.
+
+    A separate community, as it would be: the operations guild is an ordinary
+    one that happens to be pointed at.
+    """
+    staff = await create_user(session)
+    ops_guild = await create_guild(session, creator=staff)
+    ops_initiative = await create_initiative(session, ops_guild, staff)
+    ops_project = await create_project(session, ops_initiative, staff)
+
+    await set_rls_context(session)
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    if row is None:
+        row = AppSetting(id=1)
+    row.operations_guild_id = ops_guild.id
+    session.add(row)
+    await session.commit()
+
+    await set_rls_context(session, guild_id=ops_guild.id, guild_role="admin")
+    session.add(
+        IntakeBinding(stream=IntakeStream.moderation, project_id=ops_project.id)
+    )
+    await session.commit()
+    await set_rls_context(session)
+    return {"guild": ops_guild, "project": ops_project}
+
+
 async def test_reporting_community_content_lands_in_its_initiative(
     client, session, scene
 ):
@@ -96,7 +132,9 @@ async def test_reporting_community_content_lands_in_its_initiative(
     assert report.outcome is None
 
 
-async def test_reporting_identity_goes_to_the_platform(client, scene):
+async def test_reporting_identity_goes_to_the_platform(
+    client, session, scene, operations
+):
     """No community owns a complaint about a username."""
     response = await _report(
         client,
@@ -107,6 +145,15 @@ async def test_reporting_identity_goes_to_the_platform(client, scene):
     )
     assert response.status_code == 202
     assert response.json()["venue"] == ReportVenue.platform.value
+
+    # It landed as an ordinary intake case in the operations community.
+    await set_rls_context(session, guild_id=operations["guild"].id, guild_role="admin")
+    task = (
+        await session.exec(
+            select(Task).where(Task.project_id == operations["project"].id)
+        )
+    ).one()
+    assert "username" in task.title
 
 
 async def test_a_reporter_cannot_read_the_report_they_filed(client, session, scene):
@@ -204,7 +251,7 @@ async def test_the_same_person_reporting_twice_does_not_raise_the_count(client, 
 
 
 async def test_a_community_a_reporter_is_not_in_places_nothing_there(
-    client, session, scene
+    client, session, scene, operations
 ):
     """Ids are unique only within a schema, so a named community is checked."""
     outsider = await create_user(session)
@@ -328,3 +375,65 @@ async def test_reporters_are_recorded_even_though_they_are_not_shown(
     await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
     rows = (await session.exec(select(ModerationReportReporter))).all()
     assert [row.reporter_id for row in rows] == [scene["member"].user.id]
+
+
+async def test_a_report_that_reaches_nobody_is_refused(client, scene):
+    """Every install starts with no moderation project bound."""
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="username",
+        target_id=scene["member"].user.id,
+        reason="hate",
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "MODERATION_NOWHERE_TO_SEND"
+
+
+async def test_an_identity_target_that_does_not_exist_is_refused(client, scene):
+    """Checked before it becomes work, so no task names a row that is not there."""
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="username",
+        target_id=999_999,
+        reason="hate",
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "MODERATION_TARGET_NOT_FOUND"
+
+
+async def test_settling_returns_the_reporters_it_had(client, session, scene):
+    """A settled report is the same shape as an open one."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="spam",
+        detail="Nonsense.",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    report_id = (await session.exec(select(ModerationReport))).one().id
+    await set_rls_context(session)
+
+    response = await client.post(
+        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        json={"outcome": "dismissed"},
+        headers=scene["mod"].headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reporter_count"] == 1
+    assert body["details"] == ["Nonsense."]
+
+
+async def test_the_list_is_paged(client, scene):
+    response = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports",
+        params={"limit": 1, "offset": 0},
+        headers=scene["mod"].headers,
+    )
+    assert response.status_code == 200
+    assert len(response.json()["items"]) <= 1

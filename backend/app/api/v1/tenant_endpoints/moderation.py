@@ -103,6 +103,8 @@ async def list_reports(
     session: RLSSessionDep,
     guild_context: GuildContextDep,
     settled: Annotated[bool, Query()] = False,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ModerationReportList:
     """This initiative's reports.
 
@@ -112,7 +114,11 @@ async def list_reports(
     404 for any content they are not in.
     """
     rows = await moderation_service.list_reports(
-        session, initiative_id=initiative_id, settled=settled
+        session,
+        initiative_id=initiative_id,
+        settled=settled,
+        limit=limit,
+        offset=offset,
     )
     return ModerationReportList(
         items=[_read(report, count, details) for report, count, details in rows],
@@ -140,4 +146,8 @@ async def settle_report(
         note=payload.note,
         decided_by=current_user.id,
     )
-    return _read(report, 0, [])
+    # The same reporter figures the list carries: a settled report is the same
+    # shape as an open one, and answering zero would have the page replace what
+    # it already had with nothing.
+    counts, details = await moderation_service.reporters_for(session, [report.id])
+    return _read(report, counts.get(report.id, 0), details.get(report.id, []))

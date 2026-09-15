@@ -34,8 +34,27 @@ class PlatformReportTarget(str, Enum):
     avatar = "avatar"
     decoration = "decoration"
     directory_listing = "directory_listing"
-    dm_conversation = "dm_conversation"
     guild = "guild"
+
+    # Deliberately absent: a direct-message conversation. Its id is a UUID,
+    # and a report carries an integer id — so admitting it here would name
+    # something no report could actually carry. It needs its own reference
+    # shape, and reporting a private conversation needs its own thinking
+    # about what a moderator is shown.
+
+
+#: Which shared table a platform target's id names. Every member resolves to
+#: one of two, which is what lets a report about identity be checked to exist
+#: before it becomes somebody's work. ``moderation_test`` holds this and the
+#: enum in step, so a member added later cannot ship unresolvable.
+PLATFORM_TARGET_TABLE: dict[PlatformReportTarget, str] = {
+    PlatformReportTarget.user_profile: "users",
+    PlatformReportTarget.username: "users",
+    PlatformReportTarget.avatar: "users",
+    PlatformReportTarget.decoration: "users",
+    PlatformReportTarget.directory_listing: "guilds",
+    PlatformReportTarget.guild: "guilds",
+}
 
 
 class ReportVenue(str, Enum):

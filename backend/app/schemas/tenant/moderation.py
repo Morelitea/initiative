@@ -60,6 +60,8 @@ class ModerationReportRead(SanitizedBaseModel):
 
 class ModerationReportList(SanitizedBaseModel):
     items: List[ModerationReportRead]
+    #: How many are in this page. Settled reports accumulate without bound, so
+    #: the list is paged and this is not a count of everything there is.
     total: int
 
 
