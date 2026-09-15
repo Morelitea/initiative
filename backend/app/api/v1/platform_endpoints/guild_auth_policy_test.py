@@ -25,7 +25,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_legacy_auth_token,
     set_auth_scope,
 )
 
@@ -410,12 +409,12 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession):
     await _require_provider(session, guild.id, provider)
     guild_id, provider_id = guild.id, provider.id
 
-    # Legacy session token: authenticates, but the policy gate refuses.
-    legacy_user = await authenticate_ws_token(get_legacy_auth_token(user), session)
-    assert legacy_user is not None
+    # A session that satisfied nothing: authenticates, gate refuses.
+    plain_user = await authenticate_ws_token(get_auth_token(user), session)
+    assert plain_user is not None
     assert satisfied_provider_ids() == frozenset()
     with pytest.raises(GuildAccessError):
-        await establish_guild_access(session, legacy_user, guild_id)
+        await establish_guild_access(session, plain_user, guild_id)
 
     # A satisfied session token joins.
     sat_user = await authenticate_ws_token(

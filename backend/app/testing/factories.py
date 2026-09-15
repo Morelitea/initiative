@@ -33,7 +33,6 @@ from app.core.encryption import (
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
-    create_access_token,
     get_password_hash,
     mint_access_token,
 )
@@ -375,6 +374,8 @@ def get_auth_token(
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    token_version: int | None = None,
+    expires_in: timedelta | None = None,
 ) -> str:
     """A session credential for ``user`` — the token the app actually issues.
 
@@ -387,8 +388,9 @@ def get_auth_token(
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
 
-    Use :func:`get_legacy_auth_token` where the pre-session scheme is itself
-    the thing under test.
+    ``token_version`` and ``expires_in`` are for the tests about a credential
+    that is no longer good: one minted before a version bump, and one whose
+    lifetime has run out. Both default to a token that works.
 
     Example:
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
@@ -402,30 +404,17 @@ def get_auth_token(
         )
     token, _ = mint_access_token(
         subject=subject,
-        token_version=user.token_version,
+        token_version=token_version
+        if token_version is not None
+        else user.token_version,
         session_id=session_id or uuid.uuid4(),
         amr=amr if amr is not None else ["pwd"],
         satisfied_providers=satisfied_providers
         if satisfied_providers is not None
         else [],
+        expires_in=expires_in,
     )
     return token
-
-
-def get_legacy_auth_token(user: User) -> str:
-    """A pre-session-model token: no ``aud``/``iss``, and none of
-    ``sid``/``amr``/``sat``.
-
-    ``decode_session_token`` accepts both schemes, and this is what exercises
-    that half. For tests about the legacy scheme itself — everything else wants
-    :func:`get_auth_token`.
-    """
-    return create_access_token(subject=str(user.id), token_version=user.token_version)
-
-
-def get_legacy_auth_headers(user: User) -> dict[str, str]:
-    """:func:`get_legacy_auth_token` as an Authorization header."""
-    return {"Authorization": f"Bearer {get_legacy_auth_token(user)}"}
 
 
 def get_auth_headers(user: User) -> dict[str, str]:
