@@ -71,12 +71,18 @@ def test_every_outcome_closes_a_report():
     }
 
 
-def test_every_platform_target_names_a_table():
-    """A member added later cannot ship unresolvable."""
-    from app.core.moderation import PLATFORM_TARGET_TABLE
+def test_every_platform_target_names_a_public_relation():
+    """A member added later cannot ship unresolvable.
 
-    assert set(PLATFORM_TARGET_TABLE) == set(PlatformReportTarget)
-    assert set(PLATFORM_TARGET_TABLE.values()) <= {"users", "guilds"}
+    And it must name a relation the *reporter* can read: ``public.users`` is
+    own-row for a platform-tier session, so checking against it would answer
+    "not found" for every account but your own.
+    """
+    from app.core.moderation import PLATFORM_TARGET_RELATION
+
+    assert set(PLATFORM_TARGET_RELATION) == set(PlatformReportTarget)
+    assert set(PLATFORM_TARGET_RELATION.values()) <= {"user_profiles", "guilds"}
+    assert "users" not in set(PLATFORM_TARGET_RELATION.values())
 
 
 def test_private_conversations_are_not_reportable():
@@ -93,9 +99,12 @@ def test_private_conversations_are_not_reportable():
 
 def test_every_target_carries_an_id_a_report_can_hold():
     """A report holds an integer id, so every target must be keyed by one."""
-    from app.core.moderation import PLATFORM_TARGET_TABLE
+    from app.core.moderation import PLATFORM_TARGET_RELATION
 
-    assert all(table in {"users", "guilds"} for table in PLATFORM_TARGET_TABLE.values())
+    assert all(
+        relation in {"user_profiles", "guilds"}
+        for relation in PLATFORM_TARGET_RELATION.values()
+    )
 
 
 def test_every_moderation_error_code_is_localized():

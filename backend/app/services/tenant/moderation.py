@@ -28,7 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.intake import IntakeStream
 from app.core.messages import ModerationMessages
 from app.core.moderation import (
-    PLATFORM_TARGET_TABLE,
+    PLATFORM_TARGET_RELATION,
     PlatformReportTarget,
     ReportOutcome,
     ReportReason,
@@ -134,6 +134,17 @@ async def file_report(
         # for this reader. The platform is the backstop: a report that resolves
         # nowhere is a report nobody sees.
         logger.info("report on %s:%s fell back to the platform", target, target_id)
+
+    if isinstance(target, PlatformReportTarget) and not await _platform_target_visible(
+        reporter_session, target, target_id
+    ):
+        # Checked before it becomes somebody's work, so no operations task
+        # names something the reporter could not see. Refused the same way
+        # whether the row is hidden from them or not there at all.
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.TARGET_NOT_FOUND,
+        )
 
     opened = await _open_platform_case(
         target=target,
@@ -263,29 +274,31 @@ async def _locate_as_reporter(
     return await _resolve_initiative(reporter_session, target, target_id)
 
 
-async def _platform_target_exists(target: PlatformReportTarget, target_id: int) -> bool:
-    """Whether a platform target names a row that is there.
+async def _platform_target_visible(
+    reporter_session: AsyncSession,
+    target: PlatformReportTarget,
+    target_id: int,
+) -> bool:
+    """Whether this reporter can see the platform target they named.
 
-    Every member of the enum resolves to ``users`` or ``guilds``
-    (``PLATFORM_TARGET_TABLE``). A listing is the narrower case: it exists only
-    while the community is one, so reporting one asks that too.
+    Asked on their own session, against the relation that already serves the
+    thing publicly (``PLATFORM_TARGET_RELATION``) — so a row they may not see
+    and a row that is not there answer identically, and reporting reaches
+    exactly as far as looking does. The community half works the same way.
     """
-    from app.db.session import AdminSessionLocal
-
-    table = PLATFORM_TARGET_TABLE[target]
+    relation = PLATFORM_TARGET_RELATION[target]
     clause = (
         " AND is_community IS TRUE"
         if target is PlatformReportTarget.directory_listing
         else ""
     )
-    async with AdminSessionLocal() as session:
-        found = (
-            await session.exec(
-                text(  # noqa: S608 — table comes from the registry above
-                    f"SELECT 1 FROM public.{table} WHERE id = :target_id{clause}"
-                ).bindparams(target_id=target_id)
-            )
-        ).first()
+    found = (
+        await reporter_session.exec(
+            text(  # noqa: S608 — the relation comes from the registry above
+                f"SELECT 1 FROM public.{relation} WHERE id = :target_id{clause}"
+            ).bindparams(target_id=target_id)
+        )
+    ).first()
     return found is not None
 
 
@@ -310,19 +323,6 @@ async def _open_platform_case(
     not somebody's neighbours. An ordinary platform report carries none: who
     said it adds nothing to a complaint about a username.
     """
-    if isinstance(target, PlatformReportTarget) and not await _platform_target_exists(
-        target, target_id
-    ):
-        # Checked before it becomes somebody's work, so no operations task
-        # names a row that is not there. On the system session rather than the
-        # reporter's: this asks the shared identity plane a question about
-        # existence, and a plain member's platform role does not read arbitrary
-        # rows there. It tells the reporter only whether an id resolves.
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=ModerationMessages.TARGET_NOT_FOUND,
-        )
-
     parts = [part for part in (detail, note) if part]
     if reporter_ids:
         listed = ", ".join(str(i) for i in reporter_ids)

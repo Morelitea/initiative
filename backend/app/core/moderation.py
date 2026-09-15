@@ -45,15 +45,21 @@ class PlatformReportTarget(str, Enum):
     # conversation is to block or ignore, which does not need us to read it.
 
 
-#: Which shared table a platform target's id names. Every member resolves to
-#: one of two, which is what lets a report about identity be checked to exist
-#: before it becomes somebody's work. ``moderation_test`` holds this and the
-#: enum in step, so a member added later cannot ship unresolvable.
-PLATFORM_TARGET_TABLE: dict[PlatformReportTarget, str] = {
-    PlatformReportTarget.user_profile: "users",
-    PlatformReportTarget.username: "users",
-    PlatformReportTarget.avatar: "users",
-    PlatformReportTarget.decoration: "users",
+#: Which **publicly readable** relation a platform target's id is checked
+#: against. Not the underlying table: ``public.users`` is own-row for a
+#: platform-tier session, and ``public.user_profiles`` is the projection of it
+#: that a profile page already reads. ``public.guilds`` is itself scoped by
+#: RLS to what the reader may see.
+#:
+#: Asking through these is what makes a hidden row and a missing row answer
+#: the same way — the check runs as the reporter, on the reporter's session,
+#: like the community half does. ``moderation_test`` holds this and the enum
+#: in step, so a member added later cannot ship unresolvable.
+PLATFORM_TARGET_RELATION: dict[PlatformReportTarget, str] = {
+    PlatformReportTarget.user_profile: "user_profiles",
+    PlatformReportTarget.username: "user_profiles",
+    PlatformReportTarget.avatar: "user_profiles",
+    PlatformReportTarget.decoration: "user_profiles",
     PlatformReportTarget.directory_listing: "guilds",
     PlatformReportTarget.guild: "guilds",
 }

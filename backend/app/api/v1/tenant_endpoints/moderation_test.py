@@ -521,3 +521,46 @@ async def test_a_platform_target_is_looked_up_as_the_reporter(
     )
     assert response.status_code == 202
     assert response.json()["venue"] == "platform"
+
+
+async def test_a_community_the_reporter_cannot_see_is_not_reportable(
+    client, session, scene, operations
+):
+    """Hidden and missing answer the same way: reporting reaches as far as looking."""
+    stranger = await create_user(session)
+    hidden = await create_guild(session, creator=stranger)
+    await set_rls_context(session)
+
+    hidden_response = await _report(
+        client,
+        scene["member"],
+        target_type="guild",
+        target_id=hidden.id,
+        reason="illegal",
+    )
+    missing_response = await _report(
+        client,
+        scene["member"],
+        target_type="guild",
+        target_id=999_999,
+        reason="illegal",
+    )
+    assert hidden_response.status_code == missing_response.status_code == 404
+    assert hidden_response.json() == missing_response.json()
+
+
+async def test_any_account_can_be_reported_by_profile(
+    client, session, scene, operations
+):
+    """A profile is everyone's to read, so it is everyone's to report."""
+    stranger = await create_user(session)
+    await set_rls_context(session)
+
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="user_profile",
+        target_id=stranger.id,
+        reason="harassment",
+    )
+    assert response.status_code == 202
