@@ -5,9 +5,7 @@ This is the substrate that makes the stateless access token revocable
 login; each ``/auth/refresh`` **rotates** it — mints a fresh row pointing at the
 one it replaces (``parent_id`` chain) and single-use-revokes the old one. Reuse
 of an already-spent refresh token is treated as **theft** and kills the whole
-chain, including its still-live tail. One client's own windows renewing
-together are told apart from that by :data:`REFRESH_REUSE_GRACE_SECONDS`, and
-are pointed at the live session rather than given one of their own.
+chain, including its still-live tail.
 
 **Runs on the system engine (``app_admin``).** Session validation is a pre-auth
 lookup *by refresh-token hash* — the user is unknown until it resolves — so it
@@ -54,7 +52,6 @@ __all__ = [
     "process_dead_session_purge",
     "SESSION_PURGE_POLL_SECONDS",
     "SESSION_RETENTION_DAYS",
-    "REFRESH_REUSE_GRACE_SECONDS",
 ]
 
 # 256 bits of entropy — infeasible to guess, so the hash (not a slow KDF) is the
@@ -70,24 +67,6 @@ SESSION_RETENTION_DAYS = 30
 #: ``auth_sessions`` is app_admin-only, so the sweep runs on AdminSessionLocal
 #: with no guild routing — the same shape as the expired-token purge.
 SESSION_PURGE_POLL_SECONDS = 3600
-
-#: How close together two presentations of one refresh token are read as a
-#: single client renewing from more than one window.
-#:
-#: A browser holds one refresh cookie for every window open on the app, and
-#: each renews on its own schedule, so two waking together can present the
-#: same token milliseconds apart. The client serialises its own renewals where
-#: the browser can (``navigator.locks``), and this is the floor under that for
-#: where it cannot.
-#:
-#: What it grants is deliberately the smaller half of a rotation: the caller is
-#: told the session is live and gets an access token for it, and no refresh
-#: token is minted, spent or returned. The chain is not touched, so the window
-#: that did rotate keeps sole possession of it, and the cookie the browser
-#: holds stays the one that rotation set — whichever order the two answers
-#: arrive in. Kept short: it is sized for two windows of one browser waking
-#: together, and nothing else.
-REFRESH_REUSE_GRACE_SECONDS = 10
 
 
 def _now() -> datetime:
@@ -125,7 +104,6 @@ class RefreshOutcome(str, Enum):
     readable codes the endpoint maps to an HTTP status + localized message."""
 
     ROTATED = "rotated"
-    CONTINUED = "continued"
     UNKNOWN = "unknown_refresh_token"
     EXPIRED = "refresh_token_expired"
     REUSED = "refresh_token_reused"
@@ -145,10 +123,6 @@ class RotationResult:
 
     outcome: RefreshOutcome
     issued: IssuedSession | None = None  # present iff ``outcome is ROTATED``
-    #: The session the caller is being pointed at without one being minted for
-    #: them — present iff ``outcome is CONTINUED``. Nothing was written; this
-    #: is the chain as another window already left it.
-    continued: AuthSession | None = None
     #: Whose session the token belonged to. Set whenever the token resolved to
     #: a row, so a ``REUSED`` rejection — where there is no ``issued`` — can
     #: still say whose chain was killed. ``None`` for a token that matched
@@ -157,26 +131,7 @@ class RotationResult:
 
     @property
     def ok(self) -> bool:
-        """Whether the caller comes away with a usable session."""
-        return self.outcome in (RefreshOutcome.ROTATED, RefreshOutcome.CONTINUED)
-
-    @property
-    def session(self) -> AuthSession | None:
-        """The session the caller now holds, however they came to hold it."""
-        return self.issued.session if self.issued is not None else self.continued
-
-
-@dataclass(frozen=True)
-class _Carried:
-    """What a rotation may override on the successor, each ``None`` meaning
-    "keep what the spent session had". Only a step-up passes any of them."""
-
-    amr: list[str] | None = None
-    satisfied_providers: list[int] | None = None
-    provider_auth: dict[str, Any] | None = None
-    user_agent: str | None = None
-    ip: str | None = None
-    device_name: str | None = None
+        return self.outcome is RefreshOutcome.ROTATED
 
 
 # Revoke every session in a token's rotation chain, in both directions, given any
@@ -203,25 +158,6 @@ _REVOKE_CHAIN_SQL = text(
     UPDATE auth_sessions SET revoked_at = :now
     WHERE revoked_at IS NULL
       AND id IN (SELECT id FROM ancestors UNION SELECT id FROM descendants)
-    """
-)
-
-# The one session in a chain that is still live, given any member id. A chain is
-# single-use all the way down, so at most one row satisfies this: every rotation
-# revokes the row it spent as it mints the successor. Walks descendants only —
-# ancestors are spent by definition, being what the walk started from.
-_LIVE_TIP_SQL = text(
-    """
-    WITH RECURSIVE descendants AS (
-        SELECT id, parent_id, revoked_at, expires_at
-        FROM auth_sessions WHERE id = :sid
-        UNION
-        SELECT s.id, s.parent_id, s.revoked_at, s.expires_at
-        FROM auth_sessions s JOIN descendants d ON s.parent_id = d.id
-    )
-    SELECT id FROM descendants
-    WHERE revoked_at IS NULL AND expires_at > :now
-    LIMIT 1
     """
 )
 
@@ -289,11 +225,7 @@ async def rotate_session(
     **Returns** a :class:`RotationResult` (never raises for a bad token) —
     ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
     ``REUSED`` are rejections. On ``REUSED`` the whole chain has been revoked on
-    ``session`` (theft response). A token presented again within
-    :data:`REFRESH_REUSE_GRACE_SECONDS` of being spent is one client renewing
-    from two windows: that is ``CONTINUED``, which names the chain's live
-    session and writes nothing at all.
-    Returning rather than raising is the point: the
+    ``session`` (theft response). Returning rather than raising is the point: the
     caller commits on its normal path, so one commit durably persists whichever
     write occurred and a rollback-on-exception handler can't drop the chain kill.
 
@@ -304,14 +236,6 @@ async def rotate_session(
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
     presented_hash = _hash_refresh_token(raw_refresh_token)
-    carried = _Carried(
-        amr=amr,
-        satisfied_providers=satisfied_providers,
-        provider_auth=provider_auth,
-        user_agent=user_agent,
-        ip=ip,
-        device_name=device_name,
-    )
 
     row = (
         await session.exec(
@@ -321,46 +245,16 @@ async def rotate_session(
     if row is None:
         return RotationResult(RefreshOutcome.UNKNOWN)
 
-    # Already spent (rotated or explicitly revoked). Just-spent is one client
-    # renewing from two windows; anything older is a replay of a dead token.
+    # Already spent (rotated or explicitly revoked) ⇒ replay of a dead token.
     if row.revoked_at is not None:
-        if issued - row.revoked_at <= timedelta(seconds=REFRESH_REUSE_GRACE_SECONDS):
-            tip = await _live_tip(session, root_id=row.id, now=issued)
-            if tip is not None:
-                return RotationResult(RefreshOutcome.CONTINUED, continued=tip)
         await revoke_chain(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
 
     if row.expires_at <= issued:
         return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
-    minted = await _spend_and_mint(
-        session, row, issued=issued, ttl=ttl, carried=carried
-    )
-    if minted is None:
-        # Lost the single-use claim to a concurrent rotation. The winner held
-        # the row lock until it committed, so its successor is readable now.
-        tip = await _live_tip(session, root_id=row.id, now=issued)
-        if tip is not None:
-            return RotationResult(RefreshOutcome.CONTINUED, continued=tip)
-        await revoke_chain(session, session_id=row.id, now=issued)
-        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
-    return RotationResult(RefreshOutcome.ROTATED, issued=minted)
-
-
-async def _spend_and_mint(
-    session: AsyncSession,
-    row: AuthSession,
-    *,
-    issued: datetime,
-    ttl: timedelta,
-    carried: _Carried,
-) -> IssuedSession | None:
-    """Spend ``row`` and mint its successor, or ``None`` if it was already spent.
-
-    The claim is atomic: only one caller can flip ``revoked_at`` NULL→now, so
-    two rotations of the same session can't both mint a successor.
-    """
+    # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
+    # two concurrent refreshes with the same token can't both mint a child.
     claimed = (
         await session.exec(
             text(
@@ -371,7 +265,9 @@ async def _spend_and_mint(
         )
     ).first()
     if claimed is None:
-        return None
+        # Lost the race to a concurrent rotation — same danger as a replay.
+        await revoke_chain(session, session_id=row.id, now=issued)
+        return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
 
@@ -379,42 +275,30 @@ async def _spend_and_mint(
     child = AuthSession(
         user_id=row.user_id,
         refresh_token_hash=_hash_refresh_token(raw),
-        amr=list(carried.amr) if carried.amr is not None else list(row.amr),
+        amr=list(amr) if amr is not None else list(row.amr),
         satisfied_providers=(
-            list(carried.satisfied_providers)
-            if carried.satisfied_providers is not None
+            list(satisfied_providers)
+            if satisfied_providers is not None
             else list(row.satisfied_providers)
         ),
         provider_auth=(
-            dict(carried.provider_auth)
-            if carried.provider_auth is not None
+            dict(provider_auth)
+            if provider_auth is not None
             else dict(row.provider_auth)
         ),
         parent_id=row.id,
         created_at=issued,
         expires_at=issued + ttl,
-        user_agent=(
-            carried.user_agent if carried.user_agent is not None else row.user_agent
-        ),
-        ip=carried.ip if carried.ip is not None else row.ip,
-        device_name=(
-            carried.device_name if carried.device_name is not None else row.device_name
-        ),
+        user_agent=user_agent if user_agent is not None else row.user_agent,
+        ip=ip if ip is not None else row.ip,
+        device_name=device_name if device_name is not None else row.device_name,
     )
     session.add(child)
     await session.flush()
-    return IssuedSession(session=child, refresh_token=raw)
-
-
-async def _live_tip(
-    session: AsyncSession, *, root_id: uuid.UUID, now: datetime
-) -> AuthSession | None:
-    """The chain's live session, read and not touched, or ``None`` when it has
-    none — which is a chain that was signed out or has run out."""
-    found = (
-        await session.exec(_LIVE_TIP_SQL, params={"sid": root_id, "now": now})
-    ).first()
-    return await session.get(AuthSession, found[0]) if found is not None else None
+    return RotationResult(
+        RefreshOutcome.ROTATED,
+        issued=IssuedSession(session=child, refresh_token=raw),
+    )
 
 
 async def get_live_session_by_refresh_token(

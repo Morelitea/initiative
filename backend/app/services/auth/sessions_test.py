@@ -22,11 +22,11 @@ from app.testing import create_user
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
-def _at(*, days: int = 0, minutes: int = 0, seconds: int = 0) -> datetime:
+def _at(*, days: int = 0, minutes: int = 0) -> datetime:
     """A fixed instant offset from a stable base — keeps TTL math deterministic
     without ``datetime.now`` (and without the frozen-time helpers)."""
     base = datetime(2026, 7, 6, 12, 0, 0, tzinfo=timezone.utc)
-    return base + timedelta(days=days, minutes=minutes, seconds=seconds)
+    return base + timedelta(days=days, minutes=minutes)
 
 
 async def _rotate_ok(session, raw, when, **kwargs):
@@ -160,89 +160,12 @@ async def test_reuse_of_spent_token_revokes_whole_chain(session):
     )
     assert result.outcome is RefreshOutcome.REUSED
     assert result.issued is None
-    assert result.session is None
 
     # The live tail (r3) is now revoked — the attacker gained nothing and the
     # real user is forced to re-authenticate.
     for issued in (r1, r2, r3):
         await session.refresh(issued.session)
         assert issued.session.revoked_at is not None
-
-
-async def test_two_windows_racing_the_same_token_keep_the_session(session):
-    """Two windows of one app renew at once: the second finds its token already
-    spent, and is pointed at the chain's live session, so both carry on.
-    """
-    user = await create_user(session)
-    r1 = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[3], now=_at()
-    )
-    # First window rotates.
-    r2 = await _rotate_ok(session, r1.refresh_token, _at(minutes=1))
-
-    # Second window presents the same token a moment later.
-    result = await session_service.rotate_session(
-        session, raw_refresh_token=r1.refresh_token, now=_at(minutes=1, seconds=2)
-    )
-
-    assert result.outcome is RefreshOutcome.CONTINUED
-    assert result.ok
-    # It is named the session the first window rotated into — the one live row
-    # in the chain — with that session's context on it.
-    assert result.session is not None
-    assert result.session.id == r2.session.id
-    assert result.session.satisfied_providers == [3]
-
-    # Nothing was minted for it, and nothing in the chain moved: the window that
-    # rotated keeps sole possession of the token it was given.
-    assert result.issued is None
-    await session.refresh(r2.session)
-    assert r2.session.revoked_at is None
-
-    # So the token the first window holds still rotates, exactly once.
-    r3 = await _rotate_ok(session, r2.refresh_token, _at(minutes=2))
-    assert r3.session.parent_id == r2.session.id
-
-
-async def test_replay_after_the_grace_window_still_kills_the_chain(session):
-    """Past the window, a token presented again is a replay: the whole chain
-    goes, which is the behaviour the window narrows and does not soften."""
-    user = await create_user(session)
-    r1 = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_at()
-    )
-    r2 = await _rotate_ok(session, r1.refresh_token, _at(minutes=1))
-
-    result = await session_service.rotate_session(
-        session,
-        raw_refresh_token=r1.refresh_token,
-        now=_at(minutes=1, seconds=session_service.REFRESH_REUSE_GRACE_SECONDS + 1),
-    )
-
-    assert result.outcome is RefreshOutcome.REUSED
-    assert result.user_id == user.id
-    await session.refresh(r2.session)
-    assert r2.session.revoked_at is not None
-
-
-async def test_racing_a_chain_with_no_live_tip_is_still_reuse(session):
-    """Nothing to continue from — a chain with no live session is refused
-    inside the window as well as outside it."""
-    user = await create_user(session)
-    r1 = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_at()
-    )
-    r2 = await _rotate_ok(session, r1.refresh_token, _at(minutes=1))
-    await session_service.revoke_session(
-        session, session_id=r2.session.id, now=_at(minutes=1)
-    )
-
-    result = await session_service.rotate_session(
-        session, raw_refresh_token=r1.refresh_token, now=_at(minutes=1, seconds=2)
-    )
-
-    assert result.outcome is RefreshOutcome.REUSED
-    assert result.issued is None
 
 
 async def test_revoke_session_is_idempotent(session):

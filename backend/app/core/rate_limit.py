@@ -2,6 +2,7 @@
 
 import ipaddress
 import logging
+import time
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -11,13 +12,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# The hint below is worth saying once per process and never again.
-_forwarded_hint_logged = False
+#: How often the configuration hint below repeats. It describes a setting, so
+#: it is worth saying while the setting is still that way, and worth saying no
+#: more often than somebody would act on it.
+_FORWARDED_HINT_INTERVAL_SECONDS = 3600
+_forwarded_hint_at: float | None = None
 
 
-def _is_infrastructure_peer(address: str) -> bool:
-    """Whether the request arrived from somewhere a proxy of this deployment's
-    own would sit — a container network, a private LAN, the host itself."""
+def _is_local_network_peer(address: str) -> bool:
+    """Whether the request arrived from this deployment's own network — a
+    container network, a private LAN, the host itself."""
     try:
         parsed = ipaddress.ip_address(address.split("%", 1)[0])
     except ValueError:
@@ -26,38 +30,40 @@ def _is_infrastructure_peer(address: str) -> bool:
 
 
 def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
-    """Say so, once, when a proxy's ``X-Forwarded-For`` is being discarded.
+    """Note, occasionally, that ``X-Forwarded-For`` is arriving and not being
+    read.
 
     Uvicorn reads that header only from a peer named in
     ``--forwarded-allow-ips`` (``127.0.0.1`` unless told otherwise, which is
-    what ``BEHIND_PROXY=true`` does). A reverse proxy anywhere else — another
-    container, another host — is not that peer, so every visitor resolves to
-    the proxy's own address instead of their own. Nothing else reports that
-    configuration, so this does.
+    what ``BEHIND_PROXY=true`` does), so a reverse proxy anywhere else leaves
+    every visitor resolving to the proxy's address rather than their own.
+    Nothing else reports that, so this does.
 
-    Anyone can send the header, and this says nothing about whether to trust
-    it — it is a hint about configuration, not a control. It is held to a peer
-    on this deployment's own network so that a caller reaching the app from
-    somewhere else cannot spend the one time it is said.
+    It is a hint about configuration and nothing more: the header decides
+    nothing here, and this changes no behaviour.
     """
-    global _forwarded_hint_logged
-    if _forwarded_hint_logged:
+    global _forwarded_hint_at
+    now = time.monotonic()
+    if (
+        _forwarded_hint_at is not None
+        and now - _forwarded_hint_at < _FORWARDED_HINT_INTERVAL_SECONDS
+    ):
         return
     forwarded = request.headers.get("x-forwarded-for")
     if not forwarded:
         return
-    # A trusted hop leaves the resolved address somewhere in the chain the
-    # header names; an ignored one leaves the peer itself, which is not.
+    # A hop that was read leaves the resolved address somewhere in the chain the
+    # header names; one that was not leaves the peer itself, which is not.
     if resolved in {hop.strip() for hop in forwarded.split(",")}:
         return
-    if not _is_infrastructure_peer(resolved):
+    if not _is_local_network_peer(resolved):
         return
-    _forwarded_hint_logged = True
+    _forwarded_hint_at = now
     logger.warning(
-        "Requests carry X-Forwarded-For but this proxy is not among the peers "
-        "trusted to set it, so every client resolves to %s. Set "
-        "BEHIND_PROXY=true (and FORWARDED_ALLOW_IPS to the proxy's address) so "
-        "rate limits and recorded sign-in addresses are per-visitor.",
+        "Requests carry X-Forwarded-For but this peer is not configured as a "
+        "trusted proxy, so every client resolves to %s. Set BEHIND_PROXY=true "
+        "(and FORWARDED_ALLOW_IPS to the proxy's address) so rate limits and "
+        "recorded sign-in addresses are per-visitor.",
         resolved,
     )
 

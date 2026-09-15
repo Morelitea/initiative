@@ -36,7 +36,6 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
-from app.services.auth import sessions as session_service
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
@@ -2250,16 +2249,10 @@ async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_reused_refresh_token_returns_401(
-    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    client: AsyncClient, session: AsyncSession
 ):
     """Endpoint-level theft detection: replaying a spent refresh token is 401
-    (and the service revokes the chain — covered in the service tests).
-
-    The window is closed for this one so the replay lands outside it; where
-    that boundary sits, and what happens inside it, is pinned in the service
-    tests.
-    """
-    monkeypatch.setattr(session_service, "REFRESH_REUSE_GRACE_SECONDS", 0)
+    (and the service revokes the chain — covered in the service tests)."""
     _, password = await _make_login_user(session, "reuse@example.com")
     login = await _login(client, "reuse@example.com", password)
     first_refresh = login.cookies.get("refresh_token")
@@ -2274,46 +2267,6 @@ async def test_reused_refresh_token_returns_401(
     replay = await client.post("/api/v1/auth/refresh")
     assert replay.status_code == 401
     assert replay.json()["detail"] == "INVALID_REFRESH_TOKEN"
-
-
-@pytest.mark.integration
-@pytest.mark.auth
-async def test_two_windows_renewing_at_once_both_stay_signed_in(
-    client: AsyncClient, session: AsyncSession
-):
-    """One browser, two windows, one refresh cookie between them.
-
-    Both wake and renew; the second arrives to find the token already spent,
-    and is continued from where the first left the chain.
-    """
-    _, password = await _make_login_user(session, "race@example.com")
-    login = await _login(client, "race@example.com", password)
-    shared = login.cookies.get("refresh_token")
-
-    first = await client.post("/api/v1/auth/refresh")
-    assert first.status_code == 200
-
-    # The second window still holds the token the first one just spent.
-    client.cookies.clear()
-    client.cookies.set("refresh_token", shared, path="/api/v1/auth")
-    second = await client.post("/api/v1/auth/refresh")
-
-    assert second.status_code == 200
-    assert second.json()["access_token"]
-    # It is told the session is live and given an access token for it, and no
-    # refresh cookie is sent back: the one the browser holds is the one the
-    # first window's rotation set, and this answer must not put anything over
-    # it — whichever order the two arrive in.
-    assert not any(
-        "refresh_token=" in header for header in second.headers.get_list("set-cookie")
-    )
-
-    # And the token that rotation issued is still the live one, still good for
-    # exactly one more rotation.
-    rotated = first.cookies.get("refresh_token")
-    client.cookies.clear()
-    client.cookies.set("refresh_token", rotated, path="/api/v1/auth")
-    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 
 @pytest.mark.integration

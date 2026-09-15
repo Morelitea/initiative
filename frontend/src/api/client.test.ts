@@ -144,6 +144,61 @@ describe("silent session renewal", () => {
     }
   });
 
+  // Every window of the app holds the same refresh cookie and renews on its
+  // own schedule. The in-tab guard above cannot see the others, so renewals are
+  // taken in turns through a lock the whole origin shares.
+  it("renews under a lock the other windows share", async () => {
+    const held: string[] = [];
+    let renewedInsideLock = false;
+    const request = vi.fn(async (name: string, run: () => Promise<unknown>) => {
+      held.push(`held:${name}`);
+      const result = await run();
+      held.push(`released:${name}`);
+      return result;
+    });
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        renewed = true;
+        // The lock is taken before the renewal and not yet let go.
+        renewedInsideLock = held.length === 1 && held[0] === "held:initiative:auth:refresh";
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+
+    try {
+      const response = await apiClient.get("/users/me");
+
+      expect(response.data).toEqual({ id: 1 });
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(renewedInsideLock).toBe(true);
+      expect(held).toEqual(["held:initiative:auth:refresh", "released:initiative:auth:refresh"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renews without a lock where the browser has no lock manager", async () => {
+    // Older browsers and some embedded views have none; renewal still works,
+    // and the in-tab guard is what keeps one window to a single attempt.
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        renewed = true;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+
+    await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
+  });
+
   it("passes a guild step-up 401 through without renewal or sign-out", async () => {
     let refreshCalls = 0;
     server.use(

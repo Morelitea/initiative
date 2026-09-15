@@ -592,9 +592,9 @@ async def refresh_access_token(
     # before the commit that spends the presented one.
     subject = (
         await subject_service.subject_for_user(
-            admin_session, user_id=result.session.user_id
+            admin_session, user_id=result.issued.session.user_id
         )
-        if result.ok and result.session is not None
+        if result.ok and result.issued is not None
         else None
     )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
@@ -607,30 +607,25 @@ async def refresh_access_token(
             logger.warning("Refresh token replay detected; revoked session chain")
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
-    live = result.session
-    user = await admin_session.get(User, live.user_id)
+    issued = result.issued
+    user = await admin_session.get(User, issued.session.user_id)
     if user is None or user.status != UserStatus.active:
         # The account was deactivated/removed after the session was minted — kill
         # the fresh session too rather than hand back a usable token.
-        await session_service.revoke_chain(admin_session, session_id=live.id)
+        await session_service.revoke_chain(admin_session, session_id=issued.session.id)
         await admin_session.commit()
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     access_token, access_max_age = mint_access_token(
         subject=subject,
         token_version=user.token_version,
-        session_id=live.id,
-        amr=live.amr,
-        satisfied_providers=live.satisfied_providers,
-        provider_auth=live.provider_auth,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
-    if result.issued is not None:
-        # A rotation hands back the token it minted. A CONTINUED answer minted
-        # none: the cookie the browser holds is the one the rotation that did
-        # happen set, and re-sending anything here could put an older value
-        # back over it.
-        set_refresh_cookie(response, result.issued.refresh_token)
+    set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 

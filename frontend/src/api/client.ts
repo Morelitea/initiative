@@ -169,11 +169,11 @@ const isCredentialRefused = (error: unknown): boolean =>
 
 // One renewal at a time across every window of this origin. Each window holds
 // the same refresh cookie and renews on its own schedule, so two waking
-// together would otherwise present the same token at once — and the answers
-// could land in either order, leaving the cookie on whichever arrived last.
-// The lock makes the second window queue and then renew from what the first
-// one left. Where the browser has no lock manager the renewal simply proceeds,
-// which is what the server's grace window is there for.
+// together would otherwise present the same token at once; the refresh token
+// is single-use, so the second is answered as a replay and the session ends.
+// The lock makes that window queue and then renew from what the first left.
+// Where a browser has no lock manager the renewal simply proceeds — that is
+// the behaviour it had before, and the in-tab guard still covers one window.
 const REFRESH_LOCK = "initiative:auth:refresh";
 
 const withRefreshLock = <T>(run: () => Promise<T>): Promise<T> => {
