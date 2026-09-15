@@ -160,6 +160,37 @@ async def test_a_sustained_run_makes_one_case(session, bound):
     assert second.opened is False
 
 
+async def test_every_occurrence_is_counted_and_moves_last_seen(session, bound):
+    """``last_seen_at`` says when the source was last seen, not when we spoke."""
+    start = datetime.now(timezone.utc)
+    first = await intake_service.open_case(
+        IntakeStream.support,
+        title="Refused sign-ins",
+        dedupe_key="refused:42",
+        now=start,
+    )
+    assert first is not None
+
+    soon = start + timedelta(minutes=1)
+    await intake_service.open_case(
+        IntakeStream.support,
+        title="Refused sign-ins",
+        dedupe_key="refused:42",
+        now=soon,
+    )
+
+    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    case = (
+        await session.exec(
+            select(IntakeCase).where(IntakeCase.task_id == first.task_id)
+        )
+    ).one()
+    assert case.occurrences == 2
+    assert case.last_seen_at == soon
+    # Inside the window, so the case is not marked again.
+    assert case.noted_at == start
+
+
 async def test_a_crossing_past_the_window_moves_the_mark(session, bound):
     start = datetime.now(timezone.utc)
     first = await intake_service.open_case(
@@ -188,6 +219,23 @@ async def test_a_crossing_past_the_window_moves_the_mark(session, bound):
         )
     ).one()
     assert case.last_seen_at == later
+    assert case.noted_at == later
+
+
+async def test_an_unkeyed_case_still_gets_a_row(session, bound):
+    """Every case is recorded, so "when did this last open one" is read."""
+    outcome = await intake_service.open_case(IntakeStream.support, title="Help")
+    assert outcome is not None
+
+    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    case = (
+        await session.exec(
+            select(IntakeCase).where(IntakeCase.task_id == outcome.task_id)
+        )
+    ).one()
+    assert case.dedupe_key is None
+    assert case.stream == IntakeStream.support
+    assert case.project_id == bound["project"].id
 
 
 async def test_a_closed_case_opens_a_new_one(session, bound):

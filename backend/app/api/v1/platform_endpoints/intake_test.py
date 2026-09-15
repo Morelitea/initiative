@@ -10,6 +10,7 @@ from app.core.intake import IntakeStream
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.platform import intake as intake_service
@@ -237,7 +238,6 @@ async def test_a_status_from_another_project_is_refused(client, session, owner):
         headers=owner["actor"].headers,
     )
     await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
-    from app.models.tenant.initiative import Initiative
     from app.models.tenant.task import TaskStatus
     from app.services.tenant import task_statuses as task_statuses_service
 
@@ -289,3 +289,112 @@ async def test_the_pointer_is_cleared_when_the_guild_goes(client, session, owner
 
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).one()
     assert row.operations_guild_id is None
+
+
+async def test_repointing_a_stream_starts_fresh_in_the_new_project(
+    client, session, owner
+):
+    """Cases are keyed by project, so a repeat follows the binding."""
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    first = await client.post(
+        "/api/v1/settings/intake/support/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    opened = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert opened is not None
+
+    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    initiative = (
+        await session.exec(
+            select(Initiative).where(Initiative.id == owner["initiative_id"])
+        )
+    ).one()
+    guild_owner = (
+        await session.exec(select(User).where(User.id == owner["guild_owner_id"]))
+    ).one()
+    elsewhere = await create_project(session, initiative, guild_owner)
+    elsewhere_id = elsewhere.id
+    await set_rls_context(session)
+
+    repointed = await client.put(
+        "/api/v1/settings/intake/support",
+        json={"project_id": elsewhere_id},
+        headers=owner["actor"].headers,
+    )
+    assert repointed.status_code == 200
+    assert repointed.json()["project_id"] == elsewhere_id
+
+    again = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert again is not None
+    assert again.opened is True
+    assert again.task_id != opened.task_id
+
+    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
+    assert landed.project_id == elsewhere_id
+    assert first.json()["project_id"] != elsewhere_id
+
+
+async def test_rebinding_the_same_project_finds_the_open_case(client, session, owner):
+    """Unbinding keeps the history, so a repeat does not open a second case."""
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    created = await client.post(
+        "/api/v1/settings/intake/support/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    project_id = created.json()["project_id"]
+    opened = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert opened is not None
+
+    await client.delete(
+        "/api/v1/settings/intake/support", headers=owner["actor"].headers
+    )
+    rebound = await client.put(
+        "/api/v1/settings/intake/support",
+        json={"project_id": project_id},
+        headers=owner["actor"].headers,
+    )
+    assert rebound.status_code == 200
+
+    again = await intake_service.open_case(
+        IntakeStream.support, title="Refused", dedupe_key="refused:42"
+    )
+    assert again is not None
+    assert again.opened is False
+    assert again.task_id == opened.task_id
+
+
+async def test_the_last_case_time_ignores_ordinary_tasks(client, owner):
+    """A blueprint's seed task is not a case, and must not read as one."""
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    created = await client.post(
+        "/api/v1/settings/intake/feedback/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert created.json()["last_case_at"] is None
+
+    await intake_service.open_case(IntakeStream.feedback, title="An idea")
+    listed = await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
+    feedback = next(b for b in listed.json()["bindings"] if b["stream"] == "feedback")
+    assert feedback["last_case_at"] is not None

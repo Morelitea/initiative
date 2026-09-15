@@ -1117,7 +1117,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # Two hops -> tasks -> projects
     "task_assignees": via_task_project("task_id"),
     # A case is read exactly as hard as the task it describes, so it hangs off
-    # the task rather than off the binding it was opened through.
+    # the task rather than off the project column it is keyed by.
     "intake_cases": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
     # Two hops -> post_polls -> posts

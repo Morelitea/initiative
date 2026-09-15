@@ -19,7 +19,7 @@ from fastapi import HTTPException, status as http_status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import IntakeStream, meta
+from app.core.intake import IntakeStream
 from app.core.messages import IntakeMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
@@ -28,7 +28,7 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
-from app.models.tenant.task import Task, TaskStatus
+from app.models.tenant.task import TaskStatus
 from app.services.platform.intake import operations_guild_id
 
 
@@ -136,24 +136,21 @@ async def _resolve_project(
     return project, initiative
 
 
-async def bind(
+async def _write_binding(
     session: AsyncSession,
     *,
     stream: IntakeStream,
+    project: Project,
     project_id: int,
-    default_status_id: Optional[int] = None,
-    enabled: bool = True,
-) -> BindingView:
-    """Route ``stream`` into ``project_id``, replacing any existing binding.
+    default_status_id: Optional[int],
+    enabled: bool,
+) -> IntakeBinding:
+    """Create or update the binding row. Routed session; flushes, no commit.
 
     A named landing status must belong to the named project; anything else is
     refused here rather than quietly ignored, because the page that sent it
     showed the owner a list of that project's statuses.
     """
-    guild_id = await _require_operations_guild(session)
-    await _route(session, guild_id)
-
-    project, initiative = await _resolve_project(session, project_id)
     if default_status_id is not None:
         named = (
             await session.exec(
@@ -183,9 +180,37 @@ async def bind(
     binding.default_status_id = default_status_id
     binding.enabled = enabled
     session.add(binding)
+    await session.flush()
+    return binding
+
+
+async def bind(
+    session: AsyncSession,
+    *,
+    stream: IntakeStream,
+    project_id: int,
+    default_status_id: Optional[int] = None,
+    enabled: bool = True,
+) -> BindingView:
+    """Route ``stream`` into ``project_id``, replacing any existing binding.
+
+    Cases are keyed by project, so repointing a stream starts fresh in the new
+    project and leaves the old one's history where the work is.
+    """
+    guild_id = await _require_operations_guild(session)
+    await _route(session, guild_id)
+
+    project, initiative = await _resolve_project(session, project_id)
+    binding = await _write_binding(
+        session,
+        stream=stream,
+        project=project,
+        project_id=project_id,
+        default_status_id=default_status_id,
+        enabled=enabled,
+    )
     await session.commit()
     await session.refresh(binding)
-
     return await _view(session, stream, binding, project, initiative)
 
 
@@ -245,25 +270,17 @@ async def _view(
                 )
             )
         ).one_or_none()
+    # Cases only — the seed task a blueprint imports and anything the team adds
+    # by hand are ordinary tasks in the project, not cases this stream opened.
     last_case_at = (
         await session.exec(
             select(IntakeCase.opened_at)
-            .where(IntakeCase.binding_id == binding.id)
+            .where(IntakeCase.project_id == binding.project_id)
+            .where(IntakeCase.stream == binding.stream)
             .order_by(IntakeCase.opened_at.desc())
             .limit(1)
         )
     ).one_or_none()
-    if last_case_at is None:
-        # A case only gets a row when the source keyed it. Everything else is
-        # findable by the tasks that landed in the project.
-        last_case_at = (
-            await session.exec(
-                select(Task.created_at)
-                .where(Task.project_id == binding.project_id)
-                .order_by(Task.created_at.desc())
-                .limit(1)
-            )
-        ).one_or_none()
     return BindingView(
         stream=stream,
         binding_id=binding.id,
@@ -331,9 +348,12 @@ async def provision_from_blueprint(
 ) -> BindingView:
     """Import the stream's blueprint into ``initiative_id`` and bind to it.
 
-    An ordinary project import: what it produces is a project the team can
-    rename, restructure and add to, and the binding only names it. The seed
-    task explains how it is fed.
+    The import and the binding are one transaction, so a deployment either
+    gains a set-up stream or is left exactly as it was. ``import_project``
+    flushes without committing, which is what lets the two compose.
+
+    An ordinary project import otherwise: what it produces is a project the
+    team can rename, restructure and add to, and the binding only names it.
     """
     from app.blueprints.intake import blueprint_for
     from app.services.tenant.project_import import import_project
@@ -360,6 +380,15 @@ async def provision_from_blueprint(
         target_initiative=initiative,
         importer=importer,
     )
+    project, _ = await _resolve_project(session, result.project_id)
+    binding = await _write_binding(
+        session,
+        stream=stream,
+        project=project,
+        project_id=result.project_id,
+        default_status_id=None,
+        enabled=True,
+    )
     await session.commit()
-    _ = meta(stream)  # a stream with no blueprint declaration fails earlier
-    return await bind(session, stream=stream, project_id=result.project_id)
+    await session.refresh(binding)
+    return await _view(session, stream, binding, project, initiative)

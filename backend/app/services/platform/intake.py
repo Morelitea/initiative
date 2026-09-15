@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -120,13 +121,34 @@ async def _binding_for(
     ).first()
 
 
+async def _hold_key(
+    session: AsyncSession, *, guild_id: int, stream: IntakeStream, dedupe_key: str
+) -> None:
+    """Hold this key for the rest of the transaction.
+
+    Two sources crossing the same line at the same moment queue here, so one
+    opens the case and the other finds it. A transaction-scoped advisory lock,
+    released by the commit or rollback that ends the transaction, and taken on
+    the writer's own session rather than anywhere near the path being watched.
+
+    The guild id is one half of the lock key, because advisory locks are
+    cluster-wide where a schema is per-guild.
+    """
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:guild, hashtext(:key))").bindparams(
+            guild=guild_id, key=f"{stream.value}:{dedupe_key}"
+        )
+    )
+
+
 async def _latest_case(
-    session: AsyncSession, *, binding_id: int, dedupe_key: str
+    session: AsyncSession, *, project_id: int, stream: IntakeStream, dedupe_key: str
 ) -> Optional[IntakeCase]:
     return (
         await session.exec(
             select(IntakeCase)
-            .where(IntakeCase.binding_id == binding_id)
+            .where(IntakeCase.project_id == project_id)
+            .where(IntakeCase.stream == stream.value)
             .where(IntakeCase.dedupe_key == dedupe_key)
             .order_by(IntakeCase.opened_at.desc())
             .limit(1)
@@ -288,18 +310,6 @@ async def open_case(
         if binding is None:
             return None
 
-        if dedupe_key is not None:
-            existing = await _latest_case(
-                session, binding_id=binding.id, dedupe_key=dedupe_key
-            )
-            if existing is not None and await _case_is_open(session, existing):
-                if existing.last_seen_at + window > moment:
-                    return CaseOutcome(task_id=existing.task_id, opened=False)
-                existing.last_seen_at = moment
-                session.add(existing)
-                await session.commit()
-                return CaseOutcome(task_id=existing.task_id, opened=False)
-
         project = (
             await session.exec(
                 select(Project)
@@ -313,6 +323,28 @@ async def open_case(
                 binding.id,
             )
             return None
+
+        if dedupe_key is not None:
+            await _hold_key(
+                session, guild_id=guild_id, stream=stream, dedupe_key=dedupe_key
+            )
+            existing = await _latest_case(
+                session,
+                project_id=project.id,
+                stream=stream,
+                dedupe_key=dedupe_key,
+            )
+            if existing is not None and await _case_is_open(session, existing):
+                # Every occurrence is counted and moves ``last_seen_at``; the
+                # window decides only how often the case is marked again, so a
+                # run in progress is not annotated once per event.
+                existing.occurrences += 1
+                existing.last_seen_at = moment
+                if existing.noted_at + window <= moment:
+                    existing.noted_at = moment
+                session.add(existing)
+                await session.commit()
+                return CaseOutcome(task_id=existing.task_id, opened=False)
 
         task = await task_creation_service.create_task_row(
             session,
@@ -330,15 +362,19 @@ async def open_case(
                 stream=stream,
                 refs=refs,
             )
-        if dedupe_key is not None:
-            session.add(
-                IntakeCase(
-                    binding_id=binding.id,
-                    task_id=task.id,
-                    dedupe_key=dedupe_key,
-                    opened_at=moment,
-                    last_seen_at=moment,
-                )
+        # Every case gets a row, keyed or not, so "when did this stream last
+        # open one" is read rather than inferred from the project's tasks.
+        session.add(
+            IntakeCase(
+                project_id=project.id,
+                stream=stream,
+                task_id=task.id,
+                dedupe_key=dedupe_key,
+                opened_at=moment,
+                last_seen_at=moment,
+                noted_at=moment,
+                occurrences=1,
             )
+        )
         await session.commit()
         return CaseOutcome(task_id=task.id, opened=True)

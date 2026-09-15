@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Security, moderation, support and feedback work can be tracked in Initiative itself** — running your own operations meant a second tool, and a ticket in it could not be assigned, discussed or closed the way the rest of your work is. A platform owner can now name one community as the place that receives operations work, and point each of the four streams at a project inside it. **Settings → Admin** takes a community and, per stream, either a project you already have or "set this up for me" — which imports a ready-made project with its own statuses (*Triage → Confirmed → Mitigated → Closed* for security, *Triage → Investigating → Awaiting response → Resolved* for the rest), the fields a case carries, and a note explaining how it is fed. What it produces is an ordinary project: rename the statuses, add your own fields, restructure it however you like, and the binding still points at it. A case is a task, so it already has assignees, per-person completion, checklists, comments, properties, tags and relations. Nothing shows up until an owner configures it, and a deployment that configures nothing is unchanged.
-
 ## [0.69.0] - 2026-09-14
 
 **Nice.**

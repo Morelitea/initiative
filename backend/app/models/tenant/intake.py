@@ -95,18 +95,32 @@ class IntakeBinding(CreatedByMixin, table=True):
 
 
 class IntakeCase(SQLModel, table=True):
-    """One case opened by the writer, keyed so a repeat can find it again."""
+    """One case the writer opened, and how often its source has recurred.
+
+    Keyed on the **project** rather than on the binding row. What the mark
+    answers is "is this incident already being worked?", and that is a question
+    about the project the work is in: repointing a stream at another project
+    starts fresh there, and unbinding and rebinding to the same one finds the
+    case that is still open.
+
+    Every case gets a row, keyed or not, so "when did this stream last open a
+    case" is answerable exactly rather than inferred from whatever tasks happen
+    to be in the project.
+    """
 
     __tablename__ = "intake_cases"
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    binding_id: int = Field(
+    project_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("intake_bindings.id", ondelete="CASCADE"),
+            ForeignKey("projects.id", ondelete="CASCADE"),
             nullable=False,
         )
+    )
+    stream: IntakeStream = Field(
+        sa_column=Column(String(length=STREAM_LENGTH), nullable=False)
     )
     task_id: int = Field(
         sa_column=Column(
@@ -117,16 +131,26 @@ class IntakeCase(SQLModel, table=True):
         )
     )
 
-    dedupe_key: str = Field(
-        sa_column=Column(String(length=DEDUPE_KEY_LENGTH), nullable=False)
+    #: NULL for a case nothing keys on — a report, a help request. A keyed case
+    #: is one a repeating source can find again.
+    dedupe_key: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=DEDUPE_KEY_LENGTH), nullable=True),
     )
 
     opened_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
-    # Stamped every time a source is seen again for this key. The window a
-    # repeating source is measured against, held as a row so every replica
-    # reads the same mark.
+    #: When the source was last seen at all. Every occurrence moves it.
     last_seen_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    #: When a recurrence was last recorded on the case. The window is measured
+    #: from here, so a run in progress does not note itself once per event.
+    noted_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    #: How many times the source has been seen, the opening included.
+    occurrences: int = Field(
+        default=1, sa_column=Column(Integer, nullable=False, server_default="1")
     )

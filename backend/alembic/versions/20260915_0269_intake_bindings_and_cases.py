@@ -3,12 +3,13 @@
 Two guild-content tables.
 
 ``intake_bindings`` says *this stream lands in that project* — one row per
-stream per guild, naming an initiative, a project and optionally the status a
-new case starts in. Guild-schema because every id on it is a per-schema id.
+stream per guild, naming a project and optionally the status a new case starts
+in. Guild-schema because every id on it is a per-schema id.
 
-``intake_cases`` is the key -> task map the writer reads to answer "is this
-already a case?", and the mark a repeating source is measured against. It is a
-row rather than process state, so every replica reads the same one.
+``intake_cases`` is one row per case the writer opened, keyed by the project
+and stream it landed in. A repeating source finds its open case there, and the
+row carries how often it has been seen and when it was last marked — state held
+in a row rather than in a process, so every replica reads the same one.
 
 RLS policies, grants and the ``created_by`` trigger are NOT written here:
 provisioning renders those from the live ``guild_template`` and the registries
@@ -74,27 +75,34 @@ def _apply_upgrade() -> None:
         "intake_cases",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
-            "binding_id",
+            "project_id",
             sa.Integer(),
-            sa.ForeignKey("intake_bindings.id", ondelete="CASCADE"),
+            sa.ForeignKey("projects.id", ondelete="CASCADE"),
             nullable=False,
         ),
+        sa.Column("stream", sa.String(length=32), nullable=False),
         sa.Column(
             "task_id",
             sa.Integer(),
             sa.ForeignKey("tasks.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("dedupe_key", sa.String(length=200), nullable=False),
+        sa.Column("dedupe_key", sa.String(length=200), nullable=True),
         sa.Column("opened_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("noted_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "occurrences", sa.Integer(), nullable=False, server_default=sa.text("1")
+        ),
+        sa.CheckConstraint(f"stream IN ({streams})", name="ck_intake_cases_stream"),
     )
     op.create_index("ix_intake_cases_task_id", "intake_cases", ["task_id"])
-    # The writer's only read: the latest case for a key.
+    # The writer's two reads: the latest keyed case for a stream in a project,
+    # and the latest case of any kind for the settings page.
     op.create_index(
         "ix_intake_cases_key",
         "intake_cases",
-        ["binding_id", "dedupe_key", sa.text("opened_at DESC")],
+        ["project_id", "stream", "dedupe_key", sa.text("opened_at DESC")],
     )
 
 
