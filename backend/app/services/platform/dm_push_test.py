@@ -14,6 +14,7 @@ either half stops being recorded.
 """
 
 import base64
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -77,6 +78,7 @@ async def _channel(client, session, a, b, *, seed=44):
     created = await client.post(
         "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
     )
+    assert created.status_code in (200, 201), created.text
     return created.json()["id"], device_id, sender_device, sender_headers
 
 
@@ -166,6 +168,65 @@ class TestTheLink:
         device = await session.get(DmDevice, device_id)
         await session.refresh(device)
         assert device.device_token_id is not None
+
+    async def test_one_installation_is_named_by_one_key_store(
+        self, client, session, acting_user
+    ):
+        """Taking the link moves it rather than copying it.
+
+        Two key stores naming the same installation cannot both be woken by it —
+        a push goes to the one installation either way — so the one that is no
+        longer collecting under it would look linked and silently receive
+        nothing.
+        """
+        a = await acting_user()
+        first, headers = await _install(client, session, a, seed=13)
+        # A second key store on the same account, collected under the first
+        # installation's credential.
+        registered = await client.post(
+            "/api/v1/me/dm/devices", json=_registration(21), headers=a.headers
+        )
+        second = registered.json()["devices"][-1]["id"]
+
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={second}", headers=headers
+        )
+        assert collected.status_code == 200, collected.text
+
+        links = {
+            row.id: row.device_token_id
+            for row in (
+                await session.exec(
+                    select(DmDevice).where(DmDevice.user_id == a.user.id)
+                )
+            ).all()
+        }
+        await session.commit()
+        assert links[uuid.UUID(second)] is not None
+        assert links[uuid.UUID(first)] is None
+
+    async def test_re_registering_takes_the_link_off_the_row_it_replaces(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        first, headers = await _install(client, session, a, seed=15)
+
+        registered = await client.post(
+            "/api/v1/me/dm/devices", json=_registration(31), headers=headers
+        )
+        assert registered.status_code == 201, registered.text
+
+        links = {
+            row.id: row.device_token_id
+            for row in (
+                await session.exec(
+                    select(DmDevice).where(DmDevice.user_id == a.user.id)
+                )
+            ).all()
+        }
+        await session.commit()
+        assert links[uuid.UUID(first)] is None
+        assert sum(1 for value in links.values() if value is not None) == 1
 
 
 class TestDelivery:
@@ -297,6 +358,45 @@ class TestWakingOwnDevices:
         # one that has to be picked up.
         assert send.await_args.kwargs["push_token"] == "fcm-token-9"
         assert send.await_args.kwargs["data"]["target_path"] == "/messages"
+
+    async def test_a_wake_obeys_the_message_push_preference(
+        self, client, session, acting_user
+    ):
+        """It rides the messages channel and is the account's own notice to
+        itself, so somebody who switched message push off has said it about this
+        too."""
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, _, sender_device, sender_headers = await _channel(
+            client, session, a, b
+        )
+        await _install(client, session, a, seed=17)
+        await set_notification_prefs(
+            session, a.user, {"categories": {"direct_messages": {"push": False}}}
+        )
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+                json={
+                    "messages": [
+                        {
+                            "recipient_device_id": sender_device,
+                            "message_type": 0,
+                            "payload": base64.b64encode(b"ask").decode(),
+                        }
+                    ],
+                    "silent": True,
+                    "wake_own_devices": True,
+                },
+                headers=sender_headers,
+            )
+
+        assert send.await_count == 0
 
     async def test_an_ordinary_silent_send_still_wakes_nobody(
         self, client, session, acting_user

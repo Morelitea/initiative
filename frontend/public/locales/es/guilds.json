@@ -252,6 +252,7 @@
     "commentReaction": "{{reactorName}} reaccionó {{emoji}} a tu comentario en {{contextTitle}}.",
     "directMessage": "{{senderName}} te envió un mensaje.",
     "directMessageMany": "{{senderName}} te envió {{count}} mensajes.",
+    "someone": "Alguien",
     "connectionRequested": "{{actorName}} quiere conectar contigo.",
     "connectionAccepted": "{{actorName}} aceptó tu solicitud de conexión.",
     "messageRequestReceived": "{{actorName}} quiere enviarte mensajes.",

@@ -335,19 +335,19 @@ export const notificationText = (
     // message these are not opaque to the server, so the line can name who.
     case "connection_requested":
       return t("notifications.connectionRequested", {
-        actorName: data.actor_name ?? "Someone",
+        actorName: data.actor_name ?? t("notifications.someone"),
       });
     case "connection_accepted":
       return t("notifications.connectionAccepted", {
-        actorName: data.actor_name ?? "Someone",
+        actorName: data.actor_name ?? t("notifications.someone"),
       });
     case "message_request_received":
       return t("notifications.messageRequestReceived", {
-        actorName: data.actor_name ?? "Someone",
+        actorName: data.actor_name ?? t("notifications.someone"),
       });
     case "message_request_accepted":
       return t("notifications.messageRequestAccepted", {
-        actorName: data.actor_name ?? "Someone",
+        actorName: data.actor_name ?? t("notifications.someone"),
       });
     case "comment_reaction": {
       const { reactorName, emoji, others } = reactionSummary(data);

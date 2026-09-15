@@ -116,6 +116,12 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
     No bell line: the ask is already on screen on the device that made it, and a
     second copy in the recipient's inbox would outlive the request. The one that
     sent it is skipped -- it is the device already showing the notice.
+
+    It goes out on the same terms as a message: the account's push preference
+    and its quiet hours both apply. This rides the messages channel and is the
+    account's own notice to itself, so somebody who has said they do not want
+    messages waking them has said it about this too -- and nothing here expires,
+    so an ask held until morning is an ask that still works.
     """
     from app.db.session import AdminSessionLocal
 
@@ -123,6 +129,15 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
         async with AdminSessionLocal() as session:
             user = await session.get(User, user_id)
             if user is None:
+                return
+            prefs = await notification_prefs.load_prefs_for_delivery(user_id)
+            if notification_prefs.in_quiet_hours(prefs, tz_name=user.timezone):
+                return
+            if not notification_prefs.wants(
+                prefs,
+                notification_type=NotificationType.direct_message,
+                channel=Channel.push,
+            ):
                 return
             token_ids = await _dm_device_token_ids(session, user_id)
             token_ids.discard(except_device_token_id)
