@@ -15,6 +15,10 @@ class IntakeBindingRead(SanitizedBaseModel):
     binding_id: Optional[int] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
+    #: The bound project has been archived or trashed. Archived content takes
+    #: no writes, so the stream receives nothing until it is brought back or
+    #: pointed at a live project.
+    project_archived: bool = False
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     default_status_id: Optional[int] = None

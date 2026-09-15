@@ -55,9 +55,21 @@ export const SettingsIntakePage = () => {
   const { user } = useAuth();
   const isOwner = hasCapability(user, Capability.configManage);
 
-  const { data: settings, isLoading } = useIntakeSettings({ enabled: isOwner });
-  const { data: options } = useIntakeOptions({ enabled: isOwner });
+  const {
+    data: settings,
+    isLoading,
+    isFetching: settingsFetching,
+    isError,
+    refetch,
+  } = useIntakeSettings({ enabled: isOwner });
+  const { data: options, isFetching: optionsFetching } = useIntakeOptions({
+    enabled: isOwner,
+  });
   const { data: guilds } = usePlatformGuilds({ enabled: isOwner });
+
+  // Until both reads agree, the bindings and the projects they could name can
+  // be from different communities, so nothing that writes one is offered.
+  const settled = !settingsFetching && !optionsFetching;
 
   const [clearing, setClearing] = useState(false);
 
@@ -67,6 +79,25 @@ export const SettingsIntakePage = () => {
 
   if (!isOwner) {
     return <p className="text-muted-foreground text-sm">{t("ownerOnly")}</p>;
+  }
+
+  // A read that failed is a different state from a deployment that has
+  // configured nothing, and says so. The picker stays out of reach until the
+  // current value is known.
+  if (isError) {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("loadFailed.title")}</CardTitle>
+          <CardDescription>{t("loadFailed.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => refetch()}>
+            {t("loadFailed.retry")}
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   const boundGuildId = settings?.operations_guild_id ?? null;
@@ -82,7 +113,7 @@ export const SettingsIntakePage = () => {
           <Label htmlFor="operations-guild">{t("guild.label")}</Label>
           <Select
             value={boundGuildId === null ? NONE : String(boundGuildId)}
-            disabled={isLoading || updateGuild.isPending}
+            disabled={isLoading || !settled || updateGuild.isPending}
             onValueChange={(value) => {
               // Clearing it stops every stream at once, so it is confirmed;
               // choosing a different one is an ordinary change.
@@ -118,6 +149,7 @@ export const SettingsIntakePage = () => {
               key={binding.stream}
               binding={binding}
               initiatives={options?.initiatives ?? []}
+              settled={settled}
             />
           ))}
         </div>
@@ -138,9 +170,11 @@ export const SettingsIntakePage = () => {
 interface StreamCardProps {
   binding: IntakeBindingRead;
   initiatives: IntakeInitiativeOption[];
+  /** Both reads have settled, so bindings and options describe one community. */
+  settled: boolean;
 }
 
-const StreamCard = ({ binding, initiatives }: StreamCardProps) => {
+const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
   const { t } = useTranslation("intake");
   const stream = binding.stream as IntakeStream;
 
@@ -177,7 +211,7 @@ const StreamCard = ({ binding, initiatives }: StreamCardProps) => {
     [projects, binding.project_id]
   );
 
-  const busy = importBlueprint.isPending || upsert.isPending || remove.isPending;
+  const busy = !settled || importBlueprint.isPending || upsert.isPending || remove.isPending;
 
   // Each stream's card is a landmark named by its own title, so a screen
   // reader announces which stream a control belongs to rather than reading
@@ -194,6 +228,11 @@ const StreamCard = ({ binding, initiatives }: StreamCardProps) => {
           </div>
           {binding.project_id === null ? (
             <Badge variant="outline">{t("stream.notSetUp")}</Badge>
+          ) : binding.project_archived ? (
+            // Archived content takes no writes, so this stream receives
+            // nothing however its own switch is set. Say that, rather than
+            // "Receiving".
+            <Badge variant="destructive">{t("stream.destinationArchived")}</Badge>
           ) : (
             <Badge variant={binding.enabled ? "default" : "secondary"}>
               {binding.enabled ? t("stream.receiving") : t("stream.paused")}
@@ -270,6 +309,14 @@ const StreamCard = ({ binding, initiatives }: StreamCardProps) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* An archived project is not offered as a destination, so
+                      the one already bound has to name itself or the control
+                      would render blank. */}
+                  {binding.project_archived && (
+                    <SelectItem value={String(binding.project_id)} disabled>
+                      {t("stream.archivedOption", { name: binding.project_name ?? "" })}
+                    </SelectItem>
+                  )}
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={String(project.id)}>
                       {project.initiativeName} › {project.name}
@@ -277,9 +324,13 @@ const StreamCard = ({ binding, initiatives }: StreamCardProps) => {
                   ))}
                 </SelectContent>
               </Select>
-              {/* Repointing starts fresh in the new project: an incident still
-                  open in the old one stays where the work on it is. */}
-              <p className="text-muted-foreground text-xs">{t("stream.repointNote")}</p>
+              {binding.project_archived ? (
+                <p className="text-destructive text-sm">{t("stream.archivedNote")}</p>
+              ) : (
+                /* Repointing starts fresh in the new project: an incident still
+                   open in the old one stays where the work on it is. */
+                <p className="text-muted-foreground text-xs">{t("stream.repointNote")}</p>
+              )}
             </div>
 
             <div className="space-y-2">

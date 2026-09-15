@@ -21,6 +21,8 @@ const guildMutate = vi.fn();
 const state = vi.hoisted(() => ({
   operationsGuildId: null as number | null,
   bindings: [] as Array<Record<string, unknown>>,
+  isError: false,
+  isFetching: false,
 }));
 
 const unbound = (stream: string) => ({
@@ -34,20 +36,27 @@ const unbound = (stream: string) => ({
   default_status_name: null,
   enabled: false,
   last_case_at: null,
+  project_archived: false,
 });
 
 const STREAMS = ["security", "moderation", "support", "feedback"];
 
 vi.mock("@/hooks/useIntakeSettings", () => ({
   useIntakeSettings: () => ({
-    data: {
-      operations_guild_id: state.operationsGuildId,
-      operations_guild_name: state.operationsGuildId ? "Operations" : null,
-      bindings: state.bindings,
-    },
+    data: state.isError
+      ? undefined
+      : {
+          operations_guild_id: state.operationsGuildId,
+          operations_guild_name: state.operationsGuildId ? "Operations" : null,
+          bindings: state.bindings,
+        },
     isLoading: false,
+    isFetching: state.isFetching,
+    isError: state.isError,
+    refetch: vi.fn(),
   }),
   useIntakeOptions: () => ({
+    isFetching: false,
     data: {
       initiatives: [
         {
@@ -90,6 +99,8 @@ describe("SettingsIntakePage", () => {
     guildMutate.mockClear();
     state.operationsGuildId = null;
     state.bindings = STREAMS.map(unbound);
+    state.isError = false;
+    state.isFetching = false;
   });
 
   it("offers nothing to bind until a community is named", () => {
@@ -155,6 +166,59 @@ describe("SettingsIntakePage", () => {
     renderPage("operator");
     expect(
       screen.getByText("Only platform owners can configure where operations work lands.")
+    ).toBeInTheDocument();
+  });
+
+  it("says the read failed rather than showing an unconfigured deployment", () => {
+    // The page shows the failure and withholds the picker, so a change is only
+    // made against a value that was actually read.
+    state.isError = true;
+    state.operationsGuildId = 3;
+    renderPage();
+
+    expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Community" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Choose a community above, then say where each stream lands.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no destination while the two reads disagree", () => {
+    // Mid-refetch the bindings and the projects they could name can be from
+    // different communities.
+    state.operationsGuildId = 3;
+    state.isFetching = true;
+    renderPage();
+
+    expect(screen.getByRole("combobox", { name: "Community" })).toBeDisabled();
+    const card = screen.getByRole("region", { name: "Security" });
+    expect(within(card).getByRole("button", { name: "Set this up for me" })).toBeDisabled();
+  });
+
+  it("says a stream whose project was archived receives nothing", () => {
+    state.operationsGuildId = 3;
+    state.bindings = [
+      {
+        ...unbound("security"),
+        binding_id: 1,
+        project_id: 99,
+        project_name: "Old Security",
+        initiative_id: 7,
+        initiative_name: "Trust and Safety",
+        enabled: true,
+        project_archived: true,
+      },
+      ...STREAMS.slice(1).map(unbound),
+    ];
+    renderPage();
+
+    const card = screen.getByRole("region", { name: "Security" });
+    expect(within(card).getByText("Destination archived")).toBeInTheDocument();
+    expect(within(card).queryByText("Receiving")).not.toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
+      )
     ).toBeInTheDocument();
   });
 });

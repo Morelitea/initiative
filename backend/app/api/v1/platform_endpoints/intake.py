@@ -45,6 +45,7 @@ def _read(view: BindingView) -> IntakeBindingRead:
         binding_id=view.binding_id,
         project_id=view.project_id,
         project_name=view.project_name,
+        project_archived=view.project_archived,
         initiative_id=view.initiative_id,
         initiative_name=view.initiative_name,
         default_status_id=view.default_status_id,

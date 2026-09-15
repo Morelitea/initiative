@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import text
 from sqlmodel import select
@@ -444,3 +446,70 @@ async def test_a_member_cannot_read_the_options(client, acting_user):
         "/api/v1/settings/intake/options", headers=actor.headers
     )
     assert response.status_code == 403
+
+
+async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, owner):
+    """Archived content takes no writes, so a case could never land there."""
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    initiative = (
+        await session.exec(
+            select(Initiative).where(Initiative.id == owner["initiative_id"])
+        )
+    ).one()
+    guild_owner = (
+        await session.exec(select(User).where(User.id == owner["guild_owner_id"]))
+    ).one()
+    shelved = await create_project(
+        session, initiative, guild_owner, archived_at=datetime.now(timezone.utc)
+    )
+    shelved_id = shelved.id
+    await set_rls_context(session)
+
+    response = await client.put(
+        "/api/v1/settings/intake/support",
+        json={"project_id": shelved_id},
+        headers=owner["actor"].headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INTAKE_PROJECT_NOT_LIVE"
+
+
+async def test_a_binding_says_when_its_project_has_been_archived(
+    client, session, owner
+):
+    """Archiving the destination later is a state the page has to show."""
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    created = await client.post(
+        "/api/v1/settings/intake/support/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert created.json()["project_archived"] is False
+    project_id = created.json()["project_id"]
+
+    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    project = (
+        await session.exec(select(Project).where(Project.id == project_id))
+    ).one()
+    project.archived_at = datetime.now(timezone.utc)
+    session.add(project)
+    await session.commit()
+    await set_rls_context(session)
+
+    listed = await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
+    support = next(b for b in listed.json()["bindings"] if b["stream"] == "support")
+    assert support["project_archived"] is True
+    assert support["project_name"] == "Support"
+
+    # And nothing lands there while it is archived, rather than the database
+    # refusing the write.
+    assert await intake_service.open_case(IntakeStream.support, title="Help") is None

@@ -54,6 +54,14 @@
     "unbindBody": "The project and every case in it stay. Pointing the stream back at the same project picks up where it left off.",
     "createdToast": "{{name}} is set up and receiving.",
     "unboundToast": "That stream is no longer routed.",
-    "saveError": "Could not save that change."
+    "saveError": "Could not save that change.",
+    "destinationArchived": "Destination archived",
+    "archivedOption": "{{name}} (archived)",
+    "archivedNote": "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
+  },
+  "loadFailed": {
+    "title": "Could not load these settings",
+    "description": "Nothing has been changed. Try again, and if it keeps failing the server log will say why.",
+    "retry": "Try again"
   }
 }

@@ -54,6 +54,14 @@
     "unbindBody": "Das Projekt und alle Vorgänge darin bleiben. Wenn du den Kanal wieder auf dasselbe Projekt richtest, geht es dort weiter.",
     "createdToast": "{{name}} ist eingerichtet und empfängt.",
     "unboundToast": "Dieser Kanal wird nicht mehr weitergeleitet.",
-    "saveError": "Die Änderung konnte nicht gespeichert werden."
+    "saveError": "Die Änderung konnte nicht gespeichert werden.",
+    "destinationArchived": "Ziel archiviert",
+    "archivedOption": "{{name}} (archiviert)",
+    "archivedNote": "Dieses Projekt ist archiviert, es kann also nichts darin landen. Hol es zurück oder richte diesen Kanal auf ein aktives Projekt."
+  },
+  "loadFailed": {
+    "title": "Diese Einstellungen konnten nicht geladen werden",
+    "description": "Es wurde nichts geändert. Versuche es erneut; wenn es weiter fehlschlägt, steht der Grund im Server-Log.",
+    "retry": "Erneut versuchen"
   }
 }

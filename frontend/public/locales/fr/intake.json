@@ -54,6 +54,14 @@
     "unbindBody": "Le projet et tous ses cas restent. Rediriger le canal vers le même projet reprend là où il s'était arrêté.",
     "createdToast": "{{name}} est configuré et reçoit.",
     "unboundToast": "Ce canal n'est plus dirigé.",
-    "saveError": "Impossible d'enregistrer cette modification."
+    "saveError": "Impossible d'enregistrer cette modification.",
+    "destinationArchived": "Destination archivée",
+    "archivedOption": "{{name}} (archivé)",
+    "archivedNote": "Ce projet est archivé, rien ne peut donc y arriver. Restaurez-le, ou dirigez ce canal vers un projet actif."
+  },
+  "loadFailed": {
+    "title": "Impossible de charger ces paramètres",
+    "description": "Rien n'a été modifié. Réessayez ; si l'échec persiste, le journal du serveur en donnera la raison.",
+    "retry": "Réessayer"
   }
 }

@@ -54,6 +54,14 @@
     "unbindBody": "El proyecto y todos sus casos se quedan. Si vuelves a dirigir el canal al mismo proyecto, continúa donde lo dejó.",
     "createdToast": "{{name}} está configurado y recibiendo.",
     "unboundToast": "Ese canal ya no está dirigido.",
-    "saveError": "No se pudo guardar ese cambio."
+    "saveError": "No se pudo guardar ese cambio.",
+    "destinationArchived": "Destino archivado",
+    "archivedOption": "{{name}} (archivado)",
+    "archivedNote": "Este proyecto está archivado, así que nada puede llegar a él. Recupéralo o dirige este canal a un proyecto activo."
+  },
+  "loadFailed": {
+    "title": "No se pudieron cargar estos ajustes",
+    "description": "No se ha cambiado nada. Inténtalo de nuevo; si sigue fallando, el registro del servidor dirá por qué.",
+    "retry": "Reintentar"
   }
 }

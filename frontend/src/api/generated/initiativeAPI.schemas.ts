@@ -4400,6 +4400,7 @@ export interface IntakeBindingRead {
   binding_id?: number | null;
   project_id?: number | null;
   project_name?: string | null;
+  project_archived?: boolean;
   initiative_id?: number | null;
   initiative_name?: string | null;
   default_status_id?: number | null;
