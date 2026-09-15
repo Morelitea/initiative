@@ -560,17 +560,8 @@
     "mobileCallback": "Callback de app móvil:",
     "mappingsTitle": "Mapeo de claims OIDC",
     "mappingsDescription": "Mapea valores de claims de tu proveedor de identidad a membresías de comunidades e iniciativas.",
-    "claimPathCardTitle": "Ruta del claim OIDC",
-    "claimPathCardDescription": "Ruta en notación de punto al arreglo de claims en el token OIDC. Rutas comunes:",
-    "claimPathLabel": "Ruta del claim",
-    "claimPathPlaceholder": "ej. roles o realm_access.roles",
-    "claimPathHelp": "La ruta separada por puntos al claim en el token de ID. Deja en blanco si no es necesario.",
-    "claimPathSave": "Guardar",
-    "claimPathSaving": "Guardando…",
     "updateClaimPath": "Actualizar",
     "updatingClaimPath": "Actualizando…",
-    "claimPathSuccess": "Ruta del claim actualizada",
-    "claimPathError": "No se pudo actualizar la ruta del claim",
     "rulesTitle": "Reglas de mapeo",
     "rulesDescription": "Mapea valores de claims OIDC a membresías de comunidades e iniciativas.",
     "addRule": "Agregar regla",
@@ -629,7 +620,10 @@
       "platformExplained": "El inicio de sesión es de la plataforma: los proveedores de abajo sirven a todas las comunidades, y una comunidad no puede añadir el suyo. Cuál de las dos usa esta instancia se decide al desplegarla, no aquí.",
       "guildExplained": "Las comunidades pueden añadir sus propios proveedores junto a los de abajo, y se entra a una sola cuenta sea cual sea. Cuál de las dos usa esta instancia se decide al desplegarla, no aquí."
     },
-    "deploymentTitle": "Esta instalación"
+    "deploymentTitle": "Esta instalación",
+    "mappingProvider": "Proveedor",
+    "mappingProviderPlaceholder": "Qué proveedor declara este claim",
+    "mappingProviderHelp": "Una regla se aplica a un proveedor. Entrar por otro ni la lee ni deshace lo que hizo."
   },
   "platformUsers": {
     "title": "Usuarios de la plataforma",
@@ -1101,7 +1095,10 @@
     "deleted": "Proveedor eliminado",
     "saveError": "No se pudo guardar el proveedor",
     "deleteError": "No se pudo eliminar el proveedor",
-    "callbackLabel": "URL de retorno"
+    "callbackLabel": "URL de retorno",
+    "claimPathLabel": "Claim de grupos",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Dónde pone este proveedor los grupos de una persona en el token. Keycloak los anida en realm_access.roles; la mayoría usa groups o roles. Las reglas de abajo lo leen."
   },
   "aiConnections": {
     "title": "Conexiones",

@@ -19,6 +19,7 @@ from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
+    create_auth_provider,
     guild_administration,
     create_guild,
     create_guild_membership,
@@ -146,6 +147,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
         session, user=owner, guild=guild, role=GuildRole.admin
     )
     initiative = await create_initiative(session, guild=guild, creator=owner)
+    provider = await create_auth_provider(session)
 
     headers = get_auth_headers(owner)
     options = (
@@ -160,6 +162,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     resp = await client.post(
         "/api/v1/settings/oidc-mappings",
         json={
+            "provider_id": provider.id,
             "claim_value": "eng-team",
             "target_type": "initiative",
             "guild_id": guild.id,
@@ -174,6 +177,9 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     # Denormalized names are resolved from the guild schema for display.
     assert body["initiative_name"] == initiative.name
     assert body["initiative_role_name"] == role["name"]
+    # And whose claim it reads, named for the editor that lists rules from several.
+    assert body["provider_id"] == provider.id
+    assert body["provider_name"] == provider.display_name
 
 
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
@@ -187,49 +193,6 @@ _NON_OWNER_ROLES = [
     UserRole.moderator,
     UserRole.operator,
 ]
-
-
-@pytest.mark.integration
-async def test_claim_path_persists_before_provider_configured(
-    client: AsyncClient,
-    session: AsyncSession,
-) -> None:
-    """Setting the claim path through the real request path with NO platform
-    provider row yet must persist a dormant skeleton row — and survive into an
-    independent follow-up request (not just the writing request's session)."""
-    from app.models.platform.auth_provider import AuthProvider
-    from sqlmodel import select as sql_select
-
-    owner = await create_user(
-        session, email="owner-claimpath@example.com", role=UserRole.owner
-    )
-    headers = get_auth_headers(owner)
-
-    put = await client.put(
-        "/api/v1/settings/oidc-mappings/claim-path",
-        headers=headers,
-        json={"claim_path": "groups"},
-    )
-    assert put.status_code == 200, put.text
-    assert put.json()["claim_path"] == "groups"
-
-    # Independent DB read: the skeleton row landed and is dormant.
-    session.expire_all()
-    row = (
-        await session.exec(
-            sql_select(AuthProvider).where(
-                AuthProvider.slug == "oidc", AuthProvider.guild_id.is_(None)
-            )
-        )
-    ).one()
-    assert row.role_claim_path == "groups"
-    assert row.enabled is False
-    assert row.issuer is None
-
-    # And a second real request reads it back.
-    got = await client.get("/api/v1/settings/oidc-mappings", headers=headers)
-    assert got.status_code == 200
-    assert got.json()["claim_path"] == "groups"
 
 
 @pytest.mark.integration
@@ -260,7 +223,6 @@ async def test_oidc_mapping_endpoints_reject_non_owner(
                 "guild_role": "member",
             },
         ),
-        ("put", "/api/v1/settings/oidc-mappings/claim-path", {"claim_path": "groups"}),
         ("put", "/api/v1/settings/oidc-mappings/1", {"claim_value": "x"}),
         ("delete", "/api/v1/settings/oidc-mappings/1", None),
     ]

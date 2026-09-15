@@ -358,7 +358,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 role_display_name=role_ref.display_name if role_ref else None,
                 is_manager=role_ref.is_manager if role_ref else False,
                 joined_at=membership.joined_at,
-                oidc_managed=membership.oidc_managed,
+                oidc_managed=membership.oidc_provider_id is not None,
                 **member_tool_flags(initiative, membership),
             )
         )

@@ -560,17 +560,8 @@
     "mobileCallback": "Callback der mobilen App:",
     "mappingsTitle": "OIDC-Claim-Zuordnungen",
     "mappingsDescription": "Ordne Claim-Werte von deinem Identitätsanbieter Community- und Initiativen-Mitgliedschaften zu.",
-    "claimPathCardTitle": "OIDC-Claim-Pfad",
-    "claimPathCardDescription": "Pfad in Punktnotation zum Claim-Array im OIDC-Token. Gängige Pfade:",
-    "claimPathLabel": "Claim-Pfad",
-    "claimPathPlaceholder": "z. B. roles oder realm_access.roles",
-    "claimPathHelp": "Der durch Punkte getrennte Pfad zum Claim im ID-Token. Lass das Feld leer, falls nicht benötigt.",
-    "claimPathSave": "Speichern",
-    "claimPathSaving": "Speichern…",
     "updateClaimPath": "Aktualisieren",
     "updatingClaimPath": "Wird aktualisiert…",
-    "claimPathSuccess": "Claim-Pfad aktualisiert",
-    "claimPathError": "Claim-Pfad konnte nicht aktualisiert werden",
     "rulesTitle": "Zuordnungsregeln",
     "rulesDescription": "Ordne OIDC-Claim-Werte Community- und Initiativen-Mitgliedschaften zu.",
     "addRule": "Regel hinzufügen",
@@ -629,7 +620,10 @@
       "platformExplained": "Die Anmeldung gehört der Plattform: Die Anbieter unten gelten für jede Community, und eine Community kann keinen eigenen hinzufügen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier.",
       "guildExplained": "Communities können neben den unten aufgeführten eigene Anbieter hinzufügen; angemeldet wird man weiterhin an einem Konto, egal über welchen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier."
     },
-    "deploymentTitle": "Diese Installation"
+    "deploymentTitle": "Diese Installation",
+    "mappingProvider": "Anbieter",
+    "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
+    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat."
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
@@ -1101,7 +1095,10 @@
     "deleted": "Anbieter gelöscht",
     "saveError": "Anbieter konnte nicht gespeichert werden",
     "deleteError": "Anbieter konnte nicht gelöscht werden",
-    "callbackLabel": "Callback-URL"
+    "callbackLabel": "Callback-URL",
+    "claimPathLabel": "Gruppen-Claim",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn."
   },
   "aiConnections": {
     "title": "Verbindungen",

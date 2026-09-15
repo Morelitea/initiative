@@ -142,6 +142,9 @@ async def _refresh_and_sync_identity(
     sync_result = await sync_oidc_assignments(
         session,
         user_id=user.id,
+        # The link being refreshed says whose claims these are, so the
+        # reconciliation reaches only what that provider granted.
+        provider_id=identity.provider_id,
         claim_values=claim_values,
     )
     logger.info(

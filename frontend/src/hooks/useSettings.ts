@@ -23,7 +23,6 @@ import type {
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
-  OIDCClaimPathUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
@@ -61,7 +60,6 @@ import {
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateStorageSettingsApiV1SettingsStoragePut,
@@ -333,17 +331,6 @@ export const useUpdateGuildStorage = (
   );
 
 // ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
-
-export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPathUpdate>) =>
-  useApiMutation<void, OIDCClaimPathUpdate>(
-    {
-      mutationFn: async (data) => {
-        await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
-      },
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
 
 export const useCreateOidcMapping = (
   options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>

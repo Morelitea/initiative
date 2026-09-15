@@ -22,6 +22,7 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
@@ -38,8 +39,6 @@ from app.schemas.platform.settings import (
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
-    OIDCClaimPathResponse,
-    OIDCClaimPathUpdate,
     OIDCMappingOptionsResponse,
     OIDCMappingsResponse,
     OIDCSettingsResponse,
@@ -741,6 +740,17 @@ async def _enrich_mapping(
     initiative_name = None
     initiative_role_name = None
 
+    # Which provider's claims this rule reads, by name — the editor lists rules
+    # from several and the value alone does not say whose it is.
+    provider_name = None
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.id == mapping.provider_id)
+        )
+    ).one_or_none()
+    if provider:
+        provider_name = provider.display_name
+
     guild = (
         await session.exec(select(Guild).where(Guild.id == mapping.guild_id))
     ).one_or_none()
@@ -763,6 +773,8 @@ async def _enrich_mapping(
 
     return OIDCClaimMappingRead(
         id=mapping.id,
+        provider_id=mapping.provider_id,
+        provider_name=provider_name,
         claim_value=mapping.claim_value,
         target_type=mapping.target_type.value
         if isinstance(mapping.target_type, OIDCMappingTargetType)
@@ -790,20 +802,6 @@ async def get_oidc_mappings(
         claim_path=provider.role_claim_path if provider else None,
         mappings=enriched,
     )
-
-
-@router.put("/oidc-mappings/claim-path")
-async def update_oidc_claim_path(
-    payload: OIDCClaimPathUpdate,
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCClaimPathResponse:
-    # The role-claim path lives on the platform provider row; setting it
-    # before the provider is configured creates a dormant skeleton row.
-    claim_path = await platform_provider_service.set_platform_claim_path(
-        session, payload.claim_path
-    )
-    return OIDCClaimPathResponse(claim_path=claim_path)
 
 
 @router.post(
@@ -869,6 +867,7 @@ async def create_oidc_mapping(
             )
 
     mapping = OIDCClaimMapping(
+        provider_id=payload.provider_id,
         claim_value=payload.claim_value.strip(),
         target_type=target_type,
         guild_id=payload.guild_id,

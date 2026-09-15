@@ -260,6 +260,9 @@ class StorageBackfillStatusResponse(SanitizedBaseModel):
 
 
 class OIDCClaimMappingCreate(SanitizedBaseModel):
+    #: Whose claim this rule reads. Required: a claim value means nothing
+    #: until you know which provider asserted it.
+    provider_id: int
     claim_value: str = Field(min_length=1, max_length=500)
     target_type: str  # "guild" or "initiative"
     guild_id: int
@@ -269,6 +272,7 @@ class OIDCClaimMappingCreate(SanitizedBaseModel):
 
 
 class OIDCClaimMappingUpdate(SanitizedBaseModel):
+    provider_id: Optional[int] = None
     claim_value: Optional[str] = Field(default=None, min_length=1, max_length=500)
     target_type: Optional[str] = None
     guild_id: Optional[int] = None
@@ -281,12 +285,14 @@ class OIDCClaimMappingRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: int
+    provider_id: int
     claim_value: str
     target_type: str
     guild_id: int
     guild_role: str
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
+    provider_name: Optional[str] = None
     guild_name: Optional[str] = None
     initiative_name: Optional[str] = None
     initiative_role_name: Optional[str] = None

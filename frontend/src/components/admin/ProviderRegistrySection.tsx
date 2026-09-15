@@ -58,6 +58,7 @@ interface ProviderFormState {
   client_id: string;
   client_secret: string;
   scopes: string;
+  role_claim_path: string;
   allow_jit: boolean;
   enabled: boolean;
 }
@@ -69,6 +70,7 @@ const EMPTY_FORM: ProviderFormState = {
   client_id: "",
   client_secret: "",
   scopes: "openid email profile",
+  role_claim_path: "",
   allow_jit: true,
   enabled: true,
 };
@@ -158,6 +160,7 @@ export const ProviderRegistrySection = ({
       client_id: provider.client_id ?? "",
       client_secret: "",
       scopes: provider.scopes ?? "",
+      role_claim_path: provider.role_claim_path ?? "",
       allow_jit: provider.allow_jit,
       enabled: provider.enabled,
     });
@@ -193,6 +196,7 @@ export const ProviderRegistrySection = ({
             issuer: form.issuer,
             client_id: form.client_id,
             scopes: form.scopes || null,
+            role_claim_path: form.role_claim_path.trim() || null,
             allow_jit: form.allow_jit,
             enabled: form.enabled,
             // Write-only secret: absent keeps, empty string clears.
@@ -418,6 +422,21 @@ export const ProviderRegistrySection = ({
                 value={form.scopes}
                 onChange={(event) => setForm((prev) => ({ ...prev, scopes: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1">
+              {/* Whose groups these are and how this provider spells them.
+                  Rules below read it, and each provider spells it its own
+                  way — Keycloak nests roles, Entra flattens them. */}
+              <Label htmlFor="provider-claim-path">{t("authProviders.claimPathLabel")}</Label>
+              <Input
+                id="provider-claim-path"
+                value={form.role_claim_path}
+                placeholder={t("authProviders.claimPathPlaceholder")}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, role_claim_path: event.target.value }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">{t("authProviders.claimPathHelp")}</p>
             </div>
             <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div>

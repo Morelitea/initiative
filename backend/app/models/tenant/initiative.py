@@ -228,9 +228,16 @@ class InitiativeMember(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    oidc_managed: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    #: The provider whose claims put this person here — see
+    #: ``GuildMembership.oidc_provider_id``, which this mirrors. A plain
+    #: integer and no foreign key: this table lives in a guild schema and
+    #: ``auth_providers`` does not, the same arrangement every other reference
+    #: across that line uses. A provider that has been deleted therefore leaves
+    #: an id that matches nothing, which reads as unmanaged and is the outcome
+    #: the shared table's ``SET NULL`` produces.
+    oidc_provider_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True, index=True),
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="memberships")

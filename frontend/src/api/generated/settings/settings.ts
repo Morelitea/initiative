@@ -35,8 +35,6 @@ import type {
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
-  OIDCClaimPathResponse,
-  OIDCClaimPathUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
@@ -2346,98 +2344,6 @@ export const useCreateOidcMappingApiV1SettingsOidcMappingsPost = <
 > => {
   return useMutation(
     getCreateOidcMappingApiV1SettingsOidcMappingsPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Update Oidc Claim Path
- */
-export const updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut = (
-  oIDCClaimPathUpdate: BodyType<OIDCClaimPathUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OIDCClaimPathResponse>(
-    {
-      url: `/api/v1/settings/oidc-mappings/claim-path`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: oIDCClaimPathUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>,
-    TError,
-    { data: BodyType<OIDCClaimPathUpdate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>,
-  TError,
-  { data: BodyType<OIDCClaimPathUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>,
-    { data: BodyType<OIDCClaimPathUpdate> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>
->;
-export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPutMutationBody =
-  BodyType<OIDCClaimPathUpdate>;
-export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Oidc Claim Path
- */
-export const useUpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>,
-      TError,
-      { data: BodyType<OIDCClaimPathUpdate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut>>,
-  TError,
-  { data: BodyType<OIDCClaimPathUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPutMutationOptions(options),
     queryClient
   );
 };

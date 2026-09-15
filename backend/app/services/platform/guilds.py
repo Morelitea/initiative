@@ -201,7 +201,7 @@ async def ensure_membership(
     user_id: int,
     role: GuildRole = GuildRole.member,
     force_role: bool = False,
-    oidc_managed: bool = False,
+    oidc_provider_id: int | None = None,
 ) -> GuildMembership:
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
@@ -214,8 +214,8 @@ async def ensure_membership(
         if force_role and membership.role != role:
             membership.role = role
             updated = True
-        if oidc_managed and not membership.oidc_managed:
-            membership.oidc_managed = True
+        if oidc_provider_id is not None and membership.oidc_provider_id is None:
+            membership.oidc_provider_id = oidc_provider_id
             updated = True
         if updated:
             session.add(membership)
@@ -232,7 +232,7 @@ async def ensure_membership(
         user_id=user_id,
         role=role,
         position=next_position,
-        oidc_managed=oidc_managed,
+        oidc_provider_id=oidc_provider_id,
     )
     session.add(membership)
     await session.flush()

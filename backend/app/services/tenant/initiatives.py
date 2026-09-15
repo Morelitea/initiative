@@ -818,7 +818,7 @@ async def self_join(
 
     The floor, not the ceiling: ``member`` is view-only on the core tools and
     creates nothing, and per-resource sharing still decides what is reachable
-    inside. The row is ordinary — ``oidc_managed`` false, so group sync neither
+    inside. The row is ordinary — no managing provider, so group sync neither
     reaps it nor fights it — which is the whole point: every join path ends at
     the same membership row RLS already reads.
 
@@ -847,7 +847,7 @@ async def self_join(
         user_id=user_id,
         role_id=role.id,
         guild_id=initiative.guild_id,
-        oidc_managed=False,
+        oidc_provider_id=None,
     )
     # Two overlapping joins both clear the lookup above, and the composite
     # primary key then rejects the loser. That is the same outcome the caller
@@ -903,7 +903,7 @@ async def enroll_in_auto_join_initiatives(
     """Enrol a brand-new guild member in the guild's auto-join initiatives.
 
     Each enrolment routes through :func:`self_join`, so an arrival lands on the
-    same membership row every other join path writes — ``oidc_managed`` false,
+    same membership row every other join path writes — no managing provider,
     so group sync neither reaps nor fights it.
 
     Best effort, per initiative: one initiative that cannot take a member (its
@@ -1045,7 +1045,7 @@ async def resolve_join_request(
     """Settle a pending request, creating the membership row on approval.
 
     Approval routes through :func:`self_join`, so an approved requester lands on
-    exactly the row every other join path produces — ``oidc_managed`` false —
+    exactly the row every other join path produces — no managing provider —
     and someone who became a member by another route while the request sat in
     the queue is absorbed rather than colliding.
 
