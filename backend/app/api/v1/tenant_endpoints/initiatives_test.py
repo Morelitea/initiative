@@ -2202,7 +2202,7 @@ async def test_approve_creates_membership_and_flips_content_visibility(
     assert membership is not None
     assert membership.role_ref.name == "member"
     assert membership.role_ref.is_manager is False
-    assert membership.oidc_managed is False
+    assert membership.oidc_provider_id is None
 
     after = await client.get(
         member.g(f"/projects/{project.id}"), headers=member.headers

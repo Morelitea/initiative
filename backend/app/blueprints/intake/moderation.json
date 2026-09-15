@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Moderation",
-    "icon": "flag",
+    "icon": "🚩",
     "description": "Reports members have sent about content and conduct. Each case is one report: assign it, decide, and record what was done.",
     "is_template": false,
     "archived_at": null,

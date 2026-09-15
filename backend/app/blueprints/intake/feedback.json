@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Feedback",
-    "icon": "message-circle",
+    "icon": "💬",
     "description": "What people have told us they want. Each case is one piece of feedback: read it, decide what it means, and close it.",
     "is_template": false,
     "archived_at": null,

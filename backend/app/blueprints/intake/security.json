@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Security",
-    "icon": "shield",
+    "icon": "🛡️",
     "description": "Security cases raised by rules watching this deployment. Each case is one incident: assign it, investigate it, write up what you found, and close it.",
     "is_template": false,
     "archived_at": null,
