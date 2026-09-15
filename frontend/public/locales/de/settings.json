@@ -1057,11 +1057,11 @@
     }
   },
   "authProviders": {
-    "title": "Weitere Anmeldeanbieter",
-    "description": "Bieten Sie zusätzliche Anmeldewege neben dem obigen Single Sign-On an. Jeder Anbieter erhält eine eigene Schaltfläche auf der Anmeldeseite.",
+    "title": "Identitätsanbieter",
+    "description": "Die Single-Sign-on-Anbieter, mit denen sich Personen anmelden. Jeder erhält eine eigene Schaltfläche auf der Anmeldeseite.",
     "addProvider": "Anbieter hinzufügen",
     "loading": "Anbieter werden geladen…",
-    "empty": "Keine weiteren Anbieter konfiguriert.",
+    "empty": "Noch keine Anbieter konfiguriert.",
     "disabledBadge": "Deaktiviert",
     "createTitle": "Anmeldeanbieter hinzufügen",
     "editTitle": "Anmeldeanbieter bearbeiten",
