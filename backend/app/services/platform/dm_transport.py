@@ -150,18 +150,26 @@ async def register_device(
     fallback_key: DmOneTimeKeyUpload,
     one_time_keys: list[DmOneTimeKeyUpload],
     label: str | None,
+    device_token_id: int | None = None,
 ) -> DmDevice:
     """Publish a new installed client's public keys.
 
     A fallback key is required rather than optional: without one, a device whose
     prekeys run out becomes unreachable to anyone starting a new conversation,
     and the failure would land on the sender.
+
+    ``device_token_id`` names the installation this key store belongs to, taken
+    from the credential that authenticated the call rather than from the body.
+    It is what lets a message wake this device and no other, so a client that
+    registers without one (the web, which has no device token) simply never
+    holds one -- it is not something a caller may assert about itself.
     """
     device = DmDevice(
         user_id=user_id,
         identity_key=_decode(identity_key, expect=KEY_BYTES),
         fingerprint_key=_decode(fingerprint_key, expect=KEY_BYTES),
         label=label,
+        device_token_id=device_token_id,
     )
     session.add(device)
     await session.flush()
@@ -615,15 +623,27 @@ async def send(
 
 
 async def collect(
-    session: AsyncSession, *, user_id: int, device_id: uuid.UUID
+    session: AsyncSession,
+    *,
+    user_id: int,
+    device_id: uuid.UUID,
+    device_token_id: int | None = None,
 ) -> list[DmQueueItemRead]:
     """Everything waiting for one device, oldest first.
 
     The order is not a nicety. A ratchet keeps a bounded number of skipped
     message keys, so handing them over in the order they were written is what
     keeps a client able to read them.
+
+    Collecting is also where the key store learns which installation it belongs
+    to. A device registers once and never again, so the link cannot only be
+    written at registration: one made before there was a link to write, or one
+    whose login has been replaced since, would stay unwakeable for the rest of
+    its life. Every poll re-states it instead.
     """
     device = await _own_device(session, user_id=user_id, device_id=device_id)
+    if device_token_id is not None and device.device_token_id != device_token_id:
+        device.device_token_id = device_token_id
     rows = list(
         (
             await session.exec(

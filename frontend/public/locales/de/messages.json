@@ -100,7 +100,9 @@
   },
   "historyAsk": {
     "title": "Warten auf deine Nachrichten",
-    "body": "Dieses Gerät hat deine anderen Geräte nach den Nachrichten gefragt, die du schon hattest. Öffne eines davon und bestätige es dort – das sind die Bilder, die es dir zeigen wird."
+    "body": "Dieses Gerät hat deine anderen Geräte nach den Nachrichten gefragt, die du schon hattest. Öffne eines davon und bestätige es dort – das sind die Bilder, die es dir zeigen wird.",
+    "dismiss": "Ausblenden",
+    "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen weiterhin an, wenn du auf deinem anderen Gerät zustimmst."
   },
   "safetyEmoji": {
     "dog": "Hund",

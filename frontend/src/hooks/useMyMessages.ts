@@ -23,6 +23,7 @@ import type { StoredMessage } from "@/crypto/messaging";
 import {
   answerHistoryRequest,
   collect,
+  dismissHistoryAskNotice,
   ensureDevice,
   historyAskWaiting,
   historyRequestToAnswer,
@@ -263,6 +264,22 @@ export function useHistoryAsk() {
     // when it is due, rather than polled: the answer cannot change before then.
     refetchInterval: (query) =>
       query.state.data ? Math.max(1_000, query.state.data.expiresAt - Date.now()) : false,
+  });
+}
+
+/**
+ * Put the waiting notice away without answering the question.
+ *
+ * The ask stays outstanding — this is the banner going quiet, not the transfer
+ * being called off — so a history approved later still arrives and still lands.
+ */
+export function useDismissHistoryAsk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => dismissHistoryAskNotice(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
+    },
   });
 }
 

@@ -887,7 +887,15 @@ async function sendToOwnDevice(
   carrierId: string,
   deviceId: string,
   identityKey: string,
-  envelope: Envelope
+  envelope: Envelope,
+  /**
+   * Whether the far device is worth waking a phone up for. True only for the
+   * one envelope a person has to answer — an install asking to be sent the
+   * history it arrived without, which sits unanswered until somebody opens the
+   * device that can serve it. Everything else here is a client talking to
+   * itself.
+   */
+  wake = false
 ): Promise<boolean> {
   const destination: Destination = { id: deviceId, identityKey, origin: "self" };
   let sessionId = await establishedSession(deviceId);
@@ -913,6 +921,7 @@ async function sendToOwnDevice(
     // Nothing here is addressed to the other party, and nothing about it is
     // theirs to be told.
     silent: true,
+    wake_own_devices: wake,
   });
   return true;
 }
@@ -922,6 +931,22 @@ async function carrierConversation(): Promise<string | null> {
   const conversations = await listConversations();
   return conversations.conversations[0]?.id ?? null;
 }
+
+/**
+ * Which of two devices came first.
+ *
+ * A strict total order, and the same one on both sides: each device works out
+ * for itself which way an ask should travel, and they have to agree without
+ * conferring. Registration time decides it; the id breaks a tie, so two devices
+ * registered in the same instant still order one before the other rather than
+ * each deciding it is the junior one.
+ */
+const precedes = (a: DmDeviceRead, b: DmDeviceRead): boolean => {
+  const at = Date.parse(a.created_at);
+  const bt = Date.parse(b.created_at);
+  if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) return at < bt;
+  return a.id < b.id;
+};
 
 /**
  * Ask this account's other devices for the history this one cannot derive.
@@ -935,6 +960,17 @@ async function carrierConversation(): Promise<string | null> {
  * the threads would otherwise ask for what it is sitting on, leaving two
  * screens each asking the other, each showing a different code, and nothing to
  * compare either against.
+ *
+ * And it asks only devices that came before it. History runs forwards: one
+ * registered after this device cannot be holding what this device is missing,
+ * so a request in that direction is asking the wrong way round. This is what
+ * settles the direction when both ends think they are eligible — the first
+ * browser on an account is marked eligible when it registers with an empty log,
+ * and stays that way while it is the only device, so by the time a second
+ * appears both are eligible and, without this, both ask.
+ *
+ * A device with nobody before it is the account's origin, so its question is
+ * answered rather than outstanding, and it is closed here.
  *
  * Eligibility survives a failed attempt. A device kept trying until one of its
  * requests actually goes out, whatever has landed in its log in the meantime:
@@ -955,21 +991,36 @@ export async function requestHistory(): Promise<boolean> {
   }
   const { id: mine, devices } = await ensureDeviceContext();
   const me = devices.find((device) => device.id === mine);
-  if (!me || devices.length < 2) return false;
+  if (!me) return false;
+  const elders = devices.filter((device) => device.id !== mine && precedes(device, me));
+  if (elders.length === 0) {
+    // Nobody to ask, now or later: this device is the oldest the account has,
+    // and nothing registered after it can hold what it is missing. Closed
+    // rather than merely skipped, because an eligibility left standing is one
+    // that fires at whichever device happens to arrive next.
+    await historyAsk.close();
+    return false;
+  }
   const carrier = await carrierConversation();
   if (carrier === null) return false;
 
   const requestId = newMessageId();
   let asked = false;
-  for (const device of devices) {
-    if (device.id === mine) continue;
-    const sent = await sendToOwnDevice(carrier, device.id, device.identity_key, {
-      v: 1,
-      kind: "history-request",
-      requestId,
-      deviceId: mine,
-      fingerprint: me.fingerprint_key,
-    });
+  for (const device of elders) {
+    const sent = await sendToOwnDevice(
+      carrier,
+      device.id,
+      device.identity_key,
+      {
+        v: 1,
+        kind: "history-request",
+        requestId,
+        deviceId: mine,
+        fingerprint: me.fingerprint_key,
+      },
+      // The one ask that has to reach a device nobody is looking at.
+      true
+    );
     asked = asked || sent;
   }
   // Written down once it is on its way rather than once it is answered: the
@@ -1013,6 +1064,9 @@ export interface HistoryAskWaiting {
 export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined> {
   const ask = await historyAsk.get();
   if (typeof ask !== "object" || !ask.fingerprint || !ask.at) return undefined;
+  // Put away by hand. The day is an outside limit on a notice nobody dealt
+  // with, not the only way to be rid of one.
+  if (ask.dismissed) return undefined;
   const asked = Date.parse(ask.at);
   if (Number.isNaN(asked)) return undefined;
   const expiresAt = asked + HISTORY_ASK_NOTICE_MS;
@@ -1020,6 +1074,19 @@ export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined
   // When it stops, so the screen showing it can take it down on its own rather
   // than at whatever unrelated moment something next happens to ask again.
   return { fingerprint: ask.fingerprint, expiresAt };
+}
+
+/**
+ * Put the waiting notice away, leaving the question outstanding.
+ *
+ * What is being dismissed is the banner, not the ask: the other device has
+ * still not answered, and when somebody opens it and approves, the history
+ * still arrives and still lands. Nothing here asks again — a device asks once,
+ * because one that asks on every start trains somebody to say yes without
+ * reading.
+ */
+export async function dismissHistoryAskNotice(): Promise<void> {
+  await historyAsk.dismissNotice();
 }
 
 /**

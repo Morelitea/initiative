@@ -675,7 +675,7 @@ export const historyProgress = {
  * says nothing about which of the two this is.
  */
 export type HistoryAsk =
-  | { requestId: string; fingerprint?: string; at?: string }
+  | { requestId: string; fingerprint?: string; at?: string; dismissed?: true }
   | "eligible"
   | "closed";
 
@@ -685,6 +685,23 @@ export const historyAsk = {
   open: (requestId: string, fingerprint: string) =>
     write("history-ask", { requestId, fingerprint, at: new Date().toISOString() }),
   close: () => write("history-ask", "closed"),
+  /**
+   * Take the notice down without answering the question.
+   *
+   * Deliberately not `close()`. The request id is what an arriving transfer is
+   * matched against, so closing here would mean somebody who put the notice
+   * away, walked to their other device and approved it would have the history
+   * arrive and be discarded. The ask stays outstanding; only the banner stops.
+   *
+   * Read-modify-write rather than a plain put: an answer can land in another
+   * tab at the same moment, and a dismissal must not resurrect an ask that has
+   * just been settled.
+   */
+  dismissNotice: async (): Promise<void> => {
+    await update<HistoryAsk>("history-ask", (current) =>
+      typeof current === "object" ? { ...current, dismissed: true } : undefined
+    );
+  },
 };
 
 /** Which device of theirs we already hold a session with, per session id. */

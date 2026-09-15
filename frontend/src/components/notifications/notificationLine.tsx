@@ -132,6 +132,14 @@ export const notificationLink = (notification: NotificationRead): string | null 
       // The page opens the conversation itself: the thread is read out of this
       // device's own store, so there is nothing for a route param to fetch.
       return "/messages";
+    // Each lands where it is answered: a message request in the inbox that
+    // would carry the conversation, a connection on the contacts page.
+    case "message_request_received":
+    case "message_request_accepted":
+      return "/messages";
+    case "connection_requested":
+    case "connection_accepted":
+      return "/contacts";
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
@@ -323,6 +331,24 @@ export const notificationText = (
         ? t("notifications.directMessageMany", { senderName, count })
         : t("notifications.directMessage", { senderName });
     }
+    // Somebody asking to reach you, and the answer when you asked. Unlike a
+    // message these are not opaque to the server, so the line can name who.
+    case "connection_requested":
+      return t("notifications.connectionRequested", {
+        actorName: data.actor_name ?? "Someone",
+      });
+    case "connection_accepted":
+      return t("notifications.connectionAccepted", {
+        actorName: data.actor_name ?? "Someone",
+      });
+    case "message_request_received":
+      return t("notifications.messageRequestReceived", {
+        actorName: data.actor_name ?? "Someone",
+      });
+    case "message_request_accepted":
+      return t("notifications.messageRequestAccepted", {
+        actorName: data.actor_name ?? "Someone",
+      });
     case "comment_reaction": {
       const { reactorName, emoji, others } = reactionSummary(data);
       const options = {

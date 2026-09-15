@@ -105,6 +105,44 @@ async def notify(
     await dm_stream.signal_dm(recipient_id)
 
 
+async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) -> None:
+    """Push this account's other installations awake, saying nothing.
+
+    One device has sent another something it cannot answer on its own -- a new
+    install asking to be sent the history it arrived without. The far phone has
+    to be picked up before anybody can approve it, so a frame on a socket that
+    is not open will not do.
+
+    No bell line: the ask is already on screen on the device that made it, and a
+    second copy in the recipient's inbox would outlive the request. The one that
+    sent it is skipped -- it is the device already showing the notice.
+    """
+    from app.db.session import AdminSessionLocal
+
+    try:
+        async with AdminSessionLocal() as session:
+            user = await session.get(User, user_id)
+            if user is None:
+                return
+            token_ids = await _dm_device_token_ids(session, user_id)
+            token_ids.discard(except_device_token_id)
+            if not token_ids:
+                return
+            locale = _locale(user)
+            await push_notifications.send_push_to_user(
+                session,
+                user_id,
+                NotificationType.direct_message,
+                translate("deviceSync.title", locale, namespace="notifications"),
+                translate("deviceSync.body", locale, namespace="notifications"),
+                data={"type": "dm_device_sync", "target_path": "/messages"},
+                only_device_token_ids=token_ids,
+            )
+            await session.commit()
+    except Exception:  # noqa: BLE001 - a wake never fails a send
+        logger.exception("direct-message device wake failed")
+
+
 async def _roll_up(
     session: AsyncSession,
     *,
@@ -197,5 +235,13 @@ async def _push(session: AsyncSession, *, recipient: User, sender_name: str) -> 
             sender=sender_name,
         ),
         translate("directMessage.body", locale, namespace="notifications"),
+        # Where tapping it goes, and nothing more. The conversation's id would
+        # open the right thread, but it would also put a record of who is
+        # talking to whom through a push service, which is the one thing this
+        # feature is built not to do.
+        data={
+            "type": NotificationType.direct_message.value,
+            "target_path": "/messages",
+        },
         only_device_token_ids=token_ids,
     )
