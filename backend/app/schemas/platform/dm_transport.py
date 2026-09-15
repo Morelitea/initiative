@@ -130,6 +130,16 @@ class DmSendRequest(BaseModel):
     #: saying it. The recipient's tabs are still woken, because a device that
     #: is not told has nothing to collect.
     silent: bool = False
+    #: Wake this account's *own* other installations with a push, not just the
+    #: tabs that happen to be open. For the one thing a device sends its owner
+    #: that a person has to get up and answer -- a new install asking to be sent
+    #: the history it arrived without. The far device has to be opened by
+    #: somebody before it can reply, and a websocket frame does not open it.
+    #:
+    #: Only the sender can say this, for the same reason only the sender can say
+    #: ``silent``: the server cannot read what it carries. It says "worth
+    #: waking", never what for, and the push that results names nothing.
+    wake_own_devices: bool = False
 
 
 class DmSendResponse(BaseModel):

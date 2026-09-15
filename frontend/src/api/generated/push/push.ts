@@ -29,6 +29,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  *
  * This endpoint registers a new push token or updates an existing one.
  * The token will be used to send push notifications to the user's device.
+ *
+ * Which installation the token belongs to is read off the credential that
+ * made the call, not the body: it is the same handle the device's message key
+ * store records, and matching the two is what lets a message wake the phone
+ * that can actually read it.
  * @summary Register Push Token
  */
 export const registerPushTokenApiV1PushRegisterPost = (

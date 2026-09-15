@@ -103,6 +103,7 @@ vi.mock("./client", () => ({
 import {
   answerHistoryRequest,
   collect,
+  dismissHistoryAskNotice,
   ensureDevice,
   forgetMessagesOnThisDevice,
   HISTORY_ASK_NOTICE_MS,
@@ -126,17 +127,31 @@ import {
   sessionPickle,
 } from "./store";
 
-const OURS = { id: "device-1", identity_key: "mine" };
-const OUR_PHONE = { id: "device-2", identity_key: "phone" };
+// Registration order matters: an ask only travels from a newer device to an
+// older one, so the browser under test is the one that arrived second and the
+// phone is the established device holding the history.
+const OURS = { id: "device-1", identity_key: "mine", created_at: "2026-09-01T00:00:00Z" };
+const OUR_PHONE = { id: "device-2", identity_key: "phone", created_at: "2026-08-01T00:00:00Z" };
 const THEIRS = { device_id: "device-9", identity_key: "theirs", fingerprint_key: "fp" };
 
-const ownDevice = (device: { id: string; identity_key: string }, keysHeld = 50) => ({
-  ...device,
+const ownDevice = (
+  device: { id: string; identity_key: string; created_at?: string },
+  keysHeld = 50
+) => ({
   fingerprint_key: "fp",
   label: null,
   created_at: "2026-09-01T00:00:00Z",
   last_seen_at: "2026-09-01T00:00:00Z",
   one_time_key_count: keysHeld,
+  ...device,
+});
+
+/** One device's claimable prekey, as the claim endpoint hands it back. */
+const keyFor = (device: { id: string; identity_key: string }) => ({
+  device_id: device.id,
+  identity_key: device.identity_key,
+  fingerprint_key: "fp",
+  one_time_key: { key_id: "k", public_key: "pk" },
 });
 
 const queued = (overrides: Record<string, unknown>) => ({
@@ -636,6 +651,38 @@ describe("history between this account's own devices", () => {
     expect(asks[0]).toMatchObject({ deviceId: OURS.id, fingerprint: "fp" });
   });
 
+  it("asks loudly enough to reach a device nobody is looking at", async () => {
+    // The far device has to be picked up by a person before it can answer, and
+    // a frame on a socket that is not open will not do that. This is the only
+    // own-device envelope worth waking a phone for — it says "worth waking" and
+    // never what for, since the server cannot read it either way.
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+
+    await collect({ receipts: false });
+
+    const asked = api.sendMessages.mock.calls.find(
+      ([, body]: [string, { messages: { payload: string }[] }]) =>
+        body.messages.some(
+          (message) => JSON.parse(JSON.parse(message.payload).body).kind === "history-request"
+        )
+    );
+    expect(asked?.[1]).toMatchObject({ silent: true, wake_own_devices: true });
+  });
+
+  it("does not wake anything for an ordinary own-device envelope", async () => {
+    // A client reporting that it collected something is a client talking to
+    // itself. Waking a phone for it would train somebody to ignore the one that
+    // matters.
+    await collect({ receipts: true });
+
+    const woken = api.sendMessages.mock.calls.filter(
+      ([, body]: [string, { wake_own_devices?: boolean }]) => body.wake_own_devices
+    );
+    expect(woken).toEqual([]);
+  });
+
   it("does not ask when this device already has the messages", async () => {
     await forgetDevice();
     await deviceId.set(OURS.id);
@@ -708,6 +755,79 @@ describe("history between this account's own devices", () => {
     expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
   });
 
+  it("does not ask a device that registered after it", async () => {
+    // The reported bug, from the older browser's side. Sign into one browser,
+    // send and receive for a while, then sign into a second: the first was
+    // marked eligible when it registered with an empty log and stayed that way
+    // the whole time it was alone, so the moment the second appeared both were
+    // eligible and each asked the other for history the other did not have.
+    await forgetDevice();
+    await deviceId.set(OUR_PHONE.id);
+    await accountPickle.set("account");
+    api.listDevices.mockResolvedValue({ devices: [ownDevice(OUR_PHONE), ownDevice(OURS)] });
+    // A key for the device it would wrongly ask, so nothing but the direction
+    // rule can be what stops the send.
+    api.claimOwnSessionKeys.mockResolvedValue({ user_id: 1, devices: [keyFor(OURS)] });
+
+    await collect({ receipts: false });
+
+    // OUR_PHONE came first. Nothing registered later can be holding what it is
+    // missing, so there is no direction for a request to travel in.
+    expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
+  });
+
+  it("settles the question for the oldest device instead of leaving it armed", async () => {
+    // What made the bug wait: being alone was treated as a failed attempt, so
+    // eligibility was kept and fired at whichever device arrived next. The
+    // account's first device is the source of its history, which is an answer,
+    // not a postponement.
+    await forgetDevice();
+    await deviceId.set(OUR_PHONE.id);
+    await accountPickle.set("account");
+    api.listDevices.mockResolvedValue({ devices: [ownDevice(OUR_PHONE)] });
+
+    await collect({ receipts: false });
+
+    expect(await historyAsk.get()).toBe("closed");
+  });
+
+  it("asks one way round when two devices register in the same instant", async () => {
+    // Registration time is what decides direction, and it can tie. Without a
+    // tie-break both devices read themselves as the junior one and the original
+    // bug comes back for exactly the pair most likely to hit it -- two browsers
+    // signed into at once.
+    const sameMoment = "2026-09-01T00:00:00Z";
+    // The id settles it, and "device-1" sorts first — so OURS is the elder of
+    // the pair and the ask has to travel from the phone to it.
+    const elder = { ...OURS, created_at: sameMoment };
+    const junior = { ...OUR_PHONE, created_at: sameMoment };
+    api.listDevices.mockResolvedValue({ devices: [ownDevice(elder), ownDevice(junior)] });
+    // Both reachable: an ask could get out whichever way it tried to go, so the
+    // ordering is the only thing deciding which one actually does.
+    api.claimOwnSessionKeys.mockResolvedValue({
+      user_id: 1,
+      devices: [keyFor(elder), keyFor(junior)],
+    });
+
+    await forgetDevice();
+    await deviceId.set(elder.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    const fromElder = sentEnvelopes().filter((e) => e.kind === "history-request");
+
+    await forgetDevice();
+    await deviceId.set(junior.id);
+    await accountPickle.set("account");
+    api.sendMessages.mockClear();
+    await collect({ receipts: false });
+    const fromJunior = sentEnvelopes().filter((e) => e.kind === "history-request");
+
+    expect(fromElder).toEqual([]);
+    expect(fromJunior).toHaveLength(1);
+    // And it is addressed to the elder, not bounced back at itself.
+    expect(fromJunior[0]).toMatchObject({ deviceId: junior.id });
+  });
+
   it("stops saying it is waiting once the notice has had its day", async () => {
     await forgetDevice();
     await deviceId.set(OURS.id);
@@ -725,6 +845,76 @@ describe("history between this account's own devices", () => {
     expect(await historyAskWaiting()).toBeUndefined();
     expect(await historyAsk.get()).toMatchObject({ fingerprint: "fp" });
     clock.mockRestore();
+  });
+
+  it("stops saying it is waiting once somebody puts the notice away", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    expect(await historyAskWaiting()).toMatchObject({ fingerprint: "fp" });
+
+    await dismissHistoryAskNotice();
+
+    // The same split as the day running out: the notice goes, the question
+    // stays. Dismissing is somebody saying they have read it, not somebody
+    // calling the transfer off.
+    expect(await historyAskWaiting()).toBeUndefined();
+    expect(await historyAsk.get()).toMatchObject({ fingerprint: "fp" });
+  });
+
+  it("still lands the history approved after the notice was put away", async () => {
+    // The thing a dismissal must not do. Closing the ask here would mean
+    // somebody who hid the banner, walked to their laptop and approved it would
+    // have their history arrive and be thrown away.
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
+
+    await dismissHistoryAskNotice();
+
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: fromOwnDevice(
+            {
+              v: 1,
+              kind: "history",
+              requestId: asked?.requestId,
+              conversationId: "conv-1",
+              seq: 1,
+              last: true,
+              messages: [
+                { id: "m0", body: "from before this device", at: "2026-08-30", mine: false },
+              ],
+            },
+            "otk-1"
+          ),
+        }),
+      ],
+    });
+    await collect({ receipts: false });
+
+    expect((await messageLog.get("conv-1")).map((entry) => entry.id)).toEqual(["m0"]);
+    // And settled by the answer, the way it would have been without the
+    // dismissal.
+    expect(await historyAsk.get()).toBe("closed");
+  });
+
+  it("does not put a settled ask back by dismissing it", async () => {
+    // Two tabs: one answers while the other still has the banner up. A plain
+    // write would resurrect an ask that has just been closed.
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    await historyAsk.close();
+
+    await dismissHistoryAskNotice();
+
+    expect(await historyAsk.get()).toBe("closed");
   });
 
   it("still takes the history a late answer brings", async () => {

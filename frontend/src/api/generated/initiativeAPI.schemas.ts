@@ -2797,6 +2797,7 @@ export interface DmSendRequest {
    */
   messages: DmOutboundMessage[];
   silent?: boolean;
+  wake_own_devices?: boolean;
 }
 
 export interface DmSendResponse {
@@ -5505,7 +5506,6 @@ export interface PushTokenRegisterRequest {
   push_token: string;
   /** @pattern ^(android|ios)$ */
   platform: string;
-  device_token_id?: number | null;
 }
 
 /**

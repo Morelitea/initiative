@@ -17,6 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 
 from app.api.deps import UserSessionDep, get_current_active_user
+from app.core.auth_context import device_token_id
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.user_display import handle_of
 from app.models.platform.user import User
@@ -89,6 +90,7 @@ async def register_device(
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
             label=(user_agent or "")[:200] or None,
+            device_token_id=device_token_id(),
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -311,6 +313,11 @@ async def send_messages(
     # where the message actually reached them, and they are never told about the
     # difference.
     await dm_stream.signal_dm(current_user.id)
+    if body.wake_own_devices:
+        await dm_notifications.wake_own_devices(
+            user_id=current_user.id,
+            except_device_token_id=device_token_id(),
+        )
     if recipient_id is not None:
         if body.silent:
             # Wake them to collect it, and write nothing down about it. A bell
@@ -336,7 +343,10 @@ async def collect_queue(
     """Everything waiting for one device, oldest first."""
     try:
         items = await service.collect(
-            session, user_id=current_user.id, device_id=device_id
+            session,
+            user_id=current_user.id,
+            device_id=device_id,
+            device_token_id=device_token_id(),
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
