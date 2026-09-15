@@ -135,17 +135,6 @@ async def file_report(
         # nowhere is a report nobody sees.
         logger.info("report on %s:%s fell back to the platform", target, target_id)
 
-    if isinstance(target, PlatformReportTarget) and not await _platform_target_exists(
-        reporter_session, target, target_id
-    ):
-        # Checked before it becomes somebody's work: an id nothing answers to
-        # would otherwise open an operations task naming a row that is not
-        # there. Refused the same way whatever the reason.
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=ModerationMessages.TARGET_NOT_FOUND,
-        )
-
     opened = await _open_platform_case(
         target=target,
         target_id=target_id,
@@ -161,64 +150,6 @@ async def file_report(
             detail=ModerationMessages.NOWHERE_TO_SEND,
         )
     return ReportFiled(ReportVenue.platform)
-
-
-async def _platform_target_exists(
-    session: AsyncSession,
-    target: PlatformReportTarget,
-    target_id: int,
-) -> bool:
-    """Whether a platform target names a row that is there.
-
-    Every member of the enum resolves to ``users`` or ``guilds``
-    (``PLATFORM_TARGET_TABLE``), both of which a signed-in reader can already
-    name. A listing is the narrower case: it exists only while the community
-    is one, so reporting one asks that too.
-    """
-    from app.db.session import set_rls_context
-
-    table = PLATFORM_TARGET_TABLE[target]
-    await set_rls_context(session)
-    clause = (
-        " AND is_community IS TRUE"
-        if target is PlatformReportTarget.directory_listing
-        else ""
-    )
-    found = (
-        await session.exec(
-            text(  # noqa: S608 — table comes from the registry above
-                f"SELECT 1 FROM public.{table} WHERE id = :target_id{clause}"
-            ).bindparams(target_id=target_id)
-        )
-    ).first()
-    return found is not None
-
-
-async def _locate_as_reporter(
-    reporter_session: AsyncSession,
-    *,
-    reporter: "User",
-    target: SearchEntityType,
-    target_id: int,
-    guild_id: Optional[int],
-) -> Optional[tuple[int, int]]:
-    """``(guild_id, initiative_id)`` for a target this reporter can see.
-
-    Routed as the reporter through the ordinary entry point, so membership,
-    the auth policy and every gate apply exactly as they do on a read. A row
-    the reporter cannot see resolves to nothing, and so does an id that names
-    a different row in a community they merely claimed to be in — ids are
-    unique only within a schema.
-    """
-    if guild_id is None:
-        return None
-    from app.api.deps import GuildAccessError, establish_guild_access
-
-    try:
-        await establish_guild_access(reporter_session, reporter, guild_id)
-    except GuildAccessError:
-        return None
-    return await _resolve_initiative(reporter_session, target, target_id)
 
 
 async def _place_in_initiative(
@@ -305,6 +236,59 @@ _ACCOUNT_TARGETS = frozenset(
 )
 
 
+async def _locate_as_reporter(
+    reporter_session: AsyncSession,
+    *,
+    reporter: "User",
+    target: SearchEntityType,
+    target_id: int,
+    guild_id: Optional[int],
+) -> Optional[tuple[int, int]]:
+    """``(guild_id, initiative_id)`` for a target this reporter can see.
+
+    Routed as the reporter through the ordinary entry point, so membership,
+    the auth policy and every gate apply exactly as they do on a read. A row
+    the reporter cannot see resolves to nothing, and so does an id that names
+    a different row in a community they merely claimed to be in — ids are
+    unique only within a schema.
+    """
+    if guild_id is None:
+        return None
+    from app.api.deps import GuildAccessError, establish_guild_access
+
+    try:
+        await establish_guild_access(reporter_session, reporter, guild_id)
+    except GuildAccessError:
+        return None
+    return await _resolve_initiative(reporter_session, target, target_id)
+
+
+async def _platform_target_exists(target: PlatformReportTarget, target_id: int) -> bool:
+    """Whether a platform target names a row that is there.
+
+    Every member of the enum resolves to ``users`` or ``guilds``
+    (``PLATFORM_TARGET_TABLE``). A listing is the narrower case: it exists only
+    while the community is one, so reporting one asks that too.
+    """
+    from app.db.session import AdminSessionLocal
+
+    table = PLATFORM_TARGET_TABLE[target]
+    clause = (
+        " AND is_community IS TRUE"
+        if target is PlatformReportTarget.directory_listing
+        else ""
+    )
+    async with AdminSessionLocal() as session:
+        found = (
+            await session.exec(
+                text(  # noqa: S608 — table comes from the registry above
+                    f"SELECT 1 FROM public.{table} WHERE id = :target_id{clause}"
+                ).bindparams(target_id=target_id)
+            )
+        ).first()
+    return found is not None
+
+
 async def _open_platform_case(
     *,
     target: SearchEntityType | PlatformReportTarget,
@@ -326,6 +310,19 @@ async def _open_platform_case(
     not somebody's neighbours. An ordinary platform report carries none: who
     said it adds nothing to a complaint about a username.
     """
+    if isinstance(target, PlatformReportTarget) and not await _platform_target_exists(
+        target, target_id
+    ):
+        # Checked before it becomes somebody's work, so no operations task
+        # names a row that is not there. On the system session rather than the
+        # reporter's: this asks the shared identity plane a question about
+        # existence, and a plain member's platform role does not read arbitrary
+        # rows there. It tells the reporter only whether an id resolves.
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.TARGET_NOT_FOUND,
+        )
+
     parts = [part for part in (detail, note) if part]
     if reporter_ids:
         listed = ", ".join(str(i) for i in reporter_ids)
@@ -399,7 +396,7 @@ async def settle_report(
                 )
             )
         ).all()
-        await _open_platform_case(
+        opened = await _open_platform_case(
             target=SearchEntityType(report.target_type),
             target_id=report.target_id,
             reason=ReportReason(report.reason),
@@ -408,6 +405,14 @@ async def settle_report(
             note=note,
             reporter_ids=tuple(reporters),
         )
+        if not opened:
+            # Nothing is bound to receive it, so the report stays open and the
+            # moderator is told. Closing it as escalated would record a handover
+            # that never happened.
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=ModerationMessages.NOWHERE_TO_SEND,
+            )
 
     report.outcome = outcome
     report.note = note
@@ -466,7 +471,11 @@ async def list_reports(
     )
     reports = (
         await session.exec(
-            stmt.order_by(ModerationReport.reported_at.desc())
+            # A second key, because two reports can share a timestamp and an
+            # offset page needs one order to be paged through.
+            stmt.order_by(
+                ModerationReport.reported_at.desc(), ModerationReport.id.desc()
+            )
             .offset(offset)
             .limit(limit)
             .execution_options(populate_existing=True)

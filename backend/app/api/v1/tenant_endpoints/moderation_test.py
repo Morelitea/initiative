@@ -437,3 +437,87 @@ async def test_the_list_is_paged(client, scene):
     )
     assert response.status_code == 200
     assert len(response.json()["items"]) <= 1
+
+
+async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
+    client, session, scene
+):
+    """Closing it as escalated would record a handover that never happened."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="harassment",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    report_id = (await session.exec(select(ModerationReport))).one().id
+    await set_rls_context(session)
+
+    response = await client.post(
+        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        json={"outcome": "escalated"},
+        headers=scene["mod"].headers,
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "MODERATION_NOWHERE_TO_SEND"
+
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    still = (
+        await session.exec(
+            select(ModerationReport).where(ModerationReport.id == report_id)
+        )
+    ).one()
+    await session.refresh(still)
+    assert still.outcome is None
+    assert still.decided_at is None
+
+
+async def test_escalating_opens_a_platform_case(client, session, scene, operations):
+    """The one crossing between the two shapes, carrying the reporters."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="illegal",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    report_id = (await session.exec(select(ModerationReport))).one().id
+    await set_rls_context(session)
+
+    response = await client.post(
+        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        json={"outcome": "escalated", "note": "Not ours to settle."},
+        headers=scene["mod"].headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "escalated"
+
+    await set_rls_context(session, guild_id=operations["guild"].id, guild_role="admin")
+    task = (
+        await session.exec(
+            select(Task).where(Task.project_id == operations["project"].id)
+        )
+    ).one()
+    assert "comment" in task.title
+    # The reporters travel with an escalation: the platform is where good
+    # faith is judged.
+    assert str(scene["member"].user.id) in (task.description or "")
+
+
+async def test_a_platform_target_is_looked_up_as_the_reporter(
+    client, scene, operations
+):
+    """The session stays platform-scoped, so identity tables answer normally."""
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="user_profile",
+        target_id=scene["mod"].user.id,
+        reason="harassment",
+    )
+    assert response.status_code == 202
+    assert response.json()["venue"] == "platform"
