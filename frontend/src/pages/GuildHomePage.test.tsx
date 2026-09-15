@@ -854,6 +854,23 @@ describe("GuildHomePage", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
   });
 
+  it("does not tell the admin of a new community to ask an admin", async () => {
+    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    stubTools();
+    stubDirectory([]);
+
+    renderHome();
+
+    // A community with nothing in it is now the ordinary first minute, and the
+    // reader looking at it is the person who fills it. Telling them they
+    // haven't joined anything, or that an admin could add them to one, would
+    // be sending them to themselves.
+    expect(await screen.findByText("This community has no initiatives yet")).toBeInTheDocument();
+    expect(screen.getByText("Start the first initiative")).toBeInTheDocument();
+    expect(screen.queryByText(/You haven’t joined any initiatives yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/A community admin or project manager/)).not.toBeInTheDocument();
+  });
+
   it("keeps documents on the same table shape as projects", async () => {
     stubInitiatives();
     stubTools({

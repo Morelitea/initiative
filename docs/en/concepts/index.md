@@ -62,7 +62,7 @@ Why is there a middle layer at all? Because real groups have four things on the 
 
     Only the spring play people are in it. The summer show crew never see it, never scroll past it, and are never once tempted to have an opinion about it.
 
-Every community comes with a **Default Initiative** so there's always somewhere to start. Add as many more as you need.
+A new community has no initiatives — you make the first one and name it after the work it holds. Add as many more as you need.
 
 People are added as **members**, each with a **role** — "Director", "Cast" — that decides which tools they can use. See [Initiative roles](../sharing/initiative-roles.md).
 

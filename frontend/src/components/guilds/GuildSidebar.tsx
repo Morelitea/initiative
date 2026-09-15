@@ -90,6 +90,13 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
       setOpen(false);
       setName("");
       setDescription("");
+      // Land in the community that was just made. It is empty — the guild home
+      // opens on "create the first initiative" — so arriving anywhere else
+      // means the next thing the creator has to do is find it.
+      await router.navigate({
+        to: "/c/$guildId",
+        params: { guildId: String(newGuild.id) },
+      });
       if (billing) {
         toast.info(t("billingSetup.opening", { guild: newGuild.name }));
         await openPortal(newGuild.id, "upgrade", billingTab);
@@ -101,8 +108,9 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
       setError(message);
       toast.error(message);
     } finally {
+      // Deliberately no navigation here: a failed create keeps the dialog open
+      // on its error, and leaving the page would throw that error away.
       setSubmitting(false);
-      router.navigate({ to: "/" });
     }
   };
 

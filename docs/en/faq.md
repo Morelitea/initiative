@@ -14,7 +14,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
 ??? question "There's a lot here. Where do I begin?"
-    Make a community. Open the **Default Initiative** it came with. Make one project. Put some tasks on it.
+    Make a community. Make one initiative in it, named after what you're doing. Make one project. Put some tasks on it.
 
     That's it. You now have a working setup and you are allowed to stop. Come back for the rest of this only when something actually feels missing, which for a lot of groups is never. See [Your first community](getting-started/your-first-community.md).
 
