@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { setAuthToken } from "@/api/client";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
@@ -33,12 +34,16 @@ const Probe = () => {
 
 describe("useNotificationStream", () => {
   beforeEach(() => {
+    // The socket takes its credential from the api client, where signing in
+    // puts it — the auth frame reads it as it writes.
+    setAuthToken("test-token");
     MockWebSocket.instances = [];
     invalidations.mockClear();
     vi.stubGlobal("WebSocket", MockWebSocket);
   });
 
   afterEach(() => {
+    setAuthToken(null);
     vi.unstubAllGlobals();
   });
 

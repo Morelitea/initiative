@@ -15,6 +15,8 @@ import type { Provider, ProviderAwareness, UserState } from "@lexical/yjs";
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 
+import { getAuthToken } from "@/api/client";
+
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
@@ -573,10 +575,13 @@ export class CollaborationProvider implements Provider {
     this.reconnectAttempts = 0;
     this.lostConnectionReported = false;
 
-    // Send authentication message first (required by server)
+    // Send authentication message first (required by server). The credential
+    // is read as the frame is written rather than from when the provider was
+    // built — a document stays open across renewals, and every reconnect after
+    // one has to present what is current then.
     if (this.authParams) {
-      const authPayload = JSON.stringify({ token: this.authParams.token });
-      this.sendMessage(MSG_AUTH, new TextEncoder().encode(authPayload));
+      const payload = { token: getAuthToken() ?? this.authParams.token };
+      this.sendMessage(MSG_AUTH, new TextEncoder().encode(JSON.stringify(payload)));
     }
 
     this.emitStatus({ status: "connected" });

@@ -116,6 +116,31 @@ describe("silent session renewal", () => {
     }
   });
 
+  // A renewal can fail without saying anything about the session: a restart,
+  // a proxy hiccup, a rate limit, a dead network. The session outlives all of
+  // those; only the endpoint refusing the credential ends it.
+  it.each([
+    ["a server error", () => new HttpResponse(null, { status: 503 })],
+    ["a rate limit", () => new HttpResponse(null, { status: 429 })],
+    ["nothing answering", () => HttpResponse.error()],
+  ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
+    server.use(
+      http.get("/api/v1/users/me", () => new HttpResponse(null, { status: 401 })),
+      http.post("/api/v1/auth/refresh", failure)
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+
+    try {
+      // The request still fails — it just doesn't take the session with it.
+      await expect(apiClient.get("/users/me")).rejects.toBeDefined();
+      expect(onUnauthorized).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    }
+  });
+
   it("passes a guild step-up 401 through without renewal or sign-out", async () => {
     let refreshCalls = 0;
     server.use(

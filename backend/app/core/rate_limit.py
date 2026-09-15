@@ -1,12 +1,48 @@
 """Shared rate limiter configuration for the application."""
 
 import ipaddress
+import logging
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# The hint below is worth saying once per process and never again.
+_forwarded_hint_logged = False
+
+
+def _note_ignored_forwarded_header(request: Request, resolved: str) -> None:
+    """Say so, once, when a proxy's ``X-Forwarded-For`` is being discarded.
+
+    Uvicorn reads that header only from a peer named in
+    ``--forwarded-allow-ips`` (``127.0.0.1`` unless told otherwise, which is
+    what ``BEHIND_PROXY=true`` does). A reverse proxy anywhere else — another
+    container, another host — is not that peer, so every visitor resolves to
+    the proxy's own address instead of their own. Nothing else reports that
+    configuration, so this does.
+    """
+    global _forwarded_hint_logged
+    if _forwarded_hint_logged:
+        return
+    forwarded = request.headers.get("x-forwarded-for")
+    if not forwarded:
+        return
+    # A trusted hop leaves the resolved address somewhere in the chain the
+    # header names; an ignored one leaves the proxy itself, which is not.
+    if resolved in {hop.strip() for hop in forwarded.split(",")}:
+        return
+    _forwarded_hint_logged = True
+    logger.warning(
+        "Requests carry X-Forwarded-For but this proxy is not among the peers "
+        "trusted to set it, so every client resolves to %s. Set "
+        "BEHIND_PROXY=true (and FORWARDED_ALLOW_IPS to the proxy's address) so "
+        "rate limits and recorded sign-in addresses are per-visitor.",
+        resolved,
+    )
 
 
 def get_real_client_ip(request: Request) -> str:
@@ -16,7 +52,9 @@ def get_real_client_ip(request: Request) -> str:
     configuration before the application sees the request, so the address is
     already whatever the deployment's proxy configuration says it is.
     """
-    return get_remote_address(request)
+    resolved = get_remote_address(request)
+    _note_ignored_forwarded_header(request, resolved)
+    return resolved
 
 
 def get_inet_client_ip(request: Request) -> str | None:

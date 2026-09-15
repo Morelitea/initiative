@@ -204,6 +204,27 @@ describe("useAuth identity ordering", () => {
     expect(auth.user).toBeNull();
   });
 
+  it("ends an expired session here without signing out everywhere", async () => {
+    // The server refused this browser's credential. Signing out is a different
+    // act with a different scope — the account, everywhere — and nothing here
+    // asked for that one.
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+    post.mockClear();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("initiative:auth:unauthorized"));
+      // Let the local teardown, which awaits the message store, settle.
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(auth.user).toBeNull());
+    expect(post).not.toHaveBeenCalledWith("/auth/logout");
+    // What is held on this device still goes.
+    expect(forgetMessages).toHaveBeenCalled();
+  });
+
   it("applies a read that nothing overtook", async () => {
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "At boot" }) });
     renderAuth();

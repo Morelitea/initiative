@@ -158,6 +158,16 @@ const emitUnauthorized = () => {
 // refresh cookie exists there yet.
 let refreshInFlight: Promise<boolean> | null = null;
 
+// Whether a failed renewal is an answer *about the session*. Only the refresh
+// endpoint refusing the credential is one; a timeout, a dropped connection, a
+// 5xx during a restart and a 429 are the server being briefly unreachable, and
+// the session is untouched by them. Staying signed in costs nothing there — the
+// next request renews again.
+const isCredentialRefused = (error: unknown): boolean => {
+  const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+  return status === 401 || status === 403;
+};
+
 const attemptSessionRefresh = (): Promise<boolean> => {
   if (!refreshInFlight) {
     refreshInFlight = apiClient
@@ -171,11 +181,12 @@ const attemptSessionRefresh = (): Promise<boolean> => {
         }
         return true;
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         // Surfacing the signed-out state lives HERE, not with the callers:
         // however many concurrent 401s share this renewal, the event fires
-        // exactly once per failed attempt.
-        if (hasActiveSession) {
+        // exactly once per failed attempt — and only when the renewal was
+        // actually refused.
+        if (hasActiveSession && isCredentialRefused(error)) {
           emitUnauthorized();
         }
         return false;

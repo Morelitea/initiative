@@ -1,6 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { getAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { openLiveSocket } from "@/lib/liveSocket";
@@ -137,7 +138,7 @@ export const applyChanges = (changes: readonly RealtimeChange[]) => {
 };
 
 export const useRealtimeUpdates = () => {
-  const { token, user, logout } = useAuth();
+  const { user } = useAuth();
   // Keyed on the id, not the object: an account re-read replaces the object
   // without changing who is signed in, and rebuilding the socket for that would
   // drop every subscription over a no-op.
@@ -181,9 +182,15 @@ export const useRealtimeUpdates = () => {
     const connection = openLiveSocket({
       url: wsUrl,
       // The guild is in the address, so the frame carries the credential and
-      // the gap this tab is asking to have answered.
-      auth: (awaySeconds) =>
-        awaySeconds === null ? { token } : { token, away_seconds: awaySeconds },
+      // the gap this tab is asking to have answered. The credential is read as
+      // the frame is written rather than captured, so a socket that reconnects
+      // presents the one current then — it renews on its own clock while the
+      // socket stays open. Empty is fine: the server reads the session cookie,
+      // which is the web path after a reload.
+      auth: (awaySeconds) => {
+        const token = getAuthToken();
+        return awaySeconds === null ? { token } : { token, away_seconds: awaySeconds };
+      },
       onFrame: (payload) => {
         // A content-free invalidation bus: every frame is one transaction's
         // worth of {resource, parents, action}, never a serialized model. We
@@ -203,8 +210,11 @@ export const useRealtimeUpdates = () => {
         }
       },
       onAuthRejected: () => {
-        console.warn("WebSocket auth failed repeatedly, logging out");
-        logout();
+        // Stop, and leave the conclusion to the HTTP path. This close code
+        // covers everything from "the session is over" to "this guild is no
+        // longer yours", which the socket cannot tell apart; every screen
+        // reads over HTTP too, and that is where it is settled.
+        console.warn("Realtime socket was not admitted; it will not retry");
       },
     });
 
@@ -215,5 +225,5 @@ export const useRealtimeUpdates = () => {
         frameTimer = null;
       }
     };
-  }, [token, userId, routeGuildId, logout]);
+  }, [userId, routeGuildId]);
 };

@@ -382,6 +382,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [setUser, replaceIdentity]
   );
 
+  /** Everything sign-out does on this device, and nothing that leaves it. */
+  const clearLocalSession = useCallback(() => {
+    replaceIdentity(null, true);
+    setTokenState(null);
+    setIsDeviceToken(false);
+    setAuthToken(null);
+    clearUploadToken();
+    removeItem(TOKEN_STORAGE_KEY);
+    removeItem(DEVICE_TOKEN_KEY);
+    queryClient.clear();
+    // replaceIdentity already dropped the session snapshot; the cache that went
+    // with it goes at the same time.
+    clearOfflineSession();
+    void purgeOfflineCache();
+  }, [replaceIdentity]);
+
+  /** The session this device was holding is over — the server refused it, and
+   *  nothing here asked for that.
+   *
+   *  Distinct from `logout()`, which is the account signing out everywhere and
+   *  says so to the server. This one is local: the scope is this device, and
+   *  the server is the party that already knows. */
+  const endSessionLocally = useCallback(async () => {
+    setHasActiveSession(false);
+    clearJustSignedIn();
+    try {
+      await forgetMessagesOnThisDevice();
+    } catch {
+      // The session is over either way.
+    }
+    clearLocalSession();
+  }, [clearLocalSession]);
+
   const logout = useCallback(async () => {
     // Fire the POST *first*, while the bearer token and cookie are still
     // in place — otherwise we may log out on the client without the
@@ -408,19 +441,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Ignore errors — proceed with local cleanup regardless.
     }
-    replaceIdentity(null, true);
-    setTokenState(null);
-    setIsDeviceToken(false);
-    setAuthToken(null);
-    clearUploadToken();
-    removeItem(TOKEN_STORAGE_KEY);
-    removeItem(DEVICE_TOKEN_KEY);
-    queryClient.clear();
-    // replaceIdentity already dropped the session snapshot; the cache that went
-    // with it goes at the same time.
-    clearOfflineSession();
-    void purgeOfflineCache();
-  }, [setUser, replaceIdentity]);
+    clearLocalSession();
+  }, [clearLocalSession]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -431,11 +453,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // were actually signed in, so it's safe to surface the toast here
       // without further checks.
       toast.error(t("session.expired"));
-      void logout();
+      void endSessionLocally();
     };
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
-  }, [logout, t]);
+  }, [endSessionLocally, t]);
 
   const value: AuthContextValue = {
     user,
