@@ -634,5 +634,9 @@
   "INTAKE_INITIATIVE_NOT_FOUND": "Initiative introuvable",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Ce statut appartient à un autre projet",
   "INTAKE_PROJECT_NOT_LIVE": "Ce projet est archivé ou dans la corbeille, rien ne peut donc y arriver",
-  "INTAKE_UNKNOWN_STREAM": "Canal d'entrée inconnu"
+  "INTAKE_UNKNOWN_STREAM": "Canal d'entrée inconnu",
+  "MODERATION_REPORT_NOT_FOUND": "Signalement introuvable",
+  "MODERATION_REPORT_ALREADY_SETTLED": "Ce signalement a déjà été traité",
+  "MODERATION_UNKNOWN_TARGET_TYPE": "Cela ne peut pas être signalé",
+  "MODERATION_CANNOT_REPORT_YOURSELF": "Vous ne pouvez pas signaler votre propre contenu"
 }

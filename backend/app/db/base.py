@@ -102,6 +102,7 @@ from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
@@ -208,6 +209,8 @@ __all__ = [
     "WebhookSubscription",
     "IntakeBinding",
     "IntakeCase",
+    "ModerationReport",
+    "ModerationReportReporter",
     "AppServiceRegistration",
     "AppServiceNonce",
     "MarketplaceMedia",

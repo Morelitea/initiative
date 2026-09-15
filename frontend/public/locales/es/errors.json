@@ -634,5 +634,9 @@
   "INTAKE_INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Ese estado pertenece a otro proyecto",
   "INTAKE_PROJECT_NOT_LIVE": "Ese proyecto está archivado o en la papelera, así que nada puede llegar a él",
-  "INTAKE_UNKNOWN_STREAM": "Canal de entrada desconocido"
+  "INTAKE_UNKNOWN_STREAM": "Canal de entrada desconocido",
+  "MODERATION_REPORT_NOT_FOUND": "Denuncia no encontrada",
+  "MODERATION_REPORT_ALREADY_SETTLED": "Esa denuncia ya se ha resuelto",
+  "MODERATION_UNKNOWN_TARGET_TYPE": "Eso no se puede denunciar",
+  "MODERATION_CANNOT_REPORT_YOURSELF": "No puedes denunciar tu propio contenido"
 }

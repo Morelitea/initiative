@@ -284,6 +284,11 @@ _NO_SINGLE_PARENT = {
     "property_definitions": "initiative configuration, not a tool's content",
     "resource_grants": "sharing itself; resource_access reads this table",
     "webhook_subscriptions": "integration config, gated by the initiative",
+    # Gated on full access rather than sharing: the standing that opens these
+    # is the one that already reaches every resource, so there is no per-resource
+    # grant left to ask about.
+    "moderation_reports": "full access in the initiative, not a shared resource",
+    "moderation_report_reporters": "reached through the report it belongs to",
 }
 
 

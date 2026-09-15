@@ -332,6 +332,43 @@ def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
 
+def _full_access(initiative_expr: str, write: bool) -> str:
+    """Defer to the narrower standing: full access in this initiative.
+
+    ``public.initiative_full_access`` reads ``app.override_initiatives`` — the
+    GUC the request already sets from the reader's roles, and the one
+    ``public.resource_access`` already consults for the sharing override. So a
+    table taking this path is reachable by whoever already sees everything in
+    the initiative, and by the guild admin, and by nobody else.
+    """
+    return f"public.initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
+
+
+def direct_full_access() -> InitiativePath:
+    """Own ``initiative_id`` column, gated on full access rather than membership."""
+    return InitiativePath(
+        predicate=lambda t, w: _full_access(f"{t}.initiative_id", w),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+        parents=_no_parents,
+    )
+
+
+def via_full_access(parent: str, fk: str) -> InitiativePath:
+    """One hop to a parent that is itself gated on full access."""
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM {parent} "
+            f"WHERE {parent}.id = {t}.{fk} "
+            f"AND {_full_access(f'{parent}.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
+            f"WHERE {parent}.id = {r}.{fk})"
+        ),
+        parents=lambda r: _one_parent(parent, f"{r}.{fk}"),
+    )
+
+
 def direct() -> InitiativePath:
     """The table has its own ``initiative_id`` column."""
     return InitiativePath(
@@ -1091,6 +1128,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Reports a community settles. Reached by whoever already sees everything
+    # in the initiative, plus the guild admin — see direct_full_access.
+    "moderation_reports": direct_full_access(),
+    "moderation_report_reporters": via_full_access("moderation_reports", "report_id"),
     # Where a stream of operations work lands. Reached by whoever can reach the
     # project it names, which is the initiative that does the work.
     "intake_bindings": via("projects", "project_id"),
@@ -1547,6 +1588,8 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         "integration config; it reports on content, not on itself"
     ),
     "intake_bindings": Silent("routing config; it reports on no content"),
+    "moderation_reports": Silent("who reported whom is not an automation signal"),
+    "moderation_report_reporters": Silent("the reporters behind one report"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     # Guild-level, and kept out on disclosure: an upload row is reachable from
     # more than one place, so the initiative gate is not the whole answer for it
