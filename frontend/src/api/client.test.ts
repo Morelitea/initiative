@@ -178,21 +178,95 @@ describe("silent session renewal", () => {
     }
   });
 
-  it("renews without a lock where the browser has no lock manager", async () => {
-    // Older browsers and some embedded views have none; renewal still works,
-    // and the in-tab guard is what keeps one window to a single attempt.
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        renewed = true;
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
+  // Older browsers and some embedded views have no lock manager, so the turn
+  // is taken through storage the windows share instead.
+  describe("without a lock manager", () => {
+    const TURN_KEY = "initiative-auth-renewal-turn";
+    const DONE_KEY = "initiative-auth-renewal-done";
 
-    await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    /** Claim the turn on behalf of another window, once this one has claimed. */
+    const takeTurnAsAnotherWindow = async () => {
+      await vi.waitFor(() => expect(localStorage.getItem(TURN_KEY)).not.toBeNull(), {
+        interval: 1,
+      });
+      localStorage.setItem(TURN_KEY, "another-window");
+    };
+
+    /** Report back, once the waiting window is listening for it. */
+    const reportAsAnotherWindow = (outcome: "ok" | "no") => {
+      setTimeout(() => {
+        window.dispatchEvent(
+          new StorageEvent("storage", { key: DONE_KEY, newValue: `${Date.now()}:${outcome}` })
+        );
+      }, 120);
+    };
+
+    it("renews and says so, for the windows waiting on it", async () => {
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          renewed = true;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
+      // The turn is given up, and how it went is left where peers can read it.
+      expect(localStorage.getItem(TURN_KEY)).toBeNull();
+      expect(localStorage.getItem(DONE_KEY)).toMatch(/:ok$/);
+    });
+
+    it("uses what another window renewed rather than renewing again", async () => {
+      let refreshCalls = 0;
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          refreshCalls += 1;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      const pending = apiClient.get("/users/me");
+      // Another window claims the turn after this one — the last write wins —
+      // and then reports that it went well, which in a real browser is what
+      // the storage event carries.
+      await takeTurnAsAnotherWindow();
+      renewed = true;
+      reportAsAnotherWindow("ok");
+
+      await expect(pending).resolves.toMatchObject({ data: { id: 1 } });
+      expect(refreshCalls).toBe(0);
+    });
+
+    it("renews itself when the window holding the turn did not get there", async () => {
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          renewed = true;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      const pending = apiClient.get("/users/me");
+      await takeTurnAsAnotherWindow();
+      reportAsAnotherWindow("no");
+
+      // It does not take the other window's word for a renewal that failed.
+      await expect(pending).resolves.toMatchObject({ data: { id: 1 } });
+    });
   });
 
   it("passes a guild step-up 401 through without renewal or sign-out", async () => {
