@@ -554,25 +554,8 @@
   },
   "auth": {
     "adminOnly": "Only platform admins can manage authentication settings.",
-    "title": "OIDC authentication",
-    "description": "Configure single sign-on for your workspace.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
-    "enabledLabel": "Enabled",
-    "enabledHelp": "Allow users to authenticate via your OIDC provider.",
-    "issuerLabel": "Issuer",
-    "issuerPlaceholder": "https://accounts.example.com",
-    "clientIdLabel": "Client ID",
-    "clientSecretLabel": "Client secret",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Leave blank to keep the existing secret.",
-    "providerNameLabel": "Provider name",
-    "providerNamePlaceholder": "Single Sign-On",
-    "scopesLabel": "Scopes",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Save auth settings",
-    "saving": "Saving…",
-    "callbackUrl": "Authorization callback:",
     "postLoginRedirect": "Post-login redirect:",
     "mobileCallback": "Mobile app callback:",
     "mappingsTitle": "OIDC Claim Mappings",
@@ -642,8 +625,11 @@
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
     "scope": {
       "platformLabel": "Platform-wide sign-in",
-      "guildLabel": "Per-community sign-in"
-    }
+      "guildLabel": "Per-community sign-in",
+      "platformExplained": "Sign-in is the platform's: the providers below serve every community, and a community cannot add one of its own. Which of the two this instance runs is set when it is deployed, not here.",
+      "guildExplained": "Communities may add providers of their own alongside the ones below, and people still sign in to one account whichever they use. Which of the two this instance runs is set when it is deployed, not here."
+    },
+    "deploymentTitle": "This deployment"
   },
   "platformUsers": {
     "title": "Platform users",
@@ -1081,8 +1067,6 @@
     "addProvider": "Add provider",
     "loading": "Loading providers…",
     "empty": "No additional providers configured.",
-    "reservedBadge": "Platform SSO",
-    "reservedHelp": "Managed in the single sign-on settings above",
     "disabledBadge": "Disabled",
     "createTitle": "Add sign-in provider",
     "editTitle": "Edit sign-in provider",
@@ -1116,7 +1100,8 @@
     "saved": "Provider saved",
     "deleted": "Provider deleted",
     "saveError": "Could not save the provider",
-    "deleteError": "Could not delete the provider"
+    "deleteError": "Could not delete the provider",
+    "callbackLabel": "Callback URL"
   },
   "aiConnections": {
     "title": "Connections",

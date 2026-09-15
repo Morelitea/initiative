@@ -83,7 +83,6 @@
   "OIDC_NOT_ENABLED": "OIDC no está habilitado",
   "OIDC_METADATA_INCOMPLETE": "Metadatos de OIDC incompletos",
   "AUTH_PROVIDER_NOT_FOUND": "Proveedor de inicio de sesión no encontrado",
-  "AUTH_PROVIDER_SLUG_RESERVED": "Este proveedor se gestiona en la configuración de inicio de sesión único y no se puede editar aquí",
   "AUTH_PROVIDER_SLUG_TAKEN": "Ya existe un proveedor de inicio de sesión con este identificador",
   "GUILD_AUTH_STEP_UP_REQUIRED": "Esta comunidad requiere iniciar sesión con su proveedor de identidad",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Elige un proveedor de inicio de sesión habilitado para este requisito",

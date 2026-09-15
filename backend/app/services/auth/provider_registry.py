@@ -22,6 +22,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
+from app.core.config import API_V1_STR, settings as app_config
 from app.core.messages import AuthProviderMessages
 from app.db.errors import (
     FOREIGN_KEY_VIOLATION_SQLSTATE,
@@ -36,9 +37,22 @@ from app.schemas.platform.settings import (
     AuthProviderUpdate,
 )
 from app.services.auth import identity as identity_service
-from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 
 logger = logging.getLogger(__name__)
+
+
+def provider_callback_url(slug: str, guild_id: int | None = None) -> str:
+    """Where this provider sends the browser back, which is what an operator
+    registers with their IdP.
+
+    Guild-scoped providers are addressed through their guild, because a slug is
+    only unique inside one. Built here so the address shown in settings and the
+    address sent to the IdP come from one place.
+    """
+    base = app_config.APP_URL.rstrip("/")
+    if guild_id is not None:
+        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{slug}/callback"
+    return f"{base}{API_V1_STR}/auth/{slug}/callback"
 
 
 def _namespace_clause(guild_id: int | None):
@@ -64,7 +78,7 @@ def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
         icon=row.icon,
         button_style=row.button_style,
         secret_set=secret_set,
-        reserved=row.slug == PLATFORM_OIDC_SLUG,
+        callback_url=provider_callback_url(row.slug, row.guild_id),
     )
 
 
@@ -115,11 +129,6 @@ async def editable_provider(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthProviderMessages.NOT_FOUND,
         )
-    if row.slug == PLATFORM_OIDC_SLUG:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthProviderMessages.SLUG_RESERVED,
-        )
     return row
 
 
@@ -155,13 +164,7 @@ async def create_provider(
     *,
     guild_id: int | None,
 ) -> AuthProviderAdminRead:
-    """Create a row in the namespace. The platform slug is reserved in every
-    namespace; slugs are unique within a namespace (409)."""
-    if provider_in.slug == PLATFORM_OIDC_SLUG:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthProviderMessages.SLUG_RESERVED,
-        )
+    """Create a row in the namespace. Slugs are unique within one (409)."""
     existing = (
         await session.exec(
             select(AuthProvider.id).where(

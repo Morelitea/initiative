@@ -267,37 +267,35 @@ export const ProviderRegistrySection = ({
                     {!provider.enabled && (
                       <Badge variant="outline">{t("authProviders.disabledBadge")}</Badge>
                     )}
-                    {provider.reserved && (
-                      <Badge variant="secondary">{t("authProviders.reservedBadge")}</Badge>
-                    )}
                   </div>
                   <p className="truncate text-muted-foreground text-sm">{provider.issuer}</p>
-                </div>
-                {provider.reserved ? (
-                  <p className="shrink-0 text-muted-foreground text-xs">
-                    {t("authProviders.reservedHelp")}
+                  {/* The address this provider's IdP has to send the browser
+                      back to. It follows the slug, and a slug never changes,
+                      so it is good for as long as the provider is. */}
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground text-xs">
+                    <span>{t("authProviders.callbackLabel")}</span>
+                    <code className="rounded bg-muted px-1 py-0.5">{provider.callback_url}</code>
                   </p>
-                ) : (
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(provider)}
-                    >
-                      {t("authProviders.edit")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => setDeleting(provider)}
-                    >
-                      {t("authProviders.delete")}
-                    </Button>
-                  </div>
-                )}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(provider)}
+                  >
+                    {t("authProviders.edit")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => setDeleting(provider)}
+                  >
+                    {t("authProviders.delete")}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

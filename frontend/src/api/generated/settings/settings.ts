@@ -40,7 +40,6 @@ import type {
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
-  OIDCSettingsUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -70,9 +69,9 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * Platform OIDC config — read straight from the provider registry row
- * (its source of truth). System engine: ``auth_providers`` carries no
- * request-path grant; the capability gate stays ``config.manage``.
+ * The deployment's auth posture and redirect addresses. System engine:
+ * ``auth_providers`` carries no request-path grant; the capability gate stays
+ * ``config.manage``.
  * @summary Get Oidc Settings
  */
 export const getOidcSettingsApiV1SettingsAuthGet = (
@@ -211,99 +210,6 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Write the platform provider row directly (create-on-first-save).
- * ``client_secret`` keeps its write-only convention: omitted keeps the
- * stored secret, empty clears it, a value replaces it.
- * @summary Update Oidc Settings
- */
-export const updateOidcSettingsApiV1SettingsAuthPut = (
-  oIDCSettingsUpdate: BodyType<OIDCSettingsUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OIDCSettingsResponse>(
-    {
-      url: `/api/v1/settings/auth`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: oIDCSettingsUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateOidcSettingsApiV1SettingsAuthPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>,
-    TError,
-    { data: BodyType<OIDCSettingsUpdate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>,
-  TError,
-  { data: BodyType<OIDCSettingsUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateOidcSettingsApiV1SettingsAuthPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>,
-    { data: BodyType<OIDCSettingsUpdate> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateOidcSettingsApiV1SettingsAuthPut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateOidcSettingsApiV1SettingsAuthPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>
->;
-export type UpdateOidcSettingsApiV1SettingsAuthPutMutationBody = BodyType<OIDCSettingsUpdate>;
-export type UpdateOidcSettingsApiV1SettingsAuthPutMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Oidc Settings
- */
-export const useUpdateOidcSettingsApiV1SettingsAuthPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>,
-      TError,
-      { data: BodyType<OIDCSettingsUpdate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateOidcSettingsApiV1SettingsAuthPut>>,
-  TError,
-  { data: BodyType<OIDCSettingsUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateOidcSettingsApiV1SettingsAuthPutMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * @summary Get Interface Settings
  */

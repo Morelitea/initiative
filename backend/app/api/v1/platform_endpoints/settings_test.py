@@ -1135,19 +1135,26 @@ async def test_storage_endpoints_reject_non_owner(
 
 
 async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
-    resp = await client.put(
-        "/api/v1/settings/auth",
+    """Through the registry, which is where a provider is configured.
+
+    The ``oidc`` slug is what the pre-generalization callback URL resolves to,
+    and it is created here like any other — that it once could not be is the
+    exception this surface no longer carries.
+    """
+    resp = await client.post(
+        "/api/v1/settings/auth/providers/",
         json={
+            "slug": "oidc",
+            "display_name": "Okta",
             "enabled": True,
             "issuer": "https://idp.example.com",
             "client_id": "client-123",
             "client_secret": "s3cret",
-            "provider_name": "Okta",
-            "scopes": ["openid", "email"],
+            "scopes": "openid email",
         },
         headers=headers,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201, resp.text
 
 
 @pytest.mark.integration

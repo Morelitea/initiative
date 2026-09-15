@@ -554,25 +554,8 @@
   },
   "auth": {
     "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
-    "title": "OIDC-Authentifizierung",
-    "description": "Konfiguriere Single Sign-On für deinen Arbeitsbereich.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
-    "enabledLabel": "Aktiviert",
-    "enabledHelp": "Benutzern erlauben, sich über deinen OIDC-Anbieter zu authentifizieren.",
-    "issuerLabel": "Aussteller",
-    "issuerPlaceholder": "https://accounts.example.com",
-    "clientIdLabel": "Client-ID",
-    "clientSecretLabel": "Client-Secret",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Lass das Feld leer, um das vorhandene Secret beizubehalten.",
-    "providerNameLabel": "Anbietername",
-    "providerNamePlaceholder": "Single Sign-On",
-    "scopesLabel": "Scopes",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Authentifizierungseinstellungen speichern",
-    "saving": "Speichern…",
-    "callbackUrl": "Autorisierungs-Callback:",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
     "mobileCallback": "Callback der mobilen App:",
     "mappingsTitle": "OIDC-Claim-Zuordnungen",
@@ -642,8 +625,11 @@
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "scope": {
       "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung pro Community"
-    }
+      "guildLabel": "Anmeldung pro Community",
+      "platformExplained": "Die Anmeldung gehört der Plattform: Die Anbieter unten gelten für jede Community, und eine Community kann keinen eigenen hinzufügen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier.",
+      "guildExplained": "Communities können neben den unten aufgeführten eigene Anbieter hinzufügen; angemeldet wird man weiterhin an einem Konto, egal über welchen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier."
+    },
+    "deploymentTitle": "Diese Installation"
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
@@ -1081,8 +1067,6 @@
     "addProvider": "Anbieter hinzufügen",
     "loading": "Anbieter werden geladen…",
     "empty": "Keine weiteren Anbieter konfiguriert.",
-    "reservedBadge": "Plattform-SSO",
-    "reservedHelp": "Wird in den Single-Sign-On-Einstellungen oben verwaltet",
     "disabledBadge": "Deaktiviert",
     "createTitle": "Anmeldeanbieter hinzufügen",
     "editTitle": "Anmeldeanbieter bearbeiten",
@@ -1116,7 +1100,8 @@
     "saved": "Anbieter gespeichert",
     "deleted": "Anbieter gelöscht",
     "saveError": "Anbieter konnte nicht gespeichert werden",
-    "deleteError": "Anbieter konnte nicht gelöscht werden"
+    "deleteError": "Anbieter konnte nicht gelöscht werden",
+    "callbackLabel": "Callback-URL"
   },
   "aiConnections": {
     "title": "Verbindungen",

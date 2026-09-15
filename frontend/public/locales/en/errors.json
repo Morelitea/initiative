@@ -80,7 +80,6 @@
   "OIDC_NOT_ENABLED": "OIDC is not enabled",
   "OIDC_METADATA_INCOMPLETE": "OIDC metadata incomplete",
   "AUTH_PROVIDER_NOT_FOUND": "Sign-in provider not found",
-  "AUTH_PROVIDER_SLUG_RESERVED": "This provider is managed by the single sign-on settings and can't be edited here",
   "AUTH_PROVIDER_SLUG_TAKEN": "A sign-in provider with this slug already exists",
   "GUILD_AUTH_STEP_UP_REQUIRED": "This community requires signing in with its identity provider",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Pick an enabled sign-in provider for this requirement",
