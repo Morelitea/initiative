@@ -195,6 +195,7 @@
   "SETTINGS_PROVIDE_TEST_EMAIL": "Proporciona una dirección de email de prueba",
   "SETTINGS_SMTP_INCOMPLETE": "La configuración SMTP está incompleta",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapeo no encontrado",
+  "SETTINGS_PROVIDER_WRONG_GUILD": "Este proveedor de inicio de sesión pertenece a otra comunidad, por lo que sus reglas solo pueden conceder acceso allí",
   "SETTINGS_INVALID_TARGET_TYPE": "El tipo de destino debe ser una comunidad o una iniciativa",
   "SETTINGS_INVALID_GUILD_ROLE": "El rol de la comunidad debe ser 'admin' o 'member'",
   "SETTINGS_GUILD_NOT_FOUND": "Comunidad no encontrado",

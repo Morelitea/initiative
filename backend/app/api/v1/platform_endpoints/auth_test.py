@@ -875,7 +875,7 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
             OidcClientConfig(
                 issuer=row.issuer,
                 client_id=row.client_id,
-                redirect_uri=auth_module._provider_redirect_uri(row.slug, row.guild_id),
+                redirect_uri=auth_module.provider_callback_url(row.slug, row.guild_id),
                 client_secret="s3cret",
                 scopes=row.scopes or "openid",
                 provider_slug=auth_module._provider_state_key(row),

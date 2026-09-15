@@ -23,8 +23,9 @@ from app.testing import (
     create_project,
     create_user,
     get_auth_headers,
+    route_session_to_guild,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import Guild, GuildRole
 
 pytestmark = pytest.mark.integration
 
@@ -210,11 +211,14 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
         headers=owner["actor"].headers,
     )
 
-    outsider = await create_user(session)
-    await create_guild_membership(
-        session, user=outsider, guild=owner["guild"], role=GuildRole.member
-    )
     await set_rls_context(session)
+    outsider = await create_user(session)
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == owner["guild_id"]))
+    ).one()
+    await create_guild_membership(
+        session, user=outsider, guild=guild, role=GuildRole.member
+    )
 
     outcome = await intake_service.open_case(
         IntakeStream.security, title="Refused sign-ins"
@@ -239,7 +243,7 @@ async def test_a_status_from_another_project_is_refused(client, session, owner):
         json={"initiative_id": owner["initiative_id"]},
         headers=owner["actor"].headers,
     )
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await route_session_to_guild(session, owner["guild_id"])
     from app.models.tenant.task import TaskStatus
     from app.services.tenant import task_statuses as task_statuses_service
 
@@ -312,7 +316,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     )
     assert opened is not None
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await route_session_to_guild(session, owner["guild_id"])
     initiative = (
         await session.exec(
             select(Initiative).where(Initiative.id == owner["initiative_id"])
@@ -455,7 +459,7 @@ async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, 
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await route_session_to_guild(session, owner["guild_id"])
     initiative = (
         await session.exec(
             select(Initiative).where(Initiative.id == owner["initiative_id"])

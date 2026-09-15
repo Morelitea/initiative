@@ -1017,7 +1017,7 @@ async def test_community_join_enrols_in_auto_join_initiatives(
         )
     ).all()
     assert [row.initiative_id for row in rows] == [welcome.id]
-    assert rows[0].oidc_managed is False
+    assert rows[0].oidc_provider_id is None
 
 
 @pytest.mark.integration

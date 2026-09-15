@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
@@ -89,6 +89,51 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     # The claim's role, not the built-in member role enrolment hands out.
     assert membership.role_id == pm_role.id
     assert membership.oidc_provider_id == provider.id
+
+
+@pytest.mark.integration
+async def test_a_guild_provider_grants_only_inside_its_own_guild(session: AsyncSession):
+    """A guild configures its own provider, so that provider's sign-in reads the
+    rules naming that guild. One of its rules naming a different guild is not
+    part of the sign-in, and grants nothing."""
+    owner = await create_user(session)
+    home = await create_guild(session, creator=owner)
+    elsewhere = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="tenant", guild_id=home.id)
+
+    newcomer = await create_user(session)
+    for guild_id in (home.id, elsewhere.id):
+        session.add(
+            OIDCClaimMapping(
+                provider_id=provider.id,
+                claim_value="staff",
+                target_type=OIDCMappingTargetType.guild,
+                guild_id=guild_id,
+                guild_role=GuildRole.admin.value,
+            )
+        )
+    await session.commit()
+
+    await set_rls_context(session)
+    result = await sync_oidc_assignments(
+        session,
+        user_id=newcomer.id,
+        provider_id=provider.id,
+        claim_values={"staff"},
+    )
+    await session.commit()
+
+    assert result.guilds_added == [home.id]
+    joined = set(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == newcomer.id
+                )
+            )
+        ).all()
+    )
+    assert joined == {home.id}
 
 
 @pytest.mark.integration

@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Support",
-    "icon": "life-buoy",
+    "icon": "🛟",
     "description": "Help requests from people using this deployment. Each case is one request: answer it, and close it when the person has what they needed.",
     "is_template": false,
     "archived_at": null,

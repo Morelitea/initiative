@@ -733,6 +733,25 @@ async def _lookup_guild_initiative(
         await _reset_admin_session(session)
 
 
+async def _check_provider_reaches_guild(
+    session: AsyncSession, provider_id: int, guild_id: int
+) -> None:
+    """Whether a rule for this provider may name this guild.
+
+    A guild's own provider is configured by that guild and speaks for it, so
+    its rules stay inside it. An operator-global provider — the platform login
+    registry, ``guild_id IS NULL`` — has no guild of its own, and its rules
+    name whichever guild they grant in.
+    """
+    provider = await session.get(AuthProvider, provider_id)
+    if provider is None:
+        raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
+    if provider.guild_id is not None and provider.guild_id != guild_id:
+        raise HTTPException(
+            status_code=400, detail=SettingsMessages.PROVIDER_WRONG_GUILD
+        )
+
+
 async def _enrich_mapping(
     session: AsyncSession, mapping: OIDCClaimMapping
 ) -> OIDCClaimMappingRead:
@@ -834,6 +853,9 @@ async def create_oidc_mapping(
     if not guild:
         raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
 
+    # Validate the provider exists and may grant in that guild
+    await _check_provider_reaches_guild(session, payload.provider_id, payload.guild_id)
+
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
         if not payload.initiative_id:
@@ -903,9 +925,6 @@ async def update_oidc_mapping(
 
     data = payload.model_dump(exclude_unset=True)
     if "provider_id" in data and data["provider_id"] is not None:
-        provider = await session.get(AuthProvider, data["provider_id"])
-        if provider is None:
-            raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
         mapping.provider_id = data["provider_id"]
     if "claim_value" in data and data["claim_value"] is not None:
         mapping.claim_value = data["claim_value"].strip()
@@ -936,7 +955,10 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Full validation of the final state
+    # Full validation of the final state. Either side of the pair can move in
+    # one request, so the provider is checked against the guild that results.
+    await _check_provider_reaches_guild(session, mapping.provider_id, mapping.guild_id)
+
     effective_target = mapping.target_type
     if isinstance(effective_target, str):
         effective_target = OIDCMappingTargetType(effective_target)
