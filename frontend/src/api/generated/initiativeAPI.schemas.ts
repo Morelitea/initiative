@@ -1054,7 +1054,7 @@ export interface AuthProviderAdminRead {
   icon: string | null;
   button_style: string | null;
   secret_set: boolean;
-  reserved: boolean;
+  callback_url: string;
 }
 
 /**
@@ -4832,17 +4832,6 @@ export interface OIDCSettingsResponse {
   mobile_redirect_uri: string | null;
   provider_name: string | null;
   scopes: string[];
-}
-
-export interface OIDCSettingsUpdate {
-  enabled: boolean;
-  issuer?: string | null;
-  client_id?: string | null;
-  client_secret?: string | null;
-  redirect_uri?: string | null;
-  post_login_redirect?: string | null;
-  provider_name?: string | null;
-  scopes?: string[];
 }
 
 /**

@@ -43,7 +43,6 @@ from app.schemas.platform.settings import (
     OIDCMappingOptionsResponse,
     OIDCMappingsResponse,
     OIDCSettingsResponse,
-    OIDCSettingsUpdate,
     StorageBackfillStatusResponse,
     StorageSettingsResponse,
     StorageSettingsUpdate,
@@ -111,8 +110,12 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
 
 
 def _platform_oidc_response(provider) -> OIDCSettingsResponse:
-    """Serialize the platform provider row (or its not-yet-created default)
-    into the settings wire format — unchanged from the app_settings era."""
+    """The deployment's auth posture and the redirect addresses that belong to
+    the install rather than to any one provider.
+
+    The provider fields are the platform row's, kept for readers that have not
+    moved to the registry; a provider is configured through
+    ``/settings/auth/providers``, which is the only place that writes one."""
     return OIDCSettingsResponse(
         auth_scope=app_config.AUTH_SCOPE,
         enabled=provider.enabled if provider else False,
@@ -133,31 +136,10 @@ async def get_oidc_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
-    """Platform OIDC config — read straight from the provider registry row
-    (its source of truth). System engine: ``auth_providers`` carries no
-    request-path grant; the capability gate stays ``config.manage``."""
+    """The deployment's auth posture and redirect addresses. System engine:
+    ``auth_providers`` carries no request-path grant; the capability gate stays
+    ``config.manage``."""
     provider = await platform_provider_service.get_platform_provider(session)
-    return _platform_oidc_response(provider)
-
-
-@router.put("/auth", response_model=OIDCSettingsResponse)
-async def update_oidc_settings(
-    payload: OIDCSettingsUpdate,
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCSettingsResponse:
-    """Write the platform provider row directly (create-on-first-save).
-    ``client_secret`` keeps its write-only convention: omitted keeps the
-    stored secret, empty clears it, a value replaces it."""
-    provider = await platform_provider_service.upsert_platform_provider(
-        session,
-        enabled=payload.enabled,
-        issuer=payload.issuer,
-        client_id=payload.client_id,
-        provider_name=payload.provider_name,
-        scopes=payload.scopes,
-        client_secret=payload.client_secret,
-    )
     return _platform_oidc_response(provider)
 
 

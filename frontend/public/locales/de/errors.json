@@ -85,7 +85,6 @@
   "OIDC_NOT_ENABLED": "OIDC ist nicht aktiviert",
   "OIDC_METADATA_INCOMPLETE": "OIDC-Metadaten unvollständig",
   "AUTH_PROVIDER_NOT_FOUND": "Anmeldeanbieter nicht gefunden",
-  "AUTH_PROVIDER_SLUG_RESERVED": "Dieser Anbieter wird über die Single-Sign-On-Einstellungen verwaltet und kann hier nicht bearbeitet werden",
   "AUTH_PROVIDER_SLUG_TAKEN": "Ein Anmeldeanbieter mit diesem Kürzel existiert bereits",
   "GUILD_AUTH_STEP_UP_REQUIRED": "Diese Community erfordert die Anmeldung über ihren Identitätsanbieter",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Wählen Sie einen aktivierten Anmeldeanbieter für diese Anforderung",

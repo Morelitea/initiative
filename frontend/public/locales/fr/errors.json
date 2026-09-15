@@ -83,7 +83,6 @@
   "OIDC_NOT_ENABLED": "L'OIDC n'est pas activé",
   "OIDC_METADATA_INCOMPLETE": "Métadonnées OIDC incomplètes",
   "AUTH_PROVIDER_NOT_FOUND": "Fournisseur de connexion introuvable",
-  "AUTH_PROVIDER_SLUG_RESERVED": "Ce fournisseur est géré dans les paramètres d'authentification unique et ne peut pas être modifié ici",
   "AUTH_PROVIDER_SLUG_TAKEN": "Un fournisseur de connexion avec cet identifiant existe déjà",
   "GUILD_AUTH_STEP_UP_REQUIRED": "Cette communauté exige une connexion via son fournisseur d'identité",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Choisissez un fournisseur de connexion activé pour cette exigence",

@@ -103,6 +103,7 @@ from app.services.auth.oidc.provider import (
     OidcProvider,
 )
 from app.services.auth import provider_registry
+from app.services.auth.provider_registry import provider_callback_url
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     get_platform_provider,
@@ -821,18 +822,6 @@ async def revoke_device_token(
         )
 
 
-def _provider_redirect_uri(provider_slug: str, guild_id: int | None = None) -> str:
-    """Per-provider callback URL. For the platform slug this is the same
-    ``/auth/oidc/callback`` operators registered at their IdP before the
-    routes were generalized — the slug is literally ``oidc``. Guild-scoped
-    providers get a guild-addressed callback (their slug is only unique
-    within the guild)."""
-    base = settings.APP_URL.rstrip("/")
-    if guild_id is not None:
-        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{provider_slug}/callback"
-    return f"{base}{API_V1_STR}/auth/{provider_slug}/callback"
-
-
 def _provider_state_key(row: AuthProvider) -> str:
     """The identity a login-flow state binds to. Operator-global rows keep the
     bare slug (states minted before guild providers stay valid); guild rows
@@ -967,7 +956,7 @@ async def _build_row_oidc_provider(
         OidcClientConfig(
             issuer=row.issuer,
             client_id=row.client_id,
-            redirect_uri=_provider_redirect_uri(row.slug, row.guild_id),
+            redirect_uri=provider_callback_url(row.slug, row.guild_id),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
             provider_slug=_provider_state_key(row),

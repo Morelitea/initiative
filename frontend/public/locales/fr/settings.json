@@ -554,25 +554,8 @@
   },
   "auth": {
     "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'authentification.",
-    "title": "Authentification OIDC",
-    "description": "Configurez l'authentification unique pour votre espace de travail.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
-    "enabledLabel": "Activé",
-    "enabledHelp": "Permettre aux utilisateurs de s'authentifier via votre fournisseur OIDC.",
-    "issuerLabel": "Émetteur",
-    "issuerPlaceholder": "https://comptes.exemple.com",
-    "clientIdLabel": "ID client",
-    "clientSecretLabel": "Secret client",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Laissez vide pour conserver le secret existant.",
-    "providerNameLabel": "Nom du fournisseur",
-    "providerNamePlaceholder": "Authentification unique",
-    "scopesLabel": "Portées",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Enregistrer les paramètres d'authentification",
-    "saving": "Enregistrement…",
-    "callbackUrl": "URL de callback d'autorisation :",
     "postLoginRedirect": "Redirection post-connexion :",
     "mobileCallback": "Callback de l'application mobile :",
     "mappingsTitle": "Correspondances de revendications OIDC",
@@ -642,8 +625,11 @@
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
       "platformLabel": "Connexion à l'échelle de la plateforme",
-      "guildLabel": "Connexion par communauté"
-    }
+      "guildLabel": "Connexion par communauté",
+      "platformExplained": "La connexion appartient à la plateforme : les fournisseurs ci-dessous servent toutes les communautés, et une communauté ne peut pas ajouter le sien. Laquelle des deux cette instance utilise se décide au déploiement, pas ici.",
+      "guildExplained": "Les communautés peuvent ajouter leurs propres fournisseurs à côté de ceux ci-dessous, et l'on se connecte à un seul compte quel que soit celui utilisé. Laquelle des deux cette instance utilise se décide au déploiement, pas ici."
+    },
+    "deploymentTitle": "Cette installation"
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
@@ -1081,8 +1067,6 @@
     "addProvider": "Ajouter un fournisseur",
     "loading": "Chargement des fournisseurs…",
     "empty": "Aucun fournisseur supplémentaire configuré.",
-    "reservedBadge": "SSO de la plateforme",
-    "reservedHelp": "Géré dans les paramètres d'authentification unique ci-dessus",
     "disabledBadge": "Désactivé",
     "createTitle": "Ajouter un fournisseur de connexion",
     "editTitle": "Modifier le fournisseur de connexion",
@@ -1116,7 +1100,8 @@
     "saved": "Fournisseur enregistré",
     "deleted": "Fournisseur supprimé",
     "saveError": "Impossible d'enregistrer le fournisseur",
-    "deleteError": "Impossible de supprimer le fournisseur"
+    "deleteError": "Impossible de supprimer le fournisseur",
+    "callbackLabel": "URL de rappel"
   },
   "aiConnections": {
     "title": "Connexions",

@@ -554,25 +554,8 @@
   },
   "auth": {
     "adminOnly": "Solo los administradores de la plataforma pueden gestionar la configuración de autenticación.",
-    "title": "Autenticación OIDC",
-    "description": "Configura el inicio de sesión único para tu espacio de trabajo.",
     "loading": "Cargando configuración de autenticación…",
     "loadError": "No se pudo cargar la configuración de autenticación.",
-    "enabledLabel": "Habilitado",
-    "enabledHelp": "Permitir que los usuarios se autentiquen a través de tu proveedor OIDC.",
-    "issuerLabel": "Emisor",
-    "issuerPlaceholder": "https://cuentas.ejemplo.com",
-    "clientIdLabel": "ID de cliente",
-    "clientSecretLabel": "Secreto del cliente",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Deja en blanco para mantener el secreto existente.",
-    "providerNameLabel": "Nombre del proveedor",
-    "providerNamePlaceholder": "Inicio de sesión único",
-    "scopesLabel": "Alcances",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Guardar configuración de autenticación",
-    "saving": "Guardando…",
-    "callbackUrl": "URL de callback de autorización:",
     "postLoginRedirect": "Redirección después de inicio de sesión:",
     "mobileCallback": "Callback de app móvil:",
     "mappingsTitle": "Mapeo de claims OIDC",
@@ -642,8 +625,11 @@
     "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC.",
     "scope": {
       "platformLabel": "Inicio de sesión para toda la plataforma",
-      "guildLabel": "Inicio de sesión por comunidad"
-    }
+      "guildLabel": "Inicio de sesión por comunidad",
+      "platformExplained": "El inicio de sesión es de la plataforma: los proveedores de abajo sirven a todas las comunidades, y una comunidad no puede añadir el suyo. Cuál de las dos usa esta instancia se decide al desplegarla, no aquí.",
+      "guildExplained": "Las comunidades pueden añadir sus propios proveedores junto a los de abajo, y se entra a una sola cuenta sea cual sea. Cuál de las dos usa esta instancia se decide al desplegarla, no aquí."
+    },
+    "deploymentTitle": "Esta instalación"
   },
   "platformUsers": {
     "title": "Usuarios de la plataforma",
@@ -1081,8 +1067,6 @@
     "addProvider": "Añadir proveedor",
     "loading": "Cargando proveedores…",
     "empty": "No hay proveedores adicionales configurados.",
-    "reservedBadge": "SSO de plataforma",
-    "reservedHelp": "Se gestiona en la configuración de inicio de sesión único de arriba",
     "disabledBadge": "Desactivado",
     "createTitle": "Añadir proveedor de inicio de sesión",
     "editTitle": "Editar proveedor de inicio de sesión",
@@ -1116,7 +1100,8 @@
     "saved": "Proveedor guardado",
     "deleted": "Proveedor eliminado",
     "saveError": "No se pudo guardar el proveedor",
-    "deleteError": "No se pudo eliminar el proveedor"
+    "deleteError": "No se pudo eliminar el proveedor",
+    "callbackLabel": "URL de retorno"
   },
   "aiConnections": {
     "title": "Conexiones",

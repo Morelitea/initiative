@@ -28,9 +28,10 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     # Whether a client secret is stored (write-only; its value is never read
     # back on any request path).
     secret_set: bool = False
-    # The platform provider row is configured through the SSO settings form,
-    # not this CRUD.
-    reserved: bool = False
+    #: Where this provider sends the browser back. Shown so an operator can
+    #: register it with their IdP; it remains fixed for the provider's lifetime
+    #: because the slug is immutable.
+    callback_url: str = ""
 
 
 def _validate_https_issuer(value: str) -> str:

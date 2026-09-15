@@ -27,7 +27,6 @@ import type {
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
-  OIDCSettingsUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -64,7 +63,6 @@ import {
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
-  updateOidcSettingsApiV1SettingsAuthPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
@@ -175,20 +173,6 @@ export const useChangelog = (
 };
 
 // ── Settings Mutations ──────────────────────────────────────────────────────
-
-export const useUpdateOidcSettings = (
-  options?: MutationOpts<OIDCSettingsResponse, OIDCSettingsUpdate>
-) =>
-  useApiMutation<OIDCSettingsResponse, OIDCSettingsUpdate>(
-    {
-      mutationFn: (data) =>
-        updateOidcSettingsApiV1SettingsAuthPut(
-          data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
-        ),
-      invalidate: () => invalidate(q.authSettings()),
-    },
-    options
-  );
 
 export const useCreateAuthProvider = (
   options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
