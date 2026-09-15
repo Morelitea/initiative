@@ -2925,6 +2925,7 @@ export interface InitiativeMemberRead {
   role_name: string | null;
   role_display_name: string | null;
   is_manager: boolean;
+  override_share_restrictions: boolean;
   joined_at: string;
   oidc_managed: boolean;
 }

@@ -1,0 +1,54 @@
+{
+  "title": "Moderation",
+  "subtitle": "What people have reported here, and what was done about it.",
+  "open": "Open",
+  "tabs": {
+    "open": "Open",
+    "settled": "Settled"
+  },
+  "empty": {
+    "open": "Nothing has been reported.",
+    "settled": "Nothing has been settled yet."
+  },
+  "reportedCount_one": "Reported by {{count}} person",
+  "reportedCount_other": "Reported by {{count}} people",
+  "whatTheySaid": "What they said",
+  "reviewElsewhere": "Open the reported item to look at it in context, then decide here.",
+  "notePlaceholder": "What you found, and why you decided this (optional)",
+  "settledAt": "Settled {{when}}.",
+  "settledToast": "Report settled.",
+  "settleError": "Could not settle that report.",
+  "outcomes": {
+    "dismissed": "Dismiss",
+    "content_removed": "Content removed",
+    "member_warned": "Member warned",
+    "escalated": "Escalate"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Harassment",
+    "hate": "Hate",
+    "violence": "Violence",
+    "sexual_content": "Sexual content",
+    "self_harm": "Self-harm",
+    "illegal": "Illegal",
+    "misinformation": "Misinformation",
+    "other": "Other"
+  },
+  "targets": {
+    "comment": "A comment",
+    "post": "A notice",
+    "task": "A task",
+    "document": "A document",
+    "project": "A project",
+    "queue": "A queue",
+    "queue_item": "A queue item",
+    "gallery": "A gallery",
+    "gallery_image": "A picture",
+    "calendar": "A calendar",
+    "calendar_event": "An event",
+    "counter": "A counter",
+    "counter_group": "A counter group",
+    "dashboard": "A dashboard"
+  }
+}

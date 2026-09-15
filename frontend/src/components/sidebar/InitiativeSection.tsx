@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Blocks, CircleChevronRight, MoreVertical, Settings } from "lucide-react";
+import { Blocks, CircleChevronRight, MoreVertical, Settings, ShieldAlert } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,6 +22,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
+import { canModerate } from "@/hooks/useModeration";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
@@ -89,6 +90,11 @@ export const InitiativeSection = memo(
 
     /** Whether a tool's row renders at all. */
     const showTool = (tool: Tool): boolean => access[tool].view;
+
+    // "Full access" in this initiative, or guild admin: the standing the
+    // moderation tables admit, read off the flag the role carries rather than
+    // its name.
+    const showModeration = canModerate(initiative, userId, isGuildAdmin);
 
     /** Whether to surface a create affordance for a tool. */
     const canCreateTool = (tool: Tool): boolean => access[tool].create;
@@ -239,6 +245,24 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
+              {/* Moderation sits above everything, for the people who moderate.
+                  It is not a tool — nothing shares it, nothing turns it off —
+                  and it is drawn only for whoever already reaches every item in
+                  the initiative, which is what the tables themselves admit. */}
+              {showModeration && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild size="sm" className="min-w-0">
+                    <Link
+                      to={gp(`${initiativeRoute(initiative.id)}/moderation`)}
+                      className="flex min-w-0 items-center gap-2"
+                    >
+                      <ShieldAlert className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{t("moderation")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
               {/* Apps first, above the tools, the same way the guild's apps sit
                   above its initiatives — and because the tool rows end with
                   projects, whose list has to expand directly beneath them. */}

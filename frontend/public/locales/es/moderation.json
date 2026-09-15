@@ -1,0 +1,54 @@
+{
+  "title": "Moderación",
+  "subtitle": "Lo que se ha denunciado aquí y qué se hizo al respecto.",
+  "open": "Abierta",
+  "tabs": {
+    "open": "Abiertas",
+    "settled": "Resueltas"
+  },
+  "empty": {
+    "open": "No se ha denunciado nada.",
+    "settled": "Todavía no se ha resuelto nada."
+  },
+  "reportedCount_one": "Denunciado por {{count}} persona",
+  "reportedCount_other": "Denunciado por {{count}} personas",
+  "whatTheySaid": "Lo que dijeron",
+  "reviewElsewhere": "Abre el elemento denunciado para verlo en contexto y luego decide aquí.",
+  "notePlaceholder": "Qué encontraste y por qué decidiste esto (opcional)",
+  "settledAt": "Resuelta el {{when}}.",
+  "settledToast": "Denuncia resuelta.",
+  "settleError": "No se pudo resolver esa denuncia.",
+  "outcomes": {
+    "dismissed": "Descartar",
+    "content_removed": "Contenido eliminado",
+    "member_warned": "Miembro advertido",
+    "escalated": "Escalar"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Acoso",
+    "hate": "Odio",
+    "violence": "Violencia",
+    "sexual_content": "Contenido sexual",
+    "self_harm": "Autolesión",
+    "illegal": "Ilegal",
+    "misinformation": "Desinformación",
+    "other": "Otro"
+  },
+  "targets": {
+    "comment": "Un comentario",
+    "post": "Un aviso",
+    "task": "Una tarea",
+    "document": "Un documento",
+    "project": "Un proyecto",
+    "queue": "Una cola",
+    "queue_item": "Un elemento",
+    "gallery": "Una galería",
+    "gallery_image": "Una imagen",
+    "calendar": "Un calendario",
+    "calendar_event": "Un evento",
+    "counter": "Un contador",
+    "counter_group": "Un grupo de contadores",
+    "dashboard": "Un panel"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "title": "Modération",
+  "subtitle": "Ce qui a été signalé ici, et ce qui en a été fait.",
+  "open": "Ouvert",
+  "tabs": {
+    "open": "Ouverts",
+    "settled": "Traités"
+  },
+  "empty": {
+    "open": "Rien n'a été signalé.",
+    "settled": "Rien n'a encore été traité."
+  },
+  "reportedCount_one": "Signalé par {{count}} personne",
+  "reportedCount_other": "Signalé par {{count}} personnes",
+  "whatTheySaid": "Ce qu'ils ont dit",
+  "reviewElsewhere": "Ouvrez l'élément signalé pour le voir en contexte, puis décidez ici.",
+  "notePlaceholder": "Ce que vous avez constaté et pourquoi vous avez décidé ainsi (facultatif)",
+  "settledAt": "Traité le {{when}}.",
+  "settledToast": "Signalement traité.",
+  "settleError": "Impossible de traiter ce signalement.",
+  "outcomes": {
+    "dismissed": "Rejeter",
+    "content_removed": "Contenu supprimé",
+    "member_warned": "Membre averti",
+    "escalated": "Escalader"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Harcèlement",
+    "hate": "Haine",
+    "violence": "Violence",
+    "sexual_content": "Contenu sexuel",
+    "self_harm": "Automutilation",
+    "illegal": "Illégal",
+    "misinformation": "Désinformation",
+    "other": "Autre"
+  },
+  "targets": {
+    "comment": "Un commentaire",
+    "post": "Une annonce",
+    "task": "Une tâche",
+    "document": "Un document",
+    "project": "Un projet",
+    "queue": "Une file",
+    "queue_item": "Un élément",
+    "gallery": "Une galerie",
+    "gallery_image": "Une image",
+    "calendar": "Un calendrier",
+    "calendar_event": "Un événement",
+    "counter": "Un compteur",
+    "counter_group": "Un groupe de compteurs",
+    "dashboard": "Un tableau de bord"
+  }
+}

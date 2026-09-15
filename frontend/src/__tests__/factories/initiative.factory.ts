@@ -26,6 +26,7 @@ export function buildInitiativeMember(
     role_name: null,
     role_display_name: null,
     is_manager: false,
+    override_share_restrictions: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
     can_view_documents: true,
