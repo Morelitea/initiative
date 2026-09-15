@@ -245,6 +245,15 @@ async def create_builtin_roles(
 async def ensure_default_initiative(
     session: AsyncSession, admin_user: User, *, guild_id: int
 ) -> Initiative:
+    """The guild's ``is_default`` initiative, made if it isn't there yet.
+
+    **Guild creation no longer calls this.** A new guild arrives with no
+    initiative at all, because the seeded one only ever named the fact that
+    nobody had chosen a name yet. What is left is the dev seeder, which wants a
+    community it can hang demo content off, and the guilds provisioned before
+    the change — for those the lookup leg is what runs, and the undeletable
+    ``is_default`` row keeps behaving as it always did.
+    """
     statement = select(Initiative).where(
         Initiative.guild_id == guild_id,
         Initiative.is_default.is_(True),
