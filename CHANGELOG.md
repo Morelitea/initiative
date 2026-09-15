@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-09-14
+
+**Nice.**
+
 ### Added
 
 - **Your account holds as many email addresses as you need** — an account was one address, so the one you signed up with was the one you were stuck with: changing jobs, losing a mailbox or wanting work and personal mail kept apart all meant asking somebody. **Settings → Account** now lists every address on your account and lets you add another. We write to a new one with a link, and until you follow that link it does nothing — then it signs you in like any other, and account mail reaches all of them, so a password reset lands somewhere you can still read. One address is the primary: it is where a community sees you, and you can move it to any confirmed address. The one you came in on is not special, but the account always keeps at least one confirmed address and a primary, so you always have a way back in.
