@@ -1057,11 +1057,11 @@
     }
   },
   "authProviders": {
-    "title": "Fournisseurs de connexion supplémentaires",
-    "description": "Proposez d'autres moyens de se connecter en plus de l'authentification unique ci-dessus. Chaque fournisseur dispose de son propre bouton sur la page de connexion.",
+    "title": "Fournisseurs d'identité",
+    "description": "Les fournisseurs d'authentification unique avec lesquels les personnes se connectent. Chacun dispose de son propre bouton sur la page de connexion.",
     "addProvider": "Ajouter un fournisseur",
     "loading": "Chargement des fournisseurs…",
-    "empty": "Aucun fournisseur supplémentaire configuré.",
+    "empty": "Aucun fournisseur configuré pour l'instant.",
     "disabledBadge": "Désactivé",
     "createTitle": "Ajouter un fournisseur de connexion",
     "editTitle": "Modifier le fournisseur de connexion",

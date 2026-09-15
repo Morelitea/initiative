@@ -1057,11 +1057,11 @@
     }
   },
   "authProviders": {
-    "title": "Additional sign-in providers",
-    "description": "Offer more ways to sign in alongside the platform single sign-on above. Each provider gets its own button on the sign-in page.",
+    "title": "Identity providers",
+    "description": "The single sign-on providers people sign in with. Each one gets its own button on the sign-in page.",
     "addProvider": "Add provider",
     "loading": "Loading providers…",
-    "empty": "No additional providers configured.",
+    "empty": "No providers configured yet.",
     "disabledBadge": "Disabled",
     "createTitle": "Add sign-in provider",
     "editTitle": "Edit sign-in provider",

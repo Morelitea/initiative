@@ -1057,11 +1057,11 @@
     }
   },
   "authProviders": {
-    "title": "Proveedores de inicio de sesión adicionales",
-    "description": "Ofrece más formas de iniciar sesión junto al inicio de sesión único de arriba. Cada proveedor tiene su propio botón en la página de inicio de sesión.",
+    "title": "Proveedores de identidad",
+    "description": "Los proveedores de inicio de sesión único con los que las personas inician sesión. Cada uno tiene su propio botón en la página de inicio de sesión.",
     "addProvider": "Añadir proveedor",
     "loading": "Cargando proveedores…",
-    "empty": "No hay proveedores adicionales configurados.",
+    "empty": "Aún no hay proveedores configurados.",
     "disabledBadge": "Desactivado",
     "createTitle": "Añadir proveedor de inicio de sesión",
     "editTitle": "Editar proveedor de inicio de sesión",
