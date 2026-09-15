@@ -38,6 +38,9 @@ import {
   historyProgress,
   lastRead,
   messageLog,
+  type PeerKeyChange,
+  peerDeviceKeys,
+  peerKeyChanges,
   pendingHistoryRequest,
   type ReceiptState,
   type SessionOrigin,
@@ -68,6 +71,22 @@ export class RecipientHasNoDeviceError extends Error {
   constructor() {
     super("that account has no device that can receive encrypted messages");
     this.name = "RecipientHasNoDeviceError";
+  }
+}
+
+/**
+ * Every device the recipient has is being withheld pending a check.
+ *
+ * Separate from having no device at all, because the two need different
+ * sentences and different next actions. "They have not set up encrypted
+ * messages" is about the other person and there is nothing the reader can do;
+ * this one is about a check the reader has not finished, on the notice beside
+ * the composer, and it clears as soon as they do.
+ */
+export class RecipientDevicesUnverifiedError extends Error {
+  constructor() {
+    super("every device for that account is waiting on a safety-code check");
+    this.name = "RecipientDevicesUnverifiedError";
   }
 }
 
@@ -553,6 +572,58 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * account's own devices, which is what "nobody there to read it" looks like
  * from here.
  */
+/**
+ * Read the other party's devices, and notice when one's key has changed.
+ *
+ * Every path that addresses another person reads the directory, so this is
+ * where a key that differs from the one last used is noticed.
+ *
+ * A changed or newly introduced device is withheld from this send. Otherwise
+ * the warning would arrive only after private text had already been encrypted
+ * to the unverified key. Unchanged devices can still receive the message.
+ */
+async function readPeerDirectory(otherUserId: number) {
+  const theirs = await readDirectory(otherUserId);
+  const changes = await peerDeviceKeys.reconcile(
+    otherUserId,
+    theirs.devices.map((device) => ({
+      deviceId: device.device_id,
+      fingerprint: device.fingerprint_key,
+    }))
+  );
+  if (changes.length > 0) {
+    // The hold is already recorded -- `reconcile` writes it in the same
+    // transaction that records the key, so no send can see one without the
+    // other. Not repeated here: two places writing the same fact is how they
+    // come to disagree.
+    //
+    // This is the rest of it. The session in hand was negotiated with the key
+    // that has just been replaced, so the far end cannot read anything sent
+    // through it. Drop the pointer and the next send opens a fresh one against
+    // the key the directory now returns. Safe to do after the hold rather than
+    // with it: a held device is not addressable, so nothing reaches for the
+    // session in between.
+    await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
+  }
+
+  // Keep the key out of every retry, not only the send that first noticed it.
+  // Acknowledgement means the person has completed the out-of-band check and
+  // deliberately allows future messages to use that device.
+  const unverified = new Set(
+    (await peerKeyChanges.all())
+      .filter((change) => change.userId === otherUserId)
+      .map((change) => change.deviceId)
+  );
+  const addressable = theirs.devices.filter((device) => !unverified.has(device.device_id));
+  return {
+    ...theirs,
+    devices: addressable,
+    // How many were held back, so a send left with nothing to address can say
+    // which of the two reasons it was.
+    withheld: theirs.devices.length - addressable.length,
+  };
+}
+
 async function sendEnvelope(
   conversationId: string,
   otherUserId: number,
@@ -563,8 +634,13 @@ async function sendEnvelope(
 
   // The directory rather than a claim: reading it spends nothing, and most
   // messages go to devices this one already has a session with.
-  const theirs = await readDirectory(otherUserId);
-  if (theirs.devices.length === 0) return false;
+  const theirs = await readPeerDirectory(otherUserId);
+  if (theirs.devices.length === 0) {
+    // Withholding is this client's own doing and is undone by acknowledging the
+    // notice, so it is not the same outcome as an account with no device.
+    if (theirs.withheld > 0) throw new RecipientDevicesUnverifiedError();
+    return false;
+  }
 
   const destinations: Destination[] = [
     ...theirs.devices.map((device) => ({
@@ -821,7 +897,7 @@ async function identitiesForPreKeys(
   for (const conversation of conversations.conversations) {
     if (!conversationIds.has(conversation.id)) continue;
     try {
-      const theirs = await readDirectory(conversation.other_user_id);
+      const theirs = await readPeerDirectory(conversation.other_user_id);
       candidates.set(conversation.id, [
         ...theirs.devices.map((device) => ({
           id: device.device_id,
@@ -994,6 +1070,27 @@ export interface HistoryAskWaiting {
   fingerprint: string;
   /** Epoch milliseconds. */
   expiresAt: number;
+}
+
+/**
+ * Device keys that changed under a conversation this browser was already in.
+ *
+ * Newest first: if several have accrued, the one that just happened is the one
+ * the person is reacting to.
+ */
+export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
+  const changes = await peerKeyChanges.all();
+  return [...changes].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/**
+ * The person has checked a changed device key and is carrying on.
+ *
+ * Until this acknowledgement, sends withhold that device. The new key remains
+ * remembered so a retry cannot disguise it as a first sighting.
+ */
+export async function acknowledgePeerKeyChange(deviceId: string): Promise<void> {
+  await peerKeyChanges.acknowledge(deviceId);
 }
 
 /**

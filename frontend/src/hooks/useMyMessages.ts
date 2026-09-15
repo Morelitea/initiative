@@ -21,6 +21,7 @@ import {
 } from "@/api/generated/direct-messages/direct-messages";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
+  acknowledgePeerKeyChange,
   answerHistoryRequest,
   collect,
   ensureDevice,
@@ -28,6 +29,7 @@ import {
   historyRequestToAnswer,
   markRead,
   messageLog,
+  peerKeyChangesWaiting,
   registeredDevice,
   sendEdit,
   sendReaction,
@@ -56,6 +58,7 @@ export const messageKeys = {
   historyRequest: ["dm", "history-request"] as const,
   /** This device's own outstanding ask, and the code it is showing for it. */
   historyAsk: ["dm", "history-ask"] as const,
+  peerKeyChanges: ["dm", "peer-key-changes"] as const,
   /** The family a socket frame invalidates, which is everything read locally. */
   all: ["dm"] as const,
 };
@@ -108,6 +111,11 @@ export function useSendMessage(conversationId: string, otherUserId: number) {
         queryKey: messageKeys.thread(conversationId),
       });
     },
+    // Settled, not success: reading the directory happens before the send, so
+    // a send that fails afterwards can still have found something to say.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+    },
   });
 }
 
@@ -123,6 +131,7 @@ export function useMessageActions(conversationId: string, otherUserId: number) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
   };
 
   const react = useMutation({
@@ -186,6 +195,9 @@ export function useCollectMessages(enabled: boolean) {
       // just signed in elsewhere is not doing.
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyRequest });
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
+      // Same reason: a directory read during this collection can record a key
+      // change locally, and nothing else asks that query again.
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
         void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });
@@ -263,6 +275,31 @@ export function useHistoryAsk() {
     // when it is due, rather than polled: the answer cannot change before then.
     refetchInterval: (query) =>
       query.state.data ? Math.max(1_000, query.state.data.expiresAt - Date.now()) : false,
+  });
+}
+
+/**
+ * Conversation partners whose device key changed under an existing thread.
+ *
+ * In the `["dm", …]` family so it is re-asked whenever anything in messages
+ * moves. The change is found while sending, so the send that found it is
+ * exactly the moment this needs to be asked again.
+ */
+export function usePeerKeyChanges() {
+  return useQuery({
+    queryKey: messageKeys.peerKeyChanges,
+    queryFn: () => peerKeyChangesWaiting(),
+    staleTime: 0,
+  });
+}
+
+export function useAcknowledgePeerKeyChange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (deviceId: string) => acknowledgePeerKeyChange(deviceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+    },
   });
 }
 

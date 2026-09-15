@@ -56,6 +56,8 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // identity, so a stand-in would prove nothing.
   RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
     .RecipientHasNoDeviceError,
+  RecipientDevicesUnverifiedError: (await importOriginal<Record<string, unknown>>())
+    .RecipientDevicesUnverifiedError,
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),

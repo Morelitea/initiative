@@ -65,6 +65,42 @@ async function write(key: string, value: unknown): Promise<void> {
  * connection to the database, so this holds between tabs. A JavaScript lock
  * cannot: it lives in one tab's module scope, and the second tab never sees it.
  */
+/**
+ * Read-modify-write two keys inside ONE transaction.
+ *
+ * Two `update` calls are two transactions, and anything awaiting between them
+ * observes the first without the second. Where those two writes are halves of
+ * one fact -- this key changed, and it is held pending a check -- a reader that
+ * sees only the first half draws the wrong conclusion from it.
+ */
+async function updatePair<A, B>(
+  keyA: string,
+  keyB: string,
+  change: (a: A | undefined, b: B | undefined) => { a?: A; b?: B }
+): Promise<void> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    const requestA = store.get(keyA);
+    const requestB = store.get(keyB);
+    let pending = 2;
+    const both = () => {
+      if (--pending > 0) return;
+      const next = change(requestA.result as A | undefined, requestB.result as B | undefined);
+      if (next.a !== undefined) store.put(next.a, keyA);
+      if (next.b !== undefined) store.put(next.b, keyB);
+    };
+    requestA.onsuccess = both;
+    requestB.onsuccess = both;
+    requestA.onerror = () => reject(requestA.error);
+    requestB.onerror = () => reject(requestB.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 async function update<T>(
   key: string,
   change: (current: T | undefined) => T | undefined
@@ -615,6 +651,118 @@ export const approvedDevices = {
 };
 
 /**
+ * The device keys this browser has seen for each conversation partner.
+ *
+ * The directory is served by the platform, so a key it returns is remembered
+ * here rather than trusted afresh on every read.
+ *
+ * The first directory read says nothing: that is trust-on-first-use, and a
+ * warning there would fire on every new conversation. Once this browser has a
+ * baseline for the partner, both a replaced key and a newly introduced device
+ * are changes worth interrupting for. Registering a replacement receives a new
+ * server UUID, so matching on device id alone would treat either as a first
+ * sighting.
+ *
+ * Per partner, keyed by their device id.
+ */
+export interface PeerKeyChange {
+  userId: number;
+  deviceId: string;
+  /** What the directory returned now. */
+  now: string;
+  at: string;
+}
+
+const PEER_KEYS_PREFIX = "peer-keys:";
+const PEER_CHANGES = "peer-key-changes";
+
+export const peerDeviceKeys = {
+  all: async (userId: number): Promise<Record<string, string>> =>
+    (await read<Record<string, string>>(PEER_KEYS_PREFIX + userId)) ?? {},
+  /**
+   * Record what the directory returned, report the keys that changed, and hold
+   * them pending a check -- all in one transaction.
+   *
+   * Remembering, comparing and holding are one step on purpose. Any split lets
+   * them interleave, and both splits are reachable through an ordinary `await`
+   * with two sends in flight:
+   *
+   * - remember and compare apart: the first send writes the new key before the
+   *   second compares, and the second sees no change;
+   * - compare and hold apart: the first send has written the new key but not
+   *   yet the hold, and the second finds nothing changed AND nothing held, so
+   *   the device reads as addressable and the message goes to a key nobody has
+   *   checked.
+   *
+   * The second is the one that matters, because the whole point of the hold is
+   * that a send finds it.
+   */
+  reconcile: async (
+    userId: number,
+    seen: { deviceId: string; fingerprint: string }[]
+  ): Promise<PeerKeyChange[]> => {
+    const changes: PeerKeyChange[] = [];
+    const at = new Date().toISOString();
+    await updatePair<Record<string, string>, PeerKeyChange[]>(
+      PEER_KEYS_PREFIX + userId,
+      PEER_CHANGES,
+      (existing, heldNow) => {
+        const known = existing ?? {};
+        const hasBaseline = Object.keys(known).length > 0;
+        const next = { ...known };
+        for (const { deviceId, fingerprint } of seen) {
+          const knownFingerprint = known[deviceId];
+          if (knownFingerprint !== fingerprint && (knownFingerprint !== undefined || hasBaseline)) {
+            changes.push({ userId, deviceId, now: fingerprint, at });
+          }
+          next[deviceId] = fingerprint;
+        }
+        // Devices that stopped being listed are left in place, so a device that
+        // disappears and comes back with a different key is still a change
+        // rather than a first sighting.
+        if (changes.length === 0) return { a: next };
+        // One entry per device, the same rule `peerKeyChanges.add` applies.
+        const byDevice = new Map((heldNow ?? []).map((change) => [change.deviceId, change]));
+        for (const change of changes) byDevice.set(change.deviceId, change);
+        return { a: next, b: [...byDevice.values()] };
+      }
+    );
+    return changes;
+  },
+  forget: async (userId: number): Promise<void> => {
+    await write(PEER_KEYS_PREFIX + userId, undefined);
+  },
+};
+
+/**
+ * Changes waiting to be shown to the person using this browser.
+ *
+ * Held rather than raised inline: the send path cannot put something on
+ * screen, and a change found while sending has to survive until it has been.
+ */
+export const peerKeyChanges = {
+  all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
+  add: async (changes: PeerKeyChange[]): Promise<void> => {
+    if (changes.length === 0) return;
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => {
+      const held = existing ?? [];
+      // One entry per device. A directory answering differently on every read
+      // would otherwise fill this with the same finding repeatedly, and a list
+      // nobody can get to the bottom of is a list nobody reads.
+      const byDevice = new Map(held.map((change) => [change.deviceId, change]));
+      for (const change of changes) byDevice.set(change.deviceId, change);
+      return [...byDevice.values()];
+    });
+  },
+  /** The person has seen it. The key is already remembered; this clears the notice. */
+  acknowledge: async (deviceId: string): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) =>
+      (existing ?? []).filter((change) => change.deviceId !== deviceId)
+    );
+  },
+};
+
+/**
  * A request this device has been asked to answer, and has not yet.
  *
  * One at a time: a second device asking while the first is waiting replaces it,
@@ -691,6 +839,20 @@ export const historyAsk = {
 export const sessionForDevice = {
   get: (deviceId: string) => read<string>("device-session:" + deviceId),
   set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+  /**
+   * Stop using the session filed against a device.
+   *
+   * Sessions are filed by device id, and a device id outlives the key it was
+   * opened against. When the directory returns a different key for a device
+   * this browser has already spoken to, the session in hand was negotiated
+   * with the previous one and the far end can no longer read anything sent
+   * through it — so the next send has to start a new one.
+   *
+   * The pickle itself is left where it is. Other conversations file the same
+   * session id, and deleting it out from under them is a wider change than
+   * this needs; dropping the pointer is enough to stop it being chosen.
+   */
+  forget: (deviceId: string) => write("device-session:" + deviceId, undefined),
 };
 
 /**
