@@ -1,0 +1,67 @@
+{
+  "ownerOnly": "Only platform owners can configure where operations work lands.",
+  "guild": {
+    "title": "Operations community",
+    "description": "The community that receives this deployment's security, moderation, support and feedback work.",
+    "label": "Community",
+    "placeholder": "Choose a community",
+    "none": "None — route nothing",
+    "helpText": "An ordinary community in every respect. Which project each stream lands in is set below, inside it.",
+    "saveError": "Could not save the operations community.",
+    "clearTitle": "Stop routing operations work?",
+    "clearBody": "Every stream stops receiving. The projects and everything in them stay exactly as they are, and choosing this community again restores what was set up.",
+    "clearConfirm": "Stop routing"
+  },
+  "streams": {
+    "chooseGuildFirst": "Choose a community above, then say where each stream lands.",
+    "security": {
+      "title": "Security",
+      "description": "Cases raised by rules watching this deployment."
+    },
+    "moderation": {
+      "title": "Moderation",
+      "description": "Reports about content and conduct."
+    },
+    "support": {
+      "title": "Support",
+      "description": "Help requests from people using this deployment."
+    },
+    "feedback": {
+      "title": "Feedback",
+      "description": "What people have told us they want."
+    }
+  },
+  "stream": {
+    "notSetUp": "Not set up",
+    "receiving": "Receiving",
+    "paused": "Paused",
+    "setUpHelp": "Set this up and you get a ready-made project with its own statuses and fields, which you can restructure however you like afterwards. Or point the stream at a project you already have.",
+    "initiativeLabel": "Initiative",
+    "initiativePlaceholder": "Choose an initiative",
+    "setUpForMe": "Set this up for me",
+    "existingProjectLabel": "Or use a project you already have",
+    "existingProjectPlaceholder": "Choose a project",
+    "landsInLabel": "Lands in",
+    "repointNote": "Pointing a stream at a different project starts fresh there. Anything still open stays in the project the work on it is in.",
+    "landingStatusLabel": "New cases start in",
+    "landingStatusDefault": "The project's default",
+    "enabledLabel": "Receiving new cases",
+    "lastCase": "Last case opened {{when}}.",
+    "noCasesYet": "No cases yet.",
+    "unbind": "Stop routing this stream",
+    "unbindTitle": "Stop routing this stream?",
+    "unbindConfirm": "Stop routing",
+    "unbindBody": "The project and every case in it stay. Pointing the stream back at the same project picks up where it left off.",
+    "createdToast": "{{name}} is set up and receiving.",
+    "unboundToast": "That stream is no longer routed.",
+    "saveError": "Could not save that change.",
+    "destinationArchived": "Destination archived",
+    "archivedOption": "{{name}} (archived)",
+    "archivedNote": "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
+  },
+  "loadFailed": {
+    "title": "Could not load these settings",
+    "description": "Nothing has been changed. Try again, and if it keeps failing the server log will say why.",
+    "retry": "Try again"
+  }
+}

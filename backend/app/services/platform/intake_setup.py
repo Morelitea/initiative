@@ -40,6 +40,10 @@ class BindingView:
     binding_id: Optional[int]
     project_id: Optional[int]
     project_name: Optional[str]
+    #: Whether the bound project has been archived or trashed since. Archived
+    #: content takes no writes, so a stream pointed at one receives nothing
+    #: until it is brought back or pointed somewhere else.
+    project_archived: bool
     initiative_id: Optional[int]
     initiative_name: Optional[str]
     default_status_id: Optional[int]
@@ -120,6 +124,14 @@ async def _resolve_project(
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=IntakeMessages.PROJECT_NOT_FOUND,
+        )
+    if project.archived_at is not None or project.deleted_at is not None:
+        # Archived and trashed content takes no writes, so a case could not be
+        # filed here. Refused at the moment of binding rather than discovered
+        # the first time something needs to land.
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=IntakeMessages.PROJECT_NOT_LIVE,
         )
     initiative = (
         await session.exec(
@@ -254,6 +266,7 @@ async def _view(
             binding_id=None,
             project_id=None,
             project_name=None,
+            project_archived=False,
             initiative_id=None,
             initiative_name=None,
             default_status_id=None,
@@ -288,6 +301,10 @@ async def _view(
         binding_id=binding.id,
         project_id=binding.project_id,
         project_name=project.name if project else None,
+        project_archived=bool(
+            project is not None
+            and (project.archived_at is not None or project.deleted_at is not None)
+        ),
         initiative_id=initiative.id if initiative else None,
         initiative_name=initiative.name if initiative else None,
         default_status_id=binding.default_status_id,
@@ -322,6 +339,8 @@ async def list_bindings(
         binding = bindings.get(stream)
         project = initiative = None
         if binding is not None:
+            # No live-only filter: a binding to a project that has since been
+            # archived is exactly what the page has to be able to show.
             project = (
                 await session.exec(
                     select(Project)
@@ -394,3 +413,63 @@ async def provision_from_blueprint(
     await session.commit()
     await session.refresh(binding)
     return await _view(session, stream, binding, project, initiative)
+
+
+async def list_options(session: AsyncSession) -> list[dict]:
+    """The operations guild's initiatives, their projects, and each project's
+    statuses — what the settings page's pickers offer.
+
+    Names and ids only, for the one guild the deployment has named. Empty when
+    it has named none, which is what the page shows before anything is set up.
+    """
+    await _unroute(session)
+    guild_id = await operations_guild_id(session)
+    if guild_id is None:
+        return []
+
+    await _route(session, guild_id)
+    initiatives = (
+        await session.exec(
+            select(Initiative)
+            .where(Initiative.deleted_at.is_(None))
+            .order_by(Initiative.name)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    projects = (
+        await session.exec(
+            select(Project)
+            .where(Project.deleted_at.is_(None))
+            .where(Project.archived_at.is_(None))
+            .order_by(Project.name)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    statuses = (
+        await session.exec(
+            select(TaskStatus).order_by(TaskStatus.project_id, TaskStatus.position)
+        )
+    ).all()
+
+    by_project: dict[int, list[dict]] = {}
+    for status in statuses:
+        by_project.setdefault(status.project_id, []).append(
+            {"id": status.id, "name": status.name}
+        )
+    by_initiative: dict[int, list[dict]] = {}
+    for project in projects:
+        by_initiative.setdefault(project.initiative_id, []).append(
+            {
+                "id": project.id,
+                "name": project.name,
+                "statuses": by_project.get(project.id, []),
+            }
+        )
+    return [
+        {
+            "id": initiative.id,
+            "name": initiative.name,
+            "projects": by_initiative.get(initiative.id, []),
+        }
+        for initiative in initiatives
+    ]

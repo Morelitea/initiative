@@ -47,6 +47,11 @@ export const PlatformSettingsLayout = () => {
         label: t("platformLayout.tabs.storage"),
         path: "/settings/platform/storage",
       },
+      {
+        value: "intake",
+        label: t("platformLayout.tabs.intake"),
+        path: "/settings/platform/intake",
+      },
     ];
     const appTabs = [
       {

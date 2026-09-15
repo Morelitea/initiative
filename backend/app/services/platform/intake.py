@@ -323,6 +323,16 @@ async def open_case(
                 binding.id,
             )
             return None
+        if project.archived_at is not None or project.deleted_at is not None:
+            # Archived and trashed content takes no writes, so this would be
+            # refused by the database. Said plainly here instead, and shown on
+            # the settings page, rather than surfacing as a policy error.
+            logger.warning(
+                "intake binding %s names a project that is archived or trashed; "
+                "nothing filed",
+                binding.id,
+            )
+            return None
 
         if dedupe_key is not None:
             await _hold_key(
