@@ -36,7 +36,7 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -188,19 +188,17 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    if tool not in CORE_TOOLS:
-        # Opt-in tools carry a switch on the initiative; the core two are always
-        # on and have no column. A guild admin or a PAM grantee reaches the
-        # content of a tool that is switched off — the endpoints still refuse
-        # them, and a maintenance sweep has to be able to see it.
-        legs.append(
-            f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-            f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-            f" WHERE i.id = {initiative}), false))"
-        )
+    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # grantee reaches the content of a tool that is switched off — the endpoints
+    # still refuse them, and a maintenance sweep has to be able to see it.
+    legs.append(
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {initiative}), false))"
+    )
 
     key = tool.create_permission if creating else tool.view_permission
-    default = "false" if creating else str(tool in CORE_TOOLS).lower()
+    default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
         f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
     )
@@ -1020,21 +1018,15 @@ def _search_tool_gate(t: str, write: bool) -> str:
     """
     switch_arms = " ".join(
         f"WHEN '{tool.value}' THEN "
-        + (
-            "true"
-            if tool in CORE_TOOLS
-            else (
-                f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-                f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-                f" WHERE i.id = {t}.initiative_id), false))"
-            )
-        )
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {t}.initiative_id), false))"
         for tool in Tool
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN public.initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
-        f"{str(tool in CORE_TOOLS).lower()})"
+        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
         for tool in Tool
     )
     return (

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A new community starts empty, and asks you to name the first initiative** — every community used to arrive with an initiative called *Default Initiative*, which is a name for nothing in particular. Most people renamed it within the minute, and the ones who didn't ended up filing a season's work under a folder that never said what it was. A new community now has no initiatives at all: the home page offers **Create initiative**, and you name it after whatever you're actually doing — "Spring Play", "Engineering", "Tuesday Night D&D" — before anything goes in it. Communities that already have a Default Initiative keep it, unchanged and still undeletable.
+- **An initiative can be only the tools it actually uses** — projects and documents were the two tools every initiative had whether it wanted them or not: no switch, always in the sidebar, always in the pickers. They were fixed in place because everything else used to hang off them, and links between things ended that. Both now have a switch beside the rest under **Initiative settings → Tools**, so a book club can be documents and a calendar with no empty Projects tab, and a game night can be a calendar and some counters with no documents. Every initiative that already exists keeps both, and a new one still starts with both — the difference is that you can now turn them off.
 
 ### Fixed
 

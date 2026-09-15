@@ -143,7 +143,7 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsRolesPage, "roles");
 
-    await userEvent.click(await screen.findByRole("button", { name: "Advanced Tools" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Tools" }));
 
     expect(
       (await screen.findAllByText(/This tool is turned off for the initiative/)).length

@@ -640,5 +640,7 @@
   "MODERATION_UNKNOWN_TARGET_TYPE": "That is not something that can be reported",
   "MODERATION_CANNOT_REPORT_YOURSELF": "You cannot report your own content",
   "MODERATION_NOWHERE_TO_SEND": "Reports are not set up on this deployment yet",
-  "MODERATION_TARGET_NOT_FOUND": "That is not something we can find"
+  "MODERATION_TARGET_NOT_FOUND": "That is not something we can find",
+  "PROJECTS_NOT_ENABLED": "Projects are not enabled for this initiative",
+  "DOCUMENTS_NOT_ENABLED": "Documents are not enabled for this initiative"
 }

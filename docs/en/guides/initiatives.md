@@ -61,7 +61,7 @@ Anything that isn't invite-only appears in the **Initiatives** section of the co
 
 ![The initiative list on a community's front page](../images/initiatives/community-home-initiatives.png)
 
-However somebody arrives, they land on the built-in **member** role, which is view-only on the always-on tools, and sharing still decides each individual project and document inside.
+However somebody arrives, they land on the built-in **member** role, which is view-only on the tools an initiative starts with, and sharing still decides each individual project and document inside.
 
 So opening an initiative up doesn't suddenly expose anything that was private within it. It only changes who's allowed to walk in.
 

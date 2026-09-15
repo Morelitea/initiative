@@ -277,8 +277,8 @@
       "toolTurnedOff": "Cet outil est désactivé pour l'initiative : ces permissions n'accordent rien tant qu'il n'est pas réactivé."
     }
   },
-  "advancedTools": "Outils avancés",
-  "advancedToolsDescription": "Activez des outils optionnels pour cette initiative.",
+  "advancedTools": "Outils",
+  "advancedToolsDescription": "Choisissez ce qui compose cette initiative. Les projets et les documents sont actifs dès le départ ; le reste, c'est à vous de l'ajouter.",
   "queuesFeature": "Files",
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "calendarsFeature": "Calendrier",
@@ -290,5 +290,9 @@
   "postsFeature": "Publications",
   "postsFeatureDescription": "Un tableau d’affichage pour l’initiative — des avis que chacun peut lire, commenter et auxquels réagir, les plus importants étant épinglés en haut.",
   "galleriesFeature": "Galeries",
-  "galleriesFeatureDescription": "Des collections d’images — maquettes, captures, exports de design — parcourues comme un mur plutôt que lues une à une, avec des étiquettes et un historique de versions pour chaque image."
+  "galleriesFeatureDescription": "Des collections d’images — maquettes, captures, exports de design — parcourues comme un mur plutôt que lues une à une, avec des étiquettes et un historique de versions pour chaque image.",
+  "projectsFeature": "Projets",
+  "projectsFeatureDescription": "Des tableaux de tâches : qui fait quoi, où cela en est, et ce qu'il reste à faire.",
+  "documentsFeature": "Documents",
+  "documentsFeatureDescription": "Des pages écrites — notes, plans, références — qui se relient à tout le reste de l'initiative."
 }

@@ -75,6 +75,8 @@ class ResourceAccessConfig:
 RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.project: ResourceAccessConfig(
         dac_kind=Tool.project,
+        feature_attr=Tool.project.view_permission,
+        feature_disabled_msg=ProjectMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=ProjectMessages.GRANT_CANNOT_MANAGE_MEMBERS,
         loader=project_grants.get_project,
         path_param="project_id",
@@ -82,6 +84,8 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.document: ResourceAccessConfig(
         dac_kind=Tool.document,
+        feature_attr=Tool.document.view_permission,
+        feature_disabled_msg=DocumentMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=DocumentMessages.GRANT_CANNOT_MANAGE_MEMBERS,
         loader=documents_service.get_document_for_grants,
         path_param="document_id",
@@ -170,6 +174,26 @@ def governing_tool(table: str) -> Tool:
         # that no tool's sharing governs at all.
         raise RuntimeError(f"no single tool governs {table!r}")
     return path[0]
+
+
+def require_tool_enabled(kind: Tool, initiative: Any) -> None:
+    """Raise 403 unless ``initiative`` has ``kind``'s master switch on.
+
+    Gate 3's first half at the moment of creation, where there is no row yet for
+    ``require_access`` to read the switch off. The message comes from the
+    registry, so a tool is gated by registering it rather than by spelling the
+    refusal again at each create endpoint.
+
+    The database asks the same question on INSERT — the rendered policy's
+    ``{plural}_enabled`` leg. This runs first so the answer is a named 403
+    rather than a row that silently fails to appear.
+    """
+    attr = RESOURCE_ACCESS[kind].feature_attr
+    if attr is not None and not getattr(initiative, attr):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=RESOURCE_ACCESS[kind].feature_disabled_msg,
+        )
 
 
 async def require_create(

@@ -501,6 +501,12 @@ def _visible_project_conditions(
     """
     conditions = [
         Initiative.guild_id == guild_id,
+        # An initiative that has switched projects off has none to list, for
+        # anybody. The RLS leg lets a guild admin and a PAM reader through so a
+        # maintenance sweep can still see the rows, so the list says so here
+        # rather than leaving those two readers the only ones who find content
+        # the detail route would refuse them.
+        Initiative.projects_enabled.is_(True),
         permissions_service.listing_scope_clause(
             Tool.project,
             Project.id,
@@ -1110,6 +1116,7 @@ async def get_project_counts_by_initiative(
     """
     conditions = [
         Initiative.guild_id == guild_context.guild_id,
+        Initiative.projects_enabled.is_(True),
         Project.archived_at.is_(None),
         Project.is_template.is_(False),
         permissions_service.granted_scope_clause(
@@ -1222,7 +1229,10 @@ async def create_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.INITIATIVE_REQUIRED,
         )
-    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    resource_access.require_tool_enabled(Tool.project, initiative)
     if not rls_service.is_guild_admin(guild_context.role):
         has_perm = await rls_service.check_initiative_permission(
             session,

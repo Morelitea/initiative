@@ -26,7 +26,7 @@ from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
-from app.core.tools import CORE_TOOLS, tool_for_create_permission
+from app.core.tools import tool_for_create_permission
 from app.services.import_engine.contract import (
     EnvelopeImporter,
     ImportEngineError,
@@ -95,7 +95,7 @@ async def load_target_initiative(
     # (importers/__init__.py), so a miss here is impossible, not "default on".
     permission = PermissionKey(importer.permission)
     tool = tool_for_create_permission(permission.value)
-    if tool not in CORE_TOOLS and not getattr(initiative, tool.view_permission):
+    if not getattr(initiative, tool.view_permission):
         raise ImportEngineError(
             ImportEngineMessages.IMPORT_TOOL_DISABLED, status_code=400
         )

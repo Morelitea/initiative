@@ -18,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -76,12 +76,16 @@ PermissionKey = Enum(
 
 
 # Fallback values when a permission is not explicitly set on a role, derived
-# from the tool classification: viewing a core (always-on) tool defaults to
-# True, viewing an opt-in tool defaults to False (its initiative master switch
-# gates availability, and within that only managers see it unless a custom
-# role grants it), and creation is always False (restrictive).
+# from the tool classification: viewing a tool an initiative starts with
+# defaults to True, viewing one it does not defaults to False (its initiative
+# master switch gates availability, and within that only managers see it unless
+# a custom role grants it), and creation is always False (restrictive).
+#
+# This is the ROLE default, and it is a separate question from the initiative's
+# master switch: the switch says whether a tool exists here at all, and this
+# says what an ordinary member may do with one that does.
 DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
-    **{PermissionKey(t.view_permission): t in CORE_TOOLS for t in Tool},
+    **{PermissionKey(t.view_permission): t in DEFAULT_ENABLED_TOOLS for t in Tool},
     **{PermissionKey(t.create_permission): False for t in Tool},
 }
 
@@ -322,10 +326,13 @@ class InitiativeJoinRequest(SQLModel, table=True):
     )
 
 
-# One `{tool.plural}_enabled` master-switch column per toggleable Tool —
-# derived from the Tool enum, so a new opt-in tool grows its column here
-# automatically. The actual DDL still ships as a guild migration (and the
-# provisioning drift tests catch a model/schema mismatch).
+# One `{tool.plural}_enabled` master-switch column per Tool — derived from the
+# enum, so a new tool grows its column here automatically. The actual DDL still
+# ships as a guild migration (and the provisioning drift tests catch a
+# model/schema mismatch).
+#
+# Only the default varies: the tools in DEFAULT_ENABLED_TOOLS start on, so an
+# initiative created without an opinion is the one people already had.
 _InitiativeToolSwitchColumns = type(
     "_InitiativeToolSwitchColumns",
     (SQLModel,),
@@ -334,9 +341,11 @@ _InitiativeToolSwitchColumns = type(
         "__annotations__": {t.view_permission: bool for t in TOGGLEABLE_TOOLS},
         **{
             t.view_permission: Field(
-                default=False,
+                default=t in DEFAULT_ENABLED_TOOLS,
                 nullable=False,
-                sa_column_kwargs={"server_default": "false"},
+                sa_column_kwargs={
+                    "server_default": str(t in DEFAULT_ENABLED_TOOLS).lower()
+                },
             )
             for t in TOGGLEABLE_TOOLS
         },
