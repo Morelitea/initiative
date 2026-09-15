@@ -171,8 +171,15 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
 def create_access_token(
     subject: str, *, token_version: int, expires_delta: timedelta | None = None
 ) -> str:
+    """Mint a **legacy-shape** session JWT — no ``aud``/``iss``/``sid``.
+
+    Nothing in the running app issues one any more: every sign-in goes through
+    :func:`mint_access_token`. It stays because :func:`decode_session_token`
+    still accepts the shape, and the tests that prove it need something that
+    produces one.
+    """
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
     )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
     return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)

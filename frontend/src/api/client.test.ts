@@ -116,6 +116,159 @@ describe("silent session renewal", () => {
     }
   });
 
+  // A renewal can fail without saying anything about the session: a restart,
+  // a proxy hiccup, a rate limit, a dead network. The session outlives those.
+  it.each([
+    ["a server error", () => new HttpResponse(null, { status: 503 })],
+    ["a rate limit", () => new HttpResponse(null, { status: 429 })],
+    ["a request declined before it was handled", () => new HttpResponse(null, { status: 403 })],
+    ["nothing answering", () => HttpResponse.error()],
+  ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
+    server.use(
+      http.get("/api/v1/users/me", () => new HttpResponse(null, { status: 401 })),
+      http.post("/api/v1/auth/refresh", failure)
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+
+    try {
+      // The request still fails — it just doesn't take the session with it.
+      await expect(apiClient.get("/users/me")).rejects.toBeDefined();
+      expect(onUnauthorized).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    }
+  });
+
+  // The guard above sees only its own window, so renewals are taken in turns
+  // through a lock the whole origin shares.
+  it("renews under a lock the other windows share", async () => {
+    const held: string[] = [];
+    let renewedInsideLock = false;
+    const request = vi.fn(async (name: string, run: () => Promise<unknown>) => {
+      held.push(`held:${name}`);
+      const result = await run();
+      held.push(`released:${name}`);
+      return result;
+    });
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        renewed = true;
+        // The lock is taken before the renewal and not yet let go.
+        renewedInsideLock = held.length === 1 && held[0] === "held:initiative:auth:refresh";
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+
+    try {
+      const response = await apiClient.get("/users/me");
+
+      expect(response.data).toEqual({ id: 1 });
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(renewedInsideLock).toBe(true);
+      expect(held).toEqual(["held:initiative:auth:refresh", "released:initiative:auth:refresh"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // Older browsers and some embedded views have no lock manager, so the turn
+  // is taken through storage the windows share instead.
+  describe("without a lock manager", () => {
+    const TURN_KEY = "initiative-auth-renewal-turn";
+    const DONE_KEY = "initiative-auth-renewal-done";
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    /** Claim the turn on behalf of another window, once this one has claimed. */
+    const takeTurnAsAnotherWindow = async () => {
+      await vi.waitFor(() => expect(localStorage.getItem(TURN_KEY)).not.toBeNull(), {
+        interval: 1,
+      });
+      localStorage.setItem(TURN_KEY, "another-window");
+    };
+
+    /** Report back, once the waiting window is listening for it. */
+    const reportAsAnotherWindow = (outcome: "ok" | "no") => {
+      setTimeout(() => {
+        window.dispatchEvent(
+          new StorageEvent("storage", { key: DONE_KEY, newValue: `${Date.now()}:${outcome}` })
+        );
+      }, 120);
+    };
+
+    it("renews and says so, for the windows waiting on it", async () => {
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          renewed = true;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
+      // The turn is given up, and how it went is left where peers can read it.
+      expect(localStorage.getItem(TURN_KEY)).toBeNull();
+      expect(localStorage.getItem(DONE_KEY)).toMatch(/:ok$/);
+    });
+
+    it("uses what another window renewed rather than renewing again", async () => {
+      let refreshCalls = 0;
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          refreshCalls += 1;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      const pending = apiClient.get("/users/me");
+      // Another window claims the turn after this one — the last write wins —
+      // and then reports that it went well, which in a real browser is what
+      // the storage event carries.
+      await takeTurnAsAnotherWindow();
+      renewed = true;
+      reportAsAnotherWindow("ok");
+
+      await expect(pending).resolves.toMatchObject({ data: { id: 1 } });
+      expect(refreshCalls).toBe(0);
+    });
+
+    it("renews itself when the window holding the turn did not get there", async () => {
+      let renewed = false;
+      server.use(
+        http.get("/api/v1/users/me", () =>
+          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+        ),
+        http.post("/api/v1/auth/refresh", () => {
+          renewed = true;
+          return HttpResponse.json({ access_token: "fresh" });
+        })
+      );
+
+      const pending = apiClient.get("/users/me");
+      await takeTurnAsAnotherWindow();
+      reportAsAnotherWindow("no");
+
+      // It does not take the other window's word for a renewal that failed.
+      await expect(pending).resolves.toMatchObject({ data: { id: 1 } });
+    });
+  });
+
   it("passes a guild step-up 401 through without renewal or sign-out", async () => {
     let refreshCalls = 0;
     server.use(
