@@ -188,6 +188,28 @@ def plan_backup(
     )
 
 
+def _manifest_tool_flags(tools: dict[str, str] | None) -> dict[str, bool]:
+    """A manifest's per-tool states as initiative master-switch fields.
+
+    "disabled" -> off; "included"/"excluded" -> on, because the switch records
+    the source's configuration rather than what this import was asked to carry.
+
+    Spelled through the enum rather than ``tool + "s"``, which is wrong for
+    ``gallery``. A manifest also names things that are not tools — a backup
+    written by a newer version, or a sub-resource like ``calendar_event`` — and
+    those name no switch, so they are skipped rather than raising on an
+    initiative that is otherwise importable.
+    """
+    flags: dict[str, bool] = {}
+    for name, state in (tools or {}).items():
+        try:
+            tool = Tool(name)
+        except ValueError:
+            continue
+        flags[tool.view_permission] = state != "disabled"
+    return flags
+
+
 async def apply_backup(
     session: AsyncSession,
     *,
@@ -244,13 +266,7 @@ async def apply_backup(
             name=mi.name,
             description=mi.description,
             color=mi.color,
-            tool_flags={
-                # "disabled" -> off; "included"/"excluded" -> on (the switch
-                # reflects the source's configuration, not the include map).
-                # Spelled through the enum — `tool + "s"` is wrong for gallery.
-                Tool(tool).view_permission: state != "disabled"
-                for tool, state in (mi.tools or {}).items()
-            },
+            tool_flags=_manifest_tool_flags(mi.tools),
             manager_id=user.id,
         )
         result.initiatives.append(
