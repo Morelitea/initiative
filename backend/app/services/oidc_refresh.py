@@ -17,11 +17,11 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.db.session import AdminSessionLocal
+from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User
-from app.services.auth.platform_provider import get_platform_provider
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 
 logger = logging.getLogger(__name__)
@@ -165,81 +165,111 @@ async def _refresh_and_sync_identity(
 
 
 async def process_oidc_refresh_sync() -> None:
+    """Re-read group claims for every provider that asserts them.
+
+    Each provider is swept on its own: its identities, its claim path, its
+    credentials. A membership one provider granted is reconciled by that
+    provider's sweep and no other.
+    """
     async with AdminSessionLocal() as session:
-        # The platform provider registry row is the config's source of truth;
-        # its client secret lives in the auth_provider_secrets companion.
-        provider = await get_platform_provider(session)
-        if provider is None or not provider.enabled:
-            return
-        claim_path = provider.role_claim_path
-        if not claim_path:
-            return
-        if not (provider.issuer and provider.client_id):
-            return
-        secret_row = await session.get(AuthProviderSecret, provider.id)
-        secret_ciphertext = secret_row.client_secret_encrypted if secret_row else None
-        if not secret_ciphertext:
-            return
-
-        try:
-            metadata = await _fetch_oidc_metadata(provider.issuer)
-        except Exception:
-            logger.exception("Failed to fetch OIDC metadata for background sync")
-            return
-
-        token_endpoint = metadata.get("token_endpoint")
-        userinfo_endpoint = metadata.get("userinfo_endpoint")
-        if not token_endpoint or not userinfo_endpoint:
-            logger.warning(
-                "OIDC metadata missing token/userinfo endpoint; skipping sync"
+        providers = (
+            await session.exec(
+                select(AuthProvider).where(
+                    AuthProvider.enabled == True,  # noqa: E712
+                    AuthProvider.role_claim_path.is_not(None),
+                    AuthProvider.issuer.is_not(None),
+                    AuthProvider.client_id.is_not(None),
+                )
             )
-            return
+        ).all()
+        for provider in providers:
+            try:
+                await _sweep_provider(session, provider)
+            except Exception:
+                # One provider's unreachable IdP does not end the sweep for
+                # the rest.
+                logger.exception(
+                    "oidc-refresh-sync: provider %s (%s) did not complete",
+                    provider.slug,
+                    provider.id,
+                )
 
-        cutoff = datetime.now(timezone.utc) - _SYNC_INTERVAL
-        stmt = (
-            select(FederatedIdentity, FederatedIdentitySecret, User)
-            .join(
-                FederatedIdentitySecret,
-                FederatedIdentitySecret.identity_id == FederatedIdentity.id,
-            )
-            .join(User, User.id == FederatedIdentity.user_id)
-            .where(
-                FederatedIdentity.provider_id == provider.id,
-                FederatedIdentitySecret.refresh_token_encrypted.is_not(None),
-                (FederatedIdentity.last_synced_at < cutoff)
-                | FederatedIdentity.last_synced_at.is_(None),
-            )
+
+async def _sweep_provider(session: AsyncSession, provider: AuthProvider) -> None:
+    claim_path = provider.role_claim_path
+    if not claim_path or not provider.issuer or not provider.client_id:
+        return
+    secret_row = await session.get(AuthProviderSecret, provider.id)
+    secret_ciphertext = secret_row.client_secret_encrypted if secret_row else None
+    if not secret_ciphertext:
+        return
+
+    try:
+        metadata = await _fetch_oidc_metadata(provider.issuer)
+    except Exception:
+        logger.exception(
+            "Failed to fetch OIDC metadata for background sync (provider %s)",
+            provider.slug,
         )
-        result = await session.exec(stmt)
-        due = result.all()
+        return
 
-        if not due:
-            logger.debug("oidc-refresh-sync: no identities due for sync")
-            return
-
-        succeeded = 0
-        revoked = 0
-        for identity, secret, user in due:
-            ok = await _refresh_and_sync_identity(
-                session,
-                identity=identity,
-                secret=secret,
-                user=user,
-                token_endpoint=token_endpoint,
-                userinfo_endpoint=userinfo_endpoint,
-                client_id=provider.client_id,
-                client_secret=decrypt_field(secret_ciphertext, SALT_OIDC_CLIENT_SECRET),
-                claim_path=claim_path,
-            )
-            if ok:
-                succeeded += 1
-            elif secret.refresh_token_encrypted is None:
-                revoked += 1
-
-        logger.info(
-            "OIDC refresh sync: processed %d identities, %d succeeded, "
-            "%d token(s) revoked",
-            len(due),
-            succeeded,
-            revoked,
+    token_endpoint = metadata.get("token_endpoint")
+    userinfo_endpoint = metadata.get("userinfo_endpoint")
+    if not token_endpoint or not userinfo_endpoint:
+        logger.warning(
+            "OIDC metadata missing token/userinfo endpoint for provider %s; "
+            "skipping sync",
+            provider.slug,
         )
+        return
+
+    cutoff = datetime.now(timezone.utc) - _SYNC_INTERVAL
+    stmt = (
+        select(FederatedIdentity, FederatedIdentitySecret, User)
+        .join(
+            FederatedIdentitySecret,
+            FederatedIdentitySecret.identity_id == FederatedIdentity.id,
+        )
+        .join(User, User.id == FederatedIdentity.user_id)
+        .where(
+            FederatedIdentity.provider_id == provider.id,
+            FederatedIdentitySecret.refresh_token_encrypted.is_not(None),
+            (FederatedIdentity.last_synced_at < cutoff)
+            | FederatedIdentity.last_synced_at.is_(None),
+        )
+    )
+    due = (await session.exec(stmt)).all()
+
+    if not due:
+        logger.debug(
+            "oidc-refresh-sync: no identities due for provider %s", provider.slug
+        )
+        return
+
+    succeeded = 0
+    revoked = 0
+    for identity, secret, user in due:
+        ok = await _refresh_and_sync_identity(
+            session,
+            identity=identity,
+            secret=secret,
+            user=user,
+            token_endpoint=token_endpoint,
+            userinfo_endpoint=userinfo_endpoint,
+            client_id=provider.client_id,
+            client_secret=decrypt_field(secret_ciphertext, SALT_OIDC_CLIENT_SECRET),
+            claim_path=claim_path,
+        )
+        if ok:
+            succeeded += 1
+        elif secret.refresh_token_encrypted is None:
+            revoked += 1
+
+    logger.info(
+        "OIDC refresh sync (%s): processed %d identities, %d succeeded, "
+        "%d token(s) revoked",
+        provider.slug,
+        len(due),
+        succeeded,
+        revoked,
+    )

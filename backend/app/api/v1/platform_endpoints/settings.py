@@ -22,6 +22,7 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+from app.core.messages import AuthProviderMessages
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
@@ -901,6 +902,11 @@ async def update_oidc_mapping(
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
     data = payload.model_dump(exclude_unset=True)
+    if "provider_id" in data and data["provider_id"] is not None:
+        provider = await session.get(AuthProvider, data["provider_id"])
+        if provider is None:
+            raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
+        mapping.provider_id = data["provider_id"]
     if "claim_value" in data and data["claim_value"] is not None:
         mapping.claim_value = data["claim_value"].strip()
     if "target_type" in data and data["target_type"] is not None:

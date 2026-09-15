@@ -216,3 +216,59 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     )
     await session.commit()
     assert await _guild_ids() == {corp_guild.id, partner_guild.id}
+
+
+@pytest.mark.integration
+async def test_deleting_the_last_rule_hands_back_what_it_granted(
+    session: AsyncSession,
+):
+    """A provider with no rules grants nothing, which is not the same as having
+    nothing to take back. Its next sign-in releases what its rules had given."""
+    from app.models.platform.guild import GuildMembership
+
+    provider = await create_auth_provider(session, slug="corp")
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner, name="Corp")
+    person = await create_user(session)
+
+    rule = OIDCClaimMapping(
+        provider_id=provider.id,
+        claim_value="staff",
+        target_type=OIDCMappingTargetType.guild,
+        guild_id=guild.id,
+        guild_role=GuildRole.member.value,
+    )
+    session.add(rule)
+    await session.commit()
+
+    await set_rls_context(session)
+    await sync_oidc_assignments(
+        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+    )
+    await session.commit()
+
+    session.expunge_all()
+    await set_rls_context(session)
+    assert (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.user_id == person.id)
+        )
+    ).all()
+
+    # The operator deletes the rule, and the next sign-in reconciles.
+    await session.delete(await session.get(OIDCClaimMapping, rule.id))
+    await session.commit()
+
+    await set_rls_context(session)
+    await sync_oidc_assignments(
+        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+    )
+    await session.commit()
+
+    session.expunge_all()
+    await set_rls_context(session)
+    assert not (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.user_id == person.id)
+        )
+    ).all()

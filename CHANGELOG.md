@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A sign-in rule says which provider it trusts** — group rules matched on the claim value alone, so two single-sign-on providers read each other's rules: whichever one somebody signed in through granted its own communities and then **removed the ones the other had granted**, and signing in through the other put them back and took the first lot away. A rule now belongs to one provider, named when you write it, and a sign-in reads only that provider's rules and only ever reclaims what that provider gave. Existing rules stay with the provider you already had. The groups claim moved to the provider it describes, in **Settings → Platform → Authentication**, so each one can spell groups its own way — and the hourly re-check now covers every provider instead of only the first.
+
 ### Fixed
 
 - **Saving a renamed document while others are editing it** — with live editing on, pressing the Save button beside the title or Ctrl+S was refused with "This document is being edited live", although the same rename went through on its own a few seconds later. The editing session owns the body while it is live, and a manual save was still trying to send one alongside the name. A manual save now hands the body to the session and saves the name, the featured image and the rest the way the autosave already did.

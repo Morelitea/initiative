@@ -98,8 +98,9 @@ async def sync_oidc_assignments(
     # a claim value means nothing until you know who asserted it.
     stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
     mappings = (await session.exec(stmt)).all()
-    if not mappings:
-        return result
+    # No early return on an empty set. A provider whose last rule was deleted
+    # grants nothing, which is not the same as having nothing to take back —
+    # the sweeps below are what hand those memberships over.
 
     # Partition into matched and unmatched
     matched: list[OIDCClaimMapping] = []

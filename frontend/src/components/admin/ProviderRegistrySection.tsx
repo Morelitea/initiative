@@ -225,6 +225,7 @@ export const ProviderRegistrySection = ({
           client_id: form.client_id,
           client_secret: form.client_secret || null,
           scopes: form.scopes || null,
+          role_claim_path: form.role_claim_path.trim() || null,
           allow_jit: form.allow_jit,
           enabled: form.enabled,
           icon: PRESETS[preset].icon,
