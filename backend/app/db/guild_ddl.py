@@ -360,6 +360,12 @@ _FREEZE_SECTION = """\
 -- row can still be unarchived, restored, or given a new purge date. Their WHEN
 -- clauses keep an ordinary write on live content from reaching the function.
 --
+-- tr_<t>_frozen_trashed_ancestor_update: the same rule about coming out
+--   unstamped, for a row that can be trashed but never archived. Unstamped
+--   inside an archived thing is the only state such a row has, so it is asked
+--   about a trashed ancestry alone — otherwise a restore could never put the
+--   comments, queue items, counters, pictures and events back.
+--
 -- tr_<t>_frozen_delete / tr_<t>_frozen_ancestor_delete: DELETE has no WITH
 -- CHECK, so RLS could only refuse it by returning no rows. A row that carries
 -- its own stamp is asked about itself; one that does not is asked about its

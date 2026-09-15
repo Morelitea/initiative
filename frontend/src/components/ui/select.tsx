@@ -4,7 +4,30 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Select = SelectPrimitive.Root;
+/**
+ * Radix's root, with one correction: nothing selected is not a choice.
+ *
+ * For a select inside a form the primitive keeps a hidden native select, and
+ * answers a value none of its options name by holding no selection — which it
+ * then reports as a change to the empty string. That happens on its own
+ * whenever a list is swapped for a different one while the select stays
+ * mounted: a task page moving to a task in another project has the new task's
+ * status a beat before it has that project's columns. No item may carry an
+ * empty value, so nobody can have picked one; it means "this list does not
+ * name that", and the value already held is still the answer.
+ */
+const Select = ({
+  onValueChange,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => (
+  <SelectPrimitive.Root
+    {...props}
+    onValueChange={(value) => {
+      if (value !== "") onValueChange?.(value);
+    }}
+  />
+);
+Select.displayName = "Select";
 
 const SelectGroup = SelectPrimitive.Group;
 

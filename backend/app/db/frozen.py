@@ -19,10 +19,12 @@ Where each command is caught:
   ``WITH CHECK``.
 * **UPDATE** — BEFORE UPDATE triggers: one for the row's own state, one for its
   ancestors, the latter asking about both the ancestry the row has and the one
-  it would end up under. Telling an edit from an unarchive needs the old row and
-  the new row together, which a policy never has, so all of it is trigger work.
-  Each is attached with a ``WHEN`` clause naming the state it cares about, so an
-  ordinary write on live content calls nothing.
+  it would end up under — and, for a row that cannot hold an archive stamp of
+  its own, a third asking about a trashed ancestry alone. Telling an edit from
+  an unarchive needs the old row and the new row together, which a policy never
+  has, so all of it is trigger work. Each is attached with a ``WHEN`` clause
+  naming the state it cares about, so an ordinary write on live content calls
+  nothing.
 * **DELETE** — a BEFORE DELETE trigger.
 * **SELECT** — nothing. Reading frozen content is the point of keeping it.
 
@@ -452,6 +454,14 @@ def frozen_write_triggers(table: str) -> list[str]:
 
     A row with nothing of its own to read inherits instead, and asks about both
     ancestries: the one it has as well as the one it is moving to.
+
+    That inheriting row gets the two halves of the rule on two triggers, because
+    they are asked about different states. Content is read-only under anything
+    frozen. But coming out unstamped is refused only under something in the
+    TRASH: a comment, a queue item, a counter, a picture and a calendar event
+    carry no ``archived_at``, so unstamped inside an archived thing is the only
+    state they have — it is what they were in before the trash took them, and it
+    is what a restore has to put them back to.
     """
     out: list[str] = []
     if table in SELF_STAMPED_TABLES:
@@ -478,12 +488,28 @@ def frozen_write_triggers(table: str) -> list[str]:
     prior = freeze_leg(table, "UPDATE", alias="OLD")
     proposed = freeze_leg(table, "UPDATE", alias="NEW")
     if prior is not None and proposed is not None:
+        inherits_the_archive = table in TRASHABLE_TABLES - ARCHIVABLE_TABLES
+        guard = (
+            "fn_frozen_row_guard" if inherits_the_archive else "fn_frozen_parent_guard"
+        )
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
             f"WHEN ({prior} OR {proposed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
+            f"EXECUTE FUNCTION public.{guard}()"
         )
+        if inherits_the_archive:
+            # It can be trashed but never archived, so it has no stamp to hold
+            # while the thing above it is archived — the orphan rule is asked
+            # about the trash alone, or a tree could never be restored.
+            was = _trashed_ancestor_leg(table, "OLD")
+            will_be = _trashed_ancestor_leg(table, "NEW")
+            out.append(
+                f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_trashed_ancestor_update "
+                f"BEFORE UPDATE ON {table} FOR EACH ROW "
+                f"WHEN ({was} OR {will_be}) "
+                f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
+            )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
     if doomed is not None:
         out.append(
@@ -503,9 +529,13 @@ def render_frozen_parent_guard_fn() -> str:
     project, which is the state it should be in.
 
     What it may not do is end up with NO stamp at all while the thing above it
-    still carries one. It would then be live inside a finished thing, and a row
-    that carries its own stamp is not asked about its ancestry again once it is
-    live — so it could be moved or deleted straight out.
+    still carries one. It would then be live inside a finished thing, and it
+    would come back a second time when that thing is brought back.
+
+    Which ancestry is "above it" is the attaching trigger's question, not this
+    function's: a row that can hold an archive stamp is asked about both, and a
+    row that cannot is asked about the trash alone — see
+    :func:`frozen_write_triggers`.
 
     Read through ``to_jsonb`` rather than by column, because one function serves
     tables that have both lifecycle columns and tables that have neither.
@@ -685,22 +715,33 @@ _FREEZE_DEVIATIONS: dict[str, Callable[[str, str], str]] = {
 }
 
 
-def freeze_leg(table: str, command: str, *, alias: str | None = None) -> str | None:
+def freeze_leg(
+    table: str,
+    command: str,
+    *,
+    alias: str | None = None,
+    trashed_ok: bool | None = None,
+) -> str | None:
     """The RLS leg for one table and one write command, or None where the
     freeze does not reach it.
 
     ``DELETE`` asks with ``trashed_ok``: under a trashed ancestor, deleting is
     the lifecycle — that is what purge IS — where under an archived one it is a
     change to living content and is refused.
+
+    ``trashed_ok`` states that question directly, for the one caller that asks
+    it outside a DELETE — see :func:`_trashed_ancestor_leg`.
     """
     if table in FREEZE_EXEMPT_TABLES:
         return None
     if command == "DELETE" and table in _EDGE_TABLES:
         return None
-    trashed_ok = "true" if command == "DELETE" else "false"
+    if trashed_ok is None:
+        trashed_ok = command == "DELETE"
+    flag = "true" if trashed_ok else "false"
     alias = alias or table
 
-    walked = _parent_call(table, alias, trashed_ok=trashed_ok)
+    walked = _parent_call(table, alias, trashed_ok=flag)
     if walked is not None:
         return walked
 
@@ -709,8 +750,27 @@ def freeze_leg(table: str, command: str, *, alias: str | None = None) -> str | N
     # freeze with the initiative and with nothing else.
     columns = SQLModel.metadata.tables[table].c
     if "initiative_id" in columns:
-        return (
-            f"public.resource_frozen('initiatives', "
-            f"{alias}.initiative_id, {trashed_ok})"
-        )
+        return f"public.resource_frozen('initiatives', {alias}.initiative_id, {flag})"
     return None
+
+
+def _trashed_ancestor_leg(table: str, alias: str) -> str | None:
+    """Whether the thing above this row is IN THE TRASH, rather than archived.
+
+    The freeze walk answers "archived or trashed" in one call; this is the half
+    of it the orphan rule needs, said with the same call twice. ``trashed_ok``
+    ends the walk at a trashed row, so the second call is "frozen by an archive,
+    with no trash at or above it" — and a frozen ancestry that is NOT that is
+    one whose nearest stamp is the trash.
+
+    That is the ordering a cascaded restore depends on: the parent's
+    ``deleted_at`` is cleared first, so by the time the child is written the
+    walk sees an archive (if anything) and the child may come back unstamped —
+    which for a comment, a queue item, a counter, a picture or a calendar event
+    is the only way it can come back at all.
+    """
+    frozen = freeze_leg(table, "UPDATE", alias=alias)
+    if frozen is None:
+        return None
+    archived = freeze_leg(table, "UPDATE", alias=alias, trashed_ok=True)
+    return f"(({frozen}) AND NOT ({archived}))"
