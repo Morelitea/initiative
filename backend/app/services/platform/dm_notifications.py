@@ -5,6 +5,16 @@ kept one line per (recipient, thing reacted to): a new message joins the
 existing **unread** line and moves it back to the top, and once that line is
 read the next message starts a fresh one, so "new" keeps meaning something.
 
+Reading the *thread* is what reads the line -- :func:`mark_conversation_read`,
+called by the recipient's own client once it has rendered what arrived. The
+server has no other way to know: it holds no message and cannot tell that one
+reached a screen.
+
+The rollup governs the **line**, not the interruption. A push goes out for every
+message; the email goes out when the line turns unread. The two differ because
+they are read in different places -- a lock screen is where a conversation
+happens, and a mailbox is where you find out you missed one.
+
 The line names the sender and counts the messages. It never carries one, and
 nothing here adds a way for it to: the payload it announces is opaque on this
 side.
@@ -18,19 +28,21 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
-from sqlalchemy import func
+from sqlalchemy import delete, func, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
 from app.core.notification_categories import Channel
-from app.models.platform.notification import NotificationType
+from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
 from app.services.platform import (
     dm_stream,
     notification_prefs,
+    notification_stream,
     push_notifications,
     user_notifications,
 )
@@ -103,6 +115,65 @@ async def notify(
     except Exception:  # noqa: BLE001 - a bell line never fails a send
         logger.exception("direct-message notification failed")
     await dm_stream.signal_dm(recipient_id)
+
+
+def _line_of(conversation_id: uuid.UUID):
+    """Every rolled-up line this account holds for one conversation."""
+    return (
+        Notification.type == NotificationType.direct_message,
+        Notification.data["conversation_id"].as_string() == str(conversation_id),
+    )
+
+
+async def mark_conversation_read(
+    session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
+) -> int:
+    """Close this account's rolled-up line for one conversation.
+
+    A line collects while it is unread, and the push and the email fire on the
+    transition into unread rather than once per message. Closing the line is
+    therefore what lets the next message announce itself at all, and reading the
+    thread is what closes it -- there is nothing else that could, since the
+    server cannot see a message arrive at a screen.
+
+    Runs on the reader's own session: the line is theirs, and so is the claim
+    that they have read it.
+    """
+    result = await session.exec(
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.read_at.is_(None),
+            *_line_of(conversation_id),
+        )
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    closed = result.rowcount or 0
+    if closed:
+        # The tab that read the thread already knows; this is for the account's
+        # other tabs and devices, whose badge would keep the stale count.
+        notification_stream.queue_signal(session, user_id, "read")
+    return closed
+
+
+async def forget_conversation(
+    session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
+) -> int:
+    """Take down the lines for a conversation this account has left.
+
+    Read or unread alike: the line names a thread that is no longer in the list,
+    and tapping it would arrive at nothing.
+    """
+    result = await session.exec(
+        delete(Notification).where(
+            Notification.user_id == user_id,
+            *_line_of(conversation_id),
+        )
+    )
+    removed = result.rowcount or 0
+    if removed:
+        notification_stream.queue_signal(session, user_id, "withdrawn")
+    return removed
 
 
 async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) -> None:
@@ -197,12 +268,6 @@ async def _roll_up(
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
 
-    # Both channels fire on the transition into unread, not per message: a
-    # flurry is one notification rather than twenty, with nothing added to the
-    # first. Once the line is read, the next message starts a fresh one and they
-    # fire again.
-    if existing is not None:
-        return
     prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
 
@@ -215,9 +280,18 @@ async def _roll_up(
             channel=channel,
         )
 
+    # Push fires per message. A reply to a conversation somebody has already
+    # been told about is the thing they are waiting for, and a messenger that
+    # announces the first message and then goes quiet is not one anybody can
+    # hold a conversation on. This is what every messenger does and what people
+    # expect; the preference and quiet hours are where it is turned down.
     if _wanted(Channel.push):
         await _push(session, recipient=recipient, sender_name=sender_name)
-    if _wanted(Channel.email):
+
+    # Email does not. It is the channel for somebody who is not there at all,
+    # and one per message would be a mailbox nobody could use -- so it fires on
+    # the transition into unread, and again once the line has been read.
+    if existing is None and _wanted(Channel.email):
         await _email(session, recipient=recipient, sender_name=sender_name)
 
 

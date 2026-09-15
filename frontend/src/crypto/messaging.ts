@@ -264,11 +264,17 @@ export async function unreadIn(conversationId: string): Promise<number> {
   return log.slice(read + 1).filter((message) => !message.mine).length;
 }
 
-/** This thread has been looked at, up to the last message the other side sent. */
+/**
+ * This thread has been looked at, up to the last message the other side sent.
+ *
+ * Answers how many messages this look actually read, which is zero for the
+ * common case of a thread that was already current. The caller uses it to
+ * decide whether there is anything to report.
+ */
 export async function markRead(
   conversationId: string,
   { otherUserId, receipts = true }: { otherUserId?: number; receipts?: boolean } = {}
-): Promise<void> {
+): Promise<number> {
   const [log, seen] = await Promise.all([
     messageLog.get(conversationId),
     lastRead.get(conversationId),
@@ -278,7 +284,7 @@ export async function markRead(
   // the marker is touched would say "read" again on every keystroke that
   // lengthened it, for messages answered an hour ago.
   const newly = log.slice(previous + 1).filter((message) => !message.mine);
-  if (newly.length === 0) return;
+  if (newly.length === 0) return 0;
 
   await lastRead.set(conversationId, newly[newly.length - 1].id);
   if (receipts && otherUserId !== undefined) {
@@ -289,6 +295,7 @@ export async function markRead(
       "read"
     );
   }
+  return newly.length;
 }
 
 /**
