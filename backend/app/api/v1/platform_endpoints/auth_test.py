@@ -26,7 +26,6 @@ from app.core.messages import OidcMessages
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
-    create_access_token,
     create_upload_token,
     get_password_hash,
     verify_upload_token,
@@ -44,7 +43,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_legacy_auth_headers,
     set_auth_scope,
 )
 from app.testing.oidc import (
@@ -665,11 +663,7 @@ async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSessio
     elapses mid-session) must return 401, not 403. Regression guard
     for the 403 -> 401 fix in get_current_user."""
     user = await create_user(session)
-    expired_token = create_access_token(
-        subject=str(user.id),
-        token_version=user.token_version,
-        expires_delta=timedelta(seconds=-1),
-    )
+    expired_token = get_auth_token(user, expires_in=timedelta(seconds=-1))
     response = await client.get(
         "/api/v1/users/me",
         headers={"Authorization": f"Bearer {expired_token}"},
@@ -688,10 +682,7 @@ async def test_stale_token_version_returns_401(
     password change) must return 401 so the SPA auto-redirects instead
     of leaving a stale session in place."""
     user = await create_user(session)
-    stale_token = create_access_token(
-        subject=str(user.id),
-        token_version=user.token_version,
-    )
+    stale_token = get_auth_token(user)
     # Bump the version out-of-band to simulate a logout happening in
     # another tab.
     user.token_version += 1
@@ -782,10 +773,12 @@ async def test_upload_token_copies_session_satisfied_providers(
     _, sat = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
 
-    legacy = await client.post(
-        "/api/v1/auth/upload-token", headers=get_legacy_auth_headers(user)
+    # A session that satisfied no provider hands the upload token an empty set
+    # rather than leaving the claim off.
+    unsatisfied = await client.post(
+        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat = verify_upload_token(legacy.json()["upload_token"])
+    _, sat = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
 
 
