@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Saving a renamed document while others are editing it** — with live editing on, pressing the Save button beside the title or Ctrl+S was refused with "This document is being edited live", although the same rename went through on its own a few seconds later. The editing session owns the body while it is live, and a manual save was still trying to send one alongside the name. A manual save now hands the body to the session and saves the name, the featured image and the rest the way the autosave already did.
+
 ## [0.69.0] - 2026-09-14
 
 **Nice.**

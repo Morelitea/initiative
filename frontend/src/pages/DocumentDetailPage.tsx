@@ -805,24 +805,49 @@ export const DocumentDetailPage = () => {
     };
   }, [isOnline, collaboration.isCollaborating, t]);
 
+  // Every save the user asks for by hand — the Save button, Ctrl+S, a featured
+  // image change — goes through here. While the editing room is live it is
+  // the writer of the content column and refuses a body sent any other way,
+  // so the body goes to the room and the PATCH carries only the rest, the
+  // same split the autosave makes.
+  const saveNow = useCallback(
+    (overrides?: { featured_image_url?: string | null }) => {
+      if (!canEditDocument || saveDocument.isPending) return;
+      const payload = {
+        name: title?.trim(),
+        featured_image_url: featuredImageUrl,
+        ...overrides,
+      };
+      if (collaboration.isCollaborating) {
+        collaboration.sendContent(contentForSave);
+        saveDocument.mutate(payload);
+        return;
+      }
+      saveDocument.mutate({ ...payload, content: contentForSave });
+    },
+    [
+      canEditDocument,
+      saveDocument,
+      title,
+      featuredImageUrl,
+      contentForSave,
+      collaboration.isCollaborating,
+      collaboration.sendContent,
+    ]
+  );
+
   // Ctrl+S / Cmd+S manual save shortcut
   useEffect(() => {
     if (!canEditDocument) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        if (!saveDocument.isPending) {
-          saveDocument.mutate({
-            name: title?.trim(),
-            content: contentForSave,
-            featured_image_url: featuredImageUrl,
-          });
-        }
+        saveNow();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEditDocument, saveDocument, parsedId, title, contentForSave, featuredImageUrl]);
+  }, [canEditDocument, saveNow]);
 
   // Sync content via sendBeacon on page unload to ensure content column stays updated
   // This is critical when users navigate away or close the tab during collaboration
@@ -923,11 +948,7 @@ export const DocumentDetailPage = () => {
       const response = await uploadAttachment(guildId, file);
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
-      saveDocument.mutate({
-        name: title?.trim(),
-        content: contentForSave,
-        featured_image_url: response.url,
-      });
+      saveNow({ featured_image_url: response.url });
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
@@ -1105,14 +1126,7 @@ export const DocumentDetailPage = () => {
             <Button
               type="button"
               size="sm"
-              onClick={() => {
-                if (saveDocument.isPending) return;
-                saveDocument.mutate({
-                  name: title?.trim(),
-                  content: contentForSave,
-                  featured_image_url: featuredImageUrl,
-                });
-              }}
+              onClick={() => saveNow()}
               disabled={saveDocument.isPending}
               className="shrink-0"
             >
@@ -1228,11 +1242,7 @@ export const DocumentDetailPage = () => {
                                 onClick={() => {
                                   setFeaturedImageUrl(null);
                                   isAutosaveRef.current = true;
-                                  saveDocument.mutate({
-                                    name: title?.trim(),
-                                    content: contentForSave,
-                                    featured_image_url: null,
-                                  });
+                                  saveNow({ featured_image_url: null });
                                 }}
                                 disabled={isUploadingFeaturedImage}
                               >
@@ -1499,13 +1509,7 @@ export const DocumentDetailPage = () => {
                       <>
                         <Button
                           type="button"
-                          onClick={() =>
-                            saveDocument.mutate({
-                              name: title?.trim(),
-                              content: contentForSave,
-                              featured_image_url: featuredImageUrl,
-                            })
-                          }
+                          onClick={() => saveNow()}
                           disabled={!isDirty || saveDocument.isPending}
                         >
                           {saveDocument.isPending ? (
