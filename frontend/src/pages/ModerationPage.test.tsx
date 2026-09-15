@@ -177,4 +177,31 @@ describe("ModerationPage", () => {
     await screen.findByRole("region", { name: "A comment" });
     expect(screen.queryByRole("button", { name: "Older" })).not.toBeInTheDocument();
   });
+
+  it("leaves a way back from a page that came back empty", async () => {
+    // A count that divides exactly by the page size lands here, and without
+    // the way back the only exits are switching tab or reloading.
+    state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Older" }));
+    state.items = [];
+    await user.click(screen.getByRole("button", { name: "Older" }));
+
+    expect(await screen.findByText("Nothing further.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Newer" })).toBeEnabled();
+  });
+
+  it("an empty later page does not claim nothing was ever reported", async () => {
+    state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Older" }));
+    state.items = [];
+    await user.click(screen.getByRole("button", { name: "Older" }));
+
+    expect(screen.queryByText("Nothing has been reported.")).not.toBeInTheDocument();
+  });
 });

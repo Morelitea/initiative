@@ -84,21 +84,32 @@ export const ModerationPage = () => {
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
-      ) : reports.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          {tab === "open" ? t("empty.open") : t("empty.settled")}
-        </p>
       ) : (
         <div className="space-y-4">
-          {reports.map((report) => (
-            <ReportCard
-              key={report.id}
-              report={report}
-              guildId={guildId ?? 0}
-              initiativeId={initiative}
-            />
-          ))}
+          {reports.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              {/* A later page that came back empty is a different thing from
+                  nothing ever having been reported, and says so. */}
+              {page > 0
+                ? t("empty.noFurther")
+                : tab === "open"
+                  ? t("empty.open")
+                  : t("empty.settled")}
+            </p>
+          ) : (
+            reports.map((report) => (
+              <ReportCard
+                key={report.id}
+                report={report}
+                guildId={guildId ?? 0}
+                initiativeId={initiative}
+              />
+            ))
+          )}
 
+          {/* Outside the empty branch on purpose: a count that divides exactly
+              by the page size lands on an empty page, and the way back has to
+              still be there. */}
           {(page > 0 || hasMore) && (
             <div className="flex items-center justify-between gap-2 pt-2">
               <Button

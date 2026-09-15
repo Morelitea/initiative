@@ -8,7 +8,8 @@
   },
   "empty": {
     "open": "No se ha denunciado nada.",
-    "settled": "Todavía no se ha resuelto nada."
+    "settled": "Todavía no se ha resuelto nada.",
+    "noFurther": "Nada más."
   },
   "reportedCount_one": "Denunciado por {{count}} persona",
   "reportedCount_other": "Denunciado por {{count}} personas",

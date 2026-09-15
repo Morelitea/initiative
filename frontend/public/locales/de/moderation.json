@@ -8,7 +8,8 @@
   },
   "empty": {
     "open": "Es wurde nichts gemeldet.",
-    "settled": "Es wurde noch nichts erledigt."
+    "settled": "Es wurde noch nichts erledigt.",
+    "noFurther": "Nichts weiter."
   },
   "reportedCount_one": "Von {{count}} Person gemeldet",
   "reportedCount_other": "Von {{count}} Personen gemeldet",

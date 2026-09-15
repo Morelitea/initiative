@@ -8,7 +8,8 @@
   },
   "empty": {
     "open": "Rien n'a été signalé.",
-    "settled": "Rien n'a encore été traité."
+    "settled": "Rien n'a encore été traité.",
+    "noFurther": "Rien de plus."
   },
   "reportedCount_one": "Signalé par {{count}} personne",
   "reportedCount_other": "Signalé par {{count}} personnes",
