@@ -2927,6 +2927,104 @@ export const useLeaveConversationApiV1MeDmConversationsConversationIdDelete = <
   );
 };
 /**
+ * This account has read what was waiting in one thread.
+ *
+ * The client says so once it has decrypted and rendered what arrived, which is
+ * the only moment anybody knows. It closes the rolled-up bell line, so the
+ * next message announces itself instead of joining a line that is already
+ * there, and it clears the badge on this account's other tabs.
+ *
+ * It acts on this account's own notifications and nothing else, so a
+ * conversation id that names none of them closes nothing and still answers.
+ * @summary Mark Conversation Read
+ */
+export const markConversationReadApiV1MeDmConversationsConversationIdReadPost = (
+  conversationId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/dm/conversations/${conversationId}/read`, method: "POST", signal },
+    options
+  );
+};
+
+export const getMarkConversationReadApiV1MeDmConversationsConversationIdReadPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>,
+    TError,
+    { conversationId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>,
+  TError,
+  { conversationId: string },
+  TContext
+> => {
+  const mutationKey = ["markConversationReadApiV1MeDmConversationsConversationIdReadPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>,
+    { conversationId: string }
+  > = (props) => {
+    const { conversationId } = props ?? {};
+
+    return markConversationReadApiV1MeDmConversationsConversationIdReadPost(
+      conversationId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkConversationReadApiV1MeDmConversationsConversationIdReadPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>
+  >;
+
+export type MarkConversationReadApiV1MeDmConversationsConversationIdReadPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Mark Conversation Read
+ */
+export const useMarkConversationReadApiV1MeDmConversationsConversationIdReadPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>,
+      TError,
+      { conversationId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markConversationReadApiV1MeDmConversationsConversationIdReadPost>>,
+  TError,
+  { conversationId: string },
+  TContext
+> => {
+  return useMutation(
+    getMarkConversationReadApiV1MeDmConversationsConversationIdReadPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Hand the server one already-encrypted copy per destination device.
  * @summary Send Messages
  */

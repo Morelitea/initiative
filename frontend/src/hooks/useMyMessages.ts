@@ -18,7 +18,9 @@ import { useEffect } from "react";
 import {
   createConversationApiV1MeDmConversationsPost as createConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
+  markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
+import { invalidate, q } from "@/api/query-keys";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
   answerHistoryRequest,
@@ -323,7 +325,19 @@ export function useUnreadMessages(conversationIds: string[]) {
   });
 }
 
-/** Mark a thread as looked at, whenever what is in it changes. */
+/**
+ * Mark a thread as looked at, whenever what is in it changes.
+ *
+ * Two readers to satisfy, and only one of them is here. The local marker is
+ * what the conversation list counts from, and the server's rolled-up bell line
+ * is a separate thing that only the account holder's own client can close —
+ * nothing else knows a message reached a screen. So the look is reported
+ * onwards, but only where it read something: an already-current thread has
+ * nothing to tell anybody.
+ *
+ * The report is best-effort. It affects a bell line, and a thread should not
+ * surface an error because one did not clear.
+ */
 export function useMarkThreadRead(
   conversationId: string,
   messageCount: number,
@@ -332,9 +346,13 @@ export function useMarkThreadRead(
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
   useEffect(() => {
-    void markRead(conversationId, { otherUserId, receipts }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["dm", "unread"] })
-    );
+    void markRead(conversationId, { otherUserId, receipts })
+      .then(async (readCount) => {
+        if (readCount === 0) return;
+        await reportThreadRead(conversationId).catch(() => undefined);
+        await invalidate(q.notifications());
+      })
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["dm", "unread"] }));
   }, [conversationId, messageCount, otherUserId, receipts, queryClient]);
 }
 

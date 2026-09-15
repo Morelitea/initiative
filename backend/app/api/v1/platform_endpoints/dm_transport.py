@@ -284,6 +284,34 @@ async def leave_conversation(
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
+    await dm_notifications.forget_conversation(
+        session, user_id=current_user.id, conversation_id=conversation_id
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.post(
+    "/dm/conversations/{conversation_id}/read", status_code=status.HTTP_204_NO_CONTENT
+)
+async def mark_conversation_read(
+    conversation_id: uuid.UUID,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """This account has read what was waiting in one thread.
+
+    The client says so once it has decrypted and rendered what arrived, which is
+    the only moment anybody knows. It closes the rolled-up bell line, so the
+    next message announces itself instead of joining a line that is already
+    there, and it clears the badge on this account's other tabs.
+
+    It acts on this account's own notifications and nothing else, so a
+    conversation id that names none of them closes nothing and still answers.
+    """
+    await dm_notifications.mark_conversation_read(
+        session, user_id=current_user.id, conversation_id=conversation_id
+    )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
