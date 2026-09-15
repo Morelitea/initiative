@@ -21,8 +21,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260915_0272"
-down_revision = "20260915_0271"
+revision = "20260915_0273"
+down_revision = "20260915_0272"
 branch_labels = None
 depends_on = None
 
@@ -60,6 +60,30 @@ def downgrade() -> None:
 
 
 def _apply_downgrade() -> None:
+    # The rendered initiative-member policies read these columns — every table
+    # governed by projects or documents now has a switch leg naming one — so
+    # Postgres refuses to drop a column while they stand. Drop them first and
+    # let provisioning render them again on the next boot, which is how the
+    # gallery tool's migration handles the same dependency.
+    op.execute(
+        """
+        DO $$
+        DECLARE r record;
+        BEGIN
+            FOR r IN
+                SELECT schemaname, tablename, policyname
+                FROM pg_policies
+                WHERE schemaname = current_schema()
+                  AND policyname LIKE 'initiative_member_%'
+            LOOP
+                EXECUTE format(
+                    'DROP POLICY IF EXISTS %I ON %I.%I',
+                    r.policyname, r.schemaname, r.tablename
+                );
+            END LOOP;
+        END $$;
+        """
+    )
     with op.batch_alter_table("initiatives", schema=None) as batch_op:
         batch_op.drop_column("documents_enabled")
         batch_op.drop_column("projects_enabled")
