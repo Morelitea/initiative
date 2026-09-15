@@ -78,6 +78,7 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+from app.services.platform import security_rules
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
@@ -428,7 +429,7 @@ async def _record_sign_in_failure(
     that table.
     """
     target_user_id = user.id if user is not None else None
-    await audit_service.record(
+    event = await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
@@ -438,6 +439,17 @@ async def _record_sign_in_failure(
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
+
+    # The refusal is recorded; a rule now reads the window it belongs to. Only
+    # where an account resolved, because a rule names the account and an
+    # address nobody holds names nothing. Detached from this request, which is
+    # about to refuse regardless.
+    if target_user_id is not None:
+        security_rules.watch(
+            security_rules.note_failed_sign_in(
+                target_user_id, event_uuid=str(event.event_uuid)
+            )
+        )
 
 
 @router.post("/token", response_model=Token)
