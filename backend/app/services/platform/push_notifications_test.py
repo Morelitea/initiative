@@ -50,14 +50,6 @@ _IN_APP_ONLY = {
     NotificationType.username_changed,
     NotificationType.account_suspended,
     NotificationType.account_unsuspended,
-    # Connections and message requests. They belong in the inbox beside the
-    # contacts page that answers them, and a channel of their own would mean a
-    # native release — so they wait for the one that ships direct messages, when
-    # there is something to interrupt somebody for.
-    NotificationType.connection_requested,
-    NotificationType.connection_accepted,
-    NotificationType.message_request_received,
-    NotificationType.message_request_accepted,
 }
 
 
@@ -95,4 +87,35 @@ def test_channels_are_registered_by_the_android_app():
     declared = set(re.findall(r"String CHANNEL_(\w+) = ", source))
     assert declared - created == set(), (
         f"declared but never created: {sorted(declared - created)}"
+    )
+
+
+@pytest.mark.unit
+def test_the_manifest_falls_back_to_a_channel_the_app_creates():
+    """The web bundle updates over the air; channels ship with the APK.
+
+    So a server that has moved on can address a channel an installed build has
+    never registered. Firebase then uses the manifest's fallback — and if that
+    names nothing real either, it invents a "Miscellaneous" channel outside the
+    app's own notification settings, where nothing the user has muted applies.
+    """
+    manifest = (
+        _ANDROID_CHANNELS.parent.parent.parent.parent.parent / "AndroidManifest.xml"
+    )
+    source = manifest.read_text(encoding="utf-8")
+    declared = re.search(
+        r'android:name="com\.google\.firebase\.messaging\.default_notification_channel_id"\s*'
+        r'android:value="([^"]+)"',
+        source,
+    )
+    assert declared, "no Firebase fallback channel declared in the manifest"
+
+    registered = set(
+        re.findall(
+            r'String CHANNEL_\w+ = "([^"]+)"',
+            _ANDROID_CHANNELS.read_text(encoding="utf-8"),
+        )
+    )
+    assert declared.group(1) in registered, (
+        f"manifest falls back to {declared.group(1)!r}, which the app never creates"
     )

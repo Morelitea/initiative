@@ -41,3 +41,27 @@ def satisfied_provider_ids() -> frozenset[int]:
     live-session path records) reads as the empty, fail-closed set."""
     value = _satisfied_providers.get()
     return value if isinstance(value, frozenset) else frozenset()
+
+
+#: The ``user_tokens`` row that authenticated this request, when the credential
+#: was a device token. It names one installed client, which is the only stable
+#: handle the server has on "this phone" — a push token rotates and a login
+#: expires, so anything that has to recognise the same installation twice
+#: (linking its push registration to its message key store) keys on this.
+#: ``None`` for every other credential, including the web session: a browser
+#: has no device token and minting one to tidy the join would put a long-lived
+#: credential where it does not belong.
+_device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "auth_device_token_id", default=None
+)
+
+
+def set_device_token_id(value: int | None) -> None:
+    """Record the device token that authenticated this request (or clear it)."""
+    _device_token_id.set(value)
+
+
+def device_token_id() -> int | None:
+    """The device token recorded for this request, if it was authenticated by
+    one."""
+    return _device_token_id.get()

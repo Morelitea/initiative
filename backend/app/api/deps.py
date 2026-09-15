@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core import auth_context
-from app.core.auth_context import set_satisfied_providers
+from app.core.auth_context import set_device_token_id, set_satisfied_providers
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -89,13 +89,23 @@ FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN
 async def _authenticate_device_token(
     session: AsyncSession, token: str
 ) -> Optional[User]:
-    """Authenticate using a device token and return the associated user."""
+    """Authenticate using a device token and return the associated user.
+
+    Records which token it was (see ``app.core.auth_context``). That row is the
+    server's only durable name for one installed client, and two registrations
+    that have to end up pointing at the same phone -- its push token and its
+    message key store -- both read it from there rather than being told an id
+    by the client.
+    """
     device_token = await user_tokens.get_device_token(session, token=token)
     if not device_token:
         return None
     statement = select(User).where(User.id == device_token.user_id)
     result = await session.exec(statement)
-    return result.one_or_none()
+    user = result.one_or_none()
+    if user is not None:
+        set_device_token_id(device_token.id)
+    return user
 
 
 async def _authenticate_auto_delegation(
@@ -275,6 +285,7 @@ async def get_current_user(
     # Start from the fail-closed empty satisfied-provider set; only the session
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_device_token_id(None)
     # Which kind of credential this turns out to be, for the few endpoints that
     # care (see `require_first_party_session`). Set before any branch can
     # return, so an unrecognized path reads as something other than a session.
@@ -1099,6 +1110,7 @@ async def get_upload_user(
     # Fail-closed default; the session-JWT and scoped-token branches record the
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_device_token_id(None)
 
     auth_header = request.headers.get("Authorization", "")
 

@@ -32,49 +32,49 @@ importers:
     dependencies:
       '@capacitor-community/keep-awake':
         specifier: ^8.0.1
-        version: 8.0.1(@capacitor/core@8.5.1)
+        version: 8.0.1(@capacitor/core@8.5.2)
       '@capacitor-community/safe-area':
         specifier: ^8.0.1
-        version: 8.0.1(@capacitor/core@8.5.1)
+        version: 8.0.1(@capacitor/core@8.5.2)
       '@capacitor/android':
-        specifier: ^8.5.0
-        version: 8.5.1(@capacitor/core@8.5.1)
+        specifier: ^8.5.2
+        version: 8.5.2(@capacitor/core@8.5.2)
       '@capacitor/app':
         specifier: ^8.1.1
-        version: 8.1.1(@capacitor/core@8.5.1)
+        version: 8.1.1(@capacitor/core@8.5.2)
       '@capacitor/browser':
         specifier: ^8.0.4
-        version: 8.0.4(@capacitor/core@8.5.1)
+        version: 8.0.4(@capacitor/core@8.5.2)
       '@capacitor/camera':
         specifier: ^8.2.4
-        version: 8.2.4(@capacitor/core@8.5.1)
+        version: 8.2.4(@capacitor/core@8.5.2)
       '@capacitor/core':
-        specifier: ^8.5.0
-        version: 8.5.1
+        specifier: ^8.5.2
+        version: 8.5.2
       '@capacitor/device':
         specifier: ^8.0.3
-        version: 8.0.3(@capacitor/core@8.5.1)
+        version: 8.0.3(@capacitor/core@8.5.2)
       '@capacitor/haptics':
         specifier: ^8.0.2
-        version: 8.0.2(@capacitor/core@8.5.1)
+        version: 8.0.2(@capacitor/core@8.5.2)
       '@capacitor/ios':
-        specifier: ^8.5.0
-        version: 8.5.1(@capacitor/core@8.5.1)
+        specifier: ^8.5.2
+        version: 8.5.2(@capacitor/core@8.5.2)
       '@capacitor/network':
         specifier: ^8.0.1
-        version: 8.0.1(@capacitor/core@8.5.1)
+        version: 8.0.1(@capacitor/core@8.5.2)
       '@capacitor/preferences':
         specifier: ^8.0.1
-        version: 8.0.1(@capacitor/core@8.5.1)
+        version: 8.0.1(@capacitor/core@8.5.2)
       '@capacitor/push-notifications':
         specifier: ^8.1.2
-        version: 8.1.2(@capacitor/core@8.5.1)
+        version: 8.1.2(@capacitor/core@8.5.2)
       '@capacitor/splash-screen':
         specifier: ^8.0.2
-        version: 8.0.2(@capacitor/core@8.5.1)
+        version: 8.0.2(@capacitor/core@8.5.2)
       '@capgo/capacitor-updater':
         specifier: ^8.51.3
-        version: 8.51.15(@capacitor/core@8.5.1)
+        version: 8.51.15(@capacitor/core@8.5.2)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -371,8 +371,8 @@ importers:
         specifier: ^3.0.5
         version: 3.0.5(@types/node@26.2.0)(supports-color@5.5.0)(typescript@7.0.2)
       '@capacitor/cli':
-        specifier: ^8.5.0
-        version: 8.5.0(supports-color@5.5.0)
+        specifier: ^8.5.2
+        version: 8.5.2(supports-color@5.5.0)
       '@tailwindcss/container-queries':
         specifier: ^0.1.1
         version: 0.1.1(tailwindcss@4.3.3)
@@ -626,8 +626,8 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
-  '@capacitor/android@8.5.1':
-    resolution: {integrity: sha512-o8fUIPDSEASeXHHrDz26WU7OlyiRb+QqtI9KFdnLS1jUL77o5iGrvegibaZX8rWpiCyDJ6jlUhhhHlfeq3ou9A==}
+  '@capacitor/android@8.5.2':
+    resolution: {integrity: sha512-rtiaz78egCcS+vs29wkWCL3C+RhazKMSygXcjutwWP8NmO6r5UBxOvGf3Wjz5+ahobyQ723tn9gCePwRwcNDZQ==}
     peerDependencies:
       '@capacitor/core': ^8.5.0
 
@@ -656,13 +656,13 @@ packages:
     engines: {node: '>=16.0.0'}
     hasBin: true
 
-  '@capacitor/cli@8.5.0':
-    resolution: {integrity: sha512-rLdzMUM5QV4WITcqoWv04p32i14BXgUH2diqEH6MWQlWaJfiyNrvOyt/+d5vHAfOxOm1klBu637VDEobctlwBA==}
+  '@capacitor/cli@8.5.2':
+    resolution: {integrity: sha512-O2kpA5ZPJUAmliDCcmpMf8xnJwMezxlFPUrlyOAjbL3U9MFNY3l4ZpPI/UXwvyPmR8ETcVF9pFr+VdWq61rqTQ==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  '@capacitor/core@8.5.1':
-    resolution: {integrity: sha512-IOQ7ynG1qgrJ/RLuCO3WgyRGmkmmG/cdStRR4ftU2dWEN1FdtLrnI/XpZmZuUsOEHEnzBRJY/PmRH8eTLiXfhA==}
+  '@capacitor/core@8.5.2':
+    resolution: {integrity: sha512-agnQbGdhGw/KZFuLf7H9SY2o+oE7upkr/WPQsYaokXP6f9chaE8iVmbKkfN6SVl4w3pmz7oZ3Ur1hbkmy1hx+w==}
 
   '@capacitor/device@8.0.3':
     resolution: {integrity: sha512-rliPCCZwxtjU6200jJNDAsQhioyozV3fGgiP+NgRqtDOI7i+Jdz+DYNwEup+3MGZZ4NEmkuFaBeWLM3T01vJRg==}
@@ -674,8 +674,8 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
-  '@capacitor/ios@8.5.1':
-    resolution: {integrity: sha512-0EVqwCYf3RUp2JAjUGZ04xmG6dSpIsPmPacI9zKxn6mu9RSiHhmFF230ghe00HrkyB6ig6SfNdoADvVODxYhlQ==}
+  '@capacitor/ios@8.5.2':
+    resolution: {integrity: sha512-eOT2S67AfTFG7KN0T3oxwAajrJz4rSye+ODfvChiwrk0F/+kWufFM1qU6cDjGJUOfwdAoeuEpZyWHSwZlu4GFg==}
     peerDependencies:
       '@capacitor/core': ^8.5.0
 
@@ -6830,21 +6830,21 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@capacitor-community/keep-awake@8.0.1(@capacitor/core@8.5.1)':
+  '@capacitor-community/keep-awake@8.0.1(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor-community/safe-area@8.0.1(@capacitor/core@8.5.1)':
+  '@capacitor-community/safe-area@8.0.1(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/android@8.5.1(@capacitor/core@8.5.1)':
+  '@capacitor/android@8.5.2(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/app@8.1.1(@capacitor/core@8.5.1)':
+  '@capacitor/app@8.1.1(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
   '@capacitor/assets@3.0.5(@types/node@26.2.0)(supports-color@5.5.0)(typescript@7.0.2)':
     dependencies:
@@ -6871,13 +6871,13 @@ snapshots:
       - supports-color
       - typescript
 
-  '@capacitor/browser@8.0.4(@capacitor/core@8.5.1)':
+  '@capacitor/browser@8.0.4(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/camera@8.2.4(@capacitor/core@8.5.1)':
+  '@capacitor/camera@8.2.4(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
   '@capacitor/cli@5.7.8(supports-color@5.5.0)':
     dependencies:
@@ -6901,7 +6901,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@capacitor/cli@8.5.0(supports-color@5.5.0)':
+  '@capacitor/cli@8.5.2(supports-color@5.5.0)':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8(supports-color@5.5.0)
       '@ionic/utils-subprocess': 3.0.1(supports-color@5.5.0)
@@ -6924,41 +6924,41 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@capacitor/core@8.5.1':
+  '@capacitor/core@8.5.2':
     dependencies:
       tslib: 2.8.1
 
-  '@capacitor/device@8.0.3(@capacitor/core@8.5.1)':
+  '@capacitor/device@8.0.3(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/haptics@8.0.2(@capacitor/core@8.5.1)':
+  '@capacitor/haptics@8.0.2(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/ios@8.5.1(@capacitor/core@8.5.1)':
+  '@capacitor/ios@8.5.2(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/network@8.0.1(@capacitor/core@8.5.1)':
+  '@capacitor/network@8.0.1(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/preferences@8.0.1(@capacitor/core@8.5.1)':
+  '@capacitor/preferences@8.0.1(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/push-notifications@8.1.2(@capacitor/core@8.5.1)':
+  '@capacitor/push-notifications@8.1.2(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capacitor/splash-screen@8.0.2(@capacitor/core@8.5.1)':
+  '@capacitor/splash-screen@8.0.2(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
-  '@capgo/capacitor-updater@8.51.15(@capacitor/core@8.5.1)':
+  '@capgo/capacitor-updater@8.51.15(@capacitor/core@8.5.2)':
     dependencies:
-      '@capacitor/core': 8.5.1
+      '@capacitor/core': 8.5.2
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
