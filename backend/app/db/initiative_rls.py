@@ -1091,6 +1091,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Where a stream of operations work lands. Reached by whoever can reach the
+    # project it names, which is the initiative that does the work.
+    "intake_bindings": via("projects", "project_id"),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -1113,6 +1116,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "task_assignees": via_task_project("task_id"),
+    # A case is read exactly as hard as the task it describes, so it hangs off
+    # the task rather than off the binding it was opened through.
+    "intake_cases": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
@@ -1540,6 +1546,8 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "webhook_subscriptions": Silent(
         "integration config; it reports on content, not on itself"
     ),
+    "intake_bindings": Silent("routing config; it reports on no content"),
+    "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     # Guild-level, and kept out on disclosure: an upload row is reachable from
     # more than one place, so the initiative gate is not the whole answer for it
     # the way it is for tags. Gate it properly or leave it silent — silent.

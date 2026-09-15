@@ -79,6 +79,7 @@ from app.api.v1.platform_endpoints import (
     notification_prefs,
     notifications,
     push,
+    intake,
     settings,
     user_view_preferences,
     users,
@@ -125,6 +126,7 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 # Deployment-level app service wiring (apps.manage — owner). Platform-addressed
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(

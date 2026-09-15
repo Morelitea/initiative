@@ -4380,6 +4380,59 @@ export interface InitiativeUpdate {
   auto_join?: boolean | null;
 }
 
+/**
+ * The kinds of operations work a deployment can route into a project.
+ */
+export type IntakeStream = (typeof IntakeStream)[keyof typeof IntakeStream];
+
+export const IntakeStream = {
+  security: "security",
+  moderation: "moderation",
+  support: "support",
+  feedback: "feedback",
+} as const;
+
+/**
+ * One stream and where it currently lands.
+ */
+export interface IntakeBindingRead {
+  stream: IntakeStream;
+  binding_id?: number | null;
+  project_id?: number | null;
+  project_name?: string | null;
+  initiative_id?: number | null;
+  initiative_name?: string | null;
+  default_status_id?: number | null;
+  default_status_name?: string | null;
+  enabled?: boolean;
+  last_case_at?: string | null;
+}
+
+/**
+ * Route one stream into a project of the operations guild.
+ */
+export interface IntakeBindingUpsert {
+  project_id: number;
+  default_status_id?: number | null;
+  enabled?: boolean;
+}
+
+/**
+ * Set a stream up from its committed blueprint, in this initiative.
+ */
+export interface IntakeBlueprintImport {
+  initiative_id: number;
+}
+
+/**
+ * The pointer, and every stream whether bound or not.
+ */
+export interface IntakeSettingsRead {
+  operations_guild_id?: number | null;
+  operations_guild_name?: string | null;
+  bindings: IntakeBindingRead[];
+}
+
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
@@ -4843,6 +4896,13 @@ export interface OIDCSettingsUpdate {
   post_login_redirect?: string | null;
   provider_name?: string | null;
   scopes?: string[];
+}
+
+/**
+ * Point this deployment's operations work at a guild, or at nothing.
+ */
+export interface OperationsGuildUpdate {
+  guild_id?: number | null;
 }
 
 /**

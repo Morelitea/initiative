@@ -626,5 +626,12 @@
   "LAST_VERIFIED_ADDRESS": "Das ist die einzige bestätigte Adresse Ihres Kontos. Bestätigen Sie zuerst eine weitere.",
   "ADDRESS_NOT_VERIFIED": "Bestätigen Sie diese Adresse, bevor Ihre Kontopost dorthin geht.",
   "ADDRESS_TAKEN": "Jemand hat diese Adresse bestätigt, während Ihre Anfrage noch offen war.",
-  "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann."
+  "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann.",
+  "INTAKE_GUILD_NOT_FOUND": "Community nicht gefunden",
+  "INTAKE_GUILD_NOT_ACTIVE": "Diese Community ist nicht aktiv, daher können keine Vorgänge dorthin geleitet werden",
+  "INTAKE_NO_OPERATIONS_GUILD": "Wähle zuerst die Community aus, die Betriebsvorgänge erhält",
+  "INTAKE_PROJECT_NOT_FOUND": "Projekt nicht gefunden",
+  "INTAKE_INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
+  "INTAKE_STATUS_NOT_IN_PROJECT": "Dieser Status gehört zu einem anderen Projekt",
+  "INTAKE_UNKNOWN_STREAM": "Unbekannter Eingangskanal"
 }

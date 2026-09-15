@@ -290,6 +290,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "reaction_digest_items",
         "task_assignment_digest_items",
         "webhook_deliveries",
+        # The key -> task map the intake writer reads. The case it points at
+        # carries the author, and a system-opened one has none by design.
+        "intake_cases",
     }
 )
 

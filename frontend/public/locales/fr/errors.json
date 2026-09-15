@@ -626,5 +626,12 @@
   "LAST_VERIFIED_ADDRESS": "C'est la seule adresse confirmée de votre compte. Confirmez-en une autre d'abord.",
   "ADDRESS_NOT_VERIFIED": "Confirmez cette adresse avant que le courrier de votre compte y soit envoyé.",
   "ADDRESS_TAKEN": "Quelqu'un a confirmé cette adresse pendant que votre demande était en attente.",
-  "TOO_MANY_ADDRESSES": "Votre compte contient déjà autant d’adresses qu’il le peut."
+  "TOO_MANY_ADDRESSES": "Votre compte contient déjà autant d’adresses qu’il le peut.",
+  "INTAKE_GUILD_NOT_FOUND": "Communauté introuvable",
+  "INTAKE_GUILD_NOT_ACTIVE": "Cette communauté n'est pas active, le travail ne peut donc pas y être dirigé",
+  "INTAKE_NO_OPERATIONS_GUILD": "Choisissez d'abord la communauté qui reçoit le travail d'exploitation",
+  "INTAKE_PROJECT_NOT_FOUND": "Projet introuvable",
+  "INTAKE_INITIATIVE_NOT_FOUND": "Initiative introuvable",
+  "INTAKE_STATUS_NOT_IN_PROJECT": "Ce statut appartient à un autre projet",
+  "INTAKE_UNKNOWN_STREAM": "Canal d'entrée inconnu"
 }

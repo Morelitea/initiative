@@ -75,8 +75,8 @@ from app.services.platform import accounts as accounts_service
 from app.api import resource_access
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
-from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant import task_checklist as checklist_service
 from app.services import ai_generation as ai_generation_service
@@ -253,11 +253,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _next_position(session: SessionDep, project_id: int) -> float:
-    result = await session.exec(
-        select(func.max(Task.position)).where(Task.project_id == project_id)
-    )
-    max_value = result.one_or_none()
-    return (max_value or 0) + 1
+    return await task_creation_service.next_position(session, project_id)
 
 
 # Positions are stored as NUMERIC(20, 10); two stored values differ by at least
@@ -1728,30 +1724,6 @@ async def create_task(
         access="write",
     )
 
-    position = await _next_position(session, task_in.project_id)
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    # Same safety net as the statuses above: a project that somehow reached
-    # here without its defaults gets them on the first write, since the read
-    # path deliberately never seeds (a read-only grantee, or a frozen guild,
-    # routes into a SELECT-only role and could not).
-    await filter_presets_service.ensure_default_presets(session, project.id)
-    selected_status = None
-    if task_in.task_status_id is not None:
-        selected_status = await task_statuses_service.get_project_status(
-            session,
-            status_id=task_in.task_status_id,
-            project_id=project.id,
-        )
-        if selected_status is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=TaskMessages.STATUS_NOT_FOUND,
-            )
-    else:
-        selected_status = await task_statuses_service.get_default_status(
-            session, project.id
-        )
-
     task_data = task_in.model_dump(
         exclude={
             "assignee_ids",
@@ -1771,16 +1743,15 @@ async def create_task(
             recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
             task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
 
-    task = Task(
+    task_data.pop("project_id", None)
+    task = await task_creation_service.create_task_row(
+        session,
+        project=project,
+        task_status_id=task_in.task_status_id,
         **task_data,
-        position=position,
-        task_status_id=selected_status.id,
         created_by=current_user.id,
         checklist=checklist_service.normalize(task_in.checklist),
     )
-    sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
-    session.add(task)
-    await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
     if project and task.assignees:
         assignees = await accounts_service.load_all(
