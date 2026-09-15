@@ -197,6 +197,7 @@
   "SETTINGS_SMTP_INCOMPLETE": "SMTP settings are incomplete",
   "SETTINGS_EMAIL_SEND_FAILED": "Failed to send the test email. Check the server logs for details.",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapping not found",
+  "SETTINGS_PROVIDER_WRONG_GUILD": "This sign-in provider belongs to another community, so its rules can only grant access there",
   "SETTINGS_INVALID_TARGET_TYPE": "Target type must be a community or an initiative",
   "SETTINGS_INVALID_GUILD_ROLE": "Community role must be 'admin' or 'member'",
   "SETTINGS_GUILD_NOT_FOUND": "Community not found",

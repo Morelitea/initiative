@@ -182,6 +182,104 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     assert body["provider_name"] == provider.display_name
 
 
+@pytest.mark.integration
+async def test_a_guild_providers_rule_stays_inside_its_guild(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A guild-scoped provider's rules name that guild. Creating one elsewhere,
+    or moving an accepted one there afterwards, is refused."""
+    owner = await create_user(
+        session, email="owner-provider-scope@example.com", role=UserRole.owner
+    )
+    home = await create_guild(session, creator=owner)
+    elsewhere = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="tenant", guild_id=home.id)
+    headers = get_auth_headers(owner)
+
+    def rule(guild_id: int) -> dict:
+        return {
+            "provider_id": provider.id,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild_id,
+            "guild_role": "admin",
+        }
+
+    refused = await client.post(
+        "/api/v1/settings/oidc-mappings", json=rule(elsewhere.id), headers=headers
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
+
+    accepted = await client.post(
+        "/api/v1/settings/oidc-mappings", json=rule(home.id), headers=headers
+    )
+    assert accepted.status_code == 201, accepted.text
+    mapping_id = accepted.json()["id"]
+
+    moved = await client.put(
+        f"/api/v1/settings/oidc-mappings/{mapping_id}",
+        json={"guild_id": elsewhere.id},
+        headers=headers,
+    )
+    assert moved.status_code == 400, moved.text
+    assert moved.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
+
+
+@pytest.mark.integration
+async def test_an_operator_global_rule_names_any_guild(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The platform's own registry has no guild of its own, so its rules grant
+    in whichever guild they name."""
+    owner = await create_user(
+        session, email="owner-global-scope@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": provider.id,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
+async def test_a_rule_names_a_provider_that_exists(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An unknown provider id is answered as the bad request it is."""
+    owner = await create_user(
+        session, email="owner-provider-missing@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": 9_999_999,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"] == "AUTH_PROVIDER_NOT_FOUND"
+
+
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
 # system admin engine, so the ONLY thing standing between a caller and every
 # guild's data is the owner-only ``config.manage`` capability gate. These tests
