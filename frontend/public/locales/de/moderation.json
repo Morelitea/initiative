@@ -1,0 +1,60 @@
+{
+  "title": "Moderation",
+  "subtitle": "Was hier gemeldet wurde und was damit geschehen ist.",
+  "open": "Offen",
+  "tabs": {
+    "open": "Offen",
+    "settled": "Erledigt"
+  },
+  "empty": {
+    "open": "Es wurde nichts gemeldet.",
+    "settled": "Es wurde noch nichts erledigt.",
+    "noFurther": "Nichts weiter."
+  },
+  "reportedCount_one": "Von {{count}} Person gemeldet",
+  "reportedCount_other": "Von {{count}} Personen gemeldet",
+  "whatTheySaid": "Was gesagt wurde",
+  "reviewElsewhere": "Öffne das gemeldete Element, sieh es dir im Zusammenhang an und entscheide dann hier.",
+  "notePlaceholder": "Was du festgestellt hast und warum du so entschieden hast (optional)",
+  "settledAt": "Erledigt {{when}}.",
+  "settledToast": "Meldung erledigt.",
+  "settleError": "Die Meldung konnte nicht erledigt werden.",
+  "outcomes": {
+    "dismissed": "Verwerfen",
+    "content_removed": "Inhalt entfernt",
+    "member_warned": "Mitglied verwarnt",
+    "escalated": "Eskalieren"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Belästigung",
+    "hate": "Hass",
+    "violence": "Gewalt",
+    "sexual_content": "Sexuelle Inhalte",
+    "self_harm": "Selbstverletzung",
+    "illegal": "Rechtswidrig",
+    "misinformation": "Falschinformation",
+    "other": "Sonstiges"
+  },
+  "targets": {
+    "comment": "Ein Kommentar",
+    "post": "Eine Mitteilung",
+    "task": "Eine Aufgabe",
+    "document": "Ein Dokument",
+    "project": "Ein Projekt",
+    "queue": "Eine Warteschlange",
+    "queue_item": "Ein Eintrag",
+    "gallery": "Eine Galerie",
+    "gallery_image": "Ein Bild",
+    "calendar": "Ein Kalender",
+    "calendar_event": "Ein Termin",
+    "counter": "Ein Zähler",
+    "counter_group": "Eine Zählergruppe",
+    "dashboard": "Ein Dashboard"
+  },
+  "paging": {
+    "newer": "Neuer",
+    "older": "Älter",
+    "page": "Seite {{page}}"
+  }
+}

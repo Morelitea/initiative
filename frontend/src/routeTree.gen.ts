@@ -93,6 +93,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRou
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/index'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/access'
@@ -660,6 +661,12 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute =
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport.update({
+    id: '/moderation',
+    path: '/moderation',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute =
@@ -1345,6 +1352,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/settings/': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/c/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteWithChildren
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   '/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
@@ -1490,6 +1498,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/i': typeof ServerRequiredAuthenticatedCGuildIdIIndexRoute
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/c/$guildId/calendars/$calendarId': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   '/c/$guildId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRoute
@@ -1636,6 +1645,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/settings/': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
@@ -1790,6 +1800,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/settings/'
     | '/c/$guildId/calendars/$calendarId/settings'
     | '/c/$guildId/go/$refType/$refId'
+    | '/c/$guildId/i/$initiativeId/moderation'
     | '/c/$guildId/i/$initiativeId/settings'
     | '/c/$guildId/calendars/$calendarId/'
     | '/c/$guildId/i/$initiativeId/'
@@ -1935,6 +1946,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i'
     | '/c/$guildId/settings'
     | '/c/$guildId/go/$refType/$refId'
+    | '/c/$guildId/i/$initiativeId/moderation'
     | '/c/$guildId/calendars/$calendarId'
     | '/c/$guildId/i/$initiativeId'
     | '/c/$guildId/calendars/$calendarId/settings/access'
@@ -2080,6 +2092,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/'
@@ -2746,6 +2759,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/c/$guildId/i/$initiativeId/'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
+      path: '/moderation'
+      fullPath: '/c/$guildId/i/$initiativeId/moderation'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings': {
@@ -3603,6 +3623,7 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute
   )
 
 interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdAppsAppIdRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdAppsAppIdRoute
@@ -3639,6 +3660,8 @@ interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
 
 const ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren: ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren =
   {
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute:
