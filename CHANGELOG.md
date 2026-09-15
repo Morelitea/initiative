@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Run your own security, moderation, support and feedback work inside Initiative** — tracking any of it meant a second tool, where a ticket could not be assigned, discussed or closed the way the rest of your work is. **Settings → Platform → Intake** now takes one community as the place that receives operations work, and lets you point each of the four streams at a project inside it. Pick a project you already have, or choose "Set this up for me" and get a ready-made one: its own statuses (*Triage → Confirmed → Mitigated → Closed* for security, *Triage → Investigating → Awaiting response → Resolved* for the rest), the fields a case carries, and a note explaining how it is fed. What you get is an ordinary project — rename the statuses, add your own fields, restructure it however you like, and the stream still points at it. A case is a task, so it arrives with assignees, per-person completion, checklists, comments, properties, tags and relations already on it. Each stream shows when it last opened a case, so you can see at a glance that it is on, and you can pause one without losing anything, or stop routing it entirely and keep the project. Nothing appears until a platform owner sets it up, and a deployment that sets nothing up is unchanged.
+
 ### Fixed
 
 - **Saving a renamed document while others are editing it** — with live editing on, pressing the Save button beside the title or Ctrl+S was refused with "This document is being edited live", although the same rename went through on its own a few seconds later. The editing session owns the body while it is live, and a manual save was still trying to send one alongside the name. A manual save now hands the body to the session and saves the name, the featured image and the rest the way the autosave already did.

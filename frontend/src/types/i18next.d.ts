@@ -21,6 +21,7 @@ import type guilds from "../../public/locales/en/guilds.json";
 import type importNs from "../../public/locales/en/import.json";
 import type importsNs from "../../public/locales/en/imports.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
+import type intake from "../../public/locales/en/intake.json";
 import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
 import type messages from "../../public/locales/en/messages.json";
@@ -70,6 +71,7 @@ declare module "i18next" {
       import: typeof importNs;
       imports: typeof importsNs;
       initiatives: typeof initiatives;
+      intake: typeof intake;
       landing: typeof landing;
       nav: typeof nav;
       notifications: typeof notifications;

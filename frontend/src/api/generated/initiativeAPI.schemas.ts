@@ -4400,6 +4400,7 @@ export interface IntakeBindingRead {
   binding_id?: number | null;
   project_id?: number | null;
   project_name?: string | null;
+  project_archived?: boolean;
   initiative_id?: number | null;
   initiative_name?: string | null;
   default_status_id?: number | null;
@@ -4422,6 +4423,42 @@ export interface IntakeBindingUpsert {
  */
 export interface IntakeBlueprintImport {
   initiative_id: number;
+}
+
+/**
+ * One column a case could land in.
+ */
+export interface IntakeStatusOption {
+  id: number;
+  name: string;
+}
+
+/**
+ * One project a stream could be bound to, and where a case would start.
+ */
+export interface IntakeProjectOption {
+  id: number;
+  name: string;
+  statuses: IntakeStatusOption[];
+}
+
+/**
+ * One initiative of the operations guild, and the projects in it.
+ */
+export interface IntakeInitiativeOption {
+  id: number;
+  name: string;
+  projects: IntakeProjectOption[];
+}
+
+/**
+ * What the settings page offers to bind to.
+ *
+ * The operations guild alone, names and ids only — enough to fill the
+ * pickers. Empty until a guild has been named.
+ */
+export interface IntakeOptionsRead {
+  initiatives: IntakeInitiativeOption[];
 }
 
 /**

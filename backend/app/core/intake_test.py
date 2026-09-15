@@ -76,3 +76,29 @@ def test_a_blueprint_seeds_one_task_explaining_the_project(stream: IntakeStream)
     assert seed.description
     status_names = {status.name for status in blueprint_for(stream).task_statuses}
     assert seed.status_name in status_names
+
+
+def test_every_intake_error_code_is_localized():
+    """A code the API can return says something in every language.
+
+    Two independent sources, checked against each other: the constants the
+    endpoints raise, and the four catalogues the SPA reads. A refusal reaches
+    the reader as its own sentence rather than as a generic "could not save".
+    """
+    import json
+    from pathlib import Path
+
+    from app.core.messages import IntakeMessages
+
+    codes = {
+        value
+        for name, value in vars(IntakeMessages).items()
+        if not name.startswith("_") and isinstance(value, str)
+    }
+    assert codes, "IntakeMessages declares no codes"
+
+    locales = Path(__file__).resolve().parents[2].parent / "frontend/public/locales"
+    for locale in ("de", "en", "es", "fr"):
+        catalogue = json.loads((locales / locale / "errors.json").read_text())
+        missing = sorted(codes - set(catalogue))
+        assert not missing, f"{locale}/errors.json is missing {missing}"

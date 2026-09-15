@@ -15,6 +15,10 @@ class IntakeBindingRead(SanitizedBaseModel):
     binding_id: Optional[int] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
+    #: The bound project has been archived or trashed. Archived content takes
+    #: no writes, so the stream receives nothing until it is brought back or
+    #: pointed at a live project.
+    project_archived: bool = False
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     default_status_id: Optional[int] = None
@@ -51,3 +55,36 @@ class IntakeBlueprintImport(SanitizedBaseModel):
     """Set a stream up from its committed blueprint, in this initiative."""
 
     initiative_id: int
+
+
+class IntakeStatusOption(SanitizedBaseModel):
+    """One column a case could land in."""
+
+    id: int
+    name: str
+
+
+class IntakeProjectOption(SanitizedBaseModel):
+    """One project a stream could be bound to, and where a case would start."""
+
+    id: int
+    name: str
+    statuses: List[IntakeStatusOption]
+
+
+class IntakeInitiativeOption(SanitizedBaseModel):
+    """One initiative of the operations guild, and the projects in it."""
+
+    id: int
+    name: str
+    projects: List[IntakeProjectOption]
+
+
+class IntakeOptionsRead(SanitizedBaseModel):
+    """What the settings page offers to bind to.
+
+    The operations guild alone, names and ids only — enough to fill the
+    pickers. Empty until a guild has been named.
+    """
+
+    initiatives: List[IntakeInitiativeOption]

@@ -632,5 +632,6 @@
   "INTAKE_PROJECT_NOT_FOUND": "Projet introuvable",
   "INTAKE_INITIATIVE_NOT_FOUND": "Initiative introuvable",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Ce statut appartient à un autre projet",
+  "INTAKE_PROJECT_NOT_LIVE": "Ce projet est archivé ou dans la corbeille, rien ne peut donc y arriver",
   "INTAKE_UNKNOWN_STREAM": "Canal d'entrée inconnu"
 }
