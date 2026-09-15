@@ -634,5 +634,11 @@
   "INTAKE_INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Dieser Status gehört zu einem anderen Projekt",
   "INTAKE_PROJECT_NOT_LIVE": "Dieses Projekt ist archiviert oder im Papierkorb, es kann also nichts darin landen",
-  "INTAKE_UNKNOWN_STREAM": "Unbekannter Eingangskanal"
+  "INTAKE_UNKNOWN_STREAM": "Unbekannter Eingangskanal",
+  "MODERATION_REPORT_NOT_FOUND": "Meldung nicht gefunden",
+  "MODERATION_REPORT_ALREADY_SETTLED": "Diese Meldung wurde bereits bearbeitet",
+  "MODERATION_UNKNOWN_TARGET_TYPE": "Das lässt sich nicht melden",
+  "MODERATION_CANNOT_REPORT_YOURSELF": "Du kannst eigene Inhalte nicht melden",
+  "MODERATION_NOWHERE_TO_SEND": "Meldungen sind auf dieser Installation noch nicht eingerichtet",
+  "MODERATION_TARGET_NOT_FOUND": "Das können wir nicht finden"
 }

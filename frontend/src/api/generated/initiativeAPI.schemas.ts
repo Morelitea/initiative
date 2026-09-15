@@ -4639,6 +4639,58 @@ export interface MessageRequestCreate {
 }
 
 /**
+ * Why somebody is reporting. Closed, so it can be counted and filtered.
+ */
+export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
+
+export const ReportReason = {
+  spam: "spam",
+  harassment: "harassment",
+  hate: "hate",
+  violence: "violence",
+  sexual_content: "sexual_content",
+  self_harm: "self_harm",
+  illegal: "illegal",
+  misinformation: "misinformation",
+  other: "other",
+} as const;
+
+/**
+ * How a report was settled. Every member closes it.
+ */
+export type ReportOutcome = (typeof ReportOutcome)[keyof typeof ReportOutcome];
+
+export const ReportOutcome = {
+  dismissed: "dismissed",
+  content_removed: "content_removed",
+  member_warned: "member_warned",
+  escalated: "escalated",
+} as const;
+
+/**
+ * One report, as its community's moderators see it.
+ */
+export interface ModerationReportRead {
+  id: number;
+  initiative_id: number;
+  target_type: string;
+  target_id: number;
+  reason: ReportReason;
+  reported_at: string;
+  reporter_count: number;
+  details: string[];
+  outcome?: ReportOutcome | null;
+  note?: string | null;
+  decided_by?: number | null;
+  decided_at?: string | null;
+}
+
+export interface ModerationReportList {
+  items: ModerationReportRead[];
+  total: number;
+}
+
+/**
  * One connection available to the member in one guild — a flat row for the
  * cross-guild personal "My AI" view (``GET /me/ai``). Every connection the
  * member can use is listed, including shared-key ones they can't attach to
@@ -6083,6 +6135,46 @@ export interface RelationshipRead {
   confidence: number | null;
   created_by: number | null;
   created_at: string;
+}
+
+/**
+ * Who handles a report.
+ */
+export type ReportVenue = (typeof ReportVenue)[keyof typeof ReportVenue];
+
+export const ReportVenue = {
+  platform: "platform",
+  initiative: "initiative",
+} as const;
+
+/**
+ * What the reporter is told: that we have it, and nothing else.
+ *
+ * Not who will see it, not whether one already existed, and never an outcome
+ * — a report is not a conversation with the person who sent it.
+ */
+export interface ReportAccepted {
+  accepted?: boolean;
+  venue: ReportVenue;
+}
+
+/**
+ * What a person sends. The same shape from every surface.
+ */
+export interface ReportCreate {
+  target_type: string;
+  target_id: number;
+  reason: ReportReason;
+  detail?: string | null;
+  guild_id?: number | null;
+}
+
+/**
+ * Settling a report. Every outcome closes it.
+ */
+export interface ReportSettle {
+  outcome: ReportOutcome;
+  note?: string | null;
 }
 
 /**
@@ -7632,6 +7724,19 @@ export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
    * Specific done status to archive (optional)
    */
   task_status_id?: number | null;
+};
+
+export type ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams = {
+  settled?: boolean;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
 };
 
 export type ListCommentsApiV1GGuildIdCommentsGetParams = {

@@ -634,5 +634,11 @@
   "INTAKE_INITIATIVE_NOT_FOUND": "Initiative not found",
   "INTAKE_STATUS_NOT_IN_PROJECT": "That status belongs to a different project",
   "INTAKE_PROJECT_NOT_LIVE": "That project is archived or in the trash, so nothing can land in it",
-  "INTAKE_UNKNOWN_STREAM": "Unknown intake stream"
+  "INTAKE_UNKNOWN_STREAM": "Unknown intake stream",
+  "MODERATION_REPORT_NOT_FOUND": "Report not found",
+  "MODERATION_REPORT_ALREADY_SETTLED": "That report has already been settled",
+  "MODERATION_UNKNOWN_TARGET_TYPE": "That is not something that can be reported",
+  "MODERATION_CANNOT_REPORT_YOURSELF": "You cannot report your own content",
+  "MODERATION_NOWHERE_TO_SEND": "Reports are not set up on this deployment yet",
+  "MODERATION_TARGET_NOT_FOUND": "That is not something we can find"
 }
