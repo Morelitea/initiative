@@ -16,7 +16,7 @@ from app.core.encryption import (
     encrypt_token,
     SALT_OIDC_CLIENT_SECRET,
 )
-from app.db.session import AdminSessionLocal
+from app.db import session as db_session
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
@@ -171,10 +171,10 @@ async def process_oidc_refresh_sync() -> None:
     credentials. A membership one provider granted is reconciled by that
     provider's sweep and no other.
     """
-    async with AdminSessionLocal() as session:
-        providers = (
+    async with db_session.AdminSessionLocal() as session:
+        provider_ids = (
             await session.exec(
-                select(AuthProvider).where(
+                select(AuthProvider.id).where(
                     AuthProvider.enabled == True,  # noqa: E712
                     AuthProvider.role_claim_path.is_not(None),
                     AuthProvider.issuer.is_not(None),
@@ -182,17 +182,22 @@ async def process_oidc_refresh_sync() -> None:
                 )
             )
         ).all()
-        for provider in providers:
-            try:
+
+    # A session each, rather than one shared across the loop. A sweep commits
+    # as it goes, so a shared session would carry one provider's half-finished
+    # transaction into the next, and a failure would leave every provider after
+    # it querying a session that has nothing to give.
+    for provider_id in provider_ids:
+        try:
+            async with db_session.AdminSessionLocal() as session:
+                provider = await session.get(AuthProvider, provider_id)
+                if provider is None:
+                    continue
                 await _sweep_provider(session, provider)
-            except Exception:
-                # One provider's unreachable IdP does not end the sweep for
-                # the rest.
-                logger.exception(
-                    "oidc-refresh-sync: provider %s (%s) did not complete",
-                    provider.slug,
-                    provider.id,
-                )
+        except Exception:
+            logger.exception(
+                "oidc-refresh-sync: provider %s did not complete", provider_id
+            )
 
 
 async def _sweep_provider(session: AsyncSession, provider: AuthProvider) -> None:
