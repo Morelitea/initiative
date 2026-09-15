@@ -809,10 +809,12 @@ export const DocumentDetailPage = () => {
   // image change — goes through here. While the editing room is live it is
   // the writer of the content column and refuses a body sent any other way,
   // so the body goes to the room and the PATCH carries only the rest, the
-  // same split the autosave makes.
+  // same split the autosave makes. Whether to save while one is already in
+  // flight is the caller's call: the buttons hold off, an image change does
+  // not, because it is the only save that change would get.
   const saveNow = useCallback(
     (overrides?: { featured_image_url?: string | null }) => {
-      if (!canEditDocument || saveDocument.isPending) return;
+      if (!canEditDocument) return;
       const payload = {
         name: title?.trim(),
         featured_image_url: featuredImageUrl,
@@ -842,12 +844,12 @@ export const DocumentDetailPage = () => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        saveNow();
+        if (!saveDocument.isPending) saveNow();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEditDocument, saveNow]);
+  }, [canEditDocument, saveDocument.isPending, saveNow]);
 
   // Sync content via sendBeacon on page unload to ensure content column stays updated
   // This is critical when users navigate away or close the tab during collaboration
@@ -1126,7 +1128,9 @@ export const DocumentDetailPage = () => {
             <Button
               type="button"
               size="sm"
-              onClick={() => saveNow()}
+              onClick={() => {
+                if (!saveDocument.isPending) saveNow();
+              }}
               disabled={saveDocument.isPending}
               className="shrink-0"
             >
