@@ -18,19 +18,32 @@ const mocks = vi.hoisted(() => ({
   ensureDevice: vi.fn(),
   registeredDevice: vi.fn(),
   collect: vi.fn(),
+  markRead: vi.fn(),
+  reportThreadRead: vi.fn(),
 }));
 
 vi.mock("@/crypto/messaging", () => ({
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
-  markRead: vi.fn(),
+  markRead: (...args: unknown[]) => mocks.markRead(...args),
   unreadIn: vi.fn(),
   sendText: vi.fn(),
   messageLog: { get: vi.fn() },
 }));
 
-import { useCollectMessagesWhereRegistered, useDmDevice } from "./useMyMessages";
+vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  markConversationReadApiV1MeDmConversationsConversationIdReadPost: (...args: unknown[]) =>
+    mocks.reportThreadRead(...args),
+}));
+
+vi.mock("@/hooks/useDirectMessages", () => ({
+  useDmSettings: () => ({ data: { send_receipts: true }, isSuccess: true }),
+  usePendingContactRequests: () => ({ data: [] }),
+}));
+
+import { useCollectMessagesWhereRegistered, useDmDevice, useMarkThreadRead } from "./useMyMessages";
 
 const wrapper = (client = createTestQueryClient()) => {
   const Wrapper = ({ children }: { children: ReactNode }) => (
@@ -43,6 +56,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.collect.mockResolvedValue([]);
   mocks.ensureDevice.mockResolvedValue("device-1");
+  mocks.markRead.mockResolvedValue(0);
+  mocks.reportThreadRead.mockResolvedValue(undefined);
 });
 
 describe("this browser's device", () => {
@@ -97,5 +112,71 @@ describe("this browser's device", () => {
 
     await waitFor(() => expect(mocks.registeredDevice).toHaveBeenCalled());
     expect(mocks.collect).not.toHaveBeenCalled();
+  });
+});
+
+describe("telling the server a thread was read", () => {
+  it("reports a look that actually read something", async () => {
+    mocks.markRead.mockResolvedValue(2);
+
+    renderHook(() => useMarkThreadRead("conv-1", 2, 7), { wrapper: wrapper() });
+
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledWith("conv-1"));
+  });
+
+  it("stays quiet about a thread that was already current", async () => {
+    // Nothing was read, so there is no bell line to close and nothing to say.
+    mocks.markRead.mockResolvedValue(0);
+
+    renderHook(() => useMarkThreadRead("conv-1", 2, 7), { wrapper: wrapper() });
+
+    await waitFor(() => expect(mocks.markRead).toHaveBeenCalled());
+    expect(mocks.reportThreadRead).not.toHaveBeenCalled();
+  });
+
+  it("retries a report that did not land", async () => {
+    // The local marker has already advanced, so a second look reads nothing and
+    // would otherwise never mention the messages the failed report covered.
+    mocks.markRead.mockResolvedValueOnce(2).mockResolvedValue(0);
+    mocks.reportThreadRead.mockRejectedValueOnce(new Error("offline"));
+
+    const { rerender } = renderHook(
+      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, 7),
+      { wrapper: wrapper(), initialProps: { count: 2 } }
+    );
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(1));
+
+    rerender({ count: 3 });
+
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(2));
+  });
+
+  it("stops retrying once one lands", async () => {
+    mocks.markRead.mockResolvedValueOnce(2).mockResolvedValue(0);
+    mocks.reportThreadRead.mockRejectedValueOnce(new Error("offline"));
+
+    const { rerender } = renderHook(
+      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, 7),
+      { wrapper: wrapper(), initialProps: { count: 2 } }
+    );
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(1));
+    rerender({ count: 3 });
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(2));
+
+    rerender({ count: 4 });
+
+    await waitFor(() => expect(mocks.markRead).toHaveBeenCalledTimes(3));
+    expect(mocks.reportThreadRead).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not surface a failed report to the thread", async () => {
+    mocks.markRead.mockResolvedValue(1);
+    mocks.reportThreadRead.mockRejectedValue(new Error("offline"));
+
+    expect(() =>
+      renderHook(() => useMarkThreadRead("conv-1", 1, 7), { wrapper: wrapper() })
+    ).not.toThrow();
+
+    await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalled());
   });
 });

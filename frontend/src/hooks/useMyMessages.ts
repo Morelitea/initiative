@@ -13,7 +13,7 @@
  */
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   createConversationApiV1MeDmConversationsPost as createConversation,
@@ -335,8 +335,12 @@ export function useUnreadMessages(conversationIds: string[]) {
  * onwards, but only where it read something: an already-current thread has
  * nothing to tell anybody.
  *
- * The report is best-effort. It affects a bell line, and a thread should not
- * surface an error because one did not clear.
+ * The report is best-effort — it affects a bell line, and a thread should not
+ * surface an error because one did not clear — but it is not fire-and-forget.
+ * The local marker has already advanced by the time it is sent, so a dropped
+ * request would leave a count nothing ever says again. A failure is remembered
+ * against its conversation and retried the next time the effect runs, which is
+ * the next message or the next time the thread is opened.
  */
 export function useMarkThreadRead(
   conversationId: string,
@@ -345,12 +349,18 @@ export function useMarkThreadRead(
 ) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
+  const unreported = useRef<string | null>(null);
   useEffect(() => {
     void markRead(conversationId, { otherUserId, receipts })
       .then(async (readCount) => {
-        if (readCount === 0) return;
-        await reportThreadRead(conversationId).catch(() => undefined);
-        await invalidate(q.notifications());
+        if (readCount === 0 && unreported.current !== conversationId) return;
+        try {
+          await reportThreadRead(conversationId);
+          if (unreported.current === conversationId) unreported.current = null;
+          await invalidate(q.notifications());
+        } catch {
+          unreported.current = conversationId;
+        }
       })
       .finally(() => queryClient.invalidateQueries({ queryKey: ["dm", "unread"] }));
   }, [conversationId, messageCount, otherUserId, receipts, queryClient]);

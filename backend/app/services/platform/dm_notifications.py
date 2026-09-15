@@ -10,6 +10,11 @@ called by the recipient's own client once it has rendered what arrived. The
 server has no other way to know: it holds no message and cannot tell that one
 reached a screen.
 
+The rollup governs the **line**, not the interruption. A push goes out for every
+message; the email goes out when the line turns unread. The two differ because
+they are read in different places -- a lock screen is where a conversation
+happens, and a mailbox is where you find out you missed one.
+
 The line names the sender and counts the messages. It never carries one, and
 nothing here adds a way for it to: the payload it announces is opaque on this
 side.
@@ -263,12 +268,6 @@ async def _roll_up(
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
 
-    # Both channels fire on the transition into unread, not per message: a
-    # flurry is one notification rather than twenty, with nothing added to the
-    # first. Once the line is read, the next message starts a fresh one and they
-    # fire again.
-    if existing is not None:
-        return
     prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
 
@@ -281,9 +280,18 @@ async def _roll_up(
             channel=channel,
         )
 
+    # Push fires per message. A reply to a conversation somebody has already
+    # been told about is the thing they are waiting for, and a messenger that
+    # announces the first message and then goes quiet is not one anybody can
+    # hold a conversation on. This is what every messenger does and what people
+    # expect; the preference and quiet hours are where it is turned down.
     if _wanted(Channel.push):
         await _push(session, recipient=recipient, sender_name=sender_name)
-    if _wanted(Channel.email):
+
+    # Email does not. It is the channel for somebody who is not there at all,
+    # and one per message would be a mailbox nobody could use -- so it fires on
+    # the transition into unread, and again once the line has been read.
+    if existing is None and _wanted(Channel.email):
         await _email(session, recipient=recipient, sender_name=sender_name)
 
 
