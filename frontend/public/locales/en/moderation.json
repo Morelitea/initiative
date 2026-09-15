@@ -56,5 +56,17 @@
     "newer": "Newer",
     "older": "Older",
     "page": "Page {{page}}"
+  },
+  "report": {
+    "action": "Report",
+    "title": "Report this",
+    "description": "Tell the people who look after this what is wrong. They see what you write.",
+    "reasonLabel": "What is wrong?",
+    "reasonPlaceholder": "Choose a reason",
+    "detailLabel": "Anything else?",
+    "detailPlaceholder": "What you want them to know (optional)",
+    "submit": "Send report",
+    "thanks": "Thanks — somebody will look at this.",
+    "error": "Could not send that report."
   }
 }

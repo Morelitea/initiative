@@ -56,5 +56,17 @@
     "newer": "Más recientes",
     "older": "Más antiguas",
     "page": "Página {{page}}"
+  },
+  "report": {
+    "action": "Denunciar",
+    "title": "Denunciar esto",
+    "description": "Cuéntale a quien se ocupa de esto qué pasa. Verán lo que escribas.",
+    "reasonLabel": "¿Qué pasa?",
+    "reasonPlaceholder": "Elige un motivo",
+    "detailLabel": "¿Algo más?",
+    "detailPlaceholder": "Lo que quieras que sepan (opcional)",
+    "submit": "Enviar denuncia",
+    "thanks": "Gracias, alguien lo revisará.",
+    "error": "No se pudo enviar la denuncia."
   }
 }
