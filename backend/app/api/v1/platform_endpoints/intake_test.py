@@ -398,3 +398,49 @@ async def test_the_last_case_time_ignores_ordinary_tasks(client, owner):
     listed = await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
     feedback = next(b for b in listed.json()["bindings"] if b["stream"] == "feedback")
     assert feedback["last_case_at"] is not None
+
+
+async def test_options_are_empty_before_a_guild_is_named(client, owner):
+    response = await client.get(
+        "/api/v1/settings/intake/options", headers=owner["actor"].headers
+    )
+    assert response.status_code == 200
+    assert response.json()["initiatives"] == []
+
+
+async def test_options_offer_the_operations_guilds_projects(client, owner):
+    await client.put(
+        "/api/v1/settings/intake/guild",
+        json={"guild_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    created = await client.post(
+        "/api/v1/settings/intake/support/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    project_id = created.json()["project_id"]
+
+    response = await client.get(
+        "/api/v1/settings/intake/options", headers=owner["actor"].headers
+    )
+    assert response.status_code == 200
+    initiatives = response.json()["initiatives"]
+    mine = next(i for i in initiatives if i["id"] == owner["initiative_id"])
+    project = next(p for p in mine["projects"] if p["id"] == project_id)
+    # The blueprint's four columns, so the landing-status picker has something
+    # to offer.
+    assert [s["name"] for s in project["statuses"]] == [
+        "Triage",
+        "Investigating",
+        "Awaiting response",
+        "Resolved",
+    ]
+
+
+async def test_a_member_cannot_read_the_options(client, acting_user):
+    actor = await acting_user("member")
+    response = await client.get(
+        "/api/v1/settings/intake/options", headers=actor.headers
+    )
+    assert response.status_code == 403

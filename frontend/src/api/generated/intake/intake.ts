@@ -25,6 +25,7 @@ import type {
   IntakeBindingRead,
   IntakeBindingUpsert,
   IntakeBlueprintImport,
+  IntakeOptionsRead,
   IntakeSettingsRead,
   OperationsGuildUpdate,
 } from "../initiativeAPI.schemas";
@@ -188,6 +189,156 @@ export function useReadIntakeSettingsApiV1SettingsIntakeGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadIntakeSettingsApiV1SettingsIntakeGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What the settings page can bind a stream to.
+ *
+ * The operations guild's initiatives, their projects and each project's
+ * statuses — names and ids, enough to fill the pickers. Empty before a guild
+ * has been named.
+ * @summary Read Intake Options
+ */
+export const readIntakeOptionsApiV1SettingsIntakeOptionsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<IntakeOptionsRead>(
+    { url: `/api/v1/settings/intake/options`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey = () => {
+  return [`/api/v1/settings/intake/options`] as const;
+};
+
+export const getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
+  > = ({ signal }) => readIntakeOptionsApiV1SettingsIntakeOptionsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
+>;
+export type ReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Intake Options
+ */
+
+export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

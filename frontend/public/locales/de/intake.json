@@ -1,0 +1,59 @@
+{
+  "ownerOnly": "Nur Plattform-Inhaber können festlegen, wo Betriebsvorgänge landen.",
+  "guild": {
+    "title": "Betriebs-Community",
+    "description": "Die Community, die Sicherheits-, Moderations-, Support- und Feedback-Vorgänge dieser Installation erhält.",
+    "label": "Community",
+    "placeholder": "Community auswählen",
+    "none": "Keine — nichts weiterleiten",
+    "helpText": "In jeder Hinsicht eine gewöhnliche Community. In welchem Projekt ein Kanal landet, wird unten darin festgelegt.",
+    "saveError": "Die Betriebs-Community konnte nicht gespeichert werden.",
+    "clearTitle": "Weiterleitung von Betriebsvorgängen beenden?",
+    "clearBody": "Alle Kanäle hören auf zu empfangen. Die Projekte und alles darin bleiben unverändert, und wenn du diese Community erneut auswählst, ist alles wieder eingerichtet.",
+    "clearConfirm": "Weiterleitung beenden"
+  },
+  "streams": {
+    "chooseGuildFirst": "Wähle oben eine Community und lege dann fest, wo jeder Kanal landet.",
+    "security": {
+      "title": "Sicherheit",
+      "description": "Vorgänge aus Regeln, die diese Installation überwachen."
+    },
+    "moderation": {
+      "title": "Moderation",
+      "description": "Meldungen zu Inhalten und Verhalten."
+    },
+    "support": {
+      "title": "Support",
+      "description": "Hilfeanfragen von Menschen, die diese Installation nutzen."
+    },
+    "feedback": {
+      "title": "Feedback",
+      "description": "Was Menschen sich von uns wünschen."
+    }
+  },
+  "stream": {
+    "notSetUp": "Nicht eingerichtet",
+    "receiving": "Empfängt",
+    "paused": "Pausiert",
+    "setUpHelp": "Beim Einrichten erhältst du ein fertiges Projekt mit eigenen Status und Feldern, das du danach beliebig umbauen kannst. Oder richte den Kanal auf ein Projekt, das du schon hast.",
+    "initiativeLabel": "Initiative",
+    "initiativePlaceholder": "Initiative auswählen",
+    "setUpForMe": "Für mich einrichten",
+    "existingProjectLabel": "Oder ein vorhandenes Projekt verwenden",
+    "existingProjectPlaceholder": "Projekt auswählen",
+    "landsInLabel": "Landet in",
+    "repointNote": "Einen Kanal auf ein anderes Projekt zu richten beginnt dort von vorn. Alles noch Offene bleibt in dem Projekt, in dem daran gearbeitet wird.",
+    "landingStatusLabel": "Neue Vorgänge starten in",
+    "landingStatusDefault": "Standard des Projekts",
+    "enabledLabel": "Empfängt neue Vorgänge",
+    "lastCase": "Letzter Vorgang {{when}} geöffnet.",
+    "noCasesYet": "Noch keine Vorgänge.",
+    "unbind": "Diesen Kanal nicht mehr weiterleiten",
+    "unbindTitle": "Diesen Kanal nicht mehr weiterleiten?",
+    "unbindConfirm": "Weiterleitung beenden",
+    "unbindBody": "Das Projekt und alle Vorgänge darin bleiben. Wenn du den Kanal wieder auf dasselbe Projekt richtest, geht es dort weiter.",
+    "createdToast": "{{name}} ist eingerichtet und empfängt.",
+    "unboundToast": "Dieser Kanal wird nicht mehr weitergeleitet.",
+    "saveError": "Die Änderung konnte nicht gespeichert werden."
+  }
+}

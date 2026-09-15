@@ -26,6 +26,7 @@ from app.schemas.platform.intake import (
     IntakeBindingRead,
     IntakeBindingUpsert,
     IntakeBlueprintImport,
+    IntakeOptionsRead,
     IntakeSettingsRead,
     OperationsGuildUpdate,
 )
@@ -89,6 +90,22 @@ async def read_intake_settings(
     rather than only what somebody already configured.
     """
     return await _settings(session)
+
+
+@router.get("/intake/options", response_model=IntakeOptionsRead)
+async def read_intake_options(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> IntakeOptionsRead:
+    """What the settings page can bind a stream to.
+
+    The operations guild's initiatives, their projects and each project's
+    statuses — names and ids, enough to fill the pickers. Empty before a guild
+    has been named.
+    """
+    return IntakeOptionsRead.model_validate(
+        {"initiatives": await intake_setup.list_options(session)}
+    )
 
 
 @router.put("/intake/guild", response_model=IntakeSettingsRead)
