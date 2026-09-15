@@ -29,8 +29,8 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     # back on any request path).
     secret_set: bool = False
     #: Where this provider sends the browser back. Shown so an operator can
-    #: register it with their IdP; it follows the slug, so changing the slug
-    #: changes it.
+    #: register it with their IdP; it remains fixed for the provider's lifetime
+    #: because the slug is immutable.
     callback_url: str = ""
 
 
