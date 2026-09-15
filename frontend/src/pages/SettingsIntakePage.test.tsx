@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   operationsGuildId: null as number | null,
   bindings: [] as Array<Record<string, unknown>>,
   isError: false,
+  optionsError: false,
   isFetching: false,
 }));
 
@@ -57,6 +58,8 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
   }),
   useIntakeOptions: () => ({
     isFetching: false,
+    isError: state.optionsError,
+    refetch: vi.fn(),
     data: {
       initiatives: [
         {
@@ -100,6 +103,7 @@ describe("SettingsIntakePage", () => {
     state.operationsGuildId = null;
     state.bindings = STREAMS.map(unbound);
     state.isError = false;
+    state.optionsError = false;
     state.isFetching = false;
   });
 
@@ -193,6 +197,17 @@ describe("SettingsIntakePage", () => {
     expect(screen.getByRole("combobox", { name: "Community" })).toBeDisabled();
     const card = screen.getByRole("region", { name: "Security" });
     expect(within(card).getByRole("button", { name: "Set this up for me" })).toBeDisabled();
+  });
+
+  it("says so when the options read is the one that failed", () => {
+    // The two reads describe one community between them, so a page that acted
+    // on only one would offer destinations it could not name.
+    state.optionsError = true;
+    state.operationsGuildId = 3;
+    renderPage();
+
+    expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Community" })).not.toBeInTheDocument();
   });
 
   it("says a stream whose project was archived receives nothing", () => {

@@ -59,17 +59,21 @@ export const SettingsIntakePage = () => {
     data: settings,
     isLoading,
     isFetching: settingsFetching,
-    isError,
-    refetch,
+    isError: settingsFailed,
+    refetch: refetchSettings,
   } = useIntakeSettings({ enabled: isOwner });
-  const { data: options, isFetching: optionsFetching } = useIntakeOptions({
-    enabled: isOwner,
-  });
+  const {
+    data: options,
+    isFetching: optionsFetching,
+    isError: optionsFailed,
+    refetch: refetchOptions,
+  } = useIntakeOptions({ enabled: isOwner });
   const { data: guilds } = usePlatformGuilds({ enabled: isOwner });
 
-  // Until both reads agree, the bindings and the projects they could name can
-  // be from different communities, so nothing that writes one is offered.
-  const settled = !settingsFetching && !optionsFetching;
+  // The two reads describe one community between them — where each stream
+  // lands, and what it could land in — so the page acts on both or neither.
+  const failed = settingsFailed || optionsFailed;
+  const settled = !failed && !settingsFetching && !optionsFetching;
 
   const [clearing, setClearing] = useState(false);
 
@@ -84,7 +88,7 @@ export const SettingsIntakePage = () => {
   // A read that failed is a different state from a deployment that has
   // configured nothing, and says so. The picker stays out of reach until the
   // current value is known.
-  if (isError) {
+  if (failed) {
     return (
       <Card className="shadow-sm">
         <CardHeader>
@@ -92,7 +96,13 @@ export const SettingsIntakePage = () => {
           <CardDescription>{t("loadFailed.description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              refetchSettings();
+              refetchOptions();
+            }}
+          >
             {t("loadFailed.retry")}
           </Button>
         </CardContent>
