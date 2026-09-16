@@ -40,10 +40,11 @@ from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
-from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.core.guild_auth_options import GuildAuthOption
 from app.services.auth.platform_provider import can_serve_login_clause
+from app.services.platform import guild_entitlements
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
 
@@ -150,14 +151,9 @@ async def resolve_oidc_identity(
         if not await _registration_open(session):
             return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
     else:
-        administration = (
-            await session.exec(
-                select(GuildAdministration).where(
-                    GuildAdministration.guild_id == provider.guild_id
-                )
-            )
-        ).one_or_none()
-        if administration is None or not administration.guild_auth_enabled:
+        if not await guild_entitlements.has_auth_option(
+            session, provider.guild_id, GuildAuthOption.providers
+        ):
             return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
     return await _provision(
         session,

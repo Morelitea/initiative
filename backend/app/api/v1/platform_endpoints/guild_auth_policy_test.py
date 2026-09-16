@@ -226,7 +226,7 @@ async def test_policy_surface_404_when_guild_auth_disabled(
     platform posture, and nothing is written. Reading stays open, as it does
     under platform posture."""
     admin = await create_user(session)
-    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
@@ -264,7 +264,7 @@ async def test_disabling_guild_auth_keeps_existing_requirement_enforced(
     await _require_provider(session, guild.id, provider)
 
     # Operator turns per-guild sign-in off after the requirement was set.
-    await guild_administration(session, guild, guild_auth_enabled=False)
+    await guild_administration(session, guild, auth_options=[])
 
     blocked = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(member)

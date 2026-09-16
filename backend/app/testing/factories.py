@@ -53,6 +53,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -234,11 +235,12 @@ async def create_guild(
     # them are routed to that row rather than to the guild. Tests keep passing
     # them as if they were guild fields.
     administration_defaults: dict[str, Any] = {
-        # Test guilds are sign-in-enabled by default so the guild-auth surface is
-        # exercisable without extra setup; production guilds default off (the
-        # operator opts each guild in from the Guilds dashboard). Pass
-        # guild_auth_enabled=False to exercise the disabled paths.
-        "guild_auth_enabled": True,
+        # Test guilds hold every sign-in option by default so the guild-auth
+        # surface is exercisable without extra setup; production guilds hold
+        # none (the operator grants each one from the Guilds dashboard). Pass
+        # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list
+        # to exercise one option without the other.
+        "auth_options": [option.value for option in GuildAuthOption],
     }
     administration_data = {
         **administration_defaults,
@@ -248,11 +250,16 @@ async def create_guild(
                 "max_storage_bytes",
                 "max_users",
                 "tier_name",
-                "guild_auth_enabled",
+                "auth_options",
             )
             if field in overrides
         },
     }
+    # Accepts the enum or its value, like every other enum a factory takes.
+    administration_data["auth_options"] = [
+        option.value if isinstance(option, GuildAuthOption) else option
+        for option in administration_data["auth_options"]
+    ]
 
     defaults = {
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",

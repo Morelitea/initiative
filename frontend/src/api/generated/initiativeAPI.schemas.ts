@@ -3842,6 +3842,13 @@ export interface GuildAppUpdate {
   placement?: GuildAppUpdatePlacement;
 }
 
+export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
+
+export const GuildAuthOption = {
+  providers: "providers",
+  require_sign_in: "require_sign_in",
+} as const;
+
 export type GuildAuthPolicyReadPolicy =
   (typeof GuildAuthPolicyReadPolicy)[keyof typeof GuildAuthPolicyReadPolicy];
 
@@ -4030,7 +4037,7 @@ export interface GuildRead {
   tier_name: string | null;
   status: GuildStatus | null;
   content_read_only: boolean;
-  guild_auth_enabled: boolean | null;
+  auth_options: GuildAuthOption[] | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
@@ -5210,7 +5217,7 @@ export interface PlatformGuildStorageRead {
   max_users: number | null;
   status: GuildStatus;
   status_changed_at: string | null;
-  guild_auth_enabled: boolean;
+  auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
 }
@@ -5228,7 +5235,7 @@ export interface PlatformGuildStorageUpdate {
   max_storage_bytes?: number | null;
   max_users?: number | null;
   status?: GuildStatus | null;
-  guild_auth_enabled?: boolean | null;
+  auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
 }

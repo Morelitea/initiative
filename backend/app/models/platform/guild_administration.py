@@ -1,8 +1,11 @@
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, BigInteger, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Field, SQLModel, Relationship
 from pydantic import ConfigDict
+
+from app.core.guild_auth_options import GuildAuthOption
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
@@ -62,16 +65,21 @@ class GuildAdministration(SQLModel, table=True):
     tier_name: Optional[str] = Field(
         default=None, sa_column=Column(String(64), nullable=True)
     )
-    # Operator entitlement: may this guild configure its own per-guild sign-in?
-    # Set from the platform Guilds dashboard. Default off: turning it ON opens
-    # the guild's auth-config surface and lets new accounts onboard through its
-    # IdP. Turning it OFF never deletes providers or signs existing members out
-    # — it only closes the config surface and stops NEW-account provisioning;
-    # members with a linked identity keep signing in and any existing sign-in
-    # requirement stays enforced.
-    guild_auth_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    # Operator entitlement: what this guild may do about its own sign-in. Set
+    # from the platform Guilds dashboard; empty by default, which is a guild
+    # that configures nothing. See ``app.core.guild_auth_options``.
+    #
+    # Withdrawing an option never deletes providers or signs existing members
+    # out — it closes the matching config surface and stops NEW-account
+    # provisioning through the guild's IdP; members with a linked identity keep
+    # signing in and any requirement already set stays enforced.
+    auth_options: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(
+            ARRAY(PGEnum(GuildAuthOption, name="guild_auth_option", create_type=False)),
+            nullable=False,
+            server_default="{}",
+        ),
     )
     # Operator entitlement: may this guild upload banner artwork? Default ON,
     # so a self-hosted install has it without anyone deciding anything. Where

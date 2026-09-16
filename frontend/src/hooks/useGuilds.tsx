@@ -111,8 +111,8 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // PAM/break-glass overrides the lifecycle status — a grantee's writability
   // comes from the grant level, never from the guild being frozen.
   content_read_only: false,
-  // Admin-only entitlement; a grantee acts as a member here, so it's absent.
-  guild_auth_enabled: null,
+  // Admin-only entitlements; a grantee acts as a member here, so they're absent.
+  auth_options: null,
   // A grant reaches one named guild directly; the directory is not how the
   // grantee got here, and this synthetic entry is never listed in it.
   is_community: false,

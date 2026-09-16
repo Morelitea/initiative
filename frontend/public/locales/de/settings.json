@@ -956,8 +956,6 @@
     "filterByName": "Communitys nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
     "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
-    "limitInputLabel": "Speicherlimit für {{name}} in GB",
-    "userLimitInputLabel": "Benutzerlimit für {{name}}",
     "overLimitHint": "{{name}} hat mehr Mitglieder, als das aktuelle Limit erlaubt.",
     "saved": "Speicherlimit für {{name}} aktualisiert.",
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
@@ -966,9 +964,6 @@
     "statusInputLabel": "Status für {{name}}",
     "statusSaved": "Status für {{name}} aktualisiert.",
     "statusSaveError": "Der Community-Status konnte nicht aktualisiert werden. Bitte versuche es erneut.",
-    "guildAuthInputLabel": "Community-spezifische Anmeldung für {{name}}",
-    "guildAuthOn": "Community-spezifische Anmeldung für {{name}} aktiviert.",
-    "guildAuthOff": "Community-spezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
@@ -985,19 +980,41 @@
       "members": "Mitglieder",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
-      "guildAuth": "Community-Anmeldung",
       "status": "Status",
-      "billing": "Abrechnung",
-      "support": "Hilfeanfragen"
+      "billing": "Abrechnung"
     },
     "billing": {
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
     },
-    "supportOn": "{{name}} kann jetzt Hilfeanfragen senden.",
-    "supportOff": "{{name}} kann keine Hilfeanfragen mehr senden.",
-    "supportInputLabel": "Hilfeanfragen für {{name}}"
+    "sheet": {
+      "open": "Verwalten",
+      "openLabel": "Einstellungen für {{name}} verwalten",
+      "description": "Einstellungen, die nur du ändern kannst. Die Admins dieser Community sehen sie und können sie nicht bearbeiten.",
+      "limits": "Grenzen",
+      "signIn": "Anmeldung",
+      "features": "Funktionen",
+      "usersHelp": "Wie viele Personen dazugehören dürfen. Für unbegrenzt leer lassen.",
+      "storageHelp": "Wie viel sie speichern dürfen, in Gigabyte. Für unbegrenzt leer lassen.",
+      "bannerLabel": "Bannerbild",
+      "bannerHelp": "Erlaubt das Hochladen eines Bannerbilds. Ohne das wählen sie stattdessen eine Bannerfarbe; ein bereits hochgeladenes Banner bleibt sichtbar.",
+      "supportLabel": "Hilfeanfragen",
+      "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
+      "authOption": {
+        "providers": {
+          "label": "Eigene Anmeldeanbieter",
+          "help": "Erlaubt ihren Admins, einen Identitätsanbieter einzurichten und neue Konten darüber aufzunehmen."
+        },
+        "require_sign_in": {
+          "label": "Anmeldung verlangen",
+          "help": "Erlaubt ihren Admins zu verlangen, dass Mitglieder über einen dieser Anbieter kommen. Unabhängig von der Einstellung oben — eine Community kann ihren Anbieter anbieten, ohne ihn zu verlangen."
+        }
+      },
+      "usersLabel": "Mitglieder",
+      "storageLabel": "Speicherlimit"
+    },
+    "unlimited": "Unbegrenzt"
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",

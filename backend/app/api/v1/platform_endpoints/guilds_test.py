@@ -100,7 +100,7 @@ ADMIN_ONLY_GUILD_FIELDS = (
     "max_users",
     "tier_name",
     "status",
-    "guild_auth_enabled",
+    "auth_options",
 )
 
 
@@ -122,7 +122,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
         max_storage_bytes=5_000_000,
         max_users=25,
         tier_name="Bespoke Plan",
-        guild_auth_enabled=True,
+        auth_options=["providers", "require_sign_in"],
     )
 
     async def entry(headers: dict[str, str]) -> dict:
@@ -147,7 +147,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
     assert admin_row["max_users"] == 25
     assert admin_row["tier_name"] == "Bespoke Plan"
     assert admin_row["retention_days"] == 90
-    assert admin_row["guild_auth_enabled"] is True
+    assert admin_row["auth_options"] == ["providers", "require_sign_in"]
 
 
 @pytest.mark.integration

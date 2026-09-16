@@ -33,14 +33,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 async def _guild_provider(
-    session: AsyncSession, *, guild_auth_enabled: bool = True, **overrides
+    session: AsyncSession, *, auth_options: list[str] | None = None, **overrides
 ):
-    """A login-ready guild-scoped provider in a fresh guild, with the platform
-    flipped to per-guild posture. ``guild_auth_enabled=False`` models a guild
-    the operator has not enabled sign-in for."""
+    """A login-ready guild-scoped provider in a fresh guild. ``auth_options=[]``
+    models a guild the operator has granted nothing."""
     from app.testing.factories import create_guild
 
-    guild = await create_guild(session, guild_auth_enabled=guild_auth_enabled)
+    kwargs = {} if auth_options is None else {"auth_options": auth_options}
+    guild = await create_guild(session, **kwargs)
     provider = await create_auth_provider(
         session, slug="corp", guild_id=guild.id, **overrides
     )
@@ -324,7 +324,7 @@ async def test_guild_callback_refuses_new_user_when_guild_auth_disabled(
     """A guild the operator has not enabled sign-in for onboards no NEW
     accounts: the provider still authenticates, but JIT is refused and nothing
     is left behind. (Existing members are covered by the next test.)"""
-    guild, _provider = await _guild_provider(session, guild_auth_enabled=False)
+    guild, _provider = await _guild_provider(session, auth_options=[])
     guild_id = guild.id
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -362,7 +362,7 @@ async def test_guild_callback_signs_in_existing_member_when_guild_auth_disabled(
 ):
     """Disabling a guild's sign-in never revokes existing members' login: a
     linked identity still completes the flow and gets a session."""
-    guild, provider = await _guild_provider(session, guild_auth_enabled=False)
+    guild, provider = await _guild_provider(session, auth_options=[])
     user = await create_user(session)
     await create_federated_identity(
         session, user, subject="idp-subject-1", provider=provider

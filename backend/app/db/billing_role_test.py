@@ -9,7 +9,7 @@ its four verbs:
 
 * columns beyond the lifecycle surface of ``guilds`` (description, created_by,
   …) and beyond the tier/cap surface of ``guild_administration``, where the caps
-  and plan label now live (migration 0178) — ``guild_auth_enabled`` shares that
+  and plan label now live (migration 0178) — ``auth_options`` shares that
   table but is not billing's, so it must be denied. ``guilds.name`` is the one
   addition (migration 0257): readable so a page can title itself, and readable
   only — writing it is refused like the rest;
@@ -127,11 +127,12 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     # as does creating or removing the row.
     await _denied(
         s,
-        f"SELECT guild_auth_enabled FROM guild_administration WHERE guild_id = {guild_a.id}",
+        f"SELECT auth_options FROM guild_administration WHERE guild_id = {guild_a.id}",
     )
     await _denied(
         s,
-        "UPDATE guild_administration SET guild_auth_enabled = true "
+        "UPDATE guild_administration "
+        "SET auth_options = ARRAY['providers']::guild_auth_option[] "
         f"WHERE guild_id = {guild_a.id}",
     )
     await _denied(s, f"DELETE FROM guild_administration WHERE guild_id = {guild_a.id}")

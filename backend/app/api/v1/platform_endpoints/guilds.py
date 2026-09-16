@@ -78,7 +78,9 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
+from app.core.guild_auth_options import GuildAuthOption
 from app.services.platform import auth_posture
+from app.services.platform import guild_entitlements
 from app.services.platform import billing_claim
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
@@ -88,7 +90,6 @@ from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -154,7 +155,7 @@ def _serialize_guild(
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
-        guild_auth_enabled=admin_row.guild_auth_enabled if admin_row else None,
+        auth_options=sorted(admin_row.auth_options) if admin_row else None,
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -936,21 +937,16 @@ async def create_guild_billing_handoff(
     )
 
 
-async def _require_guild_auth_enabled(
-    admin_session: AsyncSession, guild_id: int
+async def _require_guild_auth_option(
+    admin_session: AsyncSession, guild_id: int, option: GuildAuthOption
 ) -> None:
-    """The per-guild sign-in *configuration* surface exists only when an
-    operator has enabled guild auth for this guild (the Guilds-dashboard
-    toggle); absent (404) otherwise — the same shape as the posture gate above.
-    Like that gate, this bounds *management* only: turning the toggle back off
-    never deletes providers, keeps existing members signing in through them, and
-    leaves any existing sign-in requirement enforced (see the Guild model)."""
-    administration = (
-        await admin_session.exec(
-            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
-        )
-    ).one_or_none()
-    if administration is None or not administration.guild_auth_enabled:
+    """One operator-granted sign-in option, or 404.
+
+    This bounds *management* only. Withdrawing an option closes the surface
+    that sets it up; it never deletes providers, keeps existing members signing
+    in through them, and leaves any requirement already set enforced.
+    """
+    if not await guild_entitlements.has_auth_option(admin_session, guild_id, option):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
@@ -1025,7 +1021,9 @@ async def set_guild_auth_policy(
             await admin_session.commit()
         return GuildAuthPolicyRead(policy="open")
 
-    await _require_guild_auth_enabled(admin_session, guild_id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.require_sign_in
+    )
     # Hold the settings row for the rest of this transaction. An operator
     # withdrawing single sign-on takes the same row exclusively, so the two
     # order rather than interleave: either they see this requirement and are

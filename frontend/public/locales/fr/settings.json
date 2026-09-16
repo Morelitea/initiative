@@ -956,8 +956,6 @@
     "filterByName": "Filtrer les communautés par nom",
     "unlimitedPlaceholder": "Illimité",
     "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
-    "limitInputLabel": "Limite de stockage pour {{name}} en Go",
-    "userLimitInputLabel": "Limite d'utilisateurs pour {{name}}",
     "overLimitHint": "{{name}} compte plus de membres que sa limite actuelle ne l'autorise.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
@@ -966,9 +964,6 @@
     "statusInputLabel": "Statut de {{name}}",
     "statusSaved": "Statut de {{name}} mis à jour.",
     "statusSaveError": "Impossible de mettre à jour le statut de la communauté. Veuillez réessayer.",
-    "guildAuthInputLabel": "Connexion par communauté pour {{name}}",
-    "guildAuthOn": "Connexion par communauté activée pour {{name}}.",
-    "guildAuthOff": "Connexion par communauté désactivée pour {{name}}. Les membres existants continuent de se connecter ; aucun nouveau compte n'est créé.",
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
@@ -985,19 +980,41 @@
       "members": "Membres",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
-      "guildAuth": "Connexion par communauté",
       "status": "Statut",
-      "billing": "Facturation",
-      "support": "Demandes d'aide"
+      "billing": "Facturation"
     },
     "billing": {
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation."
     },
-    "supportOn": "{{name}} peut désormais envoyer des demandes d'aide.",
-    "supportOff": "{{name}} ne peut plus envoyer de demandes d'aide.",
-    "supportInputLabel": "Demandes d'aide pour {{name}}"
+    "sheet": {
+      "open": "Gérer",
+      "openLabel": "Gérer les réglages de {{name}}",
+      "description": "Des réglages que vous seul pouvez changer. Les administrateurs de cette communauté les voient sans pouvoir les modifier.",
+      "limits": "Limites",
+      "signIn": "Connexion",
+      "features": "Fonctionnalités",
+      "usersHelp": "Combien de personnes peuvent en faire partie. Laissez vide pour ne pas limiter.",
+      "storageHelp": "Combien elles peuvent stocker, en gigaoctets. Laissez vide pour ne pas limiter.",
+      "bannerLabel": "Bannière",
+      "bannerHelp": "Leur permet d'envoyer une image de bannière. Sans cela elles choisissent une couleur, et une bannière déjà envoyée reste affichée.",
+      "supportLabel": "Demandes d'aide",
+      "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
+      "authOption": {
+        "providers": {
+          "label": "Ses propres fournisseurs de connexion",
+          "help": "Permet à leurs administrateurs de connecter un fournisseur d'identité et d'y créer de nouveaux comptes."
+        },
+        "require_sign_in": {
+          "label": "Exiger une connexion",
+          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. Indépendant du réglage ci-dessus : une communauté peut proposer son fournisseur sans l'imposer."
+        }
+      },
+      "usersLabel": "Membres",
+      "storageLabel": "Limite de stockage"
+    },
+    "unlimited": "Sans limite"
   },
   "storage": {
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",

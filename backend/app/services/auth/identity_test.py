@@ -202,12 +202,11 @@ async def test_missing_email_claim_uses_synthetic_address(session):
     assert row.verified_at is None
 
 
-async def _create_guild_provider(session, *, guild_auth_enabled: bool):
-    """A JIT-capable guild-scoped provider whose guild's sign-in entitlement is
-    set to ``guild_auth_enabled``."""
+async def _create_guild_provider(session, *, auth_options: list[str]):
+    """A JIT-capable guild-scoped provider whose guild holds ``auth_options``."""
     from app.testing.factories import create_guild
 
-    guild = await create_guild(session, guild_auth_enabled=guild_auth_enabled)
+    guild = await create_guild(session, auth_options=auth_options)
     provider = AuthProvider(
         slug=f"idp-{secrets.token_hex(4)}",
         display_name="Guild IdP",
@@ -227,7 +226,7 @@ async def _create_guild_provider(session, *, guild_auth_enabled: bool):
 async def test_guild_provider_jit_refused_when_guild_auth_disabled(session):
     """A guild-scoped provider whose guild has sign-in disabled refuses an
     unknown user — no new account — even though the provider allows JIT."""
-    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=False)
+    _guild, provider = await _create_guild_provider(session, auth_options=[])
 
     result = await _resolve(
         session, provider, subject="unknown-sub", email="stranger@example.com"
@@ -237,10 +236,12 @@ async def test_guild_provider_jit_refused_when_guild_auth_disabled(session):
     assert await _identities_for(session, provider) == []
 
 
-async def test_guild_provider_jit_allowed_when_guild_auth_enabled(session):
+async def test_guild_provider_jit_allowed_when_providers_granted(session):
     """The mirror: an enabled guild JIT-provisions a new user (allow_jit alone,
     independent of instance registration)."""
-    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=True)
+    _guild, provider = await _create_guild_provider(
+        session, auth_options=["providers", "require_sign_in"]
+    )
 
     result = await _resolve(
         session, provider, subject="new-sub", email="new@example.com"
@@ -252,7 +253,7 @@ async def test_guild_provider_jit_allowed_when_guild_auth_enabled(session):
 async def test_disabled_guild_still_resolves_existing_linked_identity(session):
     """The gate is on NEW accounts only: an existing (provider, subject) link
     still resolves to its user even when the guild's sign-in is disabled."""
-    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=False)
+    _guild, provider = await _create_guild_provider(session, auth_options=[])
     user = await create_user(session)
     await link_identity(
         session, user=user, provider=provider, subject="sub-1", email_verified=True

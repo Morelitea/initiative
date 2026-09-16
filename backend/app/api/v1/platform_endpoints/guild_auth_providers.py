@@ -19,9 +19,10 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep, get_current_active_user
+from app.core.guild_auth_options import GuildAuthOption
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
-    _require_guild_auth_enabled,
+    _require_guild_auth_option,
 )
 from app.db.session import get_admin_session
 from app.models.platform.user import User
@@ -44,11 +45,11 @@ async def _require_guild_provider_admin(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """The shared gate for every route here: the per-guild enablement toggle,
-    then guild admin. When the toggle is off the surface 404s but the guild's
-    provider rows are left intact — existing members keep signing in through
-    them."""
-    await _require_guild_auth_enabled(admin_session, guild_id)
+    """The shared gate for every route here: the operator's grant of the
+    providers option, then guild admin. Without the grant the surface 404s but
+    the guild's provider rows are left intact — existing members keep signing
+    in through them."""
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
 
 
