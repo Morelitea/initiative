@@ -22,6 +22,7 @@ import type {
 
 import type {
   HTTPValidationError,
+  InitiativeSharingRead,
   ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
   ModerationReportList,
   ModerationReportRead,
@@ -361,6 +362,229 @@ export const useSettleReportApiV1GGuildIdReportsReportIdSettlePost = <
     queryClient
   );
 };
+/**
+ * Who can reach what, across this initiative.
+ *
+ * Gated here rather than by the tables: ``resource_grants`` is scoped to
+ * initiative *membership*, which is right for reading the grants on a
+ * resource you can already reach and too wide for an aggregate over every
+ * resource in the initiative. The standing required is the one the moderation
+ * tables admit — "Full access", or guild admin — read from the same
+ * request context the sharing override itself uses.
+ * @summary Read Initiative Sharing
+ */
+export const readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeSharingRead>(
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/sharing`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey = (
+  guildId: number,
+  initiativeId: number
+) => {
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/sharing`] as const;
+};
+
+export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey(
+      guildId,
+      initiativeId
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>
+  > = ({ signal }) =>
+    readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet(
+      guildId,
+      initiativeId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>
+  >;
+export type ReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+  TData = Awaited<
+    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+  TData = Awaited<
+    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+  TData = Awaited<
+    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Initiative Sharing
+ */
+
+export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+  TData = Awaited<
+    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryOptions(
+      guildId,
+      initiativeId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Report something. One endpoint, whatever was reported and from where.
  *

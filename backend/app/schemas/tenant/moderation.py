@@ -70,3 +70,26 @@ class ReportSettle(SanitizedBaseModel):
 
     outcome: ReportOutcome
     note: Optional[str] = PydanticField(default=None, max_length=4000)
+
+
+class SharedResourceRead(SanitizedBaseModel):
+    """One resource in the initiative, and how widely it is reached."""
+
+    resource_type: str
+    resource_id: int
+    name: Optional[str] = None
+    all_initiative_members: bool
+    user_grant_count: int
+    role_grant_count: int
+    via_dashboard: bool
+
+
+class InitiativeSharingRead(SanitizedBaseModel):
+    """Who can reach what, across one initiative.
+
+    Counts rather than names: the question this answers is *how widely*, and a
+    moderator who needs the detail opens the resource's own sharing control,
+    which is the one editor for it.
+    """
+
+    items: List[SharedResourceRead]

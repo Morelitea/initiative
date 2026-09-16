@@ -11,13 +11,16 @@ import { useQuery } from "@tanstack/react-query";
 
 import type {
   InitiativeRead,
+  InitiativeSharingRead,
   ModerationReportList,
   ModerationReportRead,
   ReportSettle,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryKey,
+  getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey,
   listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet,
+  readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet,
   settleReportApiV1GGuildIdReportsReportIdSettlePost,
 } from "@/api/generated/moderation/moderation";
 import { invalidate, q } from "@/api/query-keys";
@@ -86,3 +89,24 @@ export const canModerate = (
   if (!userId) return false;
   return initiative.members.some((m) => m.user.id === userId && m.override_share_restrictions);
 };
+
+/**
+ * Who can reach what, across the initiative.
+ *
+ * Refused to anybody without the standing the reports take, so it is only
+ * asked for from the console.
+ */
+export const useInitiativeSharing = (
+  guildId: number,
+  initiativeId: number,
+  options?: QueryOpts<InitiativeSharingRead>
+) =>
+  useQuery<InitiativeSharingRead>({
+    queryKey: getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey(
+      guildId,
+      initiativeId
+    ),
+    queryFn: () =>
+      readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet(guildId, initiativeId),
+    ...options,
+  });

@@ -640,5 +640,6 @@
   "MODERATION_UNKNOWN_TARGET_TYPE": "Cela ne peut pas être signalé",
   "MODERATION_CANNOT_REPORT_YOURSELF": "Vous ne pouvez pas signaler votre propre contenu",
   "MODERATION_NOWHERE_TO_SEND": "Les signalements ne sont pas encore configurés sur cette installation",
-  "MODERATION_TARGET_NOT_FOUND": "Nous ne trouvons pas cela"
+  "MODERATION_TARGET_NOT_FOUND": "Nous ne trouvons pas cela",
+  "MODERATION_NOT_A_MODERATOR": "Seuls les modérateurs peuvent voir cela"
 }

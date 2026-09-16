@@ -68,5 +68,26 @@
     "submit": "Send report",
     "thanks": "Thanks — somebody will look at this.",
     "error": "Could not send that report."
-  }
+  },
+  "areas": {
+    "reports": "Reports",
+    "members": "Members",
+    "sharing": "Sharing"
+  },
+  "members": {
+    "description": "Who is in this initiative, and what each of them may do.",
+    "fullAccess": "Full access",
+    "noRole": "No role"
+  },
+  "sharing": {
+    "description": "How widely each thing here is reached. Open one to change it.",
+    "empty": "Nothing here has been shared with anybody in particular.",
+    "everyone": "Everyone here",
+    "viaDashboard": "Through a dashboard",
+    "people_one": "{{count}} person",
+    "people_other": "{{count}} people",
+    "roles_one": "{{count}} role",
+    "roles_other": "{{count}} roles"
+  },
+  "loadFailed": "Could not load that. Try again."
 }

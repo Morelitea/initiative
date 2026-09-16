@@ -68,5 +68,26 @@
     "submit": "Envoyer le signalement",
     "thanks": "Merci — quelqu'un va regarder.",
     "error": "Impossible d'envoyer ce signalement."
-  }
+  },
+  "areas": {
+    "reports": "Signalements",
+    "members": "Membres",
+    "sharing": "Accès"
+  },
+  "members": {
+    "description": "Qui est dans cette initiative, et ce que chacun peut faire.",
+    "fullAccess": "Accès complet",
+    "noRole": "Aucun rôle"
+  },
+  "sharing": {
+    "description": "Jusqu'où va l'accès à chaque chose. Ouvrez-la pour le modifier.",
+    "empty": "Rien ici n'a été partagé avec quelqu'un en particulier.",
+    "everyone": "Tout le monde ici",
+    "viaDashboard": "Via un tableau de bord",
+    "people_one": "{{count}} personne",
+    "people_other": "{{count}} personnes",
+    "roles_one": "{{count}} rôle",
+    "roles_other": "{{count}} rôles"
+  },
+  "loadFailed": "Impossible de charger. Réessayez."
 }

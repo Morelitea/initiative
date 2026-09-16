@@ -4350,6 +4350,30 @@ export interface InitiativeRoleUpdate {
 }
 
 /**
+ * One resource in the initiative, and how widely it is reached.
+ */
+export interface SharedResourceRead {
+  resource_type: string;
+  resource_id: number;
+  name?: string | null;
+  all_initiative_members: boolean;
+  user_grant_count: number;
+  role_grant_count: number;
+  via_dashboard: boolean;
+}
+
+/**
+ * Who can reach what, across one initiative.
+ *
+ * Counts rather than names: the question this answers is *how widely*, and a
+ * moderator who needs the detail opens the resource's own sharing control,
+ * which is the one editor for it.
+ */
+export interface InitiativeSharingRead {
+  items: SharedResourceRead[];
+}
+
+/**
  * A status column as it appears across one initiative's projects.
  *
  * Entries are aggregated by ``(name, category)``, so the same column

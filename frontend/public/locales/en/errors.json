@@ -640,5 +640,6 @@
   "MODERATION_UNKNOWN_TARGET_TYPE": "That is not something that can be reported",
   "MODERATION_CANNOT_REPORT_YOURSELF": "You cannot report your own content",
   "MODERATION_NOWHERE_TO_SEND": "Reports are not set up on this deployment yet",
-  "MODERATION_TARGET_NOT_FOUND": "That is not something we can find"
+  "MODERATION_TARGET_NOT_FOUND": "That is not something we can find",
+  "MODERATION_NOT_A_MODERATOR": "Only moderators can see that"
 }

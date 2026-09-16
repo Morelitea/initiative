@@ -640,5 +640,6 @@
   "MODERATION_UNKNOWN_TARGET_TYPE": "Das lässt sich nicht melden",
   "MODERATION_CANNOT_REPORT_YOURSELF": "Du kannst eigene Inhalte nicht melden",
   "MODERATION_NOWHERE_TO_SEND": "Meldungen sind auf dieser Installation noch nicht eingerichtet",
-  "MODERATION_TARGET_NOT_FOUND": "Das können wir nicht finden"
+  "MODERATION_TARGET_NOT_FOUND": "Das können wir nicht finden",
+  "MODERATION_NOT_A_MODERATOR": "Das können nur Moderatoren sehen"
 }
