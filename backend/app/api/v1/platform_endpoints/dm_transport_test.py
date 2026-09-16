@@ -41,6 +41,24 @@ async def _set_policy(session, user, policy: DmPolicy) -> None:
     await session.commit()
 
 
+async def _connect(session, a, b) -> None:
+    """The mutual link a connection request earns, applied directly.
+
+    A ``private`` account is reachable only by one of these — a message grant
+    does not satisfy that policy, which is the whole point of it.
+    """
+    low, high = (a.id, b.id) if a.id < b.id else (b.id, a.id)
+    await session.exec(
+        text(
+            "INSERT INTO public.contact_grants "
+            "(user_id_low, user_id_high, kind, state, requested_by, created_at) "
+            "VALUES (:lo, :hi, 'connection', 'accepted', :by, now()) "
+            "ON CONFLICT DO NOTHING"
+        ).bindparams(lo=low, hi=high, by=a.id)
+    )
+    await session.commit()
+
+
 async def _open_channel(session, a, b) -> None:
     """The accepted message grant a request earns, applied directly."""
     low, high = (a.id, b.id) if a.id < b.id else (b.id, a.id)
@@ -579,6 +597,284 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
     )
     assert len(own.json()["items"]) == 1
+
+
+class TestProposingAGroup:
+    """A roster is proposed to everybody on it, and nobody is added."""
+
+    async def _reachable(self, session, actors):
+        for actor in actors:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(actors):
+            for second in actors[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+
+    async def _propose(self, client, actor, others):
+        return await client.post(
+            "/api/v1/me/dm/conversations/group",
+            json={"user_ids": [o.user.id for o in others]},
+            headers=actor.headers,
+        )
+
+    async def test_everybody_named_is_asked_and_nobody_is_added(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        made = await self._propose(client, a, [b, c])
+
+        assert made.status_code == 201, made.text
+        conversation_id = made.json()["id"]
+        # The one who proposed it has answered by proposing.
+        mine = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+        entry = next(
+            c for c in mine.json()["conversations"] if c["id"] == conversation_id
+        )
+        assert entry["kind"] == "group"
+        assert entry["pending"] is False
+        assert sorted(entry["member_ids"]) == sorted([b.user.id, c.user.id])
+        # The others have an invitation, not a membership.
+        theirs = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        waiting = next(
+            c for c in theirs.json()["conversations"] if c["id"] == conversation_id
+        )
+        assert waiting["pending"] is True
+
+    async def test_a_pending_invitee_receives_nothing(
+        self, client, session, acting_user
+    ):
+        """Named on a roster is not on the conversation."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        b_device = await _register(client, b, seed=60)
+        await _register(client, a, seed=1)
+        made = await self._propose(client, a, [b, c])
+        conversation_id = made.json()["id"]
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"early").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert collected.json()["items"] == []
+
+    async def test_answering_puts_them_on_it(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        b_device = await _register(client, b, seed=60)
+        await _register(client, a, seed=1)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+
+        answered = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+        assert answered.status_code == 204, answered.text
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"now you are on it").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert len(collected.json()["items"]) == 1
+
+    async def test_the_proposal_answers_with_the_roster_it_made(
+        self, client, session, acting_user
+    ):
+        """The same shape the list answers with, so a client can use it as-is."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        made = await self._propose(client, a, [b, c])
+
+        body = made.json()
+        assert body["kind"] == "group"
+        assert body["member_ids"] == sorted([b.user.id, c.user.id])
+        assert body["other_user_id"] == min(b.user.id, c.user.id)
+        assert body["pending"] is False
+        # And it matches what the list says about the same conversation.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+        entry = next(
+            row for row in listed.json()["conversations"] if row["id"] == body["id"]
+        )
+        assert entry["member_ids"] == body["member_ids"]
+        assert entry["kind"] == body["kind"]
+
+    async def test_somebody_still_deciding_cannot_send(
+        self, client, session, acting_user
+    ):
+        """Seeing a conversation and being on it are different things."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        a_device = await _register(client, a, seed=1)
+        await _register(client, b, seed=60)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        # B can see it -- that is how they decide.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        assert conversation_id in {row["id"] for row in listed.json()["conversations"]}
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": a_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"before answering").decode(),
+                    }
+                ]
+            },
+            headers=b.headers,
+        )
+
+        assert sent.status_code == 404
+        assert sent.json()["detail"] == "DM_CONVERSATION_NOT_FOUND"
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
+        )
+        assert collected.json()["items"] == []
+
+    async def test_answering_twice_is_refused(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+
+        again = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+
+        assert again.status_code == 404
+        assert again.json()["detail"] == "DM_NO_INVITATION"
+
+    async def test_a_roster_that_cannot_reach_itself_is_refused(
+        self, client, session, acting_user
+    ):
+        """B and C are strangers to each other, whatever A is to both."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        # C admits only the accounts it is connected to, and that is A alone.
+        await _set_policy(session, c.user, DmPolicy.private)
+        await _connect(session, a.user, c.user)
+
+        made = await self._propose(client, a, [b, c])
+
+        assert made.status_code == 409
+        assert made.json()["detail"] == "DM_ROSTER_NOT_REACHABLE"
+
+    async def test_the_check_names_the_pair_before_anybody_commits(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        await _set_policy(session, c.user, DmPolicy.private)
+        await _connect(session, a.user, c.user)
+
+        checked = await client.post(
+            "/api/v1/me/dm/roster-check",
+            json={"user_ids": [b.user.id, c.user.id]},
+            headers=a.headers,
+        )
+
+        assert checked.status_code == 200, checked.text
+        assert checked.json()["unreachable_pair"] == sorted([b.user.id, c.user.id])
+        assert checked.json()["too_large"] is False
+
+    async def test_a_reachable_roster_checks_clean(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        checked = await client.post(
+            "/api/v1/me/dm/roster-check",
+            json={"user_ids": [b.user.id, c.user.id]},
+            headers=a.headers,
+        )
+
+        assert checked.json()["unreachable_pair"] == []
+        assert checked.json()["max_members"] == 40
+
+    async def test_two_people_are_not_a_group(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        await self._reachable(session, [a, b])
+
+        made = await self._propose(client, a, [b])
+
+        assert made.status_code == 422, made.text
+
+    async def test_proposing_the_same_roster_asks_whoever_is_not_on_it(
+        self, client, session, acting_user
+    ):
+        """Somebody who declined may have changed their mind, or their settings."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        # C declines, which is the ordinary leave.
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{conversation_id}", headers=c.headers
+        )
+        assert left.status_code == 204, left.text
+
+        again = await self._propose(client, a, [b, c])
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] == conversation_id
+        theirs = await client.get("/api/v1/me/dm/conversations", headers=c.headers)
+        asked = next(
+            row
+            for row in theirs.json()["conversations"]
+            if row["id"] == conversation_id
+        )
+        assert asked["pending"] is True
 
 
 class TestAGroupSend:
