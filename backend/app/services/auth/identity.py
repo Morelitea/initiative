@@ -22,6 +22,8 @@ service: no raise-with-uncommitted-writes).
 
 from __future__ import annotations
 
+import hashlib
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -315,6 +317,17 @@ async def _registration_open(session: AsyncSession) -> bool:
     return user_count == 0
 
 
+def _address_lock_key(normalized: str) -> int:
+    """A stable 64-bit key naming one address, for ``pg_advisory_xact_lock``.
+
+    Not the stored hash: a lock key is an integer visible in ``pg_locks``, and
+    this one only has to be the same number for the same address on every
+    connection.
+    """
+    digest = hashlib.blake2b(normalized.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)
+
+
 class _AddressTaken(Exception):
     """Another account already holds the asserted address, proven.
 
@@ -342,6 +355,17 @@ async def _provision(
     else:
         normalized = f"{subject}@oidc.local"
         verified = False
+
+    if email:
+        # One provisioning at a time per address, for as long as this
+        # transaction runs. Uniqueness covers proven rows, so two sign-ins
+        # asserting the same *unproven* address conflict over nothing and
+        # neither sees the other's uncommitted row; whichever waits here reads
+        # the other's account in the check below and is answered the way a
+        # sign-in that did not race is.
+        await session.exec(
+            select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
+        )
 
     # A random handle, not one built from the claims. The claims feed the
     # suggestions on the pick screen instead, so an account abandoned partway

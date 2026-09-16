@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Sequence
 
 from sqlalchemy import delete, update
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
@@ -160,7 +161,9 @@ async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
     return [sole] if sole else []
 
 
-def _primary_clause(user_ids):
+def _primary_clause(
+    user_ids: Sequence[int],
+) -> tuple[ColumnElement[bool] | bool, ...]:
     """The primary row, for accounts that have one.
 
     Proven or not: an account that never confirmed the address it signed up
