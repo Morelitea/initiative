@@ -39,11 +39,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useUserSearch } from "@/hooks/useUsers";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import {
-  canAccessAdminDashboard,
-  canManagePlatformConfig,
-  isGuildAdminRole,
-} from "@/lib/permissions";
+import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import {
@@ -243,7 +239,7 @@ export function CommandCenter() {
     scopeQuery.isSuccess &&
     !scopeQuery.isPlaceholderData;
 
-  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const showPlatformSettings = canManagePlatformConfig(user);
   const showAdminDashboard = canAccessAdminDashboard(user);
 

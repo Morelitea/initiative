@@ -4,7 +4,7 @@ import type { InitiativeRead, Tool, UserRead } from "@/api/generated/initiativeA
 import { useAuth } from "@/hooks/useAuth";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
-import { Capability, hasCapability, isGuildAdminRole } from "@/lib/permissions";
+import { Capability, hasCapability } from "@/lib/permissions";
 import {
   DEFAULT_ENABLED_TOOLS,
   isToolEnabled,
@@ -51,7 +51,7 @@ export function deriveGuildAccess(
   guild: GuildEntry | null | undefined,
   user: Pick<UserRead, "capabilities"> | null | undefined
 ): GuildAccessContext {
-  const isGuildAdmin = isGuildAdminRole(guild?.role);
+  const isGuildAdmin = guild?.is_admin ?? false;
   const isGrantGuild = guild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && guild?.grantAccessLevel === "read_write";
   const isBreakGlass = grantReadWrite && hasCapability(user, Capability.dataBypass);

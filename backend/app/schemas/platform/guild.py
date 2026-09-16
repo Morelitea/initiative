@@ -94,6 +94,11 @@ class GuildRead(GuildBase):
 
     id: int
     role: GuildRole
+    #: Whether this membership administers the guild — admin or above.
+    #: Computed where the payload is already split by it, so a surface asks
+    #: the server one question instead of each screen deciding what the
+    #: role means.
+    is_admin: bool = False
     position: int
     created_at: datetime
     updated_at: datetime

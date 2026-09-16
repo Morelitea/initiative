@@ -180,7 +180,10 @@ class UserGuildMember(UserGuildRead, GuildNameVisibility):
     """
 
     full_name: Optional[str] = None
-    guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
+    guild_role: Optional[str] = None  # Set by the endpoint
+    #: Whether this member administers the guild — admin or above. The role is
+    #: here to be shown; this is here to be asked.
+    is_guild_admin: bool = False
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
@@ -208,6 +211,9 @@ class UserSummary(UserIdentity, GuildNameVisibility):
     #: the caller asked outside a guild, which is why it is optional rather
     #: than defaulted to the quieter of the two.
     guild_role: Optional[str] = None
+    #: Whether this member administers the guild being read — admin or above.
+    #: The role is here to be shown; this is here to be asked.
+    is_guild_admin: bool = False
 
 
 class UserSummaryListResponse(SanitizedBaseModel):

@@ -61,11 +61,7 @@ import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
 import { guildPath } from "@/lib/guildUrl";
-import {
-  canAccessAdminDashboard,
-  canManagePlatformConfig,
-  isGuildAdminRole,
-} from "@/lib/permissions";
+import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -83,7 +79,7 @@ export const AppSidebar = () => {
   // Guild admin check is based on guild membership role only (independent from platform role).
   // Used for guild-settings affordances. Initiative visibility/permissions
   // (incl. PAM grants + platform data.bypass) come from useInitiativeAccess.
-  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const { filterVisible, permissionsFor, canManage } = useInitiativeAccess();
   // Two separate platform areas: config (Platform settings) vs operational
   // (Admin dashboard). Each surfaced independently per capability.
