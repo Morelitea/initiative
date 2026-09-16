@@ -1322,7 +1322,7 @@ async def test_password_user_cannot_skip_password_check(
 
 @pytest.mark.integration
 async def test_initiative_members_excludes_anonymized(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, role_session
 ):
     """The transfer-target picker must not return anonymized rows.
 
@@ -1348,7 +1348,8 @@ async def test_initiative_members_excludes_anonymized(
     await create_initiative_member(session, initiative=initiative, user=survivor)
 
     # Anonymize the departing user — they should disappear from the picker.
-    await users_service.soft_delete_user(session, departing.id)
+    admin_session = await role_session("app_admin")
+    await users_service.soft_delete_user(admin_session, departing.id)
 
     headers = get_auth_headers(creator)
     response = await client.get(
