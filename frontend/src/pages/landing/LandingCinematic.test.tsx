@@ -249,6 +249,36 @@ describe("LandingCinematic", () => {
         expect(document.querySelector("#pricing")).toBeNull();
       });
     });
+
+    // The cards reach straight through to these, so a tier arriving without
+    // one would throw mid-render and take the page down with it.
+    it.each([
+      ["price", { ...CATALOG.tiers[2], price: undefined }],
+      ["cta", { ...CATALOG.tiers[2], cta: undefined }],
+      ["limits", { ...CATALOG.tiers[2], limits: undefined }],
+      ["name", { ...CATALOG.tiers[2], name: 7 }],
+      ["price.display", { ...CATALOG.tiers[2], price: { base_monthly: 7 } }],
+    ])("leaves the section out when a tier is missing %s", async (_field, tier) => {
+      server.use(
+        stubConfig({ url: PORTAL }),
+        stubCatalog({ ...CATALOG, tiers: [CATALOG.tiers[0], tier] })
+      );
+      renderLanding();
+
+      await waitFor(() => {
+        expect(document.querySelector("#pricing")).toBeNull();
+      });
+      expect(screen.queryByText(CATALOG.headline)).not.toBeInTheDocument();
+    });
+
+    it("leaves the section out when the catalog has no tiers at all", async () => {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog({ ...CATALOG, tiers: [] }));
+      renderLanding();
+
+      await waitFor(() => {
+        expect(document.querySelector("#pricing")).toBeNull();
+      });
+    });
   });
 
   describe("get the app", () => {

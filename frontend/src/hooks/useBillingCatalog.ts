@@ -75,11 +75,45 @@ export const portalPricingUrl = (portalUrl: string) => `${trimSlash(portalUrl)}/
 // Fetch + hook
 // ---------------------------------------------------------------------------
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+/**
+ * Every field the pricing section reads without a guard of its own.
+ *
+ * The nested ones are the point: the renderer reaches straight through to
+ * `price.display` and `cta.label`, so a tier that arrives without them would
+ * throw mid-render and take the whole landing page down with it. A catalog
+ * that does not answer for all of them is treated as no catalog at all, which
+ * is the same quiet outcome as a portal that cannot be reached.
+ */
+const isTier = (value: unknown): value is CatalogTier => {
+  if (!isObject(value)) return false;
+  const { price, limits, cta } = value;
+  return (
+    isString(value.id) &&
+    isString(value.name) &&
+    isString(value.tagline) &&
+    isString(value.audience) &&
+    isString(value.support) &&
+    typeof value.highlight === "boolean" &&
+    isObject(price) &&
+    isString(price.display) &&
+    isObject(limits) &&
+    isObject(cta) &&
+    isString(cta.kind) &&
+    isString(cta.label)
+  );
+};
+
 const isCatalog = (value: unknown): value is BillingCatalog =>
-  typeof value === "object" &&
-  value !== null &&
-  Array.isArray((value as BillingCatalog).tiers) &&
-  typeof (value as BillingCatalog).headline === "string";
+  isObject(value) &&
+  isString(value.headline) &&
+  Array.isArray(value.tiers) &&
+  value.tiers.length > 0 &&
+  value.tiers.every(isTier);
 
 export async function fetchBillingCatalog(portalUrl: string): Promise<BillingCatalog> {
   const response = await fetch(catalogUrl(portalUrl), {
