@@ -147,76 +147,6 @@ jobs:
           cd backend
           uv sync --frozen
 
-      - name: Tune ephemeral PostgreSQL for the DDL-heavy suite
-        # The suite creates and drops a roughly 60-table guild schema in many
-        # tests. On the hosted runner, stock durability settings make Postgres
-        # checkpoints spend more than a minute syncing tens of thousands of
-        # short-lived relation files. This database is disposable test state:
-        # it is never restored after the job and no durability behaviour is
-        # under test. Keep checkpoints infrequent and remove durable-write
-        # overhead without weakening the suite's statement-timeout deadlock net.
-        # With durability disabled, finish each WAL checkpoint promptly instead
-        # of throttling its writes across minutes. That trades a short CI-only
-        # I/O burst for removing prolonged checkpoint pressure from test queries.
-        if: steps.changes.outputs.skip != 'true'
-        run: |
-          cd backend
-          uv run python - <<'PY'
-          import asyncio
-
-          import asyncpg
-
-
-          async def main() -> None:
-              conn = await asyncpg.connect(
-                  "postgresql://initiative:initiative@localhost:5432/initiative_test"
-              )
-              try:
-                  settings = {
-                      "checkpoint_completion_target": "0",
-                      "checkpoint_timeout": "30min",
-                      "fsync": "off",
-                      "full_page_writes": "off",
-                      "max_wal_size": "4GB",
-                      "synchronous_commit": "off",
-                  }
-                  for name, value in settings.items():
-                      await conn.execute(f"ALTER SYSTEM SET {name} = '{value}'")
-                  await conn.execute("SELECT pg_reload_conf()")
-
-                  expected = {
-                      "checkpoint_completion_target": "0",
-                      "checkpoint_timeout": "1800",
-                      "fsync": "off",
-                      "full_page_writes": "off",
-                      "max_wal_size": "4096",
-                      "synchronous_commit": "off",
-                  }
-                  deadline = asyncio.get_running_loop().time() + 5
-                  while True:
-                      applied = {
-                          row["name"]: row["setting"]
-                          for row in await conn.fetch(
-                              "SELECT name, setting FROM pg_settings "
-                              "WHERE name = ANY($1::text[])",
-                              list(settings),
-                          )
-                      }
-                      if applied == expected:
-                          break
-                      if asyncio.get_running_loop().time() >= deadline:
-                          raise RuntimeError(
-                              "ephemeral PostgreSQL tuning did not converge: "
-                              f"{applied!r}"
-                          )
-                      await asyncio.sleep(0.1)
-              finally:
-                  await conn.close()
-
-
-          asyncio.run(main())
-          PY
-
       - name: Bootstrap database roles
         # The same module a deployment runs at startup, over the same kind of
         # owner connection: it creates the three login roles, hands the app's
@@ -281,6 +211,9 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
+          uv run python scripts/ci/report_postgres_waits.py &
+          postgres_monitor_pid=$!
+          trap 'kill "$postgres_monitor_pid" 2>/dev/null || true; wait "$postgres_monitor_pid" 2>/dev/null || true' EXIT
           uv run python -m pytest ${{ steps.changes.outputs.scope }} -n auto --tb=short
 
   frontend-lint-and-test:
