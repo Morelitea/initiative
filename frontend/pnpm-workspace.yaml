@@ -53,10 +53,12 @@ minimumReleaseAgeExclude:
   - vite@8.0.16
   - vitest@4.1.8
 overrides:
-  # Transitive, dev-only, and held below a patched release by the package
-  # that pulls them in: js-yaml and mermaid by orval, sharp by
-  # @capacitor/assets. Caret rather than a bare floor -- '>=' let js-yaml
-  # 5.x through into a tool asking for 4.x when this was first tried.
+  # These are transitive packages held below patched releases. js-yaml is
+  # tooling-only, while mermaid is also part of the production whiteboard
+  # through @excalidraw/excalidraw -> @excalidraw/mermaid-to-excalidraw.
+  # sharp is used by the asset tooling. Caret rather than a bare floor --
+  # '>=' let js-yaml 5.x through into a tool asking for 4.x when this was
+  # first tried.
   js-yaml@<4.3.2: ^4.3.2
   sharp@<0.35.4: ^0.35.4
   fast-uri@<3.1.6: ^3.1.6
