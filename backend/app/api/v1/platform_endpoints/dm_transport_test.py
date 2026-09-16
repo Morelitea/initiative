@@ -840,6 +840,52 @@ class TestProposingAGroup:
         assert directory.status_code == 409
         assert directory.json()["detail"] == "DM_NOT_REACHABLE"
 
+    async def test_leaving_an_accepted_group_revokes_transport_access(
+        self, client, session, acting_user
+    ):
+        """Leaving removes both key-read and send access granted by membership."""
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        a_device = await _register(client, a, seed=1)
+        b_device = await _register(client, b, seed=60)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        for actor in (b, c):
+            answered = await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/accept",
+                headers=actor.headers,
+            )
+            assert answered.status_code == 204, answered.text
+
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{conversation_id}", headers=b.headers
+        )
+        assert left.status_code == 204, left.text
+
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 409
+        assert directory.json()["detail"] == "DM_NOT_REACHABLE"
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"after leave").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 404
+        assert sent.json()["detail"] == "DM_CONVERSATION_NOT_FOUND"
+        assert a_device
+
     async def test_somebody_still_deciding_cannot_send(
         self, client, session, acting_user
     ):
