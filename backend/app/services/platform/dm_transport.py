@@ -20,16 +20,20 @@ from __future__ import annotations
 import base64
 import binascii
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, insert, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.models.platform.dm_conversation import (
     DmConversation,
+    DmConversationKind,
     DmConversationMember,
+    roster_key,
 )
 from app.models.platform.dm_device import DmDevice
 from app.models.platform.dm_one_time_key import DmOneTimeKey
@@ -417,27 +421,51 @@ async def fingerprints(session: AsyncSession, *, user_id: int) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-async def _existing_conversation(
-    session: AsyncSession, *, actor_id: int, other_id: int
+async def _conversation_with_roster(
+    session: AsyncSession, *, kind: DmConversationKind, member_ids: Iterable[int]
 ) -> DmConversation | None:
-    mine = select(DmConversationMember.conversation_id).where(
-        DmConversationMember.user_id == actor_id
-    )
-    row = (
+    """The one conversation made with exactly these people, if it exists.
+
+    Asked of the key rather than by joining the roster back together: the key is
+    what the unique index is on, so this reads the same thing the index enforces
+    instead of a second expression of it that could disagree.
+    """
+    return (
         await session.exec(
-            select(DmConversation)
-            .join(
-                DmConversationMember,
-                DmConversationMember.conversation_id == DmConversation.id,
+            select(DmConversation).where(
+                DmConversation.kind == kind,
+                DmConversation.roster_key == roster_key(member_ids),
             )
-            .where(
-                DmConversationMember.user_id == other_id,
-                DmConversationMember.conversation_id.in_(mine),
-            )
-            .limit(1)
         )
     ).first()
-    return row
+
+
+async def _open_conversation(
+    session: AsyncSession, *, kind: DmConversationKind, member_ids: Iterable[int]
+) -> tuple[DmConversation, bool]:
+    """Insert the conversation for this roster, or return the one that beat us.
+
+    Two requests for the same roster can both look, both find nothing and both
+    insert; the unique index refuses the second. Losing that race means the
+    conversation the caller asked for exists, which is the answer they wanted,
+    so it is read back rather than returned as an error. The savepoint is what
+    keeps the refused insert from taking the surrounding transaction with it.
+
+    The flag says whether this call is the one that made it, so only the winner
+    writes the roster.
+    """
+    try:
+        async with session.begin_nested():
+            conversation = DmConversation(kind=kind, roster_key=roster_key(member_ids))
+            session.add(conversation)
+            await session.flush()
+        return conversation, True
+    except IntegrityError:
+        pass
+    winner = await _conversation_with_roster(session, kind=kind, member_ids=member_ids)
+    if winner is None:
+        raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
+    return winner, False
 
 
 async def create_conversation(
@@ -446,30 +474,44 @@ async def create_conversation(
     """Open the channel an accepted message request earned.
 
     Idempotent: asking twice returns the conversation that already exists rather
-    than a second one, because a pair has one channel.
+    than a second one, because a roster has one channel — for a pair, which is
+    all this opens, that is the rule the pairwise design already stated.
+
+    A conversation somebody has left is not found here, because a conversation
+    down to one member releases its roster name — see :func:`leave_conversation`.
+    Asking again after somebody left therefore opens a fresh channel, which is
+    what it did before a roster was an identity.
+
+    Both members are accepted the moment it is made. An invitation somebody has
+    to answer belongs to a roster they did not already agree to, and a pair got
+    here by an accepted message request.
     """
     if actor_id == other_id:
         raise DmTransportError(Messages.CANNOT_MESSAGE_SELF)
-    existing = await _existing_conversation(
-        session, actor_id=actor_id, other_id=other_id
+    members = (actor_id, other_id)
+    existing = await _conversation_with_roster(
+        session, kind=DmConversationKind.direct, member_ids=members
     )
     if existing is not None:
         return existing
     if await _permission(session, other_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
 
-    conversation = DmConversation()
-    session.add(conversation)
-    await session.flush()
-    # Slot 0 is whoever opened it. The pair of slots is unique per conversation,
-    # so a third member is refused by the index rather than by a count somebody
-    # else could be reading at the same moment.
-    session.add(
-        DmConversationMember(conversation_id=conversation.id, user_id=actor_id, slot=0)
+    conversation, opened = await _open_conversation(
+        session, kind=DmConversationKind.direct, member_ids=members
     )
-    session.add(
-        DmConversationMember(conversation_id=conversation.id, user_id=other_id, slot=1)
-    )
+    if not opened:
+        # Somebody else's request got there first and wrote the roster with it.
+        return conversation
+    now = datetime.now(timezone.utc)
+    for member_id in members:
+        session.add(
+            DmConversationMember(
+                conversation_id=conversation.id,
+                user_id=member_id,
+                accepted_at=now,
+            )
+        )
     await session.flush()
     return conversation
 
@@ -506,28 +548,76 @@ async def list_conversations(
     ]
 
 
-async def _other_member(
+async def _other_members(
+    session: AsyncSession, *, conversation_id: uuid.UUID, user_id: int
+) -> list[int]:
+    """Everybody on the conversation except the caller, oldest membership first.
+
+    Accepted members only: somebody who has been asked and has not answered is
+    on no roster yet, and nothing is written for them.
+    """
+    return list(
+        (
+            await session.exec(
+                select(DmConversationMember.user_id)
+                .where(
+                    DmConversationMember.conversation_id == conversation_id,
+                    DmConversationMember.user_id != user_id,
+                    DmConversationMember.accepted_at.is_not(None),
+                )
+                .order_by(DmConversationMember.joined_at, DmConversationMember.user_id)
+            )
+        ).all()
+    )
+
+
+async def _sole_other_member(
     session: AsyncSession, *, conversation_id: uuid.UUID, user_id: int
 ) -> int:
-    other = (
-        await session.exec(
-            select(DmConversationMember.user_id).where(
-                DmConversationMember.conversation_id == conversation_id,
-                DmConversationMember.user_id != user_id,
-            )
-        )
-    ).first()
-    if other is None:
+    """The other party, where there is exactly one.
+
+    The send path still speaks to one recipient. A roster that is not a pair has
+    no single answer to give it, and picking one of several would deliver a
+    message to a fraction of the people it was addressed to, so it refuses.
+    """
+    others = await _other_members(
+        session, conversation_id=conversation_id, user_id=user_id
+    )
+    if len(others) != 1:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
-    return other
+    return others[0]
 
 
 async def leave_conversation(
     session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
 ) -> None:
+    """Take this account off a conversation.
+
+    **A conversation down to one member releases its roster name.** One person
+    left on it has nobody to send to, so the thread is over — and holding its
+    name would mean the two of them could never open a channel again, because
+    the name is what a new one would be filed under. Releasing it leaves them
+    free to start afresh, which is what leaving and asking again did before a
+    roster was an identity.
+
+    A roster with two or more still on it keeps its name. The thread is alive
+    for them and the name is how they find it.
+
+    Released before the membership row goes, because it is an act by somebody
+    who is still on the conversation.
+    """
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
+    remaining = await _other_members(
+        session, conversation_id=conversation_id, user_id=user_id
+    )
+    if len(remaining) < 2:
+        await session.exec(
+            update(DmConversation)
+            .where(DmConversation.id == conversation_id)
+            .values(roster_key=None)
+        )
     await session.exec(
         delete(DmConversationMember).where(
             DmConversationMember.conversation_id == conversation_id,
@@ -562,7 +652,7 @@ async def send(
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
-    other_id = await _other_member(
+    other_id = await _sole_other_member(
         session, conversation_id=conversation_id, user_id=user_id
     )
     if await _permission(session, other_id) != "open":

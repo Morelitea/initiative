@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
@@ -78,7 +79,7 @@ export const CommentThread = ({
   docTitles = new Map(),
   projectNames = new Map(),
 }: CommentThreadProps) => {
-  const { t } = useTranslation(["comments", "common"]);
+  const { t } = useTranslation(["comments", "common", "moderation"]);
   const relativeCreatedAt = useRelativeTime(comment.created_at);
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
@@ -173,6 +174,13 @@ export const CommentThread = ({
                       <span className="sr-only">{t("deleteComment")}</span>
                     </Button>
                   )}
+                  <ReportButton
+                    targetType="comment"
+                    targetId={comment.id}
+                    authorId={comment.created_by}
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                  />
                 </div>
               )}
             </div>

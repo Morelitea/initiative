@@ -189,6 +189,12 @@ class InitiativeMemberRead(_MemberToolFlags):
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
     is_manager: bool = False
+    #: Whether this member's role carries "Full access" — reaching every item
+    #: in the initiative however it is shared, and managing that sharing. Read
+    #: here rather than asked per initiative, because the sidebar needs it for
+    #: every one it draws. A guild admin clears it without holding it, so the
+    #: client folds that in the way it already does for ``is_manager``.
+    override_share_restrictions: bool = False
     joined_at: datetime
     oidc_managed: bool = False
 
@@ -357,6 +363,9 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 role_name=role_name,
                 role_display_name=role_ref.display_name if role_ref else None,
                 is_manager=role_ref.is_manager if role_ref else False,
+                override_share_restrictions=(
+                    role_ref.override_share_restrictions if role_ref else False
+                ),
                 joined_at=membership.joined_at,
                 oidc_managed=membership.oidc_provider_id is not None,
                 **member_tool_flags(initiative, membership),

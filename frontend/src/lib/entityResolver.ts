@@ -98,6 +98,9 @@ export const isEntityRefType = (value: string): value is EntityRefType => REF_TY
  * so a new tool is addressable here the day it is indexed. A calendar event is
  * the one that answers to a shorter name.
  */
+export const isSearchEntityType = (value: string): value is SearchEntityType =>
+  Object.hasOwn(SearchEntityType, value);
+
 export const entityRefTypeFor = (type: SearchEntityType): EntityRefType | null => {
   if (type === SearchEntityType.calendar_event) return "event";
   const kebab = type.replaceAll("_", "-");

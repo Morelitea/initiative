@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { ProfilePageSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -42,7 +43,7 @@ import { cn } from "@/lib/utils";
  * themselves rather than two that have to agree.
  */
 export const UserProfilePage = () => {
-  const { t } = useTranslation(["profiles", "common"]);
+  const { t } = useTranslation(["profiles", "common", "moderation"]);
   const { handle } = useParams({ strict: false }) as { handle: string };
   const { user } = useAuth();
 
@@ -118,6 +119,9 @@ export const UserProfilePage = () => {
                     discriminator: profile.discriminator,
                   }}
                 />
+                {/* A profile belongs to no community, so no community is sent
+                    with the report and it reaches whoever runs the deployment. */}
+                <ReportButton targetType="user_profile" targetId={profile.id} guildId={null} />
               </div>
             )}
           </div>

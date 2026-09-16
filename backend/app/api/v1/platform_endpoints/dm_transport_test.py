@@ -269,6 +269,119 @@ async def test_asking_twice_returns_the_same_channel(client, session, acting_use
     assert first.json()["id"] == second.json()["id"]
 
 
+class TestLeavingReleasesTheRoster:
+    """A conversation down to one member gives its roster name back, so the two
+    of them can open a channel again."""
+
+    async def _channel(self, client, session, a, b) -> str:
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        await _open_channel(session, a.user, b.user)
+        opened = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+        assert opened.status_code == 201, opened.text
+        return opened.json()["id"]
+
+    async def test_the_one_who_stayed_can_open_a_fresh_channel(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{first}", headers=b.headers
+        )
+        assert left.status_code == 204, left.text
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] != first
+        # And it is a real channel: both of them are on it.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        assert again.json()["id"] in {c["id"] for c in listed.json()["conversations"]}
+
+    async def test_the_one_who_left_can_open_a_fresh_channel(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        await client.delete(f"/api/v1/me/dm/conversations/{first}", headers=b.headers)
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": a.user.id},
+            headers=b.headers,
+        )
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] != first
+
+    async def test_opening_again_is_still_refused_where_they_cannot_be_reached(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        await client.delete(f"/api/v1/me/dm/conversations/{first}", headers=b.headers)
+        await _set_policy(session, b.user, DmPolicy.private)
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+
+        assert again.status_code == 409
+        assert again.json()["detail"] == "DM_NOT_REACHABLE"
+
+
+async def test_two_requests_for_one_pair_both_get_the_channel(
+    client, session, acting_user, monkeypatch
+):
+    """Losing the insert race means the thread exists, which is what was asked
+    for -- so it is read back rather than returned as a constraint error."""
+    from app.services.platform import dm_transport as service
+
+    a = await acting_user()
+    b = await acting_user()
+    await _set_policy(session, a.user, DmPolicy.public)
+    await _set_policy(session, b.user, DmPolicy.public)
+    await _open_channel(session, a.user, b.user)
+    first = await client.post(
+        "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
+    )
+    assert first.status_code == 201, first.text
+
+    # The second request looks before the first has committed, so it finds
+    # nothing and goes on to insert against a key that is already taken.
+    real = service._conversation_with_roster
+    looks = {"n": 0}
+
+    async def blind_first_look(*args, **kwargs):
+        looks["n"] += 1
+        if looks["n"] == 1:
+            return None
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(service, "_conversation_with_roster", blind_first_look)
+
+    second = await client.post(
+        "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
+    )
+
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == first.json()["id"]
+
+
 async def test_a_third_account_cannot_see_the_conversation(
     client, session, acting_user
 ):

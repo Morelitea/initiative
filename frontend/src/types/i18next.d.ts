@@ -25,6 +25,7 @@ import type intake from "../../public/locales/en/intake.json";
 import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
 import type messages from "../../public/locales/en/messages.json";
+import type moderation from "../../public/locales/en/moderation.json";
 import type myTools from "../../public/locales/en/myTools.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
@@ -72,6 +73,7 @@ declare module "i18next" {
       imports: typeof importsNs;
       initiatives: typeof initiatives;
       intake: typeof intake;
+      moderation: typeof moderation;
       landing: typeof landing;
       nav: typeof nav;
       notifications: typeof notifications;
