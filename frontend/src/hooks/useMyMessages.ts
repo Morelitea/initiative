@@ -17,7 +17,9 @@ import { useEffect, useRef } from "react";
 
 import {
   acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
+  checkRosterApiV1MeDmRosterCheckPost as checkRoster,
   createConversationApiV1MeDmConversationsPost as createConversation,
+  createGroupConversationApiV1MeDmConversationsGroupPost as createGroup,
   leaveConversationApiV1MeDmConversationsConversationIdDelete as leaveConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
   markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
@@ -422,4 +424,34 @@ export function useAnswerInvitation(conversationId: string) {
     onError: (error) => toast.error(getErrorMessage(error, "errors:DM_CONVERSATION_NOT_FOUND")),
   });
   return { accept, decline };
+}
+
+/**
+ * Whether these people could be a group, asked while somebody is still
+ * choosing them.
+ *
+ * The proposal enforces the same rule; this is the question, so the answer
+ * arrives when a name can still be dropped rather than as a refusal after the
+ * roster is submitted. Quiet below three, which is a pair and has its own way
+ * in.
+ */
+export function useRosterCheck(userIds: number[]) {
+  const roster = [...userIds].sort((a, b) => a - b);
+  return useQuery({
+    queryKey: ["dm", "roster-check", roster],
+    queryFn: () => checkRoster({ user_ids: roster }),
+    enabled: roster.length >= 2,
+    staleTime: 0,
+  });
+}
+
+/** Propose a roster. Everybody on it is asked; nobody is added. */
+export function useStartGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userIds: number[]) => createGroup({ user_ids: userIds }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+    },
+  });
 }

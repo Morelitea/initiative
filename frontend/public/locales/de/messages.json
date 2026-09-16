@@ -40,7 +40,13 @@
     "noCommunities": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
     "unreachable": "Nicht erreichbar",
     "showMore": "Mehr anzeigen",
-    "favorites": "Favoriten"
+    "favorites": "Favoriten",
+    "addToGroup": "{{name}} zu einer Gruppe hinzufügen",
+    "removeFromGroup": "{{name}} entfernen",
+    "groupHint": "Alle hier werden gefragt, bevor sie beitreten.",
+    "startGroup": "Gruppe mit {{count}} Personen starten",
+    "cannotReachEachOther": "{{first}} und {{second}} können sich noch nicht schreiben. In einer Gruppe müssen das alle können.",
+    "tooManyPeople": "Eine Gruppe fasst höchstens {{count}} Personen."
   },
   "receipt": {
     "sent": "Gesendet",

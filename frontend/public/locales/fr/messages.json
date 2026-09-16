@@ -40,7 +40,13 @@
     "noCommunities": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
     "unreachable": "Injoignable",
     "showMore": "Afficher plus",
-    "favorites": "Favoris"
+    "favorites": "Favoris",
+    "addToGroup": "Ajouter {{name}} à un groupe",
+    "removeFromGroup": "Retirer {{name}}",
+    "groupHint": "Tout le monde ici sera invité avant de rejoindre.",
+    "startGroup": "Créer un groupe avec {{count}} personnes",
+    "cannotReachEachOther": "{{first}} et {{second}} ne peuvent pas encore s’écrire. Dans un groupe, tout le monde doit le pouvoir.",
+    "tooManyPeople": "Un groupe contient au maximum {{count}} personnes."
   },
   "receipt": {
     "sent": "Envoyé",

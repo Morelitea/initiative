@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   more: vi.fn(),
   permissions: vi.fn(),
   requestConnection: vi.fn(),
+  rosterCheck: vi.fn(),
+  startGroup: vi.fn(),
 }));
 
 vi.mock("@/hooks/useContacts", () => ({
@@ -40,6 +42,12 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useDmPermissions: (ids: number[]) => mocks.permissions(ids),
   useRequestConnection: () => ({ mutate: mocks.requestConnection, isPending: false }),
+}));
+
+vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useRosterCheck: (ids: number[]) => mocks.rosterCheck(ids),
+  useStartGroup: () => ({ mutate: mocks.startGroup, isPending: false }),
 }));
 
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -89,6 +97,7 @@ beforeEach(() => {
   mocks.permissions.mockReturnValue({
     data: { permissions: { "1": { permission: "may_request", may_connect: true } } },
   });
+  mocks.rosterCheck.mockReturnValue({ data: undefined });
 });
 
 describe("NewConversationDialog", () => {
@@ -283,5 +292,100 @@ describe("NewConversationDialog", () => {
     await open();
 
     expect(await screen.findByText(/You share no communities/)).toBeVisible();
+  });
+});
+
+describe("gathering people into a group", () => {
+  const two = [person(1, "ada"), person(2, "bo")];
+  const reachable = {
+    data: {
+      permissions: {
+        "1": { permission: "open", may_connect: true },
+        "2": { permission: "open", may_connect: true },
+      },
+    },
+  };
+
+  it("adds without opening the person's own thread", async () => {
+    // Picking is still one click for the ordinary case, so gathering is its
+    // own control rather than the same gesture meaning two things.
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    await open();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+
+    expect(await screen.findByRole("button", { name: "Remove ada#1234" })).toBeInTheDocument();
+  });
+
+  it("asks whether the roster could be a group as it is built", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    await open();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add bo#1234 to a group" }));
+
+    await waitFor(() => expect(mocks.rosterCheck).toHaveBeenCalledWith([1, 2]));
+  });
+
+  it("names the pair who cannot reach each other, and refuses to propose", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    mocks.rosterCheck.mockReturnValue({
+      data: { unreachable_pair: [1, 2], max_members: 40, too_large: false },
+    });
+    await open();
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add bo#1234 to a group" }));
+
+    expect(await screen.findByText(/cannot message each other yet/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start a group/ })).toBeDisabled();
+    expect(mocks.startGroup).not.toHaveBeenCalled();
+  });
+
+  it("proposes the roster once it is reachable", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    mocks.rosterCheck.mockReturnValue({
+      data: { unreachable_pair: [], max_members: 40, too_large: false },
+    });
+    await open();
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add bo#1234 to a group" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: /Start a group/ }));
+
+    expect(mocks.startGroup).toHaveBeenCalledWith([1, 2], expect.anything());
+  });
+
+  it("will not gather somebody who cannot be reached", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue({
+      data: {
+        permissions: {
+          "1": { permission: "denied", may_connect: false },
+          "2": { permission: "open", may_connect: true },
+        },
+      },
+    });
+    await open();
+
+    expect(await screen.findByRole("button", { name: "Add ada#1234 to a group" })).toBeDisabled();
   });
 });
