@@ -10,6 +10,11 @@ without the session being threaded through them.
 Keyed by guild id so a context recorded for the request's active guild never
 bleeds into another guild's entities during cross-guild gathers. PAM requests
 deliberately leave this unset — grant semantics flow through ``pam_context``.
+
+These setters belong to the **establishment seam** and are not part of routing
+a session: they are scoped to the async task, so a background sweep or a
+secondary session opened mid-request must not call them. ``role_context_test``
+holds that line and lists the callers that are allowed to.
 """
 
 from __future__ import annotations

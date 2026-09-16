@@ -439,6 +439,16 @@ async def set_rls_context(
     Postgres as the same transaction-local ``set_config`` as everything else and
     is replayed per transaction. Every parameter is still written from this
     call's arguments, so nothing carries between requests on a pooled connection.
+
+    **This routes a session; it does not establish a request.** It writes GUCs
+    on the session handed to it and touches no task-scoped state, which is what
+    makes it safe to call on a *second* session while a request is being served
+    — ``published_views`` loading a row as its author, ``intake`` opening a case
+    in the operations guild. Recording the contextvars the sync DAC engine reads
+    is the establishment seam's job (``deps._apply_guild_session_context``, via
+    ``establish_guild_access``): that state belongs to the task, this call
+    belongs to one session, and the two scopes are kept apart. See
+    ``core/role_context_test.py``.
     """
     # Which of the request shapes these arguments form — and a refusal if they
     # form none of them. This is where the rules that used to be prose in this

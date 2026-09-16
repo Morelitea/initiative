@@ -81,6 +81,23 @@ class GuildScoped:
 
 
 @dataclass(frozen=True)
+class SystemGuild(GuildScoped):
+    """Guild-scoped work with **no person behind it**.
+
+    A background sweep, a poller, a lifecycle job. It is a ``GuildScoped``
+    context that names itself as unattended, because nothing else about the
+    call says so.
+
+    Three helpers route system work into a guild schema and they are not
+    interchangeable — this shape, :func:`app.db.session.set_system_guild_context`
+    and :func:`app.db.session.guild_schema_context`. Which one a job needs
+    depends on what it touches; each function's own docstring says what it
+    routes as. ``services/platform/users.py`` uses two of them a few lines
+    apart, for two operations on the same guild.
+    """
+
+
+@dataclass(frozen=True)
 class PamGrantee:
     """A time-bound grant into a guild the caller does not belong to.
 
@@ -104,7 +121,7 @@ class PamGrantee:
     query: bool = False
 
 
-RequestContext = Union[Unattributed, Platform, GuildScoped, PamGrantee]
+RequestContext = Union[Unattributed, Platform, GuildScoped, SystemGuild, PamGrantee]
 
 
 #: Keywords that describe how a guild is routed into, which a grant does not
@@ -186,7 +203,10 @@ def classify(**kwargs) -> RequestContext:
         )
 
     if _set(guild_id):
-        return GuildScoped(
+        # No user behind a routed guild context means nobody is asking: a
+        # sweep, a poller, a lifecycle job. Same context, named for what it is.
+        shape = SystemGuild if not _set(user_id) else GuildScoped
+        return shape(
             guild_id=int(guild_id),
             user_id=user_id,
             role=role,

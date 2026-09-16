@@ -114,6 +114,12 @@ async def lifespan(app: FastAPI):
     await reject_privileged_database_url()
     await check_pre_baseline_db()
     await run_migrations()
+    # The functions every guild policy defers to, from the module that owns
+    # them (app.db.authorization). Before the back-fill below, so a schema
+    # rendered in this same boot finds each one its policies name.
+    from app.db.authorization import ensure_authorization_functions
+
+    await ensure_authorization_functions()
     # Re-run the idempotent per-guild provisioning for every guild so any
     # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a

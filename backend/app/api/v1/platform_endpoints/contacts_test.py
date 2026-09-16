@@ -510,7 +510,7 @@ async def test_favorite_unknown_user(client: AsyncClient, session: AsyncSession)
     user = await create_user(session)
     response = await client.put(f"{FAVORITES}/98765432", headers=get_auth_headers(user))
     assert response.status_code == 404
-    assert response.json()["detail"] == "CONTACT_USER_NOT_FOUND"
+    assert response.json()["detail"] == "USER_NOT_FOUND"
 
 
 @pytest.mark.integration

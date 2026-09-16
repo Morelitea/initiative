@@ -16,6 +16,7 @@ from app.db.request_context import (
     GuildScoped,
     PamGrantee,
     Platform,
+    SystemGuild,
     Unattributed,
     classify,
 )
@@ -176,3 +177,32 @@ def test_every_call_in_the_tree_forms_a_shape():
         except ContextShapeError as exc:
             broken.append(f"{path}:{line} — {exc}")
     assert not broken, "context that is not a request:\n" + "\n".join(broken)
+
+
+def test_a_routed_guild_with_nobody_behind_it_is_system_work():
+    """The shape says what the database cannot: that nobody is asking.
+
+    A sweep and a guild owner both arrive as ``current_guild_role = 'admin'``,
+    so the context is the only place the difference can be stated.
+    """
+    shape = classify(guild_id=7, guild_role="admin")
+    assert isinstance(shape, SystemGuild)
+    assert shape.guild_id == 7
+    assert shape.user_id is None
+
+
+def test_a_person_in_a_guild_is_not_system_work():
+    shape = classify(guild_id=7, user_id=3, guild_role="admin")
+    assert isinstance(shape, GuildScoped)
+    assert not isinstance(shape, SystemGuild)
+
+
+def test_system_work_is_still_a_guild_context():
+    """``SystemGuild`` narrows ``GuildScoped`` rather than replacing it.
+
+    Everything that already asks "is this routed into a guild?" keeps its
+    answer; naming the unattended case adds a distinction without removing one.
+    """
+    shape = classify(guild_id=7, guild_role="admin")
+    assert isinstance(shape, GuildScoped)
+    assert shape.role == "admin"

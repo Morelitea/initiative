@@ -202,9 +202,7 @@ async def backfill_mandatory_apps() -> BackfillResult:
                 # own. Detach everything between guilds; nothing is carried
                 # across a boundary on purpose.
                 session.expunge_all()
-                await db_session.set_rls_context(
-                    session, guild_id=guild_id, guild_role="admin"
-                )
+                await db_session.set_rls_context(session, guild_id=guild_id)
                 added = await install_mandatory_apps(session, guild_id=guild_id)
                 await session.commit()
                 installed += len(added)
