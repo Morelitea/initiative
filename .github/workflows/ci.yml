@@ -79,6 +79,23 @@ jobs:
             exit 0
           fi
 
+          # A push to an integration branch runs the whole suite, whatever it
+          # touched. Scope selection is a pull-request affordance: it answers
+          # "did THIS change break something", quickly. The branch everyone
+          # cuts from has to answer a different question — "is this branch
+          # sound" — and no per-commit scope can, because two merges that each
+          # passed their own narrow scope can combine into a break that neither
+          # ran the test for. That is not hypothetical: `dev` sat red for three
+          # member-search tests while every run on it reported success, one
+          # having printed "No backend changes — skipping".
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "alembic_changed=true" >> $GITHUB_OUTPUT
+            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
+            echo "Push to an integration branch — running the full backend job"
+            exit 0
+          fi
+
           CHANGED=$($DIFF -- backend/ || true)
 
           if [[ -z "$CHANGED" ]]; then
@@ -116,7 +133,13 @@ jobs:
           fi
 
           # Check if shared infra changed (requires full test run)
-          if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
+          # `app/services/` is in this list because a service is imported by
+          # routers in other directories, and directory-scoped selection
+          # assumes a caller lives beside what it calls. It does not: changing
+          # a helper's signature in app/services/platform/ ran that directory's
+          # tests and not app/api/v1/platform_endpoints/, where the caller that
+          # broke lives. The job was green and the endpoint raised TypeError.
+          if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|app/services/|conftest\.py)'; then
             echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
             echo "Shared infrastructure changed — running all tests"
           else
