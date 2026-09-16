@@ -1,0 +1,27 @@
+# This repository is public, so a comment on a pull request here is readable by
+# anyone. The policy is that such a pull request carries an identifier and
+# nothing else. Most comments are not written by us -- an automated reviewer
+# posts its findings in full, and does so again on every push -- so the rule is
+# applied here rather than remembered.
+#
+# The logic lives in Morelitea/.github so the three public repositories cannot
+# drift apart on what counts as a weakness.
+name: Mask public security detail
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  mask:
+    # Only comments on pull requests. An ordinary issue is not the surface this
+    # policy is about, and `issue_comment` fires for both.
+    if: ${{ github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request }}
+    uses: Morelitea/.github/.github/workflows/mask-public-security-detail.yml@main
