@@ -156,14 +156,15 @@ export const CreateInitiativeWizard = ({
     );
   }, []);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!trimmedName) {
       toast.error(t("createDialog.nameRequired"));
       setStep("details");
       return;
     }
-    createInitiative.mutate(
-      {
+    let created: InitiativeRead;
+    try {
+      created = await createInitiative.mutateAsync({
         name: trimmedName,
         description: description.trim() || undefined,
         color,
@@ -173,25 +174,29 @@ export const CreateInitiativeWizard = ({
         ...(Object.fromEntries(
           TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), Boolean(selected[tool])])
         ) as Partial<InitiativeCreate>),
-      },
-      {
-        onSuccess: (created) => {
-          // The initiative exists and is correct; the grant only widens who can
-          // see it. A failure there must not read as "creating failed", so it
-          // reports itself and the wizard still closes on a real initiative.
-          grantToMembers.mutate(
-            { initiativeId: created.id, tools: chosenTools, audience },
-            {
-              onError: () => toast.error(t("createWizard.memberGrantFailed")),
-              onSettled: () => {
-                onOpenChange(false);
-                onCreated?.(created);
-              },
-            }
-          );
-        },
-      }
-    );
+      });
+    } catch {
+      // The create hook reports its own failure; there is nothing to configure.
+      return;
+    }
+    // Awaited, not run from the create's success callback. A callback belongs
+    // to this dialog being mounted, so closing the wizard — or navigating away
+    // — while the create was still in flight used to drop the permissions
+    // silently: the initiative arrived with a calendar its members could not
+    // see, and nothing said so.
+    try {
+      await grantToMembers.mutateAsync({
+        initiativeId: created.id,
+        tools: chosenTools,
+        audience,
+      });
+    } catch {
+      // The initiative exists and is correct; only the widening failed, and
+      // saying "could not create" about it would be false.
+      toast.error(t("createWizard.memberGrantFailed"));
+    }
+    onOpenChange(false);
+    onCreated?.(created);
   }, [
     trimmedName,
     description,

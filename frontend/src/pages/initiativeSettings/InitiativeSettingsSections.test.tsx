@@ -155,6 +155,34 @@ describe("initiative settings sections", () => {
     expect(screen.queryByText("Full access")).not.toBeInTheDocument();
   });
 
+  it("keeps Delete on a custom manager role", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({
+            name: "producer",
+            display_name: "Producer",
+            is_builtin: false,
+            is_manager: true,
+            member_count: 0,
+          }),
+        ])
+      )
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    // It gets the manager summary like the built-in ones, but it is still a
+    // role somebody made and can unmake — only the built-ins are permanent, so
+    // its card carries rename AND delete, not rename alone.
+    const card = (await screen.findByText("Producer")).closest("div.rounded-xl");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getAllByRole("button")).toHaveLength(2);
+  });
+
   it("grants view along with create, and takes create away with view", async () => {
     const patches: Record<string, unknown>[] = [];
     server.use(

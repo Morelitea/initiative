@@ -215,7 +215,7 @@ export const ToolsSection = ({
     // Sized to the space it is in, not to the viewport: this grid renders
     // both inside a dialog and across a full settings page, and a viewport
     // breakpoint would give the narrow one three columns on a wide screen.
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(13rem,100%),1fr))] gap-3">
       {SIDEBAR_TOOLS.map((tool) => {
         const camel = toolCamelPlural(tool);
         // Unset means the tool's own default, not off — projects and documents

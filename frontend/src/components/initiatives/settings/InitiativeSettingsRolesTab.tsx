@@ -91,9 +91,9 @@ const ToolPermissionRow = ({
   const disabled = !canManageMembers || isPending;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="flex-1 font-medium text-sm">
+      <span className="min-w-0 flex-1 font-medium text-sm">
         {t(`settings.permissionGroups.${toolCamelPlural(tool)}` as never)}
       </span>
       <div className="flex items-center gap-4">
@@ -130,6 +130,8 @@ const ManagerRoleCard = ({
   canManageMembers,
   isPending,
   onRenameRole,
+  onDeleteRole,
+  isDeleting,
   t,
 }: {
   role: InitiativeRoleRead;
@@ -137,6 +139,10 @@ const ManagerRoleCard = ({
   canManageMembers: boolean;
   isPending: boolean;
   onRenameRole: (role: InitiativeRoleRead) => void;
+  /** A custom manager role is still somebody's to delete — only the built-in
+   *  ones are permanent, and only while nobody holds them. */
+  onDeleteRole: (role: InitiativeRoleRead) => void;
+  isDeleting: boolean;
   t: (key: never, opts?: Record<string, unknown>) => string;
 }) => (
   <Card>
@@ -163,9 +169,21 @@ const ManagerRoleCard = ({
         </Badge>
       </div>
       {canManageMembers && (
-        <Button variant="ghost" size="sm" onClick={() => onRenameRole(role)} disabled={isPending}>
-          <Pencil className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => onRenameRole(role)} disabled={isPending}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          {!role.is_builtin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeleteRole(role)}
+              disabled={isDeleting || role.member_count > 0}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
+        </div>
       )}
     </CardHeader>
     <CardContent>
@@ -238,7 +256,7 @@ export const InitiativeSettingsRolesTab = ({
           {/* The roles there is nothing to configure, stated once and together
               rather than one full-width card over a grid of a different kind. */}
           {managerRoles.length > 0 && (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] gap-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))] gap-4">
               {managerRoles.map((role) => (
                 <ManagerRoleCard
                   key={role.id}
@@ -251,13 +269,15 @@ export const InitiativeSettingsRolesTab = ({
                   canManageMembers={canManageMembers}
                   isPending={updateRoleMutation.isPending}
                   onRenameRole={onRenameRole}
+                  onDeleteRole={onDeleteRole}
+                  isDeleting={deleteRoleMutation.isPending}
                   t={translate}
                 />
               ))}
             </div>
           )}
 
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(22rem,100%),1fr))] gap-4">
             {configurableRoles.map((role) => (
               <Card key={role.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
