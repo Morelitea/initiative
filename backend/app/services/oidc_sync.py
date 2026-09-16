@@ -354,6 +354,7 @@ async def sync_oidc_assignments(
             select(GuildMembership.guild_id).where(
                 GuildMembership.user_id == user_id,
                 GuildMembership.oidc_provider_id == provider_id,
+                GuildMembership.role != GuildRole.security_admin,
             )
         )
     ).all()
