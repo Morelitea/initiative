@@ -439,8 +439,13 @@ async def set_rls_context(
     is replayed per transaction. Every parameter is still written from this
     call's arguments, so nothing carries between requests on a pooled connection.
     """
-    _VALID_ROLES = {"admin", "member"}
-    if guild_role is not None and guild_role not in _VALID_ROLES:
+    # What the GUC may carry, read from the model rather than restated. A
+    # stored role reaches here through ``content_role``, which is what keeps
+    # this to two values. Imported here, beside the tier list below, to keep
+    # this module's import graph as it is.
+    from app.models.platform.guild import CONTENT_ROLES
+
+    if guild_role is not None and guild_role not in CONTENT_ROLES:
         raise ValueError(f"Invalid guild_role: {guild_role!r}")
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED

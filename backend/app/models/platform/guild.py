@@ -294,6 +294,13 @@ GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
 )
 
 
+#: Roles that exist as ``guild_memberships`` rows. ``support`` is synthesized
+#: for the length of a PAM request and never stored, so it is the one value
+#: that is not here — derived rather than listed, so a role added to the enum
+#: is a stored role unless it is deliberately excluded.
+GUILD_STORED_ROLES: frozenset[GuildRole] = frozenset(GuildRole) - {GuildRole.support}
+
+
 def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
@@ -320,6 +327,14 @@ def content_role(role: GuildRole) -> str:
     is actually needed.
     """
     return GuildRole.admin.value if role in GUILD_ADMIN_ROLES else role.value
+
+
+#: Every value ``app.current_guild_role`` can carry, derived by putting each
+#: stored role through :func:`content_role`. There are two, and the context
+#: seam validates against this rather than restating the pair.
+CONTENT_ROLES: frozenset[str] = frozenset(
+    content_role(role) for role in GUILD_STORED_ROLES
+)
 
 
 class GuildMembership(SQLModel, table=True):
