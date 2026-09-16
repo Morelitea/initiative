@@ -935,10 +935,6 @@ export const SpreadsheetToolbar = ({
       moreLabel={t("documents:spreadsheet.format.title")}
       // Undo and redo are the one pair nobody should have to open a menu for.
       leading={historyControls}
-      // The sheet puts focus back on the cell input or the grid after an
-      // action; the menu must not yank it to its own trigger on the way out,
-      // or typing and pasting stop reaching the grid.
-      keepsFocusBelow
       className="w-full"
     />
   );

@@ -191,6 +191,41 @@ describe("a control that changes size in place", () => {
   });
 });
 
+describe("focus around the overflow menu", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("hands focus back to whatever was being worked on", async () => {
+    stubLayout(10);
+    render(
+      <>
+        <textarea aria-label="The grid" />
+        <OverflowToolbar
+          label="Test toolbar"
+          moreLabel="More"
+          items={[
+            {
+              id: "clear",
+              node: <button type="button">Clear</button>,
+              menu: <OverflowMenuItem>Clear</OverflowMenuItem>,
+            },
+          ]}
+        />
+      </>
+    );
+
+    const grid = screen.getByRole("textbox", { name: "The grid" });
+    grid.focus();
+
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Clear" }));
+
+    // Not the `…` button: typing has to keep reaching the surface below.
+    await waitFor(() => expect(grid).toHaveFocus());
+  });
+});
+
 describe("the overflow menu's branches", () => {
   afterEach(() => {
     vi.restoreAllMocks();

@@ -240,12 +240,6 @@ interface OverflowToolbarProps extends Omit<ComponentProps<"div">, "children"> {
   rowClassName?: string;
   /** Applied to the overflow menu. */
   panelClassName?: string;
-  /**
-   * Leave focus where it is when the menu closes, instead of Radix returning
-   * it to the `…` button — for a surface that places focus itself, as the
-   * spreadsheet does when it hands the caret back to a cell or the grid.
-   */
-  keepsFocusBelow?: boolean;
 }
 
 /**
@@ -266,10 +260,13 @@ export const OverflowToolbar = ({
   className,
   rowClassName,
   panelClassName,
-  keepsFocusBelow = false,
   ...rest
 }: OverflowToolbarProps) => {
   const [openBranch, setOpenBranch] = useState<string | null>(null);
+  // Who was working when the menu opened — the grid, a cell input, the body of
+  // a document. A menu takes focus while it is open, and Radix hands it to the
+  // `…` button on the way out; the surface below is where it belongs.
+  const focusedBeforeOpen = useRef<HTMLElement | null>(null);
   const rowItems = items.filter((item) => !item.menuOnly);
   const { rowRef, fits } = useRowCapacity(rowItems.map((item) => item.id));
   const panelItems = [...rowItems.slice(fits), ...items.filter((item) => item.menuOnly)];
@@ -303,8 +300,14 @@ export const OverflowToolbar = ({
       <span hidden={panelItems.length === 0} className="flex shrink-0 items-center">
         <DropdownMenu
           onOpenChange={(isOpen) => {
+            if (isOpen) {
+              const active = document.activeElement;
+              focusedBeforeOpen.current =
+                active instanceof HTMLElement && active !== document.body ? active : null;
+              return;
+            }
             // A menu opened again starts at the top, not wherever it was left.
-            if (!isOpen) setOpenBranch(null);
+            setOpenBranch(null);
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -329,7 +332,13 @@ export const OverflowToolbar = ({
           <DropdownMenuContent
             align="end"
             collisionPadding={8}
-            onCloseAutoFocus={keepsFocusBelow ? (event) => event.preventDefault() : undefined}
+            onCloseAutoFocus={(event) => {
+              // Nothing to go back to: let Radix put focus on the trigger.
+              const previous = focusedBeforeOpen.current;
+              if (!previous?.isConnected) return;
+              event.preventDefault();
+              previous.focus({ preventScroll: true });
+            }}
             className={cn(
               "max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) overflow-y-auto",
               openBranch === null ? "w-56" : "w-auto",
