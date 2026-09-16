@@ -44,17 +44,21 @@ depends_on = None
 
 READER = "app_dm_reader"
 
+#: Takes the conversations rather than one, because the list asks about all of
+#: them at once and a query each is a round trip each on a list nothing bounds.
+#: The guard is still per conversation, so one the caller is not named on
+#: contributes nothing rather than spoiling the answer.
 _ROSTER_HANDLES = """
-CREATE OR REPLACE FUNCTION public.dm_roster_handles(conversation uuid)
+CREATE OR REPLACE FUNCTION public.dm_roster_handles(conversations uuid[])
 RETURNS TABLE (member_id int, username text, discriminator int)
 LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $fn$
-  SELECT u.id, u.username, u.discriminator::int
+  SELECT DISTINCT u.id, u.username, u.discriminator::int
     FROM public.dm_conversation_members m
     JOIN public.users u ON u.id = m.user_id
-   WHERE m.conversation_id = conversation
-     AND public.dm_on_roster(conversation)
+   WHERE m.conversation_id = ANY(conversations)
+     AND public.dm_on_roster(m.conversation_id)
 $fn$
 """
 
@@ -66,17 +70,19 @@ def upgrade() -> None:
     )
     op.execute(f'GRANT CREATE ON SCHEMA public TO "{READER}"')
     op.execute(_ROSTER_HANDLES)
-    op.execute(f'ALTER FUNCTION public.dm_roster_handles(uuid) OWNER TO "{READER}"')
-    op.execute("REVOKE ALL ON FUNCTION public.dm_roster_handles(uuid) FROM PUBLIC")
+    op.execute('ALTER FUNCTION public.dm_roster_handles(uuid[]) OWNER TO "%s"' % READER)
+    op.execute("REVOKE ALL ON FUNCTION public.dm_roster_handles(uuid[]) FROM PUBLIC")
     op.execute(f'REVOKE CREATE ON SCHEMA public FROM "{READER}"')
-    op.execute(f'GRANT EXECUTE ON FUNCTION public.dm_roster_handles(uuid) TO "{base}"')
+    op.execute(
+        f'GRANT EXECUTE ON FUNCTION public.dm_roster_handles(uuid[]) TO "{base}"'
+    )
     # The guard runs as the reader, because that is who the function runs as.
     op.execute(f'GRANT EXECUTE ON FUNCTION public.dm_on_roster(uuid) TO "{READER}"')
 
 
 def downgrade() -> None:
     op.execute(f'REVOKE EXECUTE ON FUNCTION public.dm_on_roster(uuid) FROM "{READER}"')
-    op.execute("DROP FUNCTION IF EXISTS public.dm_roster_handles(uuid)")
+    op.execute("DROP FUNCTION IF EXISTS public.dm_roster_handles(uuid[])")
     op.execute(
         f'REVOKE SELECT (username, discriminator) ON TABLE public.users FROM "{READER}"'
     )
