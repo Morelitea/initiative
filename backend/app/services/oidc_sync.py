@@ -182,9 +182,9 @@ async def sync_oidc_assignments(
         if membership:
             # Only a row this provider manages. One somebody joined by
             # hand, or another provider's, is not this sync's to move — and
-            # neither is a security admin, which only an operator grants and
-            # only an operator takes away. A claim rule that happened to name
-            # that person would otherwise quietly hand the seat back.
+            # neither is a security admin: that seat is passed on by an
+            # operator or by somebody already holding it, never by a rule
+            # matching a claim value.
             if (
                 desired is not None
                 and membership.oidc_provider_id == provider_id

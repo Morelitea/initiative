@@ -14,6 +14,7 @@ from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     GUILD_ASSIGNABLE_ROLES,
     GuildRole,
+    assignable_roles,
     content_role,
 )
 from app.services import rls as rls_service
@@ -52,9 +53,21 @@ def test_the_context_helper_accepts_either_stored_role():
     assert not is_request_guild_admin(1, guild_role=GuildRole.member)
 
 
-def test_a_guild_cannot_hand_out_the_seat_itself():
-    """Not assignable from inside: an admin who could grant it would be
-    granting themselves the keys, which is what the separation is for."""
-    assert GuildRole.security_admin not in GUILD_ASSIGNABLE_ROLES
-    assert GuildRole.support not in GUILD_ASSIGNABLE_ROLES
-    assert GUILD_ASSIGNABLE_ROLES == {GuildRole.admin, GuildRole.member}
+def test_an_ordinary_admin_cannot_hand_out_the_seat():
+    """The separation: administering a community is not deciding who enters."""
+    assert GuildRole.security_admin not in assignable_roles(GuildRole.admin)
+    assert assignable_roles(GuildRole.admin) == GUILD_ASSIGNABLE_ROLES
+
+
+def test_the_seat_is_passed_on_by_whoever_holds_it():
+    """An operator seats the first one; after that the guild can carry on
+    without going back to the platform for every change."""
+    allowed = assignable_roles(GuildRole.security_admin)
+    assert GuildRole.security_admin in allowed
+    assert {GuildRole.admin, GuildRole.member} <= allowed
+
+
+def test_support_is_never_assignable_by_anybody():
+    """A synthesized PAM identity, not a stored membership role."""
+    for by in (GuildRole.admin, GuildRole.security_admin, GuildRole.member):
+        assert GuildRole.support not in assignable_roles(by)

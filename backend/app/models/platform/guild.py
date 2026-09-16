@@ -266,9 +266,9 @@ class GuildRole(str, Enum):
     # it. Separated because running a community and holding the keys to who may
     # enter it are different jobs, and most guilds have nobody in this seat.
     #
-    # Only an operator assigns it. Keeping the grant outside the guild is what
-    # makes the separation hold: the hand that administers a community is not
-    # the hand that decides who may enter it.
+    # An operator seats the first one; from then on a security admin may seat
+    # another. An ordinary guild admin can do neither — the hand that
+    # administers a community is not the hand that decides who may enter it.
     security_admin = "security_admin"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
@@ -287,11 +287,24 @@ GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
     {GuildRole.admin, GuildRole.security_admin}
 )
 
-#: Roles a guild's own admins may hand out. ``security_admin`` is absent by
-#: design; ``support`` is never persisted at all.
+#: What an ordinary guild admin may hand out. ``support`` is never persisted at
+#: all, and ``security_admin`` is passed on only by somebody already holding it.
 GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
     {GuildRole.admin, GuildRole.member}
 )
+
+
+def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
+    """Which roles ``by`` may set on somebody else inside the guild.
+
+    A security admin passes the seat on; an ordinary admin cannot, and cannot
+    take it away either. The *first* one in a guild is seated by an operator
+    from platform settings — that is the only part of this a guild cannot do
+    for itself.
+    """
+    if by == GuildRole.security_admin:
+        return GUILD_ASSIGNABLE_ROLES | {GuildRole.security_admin}
+    return GUILD_ASSIGNABLE_ROLES
 
 
 def content_role(role: GuildRole) -> str:

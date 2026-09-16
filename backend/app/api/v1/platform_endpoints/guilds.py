@@ -37,7 +37,7 @@ from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import (
-    GUILD_ASSIGNABLE_ROLES,
+    assignable_roles,
     Guild,
     GuildCategory,
     GuildMembership,
@@ -1264,7 +1264,7 @@ async def update_guild_membership(
     # Runs on the system engine (AdminSessionDep): the guild role holds no UPDATE
     # on guild_memberships, so a role change happens only here, after the
     # guild-admin check — never under a request-path role. See migration 0145.
-    await _ensure_guild_admin(
+    caller = await _ensure_guild_admin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
@@ -1276,13 +1276,20 @@ async def update_guild_membership(
             detail=GuildMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
-    # What a guild's own admins may hand out. 'support' is a synthesized PAM
-    # identity and never a stored membership role; 'security_admin' is an
-    # operator's to grant, because an admin who could grant it would be granting
-    # themselves the keys to who may enter the guild.
-    if payload.role not in GUILD_ASSIGNABLE_ROLES:
+    # 'support' is a synthesized PAM identity, never a stored membership role.
+    if payload.role == GuildRole.support:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+
+    # The seat is passed on by whoever holds it, and by nobody below it. An
+    # operator seats the first one — that is the only part a guild cannot do
+    # for itself — and from then on a security admin may seat another. An
+    # ordinary admin may do neither, which is the separation.
+    if payload.role not in assignable_roles(caller.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
@@ -1295,11 +1302,13 @@ async def update_guild_membership(
             detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
         )
 
-    # A security admin is not demoted from inside the guild either — the same
-    # hand that may not grant it may not take it away. Asked of the *locked*
-    # row: an operator granting it between an unlocked read and this one would
+    # And taking the seat away is the same authority as giving it. Asked of the
+    # *locked* row: a grant landing between an unlocked read and this one would
     # otherwise be overwritten by whatever this request was already carrying.
-    if target_membership.role == GuildRole.security_admin:
+    if (
+        target_membership.role == GuildRole.security_admin
+        and caller.role != GuildRole.security_admin
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
