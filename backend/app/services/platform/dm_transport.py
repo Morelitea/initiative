@@ -1116,21 +1116,3 @@ async def acknowledge(
     )
     await session.flush()
     return result.rowcount or 0
-
-
-async def unread_counts(session: AsyncSession, *, user_id: int) -> dict[uuid.UUID, int]:
-    """How much is waiting, per conversation, across all the caller's devices.
-
-    This counts *uncollected* rows, which is a fact about syncing rather than
-    about reading. The badge people see is built on the notification rollup
-    instead; this is what a client uses to know there is something to fetch.
-    """
-    device_ids = select(DmDevice.id).where(DmDevice.user_id == user_id)
-    rows = (
-        await session.exec(
-            select(DmQueueItem.conversation_id, func.count())
-            .where(DmQueueItem.recipient_device_id.in_(device_ids))
-            .group_by(DmQueueItem.conversation_id)
-        )
-    ).all()
-    return {conversation_id: count for conversation_id, count in rows}

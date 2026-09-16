@@ -61,6 +61,55 @@ class Tool(str, Enum):
         """``InitiativeMemberRead`` computed create flag for this tool."""
         return f"can_create_{self.plural}"
 
+    @property
+    def code_prefix(self) -> str:
+        """The SCREAMING_SNAKE stem every error code for this tool derives from
+        (``counter_group`` -> ``COUNTER_GROUP``)."""
+        return self.value.upper()
+
+    @property
+    def not_found_code(self) -> str:
+        """``detail`` code for "no such <tool>"."""
+        return f"{self.code_prefix}_NOT_FOUND"
+
+    @property
+    def no_access_code(self) -> str:
+        """``detail`` code for "this <tool> is not shared with you"."""
+        return f"{self.code_prefix}_NO_ACCESS"
+
+    @property
+    def owner_required_code(self) -> str:
+        """``detail`` code for "only the <tool>'s owner may do that"."""
+        return f"{self.code_prefix}_OWNER_REQUIRED"
+
+    @property
+    def write_required_code(self) -> str:
+        """``detail`` code for "you may read this <tool> but not change it"."""
+        return f"{self.code_prefix}_WRITE_ACCESS_REQUIRED"
+
+    @property
+    def create_permission_code(self) -> str:
+        """``detail`` code for "your initiative role may not create <tool>s"."""
+        return f"{self.code_prefix}_CREATE_PERMISSION_REQUIRED"
+
+    @property
+    def role_permission_code(self) -> str:
+        """``detail`` code for "your initiative role does not permit this on
+        <tool>s" — gate 3, which is a different refusal from not having been
+        shared the row (:attr:`no_access_code`, gate 4)."""
+        return f"{self.code_prefix}_PERMISSION_REQUIRED"
+
+    @property
+    def feature_disabled_code(self) -> str:
+        """``detail`` code for "this initiative has <tool>s switched off"."""
+        return f"{self.plural.upper()}_NOT_ENABLED"
+
+    @property
+    def grant_cannot_manage_members_code(self) -> str:
+        """``detail`` code for "a PAM grant reaches this <tool>'s content, not
+        who may see it"."""
+        return f"{self.code_prefix}_GRANT_CANNOT_MANAGE_MEMBERS"
+
 
 # EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
 # the initiative. Projects and documents used to be exempt — always on, with no

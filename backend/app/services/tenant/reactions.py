@@ -151,7 +151,6 @@ async def _resolve_post(
     can read a comment thread can react in it. So the requested ``access`` is
     not passed through — the resource gate is asked for read either way.
     """
-    from app.core.messages import PostMessages
     from app.services import notifications
     from app.services import permissions as permissions_service
     from app.services.tenant import posts as posts_service
@@ -177,7 +176,7 @@ async def _resolve_post(
             access="read",
         )
     except Exception as exc:  # the DAC engine raises its own HTTP error type
-        raise ReactionPermissionError(PostMessages.PERMISSION_REQUIRED) from exc
+        raise ReactionPermissionError(Tool.post.no_access_code) from exc
 
     return TargetContext(
         target=ReactionTarget.post,

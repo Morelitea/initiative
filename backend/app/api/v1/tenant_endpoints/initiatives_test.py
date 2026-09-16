@@ -842,7 +842,7 @@ async def test_add_user_not_in_guild_fails(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
 
 
 @pytest.mark.integration

@@ -180,8 +180,6 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
             await set_rls_context(session, guild_id=guild_id, guild_role="admin")
             kind, resource_id = target(grant)
             cfg = resource_access.RESOURCE_ACCESS[kind]
-            if cfg.loader is None:
-                return False
             row = await cfg.loader(session, resource_id)
             if row is None:
                 return False

@@ -281,7 +281,7 @@ async def _refetch_queue(
     if not queue:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.NOT_FOUND,
+            detail=Tool.queue.not_found_code,
         )
     return queue
 
@@ -495,7 +495,7 @@ async def create_queue(
     if not initiative.queues_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.FEATURE_DISABLED,
+            detail=Tool.queue.feature_disabled_code,
         )
     await resource_access.require_create(
         session, Tool.queue, initiative, current_user, guild_context

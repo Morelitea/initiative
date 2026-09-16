@@ -26,13 +26,8 @@ from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import (
-    CalendarMessages,
     CommentMessages,
-    CounterMessages,
-    DashboardMessages,
-    GalleryMessages,
-    PostMessages,
-    QueueMessages,
+    TaskMessages,
 )
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
@@ -103,44 +98,42 @@ TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
     Tool.project: CommentTarget(
         Tool.project, Project, CommentMessages.TARGET_NOT_FOUND
     ),
-    Tool.document: CommentTarget(
-        Tool.document, Document, CommentMessages.DOCUMENT_NOT_FOUND
-    ),
+    Tool.document: CommentTarget(Tool.document, Document, Tool.document.not_found_code),
     Tool.queue: CommentTarget(
         Tool.queue,
         Queue,
         CommentMessages.TARGET_NOT_FOUND,
-        QueueMessages.FEATURE_DISABLED,
+        Tool.queue.feature_disabled_code,
     ),
     Tool.counter_group: CommentTarget(
         Tool.counter_group,
         CounterGroup,
         CommentMessages.TARGET_NOT_FOUND,
-        CounterMessages.FEATURE_DISABLED,
+        Tool.counter_group.feature_disabled_code,
     ),
     Tool.calendar: CommentTarget(
         Tool.calendar,
         Calendar,
         CommentMessages.TARGET_NOT_FOUND,
-        CalendarMessages.FEATURE_DISABLED,
+        Tool.calendar.feature_disabled_code,
     ),
     Tool.dashboard: CommentTarget(
         Tool.dashboard,
         Dashboard,
         CommentMessages.TARGET_NOT_FOUND,
-        DashboardMessages.FEATURE_DISABLED,
+        Tool.dashboard.feature_disabled_code,
     ),
     Tool.post: CommentTarget(
         Tool.post,
         Post,
         CommentMessages.TARGET_NOT_FOUND,
-        PostMessages.FEATURE_DISABLED,
+        Tool.post.feature_disabled_code,
     ),
     Tool.gallery: CommentTarget(
         Tool.gallery,
         Gallery,
         CommentMessages.TARGET_NOT_FOUND,
-        GalleryMessages.FEATURE_DISABLED,
+        Tool.gallery.feature_disabled_code,
     ),
 }
 
@@ -214,11 +207,6 @@ def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
     if len(provided) != 1:
         raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
     return provided[0]
-
-
-def comment_target(comment: Comment) -> tuple[str, int]:
-    """Which parent column a comment hangs off, and that parent's id."""
-    return _comment_target(comment)
 
 
 def _comment_target(comment: Comment) -> tuple[str, int]:
@@ -449,7 +437,7 @@ async def _get_comment(
 
 def _parent_not_found(column: str) -> str:
     if column == "task_id":
-        return CommentMessages.TASK_NOT_FOUND
+        return TaskMessages.NOT_FOUND
     return _TARGETS_BY_COLUMN[column].not_found
 
 
@@ -552,39 +540,6 @@ async def get_comment(
         session, comment_id=comment_id, user=user, guild_id=guild_id, access="read"
     )
     return comment
-
-
-async def initiative_of_comment(
-    session: AsyncSession, comment: Comment
-) -> Optional[int]:
-    """Which initiative a comment's parent lives in, or None.
-
-    Resolved through whichever parent the comment hangs off — the task's
-    project, or the tool entity itself. A parent that names no initiative (a
-    guild-level calendar) yields None, and so does a parent the routed session
-    cannot see. Both callers of this — the comment events and the reaction
-    events — must land in the SAME room for the same comment, which is why
-    there is one lookup rather than two.
-    """
-    if comment.task_id is not None:
-        row = (
-            await session.exec(
-                select(Project.initiative_id)
-                .join(Task, Task.project_id == Project.id)
-                .where(Task.id == comment.task_id)
-            )
-        ).one_or_none()
-        return row
-    for target in TOOL_COMMENT_TARGETS.values():
-        value = getattr(comment, target.column)
-        if value is None:
-            continue
-        return (
-            await session.exec(
-                select(target.model.initiative_id).where(target.model.id == value)
-            )
-        ).one_or_none()
-    return None
 
 
 def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:

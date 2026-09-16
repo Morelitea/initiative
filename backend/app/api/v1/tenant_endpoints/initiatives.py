@@ -18,6 +18,7 @@ from app.core.messages import (
     AuthMessages,
     GuildMessages,
     InitiativeMessages,
+    UserMessages,
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.models.tenant.document import Document
@@ -1361,7 +1362,7 @@ async def add_initiative_member(
     if not guild_membership:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=InitiativeMessages.USER_NOT_IN_GUILD,
+            detail=UserMessages.NOT_IN_GUILD,
         )
 
     requested_role = None

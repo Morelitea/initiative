@@ -242,12 +242,6 @@ SMART_CHIP_SOURCES: dict[tuple[SearchEntityType, SmartChipAspect], Reader] = {
 }
 
 
-def reader_for(entity_type: SearchEntityType, aspect: SmartChipAspect) -> Reader:
-    """The reader for one pair. Raises for a pair with none, which
-    ``smart_chips_test`` proves cannot happen."""
-    return SMART_CHIP_SOURCES[(entity_type, aspect)]
-
-
 def parse_ref(
     ref: str,
 ) -> Optional[tuple[SearchEntityType, int, Optional[SmartChipAspect]]]:

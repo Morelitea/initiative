@@ -127,7 +127,7 @@ async def test_feature_disabled_blocks_creation(
         json={"name": "X", "initiative_id": a.initiative.id},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "COUNTERS_NOT_ENABLED"
+    assert response.json()["detail"] == "COUNTER_GROUPS_NOT_ENABLED"
 
 
 @pytest.mark.integration
@@ -658,7 +658,7 @@ async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_use
         json={"field": "name", "direction": "asc"},
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "COUNTER_WRITE_ACCESS_REQUIRED"
+    assert resp.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
 
 
 # ---------------------------------------------------------------------------

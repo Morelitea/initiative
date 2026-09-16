@@ -175,7 +175,7 @@ async def _refetch_gallery(
     if not gallery:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GalleryMessages.NOT_FOUND,
+            detail=Tool.gallery.not_found_code,
         )
     await _annotate(session, [gallery])
     return gallery
@@ -548,7 +548,7 @@ async def create_gallery(
     if not initiative.galleries_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GalleryMessages.FEATURE_DISABLED,
+            detail=Tool.gallery.feature_disabled_code,
         )
     await resource_access.require_create(
         session, Tool.gallery, initiative, current_user, guild_context

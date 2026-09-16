@@ -4,6 +4,8 @@ import csv
 import io
 
 import pytest
+
+from app.core.messages import InitiativeMessages
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -399,7 +401,6 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
 ):
     """The role switch names a role of that initiative — custom ones included;
     a name the initiative doesn't define is a 404."""
-    from app.core.messages import AdminMessages
     from app.models.platform.guild import GuildRole
 
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -441,7 +442,7 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
         url, headers=get_auth_headers(operator), json={"role": "no_such_role"}
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == AdminMessages.ROLE_NOT_FOUND
+    assert resp.json()["detail"] == InitiativeMessages.ROLE_NOT_FOUND
 
 
 @pytest.mark.integration

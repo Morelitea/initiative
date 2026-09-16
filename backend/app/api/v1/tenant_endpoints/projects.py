@@ -65,7 +65,7 @@ from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
-from app.core.messages import ProjectMessages
+from app.core.messages import InitiativeMessages, ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
@@ -225,11 +225,11 @@ async def _get_project_or_404(
                 project_id,
                 user_id,
                 guild_id,
-                not_found=ProjectMessages.NOT_FOUND,
-                denied=ProjectMessages.NO_ACCESS,
+                not_found=Tool.project.not_found_code,
+                denied=Tool.project.no_access_code,
             )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.project.not_found_code
         )
     return project
 
@@ -253,7 +253,7 @@ async def _get_initiative_or_404(
     if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
 
@@ -1244,7 +1244,7 @@ async def create_project(
         if not has_perm:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
+                detail=Tool.project.create_permission_code,
             )
     await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
