@@ -7039,7 +7039,7 @@ export interface UserProfile {
 }
 
 export interface UserRead {
-  email: string;
+  email: string | null;
   full_name: string | null;
   role: UserRole;
   id: number;

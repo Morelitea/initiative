@@ -17,6 +17,8 @@ from app.core.encryption import hash_email
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_email import UserEmail
+from app.services.auth import addresses
 from app.services.auth.identity import (
     IdentityResolution,
     ResolutionOutcome,
@@ -43,6 +45,15 @@ async def _create_provider(session, *, allow_jit: bool = True) -> AuthProvider:
     await session.commit()
     await session.refresh(provider)
     return provider
+
+
+async def _address(session, user_id: int) -> UserEmail | None:
+    """The account's primary address row — where an address lives."""
+    return (
+        await session.exec(
+            select(UserEmail).where(UserEmail.user_id == user_id, UserEmail.is_primary)
+        )
+    ).one_or_none()
 
 
 async def _resolve(session, provider, **overrides) -> IdentityResolution:
@@ -88,7 +99,7 @@ async def test_existing_link_resolves_to_user(session):
     # populated after the identity commit — no lazy IO, no MissingGreenlet. This
     # access would raise if that ever regressed to expire-on-commit.
     assert result.user.status == UserStatus.active
-    assert result.user.email_hash == user.email_hash
+    assert result.user.id == user.id
 
 
 async def test_link_is_scoped_to_its_provider(session):
@@ -154,10 +165,12 @@ async def test_unknown_user_is_provisioned_and_linked(session):
     result = await _resolve(session, provider, email="new@example.com")
     assert result.outcome is ResolutionOutcome.PROVISIONED
     user = result.user
-    assert user.email_hash == hash_email("new@example.com")
+    assert await addresses.holds_address(
+        session, user_id=user.id, email="new@example.com"
+    )
     assert user.role == UserRole.member
     assert user.status == UserStatus.active
-    assert user.email_verified is True
+    assert (await _address(session, user.id)).verified_at is not None
     assert user.full_name == "Alice"
     # SSO-only: no password is set — a NULL hash never verifies, so this
     # account signs in exclusively through its provider.
@@ -176,16 +189,17 @@ async def test_provisioned_user_with_unverified_email_not_marked_verified(sessio
         session, provider, email="fresh@example.com", email_verified=False
     )
     assert result.outcome is ResolutionOutcome.PROVISIONED
-    assert result.user.email_verified is False
+    assert (await _address(session, result.user.id)).verified_at is None
 
 
 async def test_missing_email_claim_uses_synthetic_address(session):
     provider = await _create_provider(session)
     result = await _resolve(session, provider, email=None, subject="opaque-7")
     assert result.outcome is ResolutionOutcome.PROVISIONED
-    assert result.user.email_hash == hash_email("opaque-7@oidc.local")
+    row = await _address(session, result.user.id)
+    assert row.email_hash == hash_email("opaque-7@oidc.local")
     # A synthetic address is not a mailbox; it is never marked verified.
-    assert result.user.email_verified is False
+    assert row.verified_at is None
 
 
 async def _create_guild_provider(session, *, guild_auth_enabled: bool):
@@ -285,7 +299,9 @@ async def test_provision_recovers_from_subject_race_without_orphan(session):
     # Our uncommitted user was rolled back — no orphan.
     loser = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("loser@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("loser@example.com"))
         )
     ).one_or_none()
     assert loser is None

@@ -65,6 +65,11 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # so stamping 0162 back would leave the revision disagreeing with the
         # physical schema. One-way door; restore from a backup instead.
         "20260811_0163",
+        # an_account_is_reached_by_its_addresses: users.email_hash was NOT NULL
+        # and unique across the table, and user_emails allows an account to hold
+        # no address, so the column cannot be rebuilt for every row. Roll
+        # forward; restore from a backup instead.
+        "20260915_0273",
     }
 )
 
@@ -611,10 +616,13 @@ class TestMigrationsAgainstDatabase:
 
         A fresh database has only ``guild_template``, which does carry the keys,
         so the other shape is fabricated here — drop them, then replay the
-        revision over it, in both directions.
+        revision over it.
+
+        Built by upgrading *to* the revision before the rename rather than to
+        head and back down: the chain above it need not be reversible, and part
+        of it is not.
         """
-        _run_alembic("upgrade", "head")
-        _run_alembic("downgrade", PRE_AUTHOR_RENAME_REVISION)
+        _run_alembic("upgrade", PRE_AUTHOR_RENAME_REVISION)
 
         for table, column in AUTHOR_FOREIGN_KEY_TABLES:
             name = f"{table}_{column}_fkey"

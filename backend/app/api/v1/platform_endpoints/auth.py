@@ -26,9 +26,6 @@ from app.core import auth_context
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
-    encrypt_field,
-    hash_email,
-    SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.messages import AuthMessages, GuildMessages, OidcMessages
@@ -89,6 +86,7 @@ from app.services.auth.assurance import (
 )
 from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
+from app.services.platform import users as users_service
 from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
@@ -181,7 +179,7 @@ async def register_user(
     user_in: UserCreate,
     session: AdminSessionDep,
     invite_code: str | None = Query(default=None),
-) -> User:
+) -> UserRead:
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -194,7 +192,7 @@ async def register_user(
         normalized_email = user_in.email.lower().strip()
         # Address-aware: the address is taken if it reaches ANY account, not
         # only if it is the one that account was created with.
-        if await addresses.find_user_by_address(session, normalized_email):
+        if await addresses.account_holding(session, normalized_email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
@@ -257,9 +255,10 @@ async def register_user(
         # column default ``"UTC"`` applies.
         normalized_timezone = normalize_timezone(user_in.timezone)
 
+        # Confirmed on the spot when there is no mail to confirm it with, and
+        # for the account that bootstraps the deployment.
+        address_confirmed = is_first_user or not smtp_configured
         user_kwargs: dict[str, Any] = dict(
-            email_hash=hash_email(normalized_email),
-            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.
             username="",
@@ -270,7 +269,6 @@ async def register_user(
             password_set_at=datetime.now(timezone.utc),
             role=user_role,
             status=UserStatus.active,
-            email_verified=is_first_user or not smtp_configured,
         )
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
@@ -292,7 +290,7 @@ async def register_user(
             user_id=user.id,
             email=normalized_email,
             source=addresses.SOURCE_SIGNUP,
-            verified=user.email_verified,
+            verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
@@ -387,7 +385,7 @@ async def register_user(
     await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
-    if smtp_configured and not user.email_verified:
+    if smtp_configured and not address_confirmed:
         try:
             token = await user_tokens.create_token(
                 session,
@@ -402,7 +400,7 @@ async def register_user(
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
-    return user
+    return await users_service.to_self_read(user)
 
 
 @router.get("/bootstrap")
@@ -465,6 +463,14 @@ async def login_access_token(
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # An address its holder has not confirmed admits nobody, but it is worth
+    # saying so: resolved here only so the refusal below can name the reason.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Unconditional, and deliberately not folded into the `or` below: that
     # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
@@ -487,7 +493,7 @@ async def login_access_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
+    if unconfirmed is not None:
         await _record_sign_in_failure(admin_session, user, reason="email_unverified")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -764,6 +770,13 @@ async def create_device_token(
     """
     normalized_email = payload.email.lower().strip()
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Same reason as the token route.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Same reason as the token route: paid before the branch, never inside it.
     password_matches = verify_sign_in_password(
         payload.password, user.hashed_password if user is not None else None
@@ -780,7 +793,7 @@ async def create_device_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
+    if unconfirmed is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -1321,8 +1334,6 @@ async def _complete_provider_login(
         )
 
     # Profile refresh from the verified claims.
-    if email_verified and not user.email_verified:
-        user.email_verified = True
     if full_name and user.full_name != full_name:
         user.full_name = full_name
     if avatar_url and user.avatar_url != avatar_url:
@@ -1574,7 +1585,7 @@ async def resend_verification_email(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
-    if current_user.email_verified:
+    if await addresses.has_proven_address(session, user_id=current_user.id):
         return VerificationSendResponse(status="already_verified")
     try:
         token = await user_tokens.create_token(
@@ -1644,10 +1655,6 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-    if not user.email_verified:
-        user.email_verified = True
-        user.updated_at = datetime.now(timezone.utc)
-        admin_session.add(user)
     await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
@@ -1665,7 +1672,9 @@ async def request_password_reset(
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
-    user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Held, not necessarily confirmed: an account that never confirmed the
+    # address it signed up with is exactly the one a reset has to reach.
+    user = await addresses.account_holding(admin_session, normalized_email)
     if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:
@@ -1745,8 +1754,6 @@ async def reset_password(
     await user_tokens.revoke_user_sessions(
         session, user=user, admin_session=admin_session
     )
-    if not user.email_verified:
-        user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
     admin_session.add(user)
     await session.commit()

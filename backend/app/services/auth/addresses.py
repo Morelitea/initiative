@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Sequence
 
 from sqlalchemy import delete, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -57,12 +58,9 @@ def normalize(email: str) -> str:
 
 
 async def find_user_by_address(session: AsyncSession, email: str) -> User | None:
-    """The account that signs in with ``email``, or ``None``.
-
-    Reads ``user_emails`` first and falls back to the address ``users`` carries.
-    """
+    """The account that signs in with ``email``, or ``None``."""
     digest = hash_email(normalize(email))
-    found = (
+    return (
         await session.exec(
             select(User)
             .join(UserEmail, UserEmail.user_id == User.id)
@@ -74,19 +72,47 @@ async def find_user_by_address(session: AsyncSession, email: str) -> User | None
             )
         )
     ).one_or_none()
-    if found is not None:
-        return found
 
-    carried = (
-        await session.exec(select(User).where(User.email_hash == digest))
-    ).one_or_none()
-    if carried is not None:
-        logger.warning(
-            "address lookup fell back to users.email_hash (account %s): "
-            "user_emails holds no row for the address presented",
-            carried.id,
+
+async def account_awaiting_confirmation(
+    session: AsyncSession, email: str
+) -> User | None:
+    """The account that signed up with ``email`` and has not confirmed it.
+
+    Only for telling somebody their address is unconfirmed rather than their
+    password wrong. ``find_user_by_address`` is what admits anybody, and it
+    reads proven rows alone; this reads the nominated address whether or not it
+    has been proved, so the sign-in that follows can refuse in the words that
+    say what to do about it.
+    """
+    digest = hash_email(normalize(email))
+    return (
+        await session.exec(
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(
+                UserEmail.email_hash == digest,
+                UserEmail.is_primary,
+                UserEmail.verified_at.is_(None),
+                UserEmail.source != SOURCE_SYNTHETIC,
+            )
+            .order_by(User.id)
         )
-    return carried
+    ).first()
+
+
+async def account_holding(session: AsyncSession, email: str) -> User | None:
+    """The account this address belongs to, confirmed or not.
+
+    ``find_user_by_address`` answers a narrower question — who may *sign in*
+    with it, which is proven rows alone (§6.2 rule 2). This answers who holds
+    it at all, which is what is asked before a second account is made for the
+    same address, before a registration is accepted, and before account mail is
+    sent somewhere.
+    """
+    return await find_user_by_address(
+        session, email
+    ) or await account_awaiting_confirmation(session, email)
 
 
 async def note_sign_in(
@@ -112,9 +138,10 @@ async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
     reaches all of them, so somebody who no longer reads one address still
     hears about a change they did not make.
 
-    Falls back to the address ``users`` carries when the set holds none, for
-    the same reason the lookup does — an account whose row did not come across
-    still gets its mail.
+    An account that has proved none — it signed up before addresses had to be
+    confirmed and never confirmed one — is written to at its primary, which is
+    where its mail has always gone. Reset mail is how somebody in that position
+    gets back in, so it has somewhere to arrive.
     """
     rows = (
         await session.exec(
@@ -129,16 +156,73 @@ async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
     ).all()
     if rows:
         return [decrypt_field(row.email_encrypted, SALT_EMAIL) for row in rows]
+    sole = await primary_address(session, user_id=user_id)
+    return [sole] if sole else []
 
-    carried = await session.get(User, user_id)
-    if carried is None:  # pragma: no cover - the caller holds the account
-        return []
-    logger.warning(
-        "account mail fell back to users.email_encrypted (account %s): "
-        "user_emails holds no proven address",
-        user_id,
+
+def _primary_clause(user_ids):
+    """The primary row, for accounts that have one.
+
+    Proven or not: an account that never confirmed the address it signed up
+    with still reads its mail there, which is why §6.3 carries no CHECK tying
+    ``is_primary`` to ``verified_at``. Synthetic rows are excluded — they name
+    a subject at an IdP, not a mailbox.
+    """
+    return (
+        UserEmail.user_id.in_(user_ids),
+        UserEmail.is_primary,
+        UserEmail.source != SOURCE_SYNTHETIC,
     )
-    return [carried.email]
+
+
+async def primary_address(session: AsyncSession, *, user_id: int) -> str | None:
+    """The one address an account is written to, or ``None``.
+
+    Where everything that is not account mail goes — a mention, a digest, an
+    invitation. Account mail reaches every proven address instead
+    (``proven_addresses``, §6.2 rule 4); ordinary mail reaches the one the
+    person nominated.
+    """
+    return (await primary_addresses(session, user_ids=[user_id])).get(user_id)
+
+
+async def primary_addresses(
+    session: AsyncSession, *, user_ids: Sequence[int]
+) -> dict[int, str]:
+    """``primary_address`` for many accounts at once, keyed by account.
+
+    An account with no primary row is absent rather than present and empty.
+    """
+    if not user_ids:
+        return {}
+    rows = (
+        await session.exec(select(UserEmail).where(*_primary_clause(user_ids)))
+    ).all()
+    return {row.user_id: decrypt_field(row.email_encrypted, SALT_EMAIL) for row in rows}
+
+
+async def has_proven_address(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether this account holds an address somebody has proved."""
+    return user_id in await accounts_with_a_proven_address(session, user_ids=[user_id])
+
+
+async def accounts_with_a_proven_address(
+    session: AsyncSession, *, user_ids: Sequence[int]
+) -> set[int]:
+    """Which of these accounts hold an address somebody has proved."""
+    if not user_ids:
+        return set()
+    return set(
+        (
+            await session.exec(
+                select(UserEmail.user_id).where(
+                    UserEmail.user_id.in_(user_ids),
+                    UserEmail.verified_at.is_not(None),
+                    UserEmail.source != SOURCE_SYNTHETIC,
+                )
+            )
+        ).all()
+    )
 
 
 async def held_hashes(session: AsyncSession, *, user_id: int) -> set[str]:
@@ -160,8 +244,8 @@ async def holds_address(session: AsyncSession, *, user_id: int, email: str) -> b
     """Whether this account holds ``email`` — any of its addresses, not just
     the one it was created with.
 
-    Resolves through the same lookup a sign-in uses, so the fallback and the
-    proven-only rule are stated once.
+    Resolves through the same lookup a sign-in uses, so the proven-only rule is
+    stated once.
     """
     resolved = await find_user_by_address(session, email)
     return resolved is not None and resolved.id == user_id

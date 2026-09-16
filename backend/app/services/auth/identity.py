@@ -33,7 +33,7 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
+from app.core.encryption import encrypt_token
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
 from app.models.platform.auth_provider import AuthProvider
@@ -121,7 +121,7 @@ async def resolve_oidc_identity(
     # existing account (an unverified match is refused outright).
     if email:
         normalized = email.lower().strip()
-        existing = await addresses.find_user_by_address(session, normalized)
+        existing = await addresses.account_holding(session, normalized)
         if existing is not None:
             if not email_verified:
                 logger.warning(
@@ -315,6 +315,14 @@ async def _registration_open(session: AsyncSession) -> bool:
     return user_count == 0
 
 
+class _AddressTaken(Exception):
+    """Another account already holds the asserted address, proven.
+
+    Raised inside the provisioning savepoint so the recovery below handles a
+    lost race the same way whether a constraint or a re-read found it.
+    """
+
+
 async def _provision(
     session: AsyncSession,
     *,
@@ -342,8 +350,6 @@ async def _provision(
     handle, discriminator = await username_service.allocate_from_seed(session)
 
     user = User(
-        email_hash=hash_email(normalized),
-        email_encrypted=encrypt_field(normalized, SALT_EMAIL),
         username=handle,
         discriminator=discriminator,
         # Assigned, not picked: its owner chooses one on their next sign-in.
@@ -357,7 +363,6 @@ async def _provision(
         role=UserRole.member,
         status=UserStatus.active,
         avatar_url=avatar_url,
-        email_verified=verified,
     )
     try:
         # User + identity are inserted inside ONE savepoint: flush assigns the
@@ -388,6 +393,16 @@ async def _provision(
             )
             session.add(identity)
             await session.flush()
+            # Asked again now the row is in: a login that committed between the
+            # caller's check and this insert is visible here, and an unproven
+            # claim collides with nothing, so there is no constraint to raise
+            # for it. A proven holder means this account is not the one the
+            # address belongs to, and the block below decides what to do about
+            # that — the same decision a login that did not race makes.
+            if email:
+                holder = await addresses.account_holding(session, email)
+                if holder is not None and holder.id != user.id:
+                    raise _AddressTaken
         # Outside the savepoint, and before the commit: a lost race raises out
         # of the block above and never reaches this, so there is no row for an
         # account that was discarded.
@@ -398,7 +413,7 @@ async def _provision(
         return IdentityResolution(
             outcome=ResolutionOutcome.PROVISIONED, user=user, identity=identity
         )
-    except IntegrityError:
+    except (IntegrityError, _AddressTaken):
         # Lost a JIT race with a concurrent login. A conflicting unique insert
         # blocks until the other transaction commits, so by the time we're here
         # the winner is committed and visible; the savepoint has already discarded
@@ -415,7 +430,7 @@ async def _provision(
                 return IdentityResolution(
                     outcome=ResolutionOutcome.LINKED, user=user, identity=winner
                 )
-        # (b) users.email_hash — a *different* subject with the same email (a
+        # (b) the address — a *different* subject with the same email (a
         #     second provider, or the IdP issuing a new subject) got there first.
         #     That is now an existing, unlinked account matched by email: the same
         #     EMAIL_MATCH / EMAIL_UNVERIFIED decision a non-raced login makes,
@@ -423,7 +438,7 @@ async def _provision(
         #     the synthetic {subject}@oidc.local address is subject-unique, so its
         #     only race is (a).
         if email:
-            matched = await addresses.find_user_by_address(session, email)
+            matched = await addresses.account_holding(session, email)
             if matched is not None:
                 outcome = (
                     ResolutionOutcome.EMAIL_MATCH

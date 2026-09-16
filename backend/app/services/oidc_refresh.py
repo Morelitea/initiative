@@ -58,9 +58,7 @@ async def _refresh_and_sync_identity(
     try:
         refresh_token = decrypt_token(secret.refresh_token_encrypted)
     except Exception:
-        logger.warning(
-            "Failed to decrypt refresh token for user %s; clearing", user.email
-        )
+        logger.warning("Failed to decrypt refresh token for user %s; clearing", user.id)
         secret.refresh_token_encrypted = None
         session.add(secret)
         await session.commit()
@@ -79,7 +77,7 @@ async def _refresh_and_sync_identity(
             if token_resp.status_code in (400, 401):
                 logger.warning(
                     "Refresh token revoked/expired for user %s (HTTP %d); clearing",
-                    user.email,
+                    user.id,
                     token_resp.status_code,
                 )
                 secret.refresh_token_encrypted = None
@@ -92,7 +90,7 @@ async def _refresh_and_sync_identity(
             access_token = token_data.get("access_token")
             if not access_token:
                 logger.warning(
-                    "No access_token in refresh response for user %s", user.email
+                    "No access_token in refresh response for user %s", user.id
                 )
                 return False
 
@@ -111,10 +109,10 @@ async def _refresh_and_sync_identity(
             userinfo_resp.raise_for_status()
             profile = userinfo_resp.json()
     except httpx.HTTPStatusError:
-        logger.exception("HTTP error during OIDC refresh for user %s", user.email)
+        logger.exception("HTTP error during OIDC refresh for user %s", user.id)
         return False
     except httpx.RequestError:
-        logger.exception("Network error during OIDC refresh for user %s", user.email)
+        logger.exception("Network error during OIDC refresh for user %s", user.id)
         return False
 
     # Decode id_token claims if present
@@ -134,7 +132,7 @@ async def _refresh_and_sync_identity(
                 # provider is diagnosable rather than silently ignored.
                 logger.debug(
                     "Could not decode OIDC id_token claims for user %s: %s",
-                    user.email,
+                    user.id,
                     exc,
                 )
 
@@ -149,7 +147,7 @@ async def _refresh_and_sync_identity(
     )
     logger.info(
         "OIDC refresh sync for %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
-        user.email,
+        user.id,
         len(sync_result.guilds_added),
         len(sync_result.guilds_updated),
         len(sync_result.guilds_removed),

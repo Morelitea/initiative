@@ -335,9 +335,9 @@ async def send_verification_email(
         email_t("verification.title", locale=locale), body, accent, locale=locale
     )
     text_body = email_t("verification.textBody", locale=locale, link=link, escape=False)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("verification.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -360,6 +360,42 @@ async def _account_recipients(user: User) -> list[str]:
 
     async with AdminSessionLocal() as admin_session:
         return await addresses.proven_addresses(admin_session, user_id=user.id)
+
+
+async def _send_to_primary(
+    session: AsyncSession,
+    user: User,
+    *,
+    subject: str,
+    html_body: str,
+    text_body: str | None = None,
+    settings_obj: AppSetting | None = None,
+) -> None:
+    """Send one letter to the address this account nominated.
+
+    Everything that is not about the account itself comes through here: a
+    mention, a digest, an invitation. Account mail fans out over every proven
+    address instead (``_account_recipients``, §6.2 rule 4).
+
+    On its own system-engine session, for the reason ``_account_recipients``
+    gives. An account with no primary address is not written to.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.services.auth import addresses
+
+    async with AdminSessionLocal() as admin_session:
+        address = await addresses.primary_address(admin_session, user_id=user.id)
+    if address is None:
+        logger.warning("no primary address for account %s; not sending", user.id)
+        return
+    await send_email(
+        session,
+        recipients=[address],
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
 
 
 async def send_address_verification_email(
@@ -455,9 +491,9 @@ async def send_initiative_added_email(
         link=link,
         escape=False,
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             "initiativeAdded.subject",
             locale=locale,
@@ -501,9 +537,9 @@ async def send_project_added_to_initiative_email(
         link=link,
         escape=False,
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             "projectAdded.subject",
             locale=locale,
@@ -563,9 +599,9 @@ async def send_access_grant_email(
     text_body = email_t(
         f"{base}.textBody", locale=locale, link=link, escape=False, **vars_
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             f"{base}.subject", locale=locale, guildName=guild_name, escape=False
         ),
@@ -625,9 +661,9 @@ async def send_initiative_join_request_email(
         email_t(f"{base}.textBody", locale=locale, link=link, escape=False, **vars_)
         + note_text
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             f"{base}.subject",
             locale=locale,
@@ -714,9 +750,9 @@ async def send_task_assignment_digest_email(
         email_t("taskAssignment.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("taskAssignment.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -786,9 +822,9 @@ async def send_reaction_digest_email(
         email_t("reaction.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("reaction.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -828,9 +864,9 @@ async def send_mention_email(
     plain = _strip_html(body_text)
     if link:
         plain += f"\n\nView: {link}"
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=subject,
         html_body=html_body,
         text_body=plain,
@@ -870,9 +906,9 @@ async def send_direct_message_email(
         email_t("directMessage.title", locale=locale), body, accent, locale=locale
     )
     plain = _strip_html(body_text) + f"\n\nView: {link}"
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("directMessage.subject", locale=locale, sender=sender_name),
         html_body=html_body,
         text_body=plain,
@@ -947,9 +983,9 @@ async def send_overdue_tasks_email(
         email_t("overdue.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("overdue.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
