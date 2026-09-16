@@ -241,6 +241,7 @@
     "actionsColumn": "Actions",
     "noStatuses": "No statuses configured yet.",
     "deleteTitle": "Delete status",
+    "deleteStatus": "Delete {{name}}",
     "deleteDescription": "Deleting “{{name}}” moves any tasks in it to another status. Pick where they should land, or leave it to the project’s default.",
     "fallbackLabel": "Move tasks to",
     "chooseFallback": "Choose a status",

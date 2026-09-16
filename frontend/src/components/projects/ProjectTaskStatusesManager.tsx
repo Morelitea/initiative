@@ -701,6 +701,7 @@ const SortableStatusRow = ({
           className="text-destructive hover:text-destructive"
           onClick={onDelete}
           disabled={disabled}
+          aria-label={t("statuses.deleteStatus", { name: status.name })}
         >
           <Trash2 className="mr-1 h-4 w-4" />
         </Button>

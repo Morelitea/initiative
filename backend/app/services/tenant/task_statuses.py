@@ -52,21 +52,20 @@ DEFAULT_TASK_STATUSES: Sequence[dict] = (
 )
 
 # Where an unmarked project's default lands when no status carries the flag.
+# Backlog leads because only a project seeded before this change has one, and
+# there it is the entry column — reaching for ``todo`` first would find that
+# project's Blocked and start work in it. A project seeded since has no backlog
+# column at all, so the preference falls straight through to its To Do.
 _DEFAULT_CATEGORY_PREFERENCE: Sequence[TaskStatusCategory] = (
-    TaskStatusCategory.todo,
     TaskStatusCategory.backlog,
+    TaskStatusCategory.todo,
 )
 
 
 def first_by_category_preference(
     statuses: Sequence[TaskStatus],
 ) -> TaskStatus | None:
-    """The status a project should treat as its entry column.
-
-    Prefers ``todo`` (where new projects start) and then ``backlog``, so a
-    project seeded before To Do became the default still resolves to the column
-    its board opens on.
-    """
+    """The status a project should treat as its entry column."""
     for category in _DEFAULT_CATEGORY_PREFERENCE:
         match = next((s for s in statuses if s.category == category), None)
         if match is not None:

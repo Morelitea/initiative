@@ -17,6 +17,7 @@ from app.api.v1.tenant_endpoints.tasks import (
     _ensure_can_manage,
 )
 from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus
 from app.models.platform.user import User
 from app.schemas.tenant.task_status import (
@@ -91,7 +92,14 @@ async def _ensure_not_only_status(
     Which categories a project keeps is its own business — a team that never
     blocks on anything can drop every ``todo`` column — but a project with no
     statuses at all has nowhere to create a task.
+
+    Takes the project row for the rest of the transaction, so two deletes
+    racing on the same project take it in turn and the second counts what the
+    first left rather than what it started with.
     """
+    await session.exec(
+        select(Project.id).where(Project.id == project_id).with_for_update()
+    )
     stmt = select(func.count(TaskStatus.id)).where(TaskStatus.project_id == project_id)
     result = await session.exec(stmt)
     if (result.one() or 0) <= 1:

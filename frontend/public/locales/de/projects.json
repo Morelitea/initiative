@@ -241,6 +241,7 @@
     "actionsColumn": "Aktionen",
     "noStatuses": "Noch keine Status konfiguriert.",
     "deleteTitle": "Status löschen",
+    "deleteStatus": "{{name}} löschen",
     "deleteDescription": "Beim Löschen von „{{name}}“ wandern die Aufgaben darin in einen anderen Status. Wähle, wo sie landen sollen, oder überlass es dem Standardstatus des Projekts.",
     "fallbackLabel": "Aufgaben verschieben nach",
     "chooseFallback": "Status auswählen",

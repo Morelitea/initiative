@@ -241,6 +241,7 @@
     "actionsColumn": "Actions",
     "noStatuses": "Aucun statut configuré pour l'instant.",
     "deleteTitle": "Supprimer le statut",
+    "deleteStatus": "Supprimer {{name}}",
     "deleteDescription": "Supprimer « {{name}} » déplace ses tâches vers un autre statut. Choisissez où elles doivent atterrir, ou laissez faire le statut par défaut du projet.",
     "fallbackLabel": "Déplacer les tâches vers",
     "chooseFallback": "Choisir un statut",

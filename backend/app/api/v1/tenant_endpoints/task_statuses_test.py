@@ -650,3 +650,35 @@ async def test_deleting_the_default_promotes_the_next_entry_column(
     )
     default = next(s for s in remaining.json() if s["is_default"])
     assert default["name"] == "Someday"
+
+
+@pytest.mark.integration
+async def test_a_legacy_projects_entry_column_is_its_backlog_not_its_blocked(
+    session: AsyncSession, acting_user
+):
+    """A project seeded before this change keeps Backlog as where work starts.
+
+    Its Blocked column is ``todo``, so a preference that reached for ``todo``
+    first would start every task in it.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    for name, category, position in (
+        ("Backlog", TaskStatusCategory.backlog, 0),
+        ("In Progress", TaskStatusCategory.in_progress, 1),
+        ("Blocked", TaskStatusCategory.todo, 2),
+        ("Done", TaskStatusCategory.done, 3),
+    ):
+        await create_task_status(
+            session, a.project, name=name, category=category, position=position
+        )
+
+    statuses = await task_statuses_service.list_statuses(session, a.project.id)
+    assert all(not s.is_default for s in statuses)
+
+    entry = task_statuses_service.first_by_category_preference(statuses)
+    assert entry is not None and entry.name == "Backlog"
+
+    default_status = await task_statuses_service.get_default_status(
+        session, a.project.id
+    )
+    assert default_status.name == "Backlog"

@@ -241,6 +241,7 @@
     "actionsColumn": "Acciones",
     "noStatuses": "Aún no hay estados configurados.",
     "deleteTitle": "Eliminar estado",
+    "deleteStatus": "Eliminar {{name}}",
     "deleteDescription": "Al eliminar “{{name}}”, sus tareas pasan a otro estado. Elige dónde deben acabar o déjalo en manos del estado predeterminado del proyecto.",
     "fallbackLabel": "Mover las tareas a",
     "chooseFallback": "Elegir un estado",
