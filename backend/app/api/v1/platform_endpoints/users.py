@@ -282,16 +282,20 @@ async def search_users(
         )
     )
     #: Set while searching by name, and then what the page is ordered by.
+    # Both calls take the guild's own setting: a name is searchable and
+    # sortable only where the guild shows names, and a default here would
+    # decide that for it.
+    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest),
+        *users_service.member_order(closest, shows_names=shows_names),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),

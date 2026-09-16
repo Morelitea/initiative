@@ -51,20 +51,7 @@ import {
 import { SmartChipRefsPlugin } from "@/components/ui/editor/plugins/smart-chip-refs-plugin";
 import { TabFocusPlugin } from "@/components/ui/editor/plugins/tab-focus-plugin";
 import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
-import { FormatBulletedList } from "@/components/ui/editor/plugins/toolbar/block-format/format-bulleted-list";
-import { FormatCheckList } from "@/components/ui/editor/plugins/toolbar/block-format/format-check-list";
-import { FormatCodeBlock } from "@/components/ui/editor/plugins/toolbar/block-format/format-code-block";
-import { FormatHeading } from "@/components/ui/editor/plugins/toolbar/block-format/format-heading";
-import { FormatNumberedList } from "@/components/ui/editor/plugins/toolbar/block-format/format-numbered-list";
-import { FormatParagraph } from "@/components/ui/editor/plugins/toolbar/block-format/format-paragraph";
-import { FormatQuote } from "@/components/ui/editor/plugins/toolbar/block-format/format-quote";
 import { BlockFormatDropDown } from "@/components/ui/editor/plugins/toolbar/block-format-toolbar-plugin";
-import { InsertColumnsLayout } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-columns-layout";
-import { InsertEmbeds } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-embeds";
-import { InsertHorizontalRule } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-horizontal-rule";
-import { InsertImage } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-image";
-import { InsertSmartChip } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-smart-chip";
-import { InsertTable } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-table";
 import { BlockInsertPlugin } from "@/components/ui/editor/plugins/toolbar/block-insert-plugin";
 import { ClearFormattingToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/clear-formatting-toolbar-plugin";
 import { CodeLanguageToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/code-language-toolbar-plugin";
@@ -76,14 +63,168 @@ import { FontSizeToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/fo
 import { HistoryToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/history-toolbar-plugin";
 import { LinkToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/link-toolbar-plugin";
 import { SubSuperToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/subsuper-toolbar-plugin";
-import { ToolbarOverflowMenu } from "@/components/ui/editor/plugins/toolbar/toolbar-overflow-menu";
+import {
+  BLOCK_FORMAT_ORDER,
+  type BlockFormatType,
+} from "@/components/ui/editor/plugins/toolbar/toolbar-actions";
+import {
+  BlockFormatMenuItems,
+  BlockInsertMenuItems,
+  ClearFormattingMenuItem,
+  CodeLanguageMenuItems,
+  ElementFormatMenuItems,
+  FontBackgroundMenuItems,
+  FontColorMenuItems,
+  FontFormatMenuItems,
+  FontSizeMenuItems,
+  HistoryMenuItems,
+  LinkMenuItem,
+  SubSuperMenuItems,
+} from "@/components/ui/editor/plugins/toolbar/toolbar-menu-items";
 import { ToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/toolbar-plugin";
 import { WikilinksPlugin } from "@/components/ui/editor/plugins/wikilinks-plugin";
 import type { EditorVariant } from "@/components/ui/editor/variant";
-import { Separator } from "@/components/ui/separator";
+import { OverflowToolbar, type OverflowToolbarItem } from "@/components/ui/overflow-toolbar";
 import { cn } from "@/lib/utils";
 
 const placeholder = "Press / for commands...";
+
+/** The block types a document offers — everything but the deeper headings. */
+const DOCUMENT_BLOCK_TYPES: readonly BlockFormatType[] = BLOCK_FORMAT_ORDER;
+
+/**
+ * The row of controls over a document.
+ *
+ * One row, written once. What it can hold is a question about the editor's own
+ * width — a document open beside the sidebar is narrower than the window says —
+ * so the controls that no longer fit shed into a named menu at its end instead
+ * of the row being swapped wholesale at a viewport breakpoint.
+ *
+ * Order is load-bearing, because the row sheds from the right: undo and the
+ * block type are the last to go.
+ */
+function DocumentToolbar({
+  blockType,
+  variant,
+  initiativeId,
+  supportsEntityMentions,
+  setIsLinkEditMode,
+}: {
+  blockType: string;
+  variant: EditorVariant;
+  initiativeId: number | null;
+  supportsEntityMentions: boolean;
+  setIsLinkEditMode: (value: boolean) => void;
+}) {
+  const { t } = useTranslation("documents");
+  // The typesetting half of the toolbar. A document is a place to typeset; a
+  // notice is a place to say something, so it gets the writing controls and
+  // not the layout ones.
+  const rich = variant === "document";
+  const insert = { rich, supportsSmartChips: supportsEntityMentions, initiativeId };
+
+  const items: OverflowToolbarItem[] = [
+    { id: "history", node: <HistoryToolbarPlugin />, menu: <HistoryMenuItems /> },
+    {
+      id: "blockFormat",
+      startsGroup: true,
+      node: <BlockFormatDropDown types={DOCUMENT_BLOCK_TYPES} />,
+      menu: <BlockFormatMenuItems types={DOCUMENT_BLOCK_TYPES} />,
+    },
+  ];
+
+  if (blockType === "code") {
+    // Inside a code block there is nothing to typeset — only which language it
+    // is written in.
+    items.push({
+      id: "codeLanguage",
+      startsGroup: true,
+      node: <CodeLanguageToolbarPlugin />,
+      menu: <CodeLanguageMenuItems />,
+    });
+  } else {
+    if (rich) {
+      items.push({
+        id: "fontSize",
+        startsGroup: true,
+        node: <FontSizeToolbarPlugin />,
+        menu: <FontSizeMenuItems />,
+      });
+    }
+
+    items.push({
+      id: "fontFormat",
+      startsGroup: true,
+      node: <FontFormatToolbarPlugin />,
+      menu: <FontFormatMenuItems />,
+    });
+    if (rich) {
+      items.push({
+        id: "subSuper",
+        node: <SubSuperToolbarPlugin />,
+        menu: <SubSuperMenuItems />,
+      });
+    }
+    items.push({
+      id: "link",
+      startsGroup: !rich,
+      node: <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />,
+      menu: <LinkMenuItem setIsLinkEditMode={setIsLinkEditMode} />,
+    });
+
+    // Clearing formatting, the colours and aligning are one-in-a-hundred on a
+    // notice, so there they live in the menu however wide the composer gets
+    // rather than costing a button above every one. On a document they take
+    // their turn in the row like everything else.
+    items.push({
+      id: "clearFormatting",
+      startsGroup: true,
+      menuOnly: !rich,
+      node: <ClearFormattingToolbarPlugin />,
+      menu: <ClearFormattingMenuItem />,
+    });
+    if (rich) {
+      items.push(
+        {
+          id: "fontColor",
+          startsGroup: true,
+          node: <FontColorToolbarPlugin />,
+          menu: <FontColorMenuItems />,
+        },
+        {
+          id: "fontBackground",
+          node: <FontBackgroundToolbarPlugin />,
+          menu: <FontBackgroundMenuItems />,
+        }
+      );
+    }
+    items.push({
+      id: "elementFormat",
+      startsGroup: true,
+      menuOnly: !rich,
+      node: <ElementFormatToolbarPlugin />,
+      menu: <ElementFormatMenuItems />,
+    });
+
+    items.push({
+      id: "blockInsert",
+      startsGroup: true,
+      node: <BlockInsertPlugin {...insert} />,
+      menu: <BlockInsertMenuItems {...insert} />,
+    });
+  }
+
+  return (
+    <OverflowToolbar
+      data-editor-toolbar
+      items={items}
+      label={t("editor.format")}
+      moreLabel={t("editor.moreFormatting")}
+      className="vertical-align-middle sticky top-0 z-10 gap-2 border-b bg-muted p-1"
+      rowClassName="gap-2"
+    />
+  );
+}
 
 export function Plugins({
   showToolbar = true,
@@ -161,104 +302,17 @@ export function Plugins({
     <div className="relative flex min-h-full flex-col">
       {/* `data-editor-toolbar` marks what sits over the top of the scrollport:
           it sticks there, so anything scrolled to has to clear it. Measured
-          rather than assumed, because the wide row wraps. */}
+          rather than assumed, because the row's height follows its contents. */}
       {showToolbar && (
         <ToolbarPlugin>
           {({ blockType }) => (
-            <>
-              {/* Desktop toolbar - all options inline */}
-              <div
-                data-editor-toolbar
-                className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex"
-              >
-                <HistoryToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <BlockFormatDropDown>
-                  <FormatParagraph />
-                  <FormatHeading levels={["h1", "h2", "h3"]} />
-                  <FormatNumberedList />
-                  <FormatBulletedList />
-                  <FormatCheckList />
-                  <FormatCodeBlock />
-                  <FormatQuote />
-                </BlockFormatDropDown>
-                {blockType === "code" ? (
-                  <CodeLanguageToolbarPlugin />
-                ) : (
-                  <>
-                    {rich && (
-                      <>
-                        <FontSizeToolbarPlugin />
-                        <Separator orientation="vertical" className="h-7!" />
-                      </>
-                    )}
-                    <FontFormatToolbarPlugin />
-                    <Separator orientation="vertical" className="h-7!" />
-                    {rich && <SubSuperToolbarPlugin />}
-                    <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-                    <Separator orientation="vertical" className="h-7!" />
-                    {/* Alignment, clearing formatting and the colour pickers
-                        are all one-in-a-hundred on a notice. On a post they
-                        move into the overflow at the end of the row rather
-                        than costing a second row of buttons above every
-                        composer; on a document they stay where they were. */}
-                    {rich && (
-                      <>
-                        <ClearFormattingToolbarPlugin />
-                        <Separator orientation="vertical" className="h-7!" />
-                        <FontColorToolbarPlugin />
-                        <FontBackgroundToolbarPlugin />
-                        <Separator orientation="vertical" className="h-7!" />
-                        <ElementFormatToolbarPlugin />
-                        <Separator orientation="vertical" className="h-7!" />
-                      </>
-                    )}
-                    <BlockInsertPlugin>
-                      {rich && <InsertHorizontalRule />}
-                      <InsertImage />
-                      <InsertTable />
-                      {rich && <InsertColumnsLayout />}
-                      <InsertEmbeds />
-                      {supportsEntityMentions && <InsertSmartChip initiativeId={initiativeId} />}
-                    </BlockInsertPlugin>
-                    {!rich && (
-                      <ToolbarOverflowMenu
-                        initiativeId={initiativeId}
-                        supportsSmartChips={supportsEntityMentions}
-                        variant={variant}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Compact toolbar - overflow menu */}
-              <div
-                data-editor-toolbar
-                className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden"
-              >
-                <HistoryToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <BlockFormatDropDown>
-                  <FormatParagraph />
-                  <FormatHeading levels={["h1", "h2", "h3"]} />
-                  <FormatNumberedList />
-                  <FormatBulletedList />
-                  <FormatCheckList />
-                  <FormatCodeBlock />
-                  <FormatQuote />
-                </BlockFormatDropDown>
-                {blockType === "code" ? (
-                  <CodeLanguageToolbarPlugin />
-                ) : (
-                  <ToolbarOverflowMenu
-                    initiativeId={initiativeId}
-                    supportsSmartChips={supportsEntityMentions}
-                    variant={variant}
-                  />
-                )}
-              </div>
-            </>
+            <DocumentToolbar
+              blockType={blockType}
+              variant={variant}
+              initiativeId={initiativeId}
+              supportsEntityMentions={supportsEntityMentions}
+              setIsLinkEditMode={setIsLinkEditMode}
+            />
           )}
         </ToolbarPlugin>
       )}

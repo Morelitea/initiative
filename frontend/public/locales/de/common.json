@@ -186,5 +186,22 @@
     "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
   },
   "archiveError": "Das konnte nicht archiviert werden. Bitte versuche es erneut.",
-  "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut."
+  "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut.",
+  "markdownEditor": {
+    "toolbar": "Formatierung",
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "nothingToPreview": "Noch nichts zur Vorschau.",
+    "heading": "Überschrift",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "strikethrough": "Durchgestrichen",
+    "link": "Link",
+    "quote": "Zitat",
+    "code": "Code",
+    "bulletedList": "Aufzählung",
+    "numberedList": "Nummerierte Liste",
+    "taskList": "Aufgabenliste",
+    "more": "Weitere Formatierung"
+  }
 }

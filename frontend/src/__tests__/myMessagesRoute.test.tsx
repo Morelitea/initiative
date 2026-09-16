@@ -843,7 +843,10 @@ describe("a group thread", () => {
     created_at: "2026-09-01T00:00:00Z",
     kind: "group",
     member_ids: [7, 9],
-    member_handles: ["alex#1234", "sam#5678"],
+    members: [
+      { user_id: 7, username: "alex", discriminator: 1234 },
+      { user_id: 9, username: "sam", discriminator: 5678 },
+    ],
     pending: false,
     ...overrides,
   });
@@ -854,6 +857,31 @@ describe("a group thread", () => {
     await renderMessages({ thread: "conv-g" });
 
     expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+  });
+
+  it("draws each message against the face of whoever said it", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    // Nobody here has sent a message request, which is the ordinary case for a
+    // group: agreeing to the roster was the whole of the ask. The roster the
+    // conversation carries is therefore the only way to draw these people.
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      // A minute apart, so the quiet gap that also breaks a run cannot be what
+      // separates them: the only thing between these two is who said them.
+      { id: "m1", body: "monday then", at: "2026-09-01T00:00:00Z", mine: false, author: 7 },
+      { id: "m2", body: "works for me", at: "2026-09-01T00:01:00Z", mine: false, author: 9 },
+    ]);
+
+    await renderMessages({ thread: "conv-g" });
+    await screen.findByText("works for me");
+
+    // One face each, from the roster: a group has no single other party, so a
+    // message drawn against "them" would be drawn against nobody. Neither has
+    // a picture set, so each is drawn as their own initial.
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("S")).toBeInTheDocument();
   });
 
   it("opens from its id, because it has no handle to be addressed by", async () => {

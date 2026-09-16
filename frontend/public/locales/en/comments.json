@@ -12,6 +12,8 @@
   "errorDelete": "Unable to delete comment right now.",
   "errorUpdate": "Unable to update comment right now.",
   "formattingSyntax": "Formatting",
+  "insertEntityMention": "Link anything in this initiative",
+  "insertUserMention": "Mention a member",
   "loadError": "Unable to load comments right now.",
   "loading": "Loading comments...",
   "markdownHint": "Markdown is supported: **bold**, *italic*, `code`, lists, and links.",

@@ -6,61 +6,86 @@ import { $isRangeSelection, $isRootOrShadowRoot, type BaseSelection } from "lexi
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { useUpdateToolbarHandler } from "@/components/ui/editor/editor-hooks/use-update-toolbar";
 import { useBlockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
-import { Select, SelectContent, SelectGroup, SelectTrigger } from "@/components/ui/select";
+import {
+  BLOCK_FORMAT_ORDER,
+  type BlockFormatType,
+  useBlockFormatActions,
+} from "@/components/ui/editor/plugins/toolbar/toolbar-actions";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 
-export function BlockFormatDropDown({ children }: { children: React.ReactNode }) {
+/** Reports the block type the caret is in, so the toolbar reflects the body. */
+export function useTrackBlockType() {
   const blockTypeToBlockName = useBlockTypeToBlockName();
-  const { activeEditor, blockType, setBlockType } = useToolbarContext();
+  const { activeEditor, setBlockType } = useToolbarContext();
 
   function $updateToolbar(selection: BaseSelection) {
-    if ($isRangeSelection(selection)) {
-      const anchorNode = selection.anchor.getNode();
-      let element =
-        anchorNode.getKey() === "root"
-          ? anchorNode
-          : $findMatchingParent(anchorNode, (e) => {
-              const parent = e.getParent();
-              return parent !== null && $isRootOrShadowRoot(parent);
-            });
+    if (!$isRangeSelection(selection)) return;
 
-      if (element === null) {
-        element = anchorNode.getTopLevelElementOrThrow();
-      }
+    const anchorNode = selection.anchor.getNode();
+    let element =
+      anchorNode.getKey() === "root"
+        ? anchorNode
+        : $findMatchingParent(anchorNode, (e) => {
+            const parent = e.getParent();
+            return parent !== null && $isRootOrShadowRoot(parent);
+          });
 
-      const elementKey = element.getKey();
-      const elementDOM = activeEditor.getElementByKey(elementKey);
-
-      if (elementDOM !== null) {
-        // setSelectedElementKey(elementKey);
-        if ($isListNode(element)) {
-          const parentList = $getNearestNodeOfType<ListNode>(anchorNode, ListNode);
-          const type = parentList ? parentList.getListType() : element.getListType();
-          setBlockType(type);
-        } else {
-          const type = $isHeadingNode(element) ? element.getTag() : element.getType();
-          if (type in blockTypeToBlockName) {
-            setBlockType(type as keyof typeof blockTypeToBlockName);
-          }
-        }
-      }
+    if (element === null) {
+      element = anchorNode.getTopLevelElementOrThrow();
     }
+
+    const elementDOM = activeEditor.getElementByKey(element.getKey());
+    if (elementDOM === null) return;
+
+    if ($isListNode(element)) {
+      const parentList = $getNearestNodeOfType<ListNode>(anchorNode, ListNode);
+      setBlockType(parentList ? parentList.getListType() : element.getListType());
+      return;
+    }
+
+    const type = $isHeadingNode(element) ? element.getTag() : element.getType();
+    if (type in blockTypeToBlockName) setBlockType(type);
   }
 
   useUpdateToolbarHandler($updateToolbar);
+}
+
+/** The block-type picker: what the caret's paragraph, heading or list is. */
+export function BlockFormatDropDown({
+  types = BLOCK_FORMAT_ORDER,
+}: {
+  /** Which block types this surface offers, in order. */
+  types?: readonly BlockFormatType[];
+}) {
+  const blockTypeToBlockName = useBlockTypeToBlockName();
+  const { blockType } = useToolbarContext();
+  const actions = useBlockFormatActions(types);
+
+  useTrackBlockType();
 
   return (
-    <Select
-      value={blockType}
-      onValueChange={(value) => {
-        setBlockType(value as keyof typeof blockTypeToBlockName);
-      }}
-    >
+    <Select value={blockType}>
       <SelectTrigger className="h-8! w-min gap-1">
-        {blockTypeToBlockName[blockType].icon}
-        <span>{blockTypeToBlockName[blockType].label}</span>
+        {blockTypeToBlockName[blockType]?.icon}
+        <span>{blockTypeToBlockName[blockType]?.label}</span>
       </SelectTrigger>
       <SelectContent>
-        <SelectGroup>{children}</SelectGroup>
+        <SelectGroup>
+          {actions.map((action) => (
+            <SelectItem key={action.id} value={action.id} onPointerDown={action.run}>
+              <div className="flex items-center gap-1 font-normal">
+                {action.icon}
+                {action.label}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   );

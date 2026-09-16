@@ -43,6 +43,7 @@ import {
   sendRemove,
   sendText,
   unreadIn,
+  wantThreadHistory,
 } from "@/crypto/messaging";
 import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
@@ -452,7 +453,13 @@ export function useAnswerInvitation(conversationId: string) {
   // that quietly becomes pressable again reads as having been ignored.
   const accept = useMutation({
     mutationFn: () => acceptInvitation(conversationId),
-    onSuccess: settle,
+    onSuccess: () => {
+      // Nothing was kept for somebody who had not answered, so the thread up
+      // to this moment has to be asked for. Recorded here and sent by the next
+      // collection, which is also what retries it.
+      void wantThreadHistory(conversationId);
+      settle();
+    },
     onError: (error) => toast.error(getErrorMessage(error, "errors:DM_NO_INVITATION")),
   });
   const decline = useMutation({

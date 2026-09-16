@@ -3,7 +3,12 @@ import { ChevronRight, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ContactGrantRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ContactGrantRead,
+  DmRosterMember,
+  Presence,
+  ProfileDecorationsOutput,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { PrivatePanel, unreachableReason } from "@/components/contacts/UnreachableEmptyState";
 import { NewConversationDialog } from "@/components/messages/NewConversationDialog";
@@ -24,12 +29,30 @@ import {
   useRemoveMessageRequest,
 } from "@/hooks/useDirectMessages";
 import { useConversations, useUnreadMessages } from "@/hooks/useMyMessages";
-import { groupName, isGroup } from "@/lib/conversationName";
+import { groupName, isGroup, roster } from "@/lib/conversationName";
 import { getItem, setItem } from "@/lib/storage";
 import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 const ROW = "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-sm";
+
+/**
+ * Everything a row needs to know about somebody: what they are called, and how
+ * they look.
+ *
+ * Structural rather than one of the two shapes that satisfy it. A contact grant
+ * and a conversation's roster both carry this much, and a row does not care
+ * which of them it came from -- what it cares about is that a person on screen
+ * always has a name and a face.
+ */
+type Person = {
+  user_id: number;
+  username: string;
+  discriminator: number;
+  avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput | null;
+  presence?: Presence;
+};
 
 /**
  * The menu belongs to the row, not to the list: on a pointer it opens out of
@@ -57,6 +80,34 @@ type GroupId = "unread" | "favorites" | "connections" | "messages";
 const GROUP_ORDER: GroupId[] = ["unread", "favorites", "connections", "messages"];
 
 /**
+ * How many faces the space a single avatar occupies will hold, overlapped.
+ *
+ * Above it the row draws the group symbol instead. Not a truncation: a roster
+ * is what tells one group from another, so showing some of it and not the rest
+ * is worse than showing none of it -- and the row spells out every name beside
+ * this either way.
+ */
+const FACES_THAT_FIT = 3;
+
+/** Who is on a group, drawn as their faces where they all fit. */
+const RosterFaces = ({ members }: { members: DmRosterMember[] }) =>
+  members.length === 0 || members.length > FACES_THAT_FIT ? (
+    <Users className="size-6 shrink-0 p-0.5" aria-hidden="true" />
+  ) : (
+    <span className="flex size-6 shrink-0 items-center -space-x-2" aria-hidden="true">
+      {members.map((member) => (
+        <ProfileAvatar
+          key={member.user_id}
+          user={{ ...member, id: member.user_id }}
+          decorations={member.profile_decorations}
+          hidePresence
+          className="size-4 ring-1 ring-background"
+        />
+      ))}
+    </span>
+  );
+
+/**
  * A thread with more than two people on it.
  *
  * Kept apart from `Entry` rather than folded into it: every row above is a
@@ -67,6 +118,8 @@ const GROUP_ORDER: GroupId[] = ["unread", "favorites", "connections", "messages"
 interface GroupRow {
   conversationId: string;
   name: string;
+  /** Who is on it, so the row shows faces rather than a symbol for "several". */
+  members: DmRosterMember[];
   waiting: number;
   /** Named on it, but has not answered yet. */
   pending: boolean;
@@ -75,7 +128,7 @@ interface GroupRow {
 /** One person this list can offer, whether or not a thread is open with them. */
 interface Entry {
   userId: number;
-  person: ContactGrantRead;
+  person: Person;
   /** Absent until a conversation has actually been opened with them. */
   conversationId?: string;
   waiting: number;
@@ -147,15 +200,26 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   const settings = useDmSettings();
 
   const reachable = useMemo(() => requests.data?.accepted ?? [], [requests.data?.accepted]);
-  const personFor = useMemo(
-    () => new Map(reachable.map((grant) => [grant.user_id, grant])),
-    [reachable]
-  );
 
   const rows = useMemo(
     () => conversations.data?.conversations ?? [],
     [conversations.data?.conversations]
   );
+
+  /**
+   * Who the list can name, from both places a person is known.
+   *
+   * A conversation carries its own roster, which is the only source for
+   * somebody a group put you in touch with: agreeing to a roster is the whole
+   * of the ask, so there need be no request between the two of you to look up.
+   * An accepted request is laid over it for the people who also sent one.
+   */
+  const personFor = useMemo(() => {
+    const people = new Map<number, Person>();
+    for (const row of rows) for (const member of roster(row)) people.set(member.user_id, member);
+    for (const grant of reachable) people.set(grant.user_id, grant);
+    return people;
+  }, [rows, reachable]);
   const unread = useUnreadMessages(rows.map((row) => row.id));
 
   // Somebody you may message but have not opened a channel with yet.
@@ -171,8 +235,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   // hand, and the handle is all any of them carries.
   const matches = useMemo(() => {
     const needle = term.trim().toLowerCase().replace(/^@/, "");
-    return (person: ContactGrantRead) =>
-      !needle || getUserHandle(person).toLowerCase().includes(needle);
+    return (person: Person) => !needle || getUserHandle(person).toLowerCase().includes(needle);
   }, [term]);
 
   /**
@@ -241,6 +304,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
         .map((row) => ({
           conversationId: row.id,
           name: groupName(row),
+          members: roster(row),
           waiting: unread.data?.get(row.id) ?? 0,
           pending: Boolean(row.pending),
         })),
@@ -258,7 +322,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
         .filter((row) => !isGroup(row) && personFor.has(row.other_user_id))
         .map((row) => ({
           userId: row.other_user_id,
-          person: personFor.get(row.other_user_id) as ContactGrantRead,
+          person: personFor.get(row.other_user_id) as Person,
           conversationId: row.id,
           waiting: unread.data?.get(row.id) ?? 0,
         })),
@@ -523,7 +587,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
                       search={{ thread: row.conversationId }}
                       className={cn(ROW, row.pending && "text-muted-foreground")}
                     >
-                      <Users className="size-6 shrink-0 p-0.5" aria-hidden="true" />
+                      <RosterFaces members={row.members} />
                       <span className="min-w-0 flex-1 truncate">{row.name}</span>
                       {row.waiting ? (
                         <span className="relative ms-auto flex shrink-0 items-center">

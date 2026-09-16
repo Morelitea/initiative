@@ -50,7 +50,7 @@ import {
   useThread,
 } from "@/hooks/useMyMessages";
 import { useUserProfile } from "@/hooks/useUsers";
-import { groupName, isGroup } from "@/lib/conversationName";
+import { groupName, isGroup, roster } from "@/lib/conversationName";
 import { formatDateTime } from "@/lib/formatDate";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -98,12 +98,6 @@ export function MyMessagesPage() {
 
   /** Everyone with an accepted channel, whether or not it has been opened. */
   const reachable = useMemo(() => requests.data?.accepted ?? [], [requests.data?.accepted]);
-  // The whole grant rather than a name: the thread draws a person, and
-  // a person is their picture and what they wear on it as much as their handle.
-  const personFor = useMemo(
-    () => new Map(reachable.map((grant) => [grant.user_id, grant])),
-    [reachable]
-  );
 
   /** What to call the other side of a conversation, wherever it is named. */
   const nameOf = (userId: number) => {
@@ -111,7 +105,28 @@ export function MyMessagesPage() {
     return person ? getUserHandle(person) : t("unknownAccount");
   };
 
-  const rows = conversations.data?.conversations ?? [];
+  const rows = useMemo(
+    () => conversations.data?.conversations ?? [],
+    [conversations.data?.conversations]
+  );
+
+  /**
+   * Everybody this page can name and draw, from both places a person is known.
+   *
+   * The whole record rather than a name: a person is their picture and what
+   * they wear on it as much as their handle.
+   *
+   * A conversation carries its own roster, which is the only source for
+   * somebody a group put you in touch with -- agreeing to a roster is the whole
+   * of the ask, so there need be no request between the two of you to look up.
+   * An accepted request is laid over it for the people who also sent one.
+   */
+  const personFor = useMemo(() => {
+    const people = new Map<number, Speaker>();
+    for (const row of rows) for (const member of roster(row)) people.set(member.user_id, member);
+    for (const grant of reachable) people.set(grant.user_id, grant);
+    return people;
+  }, [rows, reachable]);
 
   const targetId = target.data?.id;
   const channelOpen = targetId !== undefined && personFor.has(targetId);
@@ -275,9 +290,9 @@ export function MyMessagesPage() {
           otherUserId={current.other_user_id}
           memberIds={current.member_ids?.length ? current.member_ids : [current.other_user_id]}
           name={isGroup(current) ? groupName(current) : nameOf(current.other_user_id)}
-          // A group has no one face to show, and no one person it is with. The
-          // roster is the name, and the name is the whole of the header.
-          them={isGroup(current) ? undefined : personFor.get(current.other_user_id)}
+          // Everybody the thread might have to draw. One map for the page, so
+          // a person looks the same in the header, in a message and in a quote.
+          people={personFor}
         />
       ) : withHandle ? (
         // Somebody was asked for. Either their thread is on its way, or there
@@ -369,6 +384,12 @@ const clockTime = (at: string): string => {
 /** Whether the second message carries on the first one's run. */
 const continuesRun = (before: StoredMessage, after: StoredMessage) => {
   if (before.mine !== after.mine) return false;
+  // The same person, not merely the same side. On a pair those are the same
+  // question and both messages carry no author at all, so it is unchanged
+  // there; on a group two people answering one after the other are two runs,
+  // and folding them into one would put the second person's words under the
+  // first one's face.
+  if (before.author !== after.author) return false;
   const gap = new Date(after.at).getTime() - new Date(before.at).getTime();
   // An unreadable time groups by sender alone rather than breaking every run.
   return Number.isNaN(gap) || gap < RUN_GAP_MS;
@@ -446,7 +467,7 @@ function Thread({
   otherUserId,
   memberIds,
   name,
-  them,
+  people,
 }: {
   conversationId: string;
   otherUserId: number;
@@ -458,12 +479,27 @@ function Thread({
    */
   memberIds: number[];
   name: string;
-  /** The other side, for their picture. Absent while the grant is still loading. */
-  them: Speaker;
+  /** Everybody the page can name and draw, keyed by account. */
+  people: Map<number, Speaker>;
 }) {
   const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
   const thread = useThread(conversationId);
+  /**
+   * The other side, where there is one side. A pair has exactly one, and that
+   * is what the header is named after.
+   */
+  const sole = memberIds.length === 1 ? people.get(memberIds[0]) : undefined;
+  /**
+   * Who said it.
+   *
+   * A message carries its author once a thread can hold more than two people.
+   * One stored before that does not, and neither does one on a pair, where
+   * "not mine" has only ever had one answer -- so a pair falls back to the one
+   * person on the other side and reads exactly as it always has.
+   */
+  const speakerOf = (message: StoredMessage): Speaker =>
+    message.mine ? me : message.author === undefined ? sole : people.get(message.author);
   const send = useSendMessage(conversationId, memberIds);
   const actions = useMessageActions(conversationId, memberIds);
   const [draft, setDraft] = useState("");
@@ -651,7 +687,7 @@ function Thread({
           everywhere else. `name` is the plain-text fallback for a person this
           device cannot resolve, and is what the failure notice below reads. */}
       <div className="shrink-0 border-b px-3 py-2 font-medium text-sm">
-        {them ? <UserHandle user={them} /> : name}
+        {sole ? <UserHandle user={sole} /> : name}
       </div>
       <div
         ref={log}
@@ -722,7 +758,7 @@ function Thread({
                       on one and across the message on the other -- and how far
                       depends on a clock format this cannot know. */}
                   <div className="relative flex w-12 shrink-0 justify-center">
-                    <Speaking who={message.mine ? me : them} hidden={!startsRun} />
+                    <Speaking who={speakerOf(message)} hidden={!startsRun} />
                     {startsRun ? (
                       <span
                         className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
@@ -751,9 +787,9 @@ function Thread({
                           className="flex w-full min-w-0 flex-col gap-0.5 rounded-md border-primary/60 border-s-2 bg-muted/40 px-2 py-1 text-start hover:bg-muted"
                         >
                           <span className="flex min-w-0 items-center gap-1">
-                            <Speaking who={answered.mine ? me : them} hidden={false} small />
+                            <Speaking who={speakerOf(answered)} hidden={false} small />
                             <span className="min-w-0 truncate font-medium text-primary text-xs">
-                              {getUserHandle(answered.mine ? me : them)}
+                              {getUserHandle(speakerOf(answered))}
                             </span>
                           </span>
                           {/* Two lines of it at most: a quote is there to say

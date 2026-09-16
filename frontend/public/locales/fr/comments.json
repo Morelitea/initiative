@@ -12,6 +12,8 @@
   "errorDelete": "Impossible de supprimer le commentaire pour l'instant.",
   "errorUpdate": "Impossible de mettre à jour le commentaire pour l'instant.",
   "formattingSyntax": "Mise en forme",
+  "insertEntityMention": "Lier n’importe quoi dans cette initiative",
+  "insertUserMention": "Mentionner un membre",
   "loadError": "Impossible de charger les commentaires pour l'instant.",
   "loading": "Chargement des commentaires...",
   "markdownHint": "Le Markdown est pris en charge : **gras**, *italique*, `code`, listes et liens.",
