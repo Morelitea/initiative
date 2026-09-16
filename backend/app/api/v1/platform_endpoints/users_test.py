@@ -393,6 +393,7 @@ async def test_search_users_returns_slim_paginated_envelope(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
     # This guild takes the default and shows names.
     assert summary["full_name"] == "Aaa"
