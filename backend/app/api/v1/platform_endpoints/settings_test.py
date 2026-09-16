@@ -568,76 +568,88 @@ async def test_operator_sets_and_clears_guild_status(
 
 
 @pytest.mark.integration
-async def test_operator_toggles_guild_auth_enabled(
+async def test_operator_grants_and_withdraws_guild_auth_options(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """An operator turns a guild's per-guild sign-in entitlement on and off from
-    the Guilds tab; the flag round-trips through list + patch."""
+    """An operator grants a guild's sign-in options from the Guilds tab, one at
+    a time or together, and withdraws them; the set round-trips through list +
+    patch. A sent list replaces the set outright."""
     owner = await create_user(
         session, email="owner-gauth@example.com", role=UserRole.owner
     )
-    guild = await create_guild(session, creator=owner, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=owner, auth_options=[])
     headers = get_auth_headers(owner)
 
     listed = await client.get("/api/v1/settings/guilds", headers=headers)
     assert listed.status_code == 200
     row = {r["name"]: r for r in listed.json()}[guild.name]
-    assert row["guild_auth_enabled"] is False
+    assert row["auth_options"] == []
 
-    on = await client.patch(
+    # One option without the other: a guild may offer its IdP without insisting.
+    partial = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": True},
+        json={"auth_options": ["providers"]},
         headers=headers,
     )
-    assert on.status_code == 200, on.text
-    assert on.json()["guild_auth_enabled"] is True
+    assert partial.status_code == 200, partial.text
+    assert partial.json()["auth_options"] == ["providers"]
 
-    off = await client.patch(
+    both = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": False},
+        json={"auth_options": ["providers", "require_sign_in"]},
         headers=headers,
     )
-    assert off.status_code == 200
-    assert off.json()["guild_auth_enabled"] is False
+    assert both.status_code == 200
+    assert both.json()["auth_options"] == ["providers", "require_sign_in"]
+
+    none = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"auth_options": []},
+        headers=headers,
+    )
+    assert none.status_code == 200
+    assert none.json()["auth_options"] == []
 
 
 @pytest.mark.integration
-async def test_guild_auth_enabled_null_is_noop(
+async def test_guild_auth_options_null_is_noop(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """An explicit JSON null for guild_auth_enabled is meaningless for a boolean
-    entitlement and must not silently disable it — Pydantic keeps the null in
-    model_fields_set, so a naive provided-flag would coerce it to False. A
+    """An explicit JSON null for auth_options is meaningless for an entitlement
+    and must not silently withdraw one — Pydantic keeps the null in
+    model_fields_set, so a naive provided-flag would coerce it to empty. A
     sibling field in the same PATCH still applies, proving the null is a no-op,
     not a poisoned request."""
     owner = await create_user(
         session, email="owner-gauth-null@example.com", role=UserRole.owner
     )
-    guild = await create_guild(session, creator=owner, guild_auth_enabled=True)
+    guild = await create_guild(
+        session, creator=owner, auth_options=["providers", "require_sign_in"]
+    )
     headers = get_auth_headers(owner)
 
     resp = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": None, "max_users": 5},
+        json={"auth_options": None, "max_users": 5},
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["guild_auth_enabled"] is True
+    assert resp.json()["auth_options"] == ["providers", "require_sign_in"]
     assert resp.json()["max_users"] == 5
 
 
 @pytest.mark.integration
-async def test_guild_auth_enabled_is_operator_only(
+async def test_guild_auth_options_are_operator_only(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """A guild's own admin cannot flip the entitlement through the guild-facing
-    PATCH — it is an operator field (like caps and status). The guild-admin
-    endpoint simply doesn't accept it, leaving the flag untouched."""
+    """A guild's own admin cannot grant itself an option through the
+    guild-facing PATCH — they are operator fields (like caps and status). The
+    guild-admin endpoint simply doesn't accept them, leaving the set empty."""
     admin = await create_user(session, email="gauth-admin@example.com")
-    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
@@ -645,14 +657,14 @@ async def test_guild_auth_enabled_is_operator_only(
 
     resp = await client.patch(
         f"/api/v1/guilds/{guild_id}",
-        json={"guild_auth_enabled": True},
+        json={"auth_options": ["providers"]},
         headers=get_auth_headers(admin),
     )
-    # The guild-admin schema ignores unknown fields; the flag stays off.
+    # The guild-admin schema ignores unknown fields; the set stays empty.
     assert resp.status_code == 200, resp.text
     session.expire_all()
     guild = await session.get(Guild, guild_id)
-    assert (await guild_administration(session, guild)).guild_auth_enabled is False
+    assert (await guild_administration(session, guild)).auth_options == []
 
 
 @pytest.mark.integration

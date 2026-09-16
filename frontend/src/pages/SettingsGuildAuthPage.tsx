@@ -37,17 +37,22 @@ export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
 
-  // The whole page exists only when the platform has opted into per-guild auth
-  // An operator has enabled sign-in for this guild; outside that the tab is
-  // hidden and a direct URL renders nothing (fail closed while still loading).
-  // The backend 404s the provider endpoints in the same case, so the queries
-  // stay off too.
+  // What the operator has granted this guild. Each section hangs off its own
+  // grant: editing the provider list needs ``providers``, the sign-in
+  // requirement needs ``require_sign_in``. Outside both the tab is hidden and a
+  // direct URL renders nothing (fail closed while still loading).
   const { activeGuild } = useGuilds();
-  const guildPostureActive = activeGuild?.guild_auth_enabled === true;
+  const grantedOptions = activeGuild?.auth_options ?? [];
+  const mayConfigureProviders = grantedOptions.includes("providers");
+  const mayRequireSignIn = grantedOptions.includes("require_sign_in");
+  const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
-    enabled: guildId > 0 && guildPostureActive,
+    enabled: guildId > 0 && mayRequireSignIn,
   });
+  // Read for either grant. A requirement names one of the guild's providers, so
+  // choosing one needs the list even where editing it is not on offer — the two
+  // grants are independent and a guild may hold only the requirement half.
   const providersQuery = useGuildAuthProviders(guildId, {
     enabled: guildId > 0 && guildPostureActive,
   });
@@ -168,100 +173,102 @@ export const SettingsGuildAuthPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("guildAuth.policy.title")}</CardTitle>
-          <CardDescription>{t("guildAuth.policy.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <RadioGroup
-            value={policy}
-            onValueChange={(value) => changePolicy(value as "open" | "required")}
-            className="gap-3"
-          >
-            <div className="flex items-start gap-3 rounded-md border px-3 py-3">
-              <RadioGroupItem id="guild-auth-open" value="open" className="mt-1" />
-              <div>
-                <Label htmlFor="guild-auth-open" className="font-medium text-base">
-                  {t("guildAuth.policy.openLabel")}
-                </Label>
-                <p className="text-muted-foreground text-sm">{t("guildAuth.policy.openHelp")}</p>
+      {mayRequireSignIn ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("guildAuth.policy.title")}</CardTitle>
+            <CardDescription>{t("guildAuth.policy.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <RadioGroup
+              value={policy}
+              onValueChange={(value) => changePolicy(value as "open" | "required")}
+              className="gap-3"
+            >
+              <div className="flex items-start gap-3 rounded-md border px-3 py-3">
+                <RadioGroupItem id="guild-auth-open" value="open" className="mt-1" />
+                <div>
+                  <Label htmlFor="guild-auth-open" className="font-medium text-base">
+                    {t("guildAuth.policy.openLabel")}
+                  </Label>
+                  <p className="text-muted-foreground text-sm">{t("guildAuth.policy.openHelp")}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-md border px-3 py-3">
-              <RadioGroupItem
-                id="guild-auth-required"
-                value="required"
-                disabled={eligibleProviders.length === 0}
-                className="mt-1"
-              />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Label htmlFor="guild-auth-required" className="font-medium text-base">
-                  {t("guildAuth.policy.requiredLabel")}
-                </Label>
-                <p className="text-muted-foreground text-sm">
-                  {t("guildAuth.policy.requiredHelp")}
-                </p>
-                {eligibleProviders.length === 0 ? (
-                  <p className="text-muted-foreground text-sm italic">
-                    {t("guildAuth.policy.noProviders")}
+              <div className="flex items-start gap-3 rounded-md border px-3 py-3">
+                <RadioGroupItem
+                  id="guild-auth-required"
+                  value="required"
+                  disabled={eligibleProviders.length === 0}
+                  className="mt-1"
+                />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Label htmlFor="guild-auth-required" className="font-medium text-base">
+                    {t("guildAuth.policy.requiredLabel")}
+                  </Label>
+                  <p className="text-muted-foreground text-sm">
+                    {t("guildAuth.policy.requiredHelp")}
                   </p>
-                ) : (
-                  policy === "required" && (
-                    <Select
-                      value={providerId != null ? String(providerId) : undefined}
-                      onValueChange={(value) => changeProvider(Number(value))}
-                    >
-                      <SelectTrigger className="w-full sm:w-72">
-                        <SelectValue placeholder={t("guildAuth.policy.providerPlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eligibleProviders.map((entry) => (
-                          <SelectItem key={entry.id} value={String(entry.id)}>
-                            {entry.display_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )
-                )}
+                  {eligibleProviders.length === 0 ? (
+                    <p className="text-muted-foreground text-sm italic">
+                      {t("guildAuth.policy.noProviders")}
+                    </p>
+                  ) : (
+                    policy === "required" && (
+                      <Select
+                        value={providerId != null ? String(providerId) : undefined}
+                        onValueChange={(value) => changeProvider(Number(value))}
+                      >
+                        <SelectTrigger className="w-full sm:w-72">
+                          <SelectValue placeholder={t("guildAuth.policy.providerPlaceholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {eligibleProviders.map((entry) => (
+                            <SelectItem key={entry.id} value={String(entry.id)}>
+                              {entry.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )
+                  )}
+                </div>
               </div>
-            </div>
-          </RadioGroup>
+            </RadioGroup>
 
-          {selfUnsatisfiedSlug && (
-            <Alert>
-              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  {t("guildAuth.policy.selfUnsatisfied", {
-                    providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
-                  })}
-                </span>
-                {canSignInWithRequired && (
-                  <Button size="sm" onClick={signInWithRequiredProvider}>
-                    {t("guildAuth.policy.signInWith", {
+            {selfUnsatisfiedSlug && (
+              <Alert>
+                <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {t("guildAuth.policy.selfUnsatisfied", {
                       providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
                     })}
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+                  </span>
+                  {canSignInWithRequired && (
+                    <Button size="sm" onClick={signInWithRequiredProvider}>
+                      {t("guildAuth.policy.signInWith", {
+                        providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                      })}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <div className="flex justify-end">
-            <Button onClick={save} disabled={!isDirty || !canSave || updatePolicy.isPending}>
-              {updatePolicy.isPending ? t("common:submitting") : t("common:save")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex justify-end">
+              <Button onClick={save} disabled={!isDirty || !canSave || updatePolicy.isPending}>
+                {updatePolicy.isPending ? t("common:submitting") : t("common:save")}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <GuildAuthProvidersSection guildId={guildId} />
+      {mayConfigureProviders ? <GuildAuthProvidersSection guildId={guildId} /> : null}
 
       <Card className="shadow-sm">
         <CardHeader>

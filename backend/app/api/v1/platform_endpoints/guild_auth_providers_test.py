@@ -79,7 +79,7 @@ async def test_provider_crud_404_when_guild_auth_disabled(
     (GUILD_AUTH_NOT_ENABLED) — and the guild's existing provider rows are left
     intact, so existing members keep signing in through them."""
     admin = await create_user(session)
-    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )

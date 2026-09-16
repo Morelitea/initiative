@@ -35,13 +35,33 @@ Deleting is careful on your behalf. A provider that a community's sign-in requir
 !!! screenshot "Settings → Platform → Authentication"
     Capture the page with two or three providers in the list, one row expanded to show its callback URL. Save as `docs/en/images/admin/oidc-settings.png`.
 
-## Where sign-in is configured
+## Ways in
 
-The badge at the top of the page says which of two shapes this deployment runs. It's set with `AUTH_SCOPE` when the server is deployed and isn't a switch you flip afterwards.
+At the top of the Authentication page is the list of ways people may sign in to this server. Tick the ones you want. At least one stays on, which the page enforces by refusing to let you untick the last.
 
-**Platform-wide sign-in** is the default: the providers you add serve every community, and a community can't add its own.
+| Way in | What it covers |
+|---|---|
+| **Password** | An email address and a password held here — the sign-in form, registration, and password reset, together. |
+| **Single sign-on** | Every provider on this page, and every provider a community has of its own. |
 
-**Per-community sign-in** gives each community an **Authentication** page of its own. Its admins add providers there, copy a member sign-in link that drops people straight into the community, and can set a **sign-in requirement** so members only reach it after signing in with a chosen provider. A community's own provider only ever admits people to that community, and everybody still has exactly one account.
+Untick something people are using and Initiative tells you how many accounts sign in only that way, and asks you to confirm that number before it goes through. Nobody is signed out either way — an open session runs to its normal end, on the web and on a phone, and app credentials carry on working. This is about opening a new session, not ending existing ones.
+
+Turning off single sign-on waits if any community still requires one. Lift the requirement there first; the page names how many are in the way.
+
+## Letting a community run its own sign-in
+
+A community can have identity providers of its own — useful when it's a separate organisation with a separate staff directory. That's yours to grant, per community, in **Settings → Platform → Guilds**: find it in the list, hit **Manage**, and the **Sign-in** section has two ticks.
+
+| Option | What it lets their admins do |
+|---|---|
+| **Its own sign-in providers** | Add providers on their own Authentication page, copy a member sign-in link that drops people straight into the community, and onboard new accounts through it. |
+| **Requiring a sign-in** | Insist members reach the community through one of those providers. |
+
+They're separate on purpose. A community can offer its provider as a convenience without forcing anyone through it — those are different arrangements, and one used to imply the other.
+
+A community's own provider only ever admits people to that community, and everybody still has exactly one account however they signed in.
+
+Withdrawing an option closes the page it governs and nothing else. Their providers stay, their members keep signing in through them, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
 ## Provider quickstarts
 
@@ -110,6 +130,6 @@ Every sign-in re-reads the claim and reconciles against it, so somebody dropped 
 
 ## Related
 
-- [Configuration](configuration.md) — `APP_URL`, `AUTH_SCOPE` and the rest.
+- [Configuration](configuration.md) — `APP_URL` and the rest.
 - [Platform roles](platform-roles.md) — who can configure this.
 - [Signing in](../getting-started/signing-in.md) — what people see.

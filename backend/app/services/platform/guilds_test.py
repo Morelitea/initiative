@@ -47,7 +47,7 @@ async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     assert administration.max_storage_bytes is None
     assert administration.max_users is None
     assert administration.tier_name is None
-    assert administration.guild_auth_enabled is False
+    assert administration.auth_options == []
 
 
 @pytest.mark.unit

@@ -945,8 +945,6 @@
     "filterByName": "Filter communities by name",
     "unlimitedPlaceholder": "Unlimited",
     "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
-    "limitInputLabel": "Storage limit for {{name}} in GB",
-    "userLimitInputLabel": "User limit for {{name}}",
     "overLimitHint": "{{name}} has more members than its current limit allows.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
@@ -955,9 +953,6 @@
     "statusInputLabel": "Status for {{name}}",
     "statusSaved": "Updated status for {{name}}.",
     "statusSaveError": "Could not update the community status. Please try again.",
-    "guildAuthInputLabel": "Per-community sign-in for {{name}}",
-    "guildAuthOn": "Enabled per-community sign-in for {{name}}.",
-    "guildAuthOff": "Disabled per-community sign-in for {{name}}. Existing members keep signing in; no new accounts onboard.",
     "status": {
       "active": "Active",
       "read_only": "Read-only",
@@ -974,19 +969,41 @@
       "members": "Members",
       "users": "Users",
       "storageLimit": "Storage limit",
-      "guildAuth": "Per-community sign-in",
       "status": "Status",
-      "billing": "Billing",
-      "support": "Help requests"
+      "billing": "Billing"
     },
     "billing": {
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal."
     },
-    "supportOn": "{{name}} can now send help requests.",
-    "supportOff": "{{name}} can no longer send help requests.",
-    "supportInputLabel": "Help requests for {{name}}"
+    "sheet": {
+      "open": "Manage",
+      "openLabel": "Manage settings for {{name}}",
+      "description": "Settings only you can change. This community's own admins see them and cannot edit them.",
+      "limits": "Limits",
+      "signIn": "Sign-in",
+      "features": "Features",
+      "usersHelp": "How many people may belong. Leave blank for no limit.",
+      "storageHelp": "How much they may store, in gigabytes. Leave blank for no limit.",
+      "bannerLabel": "Banner artwork",
+      "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
+      "supportLabel": "Help requests",
+      "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
+      "authOption": {
+        "providers": {
+          "label": "Its own sign-in providers",
+          "help": "Let their admins connect an identity provider and onboard new accounts through it."
+        },
+        "require_sign_in": {
+          "label": "Requiring a sign-in",
+          "help": "Let their admins insist members arrive through one of those providers. Independent of the setting above — a community can offer its provider without insisting on it."
+        }
+      },
+      "usersLabel": "Members",
+      "storageLabel": "Storage limit"
+    },
+    "unlimited": "No limit"
   },
   "adminDashboard": {
     "title": "Admin dashboard",

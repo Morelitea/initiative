@@ -633,7 +633,12 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
         ("public.guild_administration", "guild_id", "tier_name", "'Enterprise'"),
         ("public.guild_administration", "guild_id", "max_storage_bytes", "5"),
         ("public.guild_administration", "guild_id", "max_users", "1"),
-        ("public.guild_administration", "guild_id", "guild_auth_enabled", "true"),
+        (
+            "public.guild_administration",
+            "guild_id",
+            "auth_options",
+            "ARRAY['providers']::guild_auth_option[]",
+        ),
     ]:
         await set_rls_context(
             s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"

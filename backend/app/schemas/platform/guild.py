@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
+from app.core.guild_auth_options import GuildAuthOption
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.email_masking import mask_email
@@ -125,10 +126,10 @@ class GuildRead(GuildBase):
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
-    # ADMIN-ONLY. Whether this guild may configure its own sign-in (operator
-    # entitlement), so their settings UI can show/hide the Authentication tab;
+    # ADMIN-ONLY. What this guild may do about its own sign-in (operator
+    # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).
-    guild_auth_enabled: Optional[bool] = None
+    auth_options: Optional[List[GuildAuthOption]] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
@@ -267,9 +268,8 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
-    # Per-guild sign-in entitlement (operator toggle), set from the platform
-    # Guilds dashboard.
-    guild_auth_enabled: bool = False
+    # Per-guild sign-in entitlements, set from the platform Guilds dashboard.
+    auth_options: List[GuildAuthOption] = Field(default_factory=list)
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.
     banner_image_enabled: bool = True
@@ -292,8 +292,9 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
-    # Per-guild sign-in entitlement. Omit-to-skip (a bool is never null here).
-    guild_auth_enabled: Optional[bool] = None
+    # Per-guild sign-in entitlements. Omit-to-skip; a sent list replaces the
+    # set outright, and an empty one grants nothing.
+    auth_options: Optional[List[GuildAuthOption]] = None
     # Banner-artwork entitlement. Omit-to-skip, same as the one above.
     banner_image_enabled: Optional[bool] = None
     # Help-request entitlement. Omit-to-skip, same as the one above.

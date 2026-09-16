@@ -956,8 +956,6 @@
     "filterByName": "Filtrar comunidades por nombre",
     "unlimitedPlaceholder": "Ilimitado",
     "helpText": "Los límites de almacenamiento están en GB; los límites de usuarios son un recuento de miembros. Ambos se guardan automáticamente: deja un campo en blanco para ilimitado.",
-    "limitInputLabel": "Límite de almacenamiento para {{name}} en GB",
-    "userLimitInputLabel": "Límite de usuarios para {{name}}",
     "overLimitHint": "{{name}} tiene más miembros de los que permite su límite actual.",
     "saved": "Límite de almacenamiento actualizado para {{name}}.",
     "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
@@ -966,9 +964,6 @@
     "statusInputLabel": "Estado de {{name}}",
     "statusSaved": "Estado de {{name}} actualizado.",
     "statusSaveError": "No se pudo actualizar el estado de la comunidad. Inténtalo de nuevo.",
-    "guildAuthInputLabel": "Inicio de sesión por comunidad para {{name}}",
-    "guildAuthOn": "Inicio de sesión por comunidad habilitado para {{name}}.",
-    "guildAuthOff": "Inicio de sesión por comunidad deshabilitado para {{name}}. Los miembros existentes siguen iniciando sesión; no se crean cuentas nuevas.",
     "status": {
       "active": "Activo",
       "read_only": "Solo lectura",
@@ -985,19 +980,41 @@
       "members": "Miembros",
       "users": "Usuarios",
       "storageLimit": "Límite de almacenamiento",
-      "guildAuth": "Inicio de sesión por comunidad",
       "status": "Estado",
-      "billing": "Facturación",
-      "support": "Solicitudes de ayuda"
+      "billing": "Facturación"
     },
     "billing": {
       "noPlan": "Sin plan",
       "openLabel": "Abrir la facturación de {{name}}",
       "openError": "No se pudo abrir el portal de facturación."
     },
-    "supportOn": "{{name}} ya puede enviar solicitudes de ayuda.",
-    "supportOff": "{{name}} ya no puede enviar solicitudes de ayuda.",
-    "supportInputLabel": "Solicitudes de ayuda para {{name}}"
+    "sheet": {
+      "open": "Gestionar",
+      "openLabel": "Gestionar la configuración de {{name}}",
+      "description": "Ajustes que solo tú puedes cambiar. Los administradores de esta comunidad los ven y no pueden editarlos.",
+      "limits": "Límites",
+      "signIn": "Inicio de sesión",
+      "features": "Funciones",
+      "usersHelp": "Cuántas personas pueden pertenecer. Déjalo en blanco para no poner límite.",
+      "storageHelp": "Cuánto pueden almacenar, en gigabytes. Déjalo en blanco para no poner límite.",
+      "bannerLabel": "Imagen de cabecera",
+      "bannerHelp": "Permite que suban una imagen de cabecera. Sin esto eligen un color en su lugar, y una cabecera ya subida se sigue mostrando.",
+      "supportLabel": "Solicitudes de ayuda",
+      "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
+      "authOption": {
+        "providers": {
+          "label": "Sus propios proveedores de inicio de sesión",
+          "help": "Permite que sus administradores conecten un proveedor de identidad y den de alta cuentas nuevas por ahí."
+        },
+        "require_sign_in": {
+          "label": "Exigir un inicio de sesión",
+          "help": "Permite que sus administradores exijan que los miembros entren por uno de esos proveedores. Independiente del ajuste anterior: una comunidad puede ofrecer su proveedor sin exigirlo."
+        }
+      },
+      "usersLabel": "Miembros",
+      "storageLabel": "Límite de almacenamiento"
+    },
+    "unlimited": "Sin límite"
   },
   "storage": {
     "adminOnly": "Solo los propietarios de la plataforma pueden configurar el almacenamiento.",

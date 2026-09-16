@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
@@ -780,7 +781,7 @@ async def update_guild(
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
-    guild_auth_enabled: bool | None = None,
+    auth_options: list[GuildAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
     support_enabled: bool | None = None,
 ) -> Guild:
@@ -800,7 +801,7 @@ async def update_guild(
             guild.banner = normalized_banner
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
-    # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
+    # ``auth_options`` below), so null and omitted alike are a no-op.
     if is_community is not None and guild.is_community != is_community:
         # Only the way in is gated. Un-listing is always available — a guild
         # that opted in while the directory was running must still be able to
@@ -855,7 +856,7 @@ async def update_guild(
     if (
         max_storage_bytes_provided
         or max_users_provided
-        or guild_auth_enabled is not None
+        or auth_options is not None
         or banner_image_enabled is not None
         or support_enabled is not None
     ):
@@ -870,18 +871,20 @@ async def update_guild(
         if max_users_provided and administration.max_users != max_users:
             administration.max_users = max_users
             administration_updated = True
-        # An explicit ``null`` is meaningless for a boolean entitlement (unlike
-        # the caps, where null resets to unlimited), so guard on ``is not None``
-        # and treat null/omitted alike as a no-op — mirroring how the operator
+        # An explicit ``null`` is meaningless for an entitlement (unlike the
+        # caps, where null resets to unlimited), so guard on ``is not None`` and
+        # treat null/omitted alike as a no-op — mirroring how the operator
         # endpoint guards ``status``. Pydantic keeps an explicit null in
         # ``model_fields_set``, so a plain "provided" flag would let
-        # ``{"guild_auth_enabled": null}`` silently disable the entitlement.
-        if (
-            guild_auth_enabled is not None
-            and administration.guild_auth_enabled != guild_auth_enabled
-        ):
-            administration.guild_auth_enabled = guild_auth_enabled
-            administration_updated = True
+        # ``{"auth_options": null}`` silently withdraw every option.
+        #
+        # A sent list replaces the set outright: these are grants, and the
+        # operator is stating which ones the guild holds now.
+        if auth_options is not None:
+            requested = sorted({option.value for option in auth_options})
+            if sorted(administration.auth_options or []) != requested:
+                administration.auth_options = requested
+                administration_updated = True
         if (
             banner_image_enabled is not None
             and administration.banner_image_enabled != banner_image_enabled

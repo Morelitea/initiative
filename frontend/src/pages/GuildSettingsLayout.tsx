@@ -16,11 +16,11 @@ export const GuildSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
-  // The Authentication tab exists when an operator has enabled sign-in for
-  // this guild. Disabling the toggle hides the config surface without touching
-  // existing providers or member logins (guild_auth_enabled is admin-only on
-  // GuildRead).
-  const guildAuthEnabled = activeGuild?.guild_auth_enabled === true;
+  // The Authentication tab exists when an operator has granted this guild
+  // something to configure. Withdrawing the grant hides the config surface
+  // without touching existing providers or member logins (auth_options is
+  // admin-only on GuildRead).
+  const guildAuthEnabled = (activeGuild?.auth_options ?? []).length > 0;
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;

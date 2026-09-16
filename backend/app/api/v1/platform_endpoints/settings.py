@@ -564,9 +564,7 @@ async def list_platform_guild_storage(
             max_users=administration.max_users if administration else None,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
-            guild_auth_enabled=(
-                administration.guild_auth_enabled if administration else False
-            ),
+            auth_options=sorted(administration.auth_options) if administration else [],
             banner_image_enabled=(
                 administration.banner_image_enabled if administration else True
             ),
@@ -607,7 +605,7 @@ async def update_platform_guild_storage(
             max_storage_bytes_provided="max_storage_bytes" in provided,
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
-            guild_auth_enabled=payload.guild_auth_enabled,
+            auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,
         )
@@ -645,7 +643,7 @@ async def update_platform_guild_storage(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
-        guild_auth_enabled=administration.guild_auth_enabled,
+        auth_options=sorted(administration.auth_options),
     )
 
 
