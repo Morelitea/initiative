@@ -181,8 +181,15 @@ async def sync_oidc_assignments(
         )
         if membership:
             # Only a row this provider manages. One somebody joined by
-            # hand, or another provider's, is not this sync's to move.
-            if desired is not None and membership.oidc_provider_id == provider_id:
+            # hand, or another provider's, is not this sync's to move — and
+            # neither is a security admin, which only an operator grants and
+            # only an operator takes away. A claim rule that happened to name
+            # that person would otherwise quietly hand the seat back.
+            if (
+                desired is not None
+                and membership.oidc_provider_id == provider_id
+                and membership.role != GuildRole.security_admin
+            ):
                 role = GuildRole(desired)
                 if membership.role != role:
                     membership.role = role

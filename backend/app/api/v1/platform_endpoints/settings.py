@@ -29,6 +29,7 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.core.messages import AuthProviderMessages
 from app.services import audit as audit_service
+from app.services.stream_authz import authority as stream_authority
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
@@ -585,6 +586,10 @@ async def set_platform_guild_member_role(
             detail={"from": previous.value, "to": payload.role.value},
         )
     await session.commit()
+    # The same re-check the guild's own role endpoint does: a role change is a
+    # guild-level access change, and authorization is a property of the current
+    # moment rather than of a connection opened earlier.
+    await stream_authority.revoke_user(guild_id, user_id)
     return GuildMemberRoleRead(guild_id=guild_id, user_id=user_id, role=payload.role)
 
 

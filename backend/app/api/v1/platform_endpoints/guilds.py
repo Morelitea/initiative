@@ -1286,17 +1286,6 @@ async def update_guild_membership(
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
-    # And a security admin is not demoted from inside the guild either — the
-    # same hand that may not grant it may not take it away.
-    target_existing = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=user_id
-    )
-    if target_existing is not None and target_existing.role == GuildRole.security_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
-        )
-
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )
@@ -1304,6 +1293,16 @@ async def update_guild_membership(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
+        )
+
+    # A security admin is not demoted from inside the guild either — the same
+    # hand that may not grant it may not take it away. Asked of the *locked*
+    # row: an operator granting it between an unlocked read and this one would
+    # otherwise be overwritten by whatever this request was already carrying.
+    if target_membership.role == GuildRole.security_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
     # Check if demoting the last guild admin (FOR UPDATE already acquired above)

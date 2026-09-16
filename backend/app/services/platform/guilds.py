@@ -457,7 +457,11 @@ async def get_membership(
         GuildMembership.user_id == user_id,
     )
     if for_update:
-        stmt = stmt.with_for_update()
+        # ``populate_existing`` so the lock returns what the row holds *now*:
+        # an instance already in the identity map would otherwise come back as
+        # it was first read, which is the state the lock was taken to leave
+        # behind.
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
 

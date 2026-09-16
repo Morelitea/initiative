@@ -169,6 +169,7 @@ async def create_user(
     # The name this account's access tokens carry. Kept on the object because
     # ``get_auth_token`` is called from hundreds of places that have the user
     # and no session; see ``AUTH_SUBJECT_ATTR``.
+    setattr(user, SEEDED_ADDRESS_ATTR, email_raw)
     setattr(
         user,
         AUTH_SUBJECT_ATTR,
@@ -364,6 +365,13 @@ async def create_guild_membership(
 #: says so rather than falling back to the row id, which would be the one form
 #: the shipped token no longer uses.
 AUTH_SUBJECT_ATTR = "auth_subject"
+
+#: The address the factory gave the account, attached to the object for the
+#: same reason the subject is: a test that asserts an address does not leak
+#: into a response needs to know which address, and ``users`` no longer carries
+#: one. Deliberately not called ``email``: the model has no such field, and a
+#: name shaped like one belongs to the model rather than to the factory.
+SEEDED_ADDRESS_ATTR = "seeded_address"
 
 
 def get_auth_token(
