@@ -164,4 +164,26 @@ describe("MarkdownComposer", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("- one");
   });
+
+  it("carries a list marker onto the next line as you type", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "Bulleted list" }));
+    await user.keyboard("first{Enter}second");
+
+    expect(screen.getByRole("status")).toHaveTextContent("- first - second");
+  });
+
+  it("ends the list when you press Enter on an empty item", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "Bulleted list" }));
+    await user.keyboard("first{Enter}{Enter}after");
+
+    // The empty item's marker comes off and the caret stays on that line, so
+    // what follows sits directly under the list rather than a blank line below.
+    expect(field()).toHaveValue("- first\nafter");
+  });
 });

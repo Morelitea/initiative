@@ -236,3 +236,53 @@ export const insertLink: MarkdownTransform = ({ value, start, end }) => {
     end: urlAt + LINK_PLACEHOLDER.length,
   };
 };
+
+/** A line that carries a list marker or a quote: indent, marker, rest. */
+const CONTINUABLE_LINE = /^(\s*)([-*+] \[[ xX]\] |[-*+] |\d+\. |> )(.*)$/;
+
+/**
+ * What Enter does on a list or quote line: carry the marker down to the next
+ * one, so a list is typed rather than assembled.
+ *
+ * Enter on an item with nothing in it means the opposite — the writer is done
+ * with the list — so it takes the marker off instead of laying another one
+ * down. A number goes up by one; a ticked box comes down unticked.
+ *
+ * `null` means this line is not one of those and Enter should do what Enter
+ * normally does.
+ */
+export const continueList = ({
+  value,
+  start,
+  end,
+}: MarkdownSelection): MarkdownSelection | null => {
+  if (start !== end) return null;
+
+  const from = lineStart(value, start);
+  const match = CONTINUABLE_LINE.exec(value.slice(from, lineEnd(value, start)));
+  if (!match) return null;
+
+  const [, indent, marker, content] = match;
+  const afterMarker = from + indent.length + marker.length;
+  // Before the marker, Enter is just Enter: there is no item to continue yet.
+  if (start < afterMarker) return null;
+
+  if (content.trim() === "") {
+    return {
+      value: value.slice(0, from) + value.slice(afterMarker),
+      start: from,
+      end: from,
+    };
+  }
+
+  const next = /^\d+\. $/.test(marker)
+    ? `${Number.parseInt(marker, 10) + 1}. `
+    : marker.replace(/\[[xX]\]/, "[ ]");
+  const inserted = `\n${indent}${next}`;
+  const caret = start + inserted.length;
+  return {
+    value: value.slice(0, start) + inserted + value.slice(start),
+    start: caret,
+    end: caret,
+  };
+};

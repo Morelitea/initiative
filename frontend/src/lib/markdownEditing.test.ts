@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BULLET_LIST,
+  continueList,
   cycleHeading,
   insertLink,
   type MarkdownSelection,
@@ -143,5 +144,48 @@ describe("insertLink", () => {
 
   it("puts the caret in the words when nothing is selected", () => {
     expect(run(insertLink, "see |")).toBe("see [|](url)");
+  });
+});
+
+describe("continueList", () => {
+  const carry = (marked: string) => {
+    const next = continueList(parse(marked));
+    return next === null ? null : render(next);
+  };
+
+  it("carries a bullet down to the next line", () => {
+    expect(carry("- one|")).toBe("- one\n- |");
+  });
+
+  it("counts an ordered list on", () => {
+    expect(carry("1. one\n2. two|")).toBe("1. one\n2. two\n3. |");
+  });
+
+  it("carries a checklist down unticked", () => {
+    expect(carry("- [x] one|")).toBe("- [x] one\n- [ ] |");
+  });
+
+  it("keeps the indent of the item it is continuing", () => {
+    expect(carry("  - one|")).toBe("  - one\n  - |");
+  });
+
+  it("ends the list when the item is empty", () => {
+    expect(carry("- one\n- |")).toBe("- one\n|");
+  });
+
+  it("takes the rest of the line with it when the caret is mid-item", () => {
+    expect(carry("- one| two")).toBe("- one\n- | two");
+  });
+
+  it("leaves an ordinary line to Enter", () => {
+    expect(carry("just a sentence|")).toBe(null);
+  });
+
+  it("leaves a caret in front of the marker to Enter", () => {
+    expect(carry("|- one")).toBe(null);
+  });
+
+  it("leaves a selection to Enter, which replaces it", () => {
+    expect(carry("- |one|")).toBe(null);
   });
 });

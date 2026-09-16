@@ -12,7 +12,11 @@ import { useTranslation } from "react-i18next";
 import { Markdown } from "@/components/Markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { MarkdownSelection, MarkdownTransform } from "@/lib/markdownEditing";
+import {
+  continueList,
+  type MarkdownSelection,
+  type MarkdownTransform,
+} from "@/lib/markdownEditing";
 import { cn } from "@/lib/utils";
 
 import { MARKDOWN_SHORTCUTS, MarkdownToolbar, type ToolbarItem } from "./MarkdownToolbar";
@@ -102,6 +106,15 @@ export const MarkdownComposer = ({
     field.setSelectionRange(pending[0], pending[1]);
   });
 
+  /** Put the edited text in, and the caret where the edit says it goes. */
+  const commit = useCallback(
+    (next: MarkdownSelection) => {
+      pendingSelection.current = [next.start, next.end];
+      onChange(next.value);
+    },
+    [onChange]
+  );
+
   const apply = useCallback(
     (transform: MarkdownTransform) => {
       const field = innerRef.current;
@@ -111,16 +124,38 @@ export const MarkdownComposer = ({
         start: field.selectionStart,
         end: field.selectionEnd,
       };
-      const next = transform(state);
-      pendingSelection.current = [next.start, next.end];
-      onChange(next.value);
+      commit(transform(state));
     },
-    [disabled, onChange, value]
+    [commit, disabled, value]
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     onKeyDown?.(event);
+    // Anything that claimed the key first — a mention picker taking Enter,
+    // the field's own submit — has already said so.
     if (event.defaultPrevented) return;
+
+    const field = innerRef.current;
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      field
+    ) {
+      const carried = continueList({
+        value,
+        start: field.selectionStart,
+        end: field.selectionEnd,
+      });
+      if (carried) {
+        event.preventDefault();
+        commit(carried);
+      }
+      return;
+    }
+
     if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
     const transform = MARKDOWN_SHORTCUTS[event.key.toLowerCase()];
     if (!transform) return;
