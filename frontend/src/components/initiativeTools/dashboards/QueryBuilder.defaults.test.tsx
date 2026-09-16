@@ -6,7 +6,7 @@
  * nothing but hand back a spec with the new dataset and its filters cleared —
  * which is exactly what re-rendering with that spec does.
  */
-import { render, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
