@@ -62,6 +62,7 @@
   "send": "Enviar",
   "sendFailed": "No se pudo enviar ese mensaje.",
   "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
+  "recipientDevicesUnverified": "{{name}} usa un dispositivo que aún no has comprobado, así que no se envió. Comparad las imágenes de arriba y luego elige «Lo he comprobado».",
   "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
   "loading": "Cargando…",
   "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación.",
@@ -111,6 +112,11 @@
     "body": "Este dispositivo ha pedido a tus otros dispositivos los mensajes que ya tenías. Abre uno de ellos y apruébalo allí: estas son las imágenes que te mostrará.",
     "dismiss": "Descartar",
     "dismissNote": "Descartarlo solo lo oculta. Tus mensajes seguirán llegando si lo apruebas en tu otro dispositivo."
+  },
+  "peerKeyChange": {
+    "title": "Ha cambiado la clave de un dispositivo en esta conversación",
+    "body": "{{name}} usa ahora una clave distinta en un dispositivo al que ya habías escrito. Normalmente significa que ha sustituido o reinstalado un dispositivo. También puede significar que otra persona ha registrado un dispositivo en su nombre. Comprueba estas imágenes con esa persona por un medio distinto a este antes de enviar nada privado.",
+    "acknowledge": "Lo he comprobado"
   },
   "safetyEmoji": {
     "dog": "Perro",

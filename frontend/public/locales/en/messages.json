@@ -62,6 +62,7 @@
   "send": "Send",
   "sendFailed": "That message could not be sent.",
   "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
+  "recipientDevicesUnverified": "{{name}} is using a device you haven't checked yet, so this wasn't sent. Compare the pictures above with them, then choose \"I've checked this\".",
   "deviceFailed": "Encrypted messages could not be set up on this device.",
   "loading": "Loading…",
   "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app.",
@@ -111,6 +112,11 @@
     "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you.",
     "dismiss": "Dismiss",
     "dismissNote": "Dismissing this only hides it. Your messages still arrive if you approve on your other device."
+  },
+  "peerKeyChange": {
+    "title": "A device key changed in this conversation",
+    "body": "This conversation now includes a device key for {{name}} that this browser had not seen before. Usually that means they added, replaced, or reinstalled a device. It can also mean someone else enrolled a device in their name. Check these pictures with them somewhere other than here before you send anything private.",
+    "acknowledge": "I've checked this"
   },
   "safetyEmoji": {
     "dog": "Dog",
