@@ -190,7 +190,7 @@ async def lifespan(app: FastAPI):
     try:
         await init_owner()
     except IntegrityError:
-        # Unique violation on the owner's email_hash: a concurrent replica won
+        # Unique violation on the owner's address: a concurrent replica won
         # the first-boot race and created the owner between our existence check
         # and commit.
         logger.info("first-owner bootstrap: created by a concurrent replica")

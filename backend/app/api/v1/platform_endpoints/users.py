@@ -166,7 +166,7 @@ async def read_users_me(
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity
     # is linked (drives the "SSO account" affordances in the profile UI).
     payload.has_federated_identity = await has_federated_identity(
@@ -709,7 +709,7 @@ async def claim_my_username(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 #: The age below which somebody may not take part in the parts of the platform
@@ -796,7 +796,7 @@ async def confirm_my_age(
         await session.commit()
         await session.refresh(current_user)
 
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 def _address_read(row) -> UserEmailRead:
@@ -953,7 +953,7 @@ async def update_users_me(
         admin_session, user_id=current_user.id
     )
     if not update_data:
-        payload = UserRead.model_validate(current_user)
+        payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
         return payload
 
@@ -1168,7 +1168,7 @@ async def update_users_me(
     # Platform path — no initiative_roles enrichment (see read_users_me).
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     return payload
 
@@ -1719,7 +1719,7 @@ async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> User:
+) -> UserRead:
     """Replace the caller's profile picture.
 
     Multipart rather than a base64 field on ``PATCH /users/me``: sending the
@@ -1746,7 +1746,7 @@ async def upload_my_avatar(
     )
     await session.commit()
     await session.refresh(current_user)
-    return current_user
+    return await users_service.to_self_read(current_user)
 
 
 @router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)

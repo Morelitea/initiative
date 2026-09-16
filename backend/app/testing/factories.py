@@ -27,9 +27,7 @@ from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
-    hash_email,
     SALT_APP_SERVICE_SECRET,
-    SALT_EMAIL,
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
@@ -123,11 +121,12 @@ async def create_user(
         .lower()
         .strip()
     )
+    # Whether that address has been proved. It lives on the address row now, so
+    # it is popped rather than passed to ``User``.
+    address_confirmed = bool(overrides.pop("email_verified", True))
     # A handle is unique on (name, number). Tests that care about a specific
     # one pass it; everything else gets a distinct pair without having to.
     defaults = {
-        "email_hash": hash_email(email_raw),
-        "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),
         "username": usernames.random_name(),
         "discriminator": usernames.random_discriminator(),
         "username_chosen": True,
@@ -139,7 +138,6 @@ async def create_user(
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
         "status": UserStatus.active,
-        "email_verified": True,
         "week_starts_on": 0,
         "timezone": "UTC",
         "overdue_notification_time": "21:00",
@@ -165,7 +163,7 @@ async def create_user(
         user_id=user.id,
         email=email_raw,
         source=addresses.SOURCE_SIGNUP,
-        verified=bool(user_data.get("email_verified")),
+        verified=address_confirmed,
     )
     await dm_settings_service.seed_for_new_account(session, user_id=user.id)
     # The name this account's access tokens carry. Kept on the object because

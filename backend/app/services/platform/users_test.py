@@ -15,6 +15,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
 from app.services.platform import users as user_service
 from app.testing.factories import (
@@ -198,7 +199,9 @@ async def test_deactivate_user(session: AsyncSession):
     assert deactivated.token_version == original_token_version + 1
     # PII preserved — admin can reactivate.
     assert deactivated.full_name == "Original Name"
-    assert deactivated.email == "todeactivate@example.com"
+    assert await addresses.holds_address(
+        session, user_id=deactivated.id, email="todeactivate@example.com"
+    )
 
 
 @pytest.mark.unit
@@ -263,7 +266,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
 
     original_id = user.id
     original_token_version = user.token_version
-    original_email_hash = user.email_hash
 
     await user_service.soft_delete_user(session, user.id)
 
@@ -294,10 +296,11 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     ).all()
     assert remaining_identities == []
     assert (await session.get(FederatedIdentitySecret, identity.id)) is None
-    assert anonymized.email_hash != original_email_hash
-    # Login is doubly impossible: the email_hash no longer matches the
-    # user's old email, and the password hash is fresh nonsense.
-    assert anonymized.email != "toanonymize@example.com"
+    # Every address the account held was replaced with the sentinel, so the one
+    # it signed in with reaches nobody and the password hash is fresh nonsense.
+    assert not await addresses.holds_address(
+        session, user_id=anonymized.id, email="toanonymize@example.com"
+    )
     # Token version bumped (deactivate already bumped, anonymize keeps it).
     assert anonymized.token_version >= original_token_version + 1
 

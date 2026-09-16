@@ -11,7 +11,6 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.core.email_masking import mask_email
 from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
@@ -92,7 +91,7 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
-) -> Sequence[User]:
+) -> List[AdminUserRead]:
     """List all users in the platform (``users.read``).
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
@@ -102,7 +101,7 @@ async def list_all_users(
     """
     stmt = select(User).order_by(User.created_at.asc())
     result = await session.exec(stmt)
-    return result.all()
+    return await users_service.to_admin_read(list(result.all()))
 
 
 #: ``email`` is masked here exactly as it is in the roster this exports, so
@@ -142,20 +141,26 @@ async def export_platform_users_csv(
             status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
         )
 
+    # Through the same shape the roster returns, so the export cannot be the one
+    # place that forgets to mask an address.
+    records = await users_service.to_admin_read(users)
+
     rows = []
-    for user in users:
+    for record in records:
         rows.append(
             [
-                user.id,
-                mask_email(user.email),
-                user.full_name or "",
-                user.role.value if hasattr(user.role, "value") else user.role,
-                user.status.value if hasattr(user.status, "value") else user.status,
-                user.email_verified,
-                user.created_at.isoformat() if user.created_at else "",
-                user.updated_at.isoformat() if user.updated_at else "",
-                user.timezone or "",
-                user.locale or "",
+                record.id,
+                record.email,
+                record.full_name or "",
+                record.role.value if hasattr(record.role, "value") else record.role,
+                record.status.value
+                if hasattr(record.status, "value")
+                else record.status,
+                record.email_verified,
+                record.created_at.isoformat() if record.created_at else "",
+                record.updated_at.isoformat() if record.updated_at else "",
+                record.timezone or "",
+                record.locale or "",
             ]
         )
 
@@ -226,7 +231,7 @@ async def reactivate_user(
     user_id: int,
     session: AdminSessionDep,
     _current_user: UsersManageDep,
-) -> User:
+) -> AdminUserRead:
     """Reactivate a deactivated user account (admin only)."""
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
@@ -255,7 +260,7 @@ async def reactivate_user(
     await session.refresh(user)
     # Platform user management stays platform-table-only: initiative
     # membership is guild-schema content this path cannot read.
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
@@ -403,7 +408,7 @@ async def set_user_username(
     payload: AdminUsernameUpdate,
     session: AdminSessionDep,
     current_user: ContentModerateDep,
-) -> User:
+) -> AdminUserRead:
     """Change someone's username.
 
     People occasionally pick a handle that breaches the terms of use, and it is
@@ -450,7 +455,7 @@ async def set_user_username(
     )
     await session.commit()
     await session.refresh(user)
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.post("/users/{user_id}/suspension", response_model=AdminUserRead)
@@ -459,7 +464,7 @@ async def set_user_suspension(
     payload: AdminSuspensionUpdate,
     session: AdminSessionDep,
     current_user: UsersManageDep,
-) -> User:
+) -> AdminUserRead:
     """Freeze an account, or let it go.
 
     Suspension takes nothing away: memberships, grants, assignments and
@@ -496,7 +501,7 @@ async def set_user_suspension(
 
     already = user.status == UserStatus.suspended
     if already == payload.suspended:
-        return user
+        return await users_service.to_admin_read_one(user)
 
     user.status = UserStatus.suspended if payload.suspended else UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
@@ -532,7 +537,7 @@ async def set_user_suspension(
         # guild to name.
         await stream_authority.revoke_user_everywhere(user_id)
 
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
@@ -550,7 +555,7 @@ async def clear_age_block(
     user_id: int,
     session: AdminSessionDep,
     current_user: UsersAgeUnblockDep,
-) -> User:
+) -> AdminUserRead:
     """Let an account answer the age question again.
 
     An account that answered as under age keeps that answer, and the question
@@ -594,7 +599,7 @@ async def clear_age_block(
     account_stream.queue_account_signal(session, user_id, "age")
     await session.commit()
     await session.refresh(user)
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.patch("/users/{user_id}/platform-role", response_model=AdminUserRead)
@@ -603,7 +608,7 @@ async def update_platform_role(
     payload: PlatformRoleUpdate,
     session: AdminSessionDep,
     current_user: RolesAssignDep,
-) -> User:
+) -> AdminUserRead:
     """Update a user's platform role (admin only).
 
     Restrictions:
@@ -670,7 +675,7 @@ async def update_platform_role(
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only (see reactivate).
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.get(
@@ -819,7 +824,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
-            message=f"User {mask_email(user.email)} has been deactivated",
+            message=f"User {user.username} has been deactivated",
         )
 
     if payload.action == "soft_delete":
@@ -827,7 +832,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
-            message=f"User {mask_email(user.email)} has been anonymized",
+            message=f"User {user.username} has been anonymized",
         )
 
     # hard_delete: ownership is released as the memberships go, and the
@@ -837,7 +842,7 @@ async def delete_user(
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
-        message=f"User {mask_email(user.email)} has been permanently deleted",
+        message=f"User {user.username} has been permanently deleted",
     )
 
 

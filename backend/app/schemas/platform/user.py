@@ -528,7 +528,10 @@ class UserRead(UserBase):
     #: the SPA reads its own account; defaults false elsewhere.
     age_confirmation_required: bool = False
     status: UserStatus
-    email_verified: bool
+    #: Both resolved from ``user_emails`` by whoever builds this shape (see
+    #: ``services.platform.users.to_read``) — the ``users`` row carries neither.
+    email: Optional[EmailStr] = None
+    email_verified: bool = False
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
@@ -590,11 +593,18 @@ class AdminUserRead(UserRead):
     masked form without opting in.
     """
 
+    #: ``validate_assignment`` so the mask below runs on assignment too, not
+    #: only on validation. The address is resolved from ``user_emails`` after
+    #: the shape is built, and an assignment that skipped the validator would
+    #: put the stored address on the wire.
+    model_config = ConfigDict(validate_assignment=True)
+
     #: Re-declared as a plain ``str``, widening ``UserBase.email``: a masked
     #: address is not a deliverable one, so typing it ``EmailStr`` would
     #: describe it wrongly in the OpenAPI schema and make this shape fail to
-    #: re-validate its own output.
-    email: str
+    #: re-validate its own output. Empty until the builder resolves it, for the
+    #: reason ``UserRead`` gives.
+    email: str = ""
 
     @field_validator("email", mode="after")
     @classmethod

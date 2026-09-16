@@ -1,13 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { routeTree } from "./routeTree.gen";
 
 // Define the router context types
 export interface AuthContextValue {
-  user: { id: number; email: string; full_name?: string | null } | null;
+  user: UserRead | null;
   token: string | null;
   loading: boolean;
   isDeviceToken: boolean;

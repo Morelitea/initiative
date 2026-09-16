@@ -126,8 +126,6 @@ def _unsaved_user(tz: str) -> User:
     return User(
         username=usernames.random_name(),
         discriminator=usernames.random_discriminator(),
-        email_hash="x",
-        email_encrypted="x",
         hashed_password="x",
         timezone=tz,
     )
