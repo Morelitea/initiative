@@ -22,6 +22,8 @@ class FakeConnection:
                     "state": "active",
                     "wait_event_type": "Lock",
                     "wait_event": "transactionid",
+                    "backend_xid": "91",
+                    "backend_xmin": "90",
                     "age_s": 6.2,
                     "blocking_pids": [34],
                 }
@@ -35,7 +37,10 @@ class FakeConnection:
                     "state": "active",
                     "wait_event_type": "Lock",
                     "wait_event": "transactionid",
+                    "backend_xid": "91",
+                    "backend_xmin": "90",
                     "age_s": 6.2,
+                    "blocking_pids": [34],
                     "query_preview": "UPDATE comments SET content=$1",
                 },
                 {
@@ -45,7 +50,10 @@ class FakeConnection:
                     "state": "idle in transaction",
                     "wait_event_type": "Client",
                     "wait_event": "ClientRead",
+                    "backend_xid": "89",
+                    "backend_xmin": None,
                     "age_s": 7.1,
+                    "blocking_pids": [],
                     "query_preview": "UPDATE comments SET content='<redacted>'",
                 },
             ]
@@ -55,6 +63,8 @@ class FakeConnection:
                 "locktype": "transactionid",
                 "mode": "ShareLock",
                 "granted": False,
+                "database_oid": 7,
+                "relation_oid": None,
                 "schema_name": None,
                 "relation_name": None,
                 "transaction_id": "42",
@@ -70,12 +80,14 @@ async def test_reports_wait_and_lock_metadata_with_bounded_redacted_sql(capsys):
 
     assert found is True
     lines = capsys.readouterr().out.splitlines()
-    activity = json.loads(lines[0].removeprefix("CI_POSTGRES_WAITS "))
+    activity = json.loads(lines[0].removeprefix("CI_POSTGRES_ACTIVITY "))
     participants = json.loads(lines[1].removeprefix("CI_POSTGRES_PARTICIPANTS "))
     locks = json.loads(lines[2].removeprefix("CI_POSTGRES_LOCKS "))
     assert activity == [
         {
             "age_s": 6.2,
+            "backend_xid": "91",
+            "backend_xmin": "90",
             "blocking_pids": [34],
             "datname": "initiative_test_worker",
             "pid": 12,

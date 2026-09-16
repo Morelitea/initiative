@@ -1,4 +1,4 @@
-"""Report long PostgreSQL waits in CI with bounded, literal-redacted SQL."""
+"""Report long PostgreSQL activity in CI with bounded, literal-redacted SQL."""
 
 from __future__ import annotations
 
@@ -21,11 +21,13 @@ SELECT
     state,
     wait_event_type,
     wait_event,
+    backend_xid::text AS backend_xid,
+    backend_xmin::text AS backend_xmin,
     round(extract(epoch FROM clock_timestamp() - query_start)::numeric, 1) AS age_s,
     pg_blocking_pids(pid) AS blocking_pids
 FROM pg_stat_activity
 WHERE pid <> pg_backend_pid()
-  AND wait_event_type = 'Lock'
+  AND state = 'active'
   AND query_start <= clock_timestamp() - make_interval(secs => $1)
 ORDER BY query_start, pid
 """
@@ -36,6 +38,8 @@ SELECT
     locks.locktype,
     locks.mode,
     locks.granted,
+    locks.database AS database_oid,
+    locks.relation AS relation_oid,
     namespaces.nspname AS schema_name,
     classes.relname AS relation_name,
     locks.transactionid::text AS transaction_id
@@ -54,7 +58,10 @@ SELECT
     state,
     wait_event_type,
     wait_event,
+    backend_xid::text AS backend_xid,
+    backend_xmin::text AS backend_xmin,
     round(extract(epoch FROM clock_timestamp() - query_start)::numeric, 1) AS age_s,
+    pg_blocking_pids(pid) AS blocking_pids,
     left(
         regexp_replace(query, $$'(?:''|[^'])*'$$, $$'<redacted>'$$, 'g'),
         300
@@ -82,7 +89,7 @@ async def report_once(conn: asyncpg.Connection, threshold_seconds: float) -> boo
     locks = await conn.fetch(LOCK_SQL, sorted(pids))
 
     print(
-        "CI_POSTGRES_WAITS "
+        "CI_POSTGRES_ACTIVITY "
         + json.dumps([_record(row) for row in activities], default=str, sort_keys=True),
         flush=True,
     )
