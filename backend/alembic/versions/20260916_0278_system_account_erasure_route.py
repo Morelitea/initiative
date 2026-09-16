@@ -5,9 +5,9 @@ BYPASSRLS attribute.  Account erasure must remove embedded names regardless of
 tenant policy, and the RLS-expanded comments UPDATE becomes pathologically
 expensive after a full test run has churned the PostgreSQL catalogs.
 
-Grant only the four tables the mention scrub reads or updates.  Provisioning
-contains the same matrix for guilds created after this migration; this file
-backfills every existing guild schema and the template.
+Grant only the scrubbed tables and the closure their frozen, capture, and search
+triggers need.  Provisioning contains the same matrix for guilds created after
+this migration; this file backfills every existing guild schema and the template.
 """
 
 from sqlalchemy import text
@@ -21,26 +21,68 @@ branch_labels = None
 depends_on = None
 
 
-SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, str] = {
-    "comments": "SELECT, UPDATE",
-    "documents": "SELECT, UPDATE",
-    "posts": "SELECT, UPDATE",
-    "task_assignment_digest_items": "SELECT, UPDATE",
+SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
+    "comments": ("SELECT", "UPDATE"),
+    "documents": ("SELECT", "UPDATE"),
+    "posts": ("SELECT", "UPDATE"),
+    "task_assignment_digest_items": ("SELECT", "UPDATE"),
+    "tasks": ("SELECT",),
+    "projects": ("SELECT",),
+    "queues": ("SELECT",),
+    "counter_groups": ("SELECT",),
+    "calendars": ("SELECT",),
+    "dashboards": ("SELECT",),
+    "galleries": ("SELECT",),
+    "initiatives": ("SELECT",),
+    "event_outbox": (
+        "INSERT (txn_id, occurred_at, actor_user_id, initiative_id, "
+        "resource_type, resource_id, action, changed, parents)",
+    ),
+    "search_entries": (
+        "SELECT (entity_type, entity_id)",
+        "INSERT (entity_type, entity_id, chunk_ix, initiative_id, dac_tool, "
+        "dac_id, title, body, archived, template, updated_at, tsv)",
+        "DELETE",
+    ),
+}
+
+SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
+    "event_outbox_id_seq": ("USAGE",),
 }
 
 
 def _grant_to_schema(connection, schema: str) -> None:
     connection.execute(text(f'GRANT USAGE ON SCHEMA "{schema}" TO app_admin'))
-    for table, verbs in SYSTEM_GUILD_MAINTENANCE_GRANTS.items():
+    for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items():
         connection.execute(
-            text(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO app_admin')
+            text(
+                f"GRANT {', '.join(privileges)} ON TABLE "
+                f'"{schema}"."{table}" TO app_admin'
+            )
+        )
+    for sequence, privileges in SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS.items():
+        connection.execute(
+            text(
+                f"GRANT {', '.join(privileges)} ON SEQUENCE "
+                f'"{schema}"."{sequence}" TO app_admin'
+            )
         )
 
 
 def _revoke_from_schema(connection, schema: str) -> None:
-    for table, verbs in SYSTEM_GUILD_MAINTENANCE_GRANTS.items():
+    for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items():
         connection.execute(
-            text(f'REVOKE {verbs} ON TABLE "{schema}"."{table}" FROM app_admin')
+            text(
+                f"REVOKE {', '.join(privileges)} ON TABLE "
+                f'"{schema}"."{table}" FROM app_admin'
+            )
+        )
+    for sequence, privileges in SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS.items():
+        connection.execute(
+            text(
+                f"REVOKE {', '.join(privileges)} ON SEQUENCE "
+                f'"{schema}"."{sequence}" FROM app_admin'
+            )
         )
     connection.execute(text(f'REVOKE USAGE ON SCHEMA "{schema}" FROM app_admin'))
 
