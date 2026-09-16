@@ -69,7 +69,7 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # and unique across the table, and user_emails allows an account to hold
         # no address, so the column cannot be rebuilt for every row. Roll
         # forward; restore from a backup instead.
-        "20260915_0273",
+        "20260915_0274",
     }
 )
 

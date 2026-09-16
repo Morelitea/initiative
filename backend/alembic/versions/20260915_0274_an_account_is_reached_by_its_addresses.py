@@ -14,8 +14,8 @@ One-way. ``users.email_hash`` was NOT NULL and unique across the whole
 table, and ``user_emails`` allows an account to hold no address at all, so
 there is no rebuilding the column for every row.
 
-Revision ID: 20260915_0273
-Revises: 20260915_0272
+Revision ID: 20260915_0274
+Revises: 20260915_0273
 Create Date: 2026-09-15
 """
 
@@ -23,8 +23,8 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "20260915_0273"
-down_revision = "20260915_0272"
+revision = "20260915_0274"
+down_revision = "20260915_0273"
 branch_labels = None
 depends_on = None
 
