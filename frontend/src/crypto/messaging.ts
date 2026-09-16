@@ -42,6 +42,7 @@ import {
   type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
+  sessionAuthor,
   sessionForDevice,
   sessionOrigin,
   sessionPickle,
@@ -337,6 +338,10 @@ async function openOutboundSession(
   const session = await ratchet.createOutboundSession(account, destination.identityKey, oneTimeKey);
   await sessionPickle.set(session.session_id, session.session_pickle);
   await sessionOrigin.set(session.session_id, destination.origin);
+  // Whose device this session is with, for when they act on a message later.
+  if (destination.userId !== undefined) {
+    await sessionAuthor.set(session.session_id, destination.userId);
+  }
   await sessionForDevice.set(destination.id, session.session_id);
   await sessionsInConversation.add(conversationId, session.session_id);
   await allSessions.add(session.session_id);
@@ -371,8 +376,14 @@ async function claimKeysFor(
   if (missing.some((destination) => destination.origin === "self")) {
     claims.push(claimOwnSessionKeys({ device_id: ownDeviceId }));
   }
-  for (const claim of await Promise.all(claims)) {
-    for (const device of claim.devices) {
+  // Settled rather than all: a claim can be refused after the directory was
+  // read -- somebody's permission changes in between -- and one refusal must
+  // not take the members whose keys did come back with it. A destination whose
+  // key is missing is skipped further down, which is what a member with nothing
+  // to open a session on already gets.
+  for (const settled of await Promise.allSettled(claims)) {
+    if (settled.status !== "fulfilled") continue;
+    for (const device of settled.value.devices) {
       if (device.one_time_key) keys.set(device.device_id, device.one_time_key.public_key);
     }
   }
@@ -859,18 +870,21 @@ async function identitiesForPreKeys(
       const directories = await Promise.all(
         roster.map(async (userId) => {
           try {
-            return (await readDirectory(userId)).devices;
+            return { userId, devices: (await readDirectory(userId)).devices };
           } catch {
-            return [];
+            return { userId, devices: [] };
           }
         })
       );
       candidates.set(conversation.id, [
-        ...directories.flat().map((device) => ({
-          id: device.device_id,
-          identityKey: device.identity_key,
-          origin: "other" as const,
-        })),
+        ...directories.flatMap(({ userId, devices }) =>
+          devices.map((device) => ({
+            id: device.device_id,
+            identityKey: device.identity_key,
+            origin: "other" as const,
+            userId,
+          }))
+        ),
         ...ours,
       ]);
     } catch {
@@ -1320,6 +1334,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
     try {
       let plaintext: string;
       let mine: boolean;
+      let author: number | undefined;
       // Every message is offered to the sessions this device already holds
       // before any new one is opened -- pre-key messages included. A session
       // goes on marking what it sends as pre-key until it hears back on it, so
@@ -1332,6 +1347,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await sessionsInConversation.add(item.conversation_id, read.sessionId);
         plaintext = read.plaintext;
         mine = (await sessionOrigin.get(read.sessionId)) === "self";
+        author = await sessionAuthor.get(read.sessionId);
       } else if (item.message_type === 0) {
         // Nothing held can read it, so it opens a conversation rather than
         // continuing one. Opening an inbound session spends a prekey out of the
@@ -1347,7 +1363,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
               );
               return {
                 next: session.account_pickle,
-                value: { session, origin: candidate.origin, device: candidate.id },
+                value: {
+                  session,
+                  origin: candidate.origin,
+                  device: candidate.id,
+                  author: candidate.userId,
+                },
               };
             } catch {
               // Not this device. Try the next.
@@ -1360,6 +1381,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // Which end a session belongs to is knowable now and never again: an
         // ordinary message arriving on it later names no sender.
         await sessionOrigin.set(opened.session.session_id, opened.origin);
+        // And whose it is. "Their side" is one person in a pair and several in
+        // a group, so which side an envelope arrived on stops being enough to
+        // say who sent it.
+        if (opened.author !== undefined) {
+          await sessionAuthor.set(opened.session.session_id, opened.author);
+        }
         // Which device it is with, too -- and that is what the reply looks up.
         // Without it an answer opens a second session with somebody this device
         // is already talking to, spends another of their prekeys to do it, and
@@ -1372,6 +1399,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await allSessions.add(opened.session.session_id);
         plaintext = opened.session.plaintext;
         mine = opened.origin === "self";
+        author = opened.author;
       } else {
         continue;
       }
@@ -1383,10 +1411,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
-      // Acting on a message already said rather than saying one. Which side
-      // an envelope arrived on is the whole of the authorization: one that
-      // came over this account's own session is this account acting from
-      // another tab, and one over theirs is them acting on their own message.
+      // Acting on a message already said rather than saying one. The side it
+      // arrived on says whether this is the account's own other tab or somebody
+      // else; on a roster that is not enough on its own, because an edit or a
+      // removal is a claim about a message's author and "somebody else" is
+      // several people. So the session's account goes with it, and the log
+      // refuses one that does not match the author it is acting on.
       if (envelope.kind === "reaction" || envelope.kind === "edit" || envelope.kind === "remove") {
         const from = mine ? "mine" : "theirs";
         const moved =
@@ -1405,13 +1435,15 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
                   envelope.body,
                   envelope.at || item.created_at,
                   from,
-                  envelope.rev
+                  envelope.rev,
+                  author
                 )
               : await messageLog.applyRemove(
                   item.conversation_id,
                   envelope.targetId,
                   from,
-                  item.created_at
+                  item.created_at,
+                  author
                 );
         if (moved) touched.add(item.conversation_id);
         collected.push(item.id);
@@ -1468,6 +1500,9 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // A message that arrived on one of this account's own sessions is the
         // sender's own outbox catching up, and belongs on the sender's side.
         mine,
+        // Who said it, so an edit or a removal can be held to the person whose
+        // message it is rather than to the side it came from.
+        ...(author !== undefined ? { author } : {}),
       });
       // Only theirs is worth reporting: this account already knows when it sent
       // its own, and a receipt addressed at yourself tells nobody anything.
