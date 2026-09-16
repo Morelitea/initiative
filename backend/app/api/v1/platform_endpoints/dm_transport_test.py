@@ -843,7 +843,14 @@ class TestProposingAGroup:
     async def test_leaving_an_accepted_group_revokes_transport_access(
         self, client, session, acting_user
     ):
-        """Leaving removes both key-read and send access granted by membership."""
+        """Leaving takes back what being on the roster gave.
+
+        The two halves are different answers on purpose. Reading somebody's
+        devices is a question about that account, and it is refused. A copy
+        addressed to a device that is no longer on the roster is dropped
+        instead: the send is for everybody still on it, and one name having
+        gone is not the rest of them going unheard.
+        """
         a = await acting_user("member")
         b = await acting_user("member")
         c = await acting_user("member")
@@ -882,8 +889,14 @@ class TestProposingAGroup:
             },
             headers=a.headers,
         )
-        assert sent.status_code == 404
-        assert sent.json()["detail"] == "DM_CONVERSATION_NOT_FOUND"
+        # The conversation is still there and still has people on it, so the
+        # send is taken.
+        assert sent.status_code == 200, sent.text
+        # And nothing was written for the person who left.
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert collected.json()["items"] == []
         assert a_device
 
     async def test_somebody_still_deciding_cannot_send(
