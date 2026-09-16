@@ -7,7 +7,9 @@ guild id, which meant two values describing one guild and nothing holding them
 together.
 
 The view reads ``public.guilds.show_member_names`` for the guild the request is
-routed into, so the answer comes from the row that owns it.
+routed into — named by ``current_guild_id``, or by ``pam_guild_id`` when the
+request reaches that guild through a time-bound grant — so the answer comes
+from the row that owns it.
 
 The view runs with its owner's privileges, so the owner needs to be able to
 read that column: ``app_profile_reader`` gains SELECT on exactly
@@ -15,15 +17,15 @@ read that column: ``app_profile_reader`` gains SELECT on exactly
 nothing else, holds no write verb anywhere, and cannot log in — the same shape
 it has had on ``public.users`` since 0214.
 
-Revision ID: 20260916_0280
-Revises: 20260916_0279
+Revision ID: 20260916_0281
+Revises: 20260916_0280
 Create Date: 2026-09-16
 """
 
 from alembic import op
 
-revision = "20260916_0280"
-down_revision = "20260916_0279"
+revision = "20260916_0281"
+down_revision = "20260916_0280"
 branch_labels = None
 depends_on = None
 
@@ -35,8 +37,13 @@ VIEW = "public.guild_member_profiles"
 #: Retired by this revision. Named so the downgrade can put it back.
 SETTING = "app.guild_shows_member_names"
 
-#: The guild the request is routed into.
-CURRENT_GUILD_ID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
+#: The guild the request is routed into. A time-bound grant reaches its guild
+#: by ``pam_guild_id`` and leaves ``current_guild_id`` unset, so both are asked
+#: — the same pair the query surface routes on.
+ROUTED_GUILD_ID = """COALESCE(
+        NULLIF(current_setting('app.current_guild_id', true), '')::int,
+        NULLIF(current_setting('app.pam_guild_id', true), '')::int
+    )"""
 
 #: The columns either side of the name, in the order the view has had since
 #: 0220. Written out rather than imported so a replay of this revision builds
@@ -53,7 +60,7 @@ AFTER = (
 #: Uncorrelated — it depends on the request's guild, not on the row being
 #: projected — so it is evaluated once per statement rather than per member.
 NAME_FROM_THE_GUILD = f"""CASE WHEN (
-    SELECT g.show_member_names FROM public.guilds g WHERE g.id = {CURRENT_GUILD_ID}
+    SELECT g.show_member_names FROM public.guilds g WHERE g.id = {ROUTED_GUILD_ID}
 ) THEN full_name END AS full_name"""
 
 NAME_FROM_THE_SETTING = f"CASE WHEN current_setting('{SETTING}', true) = 'true' THEN full_name END AS full_name"

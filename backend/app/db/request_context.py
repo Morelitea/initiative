@@ -84,11 +84,9 @@ class GuildScoped:
 class PamGrantee:
     """A time-bound grant into a guild the caller does not belong to.
 
-    ``guild_id`` is deliberately absent from this shape. The write policies on
-    the shared tables read a matching ``current_guild_id`` as membership, which
-    a grantee does not have; the grant is scoped by ``pam_guild_id`` instead.
-    That separation used to be a paragraph of docstring. It is now the reason
-    this class has no field for it.
+    A grant names the guild it reaches in its own field, and ``guild_id`` is
+    not part of this shape. Membership and a grant are recorded separately;
+    this class having no field for the other one is what keeps them apart.
 
     It does narrow like any other routed read: the query surface replays a
     request's own context with the reader flag and a scope added, and a

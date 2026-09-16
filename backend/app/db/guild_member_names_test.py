@@ -96,3 +96,42 @@ async def test_two_guilds_answer_differently_on_one_session(session, role_sessio
 
     assert await _name_read_in(role_session, user=user, guild=loud) == "Ana Real"
     assert await _name_read_in(role_session, user=user, guild=quiet) is None
+
+
+async def test_a_grant_reads_the_guild_it_reaches(session, role_session):
+    """A time-bound grant names its guild in its own field and leaves the
+    membership one unset, so the projection asks about both. A grantee reading
+    a guild that renders names gets them, the same as a member would."""
+    user, guild = await _member_of(session, show_member_names=True)
+    visitor = await create_user(session)
+
+    s_ = await role_session("app_user")
+    await set_rls_context(
+        s_,
+        user_id=visitor.id,
+        pam_guild_id=guild.id,
+        pam_read=True,
+    )
+    assert (
+        await s_.exec(
+            select(MemberProfile.full_name).where(MemberProfile.id == user.id)
+        )
+    ).one() == "Ana Real"
+
+
+async def test_a_grant_into_a_quiet_guild_still_reads_no_name(session, role_session):
+    user, guild = await _member_of(session, show_member_names=False)
+    visitor = await create_user(session)
+
+    s_ = await role_session("app_user")
+    await set_rls_context(
+        s_,
+        user_id=visitor.id,
+        pam_guild_id=guild.id,
+        pam_read=True,
+    )
+    assert (
+        await s_.exec(
+            select(MemberProfile.full_name).where(MemberProfile.id == user.id)
+        )
+    ).one() is None

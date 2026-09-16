@@ -384,9 +384,8 @@ async def set_rls_context(
     Management grant for the guild named by ``pam_guild_id``: additive RLS
     policies grant SELECT (read) / write into that one guild's rows while
     the flag is set. ``pam_guild_id`` is deliberately separate from
-    ``current_guild_id`` — the existing write policies treat a matching
-    ``current_guild_id`` as proof of membership, so a grantee must leave it
-    unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
+    ``current_guild_id``: a grant records the guild it reaches in its own
+    field, and a membership records its own. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
 
     ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``

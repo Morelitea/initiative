@@ -55,7 +55,7 @@ def test_a_grant_is_scoped_by_its_own_guild_id():
 
 
 def test_a_grant_and_a_guild_are_not_the_same_request():
-    """The separation the shared-table write policies depend on."""
+    """Membership and a grant are recorded separately."""
     with pytest.raises(ContextShapeError):
         classify(user_id=7, guild_id=3, pam_guild_id=3, pam_write=True)
 
