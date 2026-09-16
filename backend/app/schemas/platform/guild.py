@@ -275,25 +275,6 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     support_enabled: bool = False
 
 
-class GuildMemberRoleRead(SanitizedBaseModel):
-    """What one member's role is, after an operator set it."""
-
-    guild_id: int
-    user_id: int
-    role: GuildRole
-
-
-class PlatformGuildMemberRoleUpdate(SanitizedBaseModel):
-    """An operator setting one member's role in a guild.
-
-    The door for ``security_admin``, which a guild's own admins can neither
-    grant nor take away. Ordinary roles are accepted too, so revoking is the
-    same call with a different value.
-    """
-
-    role: GuildRole
-
-
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
     """Set a guild's storage caps and/or lifecycle status from the Guilds tab.
 

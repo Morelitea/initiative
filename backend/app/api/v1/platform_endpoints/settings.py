@@ -19,18 +19,10 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import (
-    GUILD_ADMIN_ROLES,
-    Guild,
-    GuildMembership,
-    GuildRole,
-)
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.core.messages import AuthProviderMessages
-from app.services import audit as audit_service
-from app.services.stream_authz import authority as stream_authority
-from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
@@ -58,8 +50,6 @@ from app.schemas.platform.settings import (
 )
 from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
-    GuildMemberRoleRead,
-    PlatformGuildMemberRoleUpdate,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
@@ -518,79 +508,6 @@ async def list_platform_guild_storage(
         )
         for g, administration in rows
     ]
-
-
-@router.put(
-    "/guilds/{guild_id}/members/{user_id}/role",
-    response_model=GuildMemberRoleRead,
-)
-async def set_platform_guild_member_role(
-    guild_id: int,
-    user_id: int,
-    payload: PlatformGuildMemberRoleUpdate,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
-) -> GuildMemberRoleRead:
-    """Set one member's role in a guild, as the operator.
-
-    This is the only way ``security_admin`` is granted or taken away. A guild's
-    own admins cannot do either: an admin who could grant it would be granting
-    themselves the keys to who may enter the guild, which is the separation it
-    exists for.
-
-    Reached from platform settings, so an operator never enters the guild to
-    use it. Nothing here reads guild content — a membership row is a shared
-    ``public`` fact about who belongs where, the same kind of value the
-    per-guild caps and status beside it already are. Break-glass stays for
-    reaching a guild's *content*, and is not a step on this path.
-    """
-    if payload.role == GuildRole.support:
-        # A synthesized PAM identity, never a stored membership row.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
-        )
-
-    membership = await session.get(GuildMembership, (guild_id, user_id))
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
-        )
-
-    previous = membership.role
-    if previous == payload.role:
-        return GuildMemberRoleRead(guild_id=guild_id, user_id=user_id, role=previous)
-
-    # Demoting the last admin leaves a guild nobody can administer. A security
-    # admin counts as one, which is what "above admin" means.
-    if previous in GUILD_ADMIN_ROLES and payload.role not in GUILD_ADMIN_ROLES:
-        from app.services.platform.users import is_last_admin_of_guild
-
-        if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
-            )
-
-    membership.role = payload.role
-    session.add(membership)
-    if GuildRole.security_admin in (previous, payload.role):
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
-            actor_user_id=admin.id,
-            target_user_id=user_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={"from": previous.value, "to": payload.role.value},
-        )
-    await session.commit()
-    # The same re-check the guild's own role endpoint does: a role change is a
-    # guild-level access change, and authorization is a property of the current
-    # moment rather than of a connection opened earlier.
-    await stream_authority.revoke_user(guild_id, user_id)
-    return GuildMemberRoleRead(guild_id=guild_id, user_id=user_id, role=payload.role)
 
 
 @router.patch("/guilds/{guild_id}", response_model=PlatformGuildStorageRead)

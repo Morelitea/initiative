@@ -52,8 +52,9 @@ class AuditEventType(str, Enum):
     #: apart from ``issued``, because nothing was issued — this is the one
     #: that reads as movement onto the session path.
     AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
-    #: An operator changed who holds a guild's sign-in configuration. Recorded
-    #: because it is the one guild role nobody inside the guild can grant.
+    #: Who holds a guild's sign-in configuration changed. An operator seats
+    #: the first one; from then on the seat is passed on by whoever holds it,
+    #: and both paths record this.
     GUILD_SECURITY_ADMIN_CHANGED = "guild.security_admin_changed"
 
 

@@ -275,7 +275,7 @@ async def enroll_new_member_in_auto_join_initiatives(
     whole excursion sits inside a savepoint: landing somewhere useful is a
     convenience, and it must never be the reason someone's guild join fails.
     """
-    if role == GuildRole.admin:
+    if role in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service
@@ -323,7 +323,7 @@ async def align_admin_initiative_roles(
     reconciling rows underneath it must never be what makes it fail. Flush-only;
     the caller owns the transaction.
     """
-    if role != GuildRole.admin:
+    if role not in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service

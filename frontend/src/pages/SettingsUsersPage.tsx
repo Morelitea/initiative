@@ -49,6 +49,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { isGuildAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -89,7 +90,7 @@ export const SettingsUsersPage = () => {
   const { activeGuild } = useGuilds();
   const { billing, openPortal } = useBillingPortal();
   // Guild admin check is based on guild membership role only (independent from platform role)
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
 
   const activeGuildId = activeGuild?.id ?? null;
 
@@ -154,7 +155,9 @@ export const SettingsUsersPage = () => {
   // admin roster rather than every member.
   const guildAdmins = useMemo(
     () =>
-      (usersQuery.data ?? []).filter((m) => m.guild_role === "admin" && m.status !== "anonymized"),
+      (usersQuery.data ?? []).filter(
+        (m) => isGuildAdminRole(m.guild_role) && m.status !== "anonymized"
+      ),
     [usersQuery.data]
   );
 

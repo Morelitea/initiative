@@ -434,7 +434,6 @@ async def cancel_import_job(
 from fastapi import File, UploadFile  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.models.platform.guild import GuildRole  # noqa: E402
 from app.services.import_engine import backup as backup_service  # noqa: E402
 from app.services.import_engine.engine import (  # noqa: E402
     count_active_jobs_locked,
@@ -451,7 +450,7 @@ def _require_real_guild_admin(guild_context: GuildContext) -> None:
     only, and REAL membership at that: a break-glass grant synthesizes an
     admin role, but the worker re-checks actual membership at apply time, so
     a stand-in would only fail later. Reject it up front."""
-    if guild_context.grant is not None or guild_context.role != GuildRole.admin:
+    if guild_context.grant is not None or not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_ADMIN_REQUIRED,

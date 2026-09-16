@@ -318,7 +318,7 @@ async def restore_trash_entity(
 
     # Permission: regular users can only restore their own deletions.
     if (
-        guild_context.role != GuildRole.admin
+        not guild_context.is_admin
         and getattr(entity, "deleted_by", None) != current_user.id
     ):
         raise HTTPException(
@@ -370,7 +370,7 @@ async def purge_trash_entity(
     between the ``deleted_at`` check and the delete (which would otherwise
     permanently remove a just-restored live row).
     """
-    if guild_context.role != GuildRole.admin:
+    if not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=TrashMessages.PURGE_REQUIRES_ADMIN,

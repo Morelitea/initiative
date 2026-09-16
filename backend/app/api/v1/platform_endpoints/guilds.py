@@ -36,7 +36,10 @@ from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
+from app.core.audit_events import AuditEventType
+from app.services import audit as audit_service
 from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
     assignable_roles,
     Guild,
     GuildCategory,
@@ -121,7 +124,7 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
     """
-    is_admin = membership.role == GuildRole.admin
+    is_admin = membership.role in GUILD_ADMIN_ROLES
     # Role decides, not the caller: passing the row for a member still serves a
     # member's payload, so this stays the one place the split is made.
     admin_row = administration if is_admin else None
@@ -1303,8 +1306,7 @@ async def update_guild_membership(
         )
 
     # And taking the seat away is the same authority as giving it. Asked of the
-    # *locked* row: a grant landing between an unlocked read and this one would
-    # otherwise be overwritten by whatever this request was already carrying.
+    # *locked* row, so the role this decides on is the role as it stands now.
     if (
         target_membership.role == GuildRole.security_admin
         and caller.role != GuildRole.security_admin
@@ -1315,7 +1317,10 @@ async def update_guild_membership(
         )
 
     # Check if demoting the last guild admin (FOR UPDATE already acquired above)
-    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
+    if (
+        target_membership.role in GUILD_ADMIN_ROLES
+        and payload.role not in GUILD_ADMIN_ROLES
+    ):
         from app.services.platform.users import is_last_admin_of_guild
 
         if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
@@ -1324,8 +1329,22 @@ async def update_guild_membership(
                 detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
 
+    previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
+    if GuildRole.security_admin in (previous_role, payload.role):
+        # The seat moving is recorded wherever it moves. An operator seats the
+        # first one from platform settings and that is recorded there; this is
+        # the same event when a guild passes it on itself.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

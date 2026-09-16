@@ -8,11 +8,15 @@ widen.
 """
 
 import pytest
+from fastapi import HTTPException
 
+from app.api import deps
 from app.core.role_context import is_request_guild_admin
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     GUILD_ASSIGNABLE_ROLES,
+    Guild,
+    GuildMembership,
     GuildRole,
     assignable_roles,
     content_role,
@@ -71,3 +75,41 @@ def test_support_is_never_assignable_by_anybody():
     """A synthesized PAM identity, not a stored membership role."""
     for by in (GuildRole.admin, GuildRole.security_admin, GuildRole.member):
         assert GuildRole.support not in assignable_roles(by)
+
+
+def _context(role: GuildRole) -> deps.GuildContext:
+    return deps.GuildContext(
+        guild=Guild(id=1, name="g"),
+        membership=GuildMembership(guild_id=1, user_id=2, role=role),
+    )
+
+
+def test_the_context_answers_admin_or_above():
+    assert _context(GuildRole.admin).is_admin
+    assert _context(GuildRole.security_admin).is_admin
+    assert not _context(GuildRole.member).is_admin
+
+
+async def test_a_guard_asking_for_admin_admits_the_seat_above_it():
+    """The dependency every guild-admin endpoint is written against.
+
+    Each of those endpoints names ``admin``; this is the one place that reads
+    that as admin-or-above, so the seat reaches all of them at once.
+    """
+    guard = deps.require_guild_roles(GuildRole.admin)
+    for role in (GuildRole.admin, GuildRole.security_admin):
+        assert (await guard(_context(role))).role == role
+
+
+async def test_that_guard_still_turns_a_member_away():
+    guard = deps.require_guild_roles(GuildRole.admin)
+    with pytest.raises(HTTPException) as caught:
+        await guard(_context(GuildRole.member))
+    assert caught.value.status_code == 403
+
+
+async def test_a_guard_naming_other_roles_is_left_alone():
+    """Widening applies to the ``admin`` rung, not to every guard."""
+    guard = deps.require_guild_roles(GuildRole.member)
+    with pytest.raises(HTTPException):
+        await guard(_context(GuildRole.security_admin))

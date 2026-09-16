@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useAISettings";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getProvidersForScope } from "@/lib/ai-providers";
+import { isGuildAdminRole } from "@/lib/permissions";
 
 /**
  * Guild-ADMIN AI surface: manage the guild's own AI connections (destinations)
@@ -28,7 +29,7 @@ export const SettingsGuildAIPage = () => {
   const { t } = useTranslation("settings");
   const { activeGuild, activeGuildReadOnly } = useGuilds();
   const guildId = useActiveGuildId();
-  const isGuildAdmin = activeGuild?.role === "admin" && !activeGuildReadOnly;
+  const isGuildAdmin = isGuildAdminRole(activeGuild?.role) && !activeGuildReadOnly;
 
   // The member view is the readable-by-anyone source of the global AI mode.
   const modeQuery = useMemberAI(guildId, { enabled: isGuildAdmin });

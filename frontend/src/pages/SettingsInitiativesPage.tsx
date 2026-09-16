@@ -39,6 +39,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { isGuildAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -212,7 +213,7 @@ const InitiativeManagersCell = ({
 export const SettingsInitiativesPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
 
   // The guild-wide listing, not the admin's own memberships — this table is
   // where they manage initiatives they have not joined.
@@ -229,7 +230,9 @@ export const SettingsInitiativesPage = () => {
   );
   const adminUserIds = useMemo(
     () =>
-      new Set(candidates.filter((candidate) => candidate.guild_role === "admin").map((c) => c.id)),
+      new Set(
+        candidates.filter((candidate) => isGuildAdminRole(candidate.guild_role)).map((c) => c.id)
+      ),
     [candidates]
   );
 

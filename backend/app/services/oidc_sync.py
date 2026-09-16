@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
 from app.models.tenant.initiative import (
@@ -208,7 +208,7 @@ async def sync_oidc_assignments(
             # Nobody was at a keyboard for this one — it is the case the
             # standing checks exist for. Their tabs re-read the account.
             account_stream.queue_account_signal(session, user_id, "membership")
-            if role != GuildRole.admin:
+            if role not in GUILD_ADMIN_ROLES:
                 newly_admitted_guilds.add(guild_id)
             # Event-driven seats (billing plan D5); no-op unless billing is
             # configured. Once per changed guild, not per member row.

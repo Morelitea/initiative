@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
+import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
@@ -19,6 +20,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDmPermissions } from "@/hooks/useDirectMessages";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
+import { isGuildAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 
@@ -127,9 +129,11 @@ export const GuildMembersPage = () => {
             {/* Only the exception is worn. Badging the other nine rows in ten
                 "member" would say nothing and cost the width the actions
                 need. */}
-            {row.original.guild_role === "admin" ? (
+            {isGuildAdminRole(row.original.guild_role) ? (
               <Badge variant="secondary" className="shrink-0">
-                {t("members.admin")}
+                {row.original.guild_role === GuildRole.security_admin
+                  ? t("members.securityAdmin")
+                  : t("members.admin")}
               </Badge>
             ) : null}
           </Link>

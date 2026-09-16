@@ -15,6 +15,7 @@ import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { isGuildAdminRole } from "@/lib/permissions";
 
 export interface InitiativeSettingsContext {
   /** The id from the path; 0 when the path doesn't carry a usable one. */
@@ -46,7 +47,7 @@ export function useInitiativeSettings(): InitiativeSettingsContext {
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
 
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
   const membership = initiative?.members.find((member) => member.user.id === user?.id);
   const isInitiativeManager = Boolean(membership?.is_manager);
 

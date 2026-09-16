@@ -9,6 +9,7 @@
  */
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
 
 export const Capability = {
   usersRead: "users.read",
@@ -87,3 +88,16 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
  * Reads `my_permission_level` — never derive this client-side. */
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";
+
+/**
+ * Guild roles carrying a guild admin's authority — the mirror of the backend
+ * `GUILD_ADMIN_ROLES`. `security_admin` sits above `admin`, so every surface an
+ * admin reaches, it reaches too. Ask this rather than comparing to `"admin"`,
+ * so a role added to the set reaches every screen at once.
+ */
+const GUILD_ADMIN_ROLES: ReadonlySet<string> = new Set([GuildRole.admin, GuildRole.security_admin]);
+
+/** True iff `role` carries a guild admin's authority (admin or above). */
+export function isGuildAdminRole(role: string | null | undefined): boolean {
+  return role != null && GUILD_ADMIN_ROLES.has(role);
+}

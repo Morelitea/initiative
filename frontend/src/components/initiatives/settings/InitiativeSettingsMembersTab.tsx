@@ -29,6 +29,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { isGuildAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -84,7 +85,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         (usersQuery.data ?? [])
-          .filter((candidate) => candidate.guild_role === "admin")
+          .filter((candidate) => isGuildAdminRole(candidate.guild_role))
           .map((candidate) => candidate.id)
       ),
     [usersQuery.data]

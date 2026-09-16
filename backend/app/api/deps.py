@@ -44,6 +44,7 @@ from app.db.session import (
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
     Guild,
     GuildMembership,
     GuildRole,
@@ -499,6 +500,15 @@ class GuildContext:
         return self.membership.role
 
     @property
+    def is_admin(self) -> bool:
+        """Whether this request carries a guild admin's authority.
+
+        ``security_admin`` sits above ``admin``, so it answers yes — every
+        surface an admin reaches, the seat above it reaches too.
+        """
+        return self.role in GUILD_ADMIN_ROLES
+
+    @property
     def is_pam(self) -> bool:
         return self.grant is not None
 
@@ -761,10 +771,20 @@ async def get_guild_membership(
 
 
 def require_guild_roles(*roles: GuildRole) -> Callable:
+    """Guard an endpoint on the caller's role in the guild named by the path.
+
+    Asking for ``admin`` asks for admin *or above*, so a security admin
+    satisfies every guard an ordinary admin satisfies — the seat sits above
+    ``admin``, and this is the one place that has to know it for all of them.
+    """
+    accepted = frozenset(roles)
+    if GuildRole.admin in accepted:
+        accepted |= GUILD_ADMIN_ROLES
+
     async def dependency(
         context: Annotated[GuildContext, Depends(get_guild_membership)],
     ) -> GuildContext:
-        if roles and context.membership.role not in roles:
+        if accepted and context.membership.role not in accepted:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_PERMISSION_REQUIRED,

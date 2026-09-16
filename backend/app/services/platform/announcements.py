@@ -49,7 +49,7 @@ from app.models.platform.announcement import (
     AnnouncementReadReceipt,
     db_announcement_key,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.schemas.platform.announcement import (
@@ -167,7 +167,7 @@ async def administers_a_guild(session: AsyncSession, *, user_id: int) -> bool:
         select(GuildMembership.guild_id)
         .where(
             GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.admin,
+            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
         )
         .limit(1)
     )

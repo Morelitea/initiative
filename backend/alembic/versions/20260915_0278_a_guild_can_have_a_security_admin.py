@@ -19,6 +19,7 @@ Create Date: 2026-09-15
 
 from __future__ import annotations
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "20260915_0278"
@@ -36,8 +37,21 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise NotImplementedError(
-        "PostgreSQL cannot drop a value from an enum type. Reversing this means "
-        "rebuilding public.guild_role and every column using it, which is not "
-        "something to do automatically while memberships reference it."
-    )
+    # Postgres cannot drop a label from an enum. Leaving it in place is inert:
+    # the upgrade is idempotent, and no row can hold it once the code that
+    # writes it is gone. Rows that do become plain ``admin`` first — the seat is
+    # the part being removed, and the guild authority underneath it stays.
+    #
+    # The write is set up the way every other ``public`` backfill in this
+    # directory is (see 0205, which reverses the same kind of addition).
+    conn = op.get_bind()
+    op.execute("ALTER TABLE public.guild_memberships NO FORCE ROW LEVEL SECURITY")
+    try:
+        conn.execute(
+            sa.text(
+                "UPDATE public.guild_memberships SET role = 'admin' "
+                "WHERE role = 'security_admin'"
+            )
+        )
+    finally:
+        op.execute("ALTER TABLE public.guild_memberships FORCE ROW LEVEL SECURITY")

@@ -47,7 +47,7 @@ from app.core.user_input_validators import (
 )
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import GuildRole, GuildMembership
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
@@ -1467,7 +1467,7 @@ async def _require_receiving_admin(
                 MemberProfile.id == new_owner_id,
                 MemberProfile.status == UserStatus.active,
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
+                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
         )
     ).one_or_none()
