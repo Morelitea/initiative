@@ -28,6 +28,54 @@ MIGRATION = (
 
 pytestmark = pytest.mark.integration
 
+_EXPECTED_TABLE_GRANTS = {
+    ("comments", "SELECT"),
+    ("comments", "UPDATE"),
+    ("documents", "SELECT"),
+    ("documents", "UPDATE"),
+    ("projects", "SELECT"),
+    ("posts", "SELECT"),
+    ("posts", "UPDATE"),
+    ("queues", "SELECT"),
+    ("search_entries", "DELETE"),
+    ("task_assignment_digest_items", "SELECT"),
+    ("task_assignment_digest_items", "UPDATE"),
+    ("tasks", "SELECT"),
+    ("counter_groups", "SELECT"),
+    ("calendars", "SELECT"),
+    ("dashboards", "SELECT"),
+    ("galleries", "SELECT"),
+    ("initiatives", "SELECT"),
+}
+
+_EXPECTED_COLUMN_GRANTS = {
+    ("event_outbox", "txn_id", "INSERT"),
+    ("event_outbox", "occurred_at", "INSERT"),
+    ("event_outbox", "actor_user_id", "INSERT"),
+    ("event_outbox", "initiative_id", "INSERT"),
+    ("event_outbox", "resource_type", "INSERT"),
+    ("event_outbox", "resource_id", "INSERT"),
+    ("event_outbox", "action", "INSERT"),
+    ("event_outbox", "changed", "INSERT"),
+    ("event_outbox", "parents", "INSERT"),
+    ("search_entries", "entity_type", "SELECT"),
+    ("search_entries", "entity_id", "SELECT"),
+    ("search_entries", "entity_type", "INSERT"),
+    ("search_entries", "entity_id", "INSERT"),
+    ("search_entries", "chunk_ix", "INSERT"),
+    ("search_entries", "initiative_id", "INSERT"),
+    ("search_entries", "dac_tool", "INSERT"),
+    ("search_entries", "dac_id", "INSERT"),
+    ("search_entries", "title", "INSERT"),
+    ("search_entries", "body", "INSERT"),
+    ("search_entries", "archived", "INSERT"),
+    ("search_entries", "template", "INSERT"),
+    ("search_entries", "updated_at", "INSERT"),
+    ("search_entries", "tsv", "INSERT"),
+}
+
+_EXPECTED_SEQUENCE_GRANTS = {("event_outbox_id_seq", "USAGE")}
+
 
 def _load_migration() -> ModuleType:
     spec = importlib.util.spec_from_file_location(MIGRATION.stem, MIGRATION)
@@ -100,18 +148,44 @@ async def test_migration_backfills_and_reverses_only_its_direct_grants(
         ).all()
         return {(str(row[0]), str(row[1])) for row in rows}
 
-    expected = {
-        (table, verb)
-        for table, verbs in migration.SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
-        for verb in verbs.split(", ")
-    }
-    assert expected <= await direct_table_grants()
+    async def direct_column_grants() -> set[tuple[str, str, str]]:
+        rows = (
+            await session.exec(
+                text(
+                    "SELECT table_name, column_name, privilege_type "
+                    "FROM information_schema.role_column_grants "
+                    "WHERE grantee = 'app_admin' AND table_schema = :schema"
+                ),
+                params={"schema": schema},
+            )
+        ).all()
+        return {(str(row[0]), str(row[1]), str(row[2])) for row in rows}
+
+    async def direct_sequence_grants() -> set[tuple[str, str]]:
+        rows = (
+            await session.exec(
+                text(
+                    "SELECT object_name, privilege_type "
+                    "FROM information_schema.role_usage_grants "
+                    "WHERE grantee = 'app_admin' AND object_schema = :schema "
+                    "AND object_type = 'SEQUENCE'"
+                ),
+                params={"schema": schema},
+            )
+        ).all()
+        return {(str(row[0]), str(row[1])) for row in rows}
+
+    assert _EXPECTED_TABLE_GRANTS <= await direct_table_grants()
+    assert _EXPECTED_COLUMN_GRANTS <= await direct_column_grants()
+    assert _EXPECTED_SEQUENCE_GRANTS <= await direct_sequence_grants()
 
     async with engine.begin() as connection:
         await connection.run_sync(
             lambda sync: migration._revoke_from_schema(sync, schema)
         )
 
-    remaining = await direct_table_grants()
-    assert expected.isdisjoint(remaining)
-    assert ("uploads", "SELECT") in remaining
+    remaining_tables = await direct_table_grants()
+    assert _EXPECTED_TABLE_GRANTS.isdisjoint(remaining_tables)
+    assert _EXPECTED_COLUMN_GRANTS.isdisjoint(await direct_column_grants())
+    assert _EXPECTED_SEQUENCE_GRANTS.isdisjoint(await direct_sequence_grants())
+    assert ("uploads", "SELECT") in remaining_tables

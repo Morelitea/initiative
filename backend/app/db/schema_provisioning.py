@@ -127,11 +127,38 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
 # system login can already assume every guild role, so this adds no reachable
 # guild; it lets that narrowly bounded maintenance retain app_admin's BYPASSRLS
 # identity instead of expanding the comments UPDATE through every RLS path.
-SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, str] = {
-    "comments": "SELECT, UPDATE",
-    "documents": "SELECT, UPDATE",
-    "posts": "SELECT, UPDATE",
-    "task_assignment_digest_items": "SELECT, UPDATE",
+SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
+    "comments": ("SELECT", "UPDATE"),
+    "documents": ("SELECT", "UPDATE"),
+    "posts": ("SELECT", "UPDATE"),
+    "task_assignment_digest_items": ("SELECT", "UPDATE"),
+    # The frozen-ancestor guard reads each supported parent into a composite
+    # record (``SELECT *``) before capture/search triggers resolve identifiers.
+    # PostgreSQL therefore requires table-level SELECT for these dependencies.
+    "tasks": ("SELECT",),
+    "projects": ("SELECT",),
+    "queues": ("SELECT",),
+    "counter_groups": ("SELECT",),
+    "calendars": ("SELECT",),
+    "dashboards": ("SELECT",),
+    "galleries": ("SELECT",),
+    "initiatives": ("SELECT",),
+    # Content and search-index triggers must still record the scrub. Their
+    # writes are column-scoped where possible; DELETE needs a table privilege.
+    "event_outbox": (
+        "INSERT (txn_id, occurred_at, actor_user_id, initiative_id, "
+        "resource_type, resource_id, action, changed, parents)",
+    ),
+    "search_entries": (
+        "SELECT (entity_type, entity_id)",
+        "INSERT (entity_type, entity_id, chunk_ix, initiative_id, dac_tool, "
+        "dac_id, title, body, archived, template, updated_at, tsv)",
+        "DELETE",
+    ),
+}
+
+SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
+    "event_outbox_id_seq": ("USAGE",),
 }
 
 
@@ -391,8 +418,16 @@ def _grant_statements(
         # app_admin login retain BYPASSRLS while it removes embedded names.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{ADMIN_LOGIN_ROLE}"',
         *(
-            f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{ADMIN_LOGIN_ROLE}"'
-            for table, verbs in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
+            f"GRANT {', '.join(privileges)} ON TABLE "
+            f'"{schema}"."{table}" TO "{ADMIN_LOGIN_ROLE}"'
+            for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
+        ),
+        *(
+            f"GRANT {', '.join(privileges)} ON SEQUENCE "
+            f'"{schema}"."{sequence}" TO "{ADMIN_LOGIN_ROLE}"'
+            for sequence, privileges in (
+                SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS.items()
+            )
         ),
         # Full role: DML on its schema.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{role}"',
