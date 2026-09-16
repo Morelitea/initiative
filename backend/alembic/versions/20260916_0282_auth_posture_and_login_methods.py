@@ -70,10 +70,15 @@ def upgrade() -> None:
             server_default="{password,sso}",
         ),
     )
+    # cardinality, not array_length. `array_length('{}', 1)` is NULL, and a
+    # CHECK accepts anything that is not false -- so the constraint named
+    # "nonempty" admitted the empty array, and `methods_from_row` reads that
+    # as both methods being enabled. Verified on PostgreSQL: the array_length
+    # form accepts '{}', the cardinality form rejects it.
     op.create_check_constraint(
         "ck_app_settings_login_methods_nonempty",
         "app_settings",
-        "array_length(login_methods, 1) >= 1",
+        "cardinality(login_methods) >= 1",
     )
 
 
