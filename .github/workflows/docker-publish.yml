@@ -108,35 +108,103 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      - name: Decode keystore
+      - name: Stage the signing keystore outside the workspace
         if: ${{ env.HAS_KEYSTORE == 'true' }}
-        working-directory: frontend/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d \
+            > "$RUNNER_TEMP/signing/release.jks"
 
+      # Signing values reach Gradle as project properties named after the ones
+      # app/build.gradle reads. Every name is a POSIX identifier, which is what
+      # the /bin/sh gradle wrapper forwards to the build JVM.
       - name: Build signed APK
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         working-directory: frontend/android
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$PWD/release.keystore \
-            -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.ANDROID_KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          ORG_GRADLE_PROJECT_initiativeSigningStoreFile: ${{ runner.temp }}/signing/release.jks
+          ORG_GRADLE_PROJECT_initiativeSigningStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_initiativeSigningKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_initiativeSigningKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
 
       - name: Build unsigned APK (fallback)
         if: ${{ env.HAS_KEYSTORE != 'true' }}
         working-directory: frontend/android
         run: ./gradlew assembleRelease
 
-      - name: Rename APK with version
+      - name: Verify the APK signature
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EXPECTED_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
         run: |
-          mkdir -p artifacts
-          if [ -f frontend/android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp frontend/android/app/build/outputs/apk/release/app-release.apk artifacts/initiative-${{ steps.version.outputs.version }}.apk
-          else
-            cp frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/initiative-${{ steps.version.outputs.version }}-unsigned.apk
+          set -euo pipefail
+          umask 077
+          release_dir=frontend/android/app/build/outputs/apk/release
+          apk="$release_dir/app-release.apk"
+          if [ ! -f "$apk" ]; then
+            echo "::error::Signing was configured but Gradle produced no signed APK."
+            ls -l "$release_dir" || true
+            exit 1
           fi
+
+          apksigner=$(find "${ANDROID_HOME:-}/build-tools" -mindepth 2 -maxdepth 2 \
+            -name apksigner -type f 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner was not found under the Android SDK build-tools."
+            exit 1
+          fi
+
+          normalise() { tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]'; }
+
+          "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/signing/apk-certs.txt"
+          apk_cert=$(awk '/certificate SHA-256 digest/ { print $NF; exit }' \
+            "$RUNNER_TEMP/signing/apk-certs.txt" | normalise)
+
+          printf '%s\n' "$KEYSTORE_PASSWORD" \
+            | keytool -list -v -keystore "$RUNNER_TEMP/signing/release.jks" -alias "$KEY_ALIAS" \
+            > "$RUNNER_TEMP/signing/keystore-certs.txt"
+          keystore_cert=$(awk '/SHA256:/ { print $2; exit }' \
+            "$RUNNER_TEMP/signing/keystore-certs.txt" | normalise)
+
+          if [ -z "$apk_cert" ] || [ "$apk_cert" != "$keystore_cert" ]; then
+            echo "::error::The APK is not signed by the staged release key."
+            exit 1
+          fi
+
+          if [ -n "$EXPECTED_CERT_SHA256" ]; then
+            if [ "$apk_cert" != "$(printf '%s' "$EXPECTED_CERT_SHA256" | normalise)" ]; then
+              echo "::error::The APK signature does not match ANDROID_SIGNING_CERT_SHA256."
+              exit 1
+            fi
+          else
+            echo "::warning::Set ANDROID_SIGNING_CERT_SHA256 to $apk_cert to pin the release key."
+          fi
+
+      # Which artifact ships follows from how the job was configured, not from
+      # which file happens to be on disk.
+      - name: Stage the APK for upload
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          release_dir=frontend/android/app/build/outputs/apk/release
+          mkdir -p artifacts
+          if [ "$HAS_KEYSTORE" = 'true' ]; then
+            cp "$release_dir/app-release.apk" "artifacts/initiative-$VERSION.apk"
+          else
+            cp "$release_dir/app-release-unsigned.apk" "artifacts/initiative-$VERSION-unsigned.apk"
+          fi
+
+      - name: Remove the staged signing keystore
+        if: always()
+        run: rm -rf "${RUNNER_TEMP:?}/signing"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
