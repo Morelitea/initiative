@@ -439,14 +439,30 @@ async def set_rls_context(
     is replayed per transaction. Every parameter is still written from this
     call's arguments, so nothing carries between requests on a pooled connection.
     """
-    # What the GUC may carry, read from the model rather than restated. A
-    # stored role reaches here through ``content_role``, which is what keeps
-    # this to two values. Imported here, beside the tier list below, to keep
-    # this module's import graph as it is.
-    from app.models.platform.guild import CONTENT_ROLES
+    # Which of the request shapes these arguments form — and a refusal if they
+    # form none of them. This is where the rules that used to be prose in this
+    # docstring are actually applied: a grant carrying a guild, a guild role
+    # with no guild, a stored role that never went through ``content_role``.
+    # Imported here, beside the tier list below, to keep this module's import
+    # graph as it is.
+    from app.db.request_context import classify
 
-    if guild_role is not None and guild_role not in CONTENT_ROLES:
-        raise ValueError(f"Invalid guild_role: {guild_role!r}")
+    classify(
+        user_id=user_id,
+        guild_id=guild_id,
+        guild_role=guild_role,
+        pam_guild_id=pam_guild_id,
+        pam_read=pam_read,
+        pam_write=pam_write,
+        platform_role=platform_role,
+        read_only=read_only,
+        query=query,
+        satisfied_providers=satisfied_providers,
+        override_initiatives=override_initiatives,
+        scope_initiative_id=scope_initiative_id,
+        via_dashboard_id=via_dashboard_id,
+        shows_member_names=shows_member_names,
+    )
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
     # sentinel for user-attributed system work whose enqueueing request

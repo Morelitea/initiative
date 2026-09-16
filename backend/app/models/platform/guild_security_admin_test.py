@@ -51,10 +51,14 @@ def test_the_guc_still_carries_two_values():
     assert content_role(GuildRole.security_admin) == "admin"
     assert content_role(GuildRole.admin) == "admin"
     assert content_role(GuildRole.member) == "member"
-    # And the set the context seam validates against says the same, for every
-    # role a membership row can hold rather than for the three named above.
-    assert CONTENT_ROLES == {"admin", "member"}
+    # Said once more from the other end: three roles can sit in a membership
+    # row, and putting all three through ``content_role`` yields two values.
+    # ``security_admin`` is deliberately absent from the result — it arrives as
+    # ``admin``, which is what lets every policy leg stay as it was written.
+    assert GuildRole.security_admin in GUILD_STORED_ROLES
+    assert GuildRole.security_admin.value not in CONTENT_ROLES
     assert {content_role(role) for role in GUILD_STORED_ROLES} == CONTENT_ROLES
+    assert CONTENT_ROLES == {"admin", "member"}
 
 
 def test_support_is_not_a_stored_role():
