@@ -30,7 +30,7 @@ from app.models.tenant.recent_view import RecentView
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from app.schemas.platform.user import AdminUserRead, UserRead
+    from app.schemas.platform.user import AdminUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
@@ -812,6 +812,41 @@ async def hard_delete_user(
 #: string and a title is a sentence, so the two are tuned against different
 #: things even where the number happens to agree.
 MEMBER_MATCH_THRESHOLD = 0.4
+
+
+async def summaries_with_guild_role(
+    session: AsyncSession,
+    guild_id: int,
+    users,
+) -> List["UserSummary"]:
+    """``UserSummary`` per user, with the guild role actually filled in.
+
+    ``UserSummary`` defaults ``guild_role`` to ``None`` and ``is_guild_admin``
+    to ``False``, and ``model_validate`` over a profile row carries nothing
+    that could correct either -- the role lives on ``GuildMembership``, not on
+    the profile. So a guild admin came back from the roster endpoints looking
+    like an ordinary member, and a key-set assertion could not see it: the
+    field was present, and wrong.
+
+    One query for the whole batch, so this does not reintroduce an N+1 on a
+    typeahead.
+    """
+    from app.schemas.platform.user import UserSummary
+    from app.services import membership as membership_service
+
+    users = list(users)
+    roles = await membership_service.guild_role_map(
+        session, guild_id, [user.id for user in users]
+    )
+    summaries: List[UserSummary] = []
+    for user in users:
+        summary = UserSummary.model_validate(user)
+        role = roles.get(user.id)
+        if role is not None:
+            summary.guild_role = role.value
+            summary.is_guild_admin = role in GUILD_ADMIN_ROLES
+        summaries.append(summary)
+    return summaries
 
 
 def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:

@@ -55,7 +55,6 @@ from app.schemas.tenant.initiative import (
 )
 from app.schemas.platform.user import (
     UserPublic,
-    UserSummary,
     UserSummaryListResponse,
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
@@ -1307,7 +1306,9 @@ async def search_initiative_members(
     )
 
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in users],
+        items=await users_service.summaries_with_guild_role(
+            session, guild_context.guild_id, users
+        ),
         total_count=total_count,
         page=actual_page,
         page_size=page_size,
