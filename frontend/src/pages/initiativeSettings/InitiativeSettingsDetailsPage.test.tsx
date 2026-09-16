@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -346,7 +346,12 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      expect(await screen.findByText(/Visible to Member/)).toBeInTheDocument();
+      // Scoped to the Posts row: projects and documents are switched on too
+      // now, so the page says "Visible to Member" in several places and only
+      // this one is the answer under test.
+      const postsRow = (await screen.findByLabelText("Posts")).closest("div.rounded-md");
+      expect(postsRow).not.toBeNull();
+      expect(within(postsRow as HTMLElement).getByText(/Visible to Member/)).toBeInTheDocument();
     });
 
     it("warns when a tool is on but no ordinary role has been given it", async () => {

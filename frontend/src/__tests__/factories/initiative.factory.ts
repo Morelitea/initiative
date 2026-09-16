@@ -6,7 +6,12 @@ import type {
   InitiativeRoleRead,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
-import { CORE_TOOLS, TOOLS, toolCreatePermission, toolViewPermission } from "@/lib/tools";
+import {
+  DEFAULT_ENABLED_TOOLS,
+  TOOLS,
+  toolCreatePermission,
+  toolViewPermission,
+} from "@/lib/tools";
 
 import { buildUserPublic, buildUserSummary } from "./user.factory";
 
@@ -54,6 +59,12 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     members: [],
+    // One `{plural}_enabled` master switch per tool, at the column defaults:
+    // projects and documents on, the rest opt-in. Derived from the registry so
+    // a new tool arrives here without an edit.
+    ...(Object.fromEntries(
+      TOOLS.map((tool) => [toolViewPermission(tool), DEFAULT_ENABLED_TOOLS.has(tool)])
+    ) as Pick<InitiativeRead, `${string}_enabled`>),
     ...overrides,
   };
 }
@@ -71,7 +82,7 @@ export function buildInitiativeRole(
   // viewing a core (always-on) tool is on, everything else is off.
   const defaults = Object.fromEntries(
     TOOLS.flatMap((tool) => [
-      [toolViewPermission(tool), CORE_TOOLS.has(tool)],
+      [toolViewPermission(tool), DEFAULT_ENABLED_TOOLS.has(tool)],
       [toolCreatePermission(tool), false],
     ])
   ) as Record<PermissionKey, boolean>;

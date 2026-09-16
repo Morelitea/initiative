@@ -289,6 +289,19 @@ describe("GuildHomePage", () => {
     expect(within(rail).queryByRole("link", { name: "Calendar" })).not.toBeInTheDocument();
   });
 
+  it("drops the Projects circle for an initiative that turned projects off", async () => {
+    // The point of the change: projects are a tool like any other now, so an
+    // initiative that is only documents has no Projects circle to offer.
+    stubInitiatives({ projects_enabled: false });
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome();
+
+    const rail = await screen.findByRole("navigation", { name: "Community tools" });
+    expect(await within(rail).findByRole("link", { name: "Documents" })).toBeInTheDocument();
+    expect(within(rail).queryByRole("link", { name: "Projects" })).not.toBeInTheDocument();
+  });
+
   it("switches the table to the tool named in the address", async () => {
     stubInitiatives({ queues_enabled: true });
     stubTools({

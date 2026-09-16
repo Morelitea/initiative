@@ -277,8 +277,8 @@
       "toolTurnedOff": "Esta herramienta está desactivada para la iniciativa, así que estos permisos no conceden nada hasta que se vuelva a activar."
     }
   },
-  "advancedTools": "Herramientas avanzadas",
-  "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",
+  "advancedTools": "Herramientas",
+  "advancedToolsDescription": "Elige de qué se compone esta iniciativa. Los proyectos y los documentos vienen activados; el resto lo añades tú.",
   "queuesFeature": "Colas",
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
   "calendarsFeature": "Calendario",
@@ -290,5 +290,9 @@
   "postsFeature": "Publicaciones",
   "postsFeatureDescription": "Un tablón de anuncios para la iniciativa: avisos que todos pueden leer, comentar y reaccionar, con los más importantes fijados arriba.",
   "galleriesFeature": "Galerías",
-  "galleriesFeatureDescription": "Colecciones de imágenes (maquetas, capturas, diseños exportados) que se recorren como un mural en lugar de leerse una a una, con etiquetas e historial de versiones en cada imagen."
+  "galleriesFeatureDescription": "Colecciones de imágenes (maquetas, capturas, diseños exportados) que se recorren como un mural en lugar de leerse una a una, con etiquetas e historial de versiones en cada imagen.",
+  "projectsFeature": "Proyectos",
+  "projectsFeatureDescription": "Tableros de tareas: quién hace qué, en qué fase está y qué queda pendiente.",
+  "documentsFeature": "Documentos",
+  "documentsFeatureDescription": "Páginas escritas — notas, planes, referencias — que enlazan con cualquier otra cosa de la iniciativa."
 }

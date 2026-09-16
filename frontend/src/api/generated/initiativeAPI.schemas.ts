@@ -2975,6 +2975,8 @@ export interface InitiativeMemberRead {
 }
 
 export interface InitiativeRead {
+  projects_enabled: boolean;
+  documents_enabled: boolean;
   queues_enabled: boolean;
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
@@ -4187,6 +4189,8 @@ export interface ImportResult {
 }
 
 export interface InitiativeCreate {
+  projects_enabled?: boolean;
+  documents_enabled?: boolean;
   queues_enabled?: boolean;
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
@@ -4436,6 +4440,8 @@ export interface InitiativeTaskStatusRead {
 }
 
 export interface InitiativeUpdate {
+  projects_enabled?: boolean | null;
+  documents_enabled?: boolean | null;
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
