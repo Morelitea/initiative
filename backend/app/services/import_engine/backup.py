@@ -35,7 +35,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db.session import SYSTEM_SATISFIED
@@ -58,7 +58,9 @@ from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
-_TOOL_ORDER = ("project", "document", "queue", "counter_group", "calendar", "post")
+# Derived from the same set the export side writes, so a tool cannot be
+# exported into an envelope this refuses to read back.
+_TOOL_ORDER = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
 # Refresh the routed session's authorization context this often (see the
 # export backup adapter's identical constant).

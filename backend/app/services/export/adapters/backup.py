@@ -52,13 +52,15 @@ from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
-from app.core.tools import Tool
+from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.services.export.engine import ExportError
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 
-# Tool keys as they appear in the selector's include/formats maps.
-_TOOLS = ("project", "document", "queue", "counter_group", "calendar", "post")
+# Tool keys as they appear in the selector's include/formats maps. Derived:
+# a backup covers what the engine can export, so a ninth tool is carried by
+# registering it rather than by remembering this line.
+_TOOLS = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
 # Report-mode format sets per tool (documents are per-type, validated below).
 _REPORT_FORMATS: dict[str, frozenset[str]] = {
