@@ -16,7 +16,6 @@ from app.core import auth_context
 from app.core.role_context import (
     set_active_role,
     set_content_read_only_guild,
-    set_guild_shows_member_names,
     set_override_sharing_initiatives,
 )
 from app.db.session import set_rls_context
@@ -169,12 +168,6 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
-                # What this guild calls its members. Each guild answers for its
-                # own rows, so a cross-guild list names people the way each of
-                # them does — the same answer as opening that guild and
-                # looking. Carried with the routing so the projection this
-                # guild is read through agrees with the shapes built from it.
-                shows_member_names=bool(shows_names),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.
@@ -209,5 +202,4 @@ async def gather_across_guilds(
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
         set_content_read_only_guild(None)
-        set_guild_shows_member_names(False)
     return results

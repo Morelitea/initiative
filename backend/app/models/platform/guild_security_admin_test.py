@@ -13,8 +13,10 @@ from fastapi import HTTPException
 from app.api import deps
 from app.core.role_context import is_request_guild_admin
 from app.models.platform.guild import (
+    CONTENT_ROLES,
     GUILD_ADMIN_ROLES,
     GUILD_ASSIGNABLE_ROLES,
+    GUILD_STORED_ROLES,
     Guild,
     GuildMembership,
     GuildRole,
@@ -49,6 +51,21 @@ def test_the_guc_still_carries_two_values():
     assert content_role(GuildRole.security_admin) == "admin"
     assert content_role(GuildRole.admin) == "admin"
     assert content_role(GuildRole.member) == "member"
+    # Said once more from the other end: three roles can sit in a membership
+    # row, and putting all three through ``content_role`` yields two values.
+    # ``security_admin`` is deliberately absent from the result — it arrives as
+    # ``admin``, which is what lets every policy leg stay as it was written.
+    assert GuildRole.security_admin in GUILD_STORED_ROLES
+    assert GuildRole.security_admin.value not in CONTENT_ROLES
+    assert {content_role(role) for role in GUILD_STORED_ROLES} == CONTENT_ROLES
+    assert CONTENT_ROLES == {"admin", "member"}
+
+
+def test_support_is_not_a_stored_role():
+    """It is synthesized for the length of a PAM request, so it never reaches
+    the GUC — which is why ``content_role`` is not asked about it."""
+    assert GuildRole.support not in GUILD_STORED_ROLES
+    assert GUILD_STORED_ROLES == frozenset(GuildRole) - {GuildRole.support}
 
 
 def test_the_context_helper_accepts_either_stored_role():

@@ -814,7 +814,7 @@ async def hard_delete_user(
 MEMBER_MATCH_THRESHOLD = 0.4
 
 
-def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
+def name_closeness(term: str) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
     Measured against the closest RUN of the name rather than the whole of it,
@@ -822,20 +822,18 @@ def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     that substring matching cannot — and its real work is the ORDER, putting the
     nearest name at the top of a page rather than whoever sorts first.
 
-    ``shows_names`` is the guild's own setting, so a real name is matched
-    exactly where it is shown and nowhere else.
+    Matched against the projection, which answers with a real name only in a
+    guild that renders one — so a guild that does not is comparing against
+    ``NULL`` and ranks on the handle alone, without being told to.
     """
-    closest = func.word_similarity(term, MemberProfile.username)
-    if shows_names:
-        closest = func.greatest(
-            closest,
-            func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
-        )
-    return closest
+    return func.greatest(
+        func.word_similarity(term, MemberProfile.username),
+        func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
+    )
 
 
 def member_match(
-    term: str, *, shows_names: bool
+    term: str,
 ) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
     """How a typed name selects members, and what to order the answer by.
 
@@ -859,20 +857,25 @@ def member_match(
             ),
             None,
         )
-    matches = MemberProfile.username.ilike(f"%{name_part}%")
-    if shows_names:
-        matches = or_(matches, MemberProfile.full_name.ilike(f"%{name_part}%"))
-    closest = name_closeness(name_part, shows_names=shows_names)
+    matches = or_(
+        MemberProfile.username.ilike(f"%{name_part}%"),
+        # NULL in a guild that renders handles, so this leg simply never
+        # matches there — the projection has already answered.
+        MemberProfile.full_name.ilike(f"%{name_part}%"),
+    )
+    closest = name_closeness(name_part)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
 
-def member_order(
-    closest: ColumnElement[float] | None, *, shows_names: bool
-) -> tuple[ColumnElement, ...]:
-    """Nearest first while searching, alphabetical while reading a roster."""
+def member_order(closest: ColumnElement[float] | None) -> tuple[ColumnElement, ...]:
+    """Nearest first while searching, alphabetical while reading a roster.
+
+    A guild that renders handles has no name to sort on — the column is NULL
+    for every row there, so the caller's own handle ordering decides.
+    """
     if closest is not None:
         return (closest.desc(),)
-    return (MemberProfile.full_name.asc(),) if shows_names else ()
+    return (MemberProfile.full_name.asc().nulls_last(),)
 
 
 def visible_to_other_people(status_column=None):

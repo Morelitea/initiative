@@ -24,8 +24,8 @@ from sqlalchemy import func, true
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.role_context import guild_shows_member_names
 from app.core.messages import PropertyMessages
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
@@ -37,7 +37,6 @@ from app.models.tenant.property import (
     TaskPropertyValue,
 )
 from app.models.tenant.task import Task
-from app.models.platform.user import User
 from app.schemas.tenant.property import (
     PropertyOption,
     PropertySummary,
@@ -439,7 +438,9 @@ def _number_to_json(v: Optional[Decimal]) -> Optional[float]:
     return float(v)
 
 
-def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -> Any:
+def _rehydrate_value(
+    defn: PropertyDefinition, row: Any, user: Optional[MemberProfile]
+) -> Any:
     ptype = defn.type
     if ptype in {PropertyType.text, PropertyType.url, PropertyType.select}:
         return row.value_text
@@ -456,13 +457,14 @@ def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -
     if ptype is PropertyType.user_reference:
         if user is None:
             return {"id": row.value_user_id} if row.value_user_id else None
-        # The same person shape the rest of the API ships: handle always,
-        # ``full_name`` only from a guild that shows real names.
+        # The same person shape the rest of the API ships. ``value_user`` is
+        # the guild projection, so its name is already whatever this guild
+        # renders.
         return {
             "id": user.id,
             "username": user.username,
             "discriminator": user.discriminator,
-            "full_name": user.full_name if guild_shows_member_names() else None,
+            "full_name": user.full_name,
             "avatar_url": user.avatar_url,
         }
     return None  # pragma: no cover

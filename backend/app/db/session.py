@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.role_context import set_guild_shows_member_names
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
@@ -177,7 +176,6 @@ _CONTEXT_SQL = (
     "set_config('app.override_initiatives', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
-    "set_config('app.guild_shows_member_names', :names, true), "
     "set_config('app.query', :q, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
@@ -309,7 +307,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "bgid": "",
         "ovr": override_csv,
-        "names": "true" if params.get("shows_member_names") else "false",
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
@@ -370,7 +367,6 @@ async def set_rls_context(
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
-    shows_member_names: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -388,9 +384,8 @@ async def set_rls_context(
     Management grant for the guild named by ``pam_guild_id``: additive RLS
     policies grant SELECT (read) / write into that one guild's rows while
     the flag is set. ``pam_guild_id`` is deliberately separate from
-    ``current_guild_id`` — the existing write policies treat a matching
-    ``current_guild_id`` as proof of membership, so a grantee must leave it
-    unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
+    ``current_guild_id``: a grant records the guild it reaches in its own
+    field, and a membership records its own. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
 
     ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``
@@ -422,13 +417,6 @@ async def set_rls_context(
     schema (the guild role governs there) — pass it anyway, so the tier is on the
     session for the trip back out.
 
-    ``shows_member_names`` says whether the guild being routed into renders its
-    members' real names. It reaches Postgres as ``app.guild_shows_member_names``,
-    which is what ``public.guild_member_profiles`` — the only projection of an
-    account a guild-routed session can read — consults for whether to hand back
-    a ``full_name`` at all. The same argument sets the request-scoped flag the
-    user schemas read, so both describe the same guild.
-
     The tier is remembered **for the request** — in the SQLAlchemy session's
     Python state, not on the connection — and reapplied to any later call that
     names a ``user_id`` without one, so re-establishing context part-way through
@@ -439,9 +427,29 @@ async def set_rls_context(
     is replayed per transaction. Every parameter is still written from this
     call's arguments, so nothing carries between requests on a pooled connection.
     """
-    _VALID_ROLES = {"admin", "member"}
-    if guild_role is not None and guild_role not in _VALID_ROLES:
-        raise ValueError(f"Invalid guild_role: {guild_role!r}")
+    # Which of the request shapes these arguments form — and a refusal if they
+    # form none of them. This is where the rules that used to be prose in this
+    # docstring are actually applied: a grant carrying a guild, a guild role
+    # with no guild, a stored role that never went through ``content_role``.
+    # Imported here, beside the tier list below, to keep this module's import
+    # graph as it is.
+    from app.db.request_context import classify
+
+    classify(
+        user_id=user_id,
+        guild_id=guild_id,
+        guild_role=guild_role,
+        pam_guild_id=pam_guild_id,
+        pam_read=pam_read,
+        pam_write=pam_write,
+        platform_role=platform_role,
+        read_only=read_only,
+        query=query,
+        satisfied_providers=satisfied_providers,
+        override_initiatives=override_initiatives,
+        scope_initiative_id=scope_initiative_id,
+        via_dashboard_id=via_dashboard_id,
+    )
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
     # sentinel for user-attributed system work whose enqueueing request
@@ -471,11 +479,6 @@ async def set_rls_context(
     else:
         platform_role = session.info.get(_RLS_TIER_INFO_KEY)
 
-    # One argument settles both halves of the name rule: the GUC the guild
-    # projection reads, and the request-scoped flag the schemas read. Set from
-    # the same value here rather than by two callers who could disagree.
-    set_guild_shows_member_names(shows_member_names)
-
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the
     # new params. The stamp only refreshes here — i.e. on a call that
@@ -494,7 +497,6 @@ async def set_rls_context(
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
-        "shows_member_names": bool(shows_member_names),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

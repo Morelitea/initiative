@@ -803,11 +803,6 @@ async def _apply_guild_session_context(
     """Route ``session`` into ``guild_context``'s guild: set the RLS/session
     variables (and the request-scoped PAM/role contexts) for the user+guild,
     PAM-scoped when access is via a grant."""
-    # Which name this guild renders. A property of the guild, not of who is
-    # asking, so it is read once here and carried into every branch below —
-    # ``set_rls_context`` puts it on the session and on the request flag that
-    # one validator on the user schemas reads.
-    shows_names = bool(guild_context.guild.show_member_names)
     if guild_context.break_glass:
         # Break-glass (read_write grant + data.bypass): deliberately unlimited —
         # the holder acts as a full guild admin for the grant's window. Route
@@ -831,7 +826,6 @@ async def _apply_guild_session_context(
             guild_role=GuildRole.admin.value,
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
-            shows_member_names=shows_names,
         )
         return session
 
@@ -870,7 +864,6 @@ async def _apply_guild_session_context(
             pam_write=(access_level == AccessLevel.read_write.value),
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
-            shows_member_names=shows_names,
         )
         return session
 
@@ -905,7 +898,6 @@ async def _apply_guild_session_context(
         # denied by Postgres, not app code.
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
-        shows_member_names=shows_names,
     )
     # Precompute the initiatives where this member holds "Full access" so the
     # sync DAC checks can apply the gate-4 override without an async query. Runs

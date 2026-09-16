@@ -111,7 +111,6 @@ from app.services.platform import guild_images as images_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.services.platform.guilds import guild_renders_member_names
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
@@ -282,18 +281,17 @@ async def search_users(
             users_service.visible_to_other_people(),
         )
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     #: Set while searching by name, and then what the page is ordered by.
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -1279,8 +1277,7 @@ async def get_my_initiative_members(
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
-    await set_rls_context(session, guild_id=guild_id, shows_member_names=shows_names)
+    await set_rls_context(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

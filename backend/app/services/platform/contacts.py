@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.core import usernames
-from app.core.role_context import guild_shows_member_names
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_image import GuildImageVariant
@@ -123,7 +122,6 @@ async def guild_sections(
     )
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
-        shows_names = guild_shows_member_names()
 
         # Ids only, unpaginated — an index-only scan of the primary key, which
         # leads with guild_id.
@@ -163,7 +161,7 @@ async def guild_sections(
         )
         closest = None
         if search and (term := search.strip()):
-            matches, closest = users_service.member_match(term, shows_names=shows_names)
+            matches, closest = users_service.member_match(term)
             base = base.where(matches)
 
         total = (
@@ -173,7 +171,7 @@ async def guild_sections(
         rows = (
             await guild_session.exec(
                 base.order_by(
-                    *users_service.member_order(closest, shows_names=shows_names),
+                    *users_service.member_order(closest),
                     col(MemberProfile.username).asc(),
                     col(MemberProfile.discriminator).asc(),
                     col(MemberProfile.id).asc(),

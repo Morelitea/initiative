@@ -15,10 +15,9 @@ from app.schemas.tenant.property import PropertySummary, PropertyValueInput
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
-from app.schemas.platform.user import GuildNameVisibility
 
 
-class TaskAssigneeSummary(GuildNameVisibility):
+class TaskAssigneeSummary(SanitizedBaseModel):
     """Minimal assignee data for task lists.
 
     A person appears here, so it follows the same two rules every other
