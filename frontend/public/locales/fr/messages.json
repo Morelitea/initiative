@@ -46,7 +46,9 @@
     "groupHint": "Tout le monde ici sera invité avant de rejoindre.",
     "startGroup": "Créer un groupe avec {{count}} personnes",
     "cannotReachEachOther": "{{first}} et {{second}} ne peuvent pas encore s’écrire. Dans un groupe, tout le monde doit le pouvoir.",
-    "tooManyPeople": "Un groupe contient au maximum {{count}} personnes."
+    "tooManyPeople": "Un groupe contient au maximum {{count}} personnes.",
+    "checkingRoster": "Vérification que tout le monde peut s’écrire…",
+    "checkUnavailable": "Cette vérification n’a pas pu être faite. Réessaie dans un instant."
   },
   "receipt": {
     "sent": "Envoyé",

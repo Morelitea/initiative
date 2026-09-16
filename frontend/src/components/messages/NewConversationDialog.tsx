@@ -126,7 +126,13 @@ export const NewConversationDialog = () => {
         .map((person) => getUserDisplayName(person))
     : [];
   const tooLarge = Boolean(refusal?.too_large);
-  const blocked = unreachable.length > 0 || tooLarge;
+  // A roster that has just changed has not been checked yet, and one whose
+  // check failed has not been checked at all. Proposing either would hand the
+  // refusal back from the server after the person committed, which is the late
+  // answer asking early was meant to replace.
+  const checking = rosterCheck.isFetching;
+  const checkFailed = rosterCheck.isError;
+  const blocked = unreachable.length > 0 || tooLarge || checking || checkFailed;
 
   const propose = () => {
     setError(null);
@@ -278,6 +284,14 @@ export const NewConversationDialog = () => {
                 {t("messages:newConversation.tooManyPeople", {
                   count: refusal?.max_members ?? 0,
                 })}
+              </p>
+            ) : checkFailed ? (
+              <p className="text-destructive text-xs">
+                {t("messages:newConversation.checkUnavailable")}
+              </p>
+            ) : checking ? (
+              <p className="text-muted-foreground text-xs">
+                {t("messages:newConversation.checkingRoster")}
               </p>
             ) : (
               <p className="text-muted-foreground text-xs">

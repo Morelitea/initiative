@@ -46,7 +46,9 @@
     "groupHint": "Everyone here will be asked before they join.",
     "startGroup": "Start a group with {{count}} people",
     "cannotReachEachOther": "{{first}} and {{second}} cannot message each other yet. Everyone in a group has to be able to.",
-    "tooManyPeople": "A group holds at most {{count}} people."
+    "tooManyPeople": "A group holds at most {{count}} people.",
+    "checkingRoster": "Checking that everyone here can message everyone else…",
+    "checkUnavailable": "That check could not be made just now. Try again in a moment."
   },
   "receipt": {
     "sent": "Sent",

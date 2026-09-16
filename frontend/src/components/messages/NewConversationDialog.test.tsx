@@ -97,7 +97,7 @@ beforeEach(() => {
   mocks.permissions.mockReturnValue({
     data: { permissions: { "1": { permission: "may_request", may_connect: true } } },
   });
-  mocks.rosterCheck.mockReturnValue({ data: undefined });
+  mocks.rosterCheck.mockReturnValue({ data: undefined, isFetching: false, isError: false });
 });
 
 describe("NewConversationDialog", () => {
@@ -343,6 +343,8 @@ describe("gathering people into a group", () => {
     mocks.permissions.mockReturnValue(reachable);
     mocks.rosterCheck.mockReturnValue({
       data: { unreachable_pair: [1, 2], max_members: 40, too_large: false },
+      isFetching: false,
+      isError: false,
     });
     await open();
     await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
@@ -361,6 +363,8 @@ describe("gathering people into a group", () => {
     mocks.permissions.mockReturnValue(reachable);
     mocks.rosterCheck.mockReturnValue({
       data: { unreachable_pair: [], max_members: 40, too_large: false },
+      isFetching: false,
+      isError: false,
     });
     await open();
     await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
@@ -369,6 +373,38 @@ describe("gathering people into a group", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Start a group/ }));
 
     expect(mocks.startGroup).toHaveBeenCalledWith([1, 2], expect.anything());
+  });
+
+  it("will not propose a roster that has not been checked yet", async () => {
+    // Adding somebody starts a fresh check. Proposing before it answers hands
+    // the refusal back from the server after the person has committed, which
+    // is the late answer asking early was meant to replace.
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    mocks.rosterCheck.mockReturnValue({ data: undefined, isFetching: true, isError: false });
+    await open();
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add bo#1234 to a group" }));
+
+    expect(screen.getByRole("button", { name: /Start a group/ })).toBeDisabled();
+  });
+
+  it("will not propose when the check could not be made", async () => {
+    mocks.sections.mockReturnValue({
+      data: { sections: [section(two)], page: 1, page_size: 20 },
+      isLoading: false,
+    });
+    mocks.permissions.mockReturnValue(reachable);
+    mocks.rosterCheck.mockReturnValue({ data: undefined, isFetching: false, isError: true });
+    await open();
+    await userEvent.click(await screen.findByRole("button", { name: "Add ada#1234 to a group" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add bo#1234 to a group" }));
+
+    expect(await screen.findByText(/could not be made/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start a group/ })).toBeDisabled();
   });
 
   it("will not gather somebody who cannot be reached", async () => {

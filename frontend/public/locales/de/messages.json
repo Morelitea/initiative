@@ -46,7 +46,9 @@
     "groupHint": "Alle hier werden gefragt, bevor sie beitreten.",
     "startGroup": "Gruppe mit {{count}} Personen starten",
     "cannotReachEachOther": "{{first}} und {{second}} können sich noch nicht schreiben. In einer Gruppe müssen das alle können.",
-    "tooManyPeople": "Eine Gruppe fasst höchstens {{count}} Personen."
+    "tooManyPeople": "Eine Gruppe fasst höchstens {{count}} Personen.",
+    "checkingRoster": "Es wird geprüft, ob sich hier alle gegenseitig schreiben können …",
+    "checkUnavailable": "Diese Prüfung war gerade nicht möglich. Versuche es gleich noch einmal."
   },
   "receipt": {
     "sent": "Gesendet",
