@@ -53,6 +53,11 @@ minimumReleaseAgeExclude:
   - vite@8.0.16
   - vitest@4.1.8
 overrides:
+  # Transitive, dev-only, and held below a patched release by the package
+  # that pulls them in: js-yaml by orval, sharp by @capacitor/assets.
+  # Neither parent has moved its floor, so it is raised here.
+  js-yaml@<4.3.2: ^4.3.2
+  sharp@<0.35.4: ^0.35.4
   '@radix-ui/react-dismissable-layer': 1.1.15
   '@radix-ui/react-focus-guards': 1.1.4
   '@radix-ui/react-focus-scope': 1.1.12
