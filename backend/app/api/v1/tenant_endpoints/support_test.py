@@ -10,7 +10,8 @@ from app.core.intake import IntakeStream
 from app.core.messages import SupportMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import GuildRole
+from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.task import Task
 from app.testing import (
@@ -32,10 +33,15 @@ async def _ask(client, actor, guild_id, **body):
 
 
 async def _set_support(session, guild_id: int, enabled: bool) -> None:
+    """Grant the entitlement, the way the operator's Guilds tab does."""
     await set_rls_context(session)
-    guild = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    guild.support_enabled = enabled
-    session.add(guild)
+    row = (
+        await session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
+        )
+    ).one()
+    row.support_enabled = enabled
+    session.add(row)
     await session.commit()
 
 
@@ -62,8 +68,9 @@ async def operations(session):
     return {"guild": ops_guild, "project": ops_project}
 
 
-async def test_support_is_off_until_a_community_turns_it_on(client, acting_user):
-    """The default. Nothing has to be configured for this to be the answer."""
+async def test_support_is_off_until_the_operator_turns_it_on(client, acting_user):
+    """The default, and not a community admin's to change: the deployment that
+    would receive the requests decides it is staffing them."""
     member = await acting_user(guild_role=GuildRole.member)
     response = await _ask(client, member, member.guild.id)
     assert response.status_code == 403, response.text
@@ -151,3 +158,66 @@ async def test_every_support_error_code_is_localized():
         catalogue = json.loads((locales / locale / "errors.json").read_text())
         missing = sorted(codes - set(catalogue))
         assert not missing, f"{locale}/errors.json is missing {missing}"
+
+
+async def test_availability_says_faq_until_both_halves_are_there(
+    client, session, acting_user, operations
+):
+    """The sidebar draws the control either way, so this answers what it does.
+
+    Both halves have to hold: a form that can only answer "nowhere to send it"
+    is worse than the FAQ it would have replaced.
+    """
+    member = await acting_user(guild_role=GuildRole.member)
+
+    async def available() -> bool:
+        response = await client.get(
+            f"/api/v1/g/{member.guild.id}/support", headers=member.headers
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["available"]
+
+    assert await available() is False
+    await _set_support(session, member.guild.id, True)
+    assert await available() is True
+
+
+async def test_availability_is_false_where_nothing_is_bound(
+    client, session, acting_user
+):
+    """Entitled, but the deployment routes nothing — so the FAQ, not a form
+    that would 503."""
+    member = await acting_user(guild_role=GuildRole.member)
+    await _set_support(session, member.guild.id, True)
+
+    response = await client.get(
+        f"/api/v1/g/{member.guild.id}/support", headers=member.headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["available"] is False
+
+
+async def test_a_blank_request_is_refused(client, session, acting_user, operations):
+    """Whitespace is characters, so the length bound alone admits a case whose
+    title and description are blank on the board somebody works from."""
+    member = await acting_user(guild_role=GuildRole.member)
+    await _set_support(session, member.guild.id, True)
+
+    response = await _ask(client, member, member.guild.id, subject="   ", body="\t\n ")
+    assert response.status_code == 422, response.text
+
+
+async def test_what_is_stored_is_what_was_meant(
+    client, session, acting_user, operations
+):
+    """Trimmed on the way in, so the queue reads the words and not the padding."""
+    member = await acting_user(guild_role=GuildRole.member)
+    await _set_support(session, member.guild.id, True)
+    assert (
+        await _ask(client, member, member.guild.id, subject="  Padded  ")
+    ).status_code == 202
+
+    await set_rls_context(session, guild_id=operations["guild"].id, guild_role="admin")
+    case = (await session.exec(select(IntakeCase))).one()
+    task = (await session.exec(select(Task).where(Task.id == case.task_id))).one()
+    assert task.title == "Padded"

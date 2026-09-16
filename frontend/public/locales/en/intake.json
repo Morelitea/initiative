@@ -75,8 +75,6 @@
     "browseFaq": "Browse the FAQ",
     "submit": "Send",
     "thanks": "Sent. Somebody will pick it up.",
-    "error": "Could not send that. Try again in a moment.",
-    "settingLabel": "Let members ask for help",
-    "settingHelp": "Adds a help request form to the sidebar for everyone here. Off, the same control opens the FAQ. Turn this on only if somebody is reading what arrives."
+    "error": "Could not send that. Try again in a moment."
   }
 }

@@ -970,13 +970,17 @@
       "storageLimit": "Speicherlimit",
       "guildAuth": "Community-Anmeldung",
       "status": "Status",
-      "billing": "Abrechnung"
+      "billing": "Abrechnung",
+      "support": "Hilfeanfragen"
     },
     "billing": {
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
-    }
+    },
+    "supportOn": "{{name}} kann jetzt Hilfeanfragen senden.",
+    "supportOff": "{{name}} kann keine Hilfeanfragen mehr senden.",
+    "supportInputLabel": "Hilfeanfragen für {{name}}"
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",

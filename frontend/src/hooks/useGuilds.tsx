@@ -117,10 +117,6 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // Whether a guild shows real names is the guild's own setting; a synthetic
   // entry has no row to read it from, so it takes the default — handles.
   show_member_names: false,
-  // Same: no row to read it from, so the default. Somebody here on a grant is
-  // working rather than asking this community for help, and the control offers
-  // them the FAQ until the guild's own payload says otherwise.
-  support_enabled: false,
   // Guild-admin territory, and a grantee acts as a member — so, unanswered.
   has_adult_content: null,
   created_at: grant.requested_at,

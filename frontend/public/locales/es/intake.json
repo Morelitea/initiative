@@ -75,8 +75,6 @@
     "browseFaq": "Consultar las preguntas frecuentes",
     "submit": "Enviar",
     "thanks": "Enviado. Alguien se encargará.",
-    "error": "No se ha podido enviar. Inténtalo de nuevo en un momento.",
-    "settingLabel": "Permitir que los miembros pidan ayuda",
-    "settingHelp": "Añade un formulario de ayuda en la barra lateral para todos los de aquí. Si está desactivado, el mismo control abre las preguntas frecuentes. Actívalo solo si alguien va a leer lo que llegue."
+    "error": "No se ha podido enviar. Inténtalo de nuevo en un momento."
   }
 }

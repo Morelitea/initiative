@@ -75,8 +75,6 @@
     "browseFaq": "Consulter la FAQ",
     "submit": "Envoyer",
     "thanks": "Envoyé. Quelqu'un s'en chargera.",
-    "error": "Impossible d'envoyer. Réessayez dans un instant.",
-    "settingLabel": "Autoriser les membres à demander de l'aide",
-    "settingHelp": "Ajoute un formulaire d'aide dans la barre latérale pour tout le monde ici. Désactivé, le même bouton ouvre la FAQ. Ne l'activez que si quelqu'un lit ce qui arrive."
+    "error": "Impossible d'envoyer. Réessayez dans un instant."
   }
 }

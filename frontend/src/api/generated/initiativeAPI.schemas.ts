@@ -4000,7 +4000,6 @@ export interface GuildRead {
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
-  support_enabled: boolean;
   has_adult_content: boolean | null;
   banner: GuildBannerRead;
   online_count: number;
@@ -4037,7 +4036,6 @@ export interface GuildUpdate {
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
   show_member_names?: boolean | null;
-  support_enabled?: boolean | null;
   banner?: GuildBannerWrite | null;
   has_adult_content?: boolean | null;
 }
@@ -5143,6 +5141,7 @@ export interface PlatformGuildStorageRead {
   status_changed_at: string | null;
   guild_auth_enabled: boolean;
   banner_image_enabled: boolean;
+  support_enabled: boolean;
 }
 
 /**
@@ -5160,6 +5159,7 @@ export interface PlatformGuildStorageUpdate {
   status?: GuildStatus | null;
   guild_auth_enabled?: boolean | null;
   banner_image_enabled?: boolean | null;
+  support_enabled?: boolean | null;
 }
 
 /**
@@ -6489,6 +6489,17 @@ export interface StorageSettingsUpdate {
 export interface StorageTestResponse {
   success: boolean;
   message: string;
+}
+
+/**
+ * Whether the help form should be offered in this community.
+ *
+ * One boolean rather than its two halves: the reader is choosing between a
+ * form and the FAQ, and which of the two reasons applies is the operator's
+ * business, not theirs.
+ */
+export interface SupportAvailability {
+  available?: boolean;
 }
 
 /**

@@ -9,23 +9,34 @@
  */
 
 import { CircleQuestionMark } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AskForHelpDialog } from "@/components/support/AskForHelpDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useGuilds } from "@/hooks/useGuilds";
-import { FAQ_URL } from "@/hooks/useSupport";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { FAQ_URL, useSupportAvailability } from "@/hooks/useSupport";
 
 const ICON_CLASS = "text-muted-foreground transition-colors hover:text-foreground";
 
 export const AskForHelpButton = () => {
   const { t } = useTranslation("intake");
-  const { activeGuild } = useGuilds();
+  const guildId = useActiveGuildId();
   const [open, setOpen] = useState(false);
+  // A failed or unfinished read leaves the FAQ, which is the honest fallback:
+  // the form is the thing that needs an answer to work.
+  const { data } = useSupportAvailability(guildId);
+
+  // The sidebar stays mounted across a community switch, so a request opened
+  // in one could be sent to the next. Changing community closes it: a help
+  // request is about where you were, and carrying the words across would send
+  // them to people the writer never meant.
+  useEffect(() => {
+    setOpen(false);
+  }, [guildId]);
 
   const label = t("help.action");
-  const canAsk = Boolean(activeGuild?.support_enabled);
+  const canAsk = Boolean(data?.available) && guildId != null;
 
   return (
     <>
@@ -34,7 +45,7 @@ export const AskForHelpButton = () => {
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
-            {canAsk && activeGuild ? (
+            {canAsk ? (
               <button
                 type="button"
                 className={`${ICON_CLASS} cursor-pointer`}
@@ -60,8 +71,10 @@ export const AskForHelpButton = () => {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {open && activeGuild ? (
-        <AskForHelpDialog open={open} onOpenChange={setOpen} guildId={activeGuild.id} />
+      {open && guildId != null ? (
+        // Keyed on the community as well, so nothing typed can outlive the one
+        // it was typed in even if the close above were ever missed.
+        <AskForHelpDialog key={guildId} open={open} onOpenChange={setOpen} guildId={guildId} />
       ) : null}
     </>
   );

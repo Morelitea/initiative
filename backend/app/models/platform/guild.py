@@ -204,14 +204,6 @@ class Guild(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    # Whether this guild's members may send a help request to whoever runs the
-    # deployment. Off by default: a self-hosted install has no support desk,
-    # and the "Ask for help" affordance shows them the FAQ instead. Set by the
-    # guild's own admins, alongside the identity columns above.
-    support_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
     # Which shelves the guild files itself under (see GuildCategory). A listed
     # guild must be on at least one — a card nobody can find by browsing is not
     # a listing — which the ck_guilds_community_categories CHECK enforces.

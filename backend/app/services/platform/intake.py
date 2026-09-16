@@ -121,6 +121,25 @@ async def _binding_for(
     ).first()
 
 
+async def stream_is_bound(stream: IntakeStream) -> bool:
+    """Whether anything is set up to receive this stream's cases.
+
+    What a surface asks before offering to send something: a form that can only
+    answer "nowhere to send it" is worse than the surface that replaces it.
+    Runs on its own system session and routes into the operations guild, the
+    way :func:`open_case` does, because the binding lives there.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        guild_id = await operations_guild_id(session)
+        if guild_id is None:
+            return False
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        return await _binding_for(session, stream) is not None
+
+
 async def _hold_key(
     session: AsyncSession, *, guild_id: int, stream: IntakeStream, dedupe_key: str
 ) -> None:

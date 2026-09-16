@@ -134,10 +134,6 @@ class GuildRead(GuildBase):
     # means it renders handles. A listed guild is always off and cannot be
     # switched on.
     show_member_names: bool = True
-    # Whether this community offers a way to ask whoever runs the deployment
-    # for help. Every member sees it, because it is what the "Ask for help"
-    # control does: off, it shows the FAQ; on, it takes a request.
-    support_enabled: bool = False
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None
@@ -223,9 +219,6 @@ class GuildUpdate(SanitizedBaseModel):
     # the guild turns it off in the same write and the endpoint refuses to set
     # both, which ck_guilds_community_member_names also enforces.
     show_member_names: Optional[bool] = None
-    # Whether members may send a help request. Omit-to-skip like the fields
-    # above.
-    support_enabled: Optional[bool] = None
     # The whole banner, replaced. Omit-to-skip like the fields above; an
     # explicit null puts it back to the default rather than clearing it, since
     # a banner is never colourless and never without a layout.
@@ -276,6 +269,10 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.
     banner_image_enabled: bool = True
+    # Whether this guild's members may send a help request (operator toggle).
+    # Off by default: the deployment that receives them is the one that decides
+    # it is staffing them.
+    support_enabled: bool = False
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -295,6 +292,8 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     guild_auth_enabled: Optional[bool] = None
     # Banner-artwork entitlement. Omit-to-skip, same as the one above.
     banner_image_enabled: Optional[bool] = None
+    # Help-request entitlement. Omit-to-skip, same as the one above.
+    support_enabled: Optional[bool] = None
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):

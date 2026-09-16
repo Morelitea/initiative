@@ -75,8 +75,6 @@
     "browseFaq": "FAQ durchsehen",
     "submit": "Senden",
     "thanks": "Gesendet. Jemand kümmert sich darum.",
-    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal.",
-    "settingLabel": "Mitglieder dürfen Hilfe anfordern",
-    "settingHelp": "Fügt allen hier ein Hilfeformular in der Seitenleiste hinzu. Ist es aus, öffnet dieselbe Schaltfläche die FAQ. Aktiviere das nur, wenn jemand liest, was ankommt."
+    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
   }
 }

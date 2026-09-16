@@ -156,7 +156,6 @@ def _serialize_guild(
         is_community=guild.is_community,
         categories=[GuildCategory(value) for value in guild.categories],
         show_member_names=guild.show_member_names,
-        support_enabled=guild.support_enabled,
         has_adult_content=guild.has_adult_content,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
@@ -603,7 +602,6 @@ async def update_guild(
             banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
             banner_provided=banner_provided,
             show_member_names=updates.show_member_names,
-            support_enabled=updates.support_enabled,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         # No directory on this deployment, so there is nothing to list in.

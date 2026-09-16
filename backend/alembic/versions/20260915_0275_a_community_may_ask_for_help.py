@@ -1,11 +1,16 @@
 """a community may ask for help
 
-``guilds.support_enabled`` says whether this community's members can send a
-help request to whoever runs the deployment.
+``guild_administration.support_enabled`` says whether this community's members
+can send a help request.
 
-Off for every existing community and for every new one. A self-hosted install
-has nobody staffing a queue, so the "Ask for help" affordance shows the FAQ
-until an admin turns this on.
+An operator entitlement, beside ``guild_auth_enabled`` and
+``banner_image_enabled``, and off for every existing community and every new
+one: the deployment that would receive the requests is the one that decides it
+is staffing them. Until it does, the "Ask for help" control opens the FAQ.
+
+No grant goes with it. Nothing on the request path writes
+``guild_administration`` — the operator endpoints run on the system engine —
+so the column inherits the table's existing terms.
 
 Revision ID: 20260915_0275
 Revises: 20260915_0274
@@ -25,7 +30,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column(
-        "guilds",
+        "guild_administration",
         sa.Column(
             "support_enabled",
             sa.Boolean(),
@@ -33,14 +38,7 @@ def upgrade() -> None:
             server_default=sa.text("false"),
         ),
     )
-    # 0138 pinned the guild-admin write path on ``public.guilds`` to a literal
-    # column list, so every column added since names itself — as 0203 did for
-    # show_member_names. This is one a guild's own admin sets, from the
-    # community's settings.
-    op.execute(
-        "GRANT UPDATE (support_enabled) ON TABLE public.guilds TO app_guild_base"
-    )
 
 
 def downgrade() -> None:
-    op.drop_column("guilds", "support_enabled")
+    op.drop_column("guild_administration", "support_enabled")
