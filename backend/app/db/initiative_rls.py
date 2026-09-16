@@ -1092,6 +1092,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
     # Reading is the question this path answers; writing is the capture
     # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
+    # No sharing leg, decided 2026-09-10: the envelope is identifiers and
+    # changed column names, and every consumer reads current state back
+    # through the REST path, where sharing decides. The initiative gate is
+    # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
