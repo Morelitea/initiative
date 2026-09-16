@@ -127,8 +127,7 @@ class GuildRead(GuildBase):
     content_read_only: bool = False
     # ADMIN-ONLY. Whether this guild may configure its own sign-in (operator
     # entitlement), so their settings UI can show/hide the Authentication tab;
-    # ``None`` for non-admin members (they never configure auth). Only
-    # meaningful under the per-guild AUTH_SCOPE posture.
+    # ``None`` for non-admin members (they never configure auth).
     guild_auth_enabled: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
@@ -268,8 +267,8 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
-    # Per-guild sign-in entitlement (operator toggle). Only meaningful under the
-    # per-guild AUTH_SCOPE posture; the dashboard hides the control otherwise.
+    # Per-guild sign-in entitlement (operator toggle), set from the platform
+    # Guilds dashboard.
     guild_auth_enabled: bool = False
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.

@@ -315,8 +315,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
  * Per-guild sign-in entitlement toggle. Flipping it on lets the guild configure
  * its own login providers and onboard new accounts through them; flipping it off
  * closes that config surface and stops new-account onboarding, but never deletes
- * providers or signs existing members out. Only meaningful (and only rendered)
- * under the per-guild AUTH_SCOPE posture.
+ * providers or signs existing members out.
  */
 const GuildAuthCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const { t } = useTranslation("settings");
