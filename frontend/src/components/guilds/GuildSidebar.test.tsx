@@ -217,10 +217,12 @@ describe("GuildSidebar community creation", () => {
 
     const router = await createNamedGuild(createGuild);
 
-    // A new community is empty — its home page opens on "create the first
-    // initiative" — so being dropped anywhere but inside it leaves the creator
-    // hunting for the thing they just made.
+    // A new community is empty, so being dropped anywhere but inside it leaves
+    // the creator hunting for the thing they just made.
     await waitFor(() => expect(router.state.location.pathname).toBe("/c/42"));
+    // …and naming its first initiative is the next thing to do either way, so
+    // the wizard is the arrival rather than something to go and find.
+    expect(router.state.location.search).toMatchObject({ create: "true" });
   });
 
   it("keeps a failed create on its error instead of navigating away", async () => {

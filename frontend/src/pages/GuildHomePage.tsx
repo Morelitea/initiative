@@ -23,7 +23,7 @@ import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
-import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
+import { CreateInitiativeWizard } from "@/components/initiatives/CreateInitiativeWizard";
 import {
   archivedParam,
   isToolArchiveState,
@@ -334,7 +334,15 @@ export function GuildHomePage() {
         )}
 
         {canCreateInitiatives ? (
-          <CreateInitiativeDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+          <CreateInitiativeWizard
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            // The community's first: the wizard has to say what an initiative
+            // is before it asks for a name. Read off the whole list, not the
+            // visible one — an admin sees everything, and an archived
+            // initiative still means somebody has been here before.
+            isFirst={initiativesQuery.isSuccess && (initiativesQuery.data?.length ?? 0) === 0}
+          />
         ) : null}
       </div>
     </div>

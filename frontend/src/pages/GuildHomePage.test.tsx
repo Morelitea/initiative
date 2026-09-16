@@ -694,7 +694,8 @@ describe("GuildHomePage", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /New initiative/i }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
   it("keeps creating out of a member's hands", async () => {
@@ -716,7 +717,8 @@ describe("GuildHomePage", () => {
     renderHome({ create: "true" });
 
     // The sidebar's "Add initiative" and the retired /i list route both land here.
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
   it("re-reads the community once the reader joins, so the card flips to joined", async () => {
@@ -864,7 +866,8 @@ describe("GuildHomePage", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /Create initiative/i }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
   it("does not tell the admin of a new community to ask an admin", async () => {
