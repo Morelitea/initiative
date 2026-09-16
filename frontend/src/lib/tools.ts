@@ -68,15 +68,19 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
 export const TOOLS = Object.values(Tool) as Tool[];
 
 /**
- * Always on: no per-initiative master switch, visible to every member by
- * default. Mirrors backend `CORE_TOOLS`, and matches the generated
- * `InitiativeRead`, which carries a `{plural}_enabled` column for every OTHER
- * tool and none for these.
+ * On unless an initiative says otherwise. Mirrors backend
+ * `DEFAULT_ENABLED_TOOLS`.
+ *
+ * Projects and documents used to be exempt from the master switch entirely —
+ * always on, with no `{plural}_enabled` column. Relationships ended that: a
+ * tool no longer needs either of them to be linkable, so an initiative that is
+ * only a calendar is a coherent thing to want. What they keep is the default,
+ * which is the part that was ever load-bearing.
  */
-export const CORE_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
+export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
 
-/** Tools with a per-initiative master switch (everything non-core). */
-export const TOGGLEABLE_TOOLS = TOOLS.filter((t) => !CORE_TOOLS.has(t));
+/** Every tool has a per-initiative master switch. */
+export const TOGGLEABLE_TOOLS = TOOLS;
 
 /**
  * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
@@ -379,11 +383,10 @@ export interface ToolCommentEntity {
 }
 
 /**
- * The initiative master-switch field for a toggleable tool (same spelling as
- * the view permission). Core tools have no switch — callers get `true`.
+ * The initiative master-switch field for a tool (same spelling as the view
+ * permission). Every tool has one.
  */
 export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
-  CORE_TOOLS.has(tool) ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
 /** Guild-relative create target for a tool inside an initiative: the tool's

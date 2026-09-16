@@ -52,6 +52,7 @@ from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
+from app.core.tools import Tool
 from app.services.export.engine import ExportError
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
@@ -392,7 +393,11 @@ async def _build_scope(
 def _initiative_tool_states(params: dict, initiative) -> dict[str, str]:
     states: dict[str, str] = {}
     for tool in _TOOLS:
-        flag = getattr(initiative, f"{tool}s_enabled", True)
+        # The switch column via the enum, not `tool + "s"`: the naive spelling
+        # is wrong for `gallery`, and every tool now carries a column, so a
+        # missing-attribute default would hide a real mismatch rather than
+        # cover for the two that used to have none.
+        flag = getattr(initiative, Tool(tool).view_permission)
         if not flag:
             states[tool] = "disabled"
         elif _included(params, tool):

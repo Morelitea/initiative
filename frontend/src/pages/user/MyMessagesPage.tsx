@@ -241,6 +241,7 @@ export function MyMessagesPage() {
           key={current.id}
           conversationId={current.id}
           otherUserId={current.other_user_id}
+          memberIds={current.member_ids?.length ? current.member_ids : [current.other_user_id]}
           name={nameOf(current.other_user_id)}
           them={personFor.get(current.other_user_id)}
         />
@@ -409,11 +410,19 @@ const Speaking = ({
 function Thread({
   conversationId,
   otherUserId,
+  memberIds,
   name,
   them,
 }: {
   conversationId: string;
   otherUserId: number;
+  /**
+   * Everybody a message here is encrypted for. One entry for a pair; more once
+   * a group can be opened. Kept apart from `otherUserId`, which is who the
+   * thread is drawn as and is still one person until the list can draw a
+   * roster.
+   */
+  memberIds: number[];
   name: string;
   /** The other side, for their picture. Absent while the grant is still loading. */
   them: Speaker;
@@ -421,8 +430,8 @@ function Thread({
   const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
   const thread = useThread(conversationId);
-  const send = useSendMessage(conversationId, otherUserId);
-  const actions = useMessageActions(conversationId, otherUserId);
+  const send = useSendMessage(conversationId, memberIds);
+  const actions = useMessageActions(conversationId, memberIds);
   const [draft, setDraft] = useState("");
   /** The message being answered, and the one being rewritten. Never both. */
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -516,7 +525,7 @@ function Thread({
   const messages = thread.data ?? [];
   // An open thread is a read thread — including whatever arrives while it is
   // open, which is why the count is what re-runs it.
-  useMarkThreadRead(conversationId, messages.length, otherUserId);
+  useMarkThreadRead(conversationId, messages.length, memberIds);
   useEffect(() => {
     // The log's own scrollTop, not `scrollIntoView`. That asks the browser to
     // bring an element into view by scrolling *every* scrollport it sits in --

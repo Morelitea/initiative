@@ -161,7 +161,7 @@ describe("GuildSidebar reorder mode", () => {
  */
 describe("GuildSidebar community creation", () => {
   const createNamedGuild = async (createGuild: ReturnType<typeof vi.fn>) => {
-    renderPage(
+    const { router } = renderPage(
       () => (
         <SidebarProvider>
           <GuildSidebar />
@@ -174,6 +174,7 @@ describe("GuildSidebar community creation", () => {
       target: { value: "Beta" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create community" }));
+    return router;
   };
 
   beforeEach(() => {
@@ -209,6 +210,30 @@ describe("GuildSidebar community creation", () => {
     expect(openSpy).not.toHaveBeenCalled();
     expect(mintMock).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+
+  it("lands the creator in the community they just made", async () => {
+    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+
+    const router = await createNamedGuild(createGuild);
+
+    // A new community is empty, so being dropped anywhere but inside it leaves
+    // the creator hunting for the thing they just made.
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/42"));
+    // …and naming its first initiative is the next thing to do either way, so
+    // the wizard is the arrival rather than something to go and find.
+    expect(router.state.location.search).toMatchObject({ create: "true" });
+  });
+
+  it("keeps a failed create on its error instead of navigating away", async () => {
+    const createGuild = vi.fn().mockRejectedValue(new Error("nope"));
+
+    const router = await createNamedGuild(createGuild);
+
+    await waitFor(() => expect(createGuild).toHaveBeenCalled());
+    // The dialog owns the failure: leaving the page would throw away the
+    // message the creator needs in order to try again.
+    expect(router.state.location.pathname).toBe("/");
   });
 
   it("closes the reserved tab when creation fails", async () => {

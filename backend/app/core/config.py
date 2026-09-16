@@ -196,7 +196,6 @@ class Settings(BaseSettings):
     # so it can be rotated freely — the only cost is forcing every user to re-login,
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # --- The SQL query surface ----------------------------------------------
     #
@@ -260,9 +259,12 @@ class Settings(BaseSettings):
     # The access token is short-lived + stateless: verified locally with no
     # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
     # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
-    # These are deliberately separate from the legacy ``ACCESS_TOKEN_EXPIRE_MINUTES``
-    # (the current long-lived session JWT) — the two models coexist during the
-    # dual-verify cutover window.
+    #
+    # Together these are how long somebody stays signed in: the browser renews
+    # silently every AUTH_ACCESS_TTL_MINUTES and keeps the session for
+    # AUTH_REFRESH_TTL_DAYS of not using the app. They are the whole of that
+    # setting now — they replaced ``ACCESS_TOKEN_EXPIRE_MINUTES``, which is
+    # gone.
     AUTH_ACCESS_TTL_MINUTES: int = 15
     AUTH_REFRESH_TTL_DAYS: int = 30
 

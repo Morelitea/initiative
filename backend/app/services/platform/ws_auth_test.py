@@ -5,13 +5,17 @@ honour ``token_version`` so that logout / password reset / password change
 (which revoke purely by bumping the counter) also close realtime sockets.
 """
 
+from datetime import datetime, timedelta, timezone
+
+import jwt as pyjwt
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import JWT_ALGORITHM, create_access_token
+from app.core.config import settings
+from app.core.security import JWT_ALGORITHM
 from app.models.platform.user import UserStatus
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.testing import create_user, get_auth_token, get_legacy_auth_token
+from app.testing import create_user, get_auth_token
 
 
 async def test_valid_token_authenticates(session: AsyncSession):
@@ -24,28 +28,23 @@ async def test_valid_token_authenticates(session: AsyncSession):
     assert result.id == user.id
 
 
-async def test_a_legacy_token_still_authenticates(session: AsyncSession):
-    """Dual-verify, the other half: the WS path still accepts a pre-session
-    token, so realtime sockets stay in lockstep with the HTTP path."""
+async def test_the_pre_session_token_no_longer_opens_a_socket(
+    session: AsyncSession,
+):
+    """A socket answers the same as the HTTP path, which is what this helper
+    exists to keep true — and both now know one shape of session credential."""
     user = await create_user(session)
-    token = get_legacy_auth_token(user)
+    legacy = pyjwt.encode(
+        {
+            "sub": str(user.id),
+            "ver": user.token_version,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        },
+        settings.jwt_signing_key,
+        algorithm=JWT_ALGORITHM,
+    )
 
-    result = await authenticate_ws_token(token, session)
-
-    assert result is not None
-    assert result.id == user.id
-
-
-async def test_a_legacy_tokens_version_is_enforced_too(session: AsyncSession):
-    """``ver`` is what revokes either scheme on the WS path."""
-    user = await create_user(session)
-    token = get_legacy_auth_token(user)
-    user.token_version += 1
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-
-    assert await authenticate_ws_token(token, session) is None
+    assert await authenticate_ws_token(legacy, session) is None
 
 
 async def test_token_version_bump_revokes_token(session: AsyncSession):
@@ -75,7 +74,7 @@ async def test_token_with_stale_version_claim_rejected(session: AsyncSession):
     await session.commit()
     await session.refresh(user)
 
-    stale_token = create_access_token(subject=str(user.id), token_version=0)
+    stale_token = get_auth_token(user, token_version=0)
 
     assert await authenticate_ws_token(stale_token, session) is None
 

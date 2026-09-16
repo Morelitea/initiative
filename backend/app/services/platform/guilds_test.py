@@ -963,7 +963,7 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
             )
         )
     ).one()
-    assert member_row.oidc_managed is False
+    assert member_row.oidc_provider_id is None
 
 
 @pytest.mark.unit

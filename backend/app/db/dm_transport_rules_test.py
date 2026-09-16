@@ -6,6 +6,7 @@ request path gets.
 """
 
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import text
@@ -19,7 +20,9 @@ from app.models.platform.contact_grant import (
 )
 from app.models.platform.dm_conversation import (
     DmConversation,
+    DmConversationKind,
     DmConversationMember,
+    roster_key,
 )
 from app.models.platform.dm_device import DmDevice
 from app.models.platform.dm_one_time_key import DmOneTimeKey
@@ -74,14 +77,24 @@ async def _device(session: AsyncSession, user: User) -> DmDevice:
     return device
 
 
-async def _conversation(session: AsyncSession, *users: User) -> DmConversation:
-    conversation = DmConversation()
+async def _conversation(
+    session: AsyncSession, *users: User, accepted: bool = True
+) -> DmConversation:
+    now = datetime.now(timezone.utc)
+    conversation = DmConversation(
+        kind=(
+            DmConversationKind.direct if len(users) == 2 else DmConversationKind.group
+        ),
+        roster_key=roster_key(user.id for user in users),
+    )
     session.add(conversation)
     await session.flush()
-    for slot, user in enumerate(users):
+    for user in users:
         session.add(
             DmConversationMember(
-                conversation_id=conversation.id, user_id=user.id, slot=slot
+                conversation_id=conversation.id,
+                user_id=user.id,
+                accepted_at=now if accepted else None,
             )
         )
     await session.flush()
@@ -225,46 +238,104 @@ class TestDeliverable:
         assert apparent == "open"
 
 
-class TestPairBoundary:
-    """A direct-message conversation has exactly two members.
+class TestRosterBoundary:
+    """A conversation is its roster, and there is one per roster.
 
-    Held by a unique slot rather than by counting rows: a count read before an
+    Held by a unique key rather than by counting rows: a lookup read before an
     insert is a race two concurrent inserts both win, and a unique index is the
     same test taken at the moment it matters.
     """
 
-    async def test_a_third_member_has_no_slot_to_take(
+    async def test_two_conversations_cannot_share_a_roster(
         self, session: AsyncSession
     ) -> None:
         alice = await create_user(session)
         bob = await create_user(session)
         carol = await create_user(session)
-        conversation = await _conversation(session, alice, bob)
+        await _conversation(session, alice, bob, carol)
 
-        # Both slots are taken, so there is nowhere for a third row to go.
         session.add(
-            DmConversationMember(
-                conversation_id=conversation.id, user_id=carol.id, slot=0
+            DmConversation(
+                kind=DmConversationKind.group,
+                roster_key=roster_key([alice.id, bob.id, carol.id]),
             )
         )
-        with pytest.raises(Exception, match="uq_dm_conversation_members_slot"):
+        with pytest.raises(Exception, match="uq_dm_conversations_roster"):
             await session.flush()
         await session.rollback()
 
-    async def test_there_is_no_third_slot(self, session: AsyncSession) -> None:
+    async def test_the_order_people_are_named_in_does_not_matter(
+        self, session: AsyncSession
+    ) -> None:
+        """The same three people are the same thread, however they were typed."""
         alice = await create_user(session)
         bob = await create_user(session)
         carol = await create_user(session)
-        conversation = await _conversation(session, alice, bob)
+
+        assert roster_key([carol.id, alice.id, bob.id]) == roster_key(
+            [alice.id, bob.id, carol.id]
+        )
+
+    async def test_a_pair_and_a_group_do_not_contend_for_a_key(
+        self, session: AsyncSession
+    ) -> None:
+        """The index is composite with kind, so the two namespaces are separate."""
+        alice = await create_user(session)
+        bob = await create_user(session)
+        await _conversation(session, alice, bob)
 
         session.add(
-            DmConversationMember(
-                conversation_id=conversation.id, user_id=carol.id, slot=2
+            DmConversation(
+                kind=DmConversationKind.group,
+                roster_key=roster_key([alice.id, bob.id]),
             )
         )
-        with pytest.raises(Exception, match="ck_dm_conversation_members_slot"):
-            await session.flush()
-        await session.rollback()
+        await session.flush()
+
+    async def test_a_roster_with_more_than_two_is_allowed(
+        self, session: AsyncSession
+    ) -> None:
+        """The pair constraint is gone; nothing holds a conversation to two."""
+        users = [await create_user(session) for _ in range(4)]
+        conversation = await _conversation(session, *users)
+
+        rows = (
+            await session.exec(
+                text(
+                    "SELECT count(*) FROM public.dm_conversation_members "
+                    "WHERE conversation_id = :c"
+                ).bindparams(c=conversation.id)
+            )
+        ).scalar_one()
+        assert rows == 4
+
+
+class TestPendingMembership:
+    """Being named on a roster is not being on the conversation."""
+
+    async def test_a_pending_member_is_not_in_the_conversation(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        conversation = await _conversation(session, alice, bob, accepted=False)
+
+        assert await _in_conversation(session, alice, conversation) is False
+
+    async def test_answering_puts_them_in_it(self, session: AsyncSession) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        conversation = await _conversation(session, alice, bob, accepted=False)
+
+        await session.exec(
+            text(
+                "UPDATE public.dm_conversation_members SET accepted_at = now() "
+                "WHERE conversation_id = :c AND user_id = :u"
+            ).bindparams(c=conversation.id, u=alice.id)
+        )
+        await session.flush()
+
+        assert await _in_conversation(session, alice, conversation) is True
 
 
 class TestClaimingAPrekey:

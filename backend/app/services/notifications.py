@@ -522,7 +522,7 @@ async def notify_initiative_membership(
         except email_service.EmailNotConfiguredError:
             logger.warning(
                 "SMTP not configured; skipping initiative notification for %s",
-                user.email,
+                user.id,
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send initiative notification: %s", exc)
@@ -635,7 +635,7 @@ async def _send_join_request_email(
         )
     except email_service.EmailNotConfiguredError:
         logger.warning(
-            "SMTP not configured; skipping join-request email for %s", recipient.email
+            "SMTP not configured; skipping join-request email for %s", recipient.id
         )
     except Exception as exc:
         logger.error("Failed to send join-request email: %s", exc, exc_info=True)
@@ -824,7 +824,7 @@ async def notify_project_added(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping project notification for %s", user.email
+                "SMTP not configured; skipping project notification for %s", user.id
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send project notification: %s", exc)
@@ -918,7 +918,7 @@ async def notify_document_mention(
         except email_service.EmailNotConfiguredError:
             logger.warning(
                 "SMTP not configured; skipping mention email for %s",
-                mentioned_user.email,
+                mentioned_user.id,
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
@@ -1026,7 +1026,7 @@ async def notify_comment_mention(
         except email_service.EmailNotConfiguredError:
             logger.warning(
                 "SMTP not configured; skipping mention email for %s",
-                mentioned_user.email,
+                mentioned_user.id,
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
@@ -1138,7 +1138,7 @@ async def notify_task_mentioned_in_comment(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping mention email for %s", assignee.email
+                "SMTP not configured; skipping mention email for %s", assignee.id
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
@@ -1235,7 +1235,7 @@ async def notify_comment_on_task(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping comment email for %s", assignee.email
+                "SMTP not configured; skipping comment email for %s", assignee.id
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
@@ -1338,7 +1338,7 @@ async def notify_comment_on_resource(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping comment email for %s", owner.email
+                "SMTP not configured; skipping comment email for %s", owner.id
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
@@ -1445,7 +1445,7 @@ async def notify_comment_reply(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping reply email for %s", parent_author.email
+                "SMTP not configured; skipping reply email for %s", parent_author.id
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send reply email: %s", exc)
@@ -1541,7 +1541,7 @@ async def _deliver_notification(
             logger.warning(
                 "SMTP not configured; skipping %s email for %s",
                 notification_type.value,
-                recipient.email,
+                recipient.id,
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send %s email: %s", notification_type.value, exc)
@@ -1989,8 +1989,8 @@ async def _run_digest_pass(
     # Capture before routing — the gather expunges the identity map. The
     # channel preferences are deliberately NOT snapshotted here; they are read
     # again at delivery time.
-    candidates = [(u.id, u.email) for u in users]
-    for user_id, email in candidates:
+    candidates = [u.id for u in users]
+    for user_id in candidates:
         per_guild_items: dict[int, list[int]] = {}
         queued_at: list[datetime] = []
 
@@ -2068,11 +2068,11 @@ async def _run_digest_pass(
                 await spec.send_email(session, user, batch)
                 delivered = True
                 logger.info(
-                    "%s: sent %d item(s) to user %s", spec.name, len(batch), email
+                    "%s: sent %d item(s) to user %s", spec.name, len(batch), user_id
                 )
             except email_service.EmailNotConfiguredError:
                 logger.warning(
-                    "SMTP not configured; skipping %s for %s", spec.name, email
+                    "SMTP not configured; skipping %s for %s", spec.name, user_id
                 )
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send %s: %s", spec.name, exc)
@@ -2094,7 +2094,7 @@ async def _run_digest_pass(
                 "%d item(s) not retried for user %s",
                 spec.name,
                 len(batch),
-                email,
+                user_id,
             )
         # Mark the gathered items processed, back in each guild's schema.
         for gid, item_ids in per_guild_items.items():
@@ -2716,14 +2716,13 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     candidates = [
         (
             u.id,
-            u.email,
             u.timezone,
             u.overdue_notification_time,
             u.last_overdue_notification_at,
         )
         for u in users
     ]
-    for user_id, email, user_tz, notify_time, last_at in candidates:
+    for user_id, user_tz, notify_time, last_at in candidates:
         tz = _resolve_timezone(user_tz)
         now_local = now.astimezone(tz)
         try:
@@ -2778,11 +2777,11 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
                 logger.info(
                     "overdue-digest: sent %d overdue task(s) to user %s",
                     len(tasks),
-                    email,
+                    user_id,
                 )
             except email_service.EmailNotConfiguredError:
                 logger.warning(
-                    "SMTP not configured; skipping overdue digest for %s", email
+                    "SMTP not configured; skipping overdue digest for %s", user_id
                 )
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send overdue digest: %s", exc)

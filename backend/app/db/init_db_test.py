@@ -10,6 +10,7 @@ import app.db.init_db as init_db
 from app.core.config import settings
 from app.core.encryption import hash_email
 from app.models.platform.guild import Guild
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user import User
 from app.services.platform import guilds as guilds_service
 
@@ -51,7 +52,11 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
 
     async with test_sessions() as check:
         user = (
-            await check.exec(select(User).where(User.email_hash == hash_email(email)))
+            await check.exec(
+                select(User)
+                .join(UserEmail, UserEmail.user_id == User.id)
+                .where(UserEmail.email_hash == hash_email(email))
+            )
         ).one_or_none()
         assert user is None, (
             "first-boot user must be removed so a restart re-initializes"

@@ -8,6 +8,7 @@ import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { UserHandle } from "@/components/UserHandle";
@@ -162,6 +163,12 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
               )}
             </Button>
           )}
+          <ReportButton
+            targetType="post"
+            targetId={post.id}
+            authorId={post.created_by}
+            className="shrink-0"
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">

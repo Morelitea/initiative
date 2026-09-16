@@ -43,14 +43,14 @@ Starting fresh for your own group? You can create a community yourself, as long 
 
 ## What a brand-new community comes with
 
-A **Default Initiative** — a ready-made folder, so you're not staring at a beautiful empty screen wondering what on earth the first move is meant to be.
+Nothing. Genuinely — it's empty, and the home page's first and only offer is **Create initiative**.
 
-Rename it, ignore it, add more later. It's yours.
+That is on purpose. An initiative is a name for a body of work — "Spring Play", "Engineering", "Tuesday Night D&D" — and a folder called *Default Initiative* is a name for nothing at all. You'd only rename it five minutes later.
 
-The natural first thing to do:
+So the first move:
 
-1. Open the **Default Initiative** in the sidebar.
-2. Click **Create Project**, give it a name, and there's your first board.
+1. Click **Create initiative** and name it after whatever you're actually doing.
+2. Open it, click **Create Project**, give it a name, and there's your first board.
 
 Put some tasks on it. That's a working setup — everything else in these guides is optional extra.
 

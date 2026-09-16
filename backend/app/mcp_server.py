@@ -9,17 +9,20 @@ become a tool:
   * **Reads** — every ``GET`` route for initiatives and for the tools they hold
     (projects and tasks, documents, queues, counters, calendars and their
     events, notices, dashboards), plus the two comment reads that pair with the
-    comment write (a parent's thread and a single comment by id). A handful are
+    comment write (a parent's thread and a single comment by id), plus the one
+    relationships read, which answers what a thing is linked to. A handful are
     carved back out: file downloads, who voted and who has read, and the
     dashboard editor's own palette.
   * **Writes** — an explicit allow-list, matched by path shape: create and edit
     every tool (projects, documents, queues, counters, calendars, notices,
     dashboards) and the things they hold (tasks, queue items, counters,
     calendar events, comments), plus the two writes that shape alone doesn't
-    reach — moving a task, and moving a counter's count. Each is gated
-    client-side by Claude Code's per-write permission prompt. Destructive
-    (delete, archive, reset), bulk (reorder, batch, archive-all), AI-generation,
-    sharing (grants), and property/tag routes are deliberately excluded.
+    reach — moving a task, and moving a counter's count — plus drawing one
+    relationship between two of them. Each is gated client-side by Claude Code's
+    per-write permission prompt. Destructive (delete, archive, reset), bulk
+    (reorder, batch, archive-all, replacing a thing's links wholesale),
+    AI-generation, sharing (grants), and property/tag routes are deliberately
+    excluded.
 """
 
 from __future__ import annotations
@@ -164,6 +167,39 @@ _COMMENT_READ_ROUTE_MAPS = [
     RouteMap(methods=["GET"], pattern=r".*/comments/\{[^}]+\}$", mcp_type=MCPType.TOOL),
 ]
 
+# The edges between the things above: read them, and draw one.
+#
+# Matched by path shape rather than by a tag or a ``_WRITABLE_SEGMENTS`` entry,
+# for the same reason the comment reads are — a relationship is not a tool an
+# initiative holds, and the router's four routes divide two and two, so each
+# side is named rather than opted into wholesale.
+#
+# ``GET /relationships/`` answers what no tool read can: a task's payload
+# carries its status, its people and its tags, but nothing about the task it
+# blocks, the document it was written from, or the queue item it came out of —
+# and that wiring is most of what "what is the state of this" means once a piece
+# of work touches more than one tool. It answers for one thing at a time
+# (``entity=task:12``), from that thing's side.
+#
+# ``POST /relationships/`` is the same create-and-edit reasoning the tool writes
+# follow: what an agent can read it can also author, and an agent that files a
+# task and writes the document behind it should be able to say so. There is no
+# PATCH to pair with it — an edge has no fields to edit, only ends and a type,
+# which are what it *is* — so the create stands alone. The endpoint refuses the
+# links that aren't anybody's to assert by hand (a ``references`` edge is read
+# out of a body when it is saved), ends in different initiatives, archived ends,
+# and a source the caller can't write; none of that is re-implemented here.
+#
+# The router's other two stay behind the default-deny catch-all, on the grounds
+# every other write is weighed against: ``PUT /relationships/`` replaces a whole
+# slice of one thing's links, which is bulk *and* removes what it doesn't
+# mention, and ``DELETE /relationships/{id}`` is a delete. An agent can wire two
+# things together; unwiring them is done in the app.
+_RELATIONSHIP_ROUTE_MAPS = [
+    RouteMap(methods=["GET"], pattern=r".*/relationships/$", mcp_type=MCPType.TOOL),
+    RouteMap(methods=["POST"], pattern=r".*/relationships/$", mcp_type=MCPType.TOOL),
+]
+
 # Carved out of the tag rules below, each for a reason the tag itself cannot
 # express. Ordered ahead of them so the exclusion wins.
 _TOOL_READ_EXCLUSIONS = [
@@ -190,6 +226,7 @@ _TOOL_READ_EXCLUSIONS = [
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
     *_COMMENT_READ_ROUTE_MAPS,
+    *_RELATIONSHIP_ROUTE_MAPS,
     *_TOOL_READ_EXCLUSIONS,
     # Carved out of the ``initiatives`` read surface below: a join request names
     # who asked to be let in and carries their free-text note, which is

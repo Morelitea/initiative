@@ -380,6 +380,11 @@ def _build_visible_docs_filters(
     """
     conditions = [
         Initiative.guild_id == guild_id,
+        # An initiative that has switched documents off has none to list. See
+        # the note on the projects equivalent: the RLS leg deliberately admits
+        # a guild admin and a PAM reader, and a list is not where that
+        # exemption should surface.
+        Initiative.documents_enabled.is_(True),
         permissions_service.listing_scope_clause(
             Tool.document,
             Document.id,
@@ -854,6 +859,7 @@ async def create_document(
         initiative_id=document_in.initiative_id,
         guild_id=guild_context.guild_id,
     )
+    resource_access.require_tool_enabled(Tool.document, initiative)
     await _require_initiative_access(
         session,
         initiative_id=initiative.id,
@@ -959,6 +965,7 @@ async def upload_document_file(
         initiative_id=initiative_id,
         guild_id=guild_context.guild_id,
     )
+    resource_access.require_tool_enabled(Tool.document, initiative)
     await _require_initiative_access(
         session,
         initiative_id=initiative.id,
@@ -1600,6 +1607,7 @@ async def copy_document(
         guild_id=guild_context.guild_id,
     )
     # Also require create_documents permission in target initiative
+    resource_access.require_tool_enabled(Tool.document, target_initiative)
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,

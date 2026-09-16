@@ -92,6 +92,14 @@ export const ProjectDetailPage = () => {
     };
   }, [projectName]);
 
+  // Stable identity: the task table's column definitions and its memoized
+  // cells both key off this. Declared with the other hooks, above the early
+  // returns below.
+  const taskHref = useCallback(
+    (taskId: number) => gp(taskRoute(initiativeId, parsedProjectId, taskId)),
+    [gp, initiativeId, parsedProjectId]
+  );
+
   if (!Number.isFinite(parsedProjectId)) {
     return (
       <div className="space-y-4">
@@ -168,13 +176,6 @@ export const ProjectDetailPage = () => {
   const projectIsArchived = project.archived_at !== null;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
-  const handleTaskClick = (taskId: number) => {
-    if (!canViewTaskDetails) {
-      return;
-    }
-    router.navigate({ to: gp(taskRoute(initiativeId, parsedProjectId, taskId)) });
-  };
-
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
@@ -214,7 +215,7 @@ export const ProjectDetailPage = () => {
           canWriteProject={Boolean(canWriteProject)}
           projectIsArchived={projectIsArchived}
           canViewTaskDetails={canViewTaskDetails}
-          onTaskClick={handleTaskClick}
+          taskHref={taskHref}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
         />

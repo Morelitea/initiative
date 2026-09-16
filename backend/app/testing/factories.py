@@ -27,13 +27,10 @@ from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
-    hash_email,
     SALT_APP_SERVICE_SECRET,
-    SALT_EMAIL,
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
-    create_access_token,
     get_password_hash,
     mint_access_token,
 )
@@ -124,11 +121,12 @@ async def create_user(
         .lower()
         .strip()
     )
+    # Whether that address has been proved. It lives on the address row now, so
+    # it is popped rather than passed to ``User``.
+    address_confirmed = bool(overrides.pop("email_verified", True))
     # A handle is unique on (name, number). Tests that care about a specific
     # one pass it; everything else gets a distinct pair without having to.
     defaults = {
-        "email_hash": hash_email(email_raw),
-        "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),
         "username": usernames.random_name(),
         "discriminator": usernames.random_discriminator(),
         "username_chosen": True,
@@ -140,7 +138,6 @@ async def create_user(
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
         "status": UserStatus.active,
-        "email_verified": True,
         "week_starts_on": 0,
         "timezone": "UTC",
         "overdue_notification_time": "21:00",
@@ -166,7 +163,7 @@ async def create_user(
         user_id=user.id,
         email=email_raw,
         source=addresses.SOURCE_SIGNUP,
-        verified=bool(user_data.get("email_verified")),
+        verified=address_confirmed,
     )
     await dm_settings_service.seed_for_new_account(session, user_id=user.id)
     # The name this account's access tokens carry. Kept on the object because
@@ -375,6 +372,8 @@ def get_auth_token(
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    token_version: int | None = None,
+    expires_in: timedelta | None = None,
 ) -> str:
     """A session credential for ``user`` — the token the app actually issues.
 
@@ -387,8 +386,9 @@ def get_auth_token(
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
 
-    Use :func:`get_legacy_auth_token` where the pre-session scheme is itself
-    the thing under test.
+    ``token_version`` and ``expires_in`` are for the tests about a credential
+    that is no longer good: one minted before a version bump, and one whose
+    lifetime has run out. Both default to a token that works.
 
     Example:
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
@@ -402,30 +402,17 @@ def get_auth_token(
         )
     token, _ = mint_access_token(
         subject=subject,
-        token_version=user.token_version,
+        token_version=token_version
+        if token_version is not None
+        else user.token_version,
         session_id=session_id or uuid.uuid4(),
         amr=amr if amr is not None else ["pwd"],
         satisfied_providers=satisfied_providers
         if satisfied_providers is not None
         else [],
+        expires_in=expires_in,
     )
     return token
-
-
-def get_legacy_auth_token(user: User) -> str:
-    """A pre-session-model token: no ``aud``/``iss``, and none of
-    ``sid``/``amr``/``sat``.
-
-    ``decode_session_token`` accepts both schemes, and this is what exercises
-    that half. For tests about the legacy scheme itself — everything else wants
-    :func:`get_auth_token`.
-    """
-    return create_access_token(subject=str(user.id), token_version=user.token_version)
-
-
-def get_legacy_auth_headers(user: User) -> dict[str, str]:
-    """:func:`get_legacy_auth_token` as an Authorization header."""
-    return {"Authorization": f"Bearer {get_legacy_auth_token(user)}"}
 
 
 def get_auth_headers(user: User) -> dict[str, str]:

@@ -18,10 +18,11 @@ import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
+from app.core.config import API_V1_STR, settings as app_config
 from app.core.messages import AuthProviderMessages
 from app.db.errors import (
     FOREIGN_KEY_VIOLATION_SQLSTATE,
@@ -36,9 +37,22 @@ from app.schemas.platform.settings import (
     AuthProviderUpdate,
 )
 from app.services.auth import identity as identity_service
-from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 
 logger = logging.getLogger(__name__)
+
+
+def provider_callback_url(slug: str, guild_id: int | None = None) -> str:
+    """Where this provider sends the browser back, which is what an operator
+    registers with their IdP.
+
+    Guild-scoped providers are addressed through their guild, because a slug is
+    only unique inside one. Built here so the address shown in settings and the
+    address sent to the IdP come from one place.
+    """
+    base = app_config.APP_URL.rstrip("/")
+    if guild_id is not None:
+        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{slug}/callback"
+    return f"{base}{API_V1_STR}/auth/{slug}/callback"
 
 
 def _namespace_clause(guild_id: int | None):
@@ -64,7 +78,7 @@ def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
         icon=row.icon,
         button_style=row.button_style,
         secret_set=secret_set,
-        reserved=row.slug == PLATFORM_OIDC_SLUG,
+        callback_url=provider_callback_url(row.slug, row.guild_id),
     )
 
 
@@ -115,11 +129,6 @@ async def editable_provider(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthProviderMessages.NOT_FOUND,
         )
-    if row.slug == PLATFORM_OIDC_SLUG:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthProviderMessages.SLUG_RESERVED,
-        )
     return row
 
 
@@ -155,13 +164,7 @@ async def create_provider(
     *,
     guild_id: int | None,
 ) -> AuthProviderAdminRead:
-    """Create a row in the namespace. The platform slug is reserved in every
-    namespace; slugs are unique within a namespace (409)."""
-    if provider_in.slug == PLATFORM_OIDC_SLUG:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthProviderMessages.SLUG_RESERVED,
-        )
+    """Create a row in the namespace. Slugs are unique within one (409)."""
     existing = (
         await session.exec(
             select(AuthProvider.id).where(
@@ -227,6 +230,32 @@ async def update_provider(
     return admin_read(row, secret_set=await secret_is_set(session, row.id))
 
 
+async def _release_initiative_memberships(
+    session: AsyncSession, *, provider_id: int
+) -> None:
+    """Clear this provider from every guild's ``initiative_members``.
+
+    Guild by guild, because the table exists once per schema. Provider
+    deletion is rare and already does a per-account credential count, so the
+    loop is not on any hot path.
+    """
+    from app.db import session as db_session
+    from app.models.platform.guild import Guild
+    from app.models.tenant.initiative import InitiativeMember
+
+    guild_ids = (await session.exec(select(Guild.id))).all()
+    for guild_id in guild_ids:
+        session.expunge_all()
+        await db_session.set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await session.exec(
+            update(InitiativeMember)
+            .where(InitiativeMember.oidc_provider_id == provider_id)
+            .values(oidc_provider_id=None)
+        )
+    session.expunge_all()
+    await db_session.set_rls_context(session)
+
+
 async def delete_provider(
     session: AsyncSession, provider_id: int, *, guild_id: int | None
 ) -> None:
@@ -261,6 +290,13 @@ async def delete_provider(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthProviderMessages.SOLE_CREDENTIAL,
         )
+    # Guild-side memberships release their manager here. The shared table's
+    # foreign key does it on its own (``ON DELETE SET NULL``);
+    # ``initiative_members`` lives in a guild schema and carries no key across
+    # that line, so the same clearing is written by hand. The row is then
+    # unmanaged, which is what it is: no provider answers for it.
+    await _release_initiative_memberships(session, provider_id=row.id)
+
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
         await session.delete(secret)

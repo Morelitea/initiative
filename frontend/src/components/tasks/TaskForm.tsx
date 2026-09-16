@@ -354,9 +354,7 @@ export const TaskForm = ({
   // once as an <h1> and once as this field, both bound to the same state.
   const titleField = (
     <div className="space-y-2">
-      <Label htmlFor="task-title" className={layout === "page" ? "sr-only" : undefined}>
-        {t("taskForm.titleLabel")}
-      </Label>
+      <Label htmlFor="task-title">{t("taskForm.titleLabel")}</Label>
       <Input
         id="task-title"
         value={value.title}
@@ -367,7 +365,7 @@ export const TaskForm = ({
         autoFocus={autoFocusTitle}
         className={
           layout === "page"
-            ? "h-auto border-0 px-0 font-semibold text-lg tracking-tight shadow-none focus-visible:ring-0 md:text-xl"
+            ? "h-auto font-semibold text-lg tracking-tight shadow-none focus-visible:ring-0 md:text-xl"
             : undefined
         }
       />

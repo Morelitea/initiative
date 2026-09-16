@@ -124,6 +124,31 @@
     "title": "{{sender}} te envió un mensaje",
     "body": "Abre Initiative para leerlo."
   },
+  "directMessageGroup": {
+    "body": "{{sender}} ha enviado un mensaje."
+  },
+  "deviceSync": {
+    "title": "Un dispositivo nuevo está esperando",
+    "body": "Abre Initiative para enviarle tu historial de mensajes."
+  },
+  "contact": {
+    "connectionRequested": {
+      "title": "Nueva solicitud de conexión",
+      "body": "{{actor}} quiere conectar contigo"
+    },
+    "connectionAccepted": {
+      "title": "Conexión aceptada",
+      "body": "{{actor}} aceptó tu solicitud de conexión"
+    },
+    "messageRequested": {
+      "title": "Nueva solicitud de mensaje",
+      "body": "{{actor}} quiere enviarte mensajes"
+    },
+    "messageAccepted": {
+      "title": "Solicitud de mensaje aceptada",
+      "body": "{{actor}} aceptó tu solicitud de mensaje"
+    }
+  },
   "quietHours": {
     "summary": {
       "title": "Mientras no estabas",

@@ -41,6 +41,17 @@
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification"
         />
+        <!-- Where a push lands when it names a channel this build does not have.
+             The web bundle updates over the air but channels ship with the APK,
+             so a server that has moved on can address one this install has never
+             registered. Without this, those notifications land on a
+             "Miscellaneous" channel Firebase invents, outside the app's own
+             notification settings and outside anything the user has muted.
+             General is registered by NotificationChannelManager. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="default"
+        />
         <!-- Backported Android photo picker for devices below API 30, delivered
              through Google Play services. Used by the camera plugin's gallery
              picker; without it those devices fall back to the older chooser. -->

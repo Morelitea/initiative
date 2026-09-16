@@ -101,7 +101,9 @@
   },
   "historyAsk": {
     "title": "En attente de tes messages",
-    "body": "Cet appareil a demandé à tes autres appareils les messages que tu avais déjà. Ouvre l'un d'eux et approuve-le là-bas — voici les images qu'il t'affichera."
+    "body": "Cet appareil a demandé à tes autres appareils les messages que tu avais déjà. Ouvre l'un d'eux et approuve-le là-bas — voici les images qu'il t'affichera.",
+    "dismiss": "Masquer",
+    "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même si tu approuves sur ton autre appareil."
   },
   "peerKeyChange": {
     "title": "La clé d'un appareil a changé dans cette conversation",

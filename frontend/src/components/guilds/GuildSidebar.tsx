@@ -90,6 +90,16 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
       setOpen(false);
       setName("");
       setDescription("");
+      // Land in the community that was just made, with the new-initiative
+      // wizard already open. It is empty, and naming its first initiative is
+      // the next thing to do either way — so the wizard is the arrival rather
+      // than something to go and find. `?create=true` is the same deep link the
+      // sidebar and the empty state use, consumed once by the guild home.
+      await router.navigate({
+        to: "/c/$guildId",
+        params: { guildId: String(newGuild.id) },
+        search: { create: "true" },
+      });
       if (billing) {
         toast.info(t("billingSetup.opening", { guild: newGuild.name }));
         await openPortal(newGuild.id, "upgrade", billingTab);
@@ -101,8 +111,9 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
       setError(message);
       toast.error(message);
     } finally {
+      // Deliberately no navigation here: a failed create keeps the dialog open
+      // on its error, and leaving the page would throw that error away.
       setSubmitting(false);
-      router.navigate({ to: "/" });
     }
   };
 

@@ -6,6 +6,13 @@
  * since RLS hides what they aren't in. This says why, and offers the directory
  * as the way in; when the guild lists nothing, it says that instead of implying
  * an action the reader doesn't have.
+ *
+ * Two readers land here, and they need opposite sentences. A member is waiting
+ * to be let in, so the copy points at the directory. An admin in a community
+ * that has just been made is the person the waiting is *for* — telling them a
+ * community admin could add them to one would be telling them to ask
+ * themselves. `onCreate` already carries that distinction (passing one IS the
+ * guild-admin gate), so the copy keys off the same prop the button does.
  */
 
 import { Loader2 } from "lucide-react";
@@ -43,13 +50,16 @@ export const GuildHomeEmptyState = ({
   onCreate,
 }: GuildHomeEmptyStateProps) => {
   const { t } = useTranslation(["guildHome", "initiatives"]);
+  const canCreate = Boolean(onCreate);
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{t("emptyState.title")}</CardTitle>
-          <CardDescription>{t("emptyState.description")}</CardDescription>
+          <CardTitle>{t(canCreate ? "emptyState.adminTitle" : "emptyState.title")}</CardTitle>
+          <CardDescription>
+            {t(canCreate ? "emptyState.adminDescription" : "emptyState.description")}
+          </CardDescription>
         </CardHeader>
         {guildDescription ? (
           <CardContent>
@@ -70,8 +80,18 @@ export const GuildHomeEmptyState = ({
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>{t("emptyState.nothingListedTitle")}</CardTitle>
-            <CardDescription>{t("emptyState.nothingListedDescription")}</CardDescription>
+            <CardTitle>
+              {t(
+                canCreate ? "emptyState.adminNothingListedTitle" : "emptyState.nothingListedTitle"
+              )}
+            </CardTitle>
+            <CardDescription>
+              {t(
+                canCreate
+                  ? "emptyState.adminNothingListedDescription"
+                  : "emptyState.nothingListedDescription"
+              )}
+            </CardDescription>
           </CardHeader>
           {/* An admin's way out of an empty guild is to start the first one. */}
           {onCreate ? (

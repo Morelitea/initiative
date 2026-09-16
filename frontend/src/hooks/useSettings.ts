@@ -23,11 +23,9 @@ import type {
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
-  OIDCClaimPathUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
-  OIDCSettingsUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -62,9 +60,7 @@ import {
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
-  updateOidcSettingsApiV1SettingsAuthPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
@@ -175,20 +171,6 @@ export const useChangelog = (
 };
 
 // ── Settings Mutations ──────────────────────────────────────────────────────
-
-export const useUpdateOidcSettings = (
-  options?: MutationOpts<OIDCSettingsResponse, OIDCSettingsUpdate>
-) =>
-  useApiMutation<OIDCSettingsResponse, OIDCSettingsUpdate>(
-    {
-      mutationFn: (data) =>
-        updateOidcSettingsApiV1SettingsAuthPut(
-          data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
-        ),
-      invalidate: () => invalidate(q.authSettings()),
-    },
-    options
-  );
 
 export const useCreateAuthProvider = (
   options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
@@ -349,17 +331,6 @@ export const useUpdateGuildStorage = (
   );
 
 // ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
-
-export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPathUpdate>) =>
-  useApiMutation<void, OIDCClaimPathUpdate>(
-    {
-      mutationFn: async (data) => {
-        await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
-      },
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
 
 export const useCreateOidcMapping = (
   options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>

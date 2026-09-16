@@ -356,7 +356,7 @@ describe("My Messages", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /write a message/i }), "yes");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "yes", { replyTo: "m1" });
+    expect(mocks.sendText).toHaveBeenCalledWith("conv-1", [7], "yes", { replyTo: "m1" });
   });
 
   it("quotes who it is answering, and goes back to them when picked", async () => {
@@ -463,7 +463,7 @@ describe("My Messages", () => {
     await userEvent.type(field, "monday");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(mocks.sendEdit).toHaveBeenCalledWith("conv-1", 7, "m1", "monday");
+    expect(mocks.sendEdit).toHaveBeenCalledWith("conv-1", [7], "m1", "monday");
     expect(mocks.sendText).not.toHaveBeenCalled();
   });
 
@@ -513,7 +513,7 @@ describe("My Messages", () => {
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Remove" })
     );
 
-    expect(mocks.sendRemove).toHaveBeenCalledWith("conv-1", 7, "m1");
+    expect(mocks.sendRemove).toHaveBeenCalledWith("conv-1", [7], "m1");
   });
 
   it("leaves a line where a removed message was, and nothing to do about it", async () => {
@@ -560,7 +560,7 @@ describe("My Messages", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /👍, 1/ }));
 
-    expect(mocks.sendReaction).toHaveBeenCalledWith("conv-1", 7, "m1", "👍", false);
+    expect(mocks.sendReaction).toHaveBeenCalledWith("conv-1", [7], "m1", "👍", false);
   });
 
   it("collects again when a dm frame invalidates the mailbox", async () => {
@@ -822,7 +822,7 @@ describe("My Messages", () => {
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
 
     await waitFor(() =>
-      expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "hello", { replyTo: undefined })
+      expect(mocks.sendText).toHaveBeenCalledWith("conv-1", [7], "hello", { replyTo: undefined })
     );
   });
 });

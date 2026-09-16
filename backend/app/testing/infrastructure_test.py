@@ -16,7 +16,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_legacy_auth_token,
 )
 
 
@@ -168,22 +167,6 @@ async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession)
     # What a password sign-in carries: a factor, and no provider satisfied.
     assert claims["amr"] == ["pwd"]
     assert claims["sat"] == []
-
-
-@pytest.mark.unit
-async def test_a_test_can_still_ask_for_the_legacy_token(session: AsyncSession):
-    """The scheme the app also accepts is reachable by name, for the tests
-    that are about that acceptance."""
-    import jwt as pyjwt
-
-    user = await create_user(session, email="factory-legacy@example.com")
-    claims = pyjwt.decode(
-        get_legacy_auth_token(user), options={"verify_signature": False}
-    )
-
-    assert claims["sub"] == str(user.id)
-    assert "aud" not in claims
-    assert "sid" not in claims
 
 
 @pytest.mark.unit

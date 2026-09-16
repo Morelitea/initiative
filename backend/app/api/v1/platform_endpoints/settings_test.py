@@ -19,6 +19,7 @@ from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
+    create_auth_provider,
     guild_administration,
     create_guild,
     create_guild_membership,
@@ -146,6 +147,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
         session, user=owner, guild=guild, role=GuildRole.admin
     )
     initiative = await create_initiative(session, guild=guild, creator=owner)
+    provider = await create_auth_provider(session)
 
     headers = get_auth_headers(owner)
     options = (
@@ -160,6 +162,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     resp = await client.post(
         "/api/v1/settings/oidc-mappings",
         json={
+            "provider_id": provider.id,
             "claim_value": "eng-team",
             "target_type": "initiative",
             "guild_id": guild.id,
@@ -174,6 +177,107 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     # Denormalized names are resolved from the guild schema for display.
     assert body["initiative_name"] == initiative.name
     assert body["initiative_role_name"] == role["name"]
+    # And whose claim it reads, named for the editor that lists rules from several.
+    assert body["provider_id"] == provider.id
+    assert body["provider_name"] == provider.display_name
+
+
+@pytest.mark.integration
+async def test_a_guild_providers_rule_stays_inside_its_guild(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A guild-scoped provider's rules name that guild. Creating one elsewhere,
+    or moving an accepted one there afterwards, is refused."""
+    owner = await create_user(
+        session, email="owner-provider-scope@example.com", role=UserRole.owner
+    )
+    home = await create_guild(session, creator=owner)
+    elsewhere = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="tenant", guild_id=home.id)
+    headers = get_auth_headers(owner)
+
+    def rule(guild_id: int) -> dict:
+        return {
+            "provider_id": provider.id,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild_id,
+            "guild_role": "admin",
+        }
+
+    refused = await client.post(
+        "/api/v1/settings/oidc-mappings", json=rule(elsewhere.id), headers=headers
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
+
+    accepted = await client.post(
+        "/api/v1/settings/oidc-mappings", json=rule(home.id), headers=headers
+    )
+    assert accepted.status_code == 201, accepted.text
+    mapping_id = accepted.json()["id"]
+
+    moved = await client.put(
+        f"/api/v1/settings/oidc-mappings/{mapping_id}",
+        json={"guild_id": elsewhere.id},
+        headers=headers,
+    )
+    assert moved.status_code == 400, moved.text
+    assert moved.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
+
+
+@pytest.mark.integration
+async def test_an_operator_global_rule_names_any_guild(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The platform's own registry has no guild of its own, so its rules grant
+    in whichever guild they name."""
+    owner = await create_user(
+        session, email="owner-global-scope@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": provider.id,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
+async def test_a_rule_names_a_provider_that_exists(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An unknown provider id is answered as the bad request it is."""
+    owner = await create_user(
+        session, email="owner-provider-missing@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": 9_999_999,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"] == "AUTH_PROVIDER_NOT_FOUND"
 
 
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
@@ -187,49 +291,6 @@ _NON_OWNER_ROLES = [
     UserRole.moderator,
     UserRole.operator,
 ]
-
-
-@pytest.mark.integration
-async def test_claim_path_persists_before_provider_configured(
-    client: AsyncClient,
-    session: AsyncSession,
-) -> None:
-    """Setting the claim path through the real request path with NO platform
-    provider row yet must persist a dormant skeleton row — and survive into an
-    independent follow-up request (not just the writing request's session)."""
-    from app.models.platform.auth_provider import AuthProvider
-    from sqlmodel import select as sql_select
-
-    owner = await create_user(
-        session, email="owner-claimpath@example.com", role=UserRole.owner
-    )
-    headers = get_auth_headers(owner)
-
-    put = await client.put(
-        "/api/v1/settings/oidc-mappings/claim-path",
-        headers=headers,
-        json={"claim_path": "groups"},
-    )
-    assert put.status_code == 200, put.text
-    assert put.json()["claim_path"] == "groups"
-
-    # Independent DB read: the skeleton row landed and is dormant.
-    session.expire_all()
-    row = (
-        await session.exec(
-            sql_select(AuthProvider).where(
-                AuthProvider.slug == "oidc", AuthProvider.guild_id.is_(None)
-            )
-        )
-    ).one()
-    assert row.role_claim_path == "groups"
-    assert row.enabled is False
-    assert row.issuer is None
-
-    # And a second real request reads it back.
-    got = await client.get("/api/v1/settings/oidc-mappings", headers=headers)
-    assert got.status_code == 200
-    assert got.json()["claim_path"] == "groups"
 
 
 @pytest.mark.integration
@@ -260,7 +321,6 @@ async def test_oidc_mapping_endpoints_reject_non_owner(
                 "guild_role": "member",
             },
         ),
-        ("put", "/api/v1/settings/oidc-mappings/claim-path", {"claim_path": "groups"}),
         ("put", "/api/v1/settings/oidc-mappings/1", {"claim_value": "x"}),
         ("delete", "/api/v1/settings/oidc-mappings/1", None),
     ]
@@ -1135,19 +1195,26 @@ async def test_storage_endpoints_reject_non_owner(
 
 
 async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
-    resp = await client.put(
-        "/api/v1/settings/auth",
+    """Through the registry, which is where a provider is configured.
+
+    The ``oidc`` slug is what the pre-generalization callback URL resolves to,
+    and it is created here like any other — that it once could not be is the
+    exception this surface no longer carries.
+    """
+    resp = await client.post(
+        "/api/v1/settings/auth/providers/",
         json={
+            "slug": "oidc",
+            "display_name": "Okta",
             "enabled": True,
             "issuer": "https://idp.example.com",
             "client_id": "client-123",
             "client_secret": "s3cret",
-            "provider_name": "Okta",
-            "scopes": ["openid", "email"],
+            "scopes": "openid email",
         },
         headers=headers,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201, resp.text
 
 
 @pytest.mark.integration

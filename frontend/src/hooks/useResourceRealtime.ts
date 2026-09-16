@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -28,8 +29,10 @@ const useResourceRealtime = (
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // Token may be null for cookie-based web sessions.
-      ws.send(JSON.stringify({ token: token ?? null }));
+      // Read as the frame is written: the credential renews on its own clock
+      // while the socket stays open. Null is fine — the server reads the
+      // session cookie, which is the web path.
+      ws.send(JSON.stringify({ token: getAuthToken() ?? token ?? null }));
     };
 
     ws.onmessage = () => {

@@ -71,6 +71,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } f
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformCommunityRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/community'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/intake'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
 import { Route as ServerRequiredAuthenticatedCGuildIdAppsAppIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/apps_.$appId'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/index'
@@ -92,6 +93,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRou
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/index'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/access'
@@ -525,6 +527,12 @@ const ServerRequiredAuthenticatedSettingsPlatformEmailRoute =
     path: '/email',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsPlatformIntakeRoute =
+  ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport.update({
+    id: '/intake',
+    path: '/intake',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsPlatformStorageRoute =
   ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport.update({
     id: '/storage',
@@ -653,6 +661,12 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute =
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport.update({
+    id: '/moderation',
+    path: '/moderation',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute =
@@ -1315,6 +1329,7 @@ export interface FileRoutesByFullPath {
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
@@ -1337,6 +1352,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/settings/': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/c/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteWithChildren
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   '/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
@@ -1461,6 +1477,7 @@ export interface FileRoutesByTo {
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
@@ -1481,6 +1498,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/i': typeof ServerRequiredAuthenticatedCGuildIdIIndexRoute
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/c/$guildId/calendars/$calendarId': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   '/c/$guildId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRoute
@@ -1604,6 +1622,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/_serverRequired/_authenticated/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/_serverRequired/_authenticated/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/_serverRequired/_authenticated/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/_serverRequired/_authenticated/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
@@ -1626,6 +1645,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/settings/': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
@@ -1757,6 +1777,7 @@ export interface FileRouteTypes {
     | '/settings/platform/branding'
     | '/settings/platform/community'
     | '/settings/platform/email'
+    | '/settings/platform/intake'
     | '/settings/platform/storage'
     | '/c/$guildId/'
     | '/settings/admin/'
@@ -1779,6 +1800,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/settings/'
     | '/c/$guildId/calendars/$calendarId/settings'
     | '/c/$guildId/go/$refType/$refId'
+    | '/c/$guildId/i/$initiativeId/moderation'
     | '/c/$guildId/i/$initiativeId/settings'
     | '/c/$guildId/calendars/$calendarId/'
     | '/c/$guildId/i/$initiativeId/'
@@ -1903,6 +1925,7 @@ export interface FileRouteTypes {
     | '/settings/platform/branding'
     | '/settings/platform/community'
     | '/settings/platform/email'
+    | '/settings/platform/intake'
     | '/settings/platform/storage'
     | '/c/$guildId'
     | '/settings/admin'
@@ -1923,6 +1946,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i'
     | '/c/$guildId/settings'
     | '/c/$guildId/go/$refType/$refId'
+    | '/c/$guildId/i/$initiativeId/moderation'
     | '/c/$guildId/calendars/$calendarId'
     | '/c/$guildId/i/$initiativeId'
     | '/c/$guildId/calendars/$calendarId/settings/access'
@@ -2045,6 +2069,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/platform/branding'
     | '/_serverRequired/_authenticated/settings/platform/community'
     | '/_serverRequired/_authenticated/settings/platform/email'
+    | '/_serverRequired/_authenticated/settings/platform/intake'
     | '/_serverRequired/_authenticated/settings/platform/storage'
     | '/_serverRequired/_authenticated/c/$guildId/'
     | '/_serverRequired/_authenticated/settings/admin/'
@@ -2067,6 +2092,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/'
@@ -2581,6 +2607,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
+    '/_serverRequired/_authenticated/settings/platform/intake': {
+      id: '/_serverRequired/_authenticated/settings/platform/intake'
+      path: '/intake'
+      fullPath: '/settings/platform/intake'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
     '/_serverRequired/_authenticated/settings/platform/storage': {
       id: '/_serverRequired/_authenticated/settings/platform/storage'
       path: '/storage'
@@ -2726,6 +2759,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/c/$guildId/i/$initiativeId/'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
+      path: '/moderation'
+      fullPath: '/c/$guildId/i/$initiativeId/moderation'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings': {
@@ -3286,6 +3326,7 @@ interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformBrandingRoute: typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   ServerRequiredAuthenticatedSettingsPlatformCommunityRoute: typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  ServerRequiredAuthenticatedSettingsPlatformIntakeRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   ServerRequiredAuthenticatedSettingsPlatformStorageRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
 }
@@ -3304,6 +3345,8 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformCommunityRoute,
     ServerRequiredAuthenticatedSettingsPlatformEmailRoute:
       ServerRequiredAuthenticatedSettingsPlatformEmailRoute,
+    ServerRequiredAuthenticatedSettingsPlatformIntakeRoute:
+      ServerRequiredAuthenticatedSettingsPlatformIntakeRoute,
     ServerRequiredAuthenticatedSettingsPlatformStorageRoute:
       ServerRequiredAuthenticatedSettingsPlatformStorageRoute,
     ServerRequiredAuthenticatedSettingsPlatformIndexRoute:
@@ -3580,6 +3623,7 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute
   )
 
 interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdAppsAppIdRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdAppsAppIdRoute
@@ -3616,6 +3660,8 @@ interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
 
 const ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren: ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren =
   {
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute:

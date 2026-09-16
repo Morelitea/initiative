@@ -201,7 +201,7 @@ async def ensure_membership(
     user_id: int,
     role: GuildRole = GuildRole.member,
     force_role: bool = False,
-    oidc_managed: bool = False,
+    oidc_provider_id: int | None = None,
 ) -> GuildMembership:
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
@@ -214,8 +214,8 @@ async def ensure_membership(
         if force_role and membership.role != role:
             membership.role = role
             updated = True
-        if oidc_managed and not membership.oidc_managed:
-            membership.oidc_managed = True
+        if oidc_provider_id is not None and membership.oidc_provider_id is None:
+            membership.oidc_provider_id = oidc_provider_id
             updated = True
         if updated:
             session.add(membership)
@@ -232,7 +232,7 @@ async def ensure_membership(
         user_id=user_id,
         role=role,
         position=next_position,
-        oidc_managed=oidc_managed,
+        oidc_provider_id=oidc_provider_id,
     )
     session.add(membership)
     await session.flush()
@@ -641,26 +641,31 @@ async def seed_guild_content(
     owner: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
-    (settings + default initiative + the apps this deployment provides) *inside*
-    it.
+    (settings + the apps this deployment provides) *inside* it.
 
-    ``owner`` is the user the guild is **for** — its admin, and the default
-    initiative's manager. When someone creates a guild for another account,
-    that account is the owner and the creator is left holding nothing in it.
+    ``owner`` is the user the guild is **for** — its admin. When someone creates
+    a guild for another account, that account is the owner and the creator is
+    left holding nothing in it.
+
+    A new guild gets **no initiative**. An initiative names a body of work, and
+    the seeded one only ever named the fact that nobody had made one yet: it
+    arrived called "Default Initiative", was renamed or abandoned, and either way
+    the owner had to decide what their community was for before the structure
+    meant anything. Landing on the empty state — which offers "create the first
+    one" to exactly the admin who may — asks that question once, instead of
+    answering it wrongly and making them undo it.
 
     The shared guild row must already exist; this provisions the schema + role and
     seeds into it (the caller commits around the call). On failure the caller
     should ``deprovision_guild`` and remove the shared rows.
 
-    Mandatory apps (§7.7) land here, beside the default initiative, because that
-    is what "every guild has it" means. They are also the one part allowed to
-    fail quietly: the install is a local row, and an app service whose listing
-    has not arrived yet is no reason a guild cannot be created — the boot sweep
-    installs what is missing.
+    Mandatory apps (§7.7) land here because that is what "every guild has it"
+    means. They are also the one part allowed to fail quietly: the install is a
+    local row, and an app service whose listing has not arrived yet is no reason
+    a guild cannot be created — the boot sweep installs what is missing.
     """
     from app.db.schema_provisioning import provision_guild
     from app.db.session import set_rls_context
-    from app.services.tenant import initiatives as initiatives_service
     from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
@@ -671,9 +676,6 @@ async def seed_guild_content(
         guild_role=GuildRole.admin.value,
     )
     await create_guild_settings(session, guild_id)
-    await initiatives_service.ensure_default_initiative(
-        session, owner, guild_id=guild_id
-    )
     try:
         # Inside a savepoint, so a failure here rolls back the app install and
         # nothing else: the guild being created must survive whatever an app's
@@ -775,6 +777,7 @@ async def update_guild(
     max_users_provided: bool = False,
     guild_auth_enabled: bool | None = None,
     banner_image_enabled: bool | None = None,
+    support_enabled: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -849,6 +852,7 @@ async def update_guild(
         or max_users_provided
         or guild_auth_enabled is not None
         or banner_image_enabled is not None
+        or support_enabled is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -878,6 +882,12 @@ async def update_guild(
             and administration.banner_image_enabled != banner_image_enabled
         ):
             administration.banner_image_enabled = banner_image_enabled
+            administration_updated = True
+        if (
+            support_enabled is not None
+            and administration.support_enabled != support_enabled
+        ):
+            administration.support_enabled = support_enabled
             administration_updated = True
         if administration_updated:
             session.add(administration)

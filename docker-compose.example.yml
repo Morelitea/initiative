@@ -49,7 +49,14 @@ services:
       DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
       # REQUIRED: generate with `openssl rand -hex 32`. The stack refuses to start without it.
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - generate with openssl rand -hex 32}
-      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      # Stay signed in for 30 days of not opening the app, renewed silently
+      # every 15 minutes. Both are optional; these are the defaults.
+      # AUTH_ACCESS_TTL_MINUTES: 15
+      # AUTH_REFRESH_TTL_DAYS: 30
+      # Set true when something else sits in front of this (nginx, Traefik,
+      # Caddy, Cloudflare) so each visitor's own address reaches the app —
+      # what the per-IP rate limits and recorded sign-in addresses use.
+      # BEHIND_PROXY: "true"
       APP_URL: ${APP_URL:-http://localhost:8173}
       # Optional: Enable OIDC authentication
       # OIDC_ENABLED: true

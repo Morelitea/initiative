@@ -9,6 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Link } from "@tanstack/react-router";
 import { GripVertical, MessageSquare } from "lucide-react";
 import type React from "react";
 import { createContext, memo, useCallback, useContext, useMemo } from "react";
@@ -68,7 +69,7 @@ type ProjectTasksListViewProps = {
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
   onStatusChange: (taskId: number, taskStatusId: number) => void;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
   onTaskSelectionChange?: (selectedTasks: TaskListRead[]) => void;
   onExitSelection?: () => void;
 };
@@ -188,7 +189,7 @@ const ProjectTasksTableViewComponent = ({
   onDragEnd,
   onDragCancel,
   onStatusChange,
-  onTaskClick,
+  taskHref,
   onTaskSelectionChange,
   onExitSelection,
 }: ProjectTasksListViewProps) => {
@@ -341,11 +342,7 @@ const ProjectTasksTableViewComponent = ({
           );
         },
         cell: ({ row }) => (
-          <MemoizedTaskCell
-            task={row.original}
-            canOpenTask={canOpenTask}
-            onTaskClick={onTaskClick}
-          />
+          <MemoizedTaskCell task={row.original} canOpenTask={canOpenTask} taskHref={taskHref} />
         ),
         enableSorting: true,
         sortFn: "alphanumeric",
@@ -498,7 +495,7 @@ const ProjectTasksTableViewComponent = ({
       canOpenTask,
       gp,
       onStatusChange,
-      onTaskClick,
+      taskHref,
       statusDisabled,
       tagsByName,
       taskStatuses,
@@ -681,10 +678,10 @@ const DragHandleCell = () => {
 type TaskCellProps = {
   task: TaskListRead;
   canOpenTask: boolean;
-  onTaskClick: (taskId: number) => void;
+  taskHref: (taskId: number) => string;
 };
 
-const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
+const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
   const { t } = useTranslation(["projects", "dates", "comments"]);
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
@@ -702,18 +699,18 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        className="flex w-full min-w-60 flex-col items-start text-left"
-        onClick={() => {
-          if (!canOpenTask) {
-            return;
-          }
-          onTaskClick(task.id);
-        }}
-        disabled={!canOpenTask}
-      >
-        <p className="flex items-center gap-2 font-medium">{task.title}</p>
+      <div className="flex w-full min-w-60 flex-col items-start text-left">
+        {canOpenTask ? (
+          <Link
+            to={taskHref(task.id)}
+            draggable={false}
+            className="flex items-center gap-2 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {task.title}
+          </Link>
+        ) : (
+          <p className="flex items-center gap-2 font-medium opacity-70">{task.title}</p>
+        )}
         <div className="space-y-1 text-muted-foreground text-xs">
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
@@ -721,7 +718,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
         <TaskChecklistProgress progress={task.checklist_progress} className="mt-2 max-w-[200px]" />
-      </button>
+      </div>
       <TaskDescriptionHoverCard task={task} />
     </div>
   );
@@ -738,7 +735,7 @@ const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
     prevProps.task.due_date === nextProps.task.due_date &&
     prevProps.task.assignees.length === nextProps.task.assignees.length &&
     prevProps.canOpenTask === nextProps.canOpenTask &&
-    prevProps.onTaskClick === nextProps.onTaskClick
+    prevProps.taskHref === nextProps.taskHref
   );
 });
 

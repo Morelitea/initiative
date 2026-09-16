@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { setAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
@@ -240,6 +241,9 @@ const Probe = () => {
 
 describe("realtime socket lifecycle", () => {
   beforeEach(() => {
+    // The socket takes its credential from the api client, where signing in
+    // puts it — the auth frame reads it as it writes.
+    setAuthToken("test-token");
     MockWebSocket.instances = [];
     queryClient.clear();
     setInvalidationGuild(GUILD);
@@ -248,6 +252,7 @@ describe("realtime socket lifecycle", () => {
   });
 
   afterEach(() => {
+    setAuthToken(null);
     vi.useRealTimers();
     vi.unstubAllGlobals();
     queryClient.clear();

@@ -403,6 +403,17 @@ const appConfig = (): Spec => ({ personalExact: ["/api/v1/config"] });
 /** The owner's own read of the three community-wide decisions. */
 const communitySettings = (): Spec => ({ personalExact: ["/api/v1/settings/community"] });
 
+/** Where each stream of operations work lands, and what it could land in. */
+const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
+
+const intakeOptions = (): Spec => ({ personalExact: ["/api/v1/settings/intake/options"] });
+
+/** One initiative's moderation reports. A prefix, so the open list and the
+ *  settled one — which differ only in their params — both move on a write. */
+const moderationReports = (initiativeId: number): Spec => ({
+  guildPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
+});
+
 const oidcMappings = (): Spec => ({ personalPrefix: ["/api/v1/settings/oidc-mappings"] });
 
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
@@ -642,6 +653,9 @@ export const q = {
   calendarEvent,
   commentsOnResource,
   communitySettings,
+  intakeOptions,
+  intakeSettings,
+  moderationReports,
   contactGrants,
   contacts,
   counterGroup,

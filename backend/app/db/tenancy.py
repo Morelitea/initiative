@@ -290,6 +290,15 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "reaction_digest_items",
         "task_assignment_digest_items",
         "webhook_deliveries",
+        # The key -> task map the intake writer reads. The case it points at
+        # carries the author, and a system-opened one has none by design.
+        "intake_cases",
+        # A report is not authored — it is a thing several people said about
+        # one target. Who said it is the reporters table, and who settled it is
+        # ``decided_by``; a creator column would be a third answer to neither
+        # question.
+        "moderation_reports",
+        "moderation_report_reporters",
     }
 )
 

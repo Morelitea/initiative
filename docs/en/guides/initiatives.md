@@ -20,10 +20,10 @@ It shows up in the sidebar. Expand it to see its projects and documents.
 
 ![Creating an initiative](../images/initiatives/create-initiative.png)
 
-!!! info "The Default Initiative"
-    Every community starts with one, so there's always somewhere to put things. Rename it, use it like any other.
+!!! info "Your first one"
+    A new community arrives empty, and the home page asks you to make the first initiative before anything else. That is deliberate: an initiative is a *name for a body of work*, and only you know what this community's work is called.
 
-    It just can't be deleted — which means you can never quite manage to leave yourself with nowhere to put a project, however determined you are.
+    Older communities may still have a **Default Initiative** from before this changed. It behaves like any other, except it can't be deleted.
 
 ## The initiative dashboard
 
@@ -61,7 +61,7 @@ Anything that isn't invite-only appears in the **Initiatives** section of the co
 
 ![The initiative list on a community's front page](../images/initiatives/community-home-initiatives.png)
 
-However somebody arrives, they land on the built-in **member** role, which is view-only on the always-on tools, and sharing still decides each individual project and document inside.
+However somebody arrives, they land on the built-in **member** role, which is view-only on the tools an initiative starts with, and sharing still decides each individual project and document inside.
 
 So opening an initiative up doesn't suddenly expose anything that was private within it. It only changes who's allowed to walk in.
 

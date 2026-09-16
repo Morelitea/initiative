@@ -58,6 +58,7 @@ interface ProviderFormState {
   client_id: string;
   client_secret: string;
   scopes: string;
+  role_claim_path: string;
   allow_jit: boolean;
   enabled: boolean;
 }
@@ -69,6 +70,7 @@ const EMPTY_FORM: ProviderFormState = {
   client_id: "",
   client_secret: "",
   scopes: "openid email profile",
+  role_claim_path: "",
   allow_jit: true,
   enabled: true,
 };
@@ -158,6 +160,7 @@ export const ProviderRegistrySection = ({
       client_id: provider.client_id ?? "",
       client_secret: "",
       scopes: provider.scopes ?? "",
+      role_claim_path: provider.role_claim_path ?? "",
       allow_jit: provider.allow_jit,
       enabled: provider.enabled,
     });
@@ -193,6 +196,7 @@ export const ProviderRegistrySection = ({
             issuer: form.issuer,
             client_id: form.client_id,
             scopes: form.scopes || null,
+            role_claim_path: form.role_claim_path.trim() || null,
             allow_jit: form.allow_jit,
             enabled: form.enabled,
             // Write-only secret: absent keeps, empty string clears.
@@ -221,6 +225,7 @@ export const ProviderRegistrySection = ({
           client_id: form.client_id,
           client_secret: form.client_secret || null,
           scopes: form.scopes || null,
+          role_claim_path: form.role_claim_path.trim() || null,
           allow_jit: form.allow_jit,
           enabled: form.enabled,
           icon: PRESETS[preset].icon,
@@ -267,37 +272,35 @@ export const ProviderRegistrySection = ({
                     {!provider.enabled && (
                       <Badge variant="outline">{t("authProviders.disabledBadge")}</Badge>
                     )}
-                    {provider.reserved && (
-                      <Badge variant="secondary">{t("authProviders.reservedBadge")}</Badge>
-                    )}
                   </div>
                   <p className="truncate text-muted-foreground text-sm">{provider.issuer}</p>
-                </div>
-                {provider.reserved ? (
-                  <p className="shrink-0 text-muted-foreground text-xs">
-                    {t("authProviders.reservedHelp")}
+                  {/* The address this provider's IdP has to send the browser
+                      back to. It follows the slug, and a slug never changes,
+                      so it is good for as long as the provider is. */}
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground text-xs">
+                    <span>{t("authProviders.callbackLabel")}</span>
+                    <code className="rounded bg-muted px-1 py-0.5">{provider.callback_url}</code>
                   </p>
-                ) : (
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(provider)}
-                    >
-                      {t("authProviders.edit")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => setDeleting(provider)}
-                    >
-                      {t("authProviders.delete")}
-                    </Button>
-                  </div>
-                )}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(provider)}
+                  >
+                    {t("authProviders.edit")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => setDeleting(provider)}
+                  >
+                    {t("authProviders.delete")}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -420,6 +423,21 @@ export const ProviderRegistrySection = ({
                 value={form.scopes}
                 onChange={(event) => setForm((prev) => ({ ...prev, scopes: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1">
+              {/* Whose groups these are and how this provider spells them.
+                  Rules below read it, and each provider spells it its own
+                  way — Keycloak nests roles, Entra flattens them. */}
+              <Label htmlFor="provider-claim-path">{t("authProviders.claimPathLabel")}</Label>
+              <Input
+                id="provider-claim-path"
+                value={form.role_claim_path}
+                placeholder={t("authProviders.claimPathPlaceholder")}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, role_claim_path: event.target.value }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">{t("authProviders.claimPathHelp")}</p>
             </div>
             <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div>

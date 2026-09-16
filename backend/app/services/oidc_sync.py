@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from sqlmodel import delete, select
+from sqlmodel import delete, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
+from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
@@ -79,19 +80,40 @@ async def sync_oidc_assignments(
     session: AsyncSession,
     *,
     user_id: int,
+    provider_id: int,
     claim_values: set[str],
 ) -> OIDCSyncResult:
-    """Sync guild/initiative memberships based on OIDC claim values.
+    """Reconcile guild/initiative memberships against one provider's claims.
+
+    Scoped to ``provider_id`` on both halves, because this both grants and
+    takes away: it reads the rules belonging to that provider, and the
+    memberships it may reclaim are the ones that provider's own sync granted.
+    Another provider's rules and another provider's memberships are not this
+    sign-in's business.
 
     Must be called with an admin session (bypasses RLS).
     """
     result = OIDCSyncResult()
 
-    # Load all mapping rules
-    stmt = select(OIDCClaimMapping)
+    # This provider's rules. Two providers spell their groups their own way, so
+    # a claim value means nothing until you know who asserted it. A guild's own
+    # provider reads only the rules naming that guild; an operator-global one
+    # (``guild_id IS NULL``) reads all of its own.
+    stmt = (
+        select(OIDCClaimMapping)
+        .join(AuthProvider, AuthProvider.id == OIDCClaimMapping.provider_id)
+        .where(
+            OIDCClaimMapping.provider_id == provider_id,
+            or_(
+                AuthProvider.guild_id.is_(None),
+                AuthProvider.guild_id == OIDCClaimMapping.guild_id,
+            ),
+        )
+    )
     mappings = (await session.exec(stmt)).all()
-    if not mappings:
-        return result
+    # No early return on an empty set. A provider whose last rule was deleted
+    # grants nothing, which is not the same as having nothing to take back —
+    # the sweeps below are what hand those memberships over.
 
     # Partition into matched and unmatched
     matched: list[OIDCClaimMapping] = []
@@ -158,8 +180,9 @@ async def sync_oidc_assignments(
             session, user_id=user_id, guild_id=guild_id
         )
         if membership:
-            # Never overwrite a manual membership.
-            if desired is not None and membership.oidc_managed:
+            # Only a row this provider manages. One somebody joined by
+            # hand, or another provider's, is not this sync's to move.
+            if desired is not None and membership.oidc_provider_id == provider_id:
                 role = GuildRole(desired)
                 if membership.role != role:
                     membership.role = role
@@ -168,7 +191,11 @@ async def sync_oidc_assignments(
         else:
             role = GuildRole(desired) if desired is not None else GuildRole.member
             await _create_guild_membership(
-                session, user_id=user_id, guild_id=guild_id, role=role
+                session,
+                user_id=user_id,
+                guild_id=guild_id,
+                role=role,
+                provider_id=provider_id,
             )
             result.guilds_added.append(guild_id)
             # Nobody was at a keyboard for this one — it is the case the
@@ -247,7 +274,7 @@ async def sync_oidc_assignments(
                 session, user_id=user_id, initiative_id=iid
             )
             if im:
-                if not im.oidc_managed:
+                if im.oidc_provider_id != provider_id:
                     continue
                 if role_id is not None and im.role_id != role_id:
                     im.role_id = role_id
@@ -260,6 +287,7 @@ async def sync_oidc_assignments(
                     initiative_id=iid,
                     guild_id=gid,
                     role_id=role_id,
+                    provider_id=provider_id,
                 )
                 result.initiatives_added.append(iid)
 
@@ -269,7 +297,7 @@ async def sync_oidc_assignments(
             await session.exec(
                 select(InitiativeMember).where(
                     InitiativeMember.user_id == user_id,
-                    InitiativeMember.oidc_managed == True,  # noqa: E712
+                    InitiativeMember.oidc_provider_id == provider_id,
                 )
             )
         ).all()
@@ -289,7 +317,7 @@ async def sync_oidc_assignments(
         # land as a member. Enrolling afterwards is a no-op for any initiative
         # the claims already placed them in, so this only fills the gaps.
         #
-        # The rows are ordinary (``oidc_managed`` false), so the sweep above
+        # The rows are ordinary (no managing provider), so the sweep above
         # leaves them alone and a later sync neither reaps nor fights them.
         if gid in newly_admitted_guilds:
             try:
@@ -318,7 +346,7 @@ async def sync_oidc_assignments(
         await session.exec(
             select(GuildMembership.guild_id).where(
                 GuildMembership.user_id == user_id,
-                GuildMembership.oidc_managed == True,  # noqa: E712
+                GuildMembership.oidc_provider_id == provider_id,
             )
         )
     ).all()
@@ -364,6 +392,7 @@ async def _create_guild_membership(
     user_id: int,
     guild_id: int,
     role: GuildRole,
+    provider_id: int,
 ) -> GuildMembership:
     from sqlalchemy import func as sa_func
 
@@ -382,7 +411,7 @@ async def _create_guild_membership(
         user_id=user_id,
         role=role,
         position=next_pos,
-        oidc_managed=True,
+        oidc_provider_id=provider_id,
     )
     session.add(membership)
     await session.flush()
@@ -406,13 +435,14 @@ async def _create_initiative_membership(
     initiative_id: int,
     guild_id: int,
     role_id: int | None,
+    provider_id: int,
 ) -> InitiativeMember:
     im = InitiativeMember(
         initiative_id=initiative_id,
         user_id=user_id,
         guild_id=guild_id,
         role_id=role_id,
-        oidc_managed=True,
+        oidc_provider_id=provider_id,
     )
     session.add(im)
     await session.flush()

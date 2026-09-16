@@ -29,7 +29,6 @@ from app.core.security import (
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
     UploadTokenError,
-    create_access_token,
     create_upload_token,
     decode_session_token,
     mint_access_token,
@@ -182,7 +181,13 @@ def test_upload_token_carries_scope_and_audience_but_no_ver():
 def test_verify_upload_token_rejects_session_jwt():
     """A normal session JWT (different shape, no uploads aud) must not pass
     upload-token verification."""
-    session_jwt = security.create_access_token(subject="7", token_version=1)
+    session_jwt, _ = mint_access_token(
+        subject="ucli_seven",
+        token_version=1,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
     with pytest.raises(UploadTokenError):
         verify_upload_token(session_jwt)
 
@@ -202,10 +207,22 @@ def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
     jwt_key = "j" * 48
     monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", jwt_key)
 
-    token = security.create_access_token(subject="7", token_version=1)
+    token, _ = mint_access_token(
+        subject="ucli_seven",
+        token_version=1,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
     # Verifies under the dedicated key...
-    payload = jwt.decode(token, jwt_key, algorithms=[security.JWT_ALGORITHM])
-    assert payload["sub"] == "7"
+    payload = jwt.decode(
+        token,
+        jwt_key,
+        algorithms=[security.JWT_ALGORITHM],
+        audience=AUTH_ACCESS_AUDIENCE,
+        issuer=AUTH_TOKEN_ISSUER,
+    )
+    assert payload["sub"] == "ucli_seven"
     # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
     with pytest.raises(jwt.InvalidSignatureError):
         jwt.decode(
@@ -336,14 +353,24 @@ def test_decode_session_token_accepts_new_access_token():
 
 
 @pytest.mark.unit
-def test_decode_session_token_accepts_legacy_token():
-    """The legacy session JWT (no aud/iss) must keep validating across the
-    cutover window."""
-    token = create_access_token(subject="7", token_version=2)
-    payload = decode_session_token(token)
-    assert payload["sub"] == "7"
-    assert payload["ver"] == 2
-    assert "aud" not in payload
+def test_decode_session_token_refuses_the_pre_session_shape():
+    """The JWT builds before 0.69.0 issued — signed by us, carrying ``sub`` and
+    ``ver``, and no ``aud``/``iss`` — is no longer a session credential.
+
+    Built here rather than minted, because nothing mints one any more. Its
+    holder is not stranded: the refresh cookie is a separate credential and
+    renewing it returns a token of the shape above."""
+    legacy = jwt.encode(
+        {
+            "sub": "7",
+            "ver": 2,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        },
+        settings.jwt_signing_key,
+        algorithm=JWT_ALGORITHM,
+    )
+    with pytest.raises(jwt.PyJWTError):
+        decode_session_token(legacy)
 
 
 @pytest.mark.unit
@@ -378,17 +405,6 @@ def test_decode_session_token_rejects_expired_new_token():
         amr=["pwd"],
         satisfied_providers=[],
         expires_in=timedelta(seconds=-1),
-    )
-    with pytest.raises(jwt.ExpiredSignatureError):
-        decode_session_token(token)
-
-
-@pytest.mark.unit
-def test_decode_session_token_rejects_expired_legacy_token():
-    """An expired LEGACY token also surfaces ``ExpiredSignatureError`` (via the
-    fallback decode), not a misleading audience error."""
-    token = create_access_token(
-        subject="7", token_version=0, expires_delta=timedelta(seconds=-1)
     )
     with pytest.raises(jwt.ExpiredSignatureError):
         decode_session_token(token)

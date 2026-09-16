@@ -3,7 +3,15 @@ from enum import Enum
 import json
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import text
@@ -292,9 +300,19 @@ class GuildMembership(SQLModel, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
-    oidc_managed: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    #: The provider whose claims put this person here, and the only one whose
+    #: sign-in may take it away again. NULL is a membership nobody manages —
+    #: an invite, a join request, an admin adding somebody — which group sync
+    #: neither grants nor reclaims. ``ON DELETE SET NULL``: removing a provider
+    #: ends its claim on the row, it does not end the membership.
+    oidc_provider_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
     )
 
     guild: Optional[Guild] = Relationship(back_populates="members")

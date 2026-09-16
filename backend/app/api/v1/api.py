@@ -15,6 +15,8 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    moderation,
+    support,
     archive,
     query,
     smart_chips,
@@ -79,6 +81,7 @@ from app.api.v1.platform_endpoints import (
     notification_prefs,
     notifications,
     push,
+    intake,
     settings,
     user_view_preferences,
     users,
@@ -125,6 +128,7 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 # Deployment-level app service wiring (apps.manage — owner). Platform-addressed
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(
@@ -189,6 +193,13 @@ guild_router.include_router(task_statuses.initiative_router, tags=["task-statuse
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+# A community's own moderation: its reports, and settling them. No prefix —
+# the reports of an initiative lead with the initiative, and settling one leads
+# with the report. Who may read any of it is the tables' RLS, not a check here.
+guild_router.include_router(moderation.router, tags=["moderation"])
+# Asking whoever runs the deployment for help. Guild-scoped because whether
+# it is offered at all is the community's own setting.
+guild_router.include_router(support.router, prefix="/support", tags=["support"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -288,6 +299,7 @@ api_router.include_router(guild_router)
 # ---------------------------------------------------------------------------
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
+me_router.include_router(moderation.me_router, tags=["moderation"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendars.me_router, tags=["calendars"])

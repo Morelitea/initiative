@@ -166,7 +166,7 @@ async def read_users_me(
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity
     # is linked (drives the "SSO account" affordances in the profile UI).
     payload.has_federated_identity = await has_federated_identity(
@@ -209,7 +209,7 @@ async def list_users(
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
     stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
@@ -222,12 +222,13 @@ async def list_users(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    # Build response with guild_role and oidc_managed
+    # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
+    # SSO placed somebody, not which provider did.
     response = []
-    for user, guild_role, oidc_managed in rows:
+    for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
-        member.oidc_managed = oidc_managed
+        member.oidc_managed = oidc_provider_id is not None
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
@@ -620,7 +621,7 @@ async def export_users_csv(
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
     stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
         .order_by(MemberProfile.created_at.asc())
@@ -640,14 +641,14 @@ async def export_users_csv(
 
     shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
-    for user, guild_role, oidc_managed in rows:
+    for user, guild_role, oidc_provider_id in rows:
         csv_rows.append(
             [
                 user.id,
                 handle_of(user),
                 (user.full_name or "") if shows_names else "",
                 guild_role.value,
-                oidc_managed,
+                oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,
                 user.created_at.isoformat() if user.created_at else "",
                 csv_export.format_initiative_roles(user),
@@ -708,7 +709,7 @@ async def claim_my_username(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 #: The age below which somebody may not take part in the parts of the platform
@@ -795,7 +796,7 @@ async def confirm_my_age(
         await session.commit()
         await session.refresh(current_user)
 
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 def _address_read(row) -> UserEmailRead:
@@ -952,7 +953,7 @@ async def update_users_me(
         admin_session, user_id=current_user.id
     )
     if not update_data:
-        payload = UserRead.model_validate(current_user)
+        payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
         return payload
 
@@ -1167,7 +1168,7 @@ async def update_users_me(
     # Platform path — no initiative_roles enrichment (see read_users_me).
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     return payload
 
@@ -1718,7 +1719,7 @@ async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> User:
+) -> UserRead:
     """Replace the caller's profile picture.
 
     Multipart rather than a base64 field on ``PATCH /users/me``: sending the
@@ -1745,7 +1746,7 @@ async def upload_my_avatar(
     )
     await session.commit()
     await session.refresh(current_user)
-    return current_user
+    return await users_service.to_self_read(current_user)
 
 
 @router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)

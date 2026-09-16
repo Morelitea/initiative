@@ -124,6 +124,31 @@
     "title": "{{sender}} sent you a message",
     "body": "Open Initiative to read it."
   },
+  "directMessageGroup": {
+    "body": "{{sender}} sent a message."
+  },
+  "deviceSync": {
+    "title": "A new device is waiting",
+    "body": "Open Initiative to send it your message history."
+  },
+  "contact": {
+    "connectionRequested": {
+      "title": "New connection request",
+      "body": "{{actor}} wants to connect with you"
+    },
+    "connectionAccepted": {
+      "title": "Connection accepted",
+      "body": "{{actor}} accepted your connection request"
+    },
+    "messageRequested": {
+      "title": "New message request",
+      "body": "{{actor}} wants to message you"
+    },
+    "messageAccepted": {
+      "title": "Message request accepted",
+      "body": "{{actor}} accepted your message request"
+    }
+  },
   "quietHours": {
     "summary": {
       "title": "While you were away",

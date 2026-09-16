@@ -33,7 +33,7 @@ const platformRow: AuthProviderAdminRead = {
   icon: null,
   button_style: null,
   secret_set: true,
-  reserved: true,
+  callback_url: "https://app.example.com/api/v1/auth/oidc/callback",
 };
 
 const corpRow: AuthProviderAdminRead = {
@@ -42,8 +42,10 @@ const corpRow: AuthProviderAdminRead = {
   slug: "corp",
   display_name: "Corp SSO",
   secret_set: true,
-  reserved: false,
+  callback_url: "https://app.example.com/api/v1/auth/corp/callback",
 };
+
+const rowFor = (name: string) => screen.getByText(name).closest("li") as HTMLElement;
 
 describe("AuthProvidersSection", () => {
   beforeEach(() => {
@@ -53,13 +55,25 @@ describe("AuthProvidersSection", () => {
     providersData = [platformRow, corpRow];
   });
 
-  it("marks the platform row reserved with no edit/delete actions", () => {
+  it("offers every provider the same actions", () => {
     renderWithProviders(<AuthProvidersSection />);
 
-    expect(screen.getByText("Platform SSO")).toBeInTheDocument();
-    // Only the non-reserved row offers actions.
-    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(1);
+    // The row an install started with is a row. Two providers, two of each.
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
+  });
+
+  it("shows each provider the address its IdP sends the browser back to", () => {
+    renderWithProviders(<AuthProvidersSection />);
+
+    // The address follows the slug, and this row is where the page states it —
+    // which is what an operator registers with their IdP.
+    expect(
+      screen.getByText("https://app.example.com/api/v1/auth/oidc/callback")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("https://app.example.com/api/v1/auth/corp/callback")
+    ).toBeInTheDocument();
   });
 
   it("creates a provider from the dialog form", async () => {
@@ -98,7 +112,7 @@ describe("AuthProvidersSection", () => {
   it("keeps the stored secret when the edit form leaves it blank", async () => {
     renderWithProviders(<AuthProvidersSection />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(within(rowFor("Corp SSO")).getByRole("button", { name: "Edit" }));
     const secret = (await screen.findByLabelText("Client secret")) as HTMLInputElement;
     expect(secret.value).toBe("");
     expect(secret.placeholder).toMatch(/keep the current secret/i);
@@ -152,7 +166,7 @@ describe("AuthProvidersSection", () => {
   it("deletes after confirmation", async () => {
     renderWithProviders(<AuthProvidersSection />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(rowFor("Corp SSO")).getByRole("button", { name: "Delete" }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 

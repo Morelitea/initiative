@@ -554,40 +554,14 @@
   },
   "auth": {
     "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
-    "title": "OIDC-Authentifizierung",
-    "description": "Konfiguriere Single Sign-On für deinen Arbeitsbereich.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
-    "enabledLabel": "Aktiviert",
-    "enabledHelp": "Benutzern erlauben, sich über deinen OIDC-Anbieter zu authentifizieren.",
-    "issuerLabel": "Aussteller",
-    "issuerPlaceholder": "https://accounts.example.com",
-    "clientIdLabel": "Client-ID",
-    "clientSecretLabel": "Client-Secret",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Lass das Feld leer, um das vorhandene Secret beizubehalten.",
-    "providerNameLabel": "Anbietername",
-    "providerNamePlaceholder": "Single Sign-On",
-    "scopesLabel": "Scopes",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Authentifizierungseinstellungen speichern",
-    "saving": "Speichern…",
-    "callbackUrl": "Autorisierungs-Callback:",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
     "mobileCallback": "Callback der mobilen App:",
     "mappingsTitle": "OIDC-Claim-Zuordnungen",
     "mappingsDescription": "Ordne Claim-Werte von deinem Identitätsanbieter Community- und Initiativen-Mitgliedschaften zu.",
-    "claimPathCardTitle": "OIDC-Claim-Pfad",
-    "claimPathCardDescription": "Pfad in Punktnotation zum Claim-Array im OIDC-Token. Gängige Pfade:",
-    "claimPathLabel": "Claim-Pfad",
-    "claimPathPlaceholder": "z. B. roles oder realm_access.roles",
-    "claimPathHelp": "Der durch Punkte getrennte Pfad zum Claim im ID-Token. Lass das Feld leer, falls nicht benötigt.",
-    "claimPathSave": "Speichern",
-    "claimPathSaving": "Speichern…",
     "updateClaimPath": "Aktualisieren",
     "updatingClaimPath": "Wird aktualisiert…",
-    "claimPathSuccess": "Claim-Pfad aktualisiert",
-    "claimPathError": "Claim-Pfad konnte nicht aktualisiert werden",
     "rulesTitle": "Zuordnungsregeln",
     "rulesDescription": "Ordne OIDC-Claim-Werte Community- und Initiativen-Mitgliedschaften zu.",
     "addRule": "Regel hinzufügen",
@@ -642,8 +616,14 @@
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "scope": {
       "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung pro Community"
-    }
+      "guildLabel": "Anmeldung pro Community",
+      "platformExplained": "Die Anmeldung gehört der Plattform: Die Anbieter unten gelten für jede Community, und eine Community kann keinen eigenen hinzufügen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier.",
+      "guildExplained": "Communities können neben den unten aufgeführten eigene Anbieter hinzufügen; angemeldet wird man weiterhin an einem Konto, egal über welchen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier."
+    },
+    "deploymentTitle": "Diese Installation",
+    "mappingProvider": "Anbieter",
+    "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
+    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat."
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
@@ -840,6 +820,7 @@
       "community": "Community",
       "ai": "KI",
       "storage": "Speicher",
+      "intake": "Eingang",
       "appServices": "App-Dienste"
     }
   },
@@ -989,13 +970,17 @@
       "storageLimit": "Speicherlimit",
       "guildAuth": "Community-Anmeldung",
       "status": "Status",
-      "billing": "Abrechnung"
+      "billing": "Abrechnung",
+      "support": "Hilfeanfragen"
     },
     "billing": {
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
-    }
+    },
+    "supportOn": "{{name}} kann jetzt Hilfeanfragen senden.",
+    "supportOff": "{{name}} kann keine Hilfeanfragen mehr senden.",
+    "supportInputLabel": "Hilfeanfragen für {{name}}"
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
@@ -1076,13 +1061,11 @@
     }
   },
   "authProviders": {
-    "title": "Weitere Anmeldeanbieter",
-    "description": "Bieten Sie zusätzliche Anmeldewege neben dem obigen Single Sign-On an. Jeder Anbieter erhält eine eigene Schaltfläche auf der Anmeldeseite.",
+    "title": "Identitätsanbieter",
+    "description": "Die Single-Sign-on-Anbieter, mit denen sich Personen anmelden. Jeder erhält eine eigene Schaltfläche auf der Anmeldeseite.",
     "addProvider": "Anbieter hinzufügen",
     "loading": "Anbieter werden geladen…",
-    "empty": "Keine weiteren Anbieter konfiguriert.",
-    "reservedBadge": "Plattform-SSO",
-    "reservedHelp": "Wird in den Single-Sign-On-Einstellungen oben verwaltet",
+    "empty": "Noch keine Anbieter konfiguriert.",
     "disabledBadge": "Deaktiviert",
     "createTitle": "Anmeldeanbieter hinzufügen",
     "editTitle": "Anmeldeanbieter bearbeiten",
@@ -1116,7 +1099,11 @@
     "saved": "Anbieter gespeichert",
     "deleted": "Anbieter gelöscht",
     "saveError": "Anbieter konnte nicht gespeichert werden",
-    "deleteError": "Anbieter konnte nicht gelöscht werden"
+    "deleteError": "Anbieter konnte nicht gelöscht werden",
+    "callbackLabel": "Callback-URL",
+    "claimPathLabel": "Gruppen-Claim",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn."
   },
   "aiConnections": {
     "title": "Verbindungen",

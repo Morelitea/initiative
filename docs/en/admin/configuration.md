@@ -27,6 +27,7 @@ See [Installation](installation.md#the-database-connections) for how the databas
 |---|---|---|
 | `ENABLE_PUBLIC_REGISTRATION` | Allow people to register without an invite link. Set `false` for invite-only. | `true` |
 | `DISABLE_GUILD_CREATION` | Stop regular users from creating new communities (they must be invited to one). | `false` |
+| `AUTH_SCOPE` | Where single sign-on is configured: `platform` for once, for the whole instance, or `guild` for each community configuring its own. Chosen at deploy time — see [Single sign-on](single-sign-on.md). | `platform` |
 
 Between them, you can run anything from a wide-open public server to a locked-down, invite-only, one-organization deployment.
 

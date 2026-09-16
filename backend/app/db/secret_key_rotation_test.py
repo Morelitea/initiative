@@ -102,20 +102,32 @@ pytestmark = pytest.mark.database
 
 
 async def _insert_user(conn, email: str, *, key: str) -> int:
-    return await conn.scalar(
+    """An account and the address row that carries its address."""
+    user_id = await conn.scalar(
         text(
             "INSERT INTO public.users "
-            "(email_hash, email_encrypted, hashed_password, username, "
-            "discriminator, created_at, updated_at) "
-            "VALUES (:h, :e, 'x', :u, :d, now(), now()) RETURNING id"
+            "(hashed_password, username, discriminator, created_at, updated_at) "
+            "VALUES ('x', :u, :d, now(), now()) RETURNING id"
         ),
         {
-            "h": hash_email(email, secret_key=key),
-            "e": encrypt_field(email, SALT_EMAIL, secret_key=key),
             "u": f"rotate-{secrets.token_hex(4)}",
             "d": secrets.randbelow(10000),
         },
     )
+    await conn.execute(
+        text(
+            "INSERT INTO public.user_emails "
+            "(user_id, email_hash, email_encrypted, is_primary, source, "
+            "verified_at, created_at) "
+            "VALUES (:uid, :h, :e, true, 'signup', now(), now())"
+        ),
+        {
+            "uid": user_id,
+            "h": hash_email(email, secret_key=key),
+            "e": encrypt_field(email, SALT_EMAIL, secret_key=key),
+        },
+    )
+    return user_id
 
 
 async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
@@ -137,7 +149,7 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
                 await conn.execute(
                     text(
                         "SELECT email_hash, email_encrypted "
-                        "FROM public.users WHERE id = :i"
+                        "FROM public.user_emails WHERE user_id = :i"
                     ),
                     {"i": user_id},
                 )
@@ -152,7 +164,7 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
         again = await rotate_secret_key()
         async with engine.connect() as conn:
             h2 = await conn.scalar(
-                text("SELECT email_hash FROM public.users WHERE id = :i"),
+                text("SELECT email_hash FROM public.user_emails WHERE user_id = :i"),
                 {"i": user_id},
             )
         assert h2 == h  # unchanged
@@ -162,7 +174,8 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
         if user_id is not None:
             async with engine.begin() as conn:
                 await conn.execute(
-                    text("DELETE FROM public.users WHERE id = :i"), {"i": user_id}
+                    text("DELETE FROM public.user_emails WHERE user_id = :i"),
+                    {"i": user_id},
                 )
 
 
@@ -176,16 +189,23 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
             user_id = await conn.scalar(
                 text(
                     "INSERT INTO public.users "
-                    "(email_hash, email_encrypted, hashed_password, username, "
-                    "discriminator, created_at, updated_at) "
-                    "VALUES (:h, :e, 'x', :u, :d, now(), now()) RETURNING id"
+                    "(hashed_password, username, discriminator, created_at, "
+                    "updated_at) "
+                    "VALUES ('x', :u, :d, now(), now()) RETURNING id"
                 ),
                 {
-                    "h": old_hash,
-                    "e": old_email_ct,
                     "u": f"rotate-{secrets.token_hex(4)}",
                     "d": secrets.randbelow(10000),
                 },
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO public.user_emails "
+                    "(user_id, email_hash, email_encrypted, is_primary, source, "
+                    "verified_at, created_at) "
+                    "VALUES (:uid, :h, :e, true, 'signup', now(), now())"
+                ),
+                {"uid": user_id, "h": old_hash, "e": old_email_ct},
             )
 
         _use_keys(monkeypatch, old=OLD, new=NEW)
@@ -196,7 +216,7 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
             h, e = (
                 await conn.execute(
                     text(
-                        "SELECT email_hash, email_encrypted FROM public.users WHERE id = :i"
+                        "SELECT email_hash, email_encrypted FROM public.user_emails WHERE user_id = :i"
                     ),
                     {"i": user_id},
                 )
@@ -208,7 +228,8 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
         if user_id is not None:
             async with engine.begin() as conn:
                 await conn.execute(
-                    text("DELETE FROM public.users WHERE id = :i"), {"i": user_id}
+                    text("DELETE FROM public.user_emails WHERE user_id = :i"),
+                    {"i": user_id},
                 )
 
 
@@ -328,9 +349,8 @@ async def test_every_encrypted_shared_column_is_registered_for_rotation(engine):
         ).all()
 
     registered = {(table, column) for table, column, _salt in _PUBLIC_FERNET_COLUMNS}
-    # Both address tables move their ciphertext with the email_hash HMAC beside
-    # it, so they are rotated by their own pass rather than by the column sweep.
-    registered.add(("users", "email_encrypted"))
+    # The address table moves its ciphertext with the email_hash HMAC beside it,
+    # so it is rotated by its own pass rather than by the column sweep.
     registered.add(("user_emails", "email_encrypted"))
 
     missing = sorted(

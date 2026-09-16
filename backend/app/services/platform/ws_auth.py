@@ -32,6 +32,19 @@ from app.services.auth.subject import user_for_subject
 from app.services.platform import user_tokens
 
 
+def _is_a_jwt(token: str) -> bool:
+    """Whether ``token`` is a JWT, whatever it says and whoever signed it.
+
+    Asked of the library rather than of the string's shape, so this agrees
+    with what the decode above was trying to read.
+    """
+    try:
+        jwt.get_unverified_header(token)
+    except jwt.PyJWTError:
+        return False
+    return True
+
+
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
     """Validate a session JWT or device token and return the active user.
 
@@ -66,14 +79,17 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
             ):
                 set_satisfied_providers(frozenset(token_data.sat or ()))
                 return user
-        # Any string that decodes as one of our JWTs is a session token. A
-        # revoked one (stale/absent ``ver``), an unknown/inactive user, or a
-        # payload with no ``sub`` at all must not silently fall through to the
-        # device-token path below — the bearer here is a session JWT, not a
-        # device token.
+        # A session token that resolved nobody — revoked by ``ver``, naming an
+        # unknown or inactive account — is refused here rather than offered to
+        # the device-token path below.
         return None
     except jwt.PyJWTError:
-        pass
+        # And so is one that did not decode. A device token is an opaque
+        # ``secrets.token_urlsafe`` value, so a bearer that parses as a JWT is
+        # somebody presenting a session credential whatever is wrong with it;
+        # only a string that is no JWT at all can be the other kind.
+        if _is_a_jwt(token):
+            return None
 
     # Fall back to device token validation.
     device_token = await user_tokens.get_device_token(session, token=token)

@@ -67,13 +67,41 @@ class DeviceTokenRequest(SanitizedBaseModel):
     device_name: str = Field(min_length=1, max_length=255)
 
 
+class DeviceTokenExchangeRequest(SanitizedBaseModel):
+    """A device token offered in return for a session."""
+
+    device_token: str
+
+
+class RefreshRequest(SanitizedBaseModel):
+    """How a caller with no cookie presents its refresh token.
+
+    The browser sends nothing here — its refresh token is a cookie it cannot
+    read. A native client keeps its own in secure storage, so it has to hand it
+    over explicitly.
+    """
+
+    refresh_token: Optional[str] = None
+
+
 class DeviceTokenResponse(SanitizedBaseModel):
-    """Response containing the device token."""
+    """What a native sign-in is handed.
+
+    The device token is what older builds read, and it keeps working. Beside it
+    is a session of the ordinary kind — an access token and the refresh token
+    that renews it — so a build that prefers them has them from the first
+    sign-in. A client that does not know the fields ignores them.
+    """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     device_token: str
     token_type: str = "device_token"
+    #: The session opened alongside. ``expires_in`` is the access token's life
+    #: in seconds; the refresh token belongs in the platform's secure storage.
+    access_token: str | None = None
+    refresh_token: str | None = None
+    expires_in: int | None = None
 
 
 class DeviceTokenInfo(SanitizedBaseModel):

@@ -36,6 +36,7 @@ from app.models.platform.contact_grant import (
     canonical_pair,
 )
 from app.models.platform.user_ignore import UserIgnore
+from app.services.platform import contact_notifications
 from app.services.platform import contacts_stream
 from app.services.platform import presence as presence_service
 from app.services.platform import user_ignores
@@ -226,6 +227,14 @@ async def request(
     contacts_stream.queue_contacts_signal(session, actor_id)
     await session.commit()
     await session.refresh(grant)
+    # A stream frame only reaches a client that is already open. The request is
+    # waiting on a person, so the one holding a closed phone has to be told too.
+    # An already-accepted message grant asked nobody anything, and announcing it
+    # would be a notification about a decision that was never made.
+    if grant.state is not ContactGrantState.accepted:
+        await contact_notifications.notify(
+            recipient_id=target_id, actor_id=actor_id, kind=kind, accepted=False
+        )
     return grant
 
 
@@ -260,6 +269,11 @@ async def accept(
     contacts_stream.queue_contacts_signal(session, other_id)
     await session.commit()
     await session.refresh(grant)
+    # The one who asked is the one waiting for an answer, so they are the one
+    # told. Whether they ignore the accepter is not consulted: they started this.
+    await contact_notifications.notify(
+        recipient_id=other_id, actor_id=actor_id, kind=kind, accepted=True
+    )
     return grant
 
 

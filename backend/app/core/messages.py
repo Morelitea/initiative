@@ -201,6 +201,7 @@ class FilterPresetMessages:
 
 
 class ProjectMessages:
+    FEATURE_DISABLED = "PROJECTS_NOT_ENABLED"
     NOT_FOUND = "PROJECT_NOT_FOUND"
     INITIATIVE_NOT_FOUND = "PROJECT_INITIATIVE_NOT_FOUND"
     IS_ARCHIVED = "PROJECT_IS_ARCHIVED"
@@ -286,7 +287,6 @@ class AddressMessages:
 
 class AuthProviderMessages:
     NOT_FOUND = "AUTH_PROVIDER_NOT_FOUND"
-    SLUG_RESERVED = "AUTH_PROVIDER_SLUG_RESERVED"
     SLUG_TAKEN = "AUTH_PROVIDER_SLUG_TAKEN"
     IN_USE = "AUTH_PROVIDER_IN_USE"
     # Some account signs in only through it; the delete waits until those
@@ -323,6 +323,7 @@ class AttachmentMessages:
 
 
 class DocumentMessages:
+    FEATURE_DISABLED = "DOCUMENTS_NOT_ENABLED"
     NOT_FOUND = "DOCUMENT_NOT_FOUND"
     GRANT_CANNOT_MANAGE_MEMBERS = "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS"
     INITIATIVE_NOT_FOUND = "DOCUMENT_INITIATIVE_NOT_FOUND"
@@ -439,6 +440,7 @@ class SettingsMessages:
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
+    PROVIDER_WRONG_GUILD = "SETTINGS_PROVIDER_WRONG_GUILD"
     INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
     GUILD_NOT_FOUND = "SETTINGS_GUILD_NOT_FOUND"
@@ -453,6 +455,38 @@ class SettingsMessages:
     STORAGE_TEST_FAILED = "SETTINGS_STORAGE_TEST_FAILED"
     STORAGE_BACKFILL_RUNNING = "SETTINGS_STORAGE_BACKFILL_RUNNING"
     STORAGE_BACKFILL_NOT_CONFIGURED = "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
+
+
+class ModerationMessages:
+    """Reporting something, and settling a report."""
+
+    REPORT_NOT_FOUND = "MODERATION_REPORT_NOT_FOUND"
+    REPORT_ALREADY_SETTLED = "MODERATION_REPORT_ALREADY_SETTLED"
+    UNKNOWN_TARGET_TYPE = "MODERATION_UNKNOWN_TARGET_TYPE"
+    CANNOT_REPORT_YOURSELF = "MODERATION_CANNOT_REPORT_YOURSELF"
+    NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
+    TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
+    NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
+
+
+class SupportMessages:
+    """Asking whoever runs this deployment for help."""
+
+    NOT_AVAILABLE = "SUPPORT_NOT_AVAILABLE"
+    NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
+
+
+class IntakeMessages:
+    """Binding a stream of operations work to a project."""
+
+    GUILD_NOT_FOUND = "INTAKE_GUILD_NOT_FOUND"
+    GUILD_NOT_ACTIVE = "INTAKE_GUILD_NOT_ACTIVE"
+    NO_OPERATIONS_GUILD = "INTAKE_NO_OPERATIONS_GUILD"
+    PROJECT_NOT_FOUND = "INTAKE_PROJECT_NOT_FOUND"
+    INITIATIVE_NOT_FOUND = "INTAKE_INITIATIVE_NOT_FOUND"
+    STATUS_NOT_IN_PROJECT = "INTAKE_STATUS_NOT_IN_PROJECT"
+    PROJECT_NOT_LIVE = "INTAKE_PROJECT_NOT_LIVE"
+    UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
 
 
 class AdminMessages:
@@ -1288,6 +1322,15 @@ class DirectMessageTransportMessages:
     #: The recipient is holding more undelivered ciphertext than they may.
     #: Refused at the door rather than accepted and dropped later.
     RECIPIENT_QUEUE_FULL = "DM_RECIPIENT_QUEUE_FULL"
+    #: Somebody on the proposed roster cannot reach somebody else on it. Which
+    #: pair is answered by the roster check, not by this refusal.
+    ROSTER_NOT_REACHABLE = "DM_ROSTER_NOT_REACHABLE"
+    #: More accounts than one conversation may carry.
+    ROSTER_TOO_LARGE = "DM_ROSTER_TOO_LARGE"
+    #: Fewer than three, which is a pair and has its own way in.
+    ROSTER_TOO_SMALL = "DM_ROSTER_TOO_SMALL"
+    #: Answering an invitation that is not there, or is already answered.
+    NO_INVITATION = "DM_NO_INVITATION"
 
 
 class ContactGrantMessages:
