@@ -155,6 +155,9 @@ jobs:
         # it is never restored after the job and no durability behaviour is
         # under test. Keep checkpoints infrequent and remove durable-write
         # overhead without weakening the suite's statement-timeout deadlock net.
+        # With durability disabled, finish each WAL checkpoint promptly instead
+        # of throttling its writes across minutes. That trades a short CI-only
+        # I/O burst for removing prolonged checkpoint pressure from test queries.
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
@@ -170,6 +173,7 @@ jobs:
               )
               try:
                   settings = {
+                      "checkpoint_completion_target": "0",
                       "checkpoint_timeout": "30min",
                       "fsync": "off",
                       "full_page_writes": "off",
@@ -181,6 +185,7 @@ jobs:
                   await conn.execute("SELECT pg_reload_conf()")
 
                   expected = {
+                      "checkpoint_completion_target": "0",
                       "checkpoint_timeout": "1800",
                       "fsync": "off",
                       "full_page_writes": "off",
