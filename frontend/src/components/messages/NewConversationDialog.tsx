@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { MessageSquarePlus, Star } from "lucide-react";
+import { MessageSquarePlus, Plus, Star, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +32,7 @@ import {
 } from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { parseHandle, useDmPermissions, useRequestConnection } from "@/hooks/useDirectMessages";
+import { useRosterCheck, useStartGroup } from "@/hooks/useMyMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
@@ -66,6 +67,15 @@ export const NewConversationDialog = () => {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /**
+   * People gathered for a group, in the order they were added.
+   *
+   * Empty for the ordinary case: picking one person still opens their thread
+   * on the first click, because that is what this dialog is mostly for. A
+   * group is built by adding rather than by picking, so the two do not compete
+   * for the same gesture.
+   */
+  const [gathered, setGathered] = useState<ContactRead[]>([]);
 
   // The field answers every keystroke; the request waits for typing to stop.
   const settled = useDebouncedValue(term, SEARCH_SETTLES_MS);
@@ -93,6 +103,46 @@ export const NewConversationDialog = () => {
     setOpen(false);
     setTerm("");
     setError(null);
+    setGathered([]);
+  };
+
+  const gather = (person: ContactRead) =>
+    setGathered((held) =>
+      held.some((one) => one.id === person.id)
+        ? held.filter((one) => one.id !== person.id)
+        : [...held, person]
+    );
+
+  const gatheredIds = useMemo(() => gathered.map((person) => person.id), [gathered]);
+  const rosterCheck = useRosterCheck(open ? gatheredIds : []);
+  const startGroup = useStartGroup();
+
+  const refusal = rosterCheck.data;
+  // Two names, because that is what the caller can act on: which pair to break
+  // up. Which of them is limiting who may message them is theirs, not ours.
+  const unreachable = refusal?.unreachable_pair?.length
+    ? gathered
+        .filter((person) => refusal.unreachable_pair?.includes(person.id))
+        .map((person) => getUserDisplayName(person))
+    : [];
+  const tooLarge = Boolean(refusal?.too_large);
+  // A roster that has just changed has not been checked yet, and one whose
+  // check failed has not been checked at all. Proposing either would hand the
+  // refusal back from the server after the person committed, which is the late
+  // answer asking early was meant to replace.
+  const checking = rosterCheck.isFetching;
+  const checkFailed = rosterCheck.isError;
+  const blocked = unreachable.length > 0 || tooLarge || checking || checkFailed;
+
+  const propose = () => {
+    setError(null);
+    startGroup.mutate(gatheredIds, {
+      onSuccess: (conversation) => {
+        close();
+        void navigate({ to: "/messages", search: { thread: conversation.id } });
+      },
+      onError: (err) => setError(getErrorMessage(err, "errors:DM_ROSTER_NOT_REACHABLE")),
+    });
   };
 
   const pick = (person: ContactRead) => {
@@ -195,6 +245,70 @@ export const NewConversationDialog = () => {
           </Button>
         ) : null}
 
+        {gathered.length > 0 ? (
+          <div className="space-y-2 rounded-md border p-2">
+            <ul className="flex flex-wrap gap-1">
+              {gathered.map((person) => (
+                <li key={person.id}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 gap-1 px-2"
+                    // Labelled rather than left to its contents: the name is
+                    // already on screen, and reading it twice says less than
+                    // saying what the button does.
+                    aria-label={t("messages:newConversation.removeFromGroup", {
+                      name: getUserDisplayName(person),
+                    })}
+                    onClick={() => gather(person)}
+                  >
+                    <span className="max-w-32 truncate">{getUserDisplayName(person)}</span>
+                    <X className="size-3" aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+
+            {/* Said while there is still a name to drop, which is the whole
+                point of asking before the roster is submitted. */}
+            {unreachable.length > 1 ? (
+              <p className="text-destructive text-xs">
+                {t("messages:newConversation.cannotReachEachOther", {
+                  first: unreachable[0],
+                  second: unreachable[1],
+                })}
+              </p>
+            ) : tooLarge ? (
+              <p className="text-destructive text-xs">
+                {t("messages:newConversation.tooManyPeople", {
+                  count: refusal?.max_members ?? 0,
+                })}
+              </p>
+            ) : checkFailed ? (
+              <p className="text-destructive text-xs">
+                {t("messages:newConversation.checkUnavailable")}
+              </p>
+            ) : checking ? (
+              <p className="text-muted-foreground text-xs">
+                {t("messages:newConversation.checkingRoster")}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {t("messages:newConversation.groupHint")}
+              </p>
+            )}
+
+            <Button
+              className="w-full"
+              disabled={gathered.length < 2 || blocked || startGroup.isPending}
+              onClick={propose}
+            >
+              {t("messages:newConversation.startGroup", { count: gathered.length + 1 })}
+            </Button>
+          </div>
+        ) : null}
+
         <div className="-mx-2 max-h-80 overflow-y-auto px-2">
           {sections.isLoading || starred.isLoading ? (
             <p className="py-2 text-muted-foreground text-sm">{t("messages:loading")}</p>
@@ -216,6 +330,8 @@ export const NewConversationDialog = () => {
                 items={starredPeople}
                 answers={answers}
                 onPick={pick}
+                onGather={gather}
+                gathered={new Set(gatheredIds)}
                 onToggleFavorite={toggleFavorite}
               />
               {groups
@@ -233,6 +349,8 @@ export const NewConversationDialog = () => {
                     answers={answers}
                     starred={starredIds}
                     onPick={pick}
+                    onGather={gather}
+                    gathered={new Set(gatheredIds)}
                     onToggleFavorite={toggleFavorite}
                   />
                 ))}
@@ -262,6 +380,8 @@ const CommunityRoster = ({
   answers,
   starred,
   onPick,
+  onGather,
+  gathered,
   onToggleFavorite,
 }: {
   section: ContactGuildSection;
@@ -269,6 +389,8 @@ const CommunityRoster = ({
   answers: Record<string, DirectMessagePermissionRead>;
   starred: Set<number>;
   onPick: (person: ContactRead) => void;
+  onGather: (person: ContactRead) => void;
+  gathered: Set<number>;
   onToggleFavorite: (person: ContactRead) => void;
 }) => {
   const { t } = useTranslation(["messages", "contacts"]);
@@ -312,6 +434,8 @@ const CommunityRoster = ({
               answer={answer}
               starred={starred.has(person.id)}
               onPick={onPick}
+              onGather={onGather}
+              gathered={gathered.has(person.id)}
               onToggleFavorite={onToggleFavorite}
             />
           );
@@ -344,12 +468,16 @@ const PickerPerson = ({
   answer,
   starred,
   onPick,
+  onGather,
+  gathered,
   onToggleFavorite,
 }: {
   person: ContactRead;
   answer: DirectMessagePermissionRead | undefined;
   starred: boolean;
   onPick: (person: ContactRead) => void;
+  onGather: (person: ContactRead) => void;
+  gathered: boolean;
   onToggleFavorite: (person: ContactRead) => void;
 }) => {
   const { t } = useTranslation(["messages", "contacts"]);
@@ -386,6 +514,25 @@ const PickerPerson = ({
               : null}
         </span>
       </button>
+      {/* Gathering somebody is not picking them: a click on the row still
+          opens their own thread, which is what this dialog is mostly for. A
+          group is built here instead, so the two never compete for the same
+          gesture. Shut for somebody who cannot be reached, for the same reason
+          the row itself is. */}
+      <Button
+        type="button"
+        size="icon"
+        variant={gathered ? "secondary" : "ghost"}
+        className="size-7 shrink-0"
+        disabled={denied}
+        aria-pressed={gathered}
+        onClick={() => onGather(person)}
+      >
+        <Plus className="size-3.5" aria-hidden />
+        <span className="sr-only">
+          {t("messages:newConversation.addToGroup", { name: getUserDisplayName(person) })}
+        </span>
+      </Button>
       {/* Outside the button, and outside its `disabled`. For somebody you
           share no community with, this dialog is the only place they appear
           at all -- so if the way in is shut, everything else you might do
@@ -429,11 +576,15 @@ const FavoriteRoster = ({
   items,
   answers,
   onPick,
+  onGather,
+  gathered,
   onToggleFavorite,
 }: {
   items: ContactRead[];
   answers: Record<string, DirectMessagePermissionRead>;
   onPick: (person: ContactRead) => void;
+  onGather: (person: ContactRead) => void;
+  gathered: Set<number>;
   onToggleFavorite: (person: ContactRead) => void;
 }) => {
   const { t } = useTranslation("messages");
@@ -457,6 +608,8 @@ const FavoriteRoster = ({
             answer={answers[String(person.id)] ?? own.data?.permissions?.[String(person.id)]}
             starred
             onPick={onPick}
+            onGather={onGather}
+            gathered={gathered.has(person.id)}
             onToggleFavorite={onToggleFavorite}
           />
         ))}
