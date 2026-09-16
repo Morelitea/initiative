@@ -19,7 +19,12 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import (
+    GUILD_ASSIGNABLE_ROLES,
+    Guild,
+    GuildMembership,
+    GuildRole,
+)
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.core.messages import AuthProviderMessages
@@ -76,6 +81,11 @@ logger = logging.getLogger(__name__)
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+
+#: The guild roles a claim mapping may name, as the strings it stores them as.
+_MAPPABLE_GUILD_ROLES: frozenset[str] = frozenset(
+    role.value for role in GUILD_ASSIGNABLE_ROLES
+)
 
 router = APIRouter()
 
@@ -846,8 +856,9 @@ async def create_oidc_mapping(
             status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
         )
 
-    # Validate guild_role
-    if payload.guild_role not in ("admin", "member"):
+    # What a rule may hand out, from the one set that says so — a claim value
+    # grants an ordinary standing, never the seat that decides who may enter.
+    if payload.guild_role not in _MAPPABLE_GUILD_ROLES:
         raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
 
     # Validate guild exists
@@ -949,7 +960,7 @@ async def update_oidc_mapping(
             )
         mapping.guild_id = data["guild_id"]
     if "guild_role" in data and data["guild_role"] is not None:
-        if data["guild_role"] not in ("admin", "member"):
+        if data["guild_role"] not in _MAPPABLE_GUILD_ROLES:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE
             )
