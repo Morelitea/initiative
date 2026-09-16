@@ -98,6 +98,12 @@ export const useRowCapacity = (ids: string[]) => {
     if (!row || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(row);
+    // The items too, not only the row: a control can grow without the row
+    // doing so — the block-type picker names the block the caret is in, and
+    // "Numbered list" is wider than "H1". The row is parent-determined, so
+    // nothing about that reaches an observer watching only the row, and the
+    // control would be clipped rather than shed until the next resize.
+    for (const child of Array.from(row.children)) observer.observe(child);
     return () => observer.disconnect();
   }, [measure]);
 
@@ -234,6 +240,12 @@ interface OverflowToolbarProps extends Omit<ComponentProps<"div">, "children"> {
   rowClassName?: string;
   /** Applied to the overflow menu. */
   panelClassName?: string;
+  /**
+   * Leave focus where it is when the menu closes, instead of Radix returning
+   * it to the `…` button — for a surface that places focus itself, as the
+   * spreadsheet does when it hands the caret back to a cell or the grid.
+   */
+  keepsFocusBelow?: boolean;
 }
 
 /**
@@ -254,6 +266,7 @@ export const OverflowToolbar = ({
   className,
   rowClassName,
   panelClassName,
+  keepsFocusBelow = false,
   ...rest
 }: OverflowToolbarProps) => {
   const [openBranch, setOpenBranch] = useState<string | null>(null);
@@ -316,6 +329,7 @@ export const OverflowToolbar = ({
           <DropdownMenuContent
             align="end"
             collisionPadding={8}
+            onCloseAutoFocus={keepsFocusBelow ? (event) => event.preventDefault() : undefined}
             className={cn(
               "max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) overflow-y-auto",
               openBranch === null ? "w-56" : "w-auto",

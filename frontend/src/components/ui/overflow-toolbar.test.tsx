@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +20,10 @@ const isRow = (el: HTMLElement) => el.classList.contains("overflow-hidden");
  * the test exercises rather than the "nothing to read, show everything"
  * fallback. Must be in place before the first layout effect runs.
  */
-const stubLayout = (rowWidth: number) => {
+const stubLayout = (
+  rowWidth: number,
+  widthOfItem: (el: HTMLElement) => number = () => ITEM_WIDTH
+) => {
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
     this: HTMLElement
   ) {
@@ -30,8 +33,43 @@ const stubLayout = (rowWidth: number) => {
     this: HTMLElement
   ) {
     const parent = this.parentElement;
-    return parent && isRow(parent) ? ITEM_WIDTH : 0;
+    return parent && isRow(parent) ? widthOfItem(this) : 0;
   });
+};
+
+/**
+ * jsdom has no ResizeObserver. This one records what each observer was asked
+ * to watch, so `resize(element)` notifies only the observers actually watching
+ * it — otherwise a test would pass whether or not the items are observed.
+ */
+const stubResizeObserver = () => {
+  const watchers: { callback: ResizeObserverCallback; targets: Set<Element> }[] = [];
+
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      private entry: { callback: ResizeObserverCallback; targets: Set<Element> };
+      constructor(callback: ResizeObserverCallback) {
+        this.entry = { callback, targets: new Set() };
+        watchers.push(this.entry);
+      }
+      observe(target: Element) {
+        this.entry.targets.add(target);
+      }
+      unobserve(target: Element) {
+        this.entry.targets.delete(target);
+      }
+      disconnect() {
+        this.entry.targets.clear();
+      }
+    }
+  );
+
+  return (element: Element) => {
+    for (const watcher of watchers) {
+      if (watcher.targets.has(element)) watcher.callback([], {} as ResizeObserver);
+    }
+  };
 };
 
 const buildItems = (count: number): OverflowToolbarItem[] =>
@@ -118,6 +156,38 @@ describe("OverflowToolbar", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     expect(await screen.findByRole("menuitem", { name: "Rarely" })).toBeInTheDocument();
+  });
+});
+
+describe("a control that changes size in place", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sheds it once it outgrows the row, without the row itself resizing", async () => {
+    // The first item names what the caret is in, so its width follows its
+    // label: narrow at first, wide once the label changes.
+    let firstIsWide = false;
+    const isFirst = (el: HTMLElement) => el === el.parentElement?.firstElementChild;
+    const resize = stubResizeObserver();
+    stubLayout(200, (el) => (isFirst(el) ? (firstIsWide ? 150 : 60) : ITEM_WIDTH));
+
+    const { container } = renderToolbar(buildItems(2));
+
+    // 60 + 100 fits in 200, so both stay.
+    await waitFor(() => {
+      expect(rowChildren(container).filter((child) => child.hidden)).toHaveLength(0);
+    });
+
+    firstIsWide = true;
+    // The control grew; the row it sits in did not.
+    act(() => resize(rowChildren(container)[0]));
+
+    // 150 + 100 does not, and the row's own width never changed.
+    await waitFor(() => {
+      expect(rowChildren(container).filter((child) => child.hidden)).toHaveLength(1);
+    });
   });
 });
 
