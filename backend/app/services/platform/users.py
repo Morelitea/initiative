@@ -30,7 +30,7 @@ from app.models.tenant.recent_view import RecentView
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from app.schemas.platform.user import AdminUserRead, UserRead
+    from app.schemas.platform.user import AdminUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
@@ -814,7 +814,42 @@ async def hard_delete_user(
 MEMBER_MATCH_THRESHOLD = 0.4
 
 
-def name_closeness(term: str) -> ColumnElement[float]:
+async def summaries_with_guild_role(
+    session: AsyncSession,
+    guild_id: int,
+    users,
+) -> List["UserSummary"]:
+    """``UserSummary`` per user, with the guild role actually filled in.
+
+    ``UserSummary`` defaults ``guild_role`` to ``None`` and ``is_guild_admin``
+    to ``False``, and ``model_validate`` over a profile row carries nothing
+    that could correct either -- the role lives on ``GuildMembership``, not on
+    the profile. So a guild admin came back from the roster endpoints looking
+    like an ordinary member, and a key-set assertion could not see it: the
+    field was present, and wrong.
+
+    One query for the whole batch, so this does not reintroduce an N+1 on a
+    typeahead.
+    """
+    from app.schemas.platform.user import UserSummary
+    from app.services import membership as membership_service
+
+    users = list(users)
+    roles = await membership_service.guild_role_map(
+        session, guild_id, [user.id for user in users]
+    )
+    summaries: List[UserSummary] = []
+    for user in users:
+        summary = UserSummary.model_validate(user)
+        role = roles.get(user.id)
+        if role is not None:
+            summary.guild_role = role.value
+            summary.is_guild_admin = role in GUILD_ADMIN_ROLES
+        summaries.append(summary)
+    return summaries
+
+
+def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
     Measured against the closest RUN of the name rather than the whole of it,
@@ -822,18 +857,20 @@ def name_closeness(term: str) -> ColumnElement[float]:
     that substring matching cannot — and its real work is the ORDER, putting the
     nearest name at the top of a page rather than whoever sorts first.
 
-    Matched against the projection, which answers with a real name only in a
-    guild that renders one — so a guild that does not is comparing against
-    ``NULL`` and ranks on the handle alone, without being told to.
+    ``shows_names`` is the guild's own setting, so a real name is matched
+    exactly where it is shown and nowhere else.
     """
-    return func.greatest(
-        func.word_similarity(term, MemberProfile.username),
-        func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
-    )
+    closest = func.word_similarity(term, MemberProfile.username)
+    if shows_names:
+        closest = func.greatest(
+            closest,
+            func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
+        )
+    return closest
 
 
 def member_match(
-    term: str,
+    term: str, *, shows_names: bool
 ) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
     """How a typed name selects members, and what to order the answer by.
 
@@ -857,25 +894,20 @@ def member_match(
             ),
             None,
         )
-    matches = or_(
-        MemberProfile.username.ilike(f"%{name_part}%"),
-        # NULL in a guild that renders handles, so this leg simply never
-        # matches there — the projection has already answered.
-        MemberProfile.full_name.ilike(f"%{name_part}%"),
-    )
-    closest = name_closeness(name_part)
+    matches = MemberProfile.username.ilike(f"%{name_part}%")
+    if shows_names:
+        matches = or_(matches, MemberProfile.full_name.ilike(f"%{name_part}%"))
+    closest = name_closeness(name_part, shows_names=shows_names)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
 
-def member_order(closest: ColumnElement[float] | None) -> tuple[ColumnElement, ...]:
-    """Nearest first while searching, alphabetical while reading a roster.
-
-    A guild that renders handles has no name to sort on — the column is NULL
-    for every row there, so the caller's own handle ordering decides.
-    """
+def member_order(
+    closest: ColumnElement[float] | None, *, shows_names: bool
+) -> tuple[ColumnElement, ...]:
+    """Nearest first while searching, alphabetical while reading a roster."""
     if closest is not None:
         return (closest.desc(),)
-    return (MemberProfile.full_name.asc().nulls_last(),)
+    return (MemberProfile.full_name.asc(),) if shows_names else ()
 
 
 def visible_to_other_people(status_column=None):

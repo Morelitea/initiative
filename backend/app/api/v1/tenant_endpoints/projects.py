@@ -51,6 +51,7 @@ from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
+from app.services.platform import users as users_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
@@ -87,7 +88,7 @@ from app.schemas.tenant.project import (
     ProjectActivityResponse,
 )
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserPublic, UserSummary, UserSummaryListResponse
+from app.schemas.platform.user import UserPublic, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
     InitiativeGroupedCountsResponse,
@@ -1823,7 +1824,9 @@ async def search_project_members(
     page_items = paginate_sequence(assignable, actual_page, page_size)
 
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in page_items],
+        items=await users_service.summaries_with_guild_role(
+            session, guild_context.guild_id, page_items
+        ),
         total_count=total_count,
         page=actual_page,
         page_size=page_size,
