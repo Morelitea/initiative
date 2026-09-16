@@ -652,6 +652,10 @@ async def test_search_initiative_members_slim_and_filtered(
         "guild_role",
         "is_guild_admin",
     }
+    by_name = {item["full_name"]: item for item in body["items"]}
+    assert by_name["Zed Admin"]["is_guild_admin"] is True
+    assert by_name["Alice Wonderland"]["is_guild_admin"] is False
+    assert by_name["Bob Builder"]["is_guild_admin"] is False
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
