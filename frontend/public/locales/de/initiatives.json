@@ -179,7 +179,7 @@
     "roleUpdated": "Rolle aktualisiert.",
     "roleUpdateError": "Rolle kann derzeit nicht aktualisiert werden.",
     "rolesTitle": "Rollenberechtigungen",
-    "rolesDescription": "Lege fest, was jede Rolle innerhalb dieser Initiative tun darf. Die Berechtigungen für Projektmanager sind gesperrt, um versehentliche Aussperrungen zu verhindern.",
+    "rolesDescription": "Was jede Rolle sehen und was sie erstellen darf. Manager haben alles.",
     "loadingRoles": "Rollen werden geladen...",
     "addCustomRole": "Benutzerdefinierte Rolle hinzufügen",
     "builtIn": "Integriert",
@@ -255,7 +255,9 @@
       "viewPosts": "Beiträge anzeigen",
       "createPosts": "Beiträge erstellen",
       "viewGalleries": "Galerien anzeigen",
-      "createGalleries": "Galerien erstellen"
+      "createGalleries": "Galerien erstellen",
+      "viewShort": "Ansehen",
+      "createShort": "Erstellen"
     },
     "handleColumn": "Handle",
     "toolAudience": {
@@ -274,25 +276,56 @@
       "disableTitle": "{{tool}} ausschalten",
       "disableDescription": "Das verbirgt {{tool}} und alles darin vor allen in dieser Initiative, auch vor Leitenden. Nichts wird gelöscht — beim Wiedereinschalten ist alles zurück.",
       "disableConfirm": "Ausschalten",
-      "toolTurnedOff": "Dieses Werkzeug ist für die Initiative ausgeschaltet, daher gewähren diese Berechtigungen nichts, bis es wieder eingeschaltet wird."
-    }
+      "turnedOffHeading": "Für diese Initiative ausgeschaltet",
+      "turnedOffNote": "Diese gewähren nichts, bis das Werkzeug unter Details wieder eingeschaltet wird. Ihr Inhalt geht in der Zwischenzeit nicht verloren."
+    },
+    "managerDescription": "Manager leiten diese Initiative — ihre Mitglieder, Rollen und Einstellungen — und können in jedem Werkzeug sehen und erstellen. Welche einzelnen Elemente sie öffnen können, hängt weiterhin davon ab, wie das jeweilige Element freigegeben ist."
   },
   "advancedTools": "Werkzeuge",
   "advancedToolsDescription": "Wähle, woraus diese Initiative besteht. Projekte und Dokumente sind von Anfang an aktiv; den Rest fügst du selbst hinzu.",
   "queuesFeature": "Abläufe (Queues)",
-  "queuesFeatureDescription": "Organisiere Elemente nach Priorität, verfolge die Reihenfolge und verwalte, wer als Nächstes dran ist.",
+  "queuesFeatureDescription": "Wer dran ist. Dienstpläne, Ablaufpläne, Putzräder, Initiativreihenfolge — und es ist nie niemand dran.",
   "calendarsFeature": "Kalender",
-  "calendarsFeatureDescription": "Organisieren Sie Termine in teilbaren Kalendern mit Teilnehmern und RSVP-Verfolgung.",
+  "calendarsFeatureDescription": "Dinge, die zu einer Zeit stattfinden. Zusagen, Erinnerungen und ein Ort zum Nachsehen, bevor jemand fragt, ob das diesen Donnerstag ist.",
   "dashboardsFeature": "Dashboards",
-  "dashboardsFeatureDescription": "Baue eine Arbeitsfläche aus Diagrammen, Kennzahlen und Zeitleisten, die bestehende Arbeit anzeigt – ein Dashboard bearbeitet die dargestellten Daten nie.",
+  "dashboardsFeatureDescription": "Wie die Arbeit läuft, für die Person, die dauernd fragt, wie die Arbeit läuft. Diagramme und Summen aus dem, was schon da ist, nur zum Lesen.",
   "counterGroupsFeature": "Zähler",
-  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
+  "counterGroupsFeatureDescription": "Zahlen, die sich bewegen. Striche, Summen, Punkte, freie Plätze, Trefferpunkte — eine Zahl, auf die sich alle im Raum einigen.",
   "postsFeature": "Beiträge",
-  "postsFeatureDescription": "Ein schwarzes Brett für die Initiative – Mitteilungen, die alle lesen, kommentieren und mit Reaktionen versehen können, wobei die wichtigsten oben angeheftet werden.",
+  "postsFeatureDescription": "Ein schwarzes Brett. Ankündigungen, Umfragen, wer sie gelesen hat — die wichtige oben angepinnt, damit sie nicht vier Leute verpassen.",
   "galleriesFeature": "Galerien",
-  "galleriesFeatureDescription": "Bildersammlungen – Mockups, Screenshots, exportierte Entwürfe – als Wand durchstöbert statt einzeln gelesen, mit Tags und Versionsverlauf für jedes Bild.",
+  "galleriesFeatureDescription": "Eine Wand voller Bilder. Mockups, Screenshots, die vier Logos, die es nicht wurden.",
   "projectsFeature": "Projekte",
-  "projectsFeatureDescription": "Aufgabenboards — wer was tut, in welchem Stadium es ist und was noch offen ist.",
+  "projectsFeatureDescription": "Boards voller To-dos: wer dran ist, in welchem Stadium es steckt, was noch fehlt. Als Tabelle, Kanban-Board oder Kalender — dieselben Aufgaben, deine Wahl.",
   "documentsFeature": "Dokumente",
-  "documentsFeatureDescription": "Geschriebene Seiten — Notizen, Pläne, Referenzen — die sich mit allem anderen in der Initiative verknüpfen lassen."
+  "documentsFeatureDescription": "Text, Tabellen und Whiteboards, gemeinsam in Echtzeit geschrieben.",
+  "createWizard": {
+    "title": "Neue Initiative",
+    "detailsStep": "Wie heißt sie?",
+    "toolsStep": "Woraus besteht sie?",
+    "joiningStep": "Wer kommt hinein?",
+    "membersStep": "Was dürfen sie tun?",
+    "toolsHelp": "Wähle, was diese Initiative braucht. Du kannst alles später ändern, und etwas auszuschalten löscht nie, was darin liegt.",
+    "pickOneTool": "Wähle mindestens eines — eine Initiative braucht einen Ort für ihre Dinge.",
+    "joiningHelp": "Du kannst Leute selbst hinzufügen, egal was du hier wählst.",
+    "membersHelp": "So viel darf ein gewöhnliches Mitglied mit den gewählten Werkzeugen tun. Manager dürfen immer alles.",
+    "members": {
+      "create": "Dinge erstellen",
+      "createHelp": "Mitglieder können Projekte, Dokumente und den Rest anlegen. Gut für eine Gruppe, die zusammenarbeitet.",
+      "view": "Dinge ansehen",
+      "viewHelp": "Mitglieder lesen alles, nur Manager fügen hinzu. Gut für etwas, das du an eine Gruppe veröffentlichst.",
+      "managers": "Nur Manager",
+      "managersHelp": "Mitglieder sehen nichts, bis du einer Rolle Zugriff gibst. Gut für sensible Arbeit."
+    },
+    "back": "Zurück",
+    "next": "Weiter",
+    "create": "Initiative erstellen",
+    "memberGrantFailed": "Die Initiative wurde erstellt, aber die Mitgliederrechte konnten nicht gesetzt werden. Du kannst sie unter Einstellungen → Rollen setzen.",
+    "firstIntroTitle": "Deine erste Initiative",
+    "firstIntro": "Eine **Initiative** ist ein Ordner für ein großes Vorhaben oder Team in deiner Community. Sie enthält die Werkzeuge dieses Vorhabens, etwa Projekte oder Dokumente und mehr.",
+    "nextTools": "Weiter: Werkzeuge",
+    "nextJoining": "Weiter: Mitgliedschaft",
+    "nextMembers": "Weiter: Berechtigungen",
+    "firstIntroLink": "Hier mehr lesen"
+  }
 }
