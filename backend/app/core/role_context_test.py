@@ -13,15 +13,13 @@ no task-scoped state, which is what makes that safe.
 routes the session *and* records the contextvars the sync DAC engine reads
 without being handed them.
 
-Because contextvars are scoped to the async task and sessions are not, the
-second must never be folded into the first: a secondary session routed
-mid-request would overwrite the context of the request it is running inside,
-and nothing would put it back.
+The state the second writes belongs to the task; the session the first routes
+does not. Keeping them apart is why routing stays free of task-scoped writes.
 
 So the setters below are the establishment seam's to call. A path that writes
-one of them by hand is either a new seam — which wants saying out loud — or the
-half-done establishment that denied a guild admin on the collaboration socket.
-This test is what makes that a decision rather than an oversight.
+one by hand is either a new seam — which wants saying out loud — or an
+establishment that went through the routing primitive instead. This test makes
+that a decision rather than an oversight.
 """
 
 import pathlib
@@ -30,6 +28,15 @@ import re
 import pytest
 
 pytestmark = pytest.mark.unit
+
+#: The modules that define the setters. Excluded because a definition is not a
+#: call; everything else under ``app/core/`` is checked like any other file.
+DEFINING_MODULES = frozenset(
+    {
+        "app/core/role_context.py",
+        "app/core/pam_context.py",
+    }
+)
 
 #: The four writers of task-scoped authorization state.
 SETTERS = (
@@ -68,8 +75,8 @@ def test_only_the_establishment_seam_writes_the_context():
     offenders: dict[str, list[str]] = {}
     for path in (root / "app").rglob("*.py"):
         rel = path.relative_to(root).as_posix()
-        if rel.endswith("_test.py") or rel.startswith("app/core/"):
-            continue  # the setters' own module, and the tests that drive them
+        if rel.endswith("_test.py") or rel in DEFINING_MODULES:
+            continue
         if rel in SEAM:
             continue
         found = sorted(set(pattern.findall(path.read_text())))

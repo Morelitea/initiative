@@ -72,12 +72,7 @@ async def test_applying_is_idempotent(session):
     "name,_sql", AUTHORIZATION_FUNCTIONS, ids=[n for n, _ in AUTHORIZATION_FUNCTIONS]
 )
 async def test_none_runs_as_its_owner(session, name, _sql):
-    """Each runs as its caller, under that caller's policies.
-
-    ``SECURITY DEFINER`` here would hand every caller the owner's reach and
-    make the function itself the boundary, which is not what these are for —
-    they decide legs *within* what the caller's role can already see.
-    """
+    """Each runs as its caller: these are declared ``SECURITY INVOKER``."""
     secdef = (
         await session.exec(
             text(
@@ -105,8 +100,17 @@ async def test_no_unexpected_overloads(session):
     assert {r[0]: r[1] for r in rows} == {n: 1 for n in SIGNATURES}
 
 
-def test_the_digest_changes_with_the_definitions():
+def test_the_digest_changes_with_the_definitions(monkeypatch):
     """The stamp is of the text, so an edit moves it."""
+    import app.db.authorization as module
+
     first = authorization_functions_digest()
-    assert first == authorization_functions_digest()
-    assert len(first) == 16
+    assert first == authorization_functions_digest(), "should be deterministic"
+
+    name, sql = module.AUTHORIZATION_FUNCTIONS[0]
+    monkeypatch.setattr(
+        module,
+        "AUTHORIZATION_FUNCTIONS",
+        ((name, sql + "\n-- edited"),) + module.AUTHORIZATION_FUNCTIONS[1:],
+    )
+    assert module.authorization_functions_digest() != first

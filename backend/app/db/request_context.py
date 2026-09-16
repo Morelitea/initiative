@@ -85,30 +85,15 @@ class SystemGuild(GuildScoped):
     """Guild-scoped work with **no person behind it**.
 
     A background sweep, a poller, a lifecycle job. It is a ``GuildScoped``
-    context — routed into the schema, ``SET ROLE`` into the guild role, RLS
-    enforced — that names itself as unattended, because at the database layer
-    it is otherwise indistinguishable from a guild owner: both arrive as
-    ``current_guild_role = 'admin'``.
+    context that names itself as unattended, because nothing else about the
+    call says so.
 
-    That indistinguishability is the point of naming it. A policy cannot tell
-    the retention sweep from an admin emptying the trash by hand, and neither
-    can a reader of the call site. This class does not change what the database
-    is told; it makes the call say which of the two it is.
-
-    **There are three doors into a guild schema for system work, and they are
-    not interchangeable:**
-
-    - this one — ``SET ROLE guild_<id>``, RLS enforced, the admin leg clears
-      the initiative gate. What almost all of it uses.
-    - :func:`app.db.session.set_system_guild_context` — stays ``app_admin`` and
-      moves only the ``search_path``, so ``BYPASSRLS`` is **kept**. Two call
-      sites, guarded by a check that the session really is the system login.
-    - :func:`app.db.session.guild_schema_context` — a context manager over the
-      first, for borrowing an open session and handing it back.
-
-    ``services/platform/users.py`` uses the first two within a few lines of each
-    other, for two operations on the same guild. Both are correct; which is
-    needed is not derivable from either call site.
+    Three helpers route system work into a guild schema and they are not
+    interchangeable — this shape, :func:`app.db.session.set_system_guild_context`
+    and :func:`app.db.session.guild_schema_context`. Which one a job needs
+    depends on what it touches; each function's own docstring says what it
+    routes as. ``services/platform/users.py`` uses two of them a few lines
+    apart, for two operations on the same guild.
     """
 
 

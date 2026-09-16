@@ -4,8 +4,7 @@ Every initiative-scoped table in every ``guild_<id>`` schema carries policies
 that call into one of these. They live in ``public`` and name guild tables
 **unqualified**, so one definition serves every guild: the routed
 ``search_path`` is what binds ``initiative_members`` to the caller's own schema
-(see ``search_path_pinning_test``). None is ``SECURITY DEFINER`` — each runs as
-its caller, under that caller's policies.
+(see ``search_path_pinning_test``). Each runs as its caller.
 
 **Why they are here and not only in a migration.** They used to exist solely
 inside the migrations that created them, carried forward by ``CREATE OR
