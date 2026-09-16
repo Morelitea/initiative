@@ -56,6 +56,11 @@ describe("canPinProject", () => {
     expect(canPinProject(project, USER_ID, "admin")).toBe(true);
   });
 
+  it("counts a guild security admin, member row or not", () => {
+    const project = buildProject({ initiative: buildInitiative({ members: [] }) });
+    expect(canPinProject(project, USER_ID, "security_admin")).toBe(true);
+  });
+
   it("counts nobody when signed out", () => {
     const project = projectWithRole({ is_manager: true });
     expect(canPinProject(project, undefined, "admin")).toBe(false);

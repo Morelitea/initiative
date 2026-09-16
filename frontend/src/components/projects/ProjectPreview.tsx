@@ -19,6 +19,7 @@ import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { isGuildAdminRole } from "@/lib/permissions";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +54,7 @@ export const canPinProject = (
   if (project.archived_at !== null) return false;
 
   // Guild admins can always pin
-  if (guildRole === "admin") return true;
+  if (isGuildAdminRole(guildRole)) return true;
 
   // Manager standing in this project's initiative — `is_manager` is the flag
   // the role carries, so a renamed or additional managing role counts.
