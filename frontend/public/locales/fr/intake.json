@@ -63,5 +63,20 @@
     "title": "Impossible de charger ces paramètres",
     "description": "Rien n'a été modifié. Réessayez ; si l'échec persiste, le journal du serveur en donnera la raison.",
     "retry": "Réessayer"
+  },
+  "help": {
+    "action": "Demander de l'aide",
+    "title": "Demander de l'aide",
+    "description": "Dites-nous ce qui se passe et quelqu'un s'en chargera.",
+    "subjectLabel": "De quoi s'agit-il ?",
+    "subjectPlaceholder": "Une ligne, pour pouvoir le retrouver",
+    "bodyLabel": "Que s'est-il passé ?",
+    "bodyPlaceholder": "Ce que vous faisiez, ce que vous attendiez et ce qui s'est passé à la place.",
+    "browseFaq": "Consulter la FAQ",
+    "submit": "Envoyer",
+    "thanks": "Envoyé. Quelqu'un s'en chargera.",
+    "error": "Impossible d'envoyer. Réessayez dans un instant.",
+    "settingLabel": "Autoriser les membres à demander de l'aide",
+    "settingHelp": "Ajoute un formulaire d'aide dans la barre latérale pour tout le monde ici. Désactivé, le même bouton ouvre la FAQ. Ne l'activez que si quelqu'un lit ce qui arrive."
   }
 }

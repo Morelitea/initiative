@@ -641,5 +641,7 @@
   "MODERATION_CANNOT_REPORT_YOURSELF": "Vous ne pouvez pas signaler votre propre contenu",
   "MODERATION_NOWHERE_TO_SEND": "Les signalements ne sont pas encore configurés sur cette installation",
   "MODERATION_TARGET_NOT_FOUND": "Nous ne trouvons pas cela",
-  "MODERATION_NOT_A_MODERATOR": "Seuls les modérateurs peuvent voir cela"
+  "MODERATION_NOT_A_MODERATOR": "Seuls les modérateurs peuvent voir cela",
+  "SUPPORT_NOT_AVAILABLE": "Cette communauté n'accepte pas les demandes d'aide. Consultez plutôt la FAQ.",
+  "SUPPORT_NOWHERE_TO_SEND": "Les demandes d'aide sont activées ici, mais personne n'est encore configuré pour les recevoir. Prévenez un administrateur de la communauté."
 }

@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     moderation,
+    support,
     archive,
     query,
     smart_chips,
@@ -196,6 +197,9 @@ guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 # the reports of an initiative lead with the initiative, and settling one leads
 # with the report. Who may read any of it is the tables' RLS, not a check here.
 guild_router.include_router(moderation.router, tags=["moderation"])
+# Asking whoever runs the deployment for help. Guild-scoped because whether
+# it is offered at all is the community's own setting.
+guild_router.include_router(support.router, prefix="/support", tags=["support"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.

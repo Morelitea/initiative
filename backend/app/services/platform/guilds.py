@@ -771,6 +771,7 @@ async def update_guild(
     banner: Mapping[str, str] | None = None,
     banner_provided: bool = False,
     show_member_names: bool | None = None,
+    support_enabled: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -834,6 +835,9 @@ async def update_guild(
     # makes it impossible to end up with both.
     if guild.is_community and guild.show_member_names:
         guild.show_member_names = False
+        updated = True
+    if support_enabled is not None and guild.support_enabled != support_enabled:
+        guild.support_enabled = support_enabled
         updated = True
     if guild.is_community:
         await _assert_listable(session, guild)

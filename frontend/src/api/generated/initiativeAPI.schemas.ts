@@ -4000,6 +4000,7 @@ export interface GuildRead {
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
+  support_enabled: boolean;
   has_adult_content: boolean | null;
   banner: GuildBannerRead;
   online_count: number;
@@ -4036,6 +4037,7 @@ export interface GuildUpdate {
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
   show_member_names?: boolean | null;
+  support_enabled?: boolean | null;
   banner?: GuildBannerWrite | null;
   has_adult_content?: boolean | null;
 }
@@ -6487,6 +6489,33 @@ export interface StorageSettingsUpdate {
 export interface StorageTestResponse {
   success: boolean;
   message: string;
+}
+
+/**
+ * What they are told back: that it arrived.
+ *
+ * Not where it landed or who will read it — the project a deployment routes
+ * support into is its own arrangement, and naming it here would make it the
+ * asker's business.
+ */
+export interface SupportRequestAccepted {
+  accepted?: boolean;
+}
+
+/**
+ * What somebody asking for help sends.
+ */
+export interface SupportRequestCreate {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
 }
 
 /**
