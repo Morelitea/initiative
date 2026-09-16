@@ -45,7 +45,6 @@ import {
   unreadIn,
   wantThreadHistory,
 } from "@/crypto/messaging";
-import { useAuth } from "@/hooks/useAuth";
 import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -187,14 +186,11 @@ export function useStartConversation() {
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
-  // Who this is, so a thread handed to somebody who has just joined a group
-  // says who said what.
-  const { user } = useAuth();
 
   return useQuery({
     queryKey: messageKeys.inbox,
     queryFn: async () => {
-      const touched = await collect({ receipts, meId: user?.id });
+      const touched = await collect({ receipts });
       for (const conversationId of touched) {
         void queryClient.invalidateQueries({
           queryKey: messageKeys.thread(conversationId),

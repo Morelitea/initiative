@@ -1449,12 +1449,13 @@ describe("catching up on a group joined late", () => {
               seq: 1,
               last: true,
               messages: [
+                // No author: the member serving it does not name itself in its
+                // own log, and the session it arrives on says who they are.
                 {
                   id: "m1",
                   at: "2026-09-01T00:00:00Z",
                   body: "said before you answered",
                   mine: false,
-                  author: 7,
                 },
               ],
             })
@@ -1526,19 +1527,22 @@ describe("catching up on a group joined late", () => {
       ],
     });
 
-    await collect({ receipts: false, meId: 4 });
+    await collect({ receipts: false });
 
     const served = sent().filter((row) => row.envelope.kind === "thread-history");
     const carried = served.flatMap(
       (row) => (row.envelope.messages ?? []) as Record<string, unknown>[]
     );
     // A log is written from its holder's own side, so what is handed over is
-    // turned around: this account's own message arrives as theirs, said by the
-    // account that sent it.
+    // turned around: this account's own message arrives as theirs. It carries
+    // no author, because a log does not name the person keeping it -- the far
+    // end fills that in from the session the transfer came on, which is the
+    // next test.
     expect(carried).toEqual([
-      expect.objectContaining({ id: "m1", body: "mine", mine: false, author: 4 }),
+      expect.objectContaining({ id: "m1", body: "mine", mine: false }),
       expect.objectContaining({ id: "m2", body: "theirs", mine: false, author: 7 }),
     ]);
+    expect(carried[0].author).toBeUndefined();
     // Receipts are this account's record of where its own copies got to.
     expect(carried[0]).not.toHaveProperty("receipt", "read");
     // Terminated, so the far end knows it has the lot and stops asking.

@@ -1510,16 +1510,18 @@ const theirSideOf = (reactions: Record<string, ReactionSides>): Record<string, R
  * would file this account's words as the recipient's own. Its receipts go with
  * it: they are this account's record of where its own copies got to, and mean
  * nothing on somebody else's.
+ *
+ * This account's own messages carry no author -- a log does not name the
+ * person keeping it -- and none is added here. The far end knows who sent the
+ * transfer, which is a better answer than this device asking who it is.
  */
-const asSeenByThem = (entry: StoredMessage, meId?: number): StoredMessage => {
+const asSeenByThem = (entry: StoredMessage): StoredMessage => {
   const carried: StoredMessage = { ...entry };
   if (entry.reactions) carried.reactions = theirSideOf(entry.reactions);
   if (!entry.mine) return carried;
   carried.receipt = undefined;
+  carried.author = undefined;
   carried.mine = false;
-  // Who said it. A group draws every message against its author, and one
-  // arriving without one would be drawn against nobody.
-  if (meId !== undefined) carried.author = meId;
   return carried;
 };
 
@@ -1536,8 +1538,7 @@ const asSeenByThem = (entry: StoredMessage, meId?: number): StoredMessage => {
 async function serveThreadHistory(
   conversationId: string,
   requestId: string,
-  toUserId: number,
-  meId?: number
+  toUserId: number
 ): Promise<void> {
   const messages = await messageLog.get(conversationId);
   const chunks: StoredMessage[][] = [];
@@ -1556,7 +1557,7 @@ async function serveThreadHistory(
         requestId,
         seq,
         last: false,
-        messages: chunk.map((entry) => asSeenByThem(entry, meId)),
+        messages: chunk.map(asSeenByThem),
       },
       { toSelf: false, silent: true }
     );
@@ -1587,18 +1588,7 @@ async function serveApprovedHistory(): Promise<void> {
  * Acknowledging deletes the row on the server, so the local log is written
  * first — losing a message to a failed write is worse than collecting it twice.
  */
-export async function collect({
-  receipts = true,
-  meId,
-}: {
-  receipts?: boolean;
-  /**
-   * Which account this is. Only needed to say who said what when this device
-   * sends its thread to somebody who has just joined a group; without it those
-   * messages arrive with no author, which draws them against nobody.
-   */
-  meId?: number;
-} = {}): Promise<string[]> {
+export async function collect({ receipts = true }: { receipts?: boolean } = {}): Promise<string[]> {
   const { id: device, devices: ourDevices } = await ensureDeviceContext();
   // Before the queue is read, and before the early return below it: a device
   // that has just arrived has nothing waiting, and asking is the whole reason
@@ -1818,7 +1808,15 @@ export async function collect({
             // Matched to the ask this device made, so what arrives is what it
             // went looking for.
             if (wanted?.requestId === envelope.requestId) {
-              if ((await messageLog.merge(item.conversation_id, envelope.messages)) > 0) {
+              // An entry with no author is one the sender wrote: a log does not
+              // name the person keeping it. The session says which account
+              // that is, which is who the thread draws those messages against.
+              const said = envelope.messages.map((message) =>
+                message.author === undefined && author !== undefined
+                  ? { ...message, author }
+                  : message
+              );
+              if ((await messageLog.merge(item.conversation_id, said)) > 0) {
                 touched.add(item.conversation_id);
               }
               if (envelope.last) await threadCatchUp.clear(item.conversation_id);
@@ -1884,7 +1882,7 @@ export async function collect({
     if (answered.has(ask.requestId)) continue;
     answered.add(ask.requestId);
     try {
-      await serveThreadHistory(ask.conversationId, ask.requestId, ask.userId, meId);
+      await serveThreadHistory(ask.conversationId, ask.requestId, ask.userId);
     } catch {
       // Their next ask reaches somebody else.
     }
