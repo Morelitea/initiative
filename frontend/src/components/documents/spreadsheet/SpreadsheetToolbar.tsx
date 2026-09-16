@@ -19,7 +19,6 @@ import {
   Palette,
   Redo2,
   Sigma,
-  SlidersHorizontal,
   Snowflake,
   Square,
   SquareDashed,
@@ -42,6 +41,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  OverflowMenuItem,
+  OverflowSubmenu,
+  OverflowToolbar,
+  type OverflowToolbarItem,
+} from "@/components/ui/overflow-toolbar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -51,7 +56,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { HISTORY_SHORTCUT } from "@/hooks/useYjsHistory";
 import type {
   BorderLineStyle,
@@ -109,8 +113,10 @@ const NUMBER_PRESETS: { key: string; value: NumberFormat }[] = [
 // frequent re-renders — an inline component would remount on every
 // formatting change and slam any open popover shut mid-edit.
 
-/** Desktop: one labelled popover per related group of controls, so the
- *  toolbar stays a short row instead of a long horizontal scroll. */
+/** One labelled popover per related group of controls, so the toolbar
+ *  stays a short row instead of a long horizontal scroll. Once the row
+ *  runs out of width the group sheds, and the overflow panel shows these
+ *  same controls unfolded under the group's name instead. */
 const GroupPopover = ({
   icon,
   label,
@@ -126,22 +132,13 @@ const GroupPopover = ({
     <PopoverTrigger asChild>
       <Button type="button" size="sm" variant="ghost" disabled={disabled} className="h-8 gap-1.5">
         {icon}
-        <span className="hidden lg:inline">{label}</span>
+        <span>{label}</span>
       </Button>
     </PopoverTrigger>
     <PopoverContent align="start" className="w-auto max-w-[18rem] p-3">
       {children}
     </PopoverContent>
   </Popover>
-);
-
-/** Mobile: the same groups stacked under one header inside the single
- *  "Format" overflow popover. */
-const Section = ({ title, children }: { title: string; children: ReactNode }) => (
-  <div className="space-y-1.5">
-    <p className="font-medium text-muted-foreground text-xs">{title}</p>
-    {children}
-  </div>
 );
 
 /** Formatting controls for the spreadsheet. Acts on the current
@@ -160,7 +157,6 @@ export const SpreadsheetToolbar = ({
   canRedo,
 }: SpreadsheetToolbarProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const isMobile = useIsMobile();
   const { mode, r1, r2, c1, c2, focusRow, focusCol } = selection;
   const isRows = mode === "rows";
   // Border style/color are toolbar-local choices (not stored formatting)
@@ -548,7 +544,7 @@ export const SpreadsheetToolbar = ({
 
   const borderControls = (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Select
           value={borderStyle}
           onValueChange={(v) => setBorderStyle(v as BorderLineStyle)}
@@ -621,7 +617,7 @@ export const SpreadsheetToolbar = ({
         </SelectContent>
       </Select>
       {numericFmt && (
-        <div className="flex items-center justify-between gap-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>{t("documents:spreadsheet.format.decimals")}</span>
           <Select
             value={String(curDecimals)}
@@ -658,7 +654,7 @@ export const SpreadsheetToolbar = ({
             <Hash className="h-4 w-4" />
             {t("documents:spreadsheet.format.thousandsSeparator")}
           </Button>
-          <div className="flex items-center justify-between gap-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>{t("documents:spreadsheet.format.negatives")}</span>
             <Select value={curNegatives} onValueChange={setNegatives} disabled={readOnly}>
               <SelectTrigger
@@ -758,6 +754,34 @@ export const SpreadsheetToolbar = ({
     },
   ];
 
+  // The function list, shared by the row's own menu and the overflow branch.
+  const functionItems = (
+    <>
+      {functionGroups.map((group, gi) => (
+        <Fragment key={group.title}>
+          {gi > 0 && <DropdownMenuSeparator />}
+          <DropdownMenuLabel className="text-muted-foreground text-xs">
+            {group.title}
+          </DropdownMenuLabel>
+          {group.items.map((fn) => (
+            <DropdownMenuItem
+              key={fn.name}
+              onSelect={() => onInsertFunction(fn.name)}
+              className="flex-col items-start gap-0.5"
+            >
+              <span className="font-mono text-sm">{fn.name}</span>
+              <span className="text-muted-foreground text-xs">{fn.desc}</span>
+            </DropdownMenuItem>
+          ))}
+        </Fragment>
+      ))}
+      <DropdownMenuSeparator />
+      <p className="px-2 py-1.5 text-muted-foreground text-xs">
+        {t("documents:spreadsheet.formula.hint")}
+      </p>
+    </>
+  );
+
   const functionMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -770,7 +794,7 @@ export const SpreadsheetToolbar = ({
           aria-label={t("documents:spreadsheet.formula.menuLabel")}
         >
           <Sigma className="h-4 w-4" />
-          <span className="hidden lg:inline">{t("documents:spreadsheet.formula.menu")}</span>
+          <span>{t("documents:spreadsheet.formula.menu")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -780,28 +804,7 @@ export const SpreadsheetToolbar = ({
         // yanking it back to the trigger on close.
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {functionGroups.map((group, gi) => (
-          <Fragment key={group.title}>
-            {gi > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuLabel className="text-muted-foreground text-xs">
-              {group.title}
-            </DropdownMenuLabel>
-            {group.items.map((fn) => (
-              <DropdownMenuItem
-                key={fn.name}
-                onSelect={() => onInsertFunction(fn.name)}
-                className="flex-col items-start gap-0.5"
-              >
-                <span className="font-mono text-sm">{fn.name}</span>
-                <span className="text-muted-foreground text-xs">{fn.desc}</span>
-              </DropdownMenuItem>
-            ))}
-          </Fragment>
-        ))}
-        <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-muted-foreground text-xs">
-          {t("documents:spreadsheet.formula.hint")}
-        </p>
+        {functionItems}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -833,85 +836,107 @@ export const SpreadsheetToolbar = ({
     </div>
   );
 
-  if (isMobile) {
-    return (
-      <div className="flex w-full items-center gap-2">
-        {historyControls}
-        {functionMenu}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button type="button" size="sm" variant="outline" className="ml-auto h-8 gap-1.5">
-              <SlidersHorizontal className="h-4 w-4" />
-              {t("documents:spreadsheet.format.title")}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="max-h-[70vh] w-72 space-y-3 overflow-y-auto">
-            <Section title={t("documents:spreadsheet.format.font")}>{fontControls}</Section>
-            <Section title={t("documents:spreadsheet.format.alignment")}>{alignControls}</Section>
-            <Section title={t("documents:spreadsheet.format.colors")}>{colorControls}</Section>
-            <Section title={t("documents:spreadsheet.format.borders")}>{borderControls}</Section>
-            <Section title={t("documents:spreadsheet.format.numberFormat")}>
-              {numberControls}
-            </Section>
-            <Section title={t("documents:spreadsheet.format.freeze")}>{freezeControls}</Section>
-            {clearButton}
-          </PopoverContent>
-        </Popover>
-      </div>
-    );
-  }
+  // A group as one entry of the row, and the same controls as a named branch
+  // of the overflow menu — one definition, two placements.
+  const group = (
+    id: string,
+    icon: ReactNode,
+    label: string,
+    controls: ReactNode,
+    disabled = readOnly
+  ): OverflowToolbarItem => ({
+    id,
+    node: (
+      <GroupPopover icon={icon} label={label} disabled={disabled}>
+        {controls}
+      </GroupPopover>
+    ),
+    menu: (
+      <OverflowSubmenu id={id} icon={icon} label={label} className="max-w-72 p-3">
+        {controls}
+      </OverflowSubmenu>
+    ),
+  });
+
+  // Ordered by reach, because the row sheds from the right: the formula menu
+  // is the last to go, and the group a sheet is least likely to want mid-edit
+  // is the first.
+  const groups: OverflowToolbarItem[] = [
+    {
+      id: "formula",
+      node: functionMenu,
+      menu: (
+        <OverflowSubmenu
+          id="formula"
+          icon={<Sigma className="h-4 w-4" />}
+          label={t("documents:spreadsheet.formula.menu")}
+        >
+          {functionItems}
+        </OverflowSubmenu>
+      ),
+    },
+    {
+      ...group(
+        "font",
+        <Type className="h-4 w-4" />,
+        t("documents:spreadsheet.format.font"),
+        fontControls
+      ),
+      startsGroup: true,
+    },
+    group(
+      "alignment",
+      <AlignLeft className="h-4 w-4" />,
+      t("documents:spreadsheet.format.alignment"),
+      alignControls
+    ),
+    group(
+      "colors",
+      <Palette className="h-4 w-4" />,
+      t("documents:spreadsheet.format.colors"),
+      colorControls
+    ),
+    group(
+      "numberFormat",
+      <Hash className="h-4 w-4" />,
+      t("documents:spreadsheet.format.numberFormat"),
+      numberControls,
+      readOnly || isRows
+    ),
+    group(
+      "borders",
+      <SquareDashedTopSolid className="h-4 w-4" />,
+      t("documents:spreadsheet.format.borders"),
+      borderControls
+    ),
+    group(
+      "freeze",
+      <Snowflake className="h-4 w-4" />,
+      t("documents:spreadsheet.format.freeze"),
+      freezeControls
+    ),
+    {
+      id: "clear",
+      startsGroup: true,
+      node: clearButton,
+      menu: (
+        <OverflowMenuItem onSelect={clearScope} disabled={readOnly}>
+          <Eraser className="h-4 w-4" />
+          <span>{t("documents:spreadsheet.format.clear")}</span>
+        </OverflowMenuItem>
+      ),
+    },
+  ];
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {historyControls}
-      <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-      <GroupPopover
-        icon={<Type className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.font")}
-        disabled={readOnly}
-      >
-        {fontControls}
-      </GroupPopover>
-      <GroupPopover
-        icon={<AlignLeft className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.alignment")}
-        disabled={readOnly}
-      >
-        {alignControls}
-      </GroupPopover>
-      <GroupPopover
-        icon={<Palette className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.colors")}
-        disabled={readOnly}
-      >
-        {colorControls}
-      </GroupPopover>
-      <GroupPopover
-        icon={<SquareDashedTopSolid className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.borders")}
-        disabled={readOnly}
-      >
-        {borderControls}
-      </GroupPopover>
-      <GroupPopover
-        icon={<Hash className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.numberFormat")}
-        disabled={readOnly || isRows}
-      >
-        {numberControls}
-      </GroupPopover>
-      <GroupPopover
-        icon={<Snowflake className="h-4 w-4" />}
-        label={t("documents:spreadsheet.format.freeze")}
-        disabled={readOnly}
-      >
-        {freezeControls}
-      </GroupPopover>
-      <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-      {clearButton}
-      <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-      {functionMenu}
-    </div>
+    <OverflowToolbar
+      items={groups}
+      label={t("documents:spreadsheet.format.title")}
+      moreLabel={t("documents:spreadsheet.format.title")}
+      // Undo and redo are the one pair nobody should have to open a menu for.
+      leading={historyControls}
+      className="w-full"
+    />
   );
 };
 

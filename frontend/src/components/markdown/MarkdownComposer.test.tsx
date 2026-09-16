@@ -25,8 +25,10 @@ const field = () => screen.getByRole("textbox") as HTMLTextAreaElement;
  * row is `rowWidth` wide and every item in it is one button wide.
  */
 const stubLayout = (rowWidth: number, itemWidth = 34) => {
+  // The measured row is the toolbar's own scroll box, not the labelled
+  // container around it — that one also holds the overflow control.
   const widthOf = (element: HTMLElement) =>
-    element.getAttribute("role") === "toolbar" ? rowWidth : itemWidth;
+    element.classList.contains("overflow-hidden") ? rowWidth : itemWidth;
   for (const property of ["offsetWidth", "clientWidth"]) {
     Object.defineProperty(HTMLElement.prototype, property, {
       configurable: true,

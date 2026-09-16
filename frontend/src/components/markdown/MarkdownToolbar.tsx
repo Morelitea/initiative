@@ -11,14 +11,7 @@ import {
   Strikethrough,
   TextQuote,
 } from "lucide-react";
-import {
-  type ComponentType,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRowCapacity } from "@/components/ui/overflow-toolbar";
 import {
   BULLET_LIST,
   cycleHeading,
@@ -148,71 +142,6 @@ const ToolbarButton = ({ item, disabled }: { item: ToolbarItem; disabled: boolea
 
 const Divider = () => <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />;
 
-/**
- * How many items of a single row fit, keeping room for the control that holds
- * the rest.
- *
- * Widths are read from the laid-out row and remembered, because an item that
- * has been put away measures nothing — and putting items away is the whole
- * point. Where there is no layout to read (a row that has not been painted, a
- * test environment), everything stays in the row: showing too much is a far
- * better failure than hiding something with nowhere to reach it.
- */
-const useRowCapacity = (count: number) => {
-  const rowRef = useRef<HTMLDivElement>(null);
-  const widths = useRef<number[]>([]);
-  const [fits, setFits] = useState(count);
-
-  const measure = useCallback(() => {
-    const row = rowRef.current;
-    if (!row) return;
-
-    const children = Array.from(row.children) as HTMLElement[];
-    for (let index = 0; index < count; index++) {
-      const width = children[index]?.offsetWidth ?? 0;
-      if (width > 0) widths.current[index] = width;
-    }
-
-    const known = widths.current.slice(0, count);
-    if (known.length < count || known.some((width) => !width)) {
-      setFits(count);
-      return;
-    }
-
-    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
-    const available = row.clientWidth;
-    const total = known.reduce((sum, width) => sum + width + gap, -gap);
-    if (total <= available) {
-      setFits(count);
-      return;
-    }
-
-    // The overflow control is exactly the first item: the same button, and no
-    // separator on either of them. So that item's width IS the control's, with
-    // nothing left over to clip a button the row thought it had room for.
-    let used = known[0] + gap;
-    let fitted = 0;
-    for (const width of known) {
-      if (used + width > available) break;
-      used += width + gap;
-      fitted += 1;
-    }
-    setFits(fitted);
-  }, [count]);
-
-  useLayoutEffect(measure, [measure]);
-
-  useEffect(() => {
-    const row = rowRef.current;
-    if (!row || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, [measure]);
-
-  return { rowRef, fits };
-};
-
 interface MarkdownToolbarProps {
   onApply: (transform: MarkdownTransform) => void;
   disabled?: boolean;
@@ -252,24 +181,28 @@ export const MarkdownToolbar = ({
     ...(tools ?? []).map((tool, index) => ({ ...tool, startsGroup: index === 0 })),
   ];
 
-  const { rowRef, fits } = useRowCapacity(items.length);
+  const { rowRef, fits } = useRowCapacity(items.map((item) => item.id));
   const overflowed = items.slice(fits);
 
   return (
     <div
-      ref={rowRef}
       role="toolbar"
       aria-label={t("markdownEditor.toolbar")}
-      className={cn("flex items-center justify-end gap-0.5 overflow-hidden", className)}
+      className={cn("flex min-w-0 items-center justify-end gap-0.5", className)}
     >
-      {items.map((item, index) => (
-        // One element per item, its separator included, so the row's children
-        // line up one-to-one with what is being measured.
-        <span key={item.id} hidden={index >= fits} className="flex shrink-0 items-center">
-          {item.startsGroup && index > 0 && <Divider />}
-          <ToolbarButton item={item} disabled={disabled} />
-        </span>
-      ))}
+      <div
+        ref={rowRef}
+        className="flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-hidden"
+      >
+        {items.map((item, index) => (
+          // One element per item, its separator included, so the row's children
+          // line up one-to-one with what is being measured.
+          <span key={item.id} hidden={index >= fits} className="flex shrink-0 items-center">
+            {item.startsGroup && index > 0 && <Divider />}
+            <ToolbarButton item={item} disabled={disabled} />
+          </span>
+        ))}
+      </div>
 
       <span hidden={overflowed.length === 0} className="flex shrink-0 items-center">
         <DropdownMenu>
