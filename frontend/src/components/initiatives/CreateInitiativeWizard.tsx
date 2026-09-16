@@ -56,13 +56,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useGrantToolsToMembers } from "@/hooks/useInitiativeRoles";
 import { useCreateInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
+import { docsUrl } from "@/lib/links";
 import { DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 /** Where the idea is explained properly, for somebody who wants more than a
  *  paragraph. Opens in its own tab: the wizard is half-filled by this point. */
-const INITIATIVES_DOC_URL = "https://morelitea.github.io/initiative/en/guides/initiatives/";
+const INITIATIVES_DOC_URL = docsUrl("guides/initiatives/");
 
 type Step = "details" | "tools" | "joining" | "members";
 

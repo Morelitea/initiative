@@ -1418,6 +1418,50 @@ async def _apply_pending_archives(session: AsyncSession) -> None:
     await session.flush()
 
 
+# A task def names the stage it wants, not a column, and a project need not
+# have a column in that stage: a project seeded today has no backlog one, so
+# every def asking for backlog has to land somewhere. Each stage lists where to
+# look next, nearest first, so the seed follows the board it was actually given
+# instead of failing the next time the defaults move.
+_CATEGORY_FALLBACKS: dict[TaskStatusCategory, tuple[TaskStatusCategory, ...]] = {
+    TaskStatusCategory.backlog: (
+        TaskStatusCategory.todo,
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.todo: (
+        TaskStatusCategory.backlog,
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.in_progress: (
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.done: (
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+    ),
+}
+
+
+def resolve_status(
+    status_map: dict[TaskStatusCategory, TaskStatus],
+    category: TaskStatusCategory,
+) -> TaskStatus:
+    """The column a task def's stage lands in on this particular board."""
+    status = status_map.get(category)
+    if status is not None:
+        return status
+    for fallback in _CATEGORY_FALLBACKS[category]:
+        status = status_map.get(fallback)
+        if status is not None:
+            return status
+    raise RuntimeError(f"project has no task status to put a {category} task in")
+
+
 async def _create_tasks(
     session: AsyncSession,
     ids: IDTracker,
@@ -1430,7 +1474,7 @@ async def _create_tasks(
     """Create tasks, their checklists, and assignees from definitions."""
     created: dict[str, Task] = {}
     for i, td in enumerate(task_defs):
-        status = status_map[td["category"]]
+        status = resolve_status(status_map, td["category"])
         due = td.get("due_days")
         start = td.get("start_days")
         task = Task(

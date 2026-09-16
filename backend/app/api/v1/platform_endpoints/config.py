@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
+from app.core.version import get_min_native_version
 from app.services.platform import app_settings as app_settings_service
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
@@ -73,6 +74,10 @@ class AppConfig(BaseModel):
     # the directory's Join button asks first; the server refuses either way, so
     # this is which question gets asked and not whether the rule applies.
     community_age_gate_enabled: bool
+    # The newest native app (APK) release this server's web bundle runs on —
+    # the release CI attached an APK to, so the landing page can offer that
+    # download by version without asking anybody's release listing.
+    min_native_version: str
 
 
 _SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
@@ -114,4 +119,5 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
+        min_native_version=get_min_native_version(),
     )

@@ -19,11 +19,12 @@ import {
   supportAvailabilityApiV1GGuildIdSupportGet,
 } from "@/api/generated/support/support";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { docsUrl } from "@/lib/links";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 /** Where somebody is sent when this community takes no help requests. */
-export const FAQ_URL = "https://morelitea.github.io/initiative/en/faq/";
+export const FAQ_URL = docsUrl("faq/");
 
 /**
  * Whether to offer the form here rather than the FAQ.

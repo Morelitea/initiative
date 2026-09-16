@@ -704,6 +704,7 @@ export interface AppConfig {
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
+  min_native_version: string;
 }
 
 export type AppDataParamLabel = { [key: string]: string };

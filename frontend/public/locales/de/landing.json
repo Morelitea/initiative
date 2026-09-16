@@ -1,83 +1,139 @@
 {
   "nav": {
     "signIn": "Anmelden",
-    "getStarted": "Loslegen"
+    "getStarted": "Community gründen",
+    "help": "Hilfe"
   },
   "hero": {
-    "tagline": "Von Gamern für Gamer entwickelt",
-    "preTitle": "Bist du bereit?",
-    "titleLine1": "WÜRFELT FÜR",
-    "titleLine2": "INITIATIVE",
-    "titleAria": "Würfelt für Initiative",
-    "subtitle": "Eine auf Communitys ausgerichtete Projektmanagement-App für Gaming-Gruppen. Erstelle deine eigene Community, lade deine Gruppe ein und meistere gemeinsam Quests.",
-    "ctaStart": "Starte dein Abenteuer",
-    "ctaSignIn": "Bei deiner Community anmelden",
-    "scroll": "Scrollen",
-    "loading": "Wird geladen..."
+    "eyebrow": "Open Source. Community zuerst.",
+    "titleLine1": "Raus aus dem Gruppenchat.",
+    "titleLine2": "Rein an einen Ort.",
+    "titleAria": "Raus aus dem Gruppenchat. Rein an einen Ort.",
+    "subtitle": "Projekte, Aufgaben, Dokumente, der Kalender – und jedes Gespräch darüber, direkt an der Sache, um die es geht. Die nächste Person findet es, ohne dass ihr jemand sagen muss, wo sie suchen soll.",
+    "ctaSignIn": "Anmelden",
+    "ctaStart": "Community gründen",
+    "invited": "Einladungslink bekommen? Einfach öffnen. Der Rest passiert von selbst.",
+    "scroll": "Schau dich um",
+    "loading": "Wird geladen …",
+    "screenshotAlt": "Die Aufgaben einer Woche über alle deine Communitys hinweg"
   },
-  "heroScreenshot": {
-    "dashboard": "Initiative-Dashboard"
+  "ribbon": {
+    "aria": "Die Arten von Gruppen, die Initiative nutzen",
+    "fete": "das Sommerfest",
+    "rota": "der Dienstplan",
+    "pta": "der Elternbeirat",
+    "dnd": "Dienstagabend D&D",
+    "shop": "der Laden",
+    "band": "die Band",
+    "festival": "die Festival-Crew",
+    "committee": "der Vereinsvorstand",
+    "dayJob": "der Job",
+    "family": "der Familienkalender",
+    "bookClub": "der Lesekreis",
+    "fiveASide": "die Hobbymannschaft"
   },
-  "stats": {
-    "initiatives": "Initiativen",
-    "initiativesValue": "Unbegrenzt",
-    "partyMembers": "Party-Mitglieder",
-    "partyMembersValue": "Keine Limits",
-    "openSource": "Open Source",
-    "openSourceValue": "Für immer",
-    "selfHosted": "Selbst gehostet",
-    "selfHostedValue": "Deine Daten"
+  "invited": {
+    "sectionLabel": "Neu hier?",
+    "title": "Jemand hat dich hinzugefügt. Und jetzt?",
+    "description": "Die meisten kommen hierher, weil ihre Gruppe schon hier ist und jemand einen Link geschickt hat. Es gibt nichts einzurichten, und du musst nicht wissen, was ein Kanban-Board ist. Wer schon mal einen Einkaufszettel geschrieben hat, ist überqualifiziert.",
+    "step1Title": "Öffne den Link, den du bekommen hast",
+    "step1Body": "Er legt dein Konto an und bringt dich direkt zu deiner Gruppe. Schon ein Konto? Dann kommt die Community einfach dazu.",
+    "step2Title": "Schau dich um",
+    "step2Body": "Alles ist schon da. Klick auf Dinge. Öffne Menüs. Schieb Sachen herum.",
+    "step3Title": "Du kannst hier nichts kaputt machen",
+    "step3Body": "Etwas gelöscht? Liegt im Papierkorb und schmollt. Eine Aufgabe irgendwohin verschoben? Schieb sie zurück. Hat niemand gesehen.",
+    "cta": "Die Fünf-Minuten-Tour"
   },
-  "features": {
-    "sectionLabel": "Arsenal",
-    "title": "Alles, was deine Party braucht",
-    "description": "Jede Community erhält einen privaten Arbeitsbereich mit Projekten, Aufgaben und Dokumenten. Ob du eine Kampagne leitest, Raid-Abende organisierst oder eine Gaming-Community verwaltest – halte alles an einem Ort.",
-    "campaignTitle": "Kampagnenverwaltung",
-    "campaignDescription": "Organisiere deine Pen-&-Paper-Kampagnen mit Leichtigkeit. Verfolge Handlungsstränge, NSCs und Plot-Hooks über mehrere Sitzungen hinweg.",
-    "partyTitle": "Party-Koordination",
-    "partyDescription": "Halte deine Gaming-Gruppe synchron. Weise Aufgaben zu, plane Sitzungen und sorge dafür, dass jeder seine Rolle kennt.",
-    "worldTitle": "Weltenbau",
-    "worldDescription": "Dokumentiere deine Lore, Karten und Weltdetails. Erschaffe reichhaltige Settings, die deine Spieler gerne erkunden.",
-    "questTitle": "Quest-Tracking",
-    "questDescription": "Verliere nie wieder Nebenquests aus den Augen. Verwalte Ziele, Belohnungen und Story-Fortschritt an einem Ort.",
-    "sessionTitle": "Sitzungsnotizen",
-    "sessionDescription": "Kollaborative Dokumente für Sitzungs-Rückblicke, Handouts für Spieler und gemeinsames Party-Wissen.",
-    "eventTitle": "Terminplanung",
-    "eventDescription": "Koordiniere Spieleabende, Raid-Termine und Community-Events. Alle bleiben auf dem gleichen Stand."
+  "tools": {
+    "sectionLabel": "Was drinsteckt",
+    "title": "Ein Werkzeug lernen, alle kennen",
+    "description": "Alles in einer Community ist ein Werkzeug. Sie werden gleich geteilt, gleich getaggt, gleich kommentiert – das zweite fühlt sich vertraut an, bevor du es geöffnet hast.",
+    "projects": "Boards, Listen und ein Kalender derselben Aufgaben. Fälligkeiten, Teilaufgaben, und die Aufgaben, die heimlich drei Aufgaben im Trenchcoat sind.",
+    "documents": "Seiten, Tabellen und Whiteboards, gemeinsam bearbeitet, mit dem Gespräch darüber direkt daran.",
+    "queues": "Wer ist dran, das Amt anzuschreiben? Niemand. Es ist immer niemand dran. Ab in die Warteschlange damit.",
+    "counterGroups": "Zähl, was du sonst an den Fingern abzählst. Verkaufte Karten, versprochene Kuchen, Stühle, die noch fehlen.",
+    "calendars": "Proben, Spieltage, die Jahreshauptversammlung. Mit Erinnerungen, damit nicht du die Erinnerung bist.",
+    "dashboards": "Ein Bildschirm mit den Zahlen drauf, lesbar vom anderen Ende einer zugigen Halle.",
+    "posts": "Ankündigungen, die bleiben, wo sie sind, statt unter vierzig Antworten wegzuscrollen.",
+    "galleries": "Fotos vom Tag, beim Tag aufbewahrt – nicht in sechs verschiedenen Handys."
   },
   "gallery": {
-    "sectionLabel": "In Aktion sehen",
-    "title": "Für deinen Workflow gemacht",
-    "projectAlt": "Projektmanagement-Ansicht",
-    "projectCaption": "Organisiere Projekte mit Boards, Listen und benutzerdefinierten Ansichten",
-    "documentAlt": "Dokument-Zusammenarbeit",
-    "documentCaption": "Arbeite gemeinsam mit deiner gesamten Community an Dokumenten"
+    "sectionLabel": "Schau es dir an",
+    "title": "So sieht es aus",
+    "tasksAlt": "Alles, was dir zugewiesen ist, über alle Communitys hinweg",
+    "tasksCaption": "Deine Woche, über alle deine Communitys",
+    "projectAlt": "Ein Projektboard",
+    "projectCaption": "Dieselben Aufgaben als Board, Tabelle oder Kalender",
+    "documentAlt": "Ein Dokument, gemeinsam bearbeitet",
+    "documentCaption": "Dokumente mit dem Gespräch direkt dran"
   },
-  "useCases": {
-    "sectionLabel": "Deine Quest wartet",
-    "title": "Deine Community, dein Stil",
-    "description": "Erstelle eine private Community für deine Gruppe. Lade Mitglieder ein, organisiere sie in Initiativen und verwaltet Projekte gemeinsam. Alle bleiben synchron und deine Daten gehören dir.",
-    "ttrpgName": "Pen-&-Paper Gruppen",
-    "ttrpgDesc": "Verwalte Kampagnen, verfolge Quests und teile Sitzungsnotizen mit deiner Abenteurergruppe.",
-    "mmoName": "MMO-Communitys",
-    "mmoDesc": "Koordiniere Raid-Termine, Beuteverteilung und Community-Events.",
-    "esportsName": "E-Sport Teams",
-    "esportsDesc": "Verfolge Trainingspläne, Turniervorbereitung und Teamziele.",
-    "communityName": "Gaming-Communities",
-    "communityDesc": "Organisiere Events, verwalte Projekte und halte deine Community bei Laune.",
-    "cta": "Erstelle deine Community"
+  "pricing": {
+    "sectionLabel": "Tarife",
+    "seeAll": "Alle Tarife und was sie freischalten",
+    "storage": "Speicher",
+    "automations": "Automatisierungen",
+    "members": "Personen",
+    "support": "Support",
+    "loading": "Preisliste wird geholt …",
+    "tierListAria": "Tarife"
+  },
+  "download": {
+    "sectionLabel": "Zum Mitnehmen",
+    "title": "Hol dir die App",
+    "description": "Sie läuft im Browser, und das für immer so zu lassen, ist eine völlig respektable Entscheidung. Aber sie kann auch ein eigenes Symbol haben, ein eigenes Fenster und – auf Android – Benachrichtigungen, die ankommen, während du nicht hinschaust.",
+    "detected": "Sieht aus, als wärst du auf {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "iPhone und iPad",
+    "platformDesktop": "einem Computer",
+    "androidTitle": "Android",
+    "androidButton": "Für Android herunterladen",
+    "androidReleases": "Alle Releases ansehen",
+    "androidNote": "Oder lass <1>Obtainium</1> die App für dich aktuell halten.",
+    "iosTitle": "iPhone und iPad",
+    "iosButton": "Zum Home-Bildschirm",
+    "iosNote": "Teilen-Knopf, dann „Zum Home-Bildschirm“. Dieselbe App, kein Store.",
+    "desktopTitle": "Computer",
+    "desktopButton": "Aus dem Browser installieren",
+    "desktopNote": "Das Installations-Symbol ganz rechts in der Adressleiste. Oder eben nicht, und du nutzt den Tab. Auch gut.",
+    "guide": "Wie die Installation funktioniert"
+  },
+  "docs": {
+    "sectionLabel": "Hilfe",
+    "title": "Finde dich zurecht",
+    "description": "Geschrieben für die Person, die zum Organisieren verdonnert wurde und insgeheim fürchtet, dass es kompliziert wird. Wird es nicht.",
+    "gettingStartedTitle": "Erste Schritte",
+    "gettingStartedBody": "Konto anlegen, zurechtfinden, deiner Gruppe beitreten.",
+    "tourTitle": "Eine kurze Tour",
+    "tourBody": "Fünf Minuten dazu, wo alles liegt.",
+    "guidesTitle": "Initiative benutzen",
+    "guidesBody": "Anleitungen für jedes Werkzeug.",
+    "faqTitle": "FAQ",
+    "faqBody": "Kurze Antworten auf die häufigsten Fragen.",
+    "adminTitle": "Für Administratoren",
+    "adminBody": "Den eigenen Server installieren, konfigurieren und pflegen.",
+    "securityTitle": "Sicherheit & Datenschutz",
+    "securityBody": "Was „sicher“ für dich bedeutet, und wie die Sachen deiner Gruppe eure bleiben."
+  },
+  "principles": {
+    "openSourceTitle": "Open Source",
+    "openSourceBody": "Lies es, ändere es, betreib es.",
+    "sameAppTitle": "Jede Funktion, in beiden Varianten",
+    "sameAppBody": "Nichts wird für zahlende Kunden zurückgehalten.",
+    "oneLoginTitle": "Ein Login",
+    "oneLoginBody": "Jede Community, in der du bist, mit demselben Konto.",
+    "yourDataTitle": "Deine Daten bleiben deine",
+    "yourDataBody": "Exportieren, löschen, woanders hin mitnehmen."
   },
   "cta": {
-    "title": "Bereit zum <1>Level-up</1>?",
-    "titleReady": "Bereit zum",
-    "titleHighlight": "Level-up",
-    "description": "Schließe dich Gaming-Gruppen an, die Initiative bereits nutzen, um organisiert zu bleiben und gemeinsam mehr Spaß zu haben.",
-    "button": "Kostenlos loslegen"
+    "title": "Wann immer du bereit bist.",
+    "description": "Melde dich an, wenn deine Gruppe schon hier ist. Gründe eine Community, wenn nicht.",
+    "signIn": "Anmelden",
+    "start": "Community gründen"
   },
   "footer": {
-    "copyright": "© {{year}} Initiative. Würfle hoch, bleib organisiert."
-  },
-  "screenshot": {
-    "placeholder": "Screenshot"
+    "copyright": "© {{year}} Initiative. Open Source, und das bleibt so.",
+    "docs": "Hilfe-Center",
+    "source": "Quellcode",
+    "changelog": "Was ist neu"
   }
 }
