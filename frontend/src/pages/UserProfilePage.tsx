@@ -1,15 +1,18 @@
 import { useParams } from "@tanstack/react-router";
-import { UserX } from "lucide-react";
+import { Flag, UserX } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
+import { ReportDialog } from "@/components/moderation/ReportDialog";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { ProfilePageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { UserHandle } from "@/components/UserHandle";
+import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileJoined } from "@/components/user/ProfileJoined";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
@@ -42,9 +45,11 @@ import { cn } from "@/lib/utils";
  * themselves rather than two that have to agree.
  */
 export const UserProfilePage = () => {
-  const { t } = useTranslation(["profiles", "common"]);
+  const { t } = useTranslation(["profiles", "common", "moderation"]);
   const { handle } = useParams({ strict: false }) as { handle: string };
   const { user } = useAuth();
+
+  const [isReporting, setIsReporting] = useState(false);
 
   const { data: profile, isLoading, refetch } = useUserProfile(handle);
   const { data: communities } = useUserCommunities(handle);
@@ -118,7 +123,27 @@ export const UserProfilePage = () => {
                     discriminator: profile.discriminator,
                   }}
                 />
+                {/* A profile belongs to no community, so a report about one
+                    reaches whoever runs the deployment rather than anybody's
+                    moderators. The reporter is not told that, or anything else
+                    about where it went. */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("moderation:report.action")}
+                  onClick={() => setIsReporting(true)}
+                >
+                  <Flag className="h-4 w-4" />
+                </Button>
               </div>
+            )}
+            {isReporting && (
+              <ReportDialog
+                open={isReporting}
+                onOpenChange={setIsReporting}
+                targetType="user_profile"
+                targetId={profile.id}
+              />
             )}
           </div>
         </div>

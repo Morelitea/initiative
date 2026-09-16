@@ -1,11 +1,13 @@
-import { Pencil, Reply, Trash2 } from "lucide-react";
+import { Flag, Pencil, Reply, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
+import { ReportDialog } from "@/components/moderation/ReportDialog";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 
@@ -78,12 +80,14 @@ export const CommentThread = ({
   docTitles = new Map(),
   projectNames = new Map(),
 }: CommentThreadProps) => {
-  const { t } = useTranslation(["comments", "common"]);
+  const { t } = useTranslation(["comments", "common", "moderation"]);
   const relativeCreatedAt = useRelativeTime(comment.created_at);
+  const activeGuildId = useActiveGuildId();
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
+  const [isReporting, setIsReporting] = useState(false);
 
   const anonymizedAuthor = isAnonymizedUser(comment.author);
   const displayName = comment.author
@@ -91,6 +95,9 @@ export const CommentThread = ({
     : `User #${comment.created_by}`;
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
+  // Everyone but the author: reporting your own words is not a thing to do,
+  // and deleting them is right there instead.
+  const canReport = Boolean(currentUserId) && currentUserId !== comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
   const isEdited = Boolean(comment.updated_at);
 
@@ -173,9 +180,30 @@ export const CommentThread = ({
                       <span className="sr-only">{t("deleteComment")}</span>
                     </Button>
                   )}
+                  {canReport && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setIsReporting(true)}
+                    >
+                      <Flag className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="sr-only">{t("moderation:report.action")}</span>
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
+            {isReporting && (
+              <ReportDialog
+                open={isReporting}
+                onOpenChange={setIsReporting}
+                targetType="comment"
+                targetId={comment.id}
+                guildId={activeGuildId}
+              />
+            )}
             <div className="mt-2 text-foreground text-sm">
               {isEditing ? (
                 <CommentInput

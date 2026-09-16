@@ -56,5 +56,17 @@
     "newer": "Plus récents",
     "older": "Plus anciens",
     "page": "Page {{page}}"
+  },
+  "report": {
+    "action": "Signaler",
+    "title": "Signaler ceci",
+    "description": "Dites aux personnes qui s'en occupent ce qui ne va pas. Elles verront ce que vous écrivez.",
+    "reasonLabel": "Qu'est-ce qui ne va pas ?",
+    "reasonPlaceholder": "Choisissez un motif",
+    "detailLabel": "Autre chose ?",
+    "detailPlaceholder": "Ce que vous voulez leur dire (facultatif)",
+    "submit": "Envoyer le signalement",
+    "thanks": "Merci — quelqu'un va regarder.",
+    "error": "Impossible d'envoyer ce signalement."
   }
 }

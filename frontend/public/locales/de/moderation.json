@@ -56,5 +56,17 @@
     "newer": "Neuer",
     "older": "Älter",
     "page": "Seite {{page}}"
+  },
+  "report": {
+    "action": "Melden",
+    "title": "Das melden",
+    "description": "Sag den Zuständigen, was nicht stimmt. Sie sehen, was du schreibst.",
+    "reasonLabel": "Was stimmt nicht?",
+    "reasonPlaceholder": "Grund auswählen",
+    "detailLabel": "Sonst noch etwas?",
+    "detailPlaceholder": "Was sie wissen sollten (optional)",
+    "submit": "Meldung senden",
+    "thanks": "Danke — jemand sieht sich das an.",
+    "error": "Die Meldung konnte nicht gesendet werden."
   }
 }
