@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from io import BytesIO
 from typing import Annotated
 from uuid import uuid4
+from xml.etree.ElementTree import ParseError, iterparse
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
@@ -47,6 +49,16 @@ ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
+def _has_svg_root(contents: bytes) -> bool:
+    """Return whether the first XML element is an SVG root element."""
+    try:
+        for _, element in iterparse(BytesIO(contents), events=("start",)):
+            return element.tag in {"svg", "{http://www.w3.org/2000/svg}svg"}
+    except (ParseError, ValueError):
+        return False
+    return False
+
+
 @router.post(
     "/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED
 )
@@ -76,12 +88,8 @@ async def upload_attachment(
         )
 
     # Detect image format from magic bytes (imghdr was removed in Python 3.13)
-    stripped = contents.lstrip()
-    is_svg = stripped.startswith(b"<svg") or (
-        stripped.startswith(b"<?xml") and b"<svg" in stripped[:1024]
-    )
     detected_format: str | None = None
-    if is_svg:
+    if _has_svg_root(contents):
         detected_format = "svg"
     elif contents[:8] == b"\x89PNG\r\n\x1a\n":
         detected_format = "png"
@@ -101,10 +109,7 @@ async def upload_attachment(
             detail=AttachmentMessages.INVALID_IMAGE,
         )
 
-    # The URL suffix drives the serving policy for active formats, while the
-    # stored MIME type drives S3 streaming responses. Derive both from the
-    # bytes; a caller-controlled filename or Content-Type must not make those
-    # two security decisions disagree.
+    # Use the detected format consistently for the stored name and media type.
     filename = f"{uuid4().hex}.{detected_format}"
 
     try:
