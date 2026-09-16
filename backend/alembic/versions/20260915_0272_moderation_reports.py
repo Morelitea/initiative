@@ -145,14 +145,10 @@ def _apply_upgrade() -> None:
         sa.Column("reporter_id", sa.Integer(), nullable=False),
         sa.Column("reported_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("detail", sa.Text(), nullable=True),
+        # Leads on report_id, so it also serves reading one report's reporters.
         sa.UniqueConstraint(
             "report_id", "reporter_id", name="uq_moderation_report_reporter"
         ),
-    )
-    op.create_index(
-        "ix_moderation_report_reporters_report",
-        "moderation_report_reporters",
-        ["report_id"],
     )
 
 

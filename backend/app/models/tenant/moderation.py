@@ -46,12 +46,14 @@ class ModerationReport(SQLModel, table=True):
             Integer, ForeignKey("guilds.id", ondelete="CASCADE"), nullable=False
         )
     )
+    # No index of its own: the migration's (initiative_id, outcome,
+    # reported_at DESC) index leads on this column and answers both the
+    # moderator's list and the open-report lookup.
     initiative_id: int = Field(
         sa_column=Column(
             Integer,
             ForeignKey("initiatives.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         )
     )
 
@@ -101,12 +103,13 @@ class ModerationReportReporter(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    # No index of its own: the unique constraint above leads on this column,
+    # which is what reading a report's reporters looks up.
     report_id: int = Field(
         sa_column=Column(
             Integer,
             ForeignKey("moderation_reports.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         )
     )
     #: Weak ref, no FK — an erased account leaves a dangling id rather than a

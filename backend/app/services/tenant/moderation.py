@@ -21,8 +21,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import text
-from sqlmodel import select
+from sqlalchemy import Table, select as sa_select, text
+from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
@@ -38,6 +38,7 @@ from app.core.moderation import (
 )
 from app.core.search import SearchEntityType
 from app.db.session import set_rls_context
+from app.models.platform import user_profile_view
 from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.services.platform.intake import CaseRefs, open_case
@@ -54,6 +55,19 @@ class ReportFiled:
         self.venue = venue
 
 
+def public_relation(name: str) -> Table:
+    """The table object for a relation ``PLATFORM_TARGET_RELATION`` names.
+
+    Two registries are asked in turn because ``user_profiles`` is a view, and a
+    view deliberately keeps its own metadata rather than sitting among the
+    models. Asking both is what keeps this from being a second list saying
+    which relation is which. ``moderation_test`` resolves every entry, so a
+    target added later cannot name a relation that is not there.
+    """
+    view = user_profile_view.metadata.tables.get(f"public.{name}")
+    return view if view is not None else SQLModel.metadata.tables[name]
+
+
 async def _resolve_initiative(
     session: AsyncSession, target: SearchEntityType, target_id: int
 ) -> Optional[tuple[int, int]]:
@@ -64,27 +78,32 @@ async def _resolve_initiative(
     the same declaration the table's policies are rendered from, so a target's
     venue and its access gate cannot answer differently.
 
-    Runs on a session routed into the guild as admin: placing a report needs to
-    reach a row the reporter may not own. It reads **ids only**.
+    Runs on the reporter's own session, so what they can see decides what
+    resolves. It reads **ids only**.
+
+    The query is built from the table's own column objects and one bound id —
+    the shape ``app.db.reference_targets`` already uses to ask the registry the
+    same question — so the only text in it is the registry's own expression.
     """
     from app.db.initiative_rls import INITIATIVE_PATHS
 
-    table = target_table(target)
-    path = INITIATIVE_PATHS.get(table)
-    if path is None:
+    table_name = target_table(target)
+    path = INITIATIVE_PATHS.get(table_name)
+    relation = SQLModel.metadata.tables.get(table_name)
+    if path is None or relation is None or "guild_id" not in relation.c:
         return None
 
     row = (
         await session.exec(
-            text(  # noqa: S608 — table and expression come from the registry
-                f"SELECT t.guild_id, {path.initiative_expr('t')} AS initiative_id "
-                f"FROM {table} t WHERE t.id = :target_id"
-            ).bindparams(target_id=target_id)
+            sa_select(
+                relation.c["guild_id"],
+                text(path.initiative_expr(table_name)),
+            ).where(relation.c["id"] == target_id)
         )
     ).first()
-    if row is None or row.initiative_id is None:
+    if row is None or row[1] is None:
         return None
-    return int(row.guild_id), int(row.initiative_id)
+    return int(row[0]), int(row[1])
 
 
 async def file_report(
@@ -286,20 +305,11 @@ async def _platform_target_visible(
     and a row that is not there answer identically, and reporting reaches
     exactly as far as looking does. The community half works the same way.
     """
-    relation = PLATFORM_TARGET_RELATION[target]
-    clause = (
-        " AND is_community IS TRUE"
-        if target is PlatformReportTarget.directory_listing
-        else ""
-    )
-    found = (
-        await reporter_session.exec(
-            text(  # noqa: S608 — the relation comes from the registry above
-                f"SELECT 1 FROM public.{relation} WHERE id = :target_id{clause}"
-            ).bindparams(target_id=target_id)
-        )
-    ).first()
-    return found is not None
+    relation = public_relation(PLATFORM_TARGET_RELATION[target])
+    stmt = sa_select(relation.c["id"]).where(relation.c["id"] == target_id)
+    if target is PlatformReportTarget.directory_listing:
+        stmt = stmt.where(relation.c["is_community"].is_(True))
+    return (await reporter_session.exec(stmt)).first() is not None
 
 
 async def _open_platform_case(
