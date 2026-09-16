@@ -450,9 +450,7 @@ async def resolve_delegated_member(
             if row is None:
                 return None
             # Then the install, which lives in the guild's own schema.
-            await db_session.set_rls_context(
-                session, guild_id=guild_id, guild_role="admin"
-            )
+            await db_session.set_rls_context(session, guild_id=guild_id)
             # The reference resolved — now check it was minted for *this*
             # app's install.
             install = (
