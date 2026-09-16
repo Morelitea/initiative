@@ -224,7 +224,12 @@ export const LANDING_KEYFRAMES = `
     0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
     50% { transform: translateY(-10px) rotate(var(--tilt, 0deg)); }
   }
+  /* The header's in-page links glide rather than jump. Scoped to the landing
+     page by living in its own style block, and dropped for anybody who has
+     asked the system for less movement. */
+  html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
     .landing-ribbon__track { animation: none !important; }
     .landing-float { animation: none !important; }
   }

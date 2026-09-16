@@ -77,6 +77,28 @@ const CATALOG = {
   footnotes: {},
 };
 
+const PLATINUM = {
+  id: "obsidian",
+  name: "Obsidian",
+  kind: "enterprise",
+  tagline: "Whatever you need it to be",
+  audience: "Tell us what the job is and we'll price it.",
+  highlight: false,
+  badge: null,
+  price: { base_monthly: null, display: "Contact sales", sub_display: "annual invoicing" },
+  limits: { storage_display: "Custom", automations_display: "Custom" },
+  support: "Dedicated account manager",
+  features: [],
+  feature_keys: [],
+  cta: { kind: "contact", label: "Talk to us", note: "We answer within a business day." },
+};
+
+/** The full ladder: a self-hosted rung, two ordinary plans, an enterprise one. */
+const LADDER = { ...CATALOG, tiers: [...CATALOG.tiers, PLATINUM] };
+
+const layoutOf = (tierId: string) =>
+  document.querySelector(`[data-tier="${tierId}"]`)?.getAttribute("data-layout");
+
 const stubConfig = (billing: { url: string } | null) =>
   http.get("/api/v1/config", () =>
     HttpResponse.json({
@@ -159,6 +181,33 @@ describe("LandingCinematic", () => {
     }
   });
 
+  it("offers Pricing in the header once there is a price book to scroll to", async () => {
+    server.use(stubConfig({ url: PORTAL }), stubCatalog(LADDER));
+    renderLanding();
+
+    const pricing = await screen.findByRole("link", { name: landing.nav.pricing });
+    expect(pricing).toHaveAttribute("href", "#pricing");
+    // And the anchor it names is really there.
+    expect(document.querySelector("#pricing")).not.toBeNull();
+  });
+
+  it("offers no Pricing link on a deployment with no portal", async () => {
+    renderLanding();
+
+    await screen.findByTestId("android-apk");
+    expect(screen.queryByRole("link", { name: landing.nav.pricing })).not.toBeInTheDocument();
+  });
+
+  it("offers no Pricing link when the portal cannot be reached", async () => {
+    server.use(stubConfig({ url: PORTAL }), stubCatalog({ detail: "down" }, 503));
+    renderLanding();
+
+    await screen.findByTestId("android-apk");
+    await waitFor(() => {
+      expect(screen.queryByRole("link", { name: landing.nav.pricing })).not.toBeInTheDocument();
+    });
+  });
+
   it("links the help center pages", async () => {
     renderLanding();
 
@@ -211,6 +260,23 @@ describe("LandingCinematic", () => {
       expect(
         screen.getByRole("link", { name: new RegExp(landing.pricing.seeAll) })
       ).toHaveAttribute("href", portalPricingUrl(PORTAL));
+    });
+
+    it("gives the atypical plans a band of their own, above and below the row", async () => {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog(LADDER));
+      renderLanding();
+
+      const plans = await screen.findByRole("list", { name: landing.pricing.tierListAria });
+      const order = [...plans.querySelectorAll("[data-tier]")].map((el) =>
+        el.getAttribute("data-tier")
+      );
+      // Running it yourself leads, the enterprise conversation trails, and the
+      // plans that actually compare against each other sit between them.
+      expect(order).toEqual(["self_hosted", "pewter", "brass", "obsidian"]);
+      expect(layoutOf("self_hosted")).toBe("banner");
+      expect(layoutOf("obsidian")).toBe("banner");
+      expect(layoutOf("pewter")).toBe("card");
+      expect(layoutOf("brass")).toBe("card");
     });
 
     it("sends a free plan's sign-up to the login page when registration is closed", async () => {

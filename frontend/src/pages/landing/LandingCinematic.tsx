@@ -37,6 +37,7 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { Button } from "@/components/ui/button";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
+import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useTheme } from "@/hooks/useTheme";
 import { CHANGELOG_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOL_ICONS, TOOLS, toolCamelPlural, toolNavLabelKey } from "@/lib/tools";
@@ -146,6 +147,9 @@ export const LandingCinematic = () => {
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
   const { billing, config } = useAppConfig();
+  // Owned here rather than inside the section: the header only offers Pricing
+  // once there is a price book to scroll to.
+  const catalog = useBillingCatalog(billing?.url);
   const router = useRouter();
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -273,6 +277,15 @@ export const LandingCinematic = () => {
             <span className="pride-wordmark">initiative</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-3">
+            {catalog.data && (
+              <Button
+                variant="ghost"
+                className="hidden text-foreground/80 hover:text-foreground sm:inline-flex"
+                asChild
+              >
+                <a href="#pricing">{t("nav.pricing")}</a>
+              </Button>
+            )}
             <Button
               variant="ghost"
               className="hidden text-foreground/80 hover:text-foreground sm:inline-flex"
@@ -681,9 +694,10 @@ export const LandingCinematic = () => {
       {/* ================================================================== */}
       {/* Plans — only where there is a portal to describe them */}
       {/* ================================================================== */}
-      {billing && (
+      {billing && !catalog.isError && (
         <PricingSection
           portalUrl={billing.url}
+          catalog={catalog.data}
           isDark={isDark}
           registrationOpen={registrationOpen}
         />
