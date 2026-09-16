@@ -30,10 +30,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_constraint("uq_users_email_hash", "users", type_="unique")
-    op.drop_column("users", "email_hash")
-    op.drop_column("users", "email_encrypted")
-    op.drop_column("users", "email_verified")
+    # ``IF EXISTS`` throughout: what this revision asserts is the end state, and
+    # a database that already reached it — one that ran this revision under an
+    # earlier number while it was being written — arrives here with nothing
+    # left to drop. A removal that insisted on finding them would stop such a
+    # database on a difference that does not matter.
+    op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS uq_users_email_hash")
+    for column in ("email_hash", "email_encrypted", "email_verified"):
+        op.execute(f"ALTER TABLE users DROP COLUMN IF EXISTS {column}")
 
 
 def downgrade() -> None:
