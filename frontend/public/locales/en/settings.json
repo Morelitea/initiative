@@ -997,7 +997,7 @@
         },
         "require_sign_in": {
           "label": "Requiring a sign-in",
-          "help": "Let their admins insist members arrive through one of those providers. Independent of the setting above — a community can offer its provider without insisting on it."
+          "help": "Let their admins insist members arrive through one of those providers. A separate grant — a community can offer its provider without insisting on it."
         }
       },
       "usersLabel": "Members",

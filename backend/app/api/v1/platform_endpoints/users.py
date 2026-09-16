@@ -1669,6 +1669,26 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=UserMessages.NOT_IN_GUILD
         )
 
+    # Removing the seat-holder ends the seat exactly as demoting them does, so
+    # it answers to the same authority: only the seat passes the seat on.
+    if (
+        membership.role == GuildRole.security_admin
+        and guild_context.role != GuildRole.security_admin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+    # And the seat stays filled for as long as the guild requires a sign-in:
+    # the requirement is lifted from the surface the seat holds.
+    if await guilds_service.must_keep_security_admin(
+        admin_session, guild_id=guild_context.guild_id, user_id=user_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+        )
+
     await initiatives_service.remove_user_from_guild_initiatives(
         session,
         guild_id=guild_context.guild_id,

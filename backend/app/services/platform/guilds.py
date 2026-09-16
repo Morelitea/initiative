@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -1478,6 +1479,57 @@ async def describe_invite_code(
     elif invite.max_uses is not None and invite.uses >= invite.max_uses:
         reason = GuildMessages.INVITE_USED
     return invite, guild, False, reason
+
+
+async def must_keep_security_admin(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    lock: bool = False,
+) -> bool:
+    """Whether this member's seat has to stay where it is.
+
+    True only when all three hold: they hold ``security_admin``, they are the
+    only one who does, and the guild requires a sign-in. The requirement is
+    lifted from the guild's own sign-in surface and that surface is the seat's,
+    so the last holder stays for as long as the requirement does.
+
+    A guild with no requirement empties the seat freely — the common case, and
+    deliberately untouched.
+
+    Ask this on the system engine: ``guild_auth_policies`` carries no
+    request-path grants.
+
+    ``lock`` takes the seat rows ``FOR UPDATE``, which narrows a race with a
+    concurrent role change only when the caller goes on to write in this same
+    transaction. Callers whose write lands on another engine leave it off:
+    the lock would not cover their write and would hold the rows against it.
+    Like ``users.is_last_admin_of_guild`` it cannot lock a row a concurrent
+    transaction has yet to insert.
+    """
+    membership = await get_membership(
+        session, guild_id=guild_id, user_id=user_id, for_update=lock
+    )
+    if membership is None or membership.role != GuildRole.security_admin:
+        return False
+
+    policy = await session.get(GuildAuthPolicy, guild_id)
+    if policy is None or policy.policy == "open":
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+                GuildMembership.role == GuildRole.security_admin,
+            )
+        )
+    ).one()
+    return others == 0
 
 
 async def remove_user_from_guild(

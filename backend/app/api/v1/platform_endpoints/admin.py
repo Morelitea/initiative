@@ -1030,6 +1030,20 @@ async def admin_update_guild_member_role(
                 detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
 
+    # The seat cannot be emptied while the guild requires a sign-in: lifting the
+    # requirement happens on the surface the seat holds.
+    if (
+        target_membership.role == GuildRole.security_admin
+        and payload.role != GuildRole.security_admin
+        and await guilds_service.must_keep_security_admin(
+            session, guild_id=guild_id, user_id=user_id, lock=True
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+        )
+
     previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)

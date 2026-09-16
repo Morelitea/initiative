@@ -1008,7 +1008,7 @@
         },
         "require_sign_in": {
           "label": "Anmeldung verlangen",
-          "help": "Erlaubt ihren Admins zu verlangen, dass Mitglieder über einen dieser Anbieter kommen. Unabhängig von der Einstellung oben — eine Community kann ihren Anbieter anbieten, ohne ihn zu verlangen."
+          "help": "Erlaubt ihren Admins zu verlangen, dass Mitglieder über einen dieser Anbieter kommen. Eine eigene Freigabe — eine Community kann ihren Anbieter anbieten, ohne ihn zu verlangen."
         }
       },
       "usersLabel": "Mitglieder",

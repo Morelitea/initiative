@@ -1008,7 +1008,7 @@
         },
         "require_sign_in": {
           "label": "Exigir un inicio de sesión",
-          "help": "Permite que sus administradores exijan que los miembros entren por uno de esos proveedores. Independiente del ajuste anterior: una comunidad puede ofrecer su proveedor sin exigirlo."
+          "help": "Permite que sus administradores exijan que los miembros entren por uno de esos proveedores. Es un permiso aparte: una comunidad puede ofrecer su proveedor sin exigirlo."
         }
       },
       "usersLabel": "Miembros",

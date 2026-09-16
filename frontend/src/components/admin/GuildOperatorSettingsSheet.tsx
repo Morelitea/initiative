@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { cn } from "@/lib/utils";
 
 const GIB = 1024 ** 3;
 
@@ -65,13 +66,21 @@ const SettingRow = ({
   help,
   htmlFor,
   control,
+  nested = false,
 }: {
   label: string;
   help: string;
   htmlFor?: string;
   control: React.ReactNode;
+  /** Renders indented under the row above, for a setting that reads as part of it. */
+  nested?: boolean;
 }) => (
-  <div className="flex items-start justify-between gap-6 py-3">
+  <div
+    className={cn(
+      "flex items-start justify-between gap-6 py-3",
+      nested && "ml-3 border-border border-l pl-4"
+    )}
+  >
     <div className="space-y-1">
       <Label htmlFor={htmlFor} className="font-medium">
         {label}
@@ -234,6 +243,7 @@ export const GuildOperatorSettingsSheet = ({
             {(["providers", "require_sign_in"] as const).map((option) => (
               <SettingRow
                 key={option}
+                nested={option === "require_sign_in"}
                 label={t(`guilds.sheet.authOption.${option}.label`)}
                 help={t(`guilds.sheet.authOption.${option}.help`)}
                 htmlFor={`guild-auth-${option}`}

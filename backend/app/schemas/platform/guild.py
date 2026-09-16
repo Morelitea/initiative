@@ -377,15 +377,20 @@ class GuildMembershipUpdate(SanitizedBaseModel):
 class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     """Response for checking if a user can leave a guild.
 
-    Being the guild's last admin is the only thing that stops them. Content they
-    own is released on the way out and left unowned for a guild admin to claim,
-    so there is nothing to hand over first.
+    Two things stop them, and the caller is told which. Being the guild's last
+    admin is one. Holding its only security admin seat while the guild requires
+    a sign-in is the other — the requirement is lifted from the surface that
+    seat holds, so the seat stays for as long as the requirement does.
+
+    Content they own is released on the way out and left unowned for a guild
+    admin to claim, so there is nothing to hand over first.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
     is_last_admin: bool
+    is_last_security_admin: bool = False
 
 
 class CommunityGuildRead(SanitizedBaseModel):

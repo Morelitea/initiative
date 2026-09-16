@@ -68,6 +68,31 @@ def require_guild_admin(guild_role: GuildRole) -> None:
         )
 
 
+def is_guild_security_admin(guild_role: GuildRole) -> bool:
+    """Whether the role holds the guild's sign-in configuration.
+
+    Exact, not "or above": ``security_admin`` is the top of the guild ladder,
+    and an ordinary ``admin`` answers no here even though it answers yes to
+    :func:`is_guild_admin`. Running a community and deciding who may enter it
+    are separate jobs, and this is the predicate for the second.
+    """
+    return guild_role == GuildRole.security_admin
+
+
+def require_guild_security_admin(guild_role: GuildRole) -> None:
+    """Raise HTTPException(403) unless the role holds the seat.
+
+    Use this for the guild's sign-in configuration — its identity providers
+    and the requirement for entering it. Every other guild-admin operation
+    wants :func:`require_guild_admin`.
+    """
+    if not is_guild_security_admin(guild_role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_SECURITY_ADMIN_REQUIRED,
+        )
+
+
 async def get_guild_membership(
     session: AsyncSession,
     *,

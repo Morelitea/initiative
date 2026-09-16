@@ -1008,7 +1008,7 @@
         },
         "require_sign_in": {
           "label": "Exiger une connexion",
-          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. Indépendant du réglage ci-dessus : une communauté peut proposer son fournisseur sans l'imposer."
+          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. C'est une autorisation distincte : une communauté peut proposer son fournisseur sans l'imposer."
         }
       },
       "usersLabel": "Membres",
