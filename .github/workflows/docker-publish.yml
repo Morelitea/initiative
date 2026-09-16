@@ -108,58 +108,44 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      # Signing material lands in RUNNER_TEMP, never in the workspace, and is
-      # read from a properties file rather than the command line.
+      # The keystore lands in RUNNER_TEMP, never in the workspace, and signing
+      # passwords reach Gradle through its environment-property interface.
       #
       # Two separate reasons, and the second is the one that is easy to miss:
       #
-      #   * a file under `frontend/android` is inside the checkout, so every
-      #     later step of this job can read it -- including anything a
-      #     dependency's build script decides to run -- and any artifact glob
-      #     that widens by one character uploads it;
+      #   * a file under `frontend/android` is inside the checkout, where an
+      #     artifact glob that widens by one character can upload it;
       #   * a `-P` flag is an ARGUMENT, so the value is in the process table
       #     for the life of the build and in any log that echoes the command
       #     line it ran. Log masking does not reach either place.
       #
-      # Secrets arrive through `env:` so they are never substituted into the
-      # script text, and reach Gradle through GRADLE_USER_HOME/gradle.properties.
-      # See T61.
+      # This limits accidental disclosure; it does not make the keystore
+      # unreadable to Gradle or other code in this job, which runs as the same
+      # OS user. Secrets arrive through `env:` so they are never substituted
+      # into script text. See T61.
       - name: Stage signing material outside the workspace
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           # Restrict before creating anything, not after: between a create and
           # a chmod there is a window in which the file is world-readable.
           umask 077
           signing_dir="$RUNNER_TEMP/signing"
-          mkdir -p "$signing_dir/gradle"
+          mkdir -p "$signing_dir"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$signing_dir/release.jks"
-          # printf, not a heredoc: an unquoted heredoc expands `$` inside the
-          # value, and a password is exactly the kind of string that contains
-          # one. Backslashes are doubled because this is a Java properties
-          # file, where a backslash is the escape character -- a password
-          # ending in one would otherwise swallow the newline after it. A
-          # LEADING space is escaped too: a properties reader skips whitespace
-          # between the separator and the value, so a password beginning with
-          # one would silently arrive shorter than it was set.
-          esc() { local v="${1//\\/\\\\}"; printf '%s' "${v/# /\\ }"; }
-          {
-            printf 'android.injected.signing.store.file=%s\n' "$(esc "$signing_dir/release.jks")"
-            printf 'android.injected.signing.store.password=%s\n' "$(esc "$KEYSTORE_PASSWORD")"
-            printf 'android.injected.signing.key.alias=%s\n' "$(esc "$KEY_ALIAS")"
-            printf 'android.injected.signing.key.password=%s\n' "$(esc "$KEY_PASSWORD")"
-          } > "$signing_dir/gradle/gradle.properties"
-          echo "GRADLE_USER_HOME=$signing_dir/gradle" >> "$GITHUB_ENV"
 
       - name: Build signed APK
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         working-directory: frontend/android
-        run: ./gradlew assembleRelease
+        env:
+          ORG_GRADLE_PROJECT_android.injected.signing.store.password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_android.injected.signing.key.alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_android.injected.signing.key.password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/signing/release.jks"
 
       - name: Build unsigned APK (fallback)
         if: ${{ env.HAS_KEYSTORE != 'true' }}

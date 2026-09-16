@@ -362,3 +362,6 @@ jobs:
 
       - name: Test the git identity guard
         run: ./scripts/git-identity-guard_test.sh
+
+      - name: Test Android signing workflow invariants
+        run: python3 scripts/ci/android_signing_workflow_test.py
