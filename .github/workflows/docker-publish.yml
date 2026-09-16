@@ -55,12 +55,21 @@ jobs:
     needs: decide
     if: ${{ needs.decide.outputs.build_android == 'true' }}
     runs-on: ubuntu-latest
+    environment: android-release
     permissions:
       contents: read
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
+      # A tag build publishes to the release, so it has to sign. Checked before
+      # the toolchain is installed so the job ends in seconds.
+      - name: Require signing on release tags
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_KEYSTORE != 'true' }}
+        run: |
+          echo "::error::This is a release tag, but no signing keystore reached the job."
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -139,10 +148,6 @@ jobs:
 
       - name: Verify the APK signature
         if: ${{ env.HAS_KEYSTORE == 'true' }}
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          EXPECTED_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
         run: |
           set -euo pipefail
           umask 077
@@ -166,26 +171,14 @@ jobs:
           "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/signing/apk-certs.txt"
           apk_cert=$(awk '/certificate SHA-256 digest/ { print $NF; exit }' \
             "$RUNNER_TEMP/signing/apk-certs.txt" | normalise)
+          expected=$(normalise < "$GITHUB_WORKSPACE/.github/android-release-cert.sha256")
 
-          printf '%s\n' "$KEYSTORE_PASSWORD" \
-            | keytool -list -v -keystore "$RUNNER_TEMP/signing/release.jks" -alias "$KEY_ALIAS" \
-            > "$RUNNER_TEMP/signing/keystore-certs.txt"
-          keystore_cert=$(awk '/SHA256:/ { print $2; exit }' \
-            "$RUNNER_TEMP/signing/keystore-certs.txt" | normalise)
-
-          if [ -z "$apk_cert" ] || [ "$apk_cert" != "$keystore_cert" ]; then
-            echo "::error::The APK is not signed by the staged release key."
+          if [ -z "$apk_cert" ] || [ "$apk_cert" != "$expected" ]; then
+            echo "::error::The APK is signed by '$apk_cert', not the certificate recorded in"
+            echo "::error::.github/android-release-cert.sha256 ('$expected')."
             exit 1
           fi
-
-          if [ -n "$EXPECTED_CERT_SHA256" ]; then
-            if [ "$apk_cert" != "$(printf '%s' "$EXPECTED_CERT_SHA256" | normalise)" ]; then
-              echo "::error::The APK signature does not match ANDROID_SIGNING_CERT_SHA256."
-              exit 1
-            fi
-          else
-            echo "::warning::Set ANDROID_SIGNING_CERT_SHA256 to $apk_cert to pin the release key."
-          fi
+          echo "APK certificate matches .github/android-release-cert.sha256."
 
       # Which artifact ships follows from how the job was configured, not from
       # which file happens to be on disk.
