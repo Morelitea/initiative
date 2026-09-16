@@ -23,8 +23,8 @@ now one of the questions this rule answers, so ``username`` and
 ``discriminator`` join them. Both are the public handle; nothing else on that
 table moves.
 
-Revision ID: 20260916_0278
-Revises: 20260915_0277
+Revision ID: 20260916_0280
+Revises: 20260916_0279
 Create Date: 2026-09-16
 """
 
@@ -37,8 +37,8 @@ def _platform_base() -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
 
 
-revision = "20260916_0278"
-down_revision = "20260915_0277"
+revision = "20260916_0280"
+down_revision = "20260916_0279"
 branch_labels = None
 depends_on = None
 
