@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
 from app.core.encryption import hash_email
-from app.db.session import set_rls_context
+from app.db.session import set_rls_context, set_system_guild_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
@@ -428,8 +428,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     all_guild_ids = list((await session.exec(select(Guild.id))).all())
     for gid in all_guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         # Drop the user's AI credentials (member API keys) + connection
         # preference in this guild — the encrypted keys are a secret we must not
         # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
@@ -701,7 +702,9 @@ async def hard_delete_user(
         # text (@-mentions in comments, document mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))

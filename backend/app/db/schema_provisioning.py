@@ -122,6 +122,18 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     "guild_app_user_delegations",
 )
 
+# Direct grants for the one guild-scoped lifecycle operation that must ignore
+# tenant visibility rules: removing an account's embedded display name. The
+# system login can already assume every guild role, so this adds no reachable
+# guild; it lets that narrowly bounded maintenance retain app_admin's BYPASSRLS
+# identity instead of expanding the comments UPDATE through every RLS path.
+SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, str] = {
+    "comments": "SELECT, UPDATE",
+    "documents": "SELECT, UPDATE",
+    "posts": "SELECT, UPDATE",
+    "task_assignment_digest_items": "SELECT, UPDATE",
+}
+
 
 # The platform privilege ladder, least -> most. Positional mapping from
 # ``users.role`` (an enum with these exact values). The migration creates one
@@ -375,6 +387,13 @@ def _grant_statements(
     "no member/permission management" line.
     """
     stmts = [
+        # Account-erasure maintenance: direct, table-bounded access lets the
+        # app_admin login retain BYPASSRLS while it removes embedded names.
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{ADMIN_LOGIN_ROLE}"',
+        *(
+            f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{ADMIN_LOGIN_ROLE}"'
+            for table, verbs in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
+        ),
         # Full role: DML on its schema.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
