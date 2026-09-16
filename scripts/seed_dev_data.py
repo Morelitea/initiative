@@ -165,7 +165,7 @@ from app.services.platform import guilds as guilds_service  # noqa: E402
 from app.models.platform.guild_image import GuildImageVariant  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
-    ensure_default_initiative,
+    creator_role,
 )
 from app.services.tenant.filter_presets import (  # noqa: E402
     ensure_default_presets,
@@ -173,6 +173,69 @@ from app.services.tenant.filter_presets import (  # noqa: E402
 from app.models.tenant._mixins import ArchiveMixin, archive_models  # noqa: E402
 from app.services.tenant.archive import archive_entity  # noqa: E402
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
+
+
+#: What the seeder calls the initiative it hangs each demo community's content
+#: off. Nothing in the app knows this name — it is the seeder's own.
+SEED_INITIATIVE_NAME = "Default Initiative"
+SEED_INITIATIVE_COLOR = "#2563eb"
+
+
+async def seed_initiative(
+    session: AsyncSession,
+    creator: User,
+    *,
+    guild_id: int,
+    name: str = SEED_INITIATIVE_NAME,
+) -> Initiative:
+    """An initiative for a demo community, provisioned the way the app does it.
+
+    The same sequence as ``POST /initiatives``: the row, its built-in roles,
+    then the creator joined on whichever built-in role ``creator_role`` gives
+    them. A guild admin lands on moderator, which is what these seeded
+    communities want.
+
+    Looked up by name first so the seeder can be re-run against a community it
+    already populated — including the case where a startup back-fill created
+    ``guild_<id>``'s empty tables and left no initiative in them.
+    """
+    existing = (
+        await session.exec(
+            select(Initiative).where(
+                Initiative.guild_id == guild_id,
+                Initiative.name == name,
+            )
+        )
+    ).one_or_none()
+    if existing is not None:
+        await session.refresh(existing, attribute_names=["memberships"])
+        return existing
+
+    initiative = Initiative(
+        name=name,
+        description="Seeded by scripts/seed_dev_data.py",
+        guild_id=guild_id,
+        color=SEED_INITIATIVE_COLOR,
+    )
+    session.add(initiative)
+    await session.flush()
+
+    roles = await create_builtin_roles(session, initiative_id=initiative.id)
+    role = await creator_role(
+        session, guild_id=guild_id, user_id=creator.id, roles=roles
+    )
+    session.add(
+        InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=creator.id,
+            role_id=role.id,
+            guild_id=guild_id,
+        )
+    )
+    await session.flush()
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return initiative
+
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
 
@@ -3287,7 +3350,7 @@ async def seed() -> None:
         # rows. The result: guild_1.initiatives exists with zero rows, and
         # the previous code here (a SELECT followed by .one()) crashed with
         # NoResultFound.
-        g1_default_init = await ensure_default_initiative(
+        g1_default_init = await seed_initiative(
             session, admin_user, guild_id=g1_id
         )
         # guild_1.guild_settings has the same gap: normally one row is
@@ -5705,10 +5768,10 @@ async def seed() -> None:
         )
 
         # Default initiative for g2
-        g2_default_init = await ensure_default_initiative(
+        g2_default_init = await seed_initiative(
             session, admin_user, guild_id=g2_id
         )
-        # Track the roles and members that ensure_default_initiative created
+        # Track the roles and members that seed_initiative created
         result = await session.exec(
             select(InitiativeRoleModel).where(
                 InitiativeRoleModel.initiative_id == g2_default_init.id,
@@ -7182,7 +7245,7 @@ async def seed() -> None:
         )
 
         # Default initiative (admin3, the community creator, becomes its PM)
-        g3_default_init = await ensure_default_initiative(
+        g3_default_init = await seed_initiative(
             session, admin3, guild_id=g3_id
         )
         result = await session.exec(

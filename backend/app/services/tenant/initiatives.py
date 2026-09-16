@@ -36,9 +36,6 @@ from app.schemas.tenant.initiative import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INITIATIVE_NAME = "Default Initiative"
-DEFAULT_INITIATIVE_COLOR = "#2563eb"
-
 
 async def get_role_by_name(
     session: AsyncSession,
@@ -277,44 +274,6 @@ async def load_user_initiative_roles(
     for user in users:
         user_assignments = assignments.get(user.id or 0, [])
         object.__setattr__(user, "initiative_roles", user_assignments)
-
-
-async def _ensure_membership_as_moderator(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-    guild_id: int,
-) -> None:
-    """Ensure user is a member on the moderator role."""
-    role = await get_moderator_role(session, initiative_id=initiative_id)
-    if not role:
-        # Create roles if they don't exist (migration safety)
-        role = (await create_builtin_roles(session, initiative_id=initiative_id))[
-            "moderator"
-        ]
-
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    membership = result.one_or_none()
-    if membership:
-        if membership.role_id != role.id:
-            membership.role_id = role.id
-            session.add(membership)
-            await session.flush()
-        return
-    session.add(
-        InitiativeMember(
-            initiative_id=initiative_id,
-            user_id=user_id,
-            role_id=role.id,
-            guild_id=guild_id,
-        )
-    )
-    await session.flush()
 
 
 async def get_initiative_membership(
