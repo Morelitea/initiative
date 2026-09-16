@@ -2,8 +2,8 @@
 
 ``public.guild_member_profiles`` is what a guild-routed session reads a person
 from, and whether it comes back with a real name is that guild's
-``show_member_names``, carried into the request as
-``app.guild_shows_member_names``.
+``show_member_names`` — read by the projection off the guild row, so the
+request carries no answer of its own to disagree with it.
 
 These read the projection through the request-path role rather than the
 superuser-backed ``session`` fixture, which answers for a role nothing runs as.
@@ -23,14 +23,14 @@ pytestmark = pytest.mark.integration
 
 async def _name_read_in(role_session, *, user, guild):
     """What the guild projection answers for ``user``, read as a member of
-    ``guild`` under the context that guild's setting produces."""
+    ``guild``. Nothing here says whether names are rendered: routing into the
+    guild is the whole of the question, which is the point."""
     s = await role_session("app_user")
     await set_rls_context(
         s,
         user_id=user.id,
         guild_id=guild.id,
         guild_role=GuildRole.member.value,
-        shows_member_names=bool(guild.show_member_names),
     )
     return (
         await s.exec(select(MemberProfile.full_name).where(MemberProfile.id == user.id))
@@ -82,3 +82,17 @@ async def test_the_account_row_still_carries_the_name(session, role_session):
     name = (await s.exec(select(User.full_name).where(User.id == user.id))).one()
 
     assert name == "Ana Real"
+
+
+async def test_two_guilds_answer_differently_on_one_session(session, role_session):
+    """The same account, read from a guild that renders names and one that does
+    not. The answer follows the guild being read, not anything the caller
+    carried in."""
+    user = await create_user(session, full_name="Ana Real")
+    loud = await create_guild(session, creator=user, show_member_names=True)
+    quiet = await create_guild(session, creator=user, show_member_names=False)
+    await create_guild_membership(session, user=user, guild=loud)
+    await create_guild_membership(session, user=user, guild=quiet)
+
+    assert await _name_read_in(role_session, user=user, guild=loud) == "Ana Real"
+    assert await _name_read_in(role_session, user=user, guild=quiet) is None

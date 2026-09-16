@@ -88,19 +88,6 @@ def test_spelling_out_an_absent_argument_reads_as_absent():
     assert isinstance(shape, PamGrantee)
 
 
-def test_the_name_rule_is_read_off_the_guild():
-    class _Row:
-        id = 4
-        show_member_names = True
-
-    assert GuildScoped.for_guild(_Row()).shows_member_names is True
-
-    class _Quiet(_Row):
-        show_member_names = False
-
-    assert GuildScoped.for_guild(_Quiet()).shows_member_names is False
-
-
 def _call_sites() -> list[tuple[str, int, dict]]:
     """Every ``set_rls_context`` call in the app, with the keywords whose
     values can be read from the source. A value that is computed is passed as a

@@ -279,6 +279,38 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             f"{sorted(expected - readable)}"
         )
 
+        # The projection reads the name rule off the guild (0280), so the
+        # reader holds one column of ``guilds`` as well. Bound it: that column
+        # and the id it looks up by, and nothing else on the table.
+        guild_readable = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT column_name, has_column_privilege("
+                        "'app_profile_reader', 'public.guilds', column_name, "
+                        "'SELECT') FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'guilds'"
+                    )
+                )
+            ).all()
+            if row[1]
+        }
+        assert guild_readable == {"id", "show_member_names"}, (
+            "app_profile_reader reads columns of public.guilds beyond the name "
+            f"rule: {sorted(guild_readable - {'id', 'show_member_names'})}"
+        )
+        for verb in ("INSERT", "UPDATE", "DELETE"):
+            can_write = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_profile_reader', "
+                        f"'public.guilds', '{verb}')"
+                    )
+                )
+            ).scalar()
+            assert not can_write, f"app_profile_reader must not hold {verb} on guilds"
+
         # It reads, and that is all it does — to the table or to the view.
         for verb in ("INSERT", "UPDATE", "DELETE"):
             can_write = (

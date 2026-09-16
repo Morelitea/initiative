@@ -177,7 +177,6 @@ _CONTEXT_SQL = (
     "set_config('app.override_initiatives', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
-    "set_config('app.guild_shows_member_names', :names, true), "
     "set_config('app.query', :q, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
@@ -309,7 +308,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "bgid": "",
         "ovr": override_csv,
-        "names": "true" if params.get("shows_member_names") else "false",
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
@@ -370,7 +368,6 @@ async def set_rls_context(
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
-    shows_member_names: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -422,13 +419,6 @@ async def set_rls_context(
     schema (the guild role governs there) — pass it anyway, so the tier is on the
     session for the trip back out.
 
-    ``shows_member_names`` says whether the guild being routed into renders its
-    members' real names. It reaches Postgres as ``app.guild_shows_member_names``,
-    which is what ``public.guild_member_profiles`` — the only projection of an
-    account a guild-routed session can read — consults for whether to hand back
-    a ``full_name`` at all. The same argument sets the request-scoped flag the
-    user schemas read, so both describe the same guild.
-
     The tier is remembered **for the request** — in the SQLAlchemy session's
     Python state, not on the connection — and reapplied to any later call that
     names a ``user_id`` without one, so re-establishing context part-way through
@@ -461,7 +451,6 @@ async def set_rls_context(
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
-        shows_member_names=shows_member_names,
     )
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
@@ -492,10 +481,11 @@ async def set_rls_context(
     else:
         platform_role = session.info.get(_RLS_TIER_INFO_KEY)
 
-    # One argument settles both halves of the name rule: the GUC the guild
-    # projection reads, and the request-scoped flag the schemas read. Set from
-    # the same value here rather than by two callers who could disagree.
-    set_guild_shows_member_names(shows_member_names)
+    # Establishing a context closes the name rule. Whether this guild renders
+    # real names is the guild's own answer: the projection reads it off the
+    # row, and a caller holding the row records it here for the schemas that
+    # still consult it in Python.
+    set_guild_shows_member_names(False)
 
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the
@@ -515,7 +505,6 @@ async def set_rls_context(
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
-        "shows_member_names": bool(shows_member_names),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

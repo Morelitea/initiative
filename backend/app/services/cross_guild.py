@@ -169,13 +169,12 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
-                # What this guild calls its members. Each guild answers for its
-                # own rows, so a cross-guild list names people the way each of
-                # them does — the same answer as opening that guild and
-                # looking. Carried with the routing so the projection this
-                # guild is read through agrees with the shapes built from it.
-                shows_member_names=bool(shows_names),
             )
+            # What this guild calls its members. The projection reads that off
+            # the guild itself; this is the same answer recorded for the shapes
+            # built from it, so a cross-guild list names people the way each
+            # guild does — as opening that guild and looking would.
+            set_guild_shows_member_names(bool(shows_names))
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.
             set_content_read_only_guild(guild_id if content_read_only else None)

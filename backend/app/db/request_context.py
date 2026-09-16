@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence, Union
 
-from app.models.platform.guild import CONTENT_ROLES, Guild
+from app.models.platform.guild import CONTENT_ROLES
 
 
 class ContextShapeError(ValueError):
@@ -63,11 +63,9 @@ class GuildScoped:
     so it is one of two values whatever the membership row says. Put a stored
     role through ``content_role`` before it gets here.
 
-    ``guild`` is the row where the caller has it. Whether the guild renders
-    real names is read off that row rather than passed beside it, so the two
-    cannot describe different guilds. A caller holding only an id gets the
-    closed answer, which is what it already got by omitting the flag — the
-    difference is that it now says so.
+    Nothing here says whether the guild renders real names. That is the
+    guild's own column, read by the projection for the guild this context
+    names, so a request carries no second answer that could differ from it.
     """
 
     guild_id: int
@@ -80,16 +78,6 @@ class GuildScoped:
     scope_initiative_id: Optional[int] = None
     via_dashboard_id: Optional[int] = None
     query: bool = False
-    shows_member_names: bool = False
-
-    @classmethod
-    def for_guild(cls, guild: Guild, **kwargs) -> "GuildScoped":
-        """Build from the guild row, taking the name rule off it."""
-        return cls(
-            guild_id=guild.id,
-            shows_member_names=bool(guild.show_member_names),
-            **kwargs,
-        )
 
 
 @dataclass(frozen=True)
@@ -109,7 +97,6 @@ class PamGrantee:
     read: bool = False
     write: bool = False
     satisfied_providers: Optional[Sequence[int] | str] = None
-    shows_member_names: bool = False
 
 
 RequestContext = Union[Unattributed, Platform, GuildScoped, PamGrantee]
@@ -123,7 +110,6 @@ _GUILD_ONLY = (
     "scope_initiative_id",
     "via_dashboard_id",
     "query",
-    "shows_member_names",
 )
 
 #: Keywords naming a PAM grant.
@@ -169,10 +155,9 @@ def classify(**kwargs) -> RequestContext:
             )
         if not _set(kwargs.get("pam_guild_id")):
             raise ContextShapeError("a PAM grant must name the guild it reaches")
-        conflicting = [k for k in guild_only_named if k != "shows_member_names"]
-        if conflicting:
+        if guild_only_named:
             raise ContextShapeError(
-                f"{', '.join(conflicting)} belong to a guild context, not a grant"
+                f"{', '.join(guild_only_named)} belong to a guild context, not a grant"
             )
         return PamGrantee(
             pam_guild_id=int(kwargs["pam_guild_id"]),
@@ -181,7 +166,6 @@ def classify(**kwargs) -> RequestContext:
             read=bool(kwargs.get("pam_read")),
             write=bool(kwargs.get("pam_write")),
             satisfied_providers=kwargs.get("satisfied_providers"),
-            shows_member_names=bool(kwargs.get("shows_member_names")),
         )
 
     if _set(guild_id):
@@ -196,7 +180,6 @@ def classify(**kwargs) -> RequestContext:
             scope_initiative_id=kwargs.get("scope_initiative_id"),
             via_dashboard_id=kwargs.get("via_dashboard_id"),
             query=bool(kwargs.get("query")),
-            shows_member_names=bool(kwargs.get("shows_member_names")),
         )
 
     if guild_only_named:

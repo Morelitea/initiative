@@ -30,6 +30,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.password_policy import enforce_password_policy
+from app.core.role_context import set_guild_shows_member_names
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.usernames import UsernameError
@@ -1280,7 +1281,8 @@ async def get_my_initiative_members(
     ``public`` backup.
     """
     shows_names = await guild_renders_member_names(session, guild_id=guild_id)
-    await set_rls_context(session, guild_id=guild_id, shows_member_names=shows_names)
+    await set_rls_context(session, guild_id=guild_id)
+    set_guild_shows_member_names(shows_names)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(
