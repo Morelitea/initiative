@@ -48,8 +48,10 @@ from app.schemas.platform.dm_transport import (
     DmOneTimeKeyUpload,
     DmOutboundMessage,
     DmQueueItemRead,
+    DmRosterMember,
     DmSessionKey,
 )
+from app.services.platform import presence as presence_service
 
 #: A public key is 32 bytes on both curves.
 KEY_BYTES = 32
@@ -652,36 +654,42 @@ async def accept_invitation(
     )
 
 
-async def _handles_on(
-    session: AsyncSession, conversation_ids: Iterable[uuid.UUID]
-) -> dict[int, str]:
-    """What to call everybody on these conversations.
+async def _people_on(
+    session: AsyncSession, member_ids: Iterable[int]
+) -> dict[int, DmRosterMember]:
+    """Everybody on these conversations, as a client has to draw them.
 
-    Asked of ``dm_roster_handles`` rather than of ``users``: the request path
-    reads its own row there and nothing else below moderator, so a query would
-    answer for nobody. The entry point answers only for conversations the caller
-    is named on, and only with the two fields a handle is made of.
+    Read from ``public.user_profiles`` -- the view that publishes the public
+    columns of an account to every signed-in session. ``public.users`` itself is
+    own-row for the request path below moderator, so a query there answers for
+    nobody; the projection is what that view is for, and it is the same one the
+    contact list and every other surface that draws a person reads.
 
     All of them in one question. The list is not paginated and nothing bounds
     how many conversations an account has, so a query each is a round trip each.
-
-    Formatted here rather than in SQL, so there is one place that knows what a
-    handle looks like.
     """
-    wanted = list(conversation_ids)
+    wanted = sorted(set(member_ids))
     if not wanted:
         return {}
-    from app.core.usernames import format_handle
-
     rows = (
         await session.exec(
             text(
-                "SELECT member_id, username, discriminator "
-                "FROM public.dm_roster_handles(:c)"
-            ).bindparams(c=wanted)
+                "SELECT id, username, discriminator, avatar_url, profile_decorations "
+                "FROM public.user_profiles WHERE id = ANY(:ids)"
+            ).bindparams(ids=wanted)
         )
     ).all()
-    return {row[0]: format_handle(row[1], row[2]) for row in rows}
+    return {
+        row[0]: DmRosterMember(
+            user_id=row[0],
+            username=row[1],
+            discriminator=row[2],
+            avatar_url=row[3],
+            profile_decorations=row[4] or {},
+            presence=presence_service.online.presence_of(row[0]),
+        )
+        for row in rows
+    }
 
 
 async def list_conversations(
@@ -726,7 +734,9 @@ async def list_conversations(
         else:
             others.setdefault(conversation.id, []).append(member_id)
 
-    handles = await _handles_on(session, others)
+    people = await _people_on(
+        session, [member_id for roster in others.values() for member_id in roster]
+    )
 
     listed = []
     for conversation_id, conversation in conversations.items():
@@ -742,7 +752,9 @@ async def list_conversations(
                 created_at=conversation.created_at,
                 kind=str(conversation.kind),
                 member_ids=roster,
-                member_handles=[handles.get(member_id, "") for member_id in roster],
+                members=[
+                    people[member_id] for member_id in roster if member_id in people
+                ],
                 pending=pending.get(conversation_id, False),
             )
         )

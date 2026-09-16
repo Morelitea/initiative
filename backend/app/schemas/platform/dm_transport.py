@@ -12,6 +12,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.platform.user import Presence
+from app.schemas.platform.user import ProfileDecorations
+
 #: A Curve25519 or Ed25519 public key is 32 bytes, which is 44 base64
 #: characters. The bound is on the encoded form because that is what arrives.
 KEY_B64_LENGTH = 44
@@ -145,6 +148,25 @@ class DmRosterCheckResponse(BaseModel):
     too_large: bool = False
 
 
+class DmRosterMember(BaseModel):
+    """One person on a conversation, as a client has to draw them.
+
+    The public projection of an account and nothing else: what it is called,
+    the picture, and what is worn around it. A real name is absent because a
+    real name is a per-community disclosure and a conversation is outside every
+    community.
+    """
+
+    user_id: int
+    username: str
+    discriminator: int
+    avatar_url: str | None = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: How they are appearing, so a roster reads like every other list of
+    #: people. Read live rather than stored.
+    presence: Presence = Presence.offline
+
+
 class DmConversationRead(BaseModel):
     id: uuid.UUID
     #: For a pair, the other party. For a group, the lowest member id that is
@@ -160,13 +182,17 @@ class DmConversationRead(BaseModel):
     #: agrees to, and reporting who is still deciding would put each invitee's
     #: hesitation in front of the others.
     member_ids: list[int] = []
-    #: The same people as handles, in the same order, so a thread can be named
-    #: by who is on it. Sent rather than looked up, because a group needs no
-    #: accepted grant between every pair and the client may know nothing about
-    #: somebody it is nonetheless in a conversation with. It discloses nothing
-    #: a member of this conversation does not already have: the bell line and
-    #: the push name the same people.
-    member_handles: list[str] = []
+    #: The same people as profiles, in the same order, so a thread can be named
+    #: and drawn by who is on it. Keyed by ``user_id`` rather than read by
+    #: position: an account that has since gone contributes an id and no
+    #: profile, and a client that indexed into this would then draw the wrong
+    #: face against the right name. Sent rather than looked up: a roster needs no
+    #: accepted grant between every pair, so the client may know nothing about
+    #: somebody it is nonetheless in a conversation with. Nothing here is
+    #: private -- it is the public projection every signed-in account can read
+    #: of any account, and the bell line and the push already name the same
+    #: people.
+    members: list[DmRosterMember] = []
     #: Whether the caller has answered their own invitation. False on every
     #: conversation a pair opens, because both sides agreed before it existed.
     pending: bool = False

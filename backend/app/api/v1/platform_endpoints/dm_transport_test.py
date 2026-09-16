@@ -736,9 +736,8 @@ class TestProposingAGroup:
     async def test_the_list_names_who_is_on_a_thread(
         self, client, session, acting_user
     ):
-        """A group has no name, so it is named by its roster -- and the client
-        cannot look those names up, because a group needs no accepted grant
-        between every pair.
+        """A group has no name, so it is named by its roster -- and drawn by it
+        too, which needs the picture as well as the handle.
 
         Every account here is an ordinary member. ``users`` is own-row for the
         request path below moderator, so a platform tier that can read the whole
@@ -757,8 +756,15 @@ class TestProposingAGroup:
             for row in listed.json()["conversations"]
             if row["id"] == conversation_id
         )
-        assert len(entry["member_handles"]) == len(entry["member_ids"])
-        assert all("#" in handle for handle in entry["member_handles"])
+        members = entry["members"]
+        assert [member["user_id"] for member in members] == sorted(
+            [b.user.id, c.user.id]
+        )
+        assert all(member["username"] for member in members)
+        # The picture and what is worn around it, so a roster draws a person the
+        # way every other list of people does.
+        assert all("avatar_url" in member for member in members)
+        assert all("profile_decorations" in member for member in members)
         # In the same order as the ids, so the two can be read together.
         assert entry["member_ids"] == sorted([b.user.id, c.user.id])
 
