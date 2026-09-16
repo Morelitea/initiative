@@ -818,22 +818,27 @@ async def create_device_token(
         )
 
     device_name = payload.device_name.strip()
-    device_token = await user_tokens.create_device_token(
-        session,
-        user_id=user.id,
-        device_name=device_name,
-    )
 
-    # A session of the ordinary kind, opened beside the device token so a build
-    # that prefers it has one from the first sign-in. It carries ``pwd`` because
-    # that is what was presented here — which is also what the device token
-    # itself cannot say, and why a device-token session satisfies no policy.
+    # Both credentials on one transaction, so a failure takes both. Minted on
+    # the system engine rather than the request one for that reason alone: a
+    # device token committed on its own would outlive the response it was for,
+    # and each retry would leave another live one in the account's device list.
+    #
+    # The session carries ``pwd`` because that is what was presented here —
+    # which is what the device token itself cannot say, and why a device-token
+    # session satisfies no policy.
     #
     # A session that cannot be opened is a 503, not a quiet fall back to the
     # device token alone: D2a settled that a sign-in hands back the credential
     # it means to, or says it could not.
     user_id, token_version = user.id, user.token_version
     try:
+        device_token = await user_tokens.create_device_token(
+            admin_session,
+            user_id=user_id,
+            device_name=device_name,
+            commit=False,
+        )
         issued = await session_service.create_session(
             admin_session,
             user_id=user_id,
@@ -924,9 +929,9 @@ async def exchange_device_token(
         )
         await audit_service.record(
             admin_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED,
             actor_user_id=user_id,
-            detail={"method": "exchange", "device_name": record.device_name},
+            detail={"device_name": record.device_name},
         )
         subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
@@ -1564,13 +1569,22 @@ async def _complete_provider_login(
         # No session alongside this one: it answers with a redirect, and a
         # refresh token does not belong in a URL. ``POST /auth/device-token/
         # exchange`` is where this client trades the token for one.
-        await audit_service.record(
-            admin_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
-            actor_user_id=user.id,
-            detail={"method": "oidc", "device_name": device_name},
-        )
-        await admin_session.commit()
+        #
+        # The record is best-effort here, unlike the password route. This
+        # branch has already authenticated somebody against their IdP, and the
+        # rule it works under — stated a few lines down for the session — is
+        # that a store that is briefly unavailable does not fail an SSO login.
+        try:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+                actor_user_id=user.id,
+                detail={"method": "oidc", "device_name": device_name},
+            )
+            await admin_session.commit()
+        except Exception:
+            await admin_session.rollback()
+            logger.exception("Could not record device-token issue for user %s", user.id)
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)

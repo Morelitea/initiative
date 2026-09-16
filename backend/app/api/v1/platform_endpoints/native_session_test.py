@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit_events import AuditEventType
 from app.core.security import decode_session_token
 from app.models.platform.audit_event import AuditEvent
+from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import user_tokens
 from app.testing import create_user
 
@@ -137,6 +138,63 @@ async def test_an_exchanged_session_claims_no_factors(
     claims = decode_session_token(response.json()["access_token"])
     assert claims is not None
     assert not claims.amr
+
+
+async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Both credentials are minted on one transaction, so the refusal takes the
+    device token with it. A token committed on its own would be live for its
+    whole window, in the account's device list, and in nobody's hands."""
+    from app.api.v1.platform_endpoints import auth as auth_module
+
+    user = await create_user(session, email="native-atomic@example.com")
+
+    async def _no_session(*args, **kwargs):
+        raise RuntimeError("session store is away")
+
+    monkeypatch.setattr(auth_module.session_service, "create_session", _no_session)
+    response = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "native-atomic@example.com",
+            "password": PASSWORD,
+            "device_name": "test-phone",
+        },
+    )
+    assert response.status_code == 503, response.text
+
+    session.expire_all()
+    left = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).all()
+    assert left == []
+
+
+async def test_an_exchange_is_not_counted_as_an_issue(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing was issued — the token already existed. The two are counted
+    apart so one of them can read as movement onto the session path."""
+    user = await create_user(session, email="native-counted@example.com")
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="old-phone"
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert response.status_code == 200, response.text
+
+    recorded = await _events(session, user.id)
+    assert AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED.value in recorded
+    assert AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value not in recorded
 
 
 async def test_an_unknown_device_token_buys_nothing(client: AsyncClient):

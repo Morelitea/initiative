@@ -48,6 +48,10 @@ class AuditEventType(str, Enum):
     # about one event per device per day, not one per request.
     AUTH_DEVICE_TOKEN_ISSUED = "auth.device_token_issued"
     AUTH_DEVICE_TOKEN_USED = "auth.device_token_used"
+    #: A client traded a device token it already had for a session. Counted
+    #: apart from ``issued``, because nothing was issued — this is the one
+    #: that reads as movement onto the session path.
+    AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
 
 
 class AuditCategory(str, Enum):
@@ -110,6 +114,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     # Presenting one slides its expiry, which is the write this records.
     AuditEventType.AUTH_DEVICE_TOKEN_USED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
 }

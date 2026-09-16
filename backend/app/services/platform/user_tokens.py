@@ -160,8 +160,15 @@ async def create_device_token(
     *,
     user_id: int,
     device_name: str,
+    commit: bool = True,
 ) -> str:
-    """Create a sliding-window device token for mobile app authentication."""
+    """Create a sliding-window device token for mobile app authentication.
+
+    ``commit=False`` stages it instead, for a caller issuing something else in
+    the same transaction: a token that outlived the response it was minted for
+    would be a live credential nobody was handed, sitting in the account's
+    device list for its whole window.
+    """
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
     token = UserToken(
@@ -172,7 +179,10 @@ async def create_device_token(
         expires_at=expires_at,
     )
     session.add(token)
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
     # Return the raw token exactly once; only its hash is persisted.
     return token_value
 
@@ -198,11 +208,19 @@ async def get_device_token(
         return None
     now = datetime.now(timezone.utc)
     if record.expires_at - now < DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD:
-        record.expires_at = now + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
-        session.add(record)
+        previous = record.expires_at
+        # Conditional on the expiry just read: two requests arriving together
+        # both see the old one, and this is what settles which moved it — so
+        # the record below is one event per window, not one per request.
+        result = await session.exec(
+            sql_update(UserToken)
+            .where(UserToken.id == record.id, UserToken.expires_at == previous)
+            .values(expires_at=now + timedelta(days=DEVICE_TOKEN_TTL_DAYS))
+        )
         await session.commit()
         await session.refresh(record)
-        await _record_device_token_use(user_id=record.user_id)
+        if result.rowcount:
+            await _record_device_token_use(user_id=record.user_id)
     return record
 
 
