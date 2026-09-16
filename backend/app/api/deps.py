@@ -43,7 +43,13 @@ from app.db.session import (
 )
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
+from app.models.platform.guild import (
+    Guild,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+    content_role,
+)
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
@@ -867,7 +873,9 @@ async def _apply_guild_session_context(
         session,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role.value,
+        # The effective content role, which is where a security admin reads
+        # as an admin — see ``models.platform.guild.content_role``.
+        guild_role=content_role(guild_context.role),
         # Recorded, not routed with: the guild role governs inside the schema.
         # It is what a later hop back out to ``public`` re-assumes.
         platform_role=current_user.role.value,

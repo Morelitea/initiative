@@ -37,6 +37,7 @@ from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import (
+    GUILD_ASSIGNABLE_ROLES,
     Guild,
     GuildCategory,
     GuildMembership,
@@ -1275,11 +1276,24 @@ async def update_guild_membership(
             detail=GuildMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
-    # 'support' is a synthesized PAM identity, never a stored membership role
-    # (the guild_role enum has only admin/member) — reject before it hits the DB.
-    if payload.role == GuildRole.support:
+    # What a guild's own admins may hand out. 'support' is a synthesized PAM
+    # identity and never a stored membership role; 'security_admin' is an
+    # operator's to grant, because an admin who could grant it would be granting
+    # themselves the keys to who may enter the guild.
+    if payload.role not in GUILD_ASSIGNABLE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+
+    # And a security admin is not demoted from inside the guild either — the
+    # same hand that may not grant it may not take it away.
+    target_existing = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user_id
+    )
+    if target_existing is not None and target_existing.role == GuildRole.security_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 

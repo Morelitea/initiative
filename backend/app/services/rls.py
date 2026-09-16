@@ -28,7 +28,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
@@ -47,8 +47,12 @@ from app.db.session import set_rls_context  # noqa: F401
 
 
 def is_guild_admin(guild_role: GuildRole) -> bool:
-    """Check if the given guild role is admin."""
-    return guild_role == GuildRole.admin
+    """Whether the role carries a guild admin's authority.
+
+    ``security_admin`` sits above ``admin``, so it answers yes here — the
+    question is authority, and it has an admin's.
+    """
+    return guild_role in GUILD_ADMIN_ROLES
 
 
 def require_guild_admin(guild_role: GuildRole) -> None:
@@ -57,7 +61,7 @@ def require_guild_admin(guild_role: GuildRole) -> None:
     Use this for operations that only guild admins may perform:
     creating initiatives, managing guild settings, managing invites, etc.
     """
-    if guild_role != GuildRole.admin:
+    if guild_role not in GUILD_ADMIN_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ADMIN_REQUIRED,

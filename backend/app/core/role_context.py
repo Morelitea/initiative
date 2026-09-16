@@ -69,13 +69,15 @@ def is_request_guild_admin(
     (``data.bypass``, PAM grants), which reach across guilds through their own
     separate mechanisms — do not fold those in here.
     """
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 
     if guild_id is None:
         return False
     role = guild_role if guild_role is not None else active_guild_role(guild_id)
     role_value = role.value if isinstance(role, GuildRole) else role
-    return role_value == GuildRole.admin.value
+    # Either stored role, and the GUC's own value — a request already carries
+    # ``admin`` there for both (``content_role``).
+    return role_value in {r.value for r in GUILD_ADMIN_ROLES}
 
 
 def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -> None:

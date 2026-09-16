@@ -29,6 +29,7 @@ import type {
   EmailTestRequest,
   EmailTestResponse,
   FCMConfigResponse,
+  GuildMemberRoleRead,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
@@ -38,6 +39,7 @@ import type {
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
+  PlatformGuildMemberRoleUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -1889,6 +1891,132 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Set one member's role in a guild, as the operator.
+ *
+ * This is the only way ``security_admin`` is granted or taken away. A guild's
+ * own admins cannot do either: an admin who could grant it would be granting
+ * themselves the keys to who may enter the guild, which is the separation it
+ * exists for.
+ *
+ * Reached from platform settings, so an operator never enters the guild to
+ * use it. Nothing here reads guild content — a membership row is a shared
+ * ``public`` fact about who belongs where, the same kind of value the
+ * per-guild caps and status beside it already are. Break-glass stays for
+ * reaching a guild's *content*, and is not a step on this path.
+ * @summary Set Platform Guild Member Role
+ */
+export const setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut = (
+  guildId: number,
+  userId: number,
+  platformGuildMemberRoleUpdate: BodyType<PlatformGuildMemberRoleUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildMemberRoleRead>(
+    {
+      url: `/api/v1/settings/guilds/${guildId}/members/${userId}/role`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: platformGuildMemberRoleUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+      >,
+      TError,
+      { guildId: number; userId: number; data: BodyType<PlatformGuildMemberRoleUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+    >,
+    TError,
+    { guildId: number; userId: number; data: BodyType<PlatformGuildMemberRoleUpdate> },
+    TContext
+  > => {
+    const mutationKey = [
+      "setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+      >,
+      { guildId: number; userId: number; data: BodyType<PlatformGuildMemberRoleUpdate> }
+    > = (props) => {
+      const { guildId, userId, data } = props ?? {};
+
+      return setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut(
+        guildId,
+        userId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type SetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePutMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+    >
+  >;
+export type SetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePutMutationBody =
+  BodyType<PlatformGuildMemberRoleUpdate>;
+export type SetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Platform Guild Member Role
+ */
+export const useSetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+      >,
+      TError,
+      { guildId: number; userId: number; data: BodyType<PlatformGuildMemberRoleUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof setPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePut>
+  >,
+  TError,
+  { guildId: number; userId: number; data: BodyType<PlatformGuildMemberRoleUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetPlatformGuildMemberRoleApiV1SettingsGuildsGuildIdMembersUserIdRolePutMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
 /**
  * Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
  *

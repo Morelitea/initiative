@@ -70,6 +70,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # no address, so the column cannot be rebuilt for every row. Roll
         # forward; restore from a backup instead.
         "20260915_0274",
+        # a_guild_can_have_a_security_admin: PostgreSQL cannot drop a value from
+        # an enum type, and reversing it means rebuilding guild_role and every
+        # column using it while memberships reference it.
+        "20260915_0275",
     }
 )
 

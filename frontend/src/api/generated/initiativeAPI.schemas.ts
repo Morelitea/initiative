@@ -257,6 +257,7 @@ export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
 export const GuildRole = {
   admin: "admin",
   member: "member",
+  security_admin: "security_admin",
   support: "support",
 } as const;
 
@@ -2693,9 +2694,6 @@ export interface DmConversationRead {
   id: string;
   other_user_id: number;
   created_at: string;
-  kind?: string;
-  member_ids?: number[];
-  pending?: boolean;
 }
 
 export interface DmConversationsResponse {
@@ -2748,14 +2746,6 @@ export interface DmDevicesResponse {
   devices: DmDeviceRead[];
 }
 
-export interface DmGroupCreate {
-  /**
-   * @minItems 2
-   * @maxItems 40
-   */
-  user_ids: number[];
-}
-
 export interface DmOneTimeKeyBatch {
   device_id: string;
   /**
@@ -2805,23 +2795,6 @@ export interface DmQueueItemRead {
 
 export interface DmQueueResponse {
   items: DmQueueItemRead[];
-}
-
-export interface DmRosterCheckRequest {
-  /** @maxItems 80 */
-  user_ids: number[];
-}
-
-/**
- * Whether this roster could be proposed, and what is wrong if not.
- *
- * Asked while the roster is being built rather than only when it is
- * submitted, so the answer arrives while somebody can still drop a name.
- */
-export interface DmRosterCheckResponse {
-  unreachable_pair?: number[];
-  max_members?: number;
-  too_large?: boolean;
 }
 
 /**
@@ -3957,6 +3930,15 @@ export interface GuildInviteStatus {
   expires_at: string | null;
   max_uses: number | null;
   uses: number | null;
+}
+
+/**
+ * What one member's role is, after an operator set it.
+ */
+export interface GuildMemberRoleRead {
+  guild_id: number;
+  user_id: number;
+  role: GuildRole;
 }
 
 /**
@@ -5149,6 +5131,17 @@ export interface PlatformAIModeUpdate {
  */
 export interface PlatformAdminCountResponse {
   count: number;
+}
+
+/**
+ * An operator setting one member's role in a guild.
+ *
+ * The door for ``security_admin``, which a guild's own admins can neither
+ * grant nor take away. Ordinary roles are accepted too, so revoking is the
+ * same call with a different value.
+ */
+export interface PlatformGuildMemberRoleUpdate {
+  role: GuildRole;
 }
 
 /**

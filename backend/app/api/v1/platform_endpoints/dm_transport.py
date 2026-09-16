@@ -22,11 +22,7 @@ from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.user_display import handle_of
 from app.models.platform.user import User
 from app.schemas.platform.dm_transport import (
-    MAX_GROUP_MEMBERS,
     DmConversationCreate,
-    DmGroupCreate,
-    DmRosterCheckRequest,
-    DmRosterCheckResponse,
     DmConversationRead,
     DmConversationsResponse,
     DmDeviceRegistration,
@@ -59,10 +55,6 @@ _STATUS = {
     Messages.TOO_MANY_KEYS: status.HTTP_409_CONFLICT,
     Messages.NOT_REACHABLE: status.HTTP_409_CONFLICT,
     Messages.CANNOT_MESSAGE_SELF: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_NOT_REACHABLE: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_TOO_LARGE: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_TOO_SMALL: status.HTTP_409_CONFLICT,
-    Messages.NO_INVITATION: status.HTTP_404_NOT_FOUND,
     Messages.MESSAGE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,
     Messages.RECIPIENT_QUEUE_FULL: status.HTTP_507_INSUFFICIENT_STORAGE,
 }
@@ -267,92 +259,6 @@ async def create_conversation(
         other_user_id=body.user_id,
         created_at=conversation.created_at,
     )
-
-
-@me_router.post("/dm/roster-check", response_model=DmRosterCheckResponse)
-async def check_roster(
-    body: DmRosterCheckRequest,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> DmRosterCheckResponse:
-    """Could this set of people be a group?
-
-    Asked while somebody is still choosing names, so the answer arrives when
-    they can still drop one, rather than as a refusal after they commit. The
-    proposal enforces the same rule again — this is the question, not the gate.
-    """
-    members = sorted(set(body.user_ids) | {current_user.id})
-    pair = await service.unreachable_pair(session, member_ids=members)
-    return DmRosterCheckResponse(
-        unreachable_pair=list(pair) if pair else [],
-        max_members=MAX_GROUP_MEMBERS,
-        too_large=len(members) > MAX_GROUP_MEMBERS,
-    )
-
-
-@me_router.post(
-    "/dm/conversations/group",
-    response_model=DmConversationRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_group_conversation(
-    body: DmGroupCreate,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> DmConversationRead:
-    """Propose a roster. Everybody named on it is asked; nobody is added.
-
-    Proposing the same roster again asks whoever is not on it — somebody who
-    declined or left may have changed their mind, or their settings.
-    """
-    try:
-        conversation, invited, roster = await service.create_group_conversation(
-            session, actor_id=current_user.id, member_ids=body.user_ids
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
-    await session.commit()
-    for recipient_id in invited:
-        await dm_stream.signal_dm(recipient_id)
-    return DmConversationRead(
-        id=conversation.id,
-        # The same shape the list answers with, so a client can put this
-        # straight into the list it already has rather than re-fetching.
-        other_user_id=roster[0],
-        created_at=conversation.created_at,
-        kind="group",
-        member_ids=roster,
-        # The one proposing it has answered by proposing.
-        pending=False,
-    )
-
-
-@me_router.post(
-    "/dm/conversations/{conversation_id}/accept",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def accept_invitation(
-    conversation_id: uuid.UUID,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> Response:
-    """Answer yes to a roster you were named on.
-
-    Declining is :func:`leave_conversation` — the same act, because an
-    invitation refused and a conversation left both come to "not on it", and
-    both are answered by being asked again if anybody proposes that roster.
-    """
-    try:
-        joined = await service.accept_invitation(
-            session, user_id=current_user.id, conversation_id=conversation_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
-    await session.commit()
-    await dm_stream.signal_dm(current_user.id)
-    for member_id in joined:
-        await dm_stream.signal_dm(member_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @me_router.get("/dm/conversations", response_model=DmConversationsResponse)
