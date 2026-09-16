@@ -112,6 +112,24 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
     assert allowed.status_code == 200
 
 
+async def test_guild_identity_does_not_hide_a_password_lockout(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild provider cannot replace the platform SSO login method."""
+    _, headers = await _owner(session)
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="guild", guild_id=guild.id)
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password"]}
+    )
+
+    assert refused.status_code == 409
+    assert refused.headers["X-Affected-Count"] == "1"
+
+
 async def test_withdrawing_a_method_nobody_uses_needs_no_acknowledgement(
     client: AsyncClient, session: AsyncSession
 ):
