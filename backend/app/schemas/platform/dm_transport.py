@@ -143,8 +143,10 @@ class DmSendRequest(BaseModel):
 
 
 class DmSendResponse(BaseModel):
-    #: How many rows were written. Deliberately not per-recipient: what reached
-    #: whom is not something the sender is told.
+    #: How many messages the server took from the sender -- which is all of
+    #: them, or the request failed. Deliberately not what was written and
+    #: deliberately not per-recipient: what reached whom is not something the
+    #: sender is told, and a count that moved would be telling them.
     accepted: int
 
 

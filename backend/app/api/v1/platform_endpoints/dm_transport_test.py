@@ -535,7 +535,8 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
     """The whole point of the ignore, on the wire.
 
     The send succeeds, the response is identical, and nothing lands in the
-    recipient's queue.
+    recipient's queue. Identical includes the count: it says what the sender
+    handed over, so it does not move when a copy is dropped.
     """
     a = await acting_user()
     b = await acting_user()
@@ -564,6 +565,10 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         headers=a.headers,
     )
     assert sent.status_code == 200, sent.text
+    # Two handed over, two accepted -- the same answer somebody who is not
+    # ignored gets, which is what makes the ignore invisible rather than
+    # merely quiet.
+    assert sent.json()["accepted"] == 2
 
     collected = await client.get(
         f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers

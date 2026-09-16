@@ -647,7 +647,9 @@ async def send(
 
     The sender's own devices are always written to, so their other clients
     render their own outbox. The other party's devices are written to only if
-    ``dm_deliverable`` says so, and the sender is told the same thing either way.
+    ``dm_deliverable`` says so, and the sender is told the same thing either
+    way -- the count returned is what they handed over, which does not move
+    when a copy is dropped.
     """
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
@@ -719,7 +721,11 @@ async def send(
     # channel there is -- and the other party has no part in that and is not
     # woken for it.
     reached = any(not mine for _message, _raw, mine in payloads)
-    return len(payloads), other_id if delivers and reached else None
+    # What the sender handed over, not what was written. The two differ by
+    # exactly the copies an ignore drops, so returning the second would answer a
+    # question the sender is never answered -- and would answer it per device,
+    # which is worse than answering it once.
+    return len(messages), other_id if delivers and reached else None
 
 
 async def _claim_device_token(
