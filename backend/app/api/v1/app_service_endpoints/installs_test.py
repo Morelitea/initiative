@@ -341,7 +341,7 @@ class TestConfigChannel:
         assert member["values"] == {"access_token": MEMBER_TOKEN}
         # The app is told which member by handle, and by nothing else.
         assert "user_id" not in member
-        assert user.email not in response.text
+        assert user.seeded_address not in response.text
 
     async def test_a_blocked_members_values_are_not_served(
         self, client: AsyncClient, session: AsyncSession
@@ -513,7 +513,7 @@ class TestConnectionsChannel:
 
         assert response.status_code == 200, response.text
         assert "user_id" not in response.text
-        assert user.email not in response.text
+        assert user.seeded_address not in response.text
         assert str(user.id) not in [
             item["connection_ref"] for item in response.json()["items"]
         ]
@@ -631,7 +631,7 @@ class TestResolveDelegatedConnection:
 
         assert response.status_code == 200, response.text
         assert "user_id" not in response.text
-        assert member.email not in response.text
+        assert member.seeded_address not in response.text
         assert MEMBER_TOKEN not in response.text
 
     async def test_a_member_who_has_not_connected_is_a_miss(

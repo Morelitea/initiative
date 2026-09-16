@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
@@ -61,8 +61,7 @@ async def test_a_native_sign_in_hands_back_a_session_too(
     assert body["expires_in"] > 0
     # The access token names the account and the session it belongs to.
     claims = decode_session_token(body["access_token"])
-    assert claims is not None
-    assert claims.sid is not None
+    assert claims["sid"]
 
     assert AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value in await _events(
         session, user.id
@@ -136,8 +135,7 @@ async def test_an_exchanged_session_claims_no_factors(
     assert response.status_code == 200, response.text
 
     claims = decode_session_token(response.json()["access_token"])
-    assert claims is not None
-    assert not claims.amr
+    assert not claims.get("amr")
 
 
 async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(
@@ -149,6 +147,9 @@ async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(
     from app.api.v1.platform_endpoints import auth as auth_module
 
     user = await create_user(session, email="native-atomic@example.com")
+    # Read before anything expires it: the endpoint rolls back the session this
+    # test shares with it, and a later attribute access would refresh lazily.
+    user_id = user.id
 
     async def _no_session(*args, **kwargs):
         raise RuntimeError("session store is away")
@@ -167,13 +168,15 @@ async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(
     session.expire_all()
     left = (
         await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == user.id,
+            select(func.count())
+            .select_from(UserToken)
+            .where(
+                UserToken.user_id == user_id,
                 UserToken.purpose == UserTokenPurpose.device_auth,
             )
         )
-    ).all()
-    assert left == []
+    ).one()
+    assert left == 0
 
 
 async def test_an_exchange_is_not_counted_as_an_issue(

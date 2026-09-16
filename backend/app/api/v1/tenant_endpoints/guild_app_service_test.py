@@ -159,7 +159,7 @@ async def test_the_answer_says_nothing_about_the_person(
 
     assert set(response.json()) == {"public_id", "base_url", "available"}
     assert subject not in response.text
-    assert installer.email not in response.text
+    assert installer.seeded_address not in response.text
 
 
 @pytest.mark.integration
