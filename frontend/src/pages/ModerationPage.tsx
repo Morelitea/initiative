@@ -298,11 +298,14 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
  */
 const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
   const { t } = useTranslation(["moderation", "common"]);
-  const { data: initiative, isLoading } = useInitiative(initiativeId);
+  const { data: initiative, isLoading, isError } = useInitiative(initiativeId);
   const members = initiative?.members ?? [];
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">{t("common:loading")}</p>;
+  }
+  if (isError) {
+    return <p className="text-destructive text-sm">{t("loadFailed")}</p>;
   }
 
   return (
@@ -345,11 +348,16 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
  */
 const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId: number }) => {
   const { t } = useTranslation(["moderation", "common"]);
-  const { data, isLoading } = useInitiativeSharing(guildId, initiativeId);
+  const { data, isLoading, isError } = useInitiativeSharing(guildId, initiativeId);
   const items = data?.items ?? [];
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">{t("common:loading")}</p>;
+  }
+  // A read that failed and a community that has shared nothing are different
+  // answers; this says which one it is.
+  if (isError) {
+    return <p className="text-destructive text-sm">{t("loadFailed")}</p>;
   }
 
   return (
@@ -391,11 +399,11 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
                   {item.via_dashboard && (
                     <Badge variant="outline">{t("sharing.viaDashboard")}</Badge>
                   )}
+                  {/* Two counts, two keys: one string cannot pluralise on two
+                      numbers at once. */}
                   <span className="text-muted-foreground text-sm">
-                    {t("sharing.counts", {
-                      people: item.user_grant_count,
-                      roles: item.role_grant_count,
-                    })}
+                    {t("sharing.people", { count: item.user_grant_count })} ·{" "}
+                    {t("sharing.roles", { count: item.role_grant_count })}
                   </span>
                 </div>
               </div>

@@ -84,6 +84,10 @@
     "empty": "Rien ici n'a été partagé avec quelqu'un en particulier.",
     "everyone": "Tout le monde ici",
     "viaDashboard": "Via un tableau de bord",
-    "counts": "{{people}} personnes · {{roles}} rôles"
-  }
+    "people_one": "{{count}} personne",
+    "people_other": "{{count}} personnes",
+    "roles_one": "{{count}} rôle",
+    "roles_other": "{{count}} rôles"
+  },
+  "loadFailed": "Impossible de charger. Réessayez."
 }

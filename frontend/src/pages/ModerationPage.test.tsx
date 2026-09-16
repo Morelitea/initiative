@@ -17,6 +17,7 @@ const settleMutate = vi.fn();
 const state = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
   sharing: [] as Array<Record<string, unknown>>,
+  sharingFailed: false,
   offset: 0,
 }));
 
@@ -40,7 +41,11 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useModeration")>();
   return {
     ...actual,
-    useInitiativeSharing: () => ({ data: { items: state.sharing }, isLoading: false }),
+    useInitiativeSharing: () => ({
+      data: { items: state.sharing },
+      isLoading: false,
+      isError: state.sharingFailed,
+    }),
     useModerationReports: (params: { offset?: number }) => {
       state.offset = params.offset ?? 0;
       return {
@@ -70,6 +75,7 @@ describe("ModerationPage", () => {
     settleMutate.mockClear();
     state.items = [];
     state.sharing = [];
+    state.sharingFailed = false;
     state.offset = 0;
   });
 
@@ -233,7 +239,8 @@ describe("ModerationPage", () => {
     await user.click(await screen.findByRole("tab", { name: "Sharing" }));
 
     expect(await screen.findByText("Everyone here")).toBeInTheDocument();
-    expect(screen.getByText("2 people · 1 roles")).toBeInTheDocument();
+    expect(screen.getByText(/2 people/)).toBeInTheDocument();
+    expect(screen.getByText(/1 role(?!s)/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Spring Play" })).toHaveAttribute(
       "href",
       expect.stringContaining("/go/project/4")
@@ -260,5 +267,40 @@ describe("ModerationPage", () => {
     // Changing it goes through the resource's own control, which is the one
     // editor for it.
     expect(screen.queryByRole("button", { name: /share|remove|add/i })).toBeNull();
+  });
+
+  it("counts one person as a person, not as people", async () => {
+    state.sharing = [
+      {
+        resource_type: "project",
+        resource_id: 4,
+        name: "Spring Play",
+        all_initiative_members: false,
+        user_grant_count: 1,
+        role_grant_count: 1,
+        via_dashboard: false,
+      },
+    ];
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    await screen.findByText("Spring Play");
+    expect(screen.queryByText(/1 people/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1 roles/)).not.toBeInTheDocument();
+  });
+
+  it("a failed read is not a community that has shared nothing", async () => {
+    // "Nothing is shared" reads as a finding, so it has to be one somebody
+    // actually got an answer to.
+    state.sharingFailed = true;
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    expect(await screen.findByText("Could not load that. Try again.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Nothing here has been shared with anybody in particular.")
+    ).not.toBeInTheDocument();
   });
 });

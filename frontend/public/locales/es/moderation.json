@@ -84,6 +84,10 @@
     "empty": "Aquí no se ha compartido nada con nadie en concreto.",
     "everyone": "Todo el mundo aquí",
     "viaDashboard": "A través de un panel",
-    "counts": "{{people}} personas · {{roles}} roles"
-  }
+    "people_one": "{{count}} persona",
+    "people_other": "{{count}} personas",
+    "roles_one": "{{count}} rol",
+    "roles_other": "{{count}} roles"
+  },
+  "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
 }

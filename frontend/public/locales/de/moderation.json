@@ -84,6 +84,10 @@
     "empty": "Hier wurde nichts gezielt freigegeben.",
     "everyone": "Alle hier",
     "viaDashboard": "Über ein Dashboard",
-    "counts": "{{people}} Personen · {{roles}} Rollen"
-  }
+    "people_one": "{{count}} Person",
+    "people_other": "{{count}} Personen",
+    "roles_one": "{{count}} Rolle",
+    "roles_other": "{{count}} Rollen"
+  },
+  "loadFailed": "Das konnte nicht geladen werden. Versuche es erneut."
 }
