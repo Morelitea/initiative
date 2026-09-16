@@ -42,6 +42,26 @@ from app.services.platform import security_rules
 
 logger = logging.getLogger(__name__)
 
+#: Stored types a served upload is rendered inline as. Raster pictures only:
+#: an ``<img>`` draws these and nothing about them is markup. Anything else —
+#: an SVG, a document file, a type nothing recognizes — is handed over as a
+#: download with scripts disabled.
+INLINE_UPLOAD_TYPES = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/tiff",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+    }
+)
+
+#: The same question for a row written before the type column existed: its
+#: stored name is the only thing that describes it.
+NAMED_AS_MARKUP = (".svg", ".html", ".htm")
+
 #: How long a browser may reuse a served upload before asking again.
 #:
 #: A stored blob is immutable, so this is not about staleness — it is how
@@ -616,7 +636,7 @@ async def serve_upload_file(
     await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
-            text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
+            text("SELECT content_type FROM uploads WHERE filename = :fn LIMIT 1"),
             params={"fn": fname},
         )
     ).first()
@@ -639,13 +659,24 @@ async def serve_upload_file(
     # that window.
     headers: dict[str, str] = {
         "Cache-Control": f"private, max-age={UPLOAD_CACHE_SECONDS}, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
     }
-    if filename.lower().endswith((".svg", ".html", ".htm")):
+    # What the file is, as the server recorded it when it was written — so a
+    # local blob and an S3 one describe themselves the same way, rather than
+    # each backend answering from what it happens to have. A row from before
+    # the column existed carries nothing; its name is read instead, and the
+    # backend keeps naming the type as it always has.
+    stored_type = hit[0]
+    inline = (
+        stored_type in INLINE_UPLOAD_TYPES
+        if stored_type is not None
+        else not fname.lower().endswith(NAMED_AS_MARKUP)
+    )
+    if not inline:
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
-        headers["X-Content-Type-Options"] = "nosniff"
     logger.info("upload_served filename=%s user=%d", filename, current_user.id)
-    return build_upload_response(blob, headers=headers)
+    return build_upload_response(blob, media_type=stored_type, headers=headers)
 
 
 app.include_router(api_router, prefix=API_V1_STR)
