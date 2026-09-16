@@ -108,21 +108,58 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      - name: Decode keystore
+      # Signing material lands in RUNNER_TEMP, never in the workspace, and is
+      # read from a properties file rather than the command line.
+      #
+      # Two separate reasons, and the second is the one that is easy to miss:
+      #
+      #   * a file under `frontend/android` is inside the checkout, so every
+      #     later step of this job can read it -- including anything a
+      #     dependency's build script decides to run -- and any artifact glob
+      #     that widens by one character uploads it;
+      #   * a `-P` flag is an ARGUMENT, so the value is in the process table
+      #     for the life of the build and in any log that echoes the command
+      #     line it ran. Log masking does not reach either place.
+      #
+      # Secrets arrive through `env:` so they are never substituted into the
+      # script text, and reach Gradle through GRADLE_USER_HOME/gradle.properties.
+      # See T61.
+      - name: Stage signing material outside the workspace
         if: ${{ env.HAS_KEYSTORE == 'true' }}
-        working-directory: frontend/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          set -euo pipefail
+          # Restrict before creating anything, not after: between a create and
+          # a chmod there is a window in which the file is world-readable.
+          umask 077
+          signing_dir="$RUNNER_TEMP/signing"
+          mkdir -p "$signing_dir/gradle"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$signing_dir/release.jks"
+          # printf, not a heredoc: an unquoted heredoc expands `$` inside the
+          # value, and a password is exactly the kind of string that contains
+          # one. Backslashes are doubled because this is a Java properties
+          # file, where a backslash is the escape character -- a password
+          # ending in one would otherwise swallow the newline after it. A
+          # LEADING space is escaped too: a properties reader skips whitespace
+          # between the separator and the value, so a password beginning with
+          # one would silently arrive shorter than it was set.
+          esc() { local v="${1//\\/\\\\}"; printf '%s' "${v/# /\\ }"; }
+          {
+            printf 'android.injected.signing.store.file=%s\n' "$(esc "$signing_dir/release.jks")"
+            printf 'android.injected.signing.store.password=%s\n' "$(esc "$KEYSTORE_PASSWORD")"
+            printf 'android.injected.signing.key.alias=%s\n' "$(esc "$KEY_ALIAS")"
+            printf 'android.injected.signing.key.password=%s\n' "$(esc "$KEY_PASSWORD")"
+          } > "$signing_dir/gradle/gradle.properties"
+          echo "GRADLE_USER_HOME=$signing_dir/gradle" >> "$GITHUB_ENV"
 
       - name: Build signed APK
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         working-directory: frontend/android
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$PWD/release.keystore \
-            -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.ANDROID_KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
 
       - name: Build unsigned APK (fallback)
         if: ${{ env.HAS_KEYSTORE != 'true' }}
@@ -137,6 +174,10 @@ jobs:
           else
             cp frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/initiative-${{ steps.version.outputs.version }}-unsigned.apk
           fi
+
+      - name: Remove staged signing material
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
