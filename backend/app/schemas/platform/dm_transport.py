@@ -148,6 +148,11 @@ class DmSendResponse(BaseModel):
     #: deliberately not per-recipient: what reached whom is not something the
     #: sender is told, and a count that moved would be telling them.
     accepted: int
+    #: Members whose mailbox was too full to take this. Named because a full
+    #: mailbox is a fact about capacity that the sender can act on -- send it
+    #: again later, or say something out of band. Nothing here ever reports a
+    #: copy that was dropped for any other reason.
+    queue_full_for: list[int] = []
 
 
 class DmQueueItemRead(BaseModel):
