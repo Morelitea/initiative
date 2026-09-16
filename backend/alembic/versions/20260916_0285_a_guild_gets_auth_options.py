@@ -8,14 +8,14 @@ Postgres enum, and a further kind of auth joins the type rather than adding a
 column here.
 
 The carry is exact: a guild that had the flag on gets both options, which is
-what the flag meant; one that had it off gets the empty set.
+what the flag meant; one that had it off gets the empty set. The write is set up
+the way every other ``public`` backfill in this directory is (see 0279), and its
+row count is asserted rather than assumed.
 
-``guild_administration`` is ``FORCE ROW LEVEL SECURITY``, so this migration's
-own UPDATE runs as a policy-bound write under ``app_provisioner`` and would
-match nothing. FORCE is lifted for the write and restored in a ``finally``, the
-way every other ``public`` backfill in this directory does it, and the row count
-is asserted rather than assumed — a fresh install has nothing to carry, so a
-silent zero here would pass CI and lose every existing grant.
+Going back is narrower than coming forward, because one boolean cannot hold two
+options. Only a guild holding ``providers`` gets the flag; one holding just
+``require_sign_in`` downgrades to ``false``, so the rollback never hands back
+more than the operator granted.
 
 Revision ID: 20260916_0285
 Revises: 20260916_0284
@@ -93,10 +93,12 @@ def downgrade() -> None:
         ),
     )
 
+    # The flag also stands for "may manage providers", so a guild earns it only
+    # by holding that option.
     expected = conn.execute(
         sa.text(
             "SELECT count(*) FROM public.guild_administration "
-            "WHERE cardinality(auth_options) > 0"
+            "WHERE 'providers' = ANY(auth_options)"
         )
     ).scalar_one()
 
@@ -105,7 +107,7 @@ def downgrade() -> None:
         carried = conn.execute(
             sa.text(
                 "UPDATE public.guild_administration SET guild_auth_enabled = true "
-                "WHERE cardinality(auth_options) > 0"
+                "WHERE 'providers' = ANY(auth_options)"
             )
         ).rowcount
     finally:

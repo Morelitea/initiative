@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -77,9 +77,19 @@ vi.mock("@/api/generated/settings/settings", () => ({
   ) => mintHandoff(guildId),
 }));
 
+// Captured so a test can fire the save's own callbacks and check what the
+// boxes do with a refusal.
+let updateCallbacks: {
+  onSuccess?: (row: (typeof guildsData)[number]) => void;
+  onError?: (err: unknown) => void;
+} = {};
+
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformGuilds: () => ({ data: guildsData, isLoading: false, isError: false }),
-  useUpdateGuildStorage: () => ({ mutate, isPending: false }),
+  useUpdateGuildStorage: (options: typeof updateCallbacks) => {
+    updateCallbacks = options ?? {};
+    return { mutate, isPending: false };
+  },
 }));
 
 import { AdminDashboardGuildsPage } from "./AdminDashboardGuildsPage";
@@ -247,6 +257,42 @@ describe("AdminDashboardGuildsPage", () => {
 
       await user.click(screen.getByRole("button", { name: "Suspend community" }));
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "suspended" } });
+    });
+  });
+
+  describe("a refused save", () => {
+    it("puts the stored value back rather than leaving the rejected one", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await openSheet(user, "Capped Community");
+      const input = storageInput();
+      expect(input.value).toBe("10");
+
+      fireEvent.change(input, { target: { value: "99" } });
+      fireEvent.blur(input);
+      expect(mutate).toHaveBeenCalled();
+
+      act(() => updateCallbacks.onError?.(new Error("nope")));
+      expect(storageInput().value).toBe("10");
+    });
+
+    it("shows what a save actually stored, not what was typed", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await openSheet(user, "Capped Community");
+      const input = storageInput();
+      fireEvent.change(input, { target: { value: "5.0" } });
+      fireEvent.blur(input);
+
+      act(() =>
+        updateCallbacks.onSuccess?.({
+          ...guildsData[0],
+          max_storage_bytes: 5 * GIB,
+        })
+      );
+      expect(storageInput().value).toBe("5");
     });
   });
 

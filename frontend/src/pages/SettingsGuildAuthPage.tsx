@@ -37,11 +37,10 @@ export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
 
-  // What the operator has granted this guild. Each half of the page hangs off
-  // its own grant: the provider list needs ``providers``, the sign-in
-  // requirement needs ``require_sign_in``. Outside them the tab is hidden and a
-  // direct URL renders nothing (fail closed while still loading), and the
-  // backend 404s the matching endpoints, so the queries stay off too.
+  // What the operator has granted this guild. Each section hangs off its own
+  // grant: editing the provider list needs ``providers``, the sign-in
+  // requirement needs ``require_sign_in``. Outside both the tab is hidden and a
+  // direct URL renders nothing (fail closed while still loading).
   const { activeGuild } = useGuilds();
   const grantedOptions = activeGuild?.auth_options ?? [];
   const mayConfigureProviders = grantedOptions.includes("providers");
@@ -51,8 +50,11 @@ export const SettingsGuildAuthPage = () => {
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && mayRequireSignIn,
   });
+  // Read for either grant. A requirement names one of the guild's providers, so
+  // choosing one needs the list even where editing it is not on offer — the two
+  // grants are independent and a guild may hold only the requirement half.
   const providersQuery = useGuildAuthProviders(guildId, {
-    enabled: guildId > 0 && mayConfigureProviders,
+    enabled: guildId > 0 && guildPostureActive,
   });
   // Only the guild's enabled providers can be required — a disabled row can't
   // serve a sign-in, so requiring it would lock the guild.

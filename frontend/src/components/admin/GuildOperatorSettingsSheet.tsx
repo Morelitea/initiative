@@ -101,20 +101,35 @@ export const GuildOperatorSettingsSheet = ({
 }) => {
   const { t } = useTranslation("settings");
 
-  const update = useUpdateGuildStorage({
-    onSuccess: (row) => toast.success(t("guilds.saved", { name: row.name })),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:guilds.saveError")),
-  });
-
   const [storageDraft, setStorageDraft] = useState("");
   const [usersDraft, setUsersDraft] = useState("");
   const [loadedFor, setLoadedFor] = useState<number | null>(null);
 
+  /** Show what is stored, so a box never presents an unsaved value as saved. */
+  const syncDrafts = (row: { max_storage_bytes: number | null; max_users: number | null }) => {
+    setStorageDraft(bytesToGbInput(row.max_storage_bytes));
+    setUsersDraft(userLimitToInput(row.max_users));
+  };
+
+  const update = useUpdateGuildStorage({
+    // A save that normalised a value ("10.0" -> "10") answers with what it
+    // stored, and that is what the boxes then show.
+    onSuccess: (row) => {
+      syncDrafts(row);
+      toast.success(t("guilds.saved", { name: row.name }));
+    },
+    // A refused save leaves the old value in place, so the boxes go back to it
+    // rather than keeping a number nothing accepted.
+    onError: (err) => {
+      if (guild) syncDrafts(guild);
+      toast.error(getErrorMessage(err, "settings:guilds.saveError"));
+    },
+  });
+
   // The drafts follow whichever community the sheet was opened for.
   if (guild && loadedFor !== guild.id) {
     setLoadedFor(guild.id);
-    setStorageDraft(bytesToGbInput(guild.max_storage_bytes ?? null));
-    setUsersDraft(userLimitToInput(guild.max_users ?? null));
+    syncDrafts(guild);
   }
 
   if (!guild) return null;

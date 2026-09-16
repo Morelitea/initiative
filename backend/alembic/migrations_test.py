@@ -600,6 +600,47 @@ class TestMigrationsAgainstDatabase:
             "the shared user_api_keys id sequence must survive the drop"
         )
 
+    def test_guild_auth_downgrade_hands_back_no_more_than_was_granted(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260916_0285 going back is narrower than coming forward.
+
+        One boolean cannot hold two options, and the flag stands for both. A
+        guild earns it by holding ``providers``.
+        """
+        _run_alembic("upgrade", "head")
+
+        _execute_sql(
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Requires only', NULL), ('Both', NULL), ('Neither', NULL)"
+        )
+        for name, options in (
+            ("Requires only", "{require_sign_in}"),
+            ("Both", "{providers,require_sign_in}"),
+            ("Neither", "{}"),
+        ):
+            _execute_sql(
+                "INSERT INTO public.guild_administration (guild_id, auth_options) "
+                f"SELECT id, '{options}'::guild_auth_option[] "
+                f"FROM public.guilds WHERE name = '{name}'"
+            )
+
+        _run_alembic("downgrade", "20260916_0284")
+
+        def flag(name: str):
+            return _fetchval(
+                "SELECT a.guild_auth_enabled FROM public.guild_administration a "
+                "JOIN public.guilds g ON g.id = a.guild_id "
+                f"WHERE g.name = '{name}'"
+            )
+
+        assert flag("Both") is True, "a guild that held providers keeps the flag"
+        assert flag("Requires only") is False, (
+            "the flag stands for provider management too, so it is earned by "
+            "holding that option"
+        )
+        assert flag("Neither") is False
+
     def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
         self, fresh_migrations_db: str
     ) -> None:
