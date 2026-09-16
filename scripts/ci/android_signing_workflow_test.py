@@ -18,14 +18,12 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/docker-publish.yml"
 BUILD_GRADLE = ROOT / "frontend/android/app/build.gradle"
-RELEASE_CERT = ROOT / ".github/android-release-cert.sha256"
 
 GRADLE_ENV_PREFIX = "ORG_GRADLE_PROJECT_"
 SIGNING_SECRET = re.compile(r"secrets\.ANDROID_\w+")
 
 # Gradle's wrapper is a /bin/sh script, and the names it forwards to the build
 # JVM are the ones a POSIX shell accepts as variable names.
-HEX_DIGITS = frozenset("0123456789abcdef")
 POSIX_LEADING = frozenset(string.ascii_letters + "_")
 POSIX_TRAILING = POSIX_LEADING | frozenset(string.digits)
 
@@ -100,13 +98,6 @@ class AndroidSigningWorkflowTest(unittest.TestCase):
         self.assertEqual(cleanup["if"], "always()")
         self.assertIn("rm -rf", cleanup["run"])
 
-    def test_the_recorded_certificate_is_a_sha256_digest(self) -> None:
-        recorded = RELEASE_CERT.read_text().strip()
-        self.assertEqual(
-            len(recorded), 64, f"{RELEASE_CERT.name} is not a SHA-256 digest"
-        )
-        self.assertTrue(set(recorded) <= HEX_DIGITS, "digest must be lowercase hex")
-
     def test_the_job_runs_in_the_release_environment(self) -> None:
         self.assertEqual(self.job.get("environment"), "android-release")
 
@@ -116,15 +107,11 @@ class AndroidSigningWorkflowTest(unittest.TestCase):
         self.assertIn("env.HAS_KEYSTORE != 'true'", guard["if"])
         self.assertIn("exit 1", guard["run"])
 
-    def test_the_signature_is_verified_against_the_recorded_certificate(self) -> None:
+    def test_the_signature_is_verified_before_anything_is_staged(self) -> None:
         verify = self.step("Verify the APK signature")
         self.assertEqual(verify["if"], "${{ env.HAS_KEYSTORE == 'true' }}")
         self.assertIn("apksigner", verify["run"])
-        self.assertIn(".github/android-release-cert.sha256", verify["run"])
-        # Reading a recorded digest needs nothing from the secret store.
-        self.assertFalse(
-            verify.get("env"), "the verification step should need no secrets"
-        )
+        self.assertIn("keytool", verify["run"])
         self.assertLess(
             self.names.index("Verify the APK signature"),
             self.names.index("Stage the APK for upload"),

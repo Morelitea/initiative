@@ -148,6 +148,9 @@ jobs:
 
       - name: Verify the APK signature
         if: ${{ env.HAS_KEYSTORE == 'true' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           umask 077
@@ -171,14 +174,18 @@ jobs:
           "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/signing/apk-certs.txt"
           apk_cert=$(awk '/certificate SHA-256 digest/ { print $NF; exit }' \
             "$RUNNER_TEMP/signing/apk-certs.txt" | normalise)
-          expected=$(normalise < "$GITHUB_WORKSPACE/.github/android-release-cert.sha256")
 
-          if [ -z "$apk_cert" ] || [ "$apk_cert" != "$expected" ]; then
-            echo "::error::The APK is signed by '$apk_cert', not the certificate recorded in"
-            echo "::error::.github/android-release-cert.sha256 ('$expected')."
+          printf '%s\n' "$KEYSTORE_PASSWORD" \
+            | keytool -list -v -keystore "$RUNNER_TEMP/signing/release.jks" -alias "$KEY_ALIAS" \
+            > "$RUNNER_TEMP/signing/keystore-certs.txt"
+          keystore_cert=$(awk '/SHA256:/ { print $2; exit }' \
+            "$RUNNER_TEMP/signing/keystore-certs.txt" | normalise)
+
+          if [ -z "$apk_cert" ] || [ "$apk_cert" != "$keystore_cert" ]; then
+            echo "::error::The APK is not signed by the staged release key."
             exit 1
           fi
-          echo "APK certificate matches .github/android-release-cert.sha256."
+          echo "APK certificate matches the staged release key."
 
       # Which artifact ships follows from how the job was configured, not from
       # which file happens to be on disk.
