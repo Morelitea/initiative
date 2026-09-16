@@ -36,7 +36,7 @@ async def test_create_user_factory(session: AsyncSession):
     )
 
     assert user.id is not None
-    assert user.email == "factory-test@example.com"
+    assert user.seeded_address == "factory-test@example.com"
     assert user.full_name == "Factory Test User"
     assert user.status == UserStatus.active
     assert user.hashed_password is not None

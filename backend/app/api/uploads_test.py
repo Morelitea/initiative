@@ -414,8 +414,8 @@ async def test_upload_row_in_guild_schema_is_served(
 async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     """Regression for the uploads 500 (schema-per-guild grant boundary).
 
-    The serve route runs as ``app_admin``, which has NO grants on a guild
-    schema — reading it requires ``SET ROLE`` into the guild role (what
+    The serve route runs as ``app_admin``, which has no direct grant on the
+    uploads table — reading it requires ``SET ROLE`` into the guild role (what
     ``set_rls_context`` does). A raw cross-schema ``SELECT`` as ``app_admin``
     is permission-denied. The default superuser-backed ``session`` fixture
     hides this (it bypasses grants), so this test runs as the REAL role via

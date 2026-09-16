@@ -27,7 +27,9 @@ from app.testing import create_guild, create_guild_membership, create_user
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 # The columns an account holder alone writes.
-CREDENTIAL_COLUMNS = ("hashed_password", "email_hash", "email_encrypted")
+# The address columns left ``users`` with H3; what stays here is the one
+# credential the row still carries.
+CREDENTIAL_COLUMNS = ("hashed_password",)
 
 
 async def _update_returning(
