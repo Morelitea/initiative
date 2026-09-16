@@ -43,6 +43,11 @@ class AuditEventType(str, Enum):
     AUTH_PASSWORD_CHANGED = "auth.password_changed"
     AUTH_IDENTITY_LINKED = "auth.identity_linked"
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
+    # The native credential, recorded so its use can be observed rather than
+    # guessed at. ``used`` rides the sliding window's own throttle, so it is
+    # about one event per device per day, not one per request.
+    AUTH_DEVICE_TOKEN_ISSUED = "auth.device_token_issued"
+    AUTH_DEVICE_TOKEN_USED = "auth.device_token_used"
 
 
 class AuditCategory(str, Enum):
@@ -98,6 +103,13 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_REFRESH_REUSE_DETECTED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_DEVICE_TOKEN_ISSUED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    # Presenting one slides its expiry, which is the write this records.
+    AuditEventType.AUTH_DEVICE_TOKEN_USED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
 }

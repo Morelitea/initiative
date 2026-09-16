@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
@@ -17,6 +18,8 @@ DEFAULT_TOKEN_TTL_MINUTES = 60
 # Presenting the token (see ``get_device_token``) refreshes the expiry, so an
 # actively-used device stays logged in indefinitely while an abandoned token
 # dies within the cap.
+logger = logging.getLogger(__name__)
+
 DEVICE_TOKEN_TTL_DAYS = 90
 # Refreshing expiry on every single request would write to the DB on every
 # authenticated call. The window is only re-slid once the previous slide is
@@ -199,7 +202,34 @@ async def get_device_token(
         session.add(record)
         await session.commit()
         await session.refresh(record)
+        await _record_device_token_use(user_id=record.user_id)
     return record
+
+
+async def _record_device_token_use(*, user_id: int) -> None:
+    """Note that a device token was presented, at the throttle above.
+
+    Once per device per day rather than once per request, which is what makes
+    it readable as adoption. On its own system-engine session: the request path
+    holds nothing on ``audit_events`` in either direction.
+
+    A record that cannot be written is logged and passed over. Presenting a
+    credential that is still good is not the moment to refuse service.
+    """
+    from app.core.audit_events import AuditEventType
+    from app.db import session as db_session
+    from app.services import audit as audit_service
+
+    try:
+        async with db_session.AdminSessionLocal() as admin_session:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_DEVICE_TOKEN_USED,
+                actor_user_id=user_id,
+            )
+            await admin_session.commit()
+    except Exception:
+        logger.exception("Could not record device-token use for user %s", user_id)
 
 
 async def get_user_device_tokens(

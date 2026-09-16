@@ -2581,6 +2581,13 @@ export interface DeletionEligibilityResponse {
 }
 
 /**
+ * A device token offered in return for a session.
+ */
+export interface DeviceTokenExchangeRequest {
+  device_token: string;
+}
+
+/**
  * Information about a device token (for listing/management).
  */
 export interface DeviceTokenInfo {
@@ -2604,11 +2611,19 @@ export interface DeviceTokenRequest {
 }
 
 /**
- * Response containing the device token.
+ * What a native sign-in is handed.
+ *
+ * The device token is what older builds read, and it keeps working. Beside it
+ * is a session of the ordinary kind — an access token and the refresh token
+ * that renews it — so a build that prefers them has them from the first
+ * sign-in. A client that does not know the fields ignores them.
  */
 export interface DeviceTokenResponse {
   device_token: string;
   token_type: string;
+  access_token: string | null;
+  refresh_token: string | null;
+  expires_in: number | null;
 }
 
 /**
@@ -6032,6 +6047,17 @@ export interface RecentViewWrite {
 }
 
 /**
+ * How a caller with no cookie presents its refresh token.
+ *
+ * The browser sends nothing here — its refresh token is a cookie it cannot
+ * read. A native client keeps its own in secure storage, so it has to hand it
+ * over explicitly.
+ */
+export interface RefreshRequest {
+  refresh_token?: string | null;
+}
+
+/**
  * One listing a verified index carried that this deployment did not take.
  */
 export interface RegistrySkippedListing {
@@ -6883,6 +6909,7 @@ export interface TodoistParseResult {
 export interface Token {
   access_token: string;
   token_type?: string;
+  refresh_token?: string | null;
 }
 
 /**

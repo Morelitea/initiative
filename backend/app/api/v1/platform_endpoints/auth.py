@@ -62,7 +62,9 @@ from app.schemas.platform.token import Token
 from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
+    DeviceTokenExchangeRequest,
     DeviceTokenResponse,
+    RefreshRequest,
     LoginProviderEntry,
     LoginProvidersResponse,
     PasswordResetRequest,
@@ -568,6 +570,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     admin_session: AdminSessionDep,
+    payload: RefreshRequest | None = None,
 ) -> Token | JSONResponse:
     """Rotate the refresh cookie → a fresh short-lived access token + new refresh.
 
@@ -578,7 +581,14 @@ async def refresh_access_token(
     was detected. Runs on the system engine: validation is a pre-auth lookup by
     refresh-token hash.
     """
+    # Cookie first, so the browser is unchanged. A native client has no cookie
+    # to send — its refresh token lives in the platform's secure storage — so it
+    # presents one in the body and gets the rotated one back the same way.
     raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    presented_in_body = False
+    if not raw and payload is not None and payload.refresh_token:
+        raw = payload.refresh_token
+        presented_in_body = True
     if not raw:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -645,7 +655,10 @@ async def refresh_access_token(
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
+    return Token(
+        access_token=access_token,
+        refresh_token=issued.refresh_token if presented_in_body else None,
+    )
 
 
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
@@ -804,12 +817,136 @@ async def create_device_token(
             admin_session, user=user, password=payload.password
         )
 
+    device_name = payload.device_name.strip()
     device_token = await user_tokens.create_device_token(
         session,
         user_id=user.id,
-        device_name=payload.device_name.strip(),
+        device_name=device_name,
     )
-    return DeviceTokenResponse(device_token=device_token)
+
+    # A session of the ordinary kind, opened beside the device token so a build
+    # that prefers it has one from the first sign-in. It carries ``pwd`` because
+    # that is what was presented here — which is also what the device token
+    # itself cannot say, and why a device-token session satisfies no policy.
+    #
+    # A session that cannot be opened is a 503, not a quiet fall back to the
+    # device token alone: D2a settled that a sign-in hands back the credential
+    # it means to, or says it could not.
+    user_id, token_version = user.id, user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            actor_user_id=user_id,
+            detail={"method": "password", "device_name": device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    return DeviceTokenResponse(
+        device_token=device_token,
+        access_token=access_token,
+        refresh_token=issued.refresh_token,
+        expires_in=access_max_age,
+    )
+
+
+@router.post("/device-token/exchange", response_model=Token)
+@limiter.limit("20/15minutes")
+async def exchange_device_token(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    payload: DeviceTokenExchangeRequest,
+) -> Token:
+    """Trade a device token for a session of the ordinary kind.
+
+    How an installed client moves across without asking anybody to sign in
+    again: it presents the token it already holds and is handed an access token
+    and a refresh token. The device token is left alone — it keeps working
+    until the client stops sending it, and the build that stops is the one that
+    decides when.
+
+    The session carries **no** factors. A device token does not record what was
+    presented when it was minted, and a session that claimed otherwise would be
+    asserting assurance nobody established — so this satisfies no guild
+    sign-in requirement, exactly as the device token itself does not.
+    """
+    record = await user_tokens.get_device_token(session, token=payload.device_token)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = await admin_session.get(User, record.user_id)
+    if user is None or user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id, token_version = user.id, user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=[],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=record.device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            actor_user_id=user_id,
+            detail={"method": "exchange", "device_name": record.device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, _ = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    return Token(access_token=access_token, refresh_token=issued.refresh_token)
 
 
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
@@ -1418,11 +1555,22 @@ async def _complete_provider_login(
         logger.exception("OIDC claim sync failed for user %s", user.id)
 
     if is_mobile:
+        device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
             session,
             user_id=user.id,
-            device_name=completion.device_name or "Mobile Device",
+            device_name=device_name,
         )
+        # No session alongside this one: it answers with a redirect, and a
+        # refresh token does not belong in a URL. ``POST /auth/device-token/
+        # exchange`` is where this client trades the token for one.
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            actor_user_id=user.id,
+            detail={"method": "oidc", "device_name": device_name},
+        )
+        await admin_session.commit()
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
