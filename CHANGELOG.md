@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The app on your phone renews its session** — signing in on mobile handed the app one credential that stayed good for months and was sent with every request from then on. It now gets a session of the same kind the browser has: a short-lived one the app renews quietly in the background, replaced each time it is used, so the one on the device is only ever the current one. An app you are already signed in to moves across by itself the next time you open it, and nobody is asked to sign in again.
 - **A new community starts empty, and asks you to name the first initiative** — every community used to arrive with an initiative called *Default Initiative*, which is a name for nothing in particular. Most people renamed it within the minute, and the ones who didn't ended up filing a season's work under a folder that never said what it was. A new community now has no initiatives at all: the home page offers **Create initiative**, and you name it after whatever you're actually doing — "Spring Play", "Engineering", "Tuesday Night D&D" — before anything goes in it. Communities that already have a Default Initiative keep it, unchanged and still undeletable.
 
 ### Fixed

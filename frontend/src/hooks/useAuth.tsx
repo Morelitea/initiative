@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import {
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  renewSession,
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
@@ -23,6 +24,12 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  clearRefreshToken,
+  readRefreshToken,
+  sessionFromResponse,
+  storeRefreshToken,
+} from "@/lib/nativeSession";
 import {
   isOfflineCacheEnabled,
   purgeOfflineCache,
@@ -203,20 +210,85 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [setUser]
   );
 
-  // Load token on mount for native only (web uses HttpOnly cookie — no localStorage read needed)
+  // Load the credential on mount for native only (web uses an HttpOnly cookie,
+  // so there is nothing here to read).
+  //
+  // A session is preferred over the device token wherever there is one, and a
+  // launch holding only a device token trades it for a session, once. Every
+  // failure here falls back to the device token rather than signing anybody
+  // out: the backend serves both, and the app that cannot renew today is the
+  // same app that worked yesterday.
   useEffect(() => {
     if (!isNative) return;
-    try {
-      const storedToken = getItem(TOKEN_STORAGE_KEY);
-      const isDevice = getItem(DEVICE_TOKEN_KEY) === "true";
-      if (storedToken) {
-        setTokenState(storedToken);
-        setIsDeviceToken(isDevice);
-        setAuthToken(storedToken, isDevice);
+    let cancelled = false;
+
+    const restore = async () => {
+      const deviceToken = getItem(TOKEN_STORAGE_KEY);
+      const hasDeviceToken = getItem(DEVICE_TOKEN_KEY) === "true" && !!deviceToken;
+
+      const carryOnWithDeviceToken = () => {
+        if (cancelled || !deviceToken) return;
+        setTokenState(deviceToken);
+        setIsDeviceToken(true);
+        setAuthToken(deviceToken, true);
+      };
+
+      const adopt = (accessToken: string, refreshToken: string) => {
+        storeRefreshToken(refreshToken);
+        if (cancelled) return;
+        setTokenState(accessToken);
+        setIsDeviceToken(false);
+        setAuthToken(accessToken, false);
+      };
+
+      if (readRefreshToken()) {
+        // The access token is short-lived and was never written down, so the
+        // launch begins by renewing rather than by being turned away once.
+        //
+        // Through the shared coordinator rather than posting here: a refresh
+        // token is spent by its first use, and two requests carrying the same
+        // one read as a replay and revoke the chain. Anything else renewing at
+        // the same moment — a mount run twice, a request that raced this —
+        // joins the attempt already in flight instead of starting a second.
+        const renewed = await renewSession();
+        if (renewed) {
+          if (!cancelled) {
+            setTokenState(renewed);
+            setIsDeviceToken(false);
+          }
+          return;
+        }
+        clearRefreshToken();
+        carryOnWithDeviceToken();
+        return;
       }
-    } catch (err) {
+
+      if (hasDeviceToken) {
+        // The way across, taken once: the token it trades keeps working, so a
+        // refusal here costs nothing but another attempt next launch.
+        try {
+          const exchanged = await apiClient.post<{
+            access_token: string;
+            refresh_token?: string;
+          }>("/auth/device-token/exchange", { device_token: deviceToken });
+          if (exchanged.data.refresh_token) {
+            adopt(exchanged.data.access_token, exchanged.data.refresh_token);
+            return;
+          }
+        } catch {
+          // An older deployment has no such endpoint, and a newer one may
+          // simply be away. Either way the device token is still good.
+        }
+        carryOnWithDeviceToken();
+      }
+    };
+
+    void restore().catch((err) => {
       console.error("Failed to load token", err);
-    }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -277,6 +349,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsDeviceToken(false);
           removeItem(TOKEN_STORAGE_KEY);
           removeItem(DEVICE_TOKEN_KEY);
+          clearRefreshToken();
           setAuthToken(null);
         }
       } finally {
@@ -301,17 +374,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // On mobile, use device token endpoint
       if (isNative) {
         const name = deviceName || "Mobile Device";
-        const response = await apiClient.post<{ device_token: string }>("/auth/device-token", {
+        const response = await apiClient.post<{
+          device_token: string;
+          access_token?: string | null;
+          refresh_token?: string | null;
+        }>("/auth/device-token", {
           email,
           password,
           device_name: name,
         });
         const newToken = response.data.device_token;
-        setAuthToken(newToken, true);
+        // Kept whichever credential is used: it is what the app falls back to
+        // if a renewal cannot be had, and what a deployment that is not yet
+        // updated answers with on its own.
         setItem(TOKEN_STORAGE_KEY, newToken);
         setItem(DEVICE_TOKEN_KEY, "true");
-        setTokenState(newToken);
-        setIsDeviceToken(true);
+        const session = sessionFromResponse(response.data);
+        if (session) {
+          storeRefreshToken(session.refreshToken);
+          setAuthToken(session.accessToken, false);
+          setTokenState(session.accessToken);
+          setIsDeviceToken(false);
+        } else {
+          setAuthToken(newToken, true);
+          setTokenState(newToken);
+          setIsDeviceToken(true);
+        }
         await refreshUser();
       } else {
         const params = new URLSearchParams();
@@ -330,6 +418,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(newToken, false);
         removeItem(TOKEN_STORAGE_KEY);
         removeItem(DEVICE_TOKEN_KEY);
+        clearRefreshToken();
         setTokenState(newToken);
         setIsDeviceToken(false);
         await refreshUser();
@@ -391,6 +480,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearUploadToken();
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
+    clearRefreshToken();
     queryClient.clear();
     // replaceIdentity already dropped the session snapshot; the cache that went
     // with it goes at the same time.

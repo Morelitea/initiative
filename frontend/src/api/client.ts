@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 
+import { readRefreshToken, storeRefreshToken } from "@/lib/nativeSession";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const DEFAULT_API_BASE_URL = "/api/v1";
@@ -187,7 +188,21 @@ type Renewal = AxiosResponse<{ access_token: string }>;
 const RENEWED_BY_PEER = Symbol("renewed-by-peer");
 type TurnResult = Renewal | typeof RENEWED_BY_PEER;
 
-const renew = () => apiClient.post<{ access_token: string }>("/auth/refresh");
+// The browser's refresh token is a cookie it cannot read, so it sends nothing
+// and the server reads the jar. The native app keeps its own and has to hand it
+// over — and gets the replacement back the same way, because rotation means the
+// one it holds is spent.
+const renew = async (): Promise<Renewal> => {
+  const stored = isDeviceToken ? null : readRefreshToken();
+  const response = await apiClient.post<{ access_token: string; refresh_token?: string }>(
+    "/auth/refresh",
+    stored ? { refresh_token: stored } : undefined
+  );
+  if (response.data?.refresh_token) {
+    storeRefreshToken(response.data.refresh_token);
+  }
+  return response;
+};
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -249,6 +264,12 @@ const takeRenewalTurn = (): Promise<TurnResult> => {
   return locks ? locks.request(REFRESH_LOCK, renew) : renewTakingTurns();
 };
 
+// Native was excluded from renewal because it had nothing to renew with: one
+// long-lived device token, so a 401 really was the end of the session. An app
+// holding a refresh token is in the same position as the browser and renews the
+// same way; one still in device-token mode is not, and keeps the old answer.
+const canRenewSession = (): boolean => !Capacitor.isNativePlatform() || !!readRefreshToken();
+
 const attemptSessionRefresh = (): Promise<boolean> => {
   if (!refreshInFlight) {
     refreshInFlight = takeRenewalTurn()
@@ -258,7 +279,7 @@ const attemptSessionRefresh = (): Promise<boolean> => {
         // stale header, which the backend reads before the fresh cookie. When
         // another window renewed, the token it was handed is not ours to hold,
         // so the retry goes on the cookie that window set.
-        if (authToken && !isDeviceToken) {
+        if (!isDeviceToken && (authToken || readRefreshToken())) {
           setAuthToken(result === RENEWED_BY_PEER ? null : result.data?.access_token || null);
         }
         return true;
@@ -279,6 +300,18 @@ const attemptSessionRefresh = (): Promise<boolean> => {
   }
   return refreshInFlight;
 };
+
+/**
+ * Renew now, sharing whatever attempt is already running, and report the access
+ * token it produced.
+ *
+ * For the native app's cold start: it holds a refresh token and no access
+ * token, and a refresh token is spent by its first use — two requests carrying
+ * the same one read as a replay and revoke the chain. Going through the one
+ * coordinator is what makes a second caller wait for the first instead.
+ */
+export const renewSession = async (): Promise<string | null> =>
+  (await attemptSessionRefresh()) ? getAuthToken() : null;
 
 // Auth lifecycle endpoints must not trigger a renewal: /auth/refresh itself
 // (recursion), and login/logout, whose 401s mean something other than "the
@@ -320,7 +353,7 @@ apiClient.interceptors.response.use(undefined, async (error) => {
   }
   if (
     error.response?.status === 401 &&
-    !Capacitor.isNativePlatform() &&
+    canRenewSession() &&
     config &&
     !config._sessionRefreshRetried &&
     !isAuthLifecyclePath(config.url)

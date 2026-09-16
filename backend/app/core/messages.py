@@ -1320,6 +1320,15 @@ class DirectMessageTransportMessages:
     #: The recipient is holding more undelivered ciphertext than they may.
     #: Refused at the door rather than accepted and dropped later.
     RECIPIENT_QUEUE_FULL = "DM_RECIPIENT_QUEUE_FULL"
+    #: Somebody on the proposed roster cannot reach somebody else on it. Which
+    #: pair is answered by the roster check, not by this refusal.
+    ROSTER_NOT_REACHABLE = "DM_ROSTER_NOT_REACHABLE"
+    #: More accounts than one conversation may carry.
+    ROSTER_TOO_LARGE = "DM_ROSTER_TOO_LARGE"
+    #: Fewer than three, which is a pair and has its own way in.
+    ROSTER_TOO_SMALL = "DM_ROSTER_TOO_SMALL"
+    #: Answering an invitation that is not there, or is already answered.
+    NO_INVITATION = "DM_NO_INVITATION"
 
 
 class ContactGrantMessages:
