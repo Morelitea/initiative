@@ -327,7 +327,7 @@ async def send_messages(
 ) -> DmSendResponse:
     """Hand the server one already-encrypted copy per destination device."""
     try:
-        written, recipient_id = await service.send(
+        outcome = await service.send(
             session,
             user_id=current_user.id,
             conversation_id=conversation_id,
@@ -337,7 +337,7 @@ async def send_messages(
         raise _error(exc) from exc
     await session.commit()
 
-    # The sender's own tabs always have something to collect; the recipient only
+    # The sender's own tabs always have something to collect; a recipient only
     # where the message actually reached them, and they are never told about the
     # difference.
     await dm_stream.signal_dm(current_user.id)
@@ -346,7 +346,7 @@ async def send_messages(
             user_id=current_user.id,
             except_device_token_id=device_token_id(),
         )
-    if recipient_id is not None:
+    for recipient_id in outcome.reached:
         if body.silent:
             # Wake them to collect it, and write nothing down about it. A bell
             # line names a sender and counts what they said; a client saying it
@@ -359,7 +359,9 @@ async def send_messages(
                 sender_name=handle_of(current_user),
                 conversation_id=conversation_id,
             )
-    return DmSendResponse(accepted=written)
+    return DmSendResponse(
+        accepted=outcome.accepted, queue_full_for=list(outcome.queue_full)
+    )
 
 
 @me_router.get("/dm/queue", response_model=DmQueueResponse)

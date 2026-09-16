@@ -535,7 +535,8 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
     """The whole point of the ignore, on the wire.
 
     The send succeeds, the response is identical, and nothing lands in the
-    recipient's queue.
+    recipient's queue. Identical includes the count: it says what the sender
+    handed over, so it does not move when a copy is dropped.
     """
     a = await acting_user()
     b = await acting_user()
@@ -564,6 +565,10 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         headers=a.headers,
     )
     assert sent.status_code == 200, sent.text
+    # Two handed over, two accepted -- the same answer somebody who is not
+    # ignored gets, which is what makes the ignore invisible rather than
+    # merely quiet.
+    assert sent.json()["accepted"] == 2
 
     collected = await client.get(
         f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
@@ -574,6 +579,196 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
     )
     assert len(own.json()["items"]) == 1
+
+
+class TestAGroupSend:
+    """Three people on one conversation. Nothing can make one through the API
+    yet, so the roster is written directly — the send path is what is under
+    test, and it is already meant to carry any roster."""
+
+    async def _group(self, client, session, members):
+        from datetime import datetime, timezone
+
+        from app.models.platform.dm_conversation import (
+            DmConversation,
+            DmConversationKind,
+            DmConversationMember,
+            roster_key,
+        )
+
+        for actor in members:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(members):
+            for second in members[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+
+        devices = {
+            actor.user.id: await _register(client, actor, seed=1 + 40 * i)
+            for i, actor in enumerate(members)
+        }
+        now = datetime.now(timezone.utc)
+        conversation = DmConversation(
+            kind=DmConversationKind.group,
+            roster_key=roster_key(actor.user.id for actor in members),
+        )
+        session.add(conversation)
+        await session.flush()
+        for actor in members:
+            session.add(
+                DmConversationMember(
+                    conversation_id=conversation.id,
+                    user_id=actor.user.id,
+                    accepted_at=now,
+                )
+            )
+        await session.commit()
+        return str(conversation.id), devices
+
+    async def _send_to(self, client, actor, conversation_id, device_ids):
+        return await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": device_id,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"for the group").decode(),
+                    }
+                    for device_id in device_ids
+                ]
+            },
+            headers=actor.headers,
+        )
+
+    async def _waiting(self, client, actor, device_id) -> int:
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={device_id}", headers=actor.headers
+        )
+        return len(collected.json()["items"])
+
+    async def test_one_message_reaches_every_member(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["accepted"] == 2
+        assert sent.json()["queue_full_for"] == []
+        assert await self._waiting(client, b, devices[b.user.id]) == 1
+        assert await self._waiting(client, c, devices[c.user.id]) == 1
+
+    async def test_one_member_ignoring_does_not_stop_the_others(
+        self, client, session, acting_user
+    ):
+        """Delivery is asked per recipient, and the sender is answered the same."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+        session.add(UserIgnore(user_id=b.user.id, ignored_user_id=a.user.id))
+        await session.commit()
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        # Unmoved, so the ignore is invisible here exactly as it is for a pair.
+        assert sent.json()["accepted"] == 2
+        assert sent.json()["queue_full_for"] == []
+        assert await self._waiting(client, b, devices[b.user.id]) == 0
+        assert await self._waiting(client, c, devices[c.user.id]) == 1
+
+    async def test_a_device_nobody_on_the_roster_owns_is_dropped(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        outsider = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+        await _set_policy(session, outsider.user, DmPolicy.public)
+        await _open_channel(session, a.user, outsider.user)
+        theirs = await _register(client, outsider, seed=200)
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], theirs]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert await self._waiting(client, b, devices[b.user.id]) == 1
+        assert await self._waiting(client, outsider, theirs) == 0
+
+
+class TestAFullMailbox:
+    """The ceiling refuses a send it cannot keep. What differs with a roster is
+    that one full mailbox is not everybody's."""
+
+    async def _fill(self, session, user_id: int) -> None:
+        """Put this account over its ceiling, without moving a real message."""
+        from app.services.platform.dm_transport import QUEUE_CEILING_BYTES
+
+        await session.exec(
+            text(
+                "INSERT INTO public.dm_queue "
+                "(conversation_id, recipient_device_id, message_type, payload, created_at) "
+                "SELECT c.id, d.id, 1, repeat('x', :n)::bytea, now() "
+                "  FROM public.dm_devices d "
+                "  JOIN public.dm_conversation_members m ON m.user_id = d.user_id "
+                "  JOIN public.dm_conversations c ON c.id = m.conversation_id "
+                " WHERE d.user_id = :u LIMIT 1"
+            ).bindparams(n=QUEUE_CEILING_BYTES, u=user_id)
+        )
+        await session.commit()
+
+    async def test_a_pair_is_refused(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, _a_device, b_device = await _conversation_with_devices(
+            client, session, a, b
+        )
+        await self._fill(session, b.user.id)
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"too much").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+
+        assert sent.status_code == 507
+        assert sent.json()["detail"] == "DM_RECIPIENT_QUEUE_FULL"
+
+    async def test_a_group_delivers_to_the_rest_and_says_who_missed_it(
+        self, client, session, acting_user
+    ):
+        """One abandoned phone is not a reason the others hear nothing."""
+        group = TestAGroupSend()
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await group._group(client, session, [a, b, c])
+        await self._fill(session, b.user.id)
+
+        sent = await group._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["queue_full_for"] == [b.user.id]
+        assert await group._waiting(client, c, devices[c.user.id]) == 1
 
 
 async def test_collecting_then_acknowledging_removes_the_row(

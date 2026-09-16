@@ -2802,6 +2802,7 @@ export interface DmSendRequest {
 
 export interface DmSendResponse {
   accepted: number;
+  queue_full_for?: number[];
 }
 
 /**

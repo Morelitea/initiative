@@ -21,6 +21,7 @@ import base64
 import binascii
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, insert, text, update
@@ -59,6 +60,20 @@ QUEUE_CEILING_BYTES = 50 * 1024 * 1024
 
 #: How many messages one collection returns.
 QUEUE_PAGE = 200
+
+
+@dataclass(frozen=True)
+class DmSendOutcome:
+    """What a send did, in the terms the sender may be told."""
+
+    #: How many messages the server took. All of them, or the send failed.
+    accepted: int
+    #: Members something was actually written for, so they can be woken. Never
+    #: reported to the sender: it is the answer an ignore is meant to withhold.
+    reached: tuple[int, ...]
+    #: Members whose mailbox was too full to take it. A fact about capacity
+    #: rather than about permission, so this one is theirs to see.
+    queue_full: tuple[int, ...]
 
 
 class DmTransportError(Exception):
@@ -632,94 +647,148 @@ async def leave_conversation(
 # --------------------------------------------------------------------------
 
 
+async def _device_owners(
+    session: AsyncSession, device_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Which account each destination device belongs to.
+
+    Only the devices the caller may see — their own, and those of accounts they
+    may message. One that does not come back is a device they have no business
+    encrypting to, and its copy is dropped rather than refused, so it is not
+    tellable apart from a copy an ignore dropped.
+    """
+    if not device_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(DmDevice.id, DmDevice.user_id).where(DmDevice.id.in_(device_ids))
+        )
+    ).all()
+    return {device_id: owner for device_id, owner in rows}
+
+
 async def send(
     session: AsyncSession,
     *,
     user_id: int,
     conversation_id: uuid.UUID,
     messages: list[DmOutboundMessage],
-) -> tuple[int, int | None]:
-    """Write one already-encrypted message to every device that should get it.
-
-    Returns the number of rows written and, when the other party was written to,
-    their account id — the caller uses it to signal them, and it is ``None``
-    where nothing reached them.
+) -> DmSendOutcome:
+    """Write one already-encrypted copy to every device that should get it.
 
     The sender's own devices are always written to, so their other clients
-    render their own outbox. The other party's devices are written to only if
-    ``dm_deliverable`` says so, and the sender is told the same thing either way.
+    render their own outbox. Everybody else's are written to only where
+    ``dm_deliverable`` says so, and the sender is told the same thing either
+    way — the count answered is what they handed over, and it does not move
+    when a copy is dropped.
+
+    **A send is refused only where it can reach nobody.** One member of a roster
+    being out of reach, or holding a full mailbox, does not stop the rest
+    hearing it; a pair is the case where the one recipient is everybody, so the
+    refusals that were right for a pair are still exactly what a pair gets.
+
+    The two refusals say different things and are kept apart. Being out of reach
+    is read from the *apparent* permission, which the sender can ask for
+    directly, so refusing on it tells them nothing new. A full mailbox is a fact
+    about capacity, and the recipients it happened to are named in the outcome.
+    Neither is ever read from ``dm_deliverable``, because that is the one that
+    knows about ignores.
     """
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
-    other_id = await _sole_other_member(
-        session, conversation_id=conversation_id, user_id=user_id
+    roster = set(
+        await _other_members(session, conversation_id=conversation_id, user_id=user_id)
     )
-    if await _permission(session, other_id) != "open":
-        raise DmTransportError(Messages.NOT_REACHABLE)
+    if not roster:
+        raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
 
-    own_device_ids = set(
-        (
-            await session.exec(select(DmDevice.id).where(DmDevice.user_id == user_id))
-        ).all()
+    owners = await _device_owners(
+        session, {message.recipient_device_id for message in messages}
     )
-    delivers = await _deliverable(session, other_id)
 
-    payloads: list[tuple[DmOutboundMessage, bytes, bool]] = []
-    incoming_bytes = 0
+    # Decode and attribute the whole bundle before anything is written: an
+    # oversized copy fails the send, and who is addressed decides which
+    # mailboxes are locked.
+    decoded: list[tuple[DmOutboundMessage, bytes, int | None]] = []
     for message in messages:
         raw = _decode(message.payload)
         if len(raw) > MAX_PAYLOAD_BYTES:
             raise DmTransportError(Messages.MESSAGE_TOO_LARGE)
-        mine = message.recipient_device_id in own_device_ids
-        if not mine and not delivers:
-            continue
-        if not mine:
-            incoming_bytes += len(raw)
-        payloads.append((message, raw, mine))
+        decoded.append((message, raw, owners.get(message.recipient_device_id)))
 
-    if incoming_bytes:
-        # Two sends to the same near-full mailbox would otherwise both read the
-        # old total and both pass. Transaction-scoped, and keyed on the
-        # recipient, so only sends to the same person ever wait.
+    addressed = {owner for _m, _raw, owner in decoded if owner in roster}
+    reachable = False
+    for recipient in addressed:
+        if await _permission(session, recipient) == "open":
+            reachable = True
+            break
+    if addressed and not reachable:
+        raise DmTransportError(Messages.NOT_REACHABLE)
+
+    deliverable = {
+        recipient for recipient in addressed if await _deliverable(session, recipient)
+    }
+
+    incoming: dict[int, int] = {}
+    for _message, raw, owner in decoded:
+        if owner in deliverable:
+            incoming[owner] = incoming.get(owner, 0) + len(raw)
+
+    # Two sends to the same near-full mailbox would otherwise both read the old
+    # total and both pass. Taken in a fixed order because two sends into
+    # overlapping rosters take the same mailboxes, and taking them in different
+    # orders is how each ends up waiting on the other.
+    for recipient in sorted(incoming):
         await session.exec(
             select(
                 func.pg_advisory_xact_lock(
-                    func.hashtextextended(f"dm-queue:{other_id}", 0)
+                    func.hashtextextended(f"dm-queue:{recipient}", 0)
                 )
             )
         )
-    if incoming_bytes and (
-        await _queue_bytes(session, other_id) + incoming_bytes > QUEUE_CEILING_BYTES
-    ):
-        # Refusing is honest. Accepting a message we mean to drop later is not.
+    full = {
+        recipient
+        for recipient in sorted(incoming)
+        if await _queue_bytes(session, recipient) + incoming[recipient]
+        > QUEUE_CEILING_BYTES
+    }
+    if incoming and full == set(incoming):
+        # Nobody addressed could take it. Refusing is honest; accepting a
+        # message we mean to drop later is not.
         raise DmTransportError(Messages.RECIPIENT_QUEUE_FULL)
 
-    if payloads:
+    rows = []
+    reached: set[int] = set()
+    for message, raw, owner in decoded:
+        if owner == user_id:
+            pass  # An account's own copies always land; they are its outbox.
+        elif owner in deliverable and owner not in full:
+            reached.add(owner)
+        else:
+            continue
+        rows.append(
+            {
+                "conversation_id": conversation_id,
+                "recipient_device_id": message.recipient_device_id,
+                "message_type": message.message_type,
+                "payload": raw,
+            }
+        )
+
+    if rows:
         # A Core insert, deliberately: the ORM would ask for the new id back,
         # and nothing here needs it.
         now = datetime.now(timezone.utc)
         await session.exec(
-            insert(DmQueueItem).values(
-                [
-                    {
-                        "conversation_id": conversation_id,
-                        "recipient_device_id": message.recipient_device_id,
-                        "message_type": message.message_type,
-                        "payload": raw,
-                        "created_at": now,
-                    }
-                    for message, raw, _mine in payloads
-                ]
-            )
+            insert(DmQueueItem).values([{**row, "created_at": now} for row in rows])
         )
     await session.flush()
-    # Their id only where something was actually written for them. An account's
-    # own devices talk to each other through a conversation -- it is the only
-    # channel there is -- and the other party has no part in that and is not
-    # woken for it.
-    reached = any(not mine for _message, _raw, mine in payloads)
-    return len(payloads), other_id if delivers and reached else None
+    return DmSendOutcome(
+        accepted=len(messages),
+        reached=tuple(sorted(reached)),
+        queue_full=tuple(sorted(full)),
+    )
 
 
 async def _claim_device_token(
