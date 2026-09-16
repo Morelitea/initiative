@@ -96,7 +96,7 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
 -   :material-message-outline: __Messages__
 
-    Private one-to-one conversations, encrypted end to end.
+    Private conversations, two people or a few, encrypted end to end.
 
     [:octicons-arrow-right-24: Messages](messages.md)
 
