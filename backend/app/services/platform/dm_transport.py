@@ -40,6 +40,7 @@ from app.models.platform.dm_device import DmDevice
 from app.models.platform.dm_one_time_key import DmOneTimeKey
 from app.models.platform.dm_queue import DmQueueItem
 from app.schemas.platform.dm_transport import (
+    MAX_GROUP_MEMBERS,
     MAX_ONE_TIME_KEYS,
     MAX_PAYLOAD_BYTES,
     DmConversationRead,
@@ -531,36 +532,183 @@ async def create_conversation(
     return conversation
 
 
+async def unreachable_pair(
+    session: AsyncSession, *, member_ids: Iterable[int]
+) -> tuple[int, int] | None:
+    """The first two on this roster who cannot message each other, if any.
+
+    Everybody on a group has to be able to reach everybody else — that is what
+    makes it a conversation rather than a room where two people can read each
+    other and neither can start. The rule is ``can_ask`` both ways, the same
+    table a pair passes, asked across the roster.
+
+    Deliberately ``can_ask`` and not "already open": requiring an accepted
+    request between every pair would mean nobody could ever be introduced to
+    anybody.
+    """
+    ids = sorted(set(member_ids))
+    if len(ids) < 2:
+        return None
+    row = (
+        await session.exec(
+            text("SELECT public.dm_roster_unreachable_pair(:ids)").bindparams(ids=ids)
+        )
+    ).scalar_one()
+    if row is None:
+        return None
+    return (row[0], row[1])
+
+
+async def create_group_conversation(
+    session: AsyncSession, *, actor_id: int, member_ids: Iterable[int]
+) -> tuple[DmConversation, list[int]]:
+    """Propose a roster, and ask everybody on it who is not already.
+
+    Returns the conversation and the members newly invited — an empty list when
+    the roster was already assembled and everybody had answered, which is what
+    proposing the same roster twice does.
+
+    **Proposing a roster again asks the people who are not on it.** People
+    change their minds, and they change their settings, so somebody who declined
+    in March may accept in June. It is an invitation rather than a
+    re-admission: they answer it the way they answered the first one. Somebody
+    still deciding is left alone — they already have it, and a second copy is
+    pestering.
+
+    The whole roster is re-checked each time, against settings as they are now.
+    That is what lets "they have widened their settings" work at all, and it
+    equally means a roster that has since become unreachable is refused.
+    """
+    members = sorted(set(member_ids) | {actor_id})
+    if actor_id in set(member_ids):
+        raise DmTransportError(Messages.CANNOT_MESSAGE_SELF)
+    if len(members) < 3:
+        raise DmTransportError(Messages.ROSTER_TOO_SMALL)
+    if len(members) > MAX_GROUP_MEMBERS:
+        raise DmTransportError(Messages.ROSTER_TOO_LARGE)
+    if await unreachable_pair(session, member_ids=members) is not None:
+        raise DmTransportError(Messages.ROSTER_NOT_REACHABLE)
+
+    conversation = await _conversation_with_roster(
+        session, kind=DmConversationKind.group, member_ids=members
+    )
+    opened = False
+    if conversation is None:
+        conversation, opened = await _open_conversation(
+            session, kind=DmConversationKind.group, member_ids=members
+        )
+
+    present = set(
+        (
+            await session.exec(
+                select(DmConversationMember.user_id).where(
+                    DmConversationMember.conversation_id == conversation.id
+                )
+            )
+        ).all()
+    )
+    now = datetime.now(timezone.utc)
+    invited: list[int] = []
+    for member_id in members:
+        if member_id in present:
+            continue
+        # The one proposing has answered by proposing.
+        session.add(
+            DmConversationMember(
+                conversation_id=conversation.id,
+                user_id=member_id,
+                accepted_at=now if member_id == actor_id else None,
+            )
+        )
+        if member_id != actor_id:
+            invited.append(member_id)
+    await session.flush()
+    if not opened and not invited:
+        return conversation, []
+    return conversation, invited
+
+
+async def accept_invitation(
+    session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
+) -> list[int]:
+    """Answer yes, and join the roster. Returns who else is already on it."""
+    updated = await session.exec(
+        update(DmConversationMember)
+        .where(
+            DmConversationMember.conversation_id == conversation_id,
+            DmConversationMember.user_id == user_id,
+            DmConversationMember.accepted_at.is_(None),
+        )
+        .values(accepted_at=datetime.now(timezone.utc))
+    )
+    if not updated.rowcount:
+        raise DmTransportError(Messages.NO_INVITATION)
+    await session.flush()
+    return await _other_members(
+        session, conversation_id=conversation_id, user_id=user_id
+    )
+
+
 async def list_conversations(
     session: AsyncSession, *, user_id: int
 ) -> list[DmConversationRead]:
+    """Every conversation this account is named on, newest first.
+
+    Named on, not only on: an invitation waiting to be answered is in the list,
+    because somewhere to answer it is the point. It is marked ``pending`` so a
+    client can tell the two apart.
+    """
     mine = select(DmConversationMember.conversation_id).where(
         DmConversationMember.user_id == user_id
     )
     rows = list(
         (
             await session.exec(
-                select(DmConversation, DmConversationMember.user_id)
+                select(
+                    DmConversation,
+                    DmConversationMember.user_id,
+                    DmConversationMember.accepted_at,
+                )
                 .join(
                     DmConversationMember,
                     DmConversationMember.conversation_id == DmConversation.id,
                 )
-                .where(
-                    DmConversation.id.in_(mine),
-                    DmConversationMember.user_id != user_id,
-                )
+                .where(DmConversation.id.in_(mine))
                 .order_by(DmConversation.created_at.desc())
             )
         ).all()
     )
-    return [
-        DmConversationRead(
-            id=conversation.id,
-            other_user_id=other_id,
-            created_at=conversation.created_at,
+
+    # One row per member came back; fold them into one entry per conversation,
+    # in the order the query already put them.
+    conversations: dict[uuid.UUID, DmConversation] = {}
+    others: dict[uuid.UUID, list[int]] = {}
+    pending: dict[uuid.UUID, bool] = {}
+    for conversation, member_id, accepted_at in rows:
+        conversations.setdefault(conversation.id, conversation)
+        if member_id == user_id:
+            pending[conversation.id] = accepted_at is None
+        else:
+            others.setdefault(conversation.id, []).append(member_id)
+
+    listed = []
+    for conversation_id, conversation in conversations.items():
+        roster = sorted(others.get(conversation_id, []))
+        if not roster:
+            # Everybody else has gone. There is nobody to send to, so it is not
+            # a conversation any more.
+            continue
+        listed.append(
+            DmConversationRead(
+                id=conversation.id,
+                other_user_id=roster[0],
+                created_at=conversation.created_at,
+                kind=str(conversation.kind),
+                member_ids=roster,
+                pending=pending.get(conversation_id, False),
+            )
         )
-        for conversation, other_id in rows
-    ]
+    return listed
 
 
 async def _other_members(
@@ -697,11 +845,14 @@ async def send(
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
+    # Everybody on it who has answered, which may be nobody — a roster whose
+    # invitations are all outstanding, or a pair the other side has left. Not a
+    # refusal: the sender's own copies still land in their own outbox, and
+    # anything addressed to somebody not on it is dropped the way every other
+    # undeliverable copy is.
     roster = set(
         await _other_members(session, conversation_id=conversation_id, user_id=user_id)
     )
-    if not roster:
-        raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
 
     owners = await _device_owners(
         session, {message.recipient_device_id for message in messages}
