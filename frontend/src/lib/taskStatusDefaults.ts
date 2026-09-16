@@ -7,7 +7,7 @@ export const TASK_STATUS_CATEGORY_DEFAULTS: Record<
   { color: string; icon: IconName }
 > = {
   backlog: { color: "#94A3B8", icon: "circle-dashed" },
-  todo: { color: "#FBBF24", icon: "circle-pause" },
+  todo: { color: "#94A3B8", icon: "circle" },
   in_progress: { color: "#60A5FA", icon: "circle-play" },
   done: { color: "#34D399", icon: "circle-check" },
 };

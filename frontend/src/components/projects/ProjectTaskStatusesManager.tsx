@@ -65,6 +65,10 @@ import { cn } from "@/lib/utils";
 
 const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
+// The fallback select's "let the project decide" row. Radix needs a real value,
+// and the API takes the absence of one as the same instruction.
+const FALLBACK_AUTO = "auto";
+
 const sortStatuses = (items: TaskStatusRead[]): TaskStatusRead[] => {
   return [...items].sort((a, b) => {
     if (a.position === b.position) {
@@ -106,7 +110,7 @@ export const ProjectTaskStatusesManager = ({
   const [newColor, setNewColor] = useState<string>(newCategoryDefaults.color);
   const [newIcon, setNewIcon] = useState<IconName>(newCategoryDefaults.icon);
   const [deleteTarget, setDeleteTarget] = useState<TaskStatusRead | null>(null);
-  const [fallbackId, setFallbackId] = useState<string>("");
+  const [fallbackId, setFallbackId] = useState<string>(FALLBACK_AUTO);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
@@ -174,7 +178,7 @@ export const ProjectTaskStatusesManager = ({
   const deleteStatusMutation = useDeleteTaskStatus(projectId, {
     onSuccess: () => {
       toast.success(t("statuses.deleted"));
-      setFallbackId("");
+      setFallbackId(FALLBACK_AUTO);
       setDeleteTarget(null);
     },
     onError: (error) => {
@@ -371,22 +375,21 @@ export const ProjectTaskStatusesManager = ({
     if (!deleteTarget) {
       return;
     }
-    const fallback = Number(fallbackId);
-    if (!Number.isFinite(fallback)) {
-      toast.error(t("statuses.selectFallbackError"));
-      return;
-    }
+    const fallback = fallbackId === FALLBACK_AUTO ? null : Number(fallbackId);
     deleteStatusMutation.mutate({
       statusId: deleteTarget.id,
-      data: { fallback_status_id: fallback },
+      // Null hands the choice to the server, which moves any stranded tasks to
+      // the project's default column.
+      data: { fallback_status_id: Number.isFinite(fallback) ? fallback : null },
     });
   };
 
+  // Any other column will do — a status being retired often has no sibling in
+  // its own category, which is what used to make it undeletable.
   const fallbackOptions = deleteTarget
-    ? orderedStatuses.filter(
-        (status) => status.category === deleteTarget.category && status.id !== deleteTarget.id
-      )
+    ? orderedStatuses.filter((status) => status.id !== deleteTarget.id)
     : [];
+  const isOnlyStatus = Boolean(deleteTarget) && fallbackOptions.length === 0;
 
   const isLoading = statusesQuery.isLoading || statusesQuery.isRefetching;
   const statuses = useMemo(() => {
@@ -515,7 +518,7 @@ export const ProjectTaskStatusesManager = ({
                         onSetDefault={handleDefaultChange}
                         onDelete={() => {
                           setDeleteTarget(status);
-                          setFallbackId("");
+                          setFallbackId(FALLBACK_AUTO);
                         }}
                         t={t}
                         categoryOptions={categoryOptions}
@@ -547,29 +550,26 @@ export const ProjectTaskStatusesManager = ({
               {t("statuses.deleteDescription", { name: deleteTarget?.name })}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="fallback-status">{t("statuses.fallbackLabel")}</Label>
-            <Select
-              value={fallbackId}
-              onValueChange={setFallbackId}
-              disabled={fallbackOptions.length === 0}
-            >
-              <SelectTrigger id="fallback-status">
-                <SelectValue
-                  placeholder={
-                    fallbackOptions.length ? t("statuses.chooseFallback") : t("statuses.noFallback")
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {fallbackOptions.map((option) => (
-                  <SelectItem key={option.id} value={String(option.id)}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isOnlyStatus ? (
+            <p className="text-muted-foreground text-sm">{t("statuses.onlyStatus")}</p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="fallback-status">{t("statuses.fallbackLabel")}</Label>
+              <Select value={fallbackId} onValueChange={setFallbackId}>
+                <SelectTrigger id="fallback-status">
+                  <SelectValue placeholder={t("statuses.chooseFallback")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FALLBACK_AUTO}>{t("statuses.fallbackAuto")}</SelectItem>
+                  {fallbackOptions.map((option) => (
+                    <SelectItem key={option.id} value={String(option.id)}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
               {t("common:cancel")}
@@ -577,7 +577,7 @@ export const ProjectTaskStatusesManager = ({
             <Button
               variant="destructive"
               onClick={handleDeleteConfirm}
-              disabled={deleteStatusMutation.isPending || !fallbackOptions.length}
+              disabled={deleteStatusMutation.isPending || isOnlyStatus}
             >
               {deleteStatusMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t("common:delete")}
@@ -701,6 +701,7 @@ const SortableStatusRow = ({
           className="text-destructive hover:text-destructive"
           onClick={onDelete}
           disabled={disabled}
+          aria-label={t("statuses.deleteStatus", { name: status.name })}
         >
           <Trash2 className="mr-1 h-4 w-4" />
         </Button>
