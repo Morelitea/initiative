@@ -55,7 +55,6 @@ from app.schemas.tenant.initiative import (
 )
 from app.schemas.platform.user import (
     UserPublic,
-    UserSummary,
     UserSummaryListResponse,
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
@@ -1286,16 +1285,17 @@ async def search_initiative_members(
             users_service.visible_to_other_people(),
         )
     )
+    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest),
+        *users_service.member_order(closest, shows_names=shows_names),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -1306,7 +1306,9 @@ async def search_initiative_members(
     )
 
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in users],
+        items=await users_service.summaries_with_guild_role(
+            session, guild_context.guild_id, users
+        ),
         total_count=total_count,
         page=actual_page,
         page_size=page_size,
