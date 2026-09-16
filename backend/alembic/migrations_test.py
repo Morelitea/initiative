@@ -618,9 +618,10 @@ class TestMigrationsAgainstDatabase:
         so the other shape is fabricated here — drop them, then replay the
         revision over it.
 
-        Built by upgrading *to* the revision before the rename rather than to
-        head and back down: the chain above it need not be reversible, and part
-        of it is not.
+        Walked to this one revision and back rather than to head and down from
+        there: what is under test is how *this* revision handles the two
+        shapes, and the chain above it need not be reversible — part of it is
+        deliberately not.
         """
         _run_alembic("upgrade", PRE_AUTHOR_RENAME_REVISION)
 
@@ -632,7 +633,7 @@ class TestMigrationsAgainstDatabase:
             )
             _execute_sql(f"ALTER TABLE guild_template.{table} DROP CONSTRAINT {name}")
 
-        _run_alembic("upgrade", "head")
+        _run_alembic("upgrade", AUTHOR_RENAME_REVISION)
 
         for table, _column in AUTHOR_FOREIGN_KEY_TABLES:
             assert _column_exists(table, "created_by", schema="guild_template"), (
