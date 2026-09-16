@@ -211,9 +211,6 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run python scripts/ci/report_postgres_waits.py &
-          postgres_monitor_pid=$!
-          trap 'kill "$postgres_monitor_pid" 2>/dev/null || true; wait "$postgres_monitor_pid" 2>/dev/null || true' EXIT
           uv run python -m pytest ${{ steps.changes.outputs.scope }} -n auto --tb=short
 
   frontend-lint-and-test:
