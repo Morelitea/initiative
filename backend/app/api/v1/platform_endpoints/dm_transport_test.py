@@ -709,6 +709,66 @@ class TestProposingAGroup:
         )
         assert len(collected.json()["items"]) == 1
 
+    async def test_the_proposal_answers_with_the_roster_it_made(
+        self, client, session, acting_user
+    ):
+        """The same shape the list answers with, so a client can use it as-is."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        made = await self._propose(client, a, [b, c])
+
+        body = made.json()
+        assert body["kind"] == "group"
+        assert body["member_ids"] == sorted([b.user.id, c.user.id])
+        assert body["other_user_id"] == min(b.user.id, c.user.id)
+        assert body["pending"] is False
+        # And it matches what the list says about the same conversation.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+        entry = next(
+            row for row in listed.json()["conversations"] if row["id"] == body["id"]
+        )
+        assert entry["member_ids"] == body["member_ids"]
+        assert entry["kind"] == body["kind"]
+
+    async def test_somebody_still_deciding_cannot_send(
+        self, client, session, acting_user
+    ):
+        """Seeing a conversation and being on it are different things."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        a_device = await _register(client, a, seed=1)
+        await _register(client, b, seed=60)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        # B can see it -- that is how they decide.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        assert conversation_id in {row["id"] for row in listed.json()["conversations"]}
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": a_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"before answering").decode(),
+                    }
+                ]
+            },
+            headers=b.headers,
+        )
+
+        assert sent.status_code == 404
+        assert sent.json()["detail"] == "DM_CONVERSATION_NOT_FOUND"
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
+        )
+        assert collected.json()["items"] == []
+
     async def test_answering_twice_is_refused(self, client, session, acting_user):
         a = await acting_user()
         b = await acting_user()

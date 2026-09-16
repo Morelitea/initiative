@@ -561,12 +561,13 @@ async def unreachable_pair(
 
 async def create_group_conversation(
     session: AsyncSession, *, actor_id: int, member_ids: Iterable[int]
-) -> tuple[DmConversation, list[int]]:
+) -> tuple[DmConversation, list[int], list[int]]:
     """Propose a roster, and ask everybody on it who is not already.
 
-    Returns the conversation and the members newly invited — an empty list when
-    the roster was already assembled and everybody had answered, which is what
-    proposing the same roster twice does.
+    Returns the conversation, the members newly invited — an empty list when the
+    roster was already assembled and everybody had answered, which is what
+    proposing the same roster twice does — and the roster itself, without the
+    caller.
 
     **Proposing a roster again asks the people who are not on it.** People
     change their minds, and they change their settings, so somebody who declined
@@ -623,9 +624,8 @@ async def create_group_conversation(
         if member_id != actor_id:
             invited.append(member_id)
     await session.flush()
-    if not opened and not invited:
-        return conversation, []
-    return conversation, invited
+    others = [member_id for member_id in members if member_id != actor_id]
+    return conversation, invited, others
 
 
 async def accept_invitation(
@@ -709,6 +709,21 @@ async def list_conversations(
             )
         )
     return listed
+
+
+async def _has_accepted(
+    session: AsyncSession, *, conversation_id: uuid.UUID, user_id: int
+) -> bool:
+    """Whether this account has answered its own invitation to this thread."""
+    return (
+        await session.exec(
+            select(DmConversationMember.user_id).where(
+                DmConversationMember.conversation_id == conversation_id,
+                DmConversationMember.user_id == user_id,
+                DmConversationMember.accepted_at.is_not(None),
+            )
+        )
+    ).first() is not None
 
 
 async def _other_members(
@@ -845,9 +860,18 @@ async def send(
     conversation = await session.get(DmConversation, conversation_id)
     if conversation is None:
         raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
-    # Everybody on it who has answered, which may be nobody — a roster whose
-    # invitations are all outstanding, or a pair the other side has left. Not a
-    # refusal: the sender's own copies still land in their own outbox, and
+    # The sender has to be on it themselves. Somebody who has been asked and has
+    # not answered can see the conversation — that is how they decide — and
+    # refusing here is what keeps "seeing it" and "being on it" different
+    # things. Answered the way a conversation they are not on is answered.
+    if not await _has_accepted(
+        session, conversation_id=conversation_id, user_id=user_id
+    ):
+        raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
+
+    # Everybody else on it who has answered, which may be nobody — a roster
+    # whose invitations are all outstanding, or a pair the other side has left.
+    # Not a refusal: the sender's own copies still land in their own outbox, and
     # anything addressed to somebody not on it is dropped the way every other
     # undeliverable copy is.
     roster = set(

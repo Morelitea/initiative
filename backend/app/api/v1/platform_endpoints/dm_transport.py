@@ -306,7 +306,7 @@ async def create_group_conversation(
     declined or left may have changed their mind, or their settings.
     """
     try:
-        conversation, invited = await service.create_group_conversation(
+        conversation, invited, roster = await service.create_group_conversation(
             session, actor_id=current_user.id, member_ids=body.user_ids
         )
     except service.DmTransportError as exc:
@@ -316,8 +316,14 @@ async def create_group_conversation(
         await dm_stream.signal_dm(recipient_id)
     return DmConversationRead(
         id=conversation.id,
-        other_user_id=current_user.id,
+        # The same shape the list answers with, so a client can put this
+        # straight into the list it already has rather than re-fetching.
+        other_user_id=roster[0],
         created_at=conversation.created_at,
+        kind="group",
+        member_ids=roster,
+        # The one proposing it has answered by proposing.
+        pending=False,
     )
 
 
