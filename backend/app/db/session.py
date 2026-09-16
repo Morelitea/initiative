@@ -9,6 +9,7 @@ from alembic import command
 from alembic.config import Config
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,6 +26,7 @@ engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
 # enumerated per-table GRANTs (migration 0129). Guild schemas still
 # require SET ROLE guild_<id>, which drops the bypass.
 admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
+_SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
@@ -189,7 +191,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     sync after_begin replay hook — one routing decision, two executors.
     """
     user_id = params.get("user_id")
-    guild_id = params.get("guild_id")
+    guild_id = params.get("guild_id", params.get("system_guild_id"))
     guild_role = params.get("guild_role")
     pam_guild_id = params.get("pam_guild_id")
     pam_read = bool(params.get("pam_read"))
@@ -198,6 +200,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     read_only = bool(params.get("read_only"))
     query = bool(params.get("query"))
     billing_guild_id = params.get("billing_guild_id")
+    system_guild_id = params.get("system_guild_id")
     # Initiatives where the request holds "Full access". Rendered as a comma
     # list so the policy reads it with one string_to_array; empty when none.
     override = params.get("override_initiatives") or ()
@@ -249,7 +252,15 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     route_guild = (
         guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
     )
-    if route_guild is None:
+    if system_guild_id is not None:
+        # Trusted system maintenance keeps the login role (app_admin, whose
+        # narrowly enumerated guild-table grants are provisioned separately)
+        # so PostgreSQL keeps its BYPASSRLS attribute. Only the schema route
+        # changes. An app_user session remains app_user and therefore has no
+        # direct privilege on these tables.
+        sp = _search_path(guild_schema_name(system_guild_id), "public")
+        role_target = "none"
+    elif route_guild is None:
         # Public/platform path: assume the caller's platform-tier role when
         # one is supplied so the request is role-scoped (fail-closed);
         # 'none' (the login role) only for unauthenticated/unrouted contexts.
@@ -538,7 +549,7 @@ def routed_guild_id(session: AsyncSession) -> int | None:
     is the answer.
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
-    guild_id = params.get("guild_id")
+    guild_id = params.get("guild_id", params.get("system_guild_id"))
     return int(guild_id) if guild_id is not None else None
 
 
@@ -553,6 +564,33 @@ async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
     :func:`set_rls_context`.
     """
     session.info[_RLS_PARAMS_INFO_KEY] = {"billing_guild_id": int(guild_id)}
+    session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
+    if session.in_transaction():
+        await _apply_stored_context(session)
+
+
+async def set_system_guild_context(session: AsyncSession, *, guild_id: int) -> None:
+    """Route trusted system maintenance without dropping its login identity.
+
+    The ordinary guild route assumes ``guild_<id>`` and therefore drops
+    ``app_admin``'s BYPASSRLS attribute. A small set of lifecycle operations
+    must process every matching row regardless of tenant policy; provisioning
+    grants ``app_admin`` direct access only to the tables those operations use.
+    A request-path ``app_user`` session remains unprivileged and fails closed.
+    """
+    is_system_login = (
+        await session.exec(
+            text("SELECT session_user = :role"),
+            params={"role": _SYSTEM_LOGIN_ROLE},
+        )
+    ).one()[0]
+    if not is_system_login:
+        raise PermissionError(
+            "system guild routing requires the configured system login"
+        )
+
+    session.info.pop(_RLS_TIER_INFO_KEY, None)
+    session.info[_RLS_PARAMS_INFO_KEY] = {"system_guild_id": int(guild_id)}
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
     if session.in_transaction():
         await _apply_stored_context(session)
