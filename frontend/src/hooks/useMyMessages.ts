@@ -101,11 +101,11 @@ export function useThread(conversationId: string | undefined) {
   });
 }
 
-export function useSendMessage(conversationId: string, otherUserId: number) {
+export function useSendMessage(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ body, replyTo }: { body: string; replyTo?: string }) =>
-      sendText(conversationId, otherUserId, body, { replyTo }),
+      sendText(conversationId, memberIds, body, { replyTo }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: messageKeys.thread(conversationId),
@@ -122,7 +122,7 @@ export function useSendMessage(conversationId: string, otherUserId: number) {
  * round trip. Refreshing the thread is what puts the answer on screen, since
  * the log is where a thread is read from.
  */
-export function useMessageActions(conversationId: string, otherUserId: number) {
+export function useMessageActions(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
@@ -130,16 +130,16 @@ export function useMessageActions(conversationId: string, otherUserId: number) {
 
   const react = useMutation({
     mutationFn: ({ targetId, emoji, on }: { targetId: string; emoji: string; on: boolean }) =>
-      sendReaction(conversationId, otherUserId, targetId, emoji, on),
+      sendReaction(conversationId, memberIds, targetId, emoji, on),
     onSettled: refresh,
   });
   const edit = useMutation({
     mutationFn: ({ targetId, body }: { targetId: string; body: string }) =>
-      sendEdit(conversationId, otherUserId, targetId, body),
+      sendEdit(conversationId, memberIds, targetId, body),
     onSettled: refresh,
   });
   const remove = useMutation({
-    mutationFn: (targetId: string) => sendRemove(conversationId, otherUserId, targetId),
+    mutationFn: (targetId: string) => sendRemove(conversationId, memberIds, targetId),
     onSettled: refresh,
   });
 
@@ -345,13 +345,21 @@ export function useUnreadMessages(conversationIds: string[]) {
 export function useMarkThreadRead(
   conversationId: string,
   messageCount: number,
-  otherUserId: number
+  memberIds: number[]
 ) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
   const unreported = useRef<string | null>(null);
+  // The roster by its contents, not by the array it arrived in. A caller that
+  // builds one inline hands a new array every render, and this effect reads the
+  // local log and invalidates the unread queries -- work that belongs to the
+  // thread changing, not to the page re-rendering.
+  const roster = memberIds.join(",");
   useEffect(() => {
-    void markRead(conversationId, { otherUserId, receipts })
+    // Rebuilt from the key rather than closed over, so the effect depends on
+    // the roster by value and nothing else.
+    const members = roster ? roster.split(",").map(Number) : [];
+    void markRead(conversationId, { memberIds: members, receipts })
       .then(async (readCount) => {
         if (readCount === 0 && unreported.current !== conversationId) return;
         try {
@@ -363,7 +371,7 @@ export function useMarkThreadRead(
         }
       })
       .finally(() => queryClient.invalidateQueries({ queryKey: ["dm", "unread"] }));
-  }, [conversationId, messageCount, otherUserId, receipts, queryClient]);
+  }, [conversationId, messageCount, roster, receipts, queryClient]);
 }
 
 /**

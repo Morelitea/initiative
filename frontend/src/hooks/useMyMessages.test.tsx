@@ -119,16 +119,22 @@ describe("telling the server a thread was read", () => {
   it("reports a look that actually read something", async () => {
     mocks.markRead.mockResolvedValue(2);
 
-    renderHook(() => useMarkThreadRead("conv-1", 2, 7), { wrapper: wrapper() });
+    renderHook(() => useMarkThreadRead("conv-1", 2, [7]), { wrapper: wrapper() });
 
     await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledWith("conv-1"));
+    // The roster goes down to the crypto layer, which is what a receipt is
+    // encrypted for.
+    expect(mocks.markRead).toHaveBeenCalledWith(
+      "conv-1",
+      expect.objectContaining({ memberIds: [7] })
+    );
   });
 
   it("stays quiet about a thread that was already current", async () => {
     // Nothing was read, so there is no bell line to close and nothing to say.
     mocks.markRead.mockResolvedValue(0);
 
-    renderHook(() => useMarkThreadRead("conv-1", 2, 7), { wrapper: wrapper() });
+    renderHook(() => useMarkThreadRead("conv-1", 2, [7]), { wrapper: wrapper() });
 
     await waitFor(() => expect(mocks.markRead).toHaveBeenCalled());
     expect(mocks.reportThreadRead).not.toHaveBeenCalled();
@@ -141,7 +147,7 @@ describe("telling the server a thread was read", () => {
     mocks.reportThreadRead.mockRejectedValueOnce(new Error("offline"));
 
     const { rerender } = renderHook(
-      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, 7),
+      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, [7]),
       { wrapper: wrapper(), initialProps: { count: 2 } }
     );
     await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(1));
@@ -156,7 +162,7 @@ describe("telling the server a thread was read", () => {
     mocks.reportThreadRead.mockRejectedValueOnce(new Error("offline"));
 
     const { rerender } = renderHook(
-      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, 7),
+      ({ count }: { count: number }) => useMarkThreadRead("conv-1", count, [7]),
       { wrapper: wrapper(), initialProps: { count: 2 } }
     );
     await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalledTimes(1));
@@ -174,7 +180,7 @@ describe("telling the server a thread was read", () => {
     mocks.reportThreadRead.mockRejectedValue(new Error("offline"));
 
     expect(() =>
-      renderHook(() => useMarkThreadRead("conv-1", 1, 7), { wrapper: wrapper() })
+      renderHook(() => useMarkThreadRead("conv-1", 1, [7]), { wrapper: wrapper() })
     ).not.toThrow();
 
     await waitFor(() => expect(mocks.reportThreadRead).toHaveBeenCalled());

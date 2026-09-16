@@ -335,6 +335,11 @@ export interface StoredMessage {
   body: string;
   at: string;
   mine: boolean;
+  /**
+   * Which account said it. Absent on this account's own, and on anything
+   * stored before a thread could hold more than two people.
+   */
+  author?: number;
   receipt?: ReceiptState;
   /** The message this one answers, by the name both sides know it under. */
   replyTo?: string;
@@ -371,6 +376,23 @@ export interface StoredMessage {
 export type Side = "mine" | "theirs";
 
 const LOG_PREFIX = "log:";
+
+/**
+ * Whether an envelope from ``author`` may act on ``entry``.
+ *
+ * The side it arrived on, and then who sent it. The side alone was the whole of
+ * it while "theirs" meant one person; on a roster it means several, and an edit
+ * or a removal is a claim about a message's author rather than about its side.
+ *
+ * Authors are compared only where both are known. A thread whose messages
+ * predate this, or a session opened before it, has no author to compare — and
+ * every one of those is a pair, where the side already answers the question.
+ */
+const mayActOn = (entry: StoredMessage, from: Side, author?: number): boolean => {
+  if (entry.mine !== (from === "mine")) return false;
+  if (entry.author === undefined || author === undefined) return true;
+  return entry.author === author;
+};
 
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
@@ -526,13 +548,14 @@ export const messageLog = {
     body: string,
     at: string,
     from: Side,
-    rev: number
+    rev: number,
+    author?: number
   ): Promise<boolean> => {
     let changed = false;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
       const next = current.map((entry) => {
-        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.id !== targetId || !mayActOn(entry, from, author)) return entry;
         if (entry.removedAt || entry.body === body) return entry;
         const held = entry.rev ?? 0;
         // An edit that arrives after a later one is an old edit, whichever
@@ -565,13 +588,14 @@ export const messageLog = {
     conversationId: string,
     targetId: string,
     from: Side,
-    at: string
+    at: string,
+    author?: number
   ): Promise<boolean> => {
     let changed = false;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
       const next = current.map((entry) => {
-        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.id !== targetId || !mayActOn(entry, from, author)) return entry;
         if (entry.removedAt) return entry;
         changed = true;
         // Rebuilt rather than spread: the body, the reactions and the receipt
@@ -581,6 +605,7 @@ export const messageLog = {
           id: entry.id,
           at: entry.at,
           mine: entry.mine,
+          author: entry.author,
           replyTo: entry.replyTo,
           body: "",
           removedAt: at,
@@ -744,6 +769,22 @@ export type SessionOrigin = "self" | "other";
 export const sessionOrigin = {
   get: (id: string) => read<SessionOrigin>("session-origin:" + id),
   set: (id: string, origin: SessionOrigin) => write("session-origin:" + id, origin),
+};
+
+/**
+ * Which account a session belongs to, recorded when it is established.
+ *
+ * "Their side" is one person in a pair and several in a group, so the side an
+ * envelope arrived on stops being enough to say who sent it. A session is with
+ * exactly one device, which belongs to exactly one account, and that is settled
+ * the moment the session is opened -- an ordinary message arriving on it later
+ * names no sender.
+ *
+ * Absent on sessions opened before this was recorded, which are all pairwise.
+ */
+export const sessionAuthor = {
+  get: (id: string) => read<number>("session-author:" + id),
+  set: (id: string, userId: number) => write("session-author:" + id, userId),
 };
 
 /**
