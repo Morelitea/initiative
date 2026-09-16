@@ -1,83 +1,139 @@
 {
   "nav": {
     "signIn": "Sign in",
-    "getStarted": "Get started"
+    "getStarted": "Start a community",
+    "help": "Help"
   },
   "hero": {
-    "tagline": "Built for gamers, by gamers",
-    "preTitle": "Are you ready to",
-    "titleLine1": "ROLL FOR",
-    "titleLine2": "INITIATIVE",
-    "titleAria": "Roll for Initiative",
-    "subtitle": "A community-based project management app built for gaming groups. Create your own community, invite your party, and conquer quests together.",
-    "ctaStart": "Start your adventure",
-    "ctaSignIn": "Sign in to your community",
-    "scroll": "Scroll",
-    "loading": "Loading..."
+    "eyebrow": "Open source. Community first.",
+    "titleLine1": "Out of the group chat.",
+    "titleLine2": "Into one place.",
+    "titleAria": "Out of the group chat. Into one place.",
+    "subtitle": "Projects, tasks, documents, the calendar — and every conversation about them, sitting on the thing it's about. The next person finds it without being told where to look.",
+    "ctaSignIn": "Sign in",
+    "ctaStart": "Start a community",
+    "invited": "Been sent an invite link? Open it. It does the rest.",
+    "scroll": "Have a look round",
+    "loading": "Loading…",
+    "screenshotAlt": "A week's tasks across every community you're in"
   },
-  "heroScreenshot": {
-    "dashboard": "Initiative dashboard"
+  "ribbon": {
+    "aria": "The kinds of groups that run on Initiative",
+    "fete": "the fete",
+    "rota": "the rota",
+    "pta": "the PTA",
+    "dnd": "Tuesday night D&D",
+    "shop": "the shop",
+    "band": "the band",
+    "festival": "the festival crew",
+    "committee": "the volunteer committee",
+    "dayJob": "the day job",
+    "family": "the family calendar",
+    "bookClub": "the book club",
+    "fiveASide": "the five-a-side team"
   },
-  "stats": {
-    "initiatives": "Initiatives",
-    "initiativesValue": "Unlimited",
-    "partyMembers": "Party Members",
-    "partyMembersValue": "No Limits",
-    "openSource": "Open Source",
-    "openSourceValue": "Forever",
-    "selfHosted": "Self-Hosted",
-    "selfHostedValue": "Your Data"
+  "invited": {
+    "sectionLabel": "New here?",
+    "title": "Somebody added you. Now what?",
+    "description": "Most people arrive because their group already lives here and somebody sent a link. There's nothing to set up, and you don't need to know what a Kanban board is. If you've ever written a shopping list, you're overqualified.",
+    "step1Title": "Open the link you were sent",
+    "step1Body": "It makes your account and drops you into your group. Already have one? It just adds the community to it.",
+    "step2Title": "Have a look round",
+    "step2Body": "Everything's already there. Click things. Open menus. Drag stuff about.",
+    "step3Title": "You cannot break this",
+    "step3Body": "Deleted something? It's in the Trash, sulking. Moved a task somewhere daft? Move it back. Nobody saw.",
+    "cta": "Take the five-minute tour"
   },
-  "features": {
-    "sectionLabel": "Arsenal",
-    "title": "Everything your party needs",
-    "description": "Each community gets a private workspace with projects, tasks, and documents. Whether you are running a campaign, organizing raid nights, or managing a gaming group -- keep everything in one place.",
-    "campaignTitle": "Campaign Management",
-    "campaignDescription": "Organize your TTRPG campaigns with ease. Track storylines, NPCs, and plot hooks across multiple sessions.",
-    "partyTitle": "Party Coordination",
-    "partyDescription": "Keep your gaming group in sync. Assign tasks, schedule sessions, and make sure everyone knows their role.",
-    "worldTitle": "World Building",
-    "worldDescription": "Document your lore, maps, and world details. Build rich settings your players will love to explore.",
-    "questTitle": "Quest Tracking",
-    "questDescription": "Never lose track of side quests again. Manage objectives, rewards, and story progression in one place.",
-    "sessionTitle": "Session Notes",
-    "sessionDescription": "Collaborative documents for session recaps, player handouts, and shared party knowledge.",
-    "eventTitle": "Event Planning",
-    "eventDescription": "Coordinate game nights, raid schedules, and community events. Everyone stays on the same page."
+  "tools": {
+    "sectionLabel": "What's inside",
+    "title": "Learn one tool, know the rest",
+    "description": "Everything inside a community is a tool. They're shared the same way, tagged the same way, commented on the same way — so the second one feels familiar before you've opened it.",
+    "projects": "Boards, lists and a calendar of the same tasks. Due dates, subtasks, and the tasks that are secretly three tasks wearing a coat.",
+    "documents": "Pages, spreadsheets and whiteboards, edited together, with the conversation about them sitting right on them.",
+    "queues": "Whose turn it is to email the council. Nobody's turn. It's always nobody's turn. Put it in a queue.",
+    "counterGroups": "Tally the things you'd otherwise count on your fingers. Tickets sold, cakes promised, chairs still missing.",
+    "calendars": "Rehearsals, match days, the AGM. With reminders, so the reminder isn't you.",
+    "dashboards": "One screen with the numbers on it, readable from the far end of a draughty hall.",
+    "posts": "Announcements that stay put, instead of scrolling away under forty replies.",
+    "galleries": "Photos from the day, kept with the day, not in six people's camera rolls."
   },
   "gallery": {
-    "sectionLabel": "See it in action",
-    "title": "Built for your workflow",
-    "projectAlt": "Project management view",
-    "projectCaption": "Organize projects with boards, lists, and custom views",
-    "documentAlt": "Document collaboration",
-    "documentCaption": "Collaborate on documents with your entire community"
+    "sectionLabel": "See it",
+    "title": "This is what it looks like",
+    "tasksAlt": "Everything assigned to you, across every community",
+    "tasksCaption": "Your week, across every community you're in",
+    "projectAlt": "A project board",
+    "projectCaption": "The same tasks as a board, a table or a calendar",
+    "documentAlt": "A document being edited together",
+    "documentCaption": "Documents with the conversation on them"
   },
-  "useCases": {
-    "sectionLabel": "Your Quest Awaits",
-    "title": "Your community, your way",
-    "description": "Create a private community for your group. Invite members, organize into initiatives, and manage projects together. Everyone stays in sync, and your data stays yours.",
-    "ttrpgName": "TTRPG Groups",
-    "ttrpgDesc": "Manage campaigns, track quests, and share session notes with your adventuring party.",
-    "mmoName": "MMO Communities",
-    "mmoDesc": "Coordinate raid schedules, loot distribution, and community events.",
-    "esportsName": "Esports Teams",
-    "esportsDesc": "Track practice schedules, tournament prep, and team objectives.",
-    "communityName": "Gaming Communities",
-    "communityDesc": "Organize events, manage projects, and keep your community engaged.",
-    "cta": "Create your community"
+  "pricing": {
+    "sectionLabel": "Plans",
+    "seeAll": "See every plan and what it unlocks",
+    "storage": "Storage",
+    "automations": "Automations",
+    "members": "People",
+    "support": "Support",
+    "loading": "Fetching the price book…",
+    "tierListAria": "Plans"
+  },
+  "download": {
+    "sectionLabel": "Take it with you",
+    "title": "Get the app",
+    "description": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon, its own window, and — on Android — notifications that arrive while you aren't looking.",
+    "detected": "Looks like you're on {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "iPhone and iPad",
+    "platformDesktop": "a computer",
+    "androidTitle": "Android",
+    "androidButton": "Download for Android",
+    "androidReleases": "See every release",
+    "androidNote": "Or let <1>Obtainium</1> keep it updated for you.",
+    "iosTitle": "iPhone and iPad",
+    "iosButton": "Add to Home Screen",
+    "iosNote": "Share button, then Add to Home Screen. Same app, no store.",
+    "desktopTitle": "Computer",
+    "desktopButton": "Install from your browser",
+    "desktopNote": "The install icon at the right-hand end of the address bar. Or don't, and use the tab. Also fine.",
+    "guide": "How installing works"
+  },
+  "docs": {
+    "sectionLabel": "Help",
+    "title": "Find your way around",
+    "description": "Written for the person who got volunteered to organise something and is quietly worried it'll be complicated. It won't be.",
+    "gettingStartedTitle": "Getting started",
+    "gettingStartedBody": "Make an account, find your way around, join your group.",
+    "tourTitle": "A quick tour",
+    "tourBody": "Five minutes on where everything lives.",
+    "guidesTitle": "Using Initiative",
+    "guidesBody": "How-to guides for every tool.",
+    "faqTitle": "FAQ",
+    "faqBody": "Quick answers to the things people ask most.",
+    "adminTitle": "For administrators",
+    "adminBody": "Installing, configuring and looking after your own server.",
+    "securityTitle": "Security & privacy",
+    "securityBody": "What secure means for you, and how your group's stuff stays yours."
+  },
+  "principles": {
+    "openSourceTitle": "Open source",
+    "openSourceBody": "Read it, change it, run it.",
+    "sameAppTitle": "Every feature, both ways",
+    "sameAppBody": "Nothing held back for the paying customers.",
+    "oneLoginTitle": "One login",
+    "oneLoginBody": "Every community you're in, from the same account.",
+    "yourDataTitle": "Your data stays yours",
+    "yourDataBody": "Export it, delete it, take it somewhere else."
   },
   "cta": {
-    "title": "Ready to <1>level up</1>?",
-    "titleReady": "Ready to",
-    "titleHighlight": "level up",
-    "description": "Join gaming groups already using Initiative to stay organized and have more fun together.",
-    "button": "Get started for free"
+    "title": "Ready when you are.",
+    "description": "Sign in if your group's already here. Start a community if it isn't.",
+    "signIn": "Sign in",
+    "start": "Start a community"
   },
   "footer": {
-    "copyright": "\u00a9 {{year}} Initiative. Roll high, stay organized."
-  },
-  "screenshot": {
-    "placeholder": "Screenshot"
+    "copyright": "© {{year}} Initiative. Open source, and staying that way.",
+    "docs": "Help center",
+    "source": "Source",
+    "changelog": "What's new"
   }
 }

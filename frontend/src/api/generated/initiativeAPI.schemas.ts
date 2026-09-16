@@ -705,6 +705,7 @@ export interface AppConfig {
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
   login_methods: string[];
+  min_native_version: string;
 }
 
 export type AppDataParamLabel = { [key: string]: string };

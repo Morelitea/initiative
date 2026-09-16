@@ -391,6 +391,13 @@ class Settings(BaseSettings):
             frame_src += extra
             connect_src += extra
 
+        # The landing page reads the public pricing catalog straight from the
+        # billing portal, so its origin joins connect-src only on a deployment
+        # that has one. Reduced to an origin the same way as the app frames.
+        billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
+        if billing_origin:
+            connect_src.append(billing_origin)
+
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
