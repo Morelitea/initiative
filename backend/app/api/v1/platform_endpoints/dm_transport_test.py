@@ -762,6 +762,78 @@ class TestProposingAGroup:
         # In the same order as the ids, so the two can be read together.
         assert entry["member_ids"] == sorted([b.user.id, c.user.id])
 
+    async def test_strangers_can_make_a_group_and_use_it(
+        self, client, session, acting_user
+    ):
+        """Nobody here has ever messaged anybody one-to-one.
+
+        Agreeing to a roster is the ask and the answer in one, so the group is
+        the accepted ask: no prior message request between any pair.
+        """
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        # Reachable, but with no grant between any pair.
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        a_device = await _register(client, a, seed=1)
+        b_device = await _register(client, b, seed=60)
+        await _register(client, c, seed=120)
+
+        made = await self._propose(client, a, [b, c])
+        assert made.status_code == 201, made.text
+        conversation_id = made.json()["id"]
+        for actor in (b, c):
+            answered = await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/accept",
+                headers=actor.headers,
+            )
+            assert answered.status_code == 204, answered.text
+
+        # Their keys are readable, which is what a first message needs.
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 200, directory.text
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"hello strangers").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert len(collected.json()["items"]) == 1
+        assert a_device
+
+    async def test_an_unanswered_invitation_is_not_an_accepted_ask(
+        self, client, session, acting_user
+    ):
+        """Being named on a roster carries nothing until it is answered."""
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        await self._propose(client, a, [b, c])
+
+        # B has not answered, so A has no way to reach B's keys.
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 409
+        assert directory.json()["detail"] == "DM_NOT_REACHABLE"
+
     async def test_somebody_still_deciding_cannot_send(
         self, client, session, acting_user
     ):
