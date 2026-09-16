@@ -27,13 +27,13 @@ export function buildProjectTaskStatus(overrides: Partial<TaskStatusRead> = {}):
 
 const CATEGORY_VISUALS: Record<TaskStatusCategory, { color: string; icon: string }> = {
   backlog: { color: "#94A3B8", icon: "circle-dashed" },
-  todo: { color: "#FBBF24", icon: "circle-pause" },
+  todo: { color: "#94A3B8", icon: "circle" },
   in_progress: { color: "#60A5FA", icon: "circle-play" },
   done: { color: "#34D399", icon: "circle-check" },
 };
 
 /**
- * Returns the four default task statuses that are created for every new project.
+ * Returns the default task statuses that are created for every new project.
  * Accepts a projectId to set the project_id field on each status.
  */
 export function buildDefaultTaskStatuses(projectId: number = 1): TaskStatusRead[] {
@@ -42,7 +42,6 @@ export function buildDefaultTaskStatuses(projectId: number = 1): TaskStatusRead[
     category: TaskStatusCategory;
     isDefault: boolean;
   }> = [
-    { name: "Backlog", category: "backlog", isDefault: false },
     { name: "To Do", category: "todo", isDefault: true },
     { name: "In Progress", category: "in_progress", isDefault: false },
     { name: "Done", category: "done", isDefault: false },

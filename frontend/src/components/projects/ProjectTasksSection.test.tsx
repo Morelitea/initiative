@@ -128,11 +128,14 @@ describe("ProjectTasksSection presets", () => {
     await user.click(await screen.findByRole("combobox", { name: /filter by status/i }));
 
     // "To Do" is a status of this project; the categories sit under their own
-    // heading below. A project's statuses are often named after categories, so
-    // "Backlog" legitimately appears on both sides of the control.
+    // heading below. A project's statuses are named after categories by
+    // default, so "Done" legitimately appears on both sides of the control.
     expect(await screen.findByRole("option", { name: "To Do" })).toBeInTheDocument();
     expect(await screen.findByText(/status category/i)).toBeInTheDocument();
-    expect(screen.getAllByRole("option", { name: "Backlog" })).toHaveLength(2);
+    expect(screen.getAllByRole("option", { name: "Done" })).toHaveLength(2);
+    // Backlog is a category no default status is named after any more, so it
+    // appears once — on the category side alone.
+    expect(screen.getAllByRole("option", { name: "Backlog" })).toHaveLength(1);
   });
 
   it("applies the preset the URL names", async () => {

@@ -40,7 +40,15 @@
     "noCommunities": "Nobody to show. You share no communities with anyone yet.",
     "unreachable": "Not reachable",
     "showMore": "Show more",
-    "favorites": "Favorites"
+    "favorites": "Favorites",
+    "addToGroup": "Add {{name}} to a group",
+    "removeFromGroup": "Remove {{name}}",
+    "groupHint": "Everyone here will be asked before they join.",
+    "startGroup": "Start a group with {{count}} people",
+    "cannotReachEachOther": "{{first}} and {{second}} cannot message each other yet. Everyone in a group has to be able to.",
+    "tooManyPeople": "A group holds at most {{count}} people.",
+    "checkingRoster": "Checking that everyone here can message everyone else…",
+    "checkUnavailable": "That check could not be made just now. Try again in a moment."
   },
   "receipt": {
     "sent": "Sent",
@@ -169,5 +177,15 @@
     "headphones": "Headphones",
     "folder": "Folder",
     "pin": "Pin"
+  },
+  "groupThreads": {
+    "heading": "Group threads",
+    "invited": "Invited"
+  },
+  "invitation": {
+    "heading": "You have been added to a group",
+    "who": "Everyone on it:",
+    "join": "Join",
+    "decline": "No thanks"
   }
 }

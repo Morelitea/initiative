@@ -40,7 +40,15 @@
     "noCommunities": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
     "unreachable": "No disponible",
     "showMore": "Mostrar más",
-    "favorites": "Favoritos"
+    "favorites": "Favoritos",
+    "addToGroup": "Añadir a {{name}} a un grupo",
+    "removeFromGroup": "Quitar a {{name}}",
+    "groupHint": "A todas las personas aquí se les preguntará antes de unirse.",
+    "startGroup": "Crear un grupo con {{count}} personas",
+    "cannotReachEachOther": "{{first}} y {{second}} todavía no pueden escribirse. En un grupo todas las personas deben poder hacerlo.",
+    "tooManyPeople": "Un grupo admite como máximo {{count}} personas.",
+    "checkingRoster": "Comprobando que todas las personas puedan escribirse entre sí…",
+    "checkUnavailable": "No se ha podido hacer esa comprobación ahora mismo. Inténtalo en un momento."
   },
   "receipt": {
     "sent": "Enviado",
@@ -169,5 +177,15 @@
     "headphones": "Auriculares",
     "folder": "Carpeta",
     "pin": "Chincheta"
+  },
+  "groupThreads": {
+    "heading": "Conversaciones de grupo",
+    "invited": "Invitación"
+  },
+  "invitation": {
+    "heading": "Te han incluido en un grupo",
+    "who": "Quiénes están:",
+    "join": "Unirme",
+    "decline": "No, gracias"
   }
 }

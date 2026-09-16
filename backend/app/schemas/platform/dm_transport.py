@@ -160,6 +160,13 @@ class DmConversationRead(BaseModel):
     #: agrees to, and reporting who is still deciding would put each invitee's
     #: hesitation in front of the others.
     member_ids: list[int] = []
+    #: The same people as handles, in the same order, so a thread can be named
+    #: by who is on it. Sent rather than looked up, because a group needs no
+    #: accepted grant between every pair and the client may know nothing about
+    #: somebody it is nonetheless in a conversation with. It discloses nothing
+    #: a member of this conversation does not already have: the bell line and
+    #: the push name the same people.
+    member_handles: list[str] = []
     #: Whether the caller has answered their own invitation. False on every
     #: conversation a pair opens, because both sides agreed before it existed.
     pending: bool = False

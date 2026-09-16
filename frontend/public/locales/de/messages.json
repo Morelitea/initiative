@@ -40,7 +40,15 @@
     "noCommunities": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
     "unreachable": "Nicht erreichbar",
     "showMore": "Mehr anzeigen",
-    "favorites": "Favoriten"
+    "favorites": "Favoriten",
+    "addToGroup": "{{name}} zu einer Gruppe hinzufügen",
+    "removeFromGroup": "{{name}} entfernen",
+    "groupHint": "Alle hier werden gefragt, bevor sie beitreten.",
+    "startGroup": "Gruppe mit {{count}} Personen starten",
+    "cannotReachEachOther": "{{first}} und {{second}} können sich noch nicht schreiben. In einer Gruppe müssen das alle können.",
+    "tooManyPeople": "Eine Gruppe fasst höchstens {{count}} Personen.",
+    "checkingRoster": "Es wird geprüft, ob sich hier alle gegenseitig schreiben können …",
+    "checkUnavailable": "Diese Prüfung war gerade nicht möglich. Versuche es gleich noch einmal."
   },
   "receipt": {
     "sent": "Gesendet",
@@ -169,5 +177,15 @@
     "headphones": "Kopfhörer",
     "folder": "Ordner",
     "pin": "Stecknadel"
+  },
+  "groupThreads": {
+    "heading": "Gruppenunterhaltungen",
+    "invited": "Eingeladen"
+  },
+  "invitation": {
+    "heading": "Du wurdest zu einer Gruppe hinzugefügt",
+    "who": "Alle darin:",
+    "join": "Beitreten",
+    "decline": "Nein danke"
   }
 }
