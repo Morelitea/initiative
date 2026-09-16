@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 
+import { readRefreshToken, storeRefreshToken } from "@/lib/nativeSession";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const DEFAULT_API_BASE_URL = "/api/v1";
@@ -187,7 +188,21 @@ type Renewal = AxiosResponse<{ access_token: string }>;
 const RENEWED_BY_PEER = Symbol("renewed-by-peer");
 type TurnResult = Renewal | typeof RENEWED_BY_PEER;
 
-const renew = () => apiClient.post<{ access_token: string }>("/auth/refresh");
+// The browser's refresh token is a cookie it cannot read, so it sends nothing
+// and the server reads the jar. The native app keeps its own and has to hand it
+// over — and gets the replacement back the same way, because rotation means the
+// one it holds is spent.
+const renew = async (): Promise<Renewal> => {
+  const stored = isDeviceToken ? null : readRefreshToken();
+  const response = await apiClient.post<{ access_token: string; refresh_token?: string }>(
+    "/auth/refresh",
+    stored ? { refresh_token: stored } : undefined
+  );
+  if (response.data?.refresh_token) {
+    storeRefreshToken(response.data.refresh_token);
+  }
+  return response;
+};
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

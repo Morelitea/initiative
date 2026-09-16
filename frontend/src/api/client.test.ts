@@ -2,6 +2,8 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
+import { clearRefreshToken, REFRESH_TOKEN_KEY, storeRefreshToken } from "@/lib/nativeSession";
+import { removeItem } from "@/lib/storage";
 
 import {
   AUTH_STEP_UP_EVENT,
@@ -14,6 +16,61 @@ import {
 // The silent-renewal interceptor: a 401 gets one POST /auth/refresh and a
 // retry before it surfaces as a signed-out state (web only — the refresh
 // cookie is HttpOnly, so the tests only observe the requests, not the cookie).
+// The native app has no cookie to send: it keeps its own refresh token and
+// hands it over, and rotation means the replacement has to be kept too.
+describe("renewal for a client that holds its own refresh token", () => {
+  afterEach(() => {
+    setHasActiveSession(false);
+    setAuthToken(null);
+    clearRefreshToken();
+    removeItem(REFRESH_TOKEN_KEY);
+  });
+
+  it("sends the stored token and keeps the one that comes back", async () => {
+    storeRefreshToken("rt-old");
+    let sent: unknown = null;
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", async ({ request }) => {
+        sent = await request.json();
+        renewed = true;
+        return HttpResponse.json({ access_token: "fresh", refresh_token: "rt-new" });
+      })
+    );
+
+    await apiClient.get("/users/me");
+
+    expect(sent).toEqual({ refresh_token: "rt-old" });
+    // Spent on use, so the one held has to be the replacement.
+    const { readRefreshToken } = await import("@/lib/nativeSession");
+    expect(readRefreshToken()).toBe("rt-new");
+  });
+
+  it("sends no body when there is nothing stored", async () => {
+    let sentBody: string | null = null;
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", async ({ request }) => {
+        sentBody = await request.text();
+        renewed = true;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+
+    await apiClient.get("/users/me");
+
+    // The browser's token is a cookie it cannot read; it sends nothing and the
+    // server reads the jar.
+    expect(sentBody).toBe("");
+  });
+});
+
 describe("silent session renewal", () => {
   afterEach(() => {
     setHasActiveSession(false);
