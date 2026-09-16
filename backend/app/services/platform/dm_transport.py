@@ -652,6 +652,21 @@ async def accept_invitation(
     )
 
 
+async def _handles_for(session: AsyncSession, user_ids: set[int]) -> dict[int, str]:
+    """What to call each of these accounts.
+
+    Handles rather than display names: a direct message happens outside any
+    community, so there is no community whose naming applies.
+    """
+    if not user_ids:
+        return {}
+    from app.core.user_display import handle_of
+    from app.models.platform.user import User
+
+    rows = (await session.exec(select(User).where(User.id.in_(user_ids)))).all()
+    return {user.id: handle_of(user) for user in rows if user.id is not None}
+
+
 async def list_conversations(
     session: AsyncSession, *, user_id: int
 ) -> list[DmConversationRead]:
@@ -694,6 +709,10 @@ async def list_conversations(
         else:
             others.setdefault(conversation.id, []).append(member_id)
 
+    handles = await _handles_for(
+        session, {member_id for roster in others.values() for member_id in roster}
+    )
+
     listed = []
     for conversation_id, conversation in conversations.items():
         roster = sorted(others.get(conversation_id, []))
@@ -708,6 +727,7 @@ async def list_conversations(
                 created_at=conversation.created_at,
                 kind=str(conversation.kind),
                 member_ids=roster,
+                member_handles=[handles.get(member_id, "") for member_id in roster],
                 pending=pending.get(conversation_id, False),
             )
         )

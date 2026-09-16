@@ -733,6 +733,30 @@ class TestProposingAGroup:
         assert entry["member_ids"] == body["member_ids"]
         assert entry["kind"] == body["kind"]
 
+    async def test_the_list_names_who_is_on_a_thread(
+        self, client, session, acting_user
+    ):
+        """A group has no name, so it is named by its roster -- and the client
+        cannot look those names up, because a group needs no accepted grant
+        between every pair."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+
+        listed = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+
+        entry = next(
+            row
+            for row in listed.json()["conversations"]
+            if row["id"] == conversation_id
+        )
+        assert len(entry["member_handles"]) == len(entry["member_ids"])
+        assert all("#" in handle for handle in entry["member_handles"])
+        # In the same order as the ids, so the two can be read together.
+        assert entry["member_ids"] == sorted([b.user.id, c.user.id])
+
     async def test_somebody_still_deciding_cannot_send(
         self, client, session, acting_user
     ):

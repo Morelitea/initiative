@@ -16,7 +16,9 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useEffect, useRef } from "react";
 
 import {
+  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
   createConversationApiV1MeDmConversationsPost as createConversation,
+  leaveConversationApiV1MeDmConversationsConversationIdDelete as leaveConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
   markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
@@ -389,4 +391,28 @@ export function useMarkThreadRead(
 export function useSendsReceipts(): boolean {
   const { data, isSuccess } = useDmSettings();
   return isSuccess && (data?.send_receipts ?? true);
+}
+
+/**
+ * Answering an invitation to a group.
+ *
+ * Yes and no are different writes but one decision, so they live together: a
+ * decline is the ordinary leave, because being asked and refusing and being on
+ * it and leaving both come to "not on it" — and both are answered by being
+ * asked again if anybody proposes that roster.
+ */
+export function useAnswerInvitation(conversationId: string) {
+  const queryClient = useQueryClient();
+  const settle = () => {
+    void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+  };
+  const accept = useMutation({
+    mutationFn: () => acceptInvitation(conversationId),
+    onSuccess: settle,
+  });
+  const decline = useMutation({
+    mutationFn: () => leaveConversation(conversationId),
+    onSuccess: settle,
+  });
+  return { accept, decline };
 }

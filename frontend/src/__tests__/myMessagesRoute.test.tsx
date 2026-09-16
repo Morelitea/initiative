@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   conversations: vi.fn(),
   createConversation: vi.fn(),
+  acceptInvitation: vi.fn(),
+  leaveConversation: vi.fn(),
   messageRequests: vi.fn(),
   dmPermission: vi.fn(),
   requestMessage: vi.fn(),
@@ -94,6 +96,10 @@ vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal
   listConversationsApiV1MeDmConversationsGet: () => mocks.conversations(),
   createConversationApiV1MeDmConversationsPost: (body: { user_id: number }) =>
     mocks.createConversation(body),
+  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost: (id: string) =>
+    mocks.acceptInvitation(id),
+  leaveConversationApiV1MeDmConversationsConversationIdDelete: (id: string) =>
+    mocks.leaveConversation(id),
 }));
 
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
@@ -187,6 +193,8 @@ beforeEach(() => {
     data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
     isSuccess: true,
   });
+  mocks.acceptInvitation.mockResolvedValue(undefined);
+  mocks.leaveConversation.mockResolvedValue(undefined);
   mocks.historyRequest.mockResolvedValue(undefined);
   mocks.historyAsk.mockResolvedValue(undefined);
   mocks.answerHistoryRequest.mockResolvedValue(undefined);
@@ -822,5 +830,78 @@ describe("My Messages", () => {
     await waitFor(() =>
       expect(mocks.sendText).toHaveBeenCalledWith("conv-1", [7], "hello", { replyTo: undefined })
     );
+  });
+});
+
+describe("a group thread", () => {
+  /** A group as the server answers it: no single other party, a roster. */
+  const groupThread = (overrides: Record<string, unknown> = {}) => ({
+    id: "conv-g",
+    other_user_id: 7,
+    created_at: "2026-09-01T00:00:00Z",
+    kind: "group",
+    member_ids: [7, 9],
+    member_handles: ["alex#1234", "sam#5678"],
+    pending: false,
+    ...overrides,
+  });
+
+  it("is named by who is on it, not by one of them", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+
+    await renderMessages({ thread: "conv-g" });
+
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+  });
+
+  it("opens from its id, because it has no handle to be addressed by", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+
+    await renderMessages({ thread: "conv-g" });
+
+    // The composer is there, which is the thread rather than the list.
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+    expect(mocks.logGet).toHaveBeenCalledWith("conv-g");
+  });
+
+  it("offers the roster and an answer while the invitation is unanswered", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+
+    // The whole roster before the answer: seeing who is on it is what makes
+    // accepting consent rather than notification.
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+    const join = await screen.findByRole("button", { name: "Join" });
+
+    await userEvent.click(join);
+
+    await waitFor(() => expect(mocks.acceptInvitation).toHaveBeenCalledWith("conv-g"));
+  });
+
+  it("declines through the ordinary leave", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+    await userEvent.click(await screen.findByRole("button", { name: "No thanks" }));
+
+    await waitFor(() => expect(mocks.leaveConversation).toHaveBeenCalledWith("conv-g"));
+  });
+
+  it("reads nothing into a thread nobody has answered yet", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+    await screen.findByRole("button", { name: "Join" });
+
+    // Nothing is delivered to somebody who has not agreed to be there, so
+    // there is no thread to read.
+    expect(mocks.logGet).not.toHaveBeenCalledWith("conv-g");
   });
 });

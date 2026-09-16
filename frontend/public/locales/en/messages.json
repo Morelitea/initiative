@@ -169,5 +169,15 @@
     "headphones": "Headphones",
     "folder": "Folder",
     "pin": "Pin"
+  },
+  "groupThreads": {
+    "heading": "Group threads",
+    "invited": "Invited"
+  },
+  "invitation": {
+    "heading": "You have been added to a group",
+    "who": "Everyone on it:",
+    "join": "Join",
+    "decline": "No thanks"
   }
 }

@@ -1,4 +1,4 @@
-import { useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Check,
   CheckCheck,
@@ -38,6 +38,7 @@ import {
   useMessageRequests,
 } from "@/hooks/useDirectMessages";
 import {
+  useAnswerInvitation,
   useCollectMessages,
   useConversations,
   useDmDevice,
@@ -48,6 +49,7 @@ import {
   useThread,
 } from "@/hooks/useMyMessages";
 import { useUserProfile } from "@/hooks/useUsers";
+import { groupName, isGroup } from "@/lib/conversationName";
 import { formatDateTime } from "@/lib/formatDate";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -85,7 +87,10 @@ export function MyMessagesPage() {
   // Who the URL asked for, resolved to a person. The profile is what a panel
   // for somebody with no channel has to draw, and the id is what everything
   // else here is keyed on.
-  const { with: withHandle } = useSearch({ strict: false }) as { with?: string };
+  const { with: withHandle, thread: withThread } = useSearch({ strict: false }) as {
+    with?: string;
+    thread?: string;
+  };
   const target = useUserProfile(withHandle);
 
   useCollectMessages(device.isSuccess);
@@ -120,9 +125,14 @@ export function MyMessagesPage() {
    * and the pane does not. Read from the URL, an unresolved handle simply has
    * no conversation yet, which is the truth and is what the panel below is for.
    */
-  const current =
+  // A thread named by id wins: it is the only way a group can be addressed,
+  // and it names a conversation that exists rather than a person one might be
+  // opened with. A handle still opens one that does not exist yet, which is
+  // what the effect below is for and what an id cannot do.
+  const namedThread = withThread ? rows.find((row) => row.id === withThread) : undefined;
+  const targetConversation =
     targetId !== undefined ? (rows.find((row) => row.other_user_id === targetId) ?? null) : null;
-  const targetConversation = current;
+  const current = namedThread ?? targetConversation;
 
   // Acting on the handle in the URL, once per handle: select their thread, or
   // open one where the channel is already there. A conversation is one per
@@ -232,7 +242,12 @@ export function MyMessagesPage() {
       {/* Who there is to talk to lives in the sidebar, which drills into this
           route -- so the page is only ever the one conversation. That is what
           leaves a phone the whole width for it. */}
-      {current ? (
+      {current?.pending ? (
+        // Named on it, and has not answered. The thread is not drawn at all:
+        // there is nothing in it yet for this account, because nothing is
+        // delivered to somebody who has not agreed to be there.
+        <InvitationPanel key={current.id} conversationId={current.id} name={groupName(current)} />
+      ) : current ? (
         // Keyed on the conversation: a thread holds a half-typed message, and
         // the one you were writing to Alice must not follow you to Bob.
         <Thread
@@ -240,8 +255,10 @@ export function MyMessagesPage() {
           conversationId={current.id}
           otherUserId={current.other_user_id}
           memberIds={current.member_ids?.length ? current.member_ids : [current.other_user_id]}
-          name={nameOf(current.other_user_id)}
-          them={personFor.get(current.other_user_id)}
+          name={isGroup(current) ? groupName(current) : nameOf(current.other_user_id)}
+          // A group has no one face to show, and no one person it is with. The
+          // roster is the name, and the name is the whole of the header.
+          them={isGroup(current) ? undefined : personFor.get(current.other_user_id)}
         />
       ) : withHandle ? (
         // Somebody was asked for. Either their thread is on its way, or there
@@ -1066,5 +1083,46 @@ function Thread({
         }}
       />
     </section>
+  );
+}
+
+/**
+ * A roster somebody has been named on, and has not answered.
+ *
+ * The whole roster is shown before the answer is given, because seeing who is
+ * on it is what makes accepting consent rather than notification. There is no
+ * thread underneath it: nothing is delivered to somebody who has not agreed to
+ * be there, so there is nothing yet to read.
+ */
+function InvitationPanel({ conversationId, name }: { conversationId: string; name: string }) {
+  const { t } = useTranslation(["messages", "common"]);
+  const navigate = useNavigate();
+  const { accept, decline } = useAnswerInvitation(conversationId);
+  const busy = accept.isPending || decline.isPending;
+
+  return (
+    <div className="mx-auto max-w-md space-y-4 py-10 text-center">
+      <h2 className="font-medium text-lg">{t("messages:invitation.heading")}</h2>
+      <p className="text-muted-foreground text-sm">{t("messages:invitation.who")}</p>
+      <p className="break-words font-medium text-sm">{name}</p>
+      <div className="flex justify-center gap-2">
+        <Button onClick={() => accept.mutate()} disabled={busy}>
+          {t("messages:invitation.join")}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() =>
+            decline.mutate(undefined, {
+              // Nothing left to draw once it is declined, so the page goes
+              // back to the list rather than sitting on a thread that is gone.
+              onSuccess: () => void navigate({ to: "/messages", search: {} }),
+            })
+          }
+        >
+          {t("messages:invitation.decline")}
+        </Button>
+      </div>
+    </div>
   );
 }

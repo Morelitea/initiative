@@ -169,5 +169,15 @@
     "headphones": "Kopfhörer",
     "folder": "Ordner",
     "pin": "Stecknadel"
+  },
+  "groupThreads": {
+    "heading": "Gruppenunterhaltungen",
+    "invited": "Eingeladen"
+  },
+  "invitation": {
+    "heading": "Du wurdest zu einer Gruppe hinzugefügt",
+    "who": "Alle darin:",
+    "join": "Beitreten",
+    "decline": "Nein danke"
   }
 }
