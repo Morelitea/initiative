@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -89,6 +89,12 @@
             "reportUnnecessaryDependencies": false
           }
         },
+        // Recommended, but only a warning by default, and `biome lint` exits 0
+        // on warnings — so CI scrolled past these. Imports and bindings nothing
+        // reads are leftovers from a move or a rename; clear them with the
+        // change that made them.
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
         "noUnusedFunctionParameters": "off",
         "noUnusedPrivateClassMembers": "warn",
         "useJsxKeyInIterable": "warn"

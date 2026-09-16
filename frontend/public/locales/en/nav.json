@@ -83,5 +83,6 @@
   "posts": "Posts",
   "createPost": "New Post",
   "galleries": "Galleries",
-  "createGallery": "New Gallery"
+  "createGallery": "New Gallery",
+  "moderation": "Moderation"
 }

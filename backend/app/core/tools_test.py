@@ -70,14 +70,15 @@ def test_permission_keys_are_exactly_the_derived_tool_pairs():
         assert set(role_permissions) == set(PermissionKey)
 
 
-def test_initiative_master_switches_are_exactly_the_toggleable_tools():
-    # Every non-core tool has an initiative-level `{plural}_enabled` master
-    # switch (model column + read/create/update schema fields); core tools are
-    # always-on and must NOT grow one.
-    from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS
+def test_every_tool_has_an_initiative_master_switch():
+    # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
+    # column + read/create/update schema fields) — projects and documents
+    # included, which is the whole of making them optional.
+    from app.core.tools import TOGGLEABLE_TOOLS, Tool
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
 
+    assert set(TOGGLEABLE_TOOLS) == set(Tool)
     switches = {t.view_permission for t in TOGGLEABLE_TOOLS}
     model_fields = set(Initiative.model_fields)
     schema_fields = set(InitiativeBase.model_fields)
@@ -85,9 +86,21 @@ def test_initiative_master_switches_are_exactly_the_toggleable_tools():
     assert switches <= model_fields
     assert switches <= schema_fields
     assert switches <= update_fields
-    for core in CORE_TOOLS:
-        assert core.view_permission not in model_fields
-        assert core.view_permission not in schema_fields
+
+
+def test_an_initiative_starts_with_projects_and_documents_on():
+    # Optional is not the same as off. An initiative created without an opinion
+    # about its tools is the one people already had, so the two that used to be
+    # unconditional keep arriving switched on and everything else stays opt-in.
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+    from app.models.tenant.initiative import Initiative
+    from app.schemas.tenant.initiative import InitiativeBase
+
+    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.document}
+    for tool in Tool:
+        expected = tool in DEFAULT_ENABLED_TOOLS
+        assert Initiative.model_fields[tool.view_permission].default is expected
+        assert InitiativeBase.model_fields[tool.view_permission].default is expected
 
 
 def test_member_read_flags_are_exactly_the_derived_tool_pairs():

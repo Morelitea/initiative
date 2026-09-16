@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
@@ -154,4 +154,19 @@ class AppSetting(SQLModel, table=True):
     s3_local_fallback: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # The guild that receives this deployment's operations work — security,
+    # moderation, support and feedback cases. NULL on every fresh and existing
+    # install, which is what "this deployment routes nothing" looks like: the
+    # writer resolves no binding and every call it makes is a no-op.
+    #
+    # An ordinary guild in every other respect. Which project each stream lands
+    # in is per-guild config inside it (``intake_bindings``), so the platform
+    # holds a pointer and no second copy of the tooling.
+    operations_guild_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("guilds.id", ondelete="SET NULL"), nullable=True
+        ),
     )

@@ -6,47 +6,49 @@ import type {
   InitiativeRead,
   InitiativeRoleRead,
   PermissionKey,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  ADVANCED_PERMISSION_GROUPS,
-  CORE_PERMISSION_GROUPS,
   PERMISSION_LABEL_KEYS,
-  type PermissionGroup,
   useDeleteRole,
   useInitiativeRoles,
   useUpdateRole,
 } from "@/hooks/useInitiativeRoles";
-import { isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import {
+  isToolEnabled,
+  SIDEBAR_TOOLS,
+  TOOL_ICONS,
+  toolCamelPlural,
+  toolCreatePermission,
+  toolViewPermission,
+} from "@/lib/tools";
 
 /**
- * The tools this initiative has turned off, by view permission key.
+ * The initiative's tools, split by whether it actually uses them.
  *
- * A permission switch on this screen grants nothing while the initiative's
- * master switch is off, and the screen used to say nothing about that — the
- * mirror of the details screen never mentioning roles. Naming the off ones
- * here lets each group carry the caveat.
+ * A permission grants nothing while the initiative's master switch is off, so
+ * the tools that are on are the ones worth reading. The rest are still worth
+ * setting — turning the tool back on should not mean redoing the roles — but
+ * they belong below a line, under one explanation rather than eight copies of
+ * it. Ordered like the sidebar and the tool grid, so the three screens agree.
  */
-const disabledToolPermissionKeys = (initiative: InitiativeRead | null): Set<PermissionKey> =>
-  new Set(
-    initiative
-      ? TOGGLEABLE_TOOLS.filter((tool) => !isToolEnabled(tool, initiative)).map(toolViewPermission)
-      : []
-  );
+const splitToolsForRoleEditing = (
+  initiative: InitiativeRead | null
+): { on: Tool[]; off: Tool[] } => {
+  if (!initiative) return { on: [...SIDEBAR_TOOLS], off: [] };
+  return {
+    on: SIDEBAR_TOOLS.filter((tool) => isToolEnabled(tool, initiative)),
+    off: SIDEBAR_TOOLS.filter((tool) => !isToolEnabled(tool, initiative)),
+  };
+};
 
 interface InitiativeSettingsRolesTabProps {
   initiativeId: number;
-  /** The initiative, so a group can say when its tool is turned off. */
+  /** The initiative, so a row can say when its tool is turned off. */
   initiative: InitiativeRead | null;
   canManageMembers: boolean;
   onOpenCreateRoleDialog: () => void;
@@ -54,46 +56,140 @@ interface InitiativeSettingsRolesTabProps {
   onRenameRole: (role: InitiativeRoleRead) => void;
 }
 
-const PermissionGroupSection = ({
-  group,
+/**
+ * One tool, one row: what this role may see, and what it may make.
+ *
+ * The two used to be separate full-width rows, which made eight tools into
+ * sixteen lines and put a tool's own pair of answers a screen apart. They
+ * belong together — reading "view on, create off" is the whole question.
+ */
+const ToolPermissionRow = ({
+  tool,
   role,
-  isPM,
   canManageMembers,
   isPending,
   onToggle,
-  toolIsOff,
   t,
 }: {
-  group: PermissionGroup;
+  tool: Tool;
   role: InitiativeRoleRead;
-  isPM: boolean;
   canManageMembers: boolean;
   isPending: boolean;
-  onToggle: (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => void;
-  /** The initiative has this group's tool turned off, so nothing here applies. */
-  toolIsOff?: boolean;
+  onToggle: (
+    role: InitiativeRoleRead,
+    tool: Tool,
+    permission: "view" | "create",
+    on: boolean
+  ) => void;
   t: (key: never) => string;
-}) => (
-  <div>
-    <h4 className="mb-2 font-medium text-muted-foreground text-sm">{t(group.labelKey as never)}</h4>
-    {toolIsOff && (
-      <p className="mb-2 text-amber-600 text-xs dark:text-amber-500">
-        {t("settings.toolAudience.toolTurnedOff" as never)}
-      </p>
-    )}
-    <div className="space-y-3">
-      {group.keys.map((key) => (
-        <div key={key} className="flex items-center justify-between">
-          <Label className="font-normal">{t(PERMISSION_LABEL_KEYS[key] as never)}</Label>
-          <Switch
-            checked={isPM || (role.permissions[key] ?? false)}
-            disabled={isPM || !canManageMembers || isPending}
-            onCheckedChange={(checked) => onToggle(role, key, checked)}
-          />
-        </div>
-      ))}
+}) => {
+  const Icon = TOOL_ICONS[tool];
+  const viewKey = toolViewPermission(tool) as PermissionKey;
+  const createKey = toolCreatePermission(tool) as PermissionKey;
+  const canView = role.permissions[viewKey] ?? false;
+  const canCreate = role.permissions[createKey] ?? false;
+  const disabled = !canManageMembers || isPending;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 flex-1 font-medium text-sm">
+        {t(`settings.permissionGroups.${toolCamelPlural(tool)}` as never)}
+      </span>
+      <div className="flex items-center gap-4">
+        {(
+          [
+            ["view", canView, viewKey],
+            ["create", canCreate, createKey],
+          ] as const
+        ).map(([permission, checked, key]) => (
+          // A span, not a label: the control is Radix's switch (a button),
+          // which a label cannot caption. Its name comes from aria-label.
+          <span key={permission} className="flex items-center gap-1.5">
+            <span className="text-muted-foreground text-xs">
+              {t(`settings.permissions.${permission}Short` as never)}
+            </span>
+            <Switch
+              checked={checked}
+              disabled={disabled}
+              aria-label={t(PERMISSION_LABEL_KEYS[key] as never)}
+              onCheckedChange={(next) => onToggle(role, tool, permission, next)}
+            />
+          </span>
+        ))}
+      </div>
     </div>
-  </div>
+  );
+};
+
+/** A role that holds everything by construction — a card that says so, rather
+ *  than a full set of switches nobody can move. */
+const ManagerRoleCard = ({
+  role,
+  description,
+  canManageMembers,
+  isPending,
+  onRenameRole,
+  onDeleteRole,
+  isDeleting,
+  t,
+}: {
+  role: InitiativeRoleRead;
+  description: string;
+  canManageMembers: boolean;
+  isPending: boolean;
+  onRenameRole: (role: InitiativeRoleRead) => void;
+  /** A custom manager role is still somebody's to delete — only the built-in
+   *  ones are permanent, and only while nobody holds them. */
+  onDeleteRole: (role: InitiativeRoleRead) => void;
+  isDeleting: boolean;
+  t: (key: never, opts?: Record<string, unknown>) => string;
+}) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <CardTitle className="text-base">{role.display_name}</CardTitle>
+        {role.is_builtin && (
+          <Badge variant="secondary" className="text-xs">
+            {t("settings.builtIn" as never)}
+          </Badge>
+        )}
+        {/* "Full access" is the share override — reaching every item however
+            each one is shared. A project manager holds every tool permission
+            without it, so it is a manager and says so. */}
+        {role.override_share_restrictions ? (
+          <Badge className="text-xs">{t("settings.fullAccess" as never)}</Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs">
+            {t("settings.manager" as never)}
+          </Badge>
+        )}
+        <Badge variant="outline" className="text-xs">
+          {t("settings.memberCountBadge" as never, { count: role.member_count })}
+        </Badge>
+      </div>
+      {canManageMembers && (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => onRenameRole(role)} disabled={isPending}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          {!role.is_builtin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeleteRole(role)}
+              disabled={isDeleting || role.member_count > 0}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
+        </div>
+      )}
+    </CardHeader>
+    <CardContent>
+      <p className="text-muted-foreground text-sm">{description}</p>
+    </CardContent>
+  </Card>
 );
 
 export const InitiativeSettingsRolesTab = ({
@@ -106,173 +202,177 @@ export const InitiativeSettingsRolesTab = ({
 }: InitiativeSettingsRolesTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
-  const disabledKeys = disabledToolPermissionKeys(initiative);
   const rolesQuery = useInitiativeRoles(initiativeId || null);
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
 
-  // Moderator holds every permission, so it gets a card that says what it is
-  // rather than a full set of switches with nothing to change.
-  const moderatorRole = rolesQuery.data?.find((role) => role.name === "moderator");
-  const configurableRoles = (rolesQuery.data ?? []).filter((role) => role.name !== "moderator");
+  const tools = splitToolsForRoleEditing(initiative);
+
+  // Every manager role holds every permission by construction, so each gets a
+  // card that says what it is. Project Manager used to render sixteen switches
+  // that were pinned on and could not be moved — half a screen of controls
+  // whose only job was to be refused.
+  const managerRoles = (rolesQuery.data ?? []).filter((role) => role.is_manager);
+  const configurableRoles = (rolesQuery.data ?? []).filter((role) => !role.is_manager);
 
   const handleTogglePermission = useCallback(
-    (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => {
-      if (role.name === "project_manager") return;
-      const newPermissions = { ...role.permissions, [key]: enabled };
-      updateRoleMutation.mutate({ roleId: role.id, data: { permissions: newPermissions } });
+    (role: InitiativeRoleRead, tool: Tool, permission: "view" | "create", on: boolean) => {
+      if (role.is_manager) return;
+      const viewKey = toolViewPermission(tool) as PermissionKey;
+      const createKey = toolCreatePermission(tool) as PermissionKey;
+      // The pair moves together where the other answer would be incoherent:
+      // making something you cannot see is not a state worth being able to
+      // express, so granting create grants view, and revoking view revokes
+      // create. One PATCH, so the role is never briefly in the odd state.
+      const permissions = { ...role.permissions };
+      if (permission === "view") {
+        permissions[viewKey] = on;
+        if (!on) permissions[createKey] = false;
+      } else {
+        permissions[createKey] = on;
+        if (on) permissions[viewKey] = true;
+      }
+      updateRoleMutation.mutate({ roleId: role.id, data: { permissions } });
     },
     [updateRoleMutation]
   );
 
-  return (
-    <div>
-      <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold text-lg">{t("settings.rolesTitle")}</h3>
-          <p className="text-muted-foreground text-sm">{t("settings.rolesDescription")}</p>
-        </div>
+  const translate = t as unknown as (key: never, opts?: Record<string, unknown>) => string;
 
-        {rolesQuery.isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("settings.loadingRoles")}
-          </div>
-        ) : rolesQuery.data ? (
-          <>
-            {moderatorRole && (
-              <Card>
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold text-lg">{t("settings.rolesTitle")}</h3>
+        <p className="text-muted-foreground text-sm">{t("settings.rolesDescription")}</p>
+      </div>
+
+      {rolesQuery.isLoading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("settings.loadingRoles")}
+        </div>
+      ) : rolesQuery.data ? (
+        <>
+          {/* The roles there is nothing to configure, stated once and together
+              rather than one full-width card over a grid of a different kind. */}
+          {managerRoles.length > 0 && (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))] gap-4">
+              {managerRoles.map((role) => (
+                <ManagerRoleCard
+                  key={role.id}
+                  role={role}
+                  description={
+                    role.name === "moderator"
+                      ? t("settings.moderatorDescription")
+                      : t("settings.managerDescription")
+                  }
+                  canManageMembers={canManageMembers}
+                  isPending={updateRoleMutation.isPending}
+                  onRenameRole={onRenameRole}
+                  onDeleteRole={onDeleteRole}
+                  isDeleting={deleteRoleMutation.isPending}
+                  t={translate}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(22rem,100%),1fr))] gap-4">
+            {configurableRoles.map((role) => (
+              <Card key={role.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-base">{moderatorRole.display_name}</CardTitle>
-                    <Badge variant="secondary" className="text-xs">
-                      {t("settings.builtIn")}
-                    </Badge>
-                    <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
+                    <CardTitle className="text-base">{role.display_name}</CardTitle>
+                    {role.is_builtin && (
+                      <Badge variant="secondary" className="text-xs">
+                        {t("settings.builtIn")}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-xs">
-                      {t("settings.memberCountBadge", { count: moderatorRole.member_count })}
+                      {t("settings.memberCountBadge", { count: role.member_count })}
                     </Badge>
                   </div>
                   {canManageMembers && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRenameRole(moderatorRole)}
-                      disabled={updateRoleMutation.isPending}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRenameRole(role)}
+                        disabled={updateRoleMutation.isPending}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {!role.is_builtin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDeleteRole(role)}
+                          disabled={deleteRoleMutation.isPending || role.member_count > 0}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm">
-                    {t("settings.moderatorDescription")}
-                  </p>
+                <CardContent className="space-y-3">
+                  {/* One list of every tool the initiative uses. Projects and
+                      documents used to sit above a section headed "Tools",
+                      which taught a split the app no longer has — they are
+                      tools like the other six. */}
+                  {tools.on.map((tool) => (
+                    <ToolPermissionRow
+                      key={tool}
+                      tool={tool}
+                      role={role}
+                      canManageMembers={canManageMembers}
+                      isPending={updateRoleMutation.isPending}
+                      onToggle={handleTogglePermission}
+                      t={translate}
+                    />
+                  ))}
+
+                  {tools.off.length > 0 && (
+                    // Below a line, under one explanation. These are still
+                    // worth setting — turning a tool back on should not mean
+                    // redoing the roles — they just grant nothing yet.
+                    <div className="space-y-3 border-t pt-3">
+                      <div>
+                        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                          {t("settings.toolAudience.turnedOffHeading")}
+                        </h4>
+                        <p className="mt-1 text-muted-foreground text-xs">
+                          {t("settings.toolAudience.turnedOffNote")}
+                        </p>
+                      </div>
+                      <div className="space-y-3 opacity-60">
+                        {tools.off.map((tool) => (
+                          <ToolPermissionRow
+                            key={tool}
+                            tool={tool}
+                            role={role}
+                            canManageMembers={canManageMembers}
+                            isPending={updateRoleMutation.isPending}
+                            onToggle={handleTogglePermission}
+                            t={translate}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )}
+            ))}
+          </div>
+        </>
+      ) : null}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {configurableRoles.map((role) => {
-                const isPM = role.name === "project_manager";
-                return (
-                  <Card key={role.id}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <CardTitle className="text-base">{role.display_name}</CardTitle>
-                        {role.is_builtin && (
-                          <Badge variant="secondary" className="text-xs">
-                            {t("settings.builtIn")}
-                          </Badge>
-                        )}
-                        {role.is_manager && (
-                          <Badge variant="outline" className="text-xs">
-                            {t("settings.manager")}
-                          </Badge>
-                        )}
-                        {role.override_share_restrictions && (
-                          <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">
-                          {t("settings.memberCountBadge", { count: role.member_count })}
-                        </Badge>
-                      </div>
-                      {canManageMembers && (
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onRenameRole(role)}
-                            disabled={updateRoleMutation.isPending}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {!role.is_builtin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onDeleteRole(role)}
-                              disabled={deleteRoleMutation.isPending || role.member_count > 0}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {CORE_PERMISSION_GROUPS.map((group) => (
-                        <PermissionGroupSection
-                          key={group.labelKey}
-                          group={group}
-                          role={role}
-                          isPM={isPM}
-                          canManageMembers={canManageMembers}
-                          isPending={updateRoleMutation.isPending}
-                          onToggle={handleTogglePermission}
-                          t={t as unknown as (key: never) => string}
-                        />
-                      ))}
-
-                      {ADVANCED_PERMISSION_GROUPS.length > 0 && (
-                        <Accordion type="single" collapsible>
-                          <AccordionItem value="advanced" className="border-b-0">
-                            <AccordionTrigger className="py-2 font-medium text-muted-foreground text-sm">
-                              {t("advancedTools")}
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4 pt-2">
-                              {ADVANCED_PERMISSION_GROUPS.map((group) => (
-                                <PermissionGroupSection
-                                  key={group.labelKey}
-                                  group={group}
-                                  role={role}
-                                  isPM={isPM}
-                                  canManageMembers={canManageMembers}
-                                  isPending={updateRoleMutation.isPending}
-                                  onToggle={handleTogglePermission}
-                                  toolIsOff={group.keys.some((key) => disabledKeys.has(key))}
-                                  t={t as unknown as (key: never) => string}
-                                />
-                              ))}
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </>
-        ) : null}
-
-        {canManageMembers && (
-          <Button variant="outline" onClick={onOpenCreateRoleDialog}>
-            <Plus className="h-4 w-4" />
-            {t("settings.addCustomRole")}
-          </Button>
-        )}
-      </div>
+      {canManageMembers && (
+        <Button variant="outline" onClick={onOpenCreateRoleDialog}>
+          <Plus className="h-4 w-4" />
+          {t("settings.addCustomRole")}
+        </Button>
+      )}
     </div>
   );
 };

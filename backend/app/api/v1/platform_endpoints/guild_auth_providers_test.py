@@ -174,7 +174,12 @@ async def test_slug_unique_per_guild_not_across_namespaces(
     assert other_guild.status_code == 201, other_guild.text
 
 
-async def test_platform_slug_reserved(client: AsyncClient, session: AsyncSession):
+async def test_a_guild_may_use_any_slug_including_the_platforms(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild's slugs are its own. ``oidc`` names the platform provider in the
+    operator-global namespace and nothing in a guild's, and a guild provider is
+    addressed through its guild — so the two never meet."""
     set_auth_scope()
     admin, guild = await _guild_admin(session)
 
@@ -183,8 +188,10 @@ async def test_platform_slug_reserved(client: AsyncClient, session: AsyncSession
         headers=get_auth_headers(admin),
         json={**PROVIDER_BODY, "slug": "oidc"},
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "AUTH_PROVIDER_SLUG_RESERVED"
+    assert response.status_code == 201, response.text
+    assert response.json()["callback_url"].endswith(
+        f"/api/v1/auth/g/{guild.id}/oidc/callback"
+    )
 
 
 async def test_other_namespace_rows_unreachable(

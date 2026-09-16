@@ -5,31 +5,10 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
-import { useRouter } from "@tanstack/react-router";
-import { Bell, CheckCheck, Loader2 } from "lucide-react";
-import { useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { RelativeTime } from "@/components/ui/relative-time";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth } from "@/hooks/useAuth";
-import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
-import {
-  useMarkAllNotificationsRead,
-  useMarkNotificationRead,
-  useNotifications,
-} from "@/hooks/useNotifications";
 import { normalizeAppTarget, normalizeLegacyTarget } from "@/lib/entityResolver";
-import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
-
-// How often the bell asks on its own, which is only ever when there is no
-// channel to ask for it.
-const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -132,6 +111,14 @@ export const notificationLink = (notification: NotificationRead): string | null 
       // The page opens the conversation itself: the thread is read out of this
       // device's own store, so there is nothing for a route param to fetch.
       return "/messages";
+    // Each lands where it is answered: a message request in the inbox that
+    // would carry the conversation, a connection on the contacts page.
+    case "message_request_received":
+    case "message_request_accepted":
+      return "/messages";
+    case "connection_requested":
+    case "connection_accepted":
+      return "/contacts";
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
@@ -319,10 +306,37 @@ export const notificationText = (
       // the server has no key to the message it is announcing.
       const count = typeof data.count === "number" ? data.count : 1;
       const senderName = data.sender_name ?? "Someone";
+      // A group thread has no name, so it is named by who is on it -- everybody
+      // but the reader. Present only on a group line.
+      const members = Array.isArray(data.member_names) ? data.member_names : null;
+      if (members?.length) {
+        const groupName = members.join(", ");
+        return count > 1
+          ? t("notifications.directMessageGroupMany", { senderName, groupName, count })
+          : t("notifications.directMessageGroup", { senderName, groupName });
+      }
       return count > 1
         ? t("notifications.directMessageMany", { senderName, count })
         : t("notifications.directMessage", { senderName });
     }
+    // Somebody asking to reach you, and the answer when you asked. Unlike a
+    // message these are not opaque to the server, so the line can name who.
+    case "connection_requested":
+      return t("notifications.connectionRequested", {
+        actorName: data.actor_name ?? t("notifications.someone"),
+      });
+    case "connection_accepted":
+      return t("notifications.connectionAccepted", {
+        actorName: data.actor_name ?? t("notifications.someone"),
+      });
+    case "message_request_received":
+      return t("notifications.messageRequestReceived", {
+        actorName: data.actor_name ?? t("notifications.someone"),
+      });
+    case "message_request_accepted":
+      return t("notifications.messageRequestAccepted", {
+        actorName: data.actor_name ?? t("notifications.someone"),
+      });
     case "comment_reaction": {
       const { reactorName, emoji, others } = reactionSummary(data);
       const options = {

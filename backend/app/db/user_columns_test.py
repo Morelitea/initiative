@@ -46,11 +46,8 @@ def test_the_families_do_not_publish_the_account():
     """
     account_only = {
         "hashed_password",
-        "email_hash",
-        "email_encrypted",
         "token_version",
         "role",
-        "email_verified",
         "age_confirmed_at",
         "locale",
         "timezone",

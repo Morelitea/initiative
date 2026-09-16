@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import TYPE_CHECKING, List
 
 
 from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
@@ -10,8 +10,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.db.session import set_rls_context
+from app.core.encryption import hash_email
+from app.db.session import set_rls_context, set_system_guild_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
@@ -28,6 +28,9 @@ from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.ai_member_key import GuildAIMemberKey
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.platform.user import AdminUserRead, UserRead
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
@@ -365,7 +368,7 @@ async def _scrub_invites_addressed_to(
     Fernet output is non-deterministic (the same address encrypts differently
     every time), so there is no indexed equality lookup: we load every bound
     invite and compare the decrypted address the same way redemption does
-    (via ``hash_email``, matching the ``users.email_hash`` normalization).
+    (via ``hash_email``, matching how an address is hashed everywhere else).
 
     A match is NULLed (removing the PII) *and* neutralised (``max_uses = 0``, so
     ``invite_is_active`` returns False). Nulling alone is not enough: an invite
@@ -395,9 +398,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     """Soft-delete (anonymize) a user account.
 
     Drops memberships like ``deactivate_user``, then strips every PII
-    field on the row, randomises ``email_hash`` / ``email_encrypted`` so
-    no future signup or admin lookup can resolve to this row, blanks the
-    password hash, and removes auth artifacts (API keys, push tokens,
+    field on the row, replaces every address the account held with a
+    sentinel, blanks the password hash, and removes auth artifacts (API keys, push tokens,
     user_tokens, sign-in sessions). The row stays so existing FKs (comment authors, task
     assignees, project owners, …) continue to resolve and the UI can
     render the placeholder "Deleted user #{id}" wherever the original
@@ -424,8 +426,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     all_guild_ids = list((await session.exec(select(Guild.id))).all())
     for gid in all_guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         # Drop the user's AI credentials (member API keys) + connection
         # preference in this guild — the encrypted keys are a secret we must not
         # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
@@ -442,10 +445,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     user = await _drop_user_memberships(session, user_id)
 
-    # Capture the real email hash before it's overwritten with the sentinel
-    # below — it's how we find guild invites bound to this person's address.
+    # Captured before ``replace_all`` below overwrites them — it is how a guild
+    # invite bound to one of this person's addresses is found.
     original_email_hashes = await addresses.held_hashes(session, user_id=user_id)
-    original_email_hashes.add(user.email_hash)
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -463,18 +465,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # that doesn't also filter by status.
     user.role = UserRole.member
 
-    # Replace email with a sentinel that won't collide on the unique index
-    # and can't be looked up by anyone trying to authenticate. The
-    # encrypted blob holds the same nonsense so decryption (if ever invoked)
-    # yields a string that's obviously not a real email. Domain is
-    # RFC 2606 example.com so EmailStr serialization on user-facing
-    # endpoints (admin user list, etc.) doesn't reject the row.
+    # Every address the account held is replaced with one sentinel. It reads as
+    # obvious nonsense if it is ever decrypted, and its domain is RFC 2606
+    # example.com so EmailStr serialization on user-facing endpoints (the admin
+    # user list, and so on) does not reject the row.
     sentinel_email = (
         f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
     )
-    user.email_hash = hash_email(sentinel_email)
-    user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
-    # Every address the account held goes with it, not just the one on ``users``.
     await addresses.replace_all(
         session,
         user_id=user_id,
@@ -703,7 +700,9 @@ async def hard_delete_user(
         # text (@-mentions in comments, document mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
@@ -790,8 +789,6 @@ async def hard_delete_user(
     # (the ``created_by`` NULLing above only covers invites this user
     # *sent*, not ones addressed *to* them).
     held = await addresses.held_hashes(session, user_id=user.id)
-    if user.email_hash:
-        held.add(user.email_hash)
     if held:
         await _scrub_invites_addressed_to(session, email_hashes=held)
 
@@ -893,3 +890,69 @@ def visible_to_other_people(status_column=None):
     """
     column = MemberProfile.status if status_column is None else status_column
     return column != UserStatus.suspended
+
+
+async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
+    """Each account's address and whether it has proved one.
+
+    On its own system-engine session: ``user_emails`` carries no request-path
+    grants, so the role a request runs as cannot read it. Two queries for the
+    whole page rather than two per row.
+
+    Private, and deliberately so. It returns addresses in the clear for
+    whatever ids it is handed, and decides nothing about who may see them —
+    that belongs to the two shapes below, which is the only thing that calls
+    it: ``to_self_read`` for the address's own holder, ``to_admin_read`` for
+    everybody else, masked.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return (
+            await addresses.primary_addresses(admin_session, user_ids=user_ids),
+            await addresses.accounts_with_a_proven_address(
+                admin_session, user_ids=user_ids
+            ),
+        )
+
+
+async def to_self_read(user: User) -> "UserRead":
+    """An account's own record, with the address it is reached at, in full.
+
+    For handing somebody their *own* account and nothing else — the address is
+    unmasked. A platform admin reading another account gets ``to_admin_read``.
+
+    The address and whether one has been proved both live in ``user_emails``,
+    so the ``users`` row cannot answer either on its own. This is where the two
+    are put back together, for the endpoints that hand somebody their own
+    account.
+    """
+    from app.schemas.platform.user import UserRead
+
+    primary, proven = await _reach([user.id])
+    payload = UserRead.model_validate(user)
+    payload.email = primary.get(user.id)
+    payload.email_verified = user.id in proven
+    return payload
+
+
+async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
+    """The same, for a platform admin reading other people's accounts.
+
+    The shape masks the address itself.
+    """
+    from app.schemas.platform.user import AdminUserRead
+
+    primary, proven = await _reach([u.id for u in users])
+    out: List[AdminUserRead] = []
+    for user in users:
+        payload = AdminUserRead.model_validate(user)
+        payload.email = primary.get(user.id) or ""
+        payload.email_verified = user.id in proven
+        out.append(payload)
+    return out
+
+
+async def to_admin_read_one(user: User) -> "AdminUserRead":
+    """``to_admin_read`` for the routes that return one account."""
+    return (await to_admin_read([user]))[0]

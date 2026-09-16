@@ -1,0 +1,80 @@
+{
+  "ownerOnly": "Solo los propietarios de la plataforma pueden configurar dónde llega el trabajo de operaciones.",
+  "guild": {
+    "title": "Comunidad de operaciones",
+    "description": "La comunidad que recibe el trabajo de seguridad, moderación, soporte y comentarios de esta instalación.",
+    "label": "Comunidad",
+    "placeholder": "Elige una comunidad",
+    "none": "Ninguna — no dirigir nada",
+    "helpText": "Una comunidad corriente en todos los aspectos. En qué proyecto llega cada canal se define abajo, dentro de ella.",
+    "saveError": "No se pudo guardar la comunidad de operaciones.",
+    "clearTitle": "¿Dejar de dirigir el trabajo de operaciones?",
+    "clearBody": "Todos los canales dejan de recibir. Los proyectos y todo lo que contienen quedan igual, y al elegir esta comunidad de nuevo se restaura lo configurado.",
+    "clearConfirm": "Dejar de dirigir"
+  },
+  "streams": {
+    "chooseGuildFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
+    "security": {
+      "title": "Seguridad",
+      "description": "Casos abiertos por reglas que vigilan esta instalación."
+    },
+    "moderation": {
+      "title": "Moderación",
+      "description": "Denuncias sobre contenido y conducta."
+    },
+    "support": {
+      "title": "Soporte",
+      "description": "Peticiones de ayuda de quienes usan esta instalación."
+    },
+    "feedback": {
+      "title": "Comentarios",
+      "description": "Lo que la gente nos ha dicho que quiere."
+    }
+  },
+  "stream": {
+    "notSetUp": "Sin configurar",
+    "receiving": "Recibiendo",
+    "paused": "En pausa",
+    "setUpHelp": "Al configurarlo obtienes un proyecto listo con sus propios estados y campos, que puedes reorganizar como quieras después. O dirige el canal a un proyecto que ya tengas.",
+    "initiativeLabel": "Iniciativa",
+    "initiativePlaceholder": "Elige una iniciativa",
+    "setUpForMe": "Configúralo por mí",
+    "existingProjectLabel": "O usa un proyecto que ya tengas",
+    "existingProjectPlaceholder": "Elige un proyecto",
+    "landsInLabel": "Llega a",
+    "repointNote": "Dirigir un canal a otro proyecto empieza de cero allí. Lo que siga abierto se queda en el proyecto donde se está trabajando.",
+    "landingStatusLabel": "Los casos nuevos empiezan en",
+    "landingStatusDefault": "El estado por defecto del proyecto",
+    "enabledLabel": "Recibiendo casos nuevos",
+    "lastCase": "Último caso abierto el {{when}}.",
+    "noCasesYet": "Aún no hay casos.",
+    "unbind": "Dejar de dirigir este canal",
+    "unbindTitle": "¿Dejar de dirigir este canal?",
+    "unbindConfirm": "Dejar de dirigir",
+    "unbindBody": "El proyecto y todos sus casos se quedan. Si vuelves a dirigir el canal al mismo proyecto, continúa donde lo dejó.",
+    "createdToast": "{{name}} está configurado y recibiendo.",
+    "unboundToast": "Ese canal ya no está dirigido.",
+    "saveError": "No se pudo guardar ese cambio.",
+    "destinationArchived": "Destino archivado",
+    "archivedOption": "{{name}} (archivado)",
+    "archivedNote": "Este proyecto está archivado, así que nada puede llegar a él. Recupéralo o dirige este canal a un proyecto activo."
+  },
+  "loadFailed": {
+    "title": "No se pudieron cargar estos ajustes",
+    "description": "No se ha cambiado nada. Inténtalo de nuevo; si sigue fallando, el registro del servidor dirá por qué.",
+    "retry": "Reintentar"
+  },
+  "help": {
+    "action": "Pedir ayuda",
+    "title": "Pedir ayuda",
+    "description": "Cuéntanos qué ocurre y alguien se encargará.",
+    "subjectLabel": "¿De qué se trata?",
+    "subjectPlaceholder": "Una línea, para poder encontrarlo después",
+    "bodyLabel": "¿Qué ha pasado?",
+    "bodyPlaceholder": "Qué estabas haciendo, qué esperabas y qué ocurrió en su lugar.",
+    "browseFaq": "Consultar las preguntas frecuentes",
+    "submit": "Enviar",
+    "thanks": "Enviado. Alguien se encargará.",
+    "error": "No se ha podido enviar. Inténtalo de nuevo en un momento."
+  }
+}

@@ -64,7 +64,6 @@ const renderSheet = async (rows: Record<string, { hidden: true }>) => {
   );
   renderWithProviders(
     <SpreadsheetDocumentEditor
-      // biome-ignore lint/suspicious/noExplicitAny: the editor's own content type
       initialContent={content(rows) as any}
       onContentChange={() => {}}
       documentTitle="Sheet"

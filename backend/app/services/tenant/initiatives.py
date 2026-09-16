@@ -245,6 +245,15 @@ async def create_builtin_roles(
 async def ensure_default_initiative(
     session: AsyncSession, admin_user: User, *, guild_id: int
 ) -> Initiative:
+    """The guild's ``is_default`` initiative, made if it isn't there yet.
+
+    **Guild creation no longer calls this.** A new guild arrives with no
+    initiative at all, because the seeded one only ever named the fact that
+    nobody had chosen a name yet. What is left is the dev seeder, which wants a
+    community it can hang demo content off, and the guilds provisioned before
+    the change — for those the lookup leg is what runs, and the undeletable
+    ``is_default`` row keeps behaving as it always did.
+    """
     statement = select(Initiative).where(
         Initiative.guild_id == guild_id,
         Initiative.is_default.is_(True),
@@ -818,7 +827,7 @@ async def self_join(
 
     The floor, not the ceiling: ``member`` is view-only on the core tools and
     creates nothing, and per-resource sharing still decides what is reachable
-    inside. The row is ordinary — ``oidc_managed`` false, so group sync neither
+    inside. The row is ordinary — no managing provider, so group sync neither
     reaps it nor fights it — which is the whole point: every join path ends at
     the same membership row RLS already reads.
 
@@ -847,7 +856,7 @@ async def self_join(
         user_id=user_id,
         role_id=role.id,
         guild_id=initiative.guild_id,
-        oidc_managed=False,
+        oidc_provider_id=None,
     )
     # Two overlapping joins both clear the lookup above, and the composite
     # primary key then rejects the loser. That is the same outcome the caller
@@ -903,7 +912,7 @@ async def enroll_in_auto_join_initiatives(
     """Enrol a brand-new guild member in the guild's auto-join initiatives.
 
     Each enrolment routes through :func:`self_join`, so an arrival lands on the
-    same membership row every other join path writes — ``oidc_managed`` false,
+    same membership row every other join path writes — no managing provider,
     so group sync neither reaps nor fights it.
 
     Best effort, per initiative: one initiative that cannot take a member (its
@@ -1045,7 +1054,7 @@ async def resolve_join_request(
     """Settle a pending request, creating the membership row on approval.
 
     Approval routes through :func:`self_join`, so an approved requester lands on
-    exactly the row every other join path produces — ``oidc_managed`` false —
+    exactly the row every other join path produces — no managing provider —
     and someone who became a member by another route while the request sat in
     the queue is absorbed rather than colliding.
 
@@ -1211,7 +1220,7 @@ async def create_imported_initiative(
     on collision (always-create policy) instead of 409ing, and the tool
     master switches taken from the backup manifest. Flush-only — the backup
     orchestrator owns its per-chunk transaction."""
-    from app.core.tools import TOGGLEABLE_TOOLS
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
     from app.services.import_engine.common import unique_name
 
     existing = {
@@ -1228,7 +1237,13 @@ async def create_imported_initiative(
         color=color,
         guild_id=guild_id,
         **{
-            t.view_permission: bool(tool_flags.get(t.view_permission, False))
+            # A manifest that says nothing about a tool falls back to that
+            # tool's own default rather than to off: a backup written before
+            # projects and documents had switches names no state for them, and
+            # restoring it must not produce an initiative with neither.
+            t.view_permission: bool(
+                tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)
+            )
             for t in TOGGLEABLE_TOOLS
         },
     )

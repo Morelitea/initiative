@@ -42,6 +42,7 @@ import {
   type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
+  sessionAuthor,
   sessionForDevice,
   sessionOrigin,
   sessionPickle,
@@ -76,6 +77,8 @@ interface Destination {
   id: string;
   identityKey: string;
   origin: SessionOrigin;
+  /** Whose device this is. Absent on this account's own. */
+  userId?: number;
 }
 
 /**
@@ -264,11 +267,17 @@ export async function unreadIn(conversationId: string): Promise<number> {
   return log.slice(read + 1).filter((message) => !message.mine).length;
 }
 
-/** This thread has been looked at, up to the last message the other side sent. */
+/**
+ * This thread has been looked at, up to the last message the other side sent.
+ *
+ * Answers how many messages this look actually read, which is zero for the
+ * common case of a thread that was already current. The caller uses it to
+ * decide whether there is anything to report.
+ */
 export async function markRead(
   conversationId: string,
-  { otherUserId, receipts = true }: { otherUserId?: number; receipts?: boolean } = {}
-): Promise<void> {
+  { memberIds, receipts = true }: { memberIds?: number[]; receipts?: boolean } = {}
+): Promise<number> {
   const [log, seen] = await Promise.all([
     messageLog.get(conversationId),
     lastRead.get(conversationId),
@@ -278,17 +287,18 @@ export async function markRead(
   // the marker is touched would say "read" again on every keystroke that
   // lengthened it, for messages answered an hour ago.
   const newly = log.slice(previous + 1).filter((message) => !message.mine);
-  if (newly.length === 0) return;
+  if (newly.length === 0) return 0;
 
   await lastRead.set(conversationId, newly[newly.length - 1].id);
-  if (receipts && otherUserId !== undefined) {
+  if (receipts && memberIds !== undefined) {
     await acknowledge(
       conversationId,
-      otherUserId,
+      memberIds,
       newly.map((message) => message.id),
       "read"
     );
   }
+  return newly.length;
 }
 
 /**
@@ -328,6 +338,10 @@ async function openOutboundSession(
   const session = await ratchet.createOutboundSession(account, destination.identityKey, oneTimeKey);
   await sessionPickle.set(session.session_id, session.session_pickle);
   await sessionOrigin.set(session.session_id, destination.origin);
+  // Whose device this session is with, for when they act on a message later.
+  if (destination.userId !== undefined) {
+    await sessionAuthor.set(session.session_id, destination.userId);
+  }
   await sessionForDevice.set(destination.id, session.session_id);
   await sessionsInConversation.add(conversationId, session.session_id);
   await allSessions.add(session.session_id);
@@ -343,19 +357,33 @@ async function openOutboundSession(
  */
 async function claimKeysFor(
   missing: Destination[],
-  otherUserId: number,
   ownDeviceId: string
 ): Promise<Map<string, string>> {
   const keys = new Map<string, string>();
   const claims = [];
-  if (missing.some((destination) => destination.origin === "other")) {
-    claims.push(claimSessionKeys(otherUserId));
+  // One claim per account that still needs a session opened with it, rather
+  // than one per device: the endpoint answers for the whole account, and asking
+  // twice would spend two of their prekeys where one covers it.
+  const accounts = new Set(
+    missing
+      .filter((destination) => destination.origin === "other")
+      .map((destination) => destination.userId)
+      .filter((userId): userId is number => userId !== undefined)
+  );
+  for (const userId of accounts) {
+    claims.push(claimSessionKeys(userId));
   }
   if (missing.some((destination) => destination.origin === "self")) {
     claims.push(claimOwnSessionKeys({ device_id: ownDeviceId }));
   }
-  for (const claim of await Promise.all(claims)) {
-    for (const device of claim.devices) {
+  // Settled rather than all: a claim can be refused after the directory was
+  // read -- somebody's permission changes in between -- and one refusal must
+  // not take the members whose keys did come back with it. A destination whose
+  // key is missing is skipped further down, which is what a member with nothing
+  // to open a session on already gets.
+  for (const settled of await Promise.allSettled(claims)) {
+    if (settled.status !== "fulfilled") continue;
+    for (const device of settled.value.devices) {
       if (device.one_time_key) keys.set(device.device_id, device.one_time_key.public_key);
     }
   }
@@ -549,29 +577,46 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * Encrypt one envelope for every device that should see it and hand the
  * ciphertext to the server.
  *
- * Returns whether it reached the other party at all -- as opposed to only this
+ * One copy per destination device, which is what carries a group: there is no
+ * group key, so a roster of four costs four times what a pair costs and every
+ * member's copy travels on the pairwise ratchet that was already there.
+ *
+ * Returns whether it reached anybody else at all -- as opposed to only this
  * account's own devices, which is what "nobody there to read it" looks like
- * from here.
+ * from here. Anybody, not everybody: one member with no devices published must
+ * not stop the rest hearing it.
  */
 async function sendEnvelope(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope,
   { toSelf, silent = false }: { toSelf: boolean; silent?: boolean }
 ): Promise<boolean> {
   const { id: mine, devices: ourDevices } = await ensureDeviceContext();
 
   // The directory rather than a claim: reading it spends nothing, and most
-  // messages go to devices this one already has a session with.
-  const theirs = await readDirectory(otherUserId);
-  if (theirs.devices.length === 0) return false;
+  // messages go to devices this one already has a session with. One member
+  // being unreadable is not the others being unreadable, so each is asked for
+  // separately and a failure only removes that member.
+  const directories = await Promise.all(
+    memberIds.map(async (userId) => {
+      try {
+        return { userId, devices: (await readDirectory(userId)).devices };
+      } catch {
+        return { userId, devices: [] };
+      }
+    })
+  );
 
   const destinations: Destination[] = [
-    ...theirs.devices.map((device) => ({
-      id: device.device_id,
-      identityKey: device.identity_key,
-      origin: "other" as const,
-    })),
+    ...directories.flatMap(({ userId, devices }) =>
+      devices.map((device) => ({
+        id: device.device_id,
+        identityKey: device.identity_key,
+        origin: "other" as const,
+        userId,
+      }))
+    ),
     // A receipt is about their message and is for them, so it does not go to
     // this account's own tabs; an outgoing message does, or their copy of the
     // thread would be missing this side of it.
@@ -597,7 +642,7 @@ async function sendEnvelope(
   }
   const missing = destinations.filter((destination) => !held.get(destination.id));
   const claimed =
-    missing.length > 0 ? await claimKeysFor(missing, otherUserId, mine) : new Map<string, string>();
+    missing.length > 0 ? await claimKeysFor(missing, mine) : new Map<string, string>();
 
   const messages = [];
   let reachedThem = false;
@@ -625,9 +670,9 @@ async function sendEnvelope(
     });
   }
 
-  // Nothing goes out at all if it could not reach them: an envelope this
-  // account's own tabs hold and the other party never got would put a message
-  // in their thread that was never said to anybody.
+  // Nothing goes out at all if it reached nobody: an envelope this account's
+  // own tabs hold and nobody else ever got would put a message in their thread
+  // that was never said to anybody.
   if (!reachedThem) return false;
 
   await sendMessages(conversationId, { messages, silent });
@@ -644,7 +689,7 @@ async function sendEnvelope(
  */
 export async function sendText(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   body: string,
   { replyTo }: { replyTo?: string } = {}
 ): Promise<StoredMessage> {
@@ -659,7 +704,7 @@ export async function sendText(
   // Their devices were all there was to address and none could be opened.
   // Nothing is sent, here or later, so the thread should not show a message as
   // though something had been.
-  if (!(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true }))) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 
@@ -690,12 +735,10 @@ export async function sendText(
  */
 async function sendControl(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope
 ): Promise<void> {
-  if (
-    !(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true }))
-  ) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true, silent: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 }
@@ -722,13 +765,13 @@ async function actOn(
  */
 export async function sendReaction(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   emoji: string,
   on: boolean
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: false }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "reaction", targetId, emoji, on });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "reaction", targetId, emoji, on });
   return messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
 }
 
@@ -744,7 +787,7 @@ export async function sendReaction(
  */
 export async function sendEdit(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   body: string
 ): Promise<boolean> {
@@ -752,18 +795,18 @@ export async function sendEdit(
   if (!entry || entry.body === body) return false;
   const at = new Date().toISOString();
   const rev = (entry.rev ?? 0) + 1;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body, rev });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "edit", targetId, at, body, rev });
   return messageLog.applyEdit(conversationId, targetId, body, at, "mine", rev);
 }
 
 /** Take one of your own messages back. */
 export async function sendRemove(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: true }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "remove", targetId });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "remove", targetId });
   return messageLog.applyRemove(conversationId, targetId, "mine", new Date().toISOString());
 }
 
@@ -776,7 +819,7 @@ export async function sendRemove(
  */
 export async function acknowledge(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   ids: string[],
   state: ReceiptState
 ): Promise<void> {
@@ -784,7 +827,7 @@ export async function acknowledge(
   try {
     await sendEnvelope(
       conversationId,
-      otherUserId,
+      memberIds,
       { v: 1, kind: "receipt", state, ids },
       // Nothing to announce: a receipt says a client collected or read
       // something, which is not a person saying anything to anybody.
@@ -821,13 +864,27 @@ async function identitiesForPreKeys(
   for (const conversation of conversations.conversations) {
     if (!conversationIds.has(conversation.id)) continue;
     try {
-      const theirs = await readDirectory(conversation.other_user_id);
+      const roster = conversation.member_ids?.length
+        ? conversation.member_ids
+        : [conversation.other_user_id];
+      const directories = await Promise.all(
+        roster.map(async (userId) => {
+          try {
+            return { userId, devices: (await readDirectory(userId)).devices };
+          } catch {
+            return { userId, devices: [] };
+          }
+        })
+      );
       candidates.set(conversation.id, [
-        ...theirs.devices.map((device) => ({
-          id: device.device_id,
-          identityKey: device.identity_key,
-          origin: "other" as const,
-        })),
+        ...directories.flatMap(({ userId, devices }) =>
+          devices.map((device) => ({
+            id: device.device_id,
+            identityKey: device.identity_key,
+            origin: "other" as const,
+            userId,
+          }))
+        ),
         ...ours,
       ]);
     } catch {
@@ -887,7 +944,15 @@ async function sendToOwnDevice(
   carrierId: string,
   deviceId: string,
   identityKey: string,
-  envelope: Envelope
+  envelope: Envelope,
+  /**
+   * Whether the far device is worth waking a phone up for. True only for the
+   * one envelope a person has to answer — an install asking to be sent the
+   * history it arrived without, which sits unanswered until somebody opens the
+   * device that can serve it. Everything else here is a client talking to
+   * itself.
+   */
+  wake = false
 ): Promise<boolean> {
   const destination: Destination = { id: deviceId, identityKey, origin: "self" };
   let sessionId = await establishedSession(deviceId);
@@ -913,6 +978,7 @@ async function sendToOwnDevice(
     // Nothing here is addressed to the other party, and nothing about it is
     // theirs to be told.
     silent: true,
+    wake_own_devices: wake,
   });
   return true;
 }
@@ -922,6 +988,22 @@ async function carrierConversation(): Promise<string | null> {
   const conversations = await listConversations();
   return conversations.conversations[0]?.id ?? null;
 }
+
+/**
+ * Which of two devices came first.
+ *
+ * A strict total order, and the same one on both sides: each device works out
+ * for itself which way an ask should travel, and they have to agree without
+ * conferring. Registration time decides it; the id breaks a tie, so two devices
+ * registered in the same instant still order one before the other rather than
+ * each deciding it is the junior one.
+ */
+const precedes = (a: DmDeviceRead, b: DmDeviceRead): boolean => {
+  const at = Date.parse(a.created_at);
+  const bt = Date.parse(b.created_at);
+  if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) return at < bt;
+  return a.id < b.id;
+};
 
 /**
  * Ask this account's other devices for the history this one cannot derive.
@@ -935,6 +1017,17 @@ async function carrierConversation(): Promise<string | null> {
  * the threads would otherwise ask for what it is sitting on, leaving two
  * screens each asking the other, each showing a different code, and nothing to
  * compare either against.
+ *
+ * And it asks only devices that came before it. History runs forwards: one
+ * registered after this device cannot be holding what this device is missing,
+ * so a request in that direction is asking the wrong way round. This is what
+ * settles the direction when both ends think they are eligible — the first
+ * browser on an account is marked eligible when it registers with an empty log,
+ * and stays that way while it is the only device, so by the time a second
+ * appears both are eligible and, without this, both ask.
+ *
+ * A device with nobody before it is the account's origin, so its question is
+ * answered rather than outstanding, and it is closed here.
  *
  * Eligibility survives a failed attempt. A device kept trying until one of its
  * requests actually goes out, whatever has landed in its log in the meantime:
@@ -955,21 +1048,36 @@ export async function requestHistory(): Promise<boolean> {
   }
   const { id: mine, devices } = await ensureDeviceContext();
   const me = devices.find((device) => device.id === mine);
-  if (!me || devices.length < 2) return false;
+  if (!me) return false;
+  const elders = devices.filter((device) => device.id !== mine && precedes(device, me));
+  if (elders.length === 0) {
+    // Nobody to ask, now or later: this device is the oldest the account has,
+    // and nothing registered after it can hold what it is missing. Closed
+    // rather than merely skipped, because an eligibility left standing is one
+    // that fires at whichever device happens to arrive next.
+    await historyAsk.close();
+    return false;
+  }
   const carrier = await carrierConversation();
   if (carrier === null) return false;
 
   const requestId = newMessageId();
   let asked = false;
-  for (const device of devices) {
-    if (device.id === mine) continue;
-    const sent = await sendToOwnDevice(carrier, device.id, device.identity_key, {
-      v: 1,
-      kind: "history-request",
-      requestId,
-      deviceId: mine,
-      fingerprint: me.fingerprint_key,
-    });
+  for (const device of elders) {
+    const sent = await sendToOwnDevice(
+      carrier,
+      device.id,
+      device.identity_key,
+      {
+        v: 1,
+        kind: "history-request",
+        requestId,
+        deviceId: mine,
+        fingerprint: me.fingerprint_key,
+      },
+      // The one ask that has to reach a device nobody is looking at.
+      true
+    );
     asked = asked || sent;
   }
   // Written down once it is on its way rather than once it is answered: the
@@ -1013,6 +1121,9 @@ export interface HistoryAskWaiting {
 export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined> {
   const ask = await historyAsk.get();
   if (typeof ask !== "object" || !ask.fingerprint || !ask.at) return undefined;
+  // Put away by hand. The day is an outside limit on a notice nobody dealt
+  // with, not the only way to be rid of one.
+  if (ask.dismissed) return undefined;
   const asked = Date.parse(ask.at);
   if (Number.isNaN(asked)) return undefined;
   const expiresAt = asked + HISTORY_ASK_NOTICE_MS;
@@ -1020,6 +1131,19 @@ export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined
   // When it stops, so the screen showing it can take it down on its own rather
   // than at whatever unrelated moment something next happens to ask again.
   return { fingerprint: ask.fingerprint, expiresAt };
+}
+
+/**
+ * Put the waiting notice away, leaving the question outstanding.
+ *
+ * What is being dismissed is the banner, not the ask: the other device has
+ * still not answered, and when somebody opens it and approves, the history
+ * still arrives and still lands. Nothing here asks again — a device asks once,
+ * because one that asks on every start trains somebody to say yes without
+ * reading.
+ */
+export async function dismissHistoryAskNotice(): Promise<void> {
+  await historyAsk.dismissNotice();
 }
 
 /**
@@ -1210,6 +1334,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
     try {
       let plaintext: string;
       let mine: boolean;
+      let author: number | undefined;
       // Every message is offered to the sessions this device already holds
       // before any new one is opened -- pre-key messages included. A session
       // goes on marking what it sends as pre-key until it hears back on it, so
@@ -1222,6 +1347,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await sessionsInConversation.add(item.conversation_id, read.sessionId);
         plaintext = read.plaintext;
         mine = (await sessionOrigin.get(read.sessionId)) === "self";
+        author = await sessionAuthor.get(read.sessionId);
       } else if (item.message_type === 0) {
         // Nothing held can read it, so it opens a conversation rather than
         // continuing one. Opening an inbound session spends a prekey out of the
@@ -1237,7 +1363,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
               );
               return {
                 next: session.account_pickle,
-                value: { session, origin: candidate.origin, device: candidate.id },
+                value: {
+                  session,
+                  origin: candidate.origin,
+                  device: candidate.id,
+                  author: candidate.userId,
+                },
               };
             } catch {
               // Not this device. Try the next.
@@ -1250,6 +1381,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // Which end a session belongs to is knowable now and never again: an
         // ordinary message arriving on it later names no sender.
         await sessionOrigin.set(opened.session.session_id, opened.origin);
+        // And whose it is. "Their side" is one person in a pair and several in
+        // a group, so which side an envelope arrived on stops being enough to
+        // say who sent it.
+        if (opened.author !== undefined) {
+          await sessionAuthor.set(opened.session.session_id, opened.author);
+        }
         // Which device it is with, too -- and that is what the reply looks up.
         // Without it an answer opens a second session with somebody this device
         // is already talking to, spends another of their prekeys to do it, and
@@ -1262,6 +1399,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await allSessions.add(opened.session.session_id);
         plaintext = opened.session.plaintext;
         mine = opened.origin === "self";
+        author = opened.author;
       } else {
         continue;
       }
@@ -1273,10 +1411,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
-      // Acting on a message already said rather than saying one. Which side
-      // an envelope arrived on is the whole of the authorization: one that
-      // came over this account's own session is this account acting from
-      // another tab, and one over theirs is them acting on their own message.
+      // Acting on a message already said rather than saying one. The side it
+      // arrived on says whether this is the account's own other tab or somebody
+      // else; on a roster that is not enough on its own, because an edit or a
+      // removal is a claim about a message's author and "somebody else" is
+      // several people. So the session's account goes with it, and the log
+      // refuses one that does not match the author it is acting on.
       if (envelope.kind === "reaction" || envelope.kind === "edit" || envelope.kind === "remove") {
         const from = mine ? "mine" : "theirs";
         const moved =
@@ -1295,13 +1435,15 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
                   envelope.body,
                   envelope.at || item.created_at,
                   from,
-                  envelope.rev
+                  envelope.rev,
+                  author
                 )
               : await messageLog.applyRemove(
                   item.conversation_id,
                   envelope.targetId,
                   from,
-                  item.created_at
+                  item.created_at,
+                  author
                 );
         if (moved) touched.add(item.conversation_id);
         collected.push(item.id);
@@ -1358,6 +1500,9 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // A message that arrived on one of this account's own sessions is the
         // sender's own outbox catching up, and belongs on the sender's side.
         mine,
+        // Who said it, so an edit or a removal can be held to the person whose
+        // message it is rather than to the side it came from.
+        ...(author !== undefined ? { author } : {}),
       });
       // Only theirs is worth reporting: this account already knows when it sent
       // its own, and a receipt addressed at yourself tells nobody anything.
@@ -1389,7 +1534,10 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
     for (const conversation of conversations.conversations) {
       const ids = landed.get(conversation.id);
       if (ids) {
-        await acknowledge(conversation.id, conversation.other_user_id, ids, "delivered");
+        const roster = conversation.member_ids?.length
+          ? conversation.member_ids
+          : [conversation.other_user_id];
+        await acknowledge(conversation.id, roster, ids, "delivered");
       }
     }
   }

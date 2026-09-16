@@ -12,9 +12,13 @@
   },
   "emptyState": {
     "title": "Todavía no te has unido a ninguna iniciativa",
+    "adminTitle": "Esta comunidad todavía no tiene iniciativas",
     "description": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
+    "adminDescription": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Crea la primera para decir para qué es esta comunidad.",
     "nothingListedTitle": "Nada a lo que unirse todavía",
-    "nothingListedDescription": "Ninguna iniciativa de esta comunidad está abierta ahora mismo. Un administrador de la comunidad o un gerente de proyecto puede añadirte."
+    "adminNothingListedTitle": "Crea la primera iniciativa",
+    "nothingListedDescription": "Ninguna iniciativa de esta comunidad está abierta ahora mismo. Un administrador de la comunidad o un gerente de proyecto puede añadirte.",
+    "adminNothingListedDescription": "Ponle nombre a un conjunto de trabajo — un equipo, una campaña, una temporada — y todo lo que le pertenece vivirá dentro."
   },
   "directory": {
     "title": "Iniciativas",

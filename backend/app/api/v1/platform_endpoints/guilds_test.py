@@ -21,7 +21,7 @@ from sqlmodel import select
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.user import UserRole, UserStatus
-from app.models.tenant.initiative import InitiativeMember
+from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.testing.factories import (
     create_federated_identity,
     guild_administration,
@@ -327,11 +327,35 @@ async def test_creating_for_someone_else_records_both_identities(
 
 
 @pytest.mark.integration
-async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
+async def test_a_new_guild_is_created_with_no_initiatives(
+    client: AsyncClient, session: AsyncSession
+):
+    """A new guild holds no initiative at all. Naming a body of work is the
+    owner's first decision, and a seeded "Default Initiative" answered it for
+    them; the guild home offers them the empty state instead."""
+    owner = await create_user(session, email="owner@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(owner),
+        json={"name": "Acme"},
+    )
+    assert response.status_code == 201
+    guild_id = response.json()["id"]
+
+    await route_session_to_guild(session, guild_id)
+    assert (await session.exec(select(Initiative))).all() == []
+    assert (await session.exec(select(InitiativeMember))).all() == []
+
+
+@pytest.mark.integration
+async def test_a_guild_made_for_someone_else_leaves_its_creator_no_content(
     client: AsyncClient, session: AsyncSession
 ):
     """A guild made for another account must not leave its creator inside the
-    content either — the default initiative belongs to the owner."""
+    content. With nothing seeded there is no content to be inside — this holds
+    the line so a future seed cannot quietly hand the staff creator a
+    membership."""
     staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
     customer = await create_user(session, email="customer@example.com")
 
@@ -344,7 +368,7 @@ async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
 
     await route_session_to_guild(session, guild_id)
     members = (await session.exec(select(InitiativeMember))).all()
-    assert {m.user_id for m in members} == {customer.id}
+    assert {m.user_id for m in members} <= {customer.id}
 
 
 @pytest.mark.integration

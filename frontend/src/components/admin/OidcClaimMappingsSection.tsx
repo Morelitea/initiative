@@ -21,13 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useServerForm } from "@/hooks/useServerForm";
 import {
+  useAuthProviders,
   useCreateOidcMapping,
   useDeleteOidcMapping,
   useOidcMappingOptions,
   useOidcMappings,
-  useUpdateOidcClaimPath,
   useUpdateOidcMapping,
 } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
@@ -38,6 +37,7 @@ export const OidcClaimMappingsSection = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
+    provider_id: "",
     claim_value: "",
     target_type: "guild" as "guild" | "initiative",
     guild_id: "",
@@ -47,21 +47,8 @@ export const OidcClaimMappingsSection = () => {
   });
 
   const mappingsQuery = useOidcMappings();
+  const providersQuery = useAuthProviders();
   const optionsQuery = useOidcMappingOptions();
-
-  // Typed, then saved by the button beside it.
-  const claimPathForm = useServerForm(
-    mappingsQuery.data,
-    (loaded) => ({
-      claimPath: loaded?.claim_path ?? "",
-    }),
-    "oidc-claim-path"
-  );
-
-  const updateClaimPath = useUpdateOidcClaimPath({
-    onSuccess: () => toast.success(t("auth.claimPathSuccess")),
-    onError: () => toast.error(t("auth.claimPathError")),
-  });
 
   const createMapping = useCreateOidcMapping({
     onSuccess: () => {
@@ -102,6 +89,7 @@ export const OidcClaimMappingsSection = () => {
     setFormOpen(false);
     setEditingId(null);
     setForm({
+      provider_id: "",
       claim_value: "",
       target_type: "guild",
       guild_id: "",
@@ -115,6 +103,7 @@ export const OidcClaimMappingsSection = () => {
     setEditingId(mapping.id);
     setFormOpen(true);
     setForm({
+      provider_id: String(mapping.provider_id),
       claim_value: mapping.claim_value,
       target_type: mapping.target_type as "guild" | "initiative",
       guild_id: String(mapping.guild_id),
@@ -124,18 +113,10 @@ export const OidcClaimMappingsSection = () => {
     });
   };
 
-  const handleClaimPathSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const sent = claimPathForm.values;
-    updateClaimPath.mutate(
-      { claim_path: sent.claimPath.trim() || null },
-      { onSuccess: () => claimPathForm.settle(sent) }
-    );
-  };
-
   const handleMappingSubmit = (e: FormEvent) => {
     e.preventDefault();
     const payload = {
+      provider_id: Number(form.provider_id),
       claim_value: form.claim_value.trim(),
       target_type: form.target_type,
       guild_id: Number(form.guild_id),
@@ -166,36 +147,6 @@ export const OidcClaimMappingsSection = () => {
 
   return (
     <>
-      {/* Claim Path */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("auth.claimPathCardTitle")}</CardTitle>
-          <CardDescription>
-            {t("auth.claimPathCardDescription")} Keycloak:{" "}
-            <code className="rounded bg-muted px-1">realm_access.roles</code>, Azure AD:{" "}
-            <code className="rounded bg-muted px-1">groups</code>, Okta:{" "}
-            <code className="rounded bg-muted px-1">groups</code>
-          </CardDescription>
-          {/* eslint-enable i18next/no-literal-string */}
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleClaimPathSubmit} className="flex items-end gap-3">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="claim-path">{t("auth.claimPathLabel")}</Label>
-              <Input
-                id="claim-path"
-                value={claimPathForm.values.claimPath}
-                onChange={(e) => claimPathForm.set({ claimPath: e.target.value })}
-                placeholder={t("auth.claimPathPlaceholder")}
-              />
-            </div>
-            <Button type="submit" disabled={updateClaimPath.isPending}>
-              {updateClaimPath.isPending ? t("auth.claimPathSaving") : t("auth.claimPathSave")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
       {/* Mapping Rules */}
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -214,6 +165,25 @@ export const OidcClaimMappingsSection = () => {
             <div className="rounded-md border bg-muted/40 p-4">
               <form onSubmit={handleMappingSubmit} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>{t("auth.mappingProvider")}</Label>
+                    <Select
+                      value={form.provider_id}
+                      onValueChange={(v) => setForm((p) => ({ ...p, provider_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("auth.mappingProviderPlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(providersQuery.data ?? []).map((provider) => (
+                          <SelectItem key={provider.id} value={String(provider.id)}>
+                            {provider.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-muted-foreground text-xs">{t("auth.mappingProviderHelp")}</p>
+                  </div>
                   <div className="space-y-2">
                     <Label>{t("auth.mappingClaimValue")}</Label>
                     <Input

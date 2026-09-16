@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
+import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { openLiveSocket } from "@/lib/liveSocket";
@@ -87,7 +88,7 @@ export const useNotificationStreamConnected = (): boolean =>
  * Mount once, at the authenticated app shell.
  */
 export const useNotificationStream = () => {
-  const { token, user, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   // The socket belongs to a person, not to a particular reading of them. Every
   // account re-read hands back a fresh object, and this socket asks for one on
   // every connect — so keying the connection on the object would have it tear
@@ -157,8 +158,11 @@ export const useNotificationStream = () => {
 
     const connection = openLiveSocket({
       url: buildApiWsUrl("notifications/stream"),
-      // The inbox is addressed by nothing but the credential.
-      auth: () => ({ token }),
+      // The inbox is addressed by nothing but the credential, read when the
+      // frame is written rather than captured — it renews on its own clock
+      // while the socket stays open. Empty is fine: the server reads the
+      // session cookie, which is the web path after a reload.
+      auth: () => ({ token: getAuthToken() }),
       onStatus: (up) => {
         setConnected(up);
         if (up) {
@@ -227,5 +231,5 @@ export const useNotificationStream = () => {
       setConnected(false);
       connection.close();
     };
-  }, [token, userId, resync, refreshAccount, refreshContacts]);
+  }, [userId, resync, refreshAccount, refreshContacts]);
 };

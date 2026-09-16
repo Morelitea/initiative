@@ -1,0 +1,95 @@
+{
+  "type": "initiative-project",
+  "schema_version": 1,
+  "app_version": "0",
+  "exported_at": "2026-09-15T00:00:00+00:00",
+  "exported_by_handle": null,
+  "source_instance_url": null,
+  "project": {
+    "name": "Support",
+    "icon": "🛟",
+    "description": "Help requests from people using this deployment. Each case is one request: answer it, and close it when the person has what they needed.",
+    "is_template": false,
+    "archived_at": null,
+    "start_date": null,
+    "end_date": null
+  },
+  "tags": [],
+  "task_statuses": [
+    {
+      "name": "Triage",
+      "category": "todo",
+      "position": 0,
+      "color": "#F59E0B",
+      "icon": "inbox",
+      "is_default": true
+    },
+    {
+      "name": "Investigating",
+      "category": "in_progress",
+      "position": 1,
+      "color": "#3B82F6",
+      "icon": "search",
+      "is_default": false
+    },
+    {
+      "name": "Awaiting response",
+      "category": "in_progress",
+      "position": 2,
+      "color": "#8B5CF6",
+      "icon": "clock",
+      "is_default": false
+    },
+    {
+      "name": "Resolved",
+      "category": "done",
+      "position": 3,
+      "color": "#10B981",
+      "icon": "circle-check",
+      "is_default": false
+    }
+  ],
+  "property_definitions": [
+    {
+      "name": "subject_user",
+      "type": "number",
+      "position": 0.0,
+      "color": "#3B82F6",
+      "options": null
+    },
+    {
+      "name": "subject_guild",
+      "type": "number",
+      "position": 1.0,
+      "color": "#8B5CF6",
+      "options": null
+    },
+    {
+      "name": "reported_at",
+      "type": "datetime",
+      "position": 2.0,
+      "color": "#F59E0B",
+      "options": null
+    }
+  ],
+  "tasks": [
+    {
+      "title": "How this project is fed",
+      "description": "Cases arrive here when somebody asks for help. The request is in the case in their own words, because that is what they chose to send us.\n\nMove a case to **Awaiting response** while the ball is in their court, and **Resolved** when they have what they needed.\n\nThis is also the channel for a customer asking us to produce evidence about their own community \u2014 the request arrives here, somebody produces it, and the case closing is itself the record that we did.\n\nYou can restructure this project however you like. The binding only names the project.",
+      "priority": "medium",
+      "start_date": null,
+      "due_date": null,
+      "recurrence": null,
+      "recurrence_strategy": "fixed",
+      "recurrence_occurrence_count": 0,
+      "position": 1.0,
+      "archived_at": null,
+      "completed_at": null,
+      "status_name": "Triage",
+      "tags": [],
+      "assignee_handles": [],
+      "checklist": [],
+      "property_values": []
+    }
+  ]
+}

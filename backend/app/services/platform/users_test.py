@@ -15,6 +15,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
 from app.services.platform import users as user_service
 from app.testing.factories import (
@@ -198,12 +199,14 @@ async def test_deactivate_user(session: AsyncSession):
     assert deactivated.token_version == original_token_version + 1
     # PII preserved — admin can reactivate.
     assert deactivated.full_name == "Original Name"
-    assert deactivated.email == "todeactivate@example.com"
+    assert await addresses.holds_address(
+        session, user_id=deactivated.id, email="todeactivate@example.com"
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
+async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
     demotes platform admins to member, revokes auth artifacts, and keeps
     the row so historical FKs resolve."""
@@ -263,9 +266,9 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
 
     original_id = user.id
     original_token_version = user.token_version
-    original_email_hash = user.email_hash
 
-    await user_service.soft_delete_user(session, user.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, original_id)
 
     stmt = select(User).where(User.id == original_id)
     result = await session.exec(stmt)
@@ -294,10 +297,11 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     ).all()
     assert remaining_identities == []
     assert (await session.get(FederatedIdentitySecret, identity.id)) is None
-    assert anonymized.email_hash != original_email_hash
-    # Login is doubly impossible: the email_hash no longer matches the
-    # user's old email, and the password hash is fresh nonsense.
-    assert anonymized.email != "toanonymize@example.com"
+    # Every address the account held was replaced with the sentinel, so the one
+    # it signed in with reaches nobody and the password hash is fresh nonsense.
+    assert not await addresses.holds_address(
+        session, user_id=anonymized.id, email="toanonymize@example.com"
+    )
     # Token version bumped (deactivate already bumped, anonymize keeps it).
     assert anonymized.token_version >= original_token_version + 1
 
@@ -367,7 +371,9 @@ async def test_erasing_a_user_stops_their_references_resolving(
     assert await resolve_ref(session, ref=kept) is not None
 
 
-async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
+async def test_soft_delete_user_scrubs_addressed_invites(
+    session: AsyncSession, role_session
+):
     """Anonymizing a user must erase their address from any guild invite bound
     to it — a lingering invite otherwise keeps a reversible copy of the very
     email the erasure was meant to remove. The matched invite is also
@@ -417,8 +423,10 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 
     # Sanity: the victim's invite is active/bound before erasure.
     assert guild_service.invite_is_active(victim_invite) is True
+    await session.commit()
 
-    await user_service.soft_delete_user(session, victim.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim.id)
     session.expunge_all()
 
     scrubbed = (
@@ -449,7 +457,9 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
+async def test_hard_delete_user_scrubs_addressed_invites(
+    session: AsyncSession, role_session
+):
     """Hard delete has the same residual-PII gap: an invite addressed to the
     removed user keeps a reversible copy of their email. The invitee address
     must be scrubbed — distinct from the ``created_by`` NULLing, which
@@ -475,8 +485,10 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     )
     invite_id = invite.id
     victim_id = victim.id
+    await session.commit()
 
-    await user_service.hard_delete_user(session, victim_id)
+    admin_session = await role_session("app_admin")
+    await user_service.hard_delete_user(admin_session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -607,7 +619,9 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
 
 
 @pytest.mark.integration
-async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSession):
+async def test_soft_delete_removes_membership_in_guild_schema(
+    session: AsyncSession, role_session
+):
     """Production-faithful routing check (schema-per-guild).
 
     The membership-drop cascade must operate on the GUILD schema where the
@@ -638,7 +652,8 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     ).all()
     assert len(before) == 1
 
-    await user_service.soft_delete_user(session, member.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, member.id)
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
@@ -658,7 +673,9 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
+async def test_soft_delete_scrubs_embedded_mentions(
+    session: AsyncSession, role_session
+):
     """Anonymizing a user rewrites their display name wherever content embedded
     it as literal text: @-mention markup in comments, Lexical mention nodes in
     documents (with yjs_state cleared), and digest-row name snapshots
@@ -726,7 +743,25 @@ async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
     await session.commit()
     victim_id = victim.id
 
-    await user_service.soft_delete_user(session, victim_id)
+    # Account erasure is trusted system work and must not be narrowed by an
+    # evolving tenant UPDATE policy.  This restrictive policy independently
+    # proves the lifecycle path retains its system identity while routed into
+    # the guild schema.
+    from sqlalchemy import text
+
+    from app.db.session import set_rls_context
+
+    await set_rls_context(session)
+    await session.exec(
+        text(
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
+            "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
+        )
+    )
+    await session.commit()
+
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim_id)
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
@@ -760,7 +795,9 @@ async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSession):
+async def test_hard_delete_anonymized_user_cleans_guild_data(
+    session: AsyncSession, role_session
+):
     """Hard-deleting an already-anonymized user must still clean their
     guild-scoped rows. Anonymize drops the membership rows, so enumerating
     memberships found no guilds and silently left everything behind
@@ -788,10 +825,11 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSessi
     task_id = task.id
 
     # Anonymize first — this drops the guild membership rows.
-    await user_service.soft_delete_user(session, victim_id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(session, victim_id)
+    await user_service.hard_delete_user(admin_session, victim_id)
     session.expunge_all()
 
     # The users row is gone.

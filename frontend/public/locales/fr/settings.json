@@ -554,40 +554,14 @@
   },
   "auth": {
     "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'authentification.",
-    "title": "Authentification OIDC",
-    "description": "Configurez l'authentification unique pour votre espace de travail.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
-    "enabledLabel": "Activé",
-    "enabledHelp": "Permettre aux utilisateurs de s'authentifier via votre fournisseur OIDC.",
-    "issuerLabel": "Émetteur",
-    "issuerPlaceholder": "https://comptes.exemple.com",
-    "clientIdLabel": "ID client",
-    "clientSecretLabel": "Secret client",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Laissez vide pour conserver le secret existant.",
-    "providerNameLabel": "Nom du fournisseur",
-    "providerNamePlaceholder": "Authentification unique",
-    "scopesLabel": "Portées",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Enregistrer les paramètres d'authentification",
-    "saving": "Enregistrement…",
-    "callbackUrl": "URL de callback d'autorisation :",
     "postLoginRedirect": "Redirection post-connexion :",
     "mobileCallback": "Callback de l'application mobile :",
     "mappingsTitle": "Correspondances de revendications OIDC",
     "mappingsDescription": "Associez les valeurs de revendications de votre fournisseur d'identité aux appartenances aux communautés et initiatives.",
-    "claimPathCardTitle": "Chemin de revendication OIDC",
-    "claimPathCardDescription": "Chemin en notation pointée vers le tableau de revendications dans le jeton OIDC. Chemins courants :",
-    "claimPathLabel": "Chemin de revendication",
-    "claimPathPlaceholder": "ex. : roles ou realm_access.roles",
-    "claimPathHelp": "Le chemin séparé par des points vers la revendication dans le jeton ID. Laissez vide si non nécessaire.",
-    "claimPathSave": "Enregistrer",
-    "claimPathSaving": "Enregistrement…",
     "updateClaimPath": "Mettre à jour",
     "updatingClaimPath": "Mise à jour…",
-    "claimPathSuccess": "Chemin de revendication mis à jour",
-    "claimPathError": "Impossible de mettre à jour le chemin de revendication",
     "rulesTitle": "Règles de correspondance",
     "rulesDescription": "Associez les valeurs de revendications OIDC aux appartenances aux communautés et initiatives.",
     "addRule": "Ajouter une règle",
@@ -642,8 +616,14 @@
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
       "platformLabel": "Connexion à l'échelle de la plateforme",
-      "guildLabel": "Connexion par communauté"
-    }
+      "guildLabel": "Connexion par communauté",
+      "platformExplained": "La connexion appartient à la plateforme : les fournisseurs ci-dessous servent toutes les communautés, et une communauté ne peut pas ajouter le sien. Laquelle des deux cette instance utilise se décide au déploiement, pas ici.",
+      "guildExplained": "Les communautés peuvent ajouter leurs propres fournisseurs à côté de ceux ci-dessous, et l'on se connecte à un seul compte quel que soit celui utilisé. Laquelle des deux cette instance utilise se décide au déploiement, pas ici."
+    },
+    "deploymentTitle": "Cette installation",
+    "mappingProvider": "Fournisseur",
+    "mappingProviderPlaceholder": "Quel fournisseur déclare ce claim",
+    "mappingProviderHelp": "Une règle vaut pour un fournisseur. Se connecter par un autre ne la lit pas et ne défait pas ce qu'elle a fait."
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
@@ -840,6 +820,7 @@
       "community": "Communauté",
       "ai": "IA",
       "storage": "Stockage",
+      "intake": "Réception",
       "appServices": "Services applicatifs"
     }
   },
@@ -989,13 +970,17 @@
       "storageLimit": "Limite de stockage",
       "guildAuth": "Connexion par communauté",
       "status": "Statut",
-      "billing": "Facturation"
+      "billing": "Facturation",
+      "support": "Demandes d'aide"
     },
     "billing": {
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation."
-    }
+    },
+    "supportOn": "{{name}} peut désormais envoyer des demandes d'aide.",
+    "supportOff": "{{name}} ne peut plus envoyer de demandes d'aide.",
+    "supportInputLabel": "Demandes d'aide pour {{name}}"
   },
   "storage": {
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
@@ -1076,13 +1061,11 @@
     }
   },
   "authProviders": {
-    "title": "Fournisseurs de connexion supplémentaires",
-    "description": "Proposez d'autres moyens de se connecter en plus de l'authentification unique ci-dessus. Chaque fournisseur dispose de son propre bouton sur la page de connexion.",
+    "title": "Fournisseurs d'identité",
+    "description": "Les fournisseurs d'authentification unique avec lesquels les personnes se connectent. Chacun dispose de son propre bouton sur la page de connexion.",
     "addProvider": "Ajouter un fournisseur",
     "loading": "Chargement des fournisseurs…",
-    "empty": "Aucun fournisseur supplémentaire configuré.",
-    "reservedBadge": "SSO de la plateforme",
-    "reservedHelp": "Géré dans les paramètres d'authentification unique ci-dessus",
+    "empty": "Aucun fournisseur configuré pour l'instant.",
     "disabledBadge": "Désactivé",
     "createTitle": "Ajouter un fournisseur de connexion",
     "editTitle": "Modifier le fournisseur de connexion",
@@ -1116,7 +1099,11 @@
     "saved": "Fournisseur enregistré",
     "deleted": "Fournisseur supprimé",
     "saveError": "Impossible d'enregistrer le fournisseur",
-    "deleteError": "Impossible de supprimer le fournisseur"
+    "deleteError": "Impossible de supprimer le fournisseur",
+    "callbackLabel": "URL de rappel",
+    "claimPathLabel": "Claim des groupes",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Où ce fournisseur place les groupes d'une personne dans le jeton. Keycloak les imbrique sous realm_access.roles ; la plupart utilisent groups ou roles. Les règles ci-dessous le lisent."
   },
   "aiConnections": {
     "title": "Connexions",

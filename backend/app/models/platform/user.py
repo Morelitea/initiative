@@ -124,8 +124,6 @@ class User(SQLModel, table=True):
     __allow_unmapped__ = True
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    email_hash: str = Field(sa_column=Column(String(64), unique=True, nullable=False))
-    email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
     #: The name part of this account's handle — what a person picks and reads.
     #: Unique with ``discriminator``, case-insensitively (``ix_users_handle``);
     #: the vocabulary lives in ``app.core.usernames``.
@@ -230,10 +228,6 @@ class User(SQLModel, table=True):
         default=20,
         sa_column=Column(Integer, nullable=False, server_default="20"),
     )
-    email_verified: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
     #: When this account said it belongs to somebody at least 13 years old.
     #: NULL means it never has. A timestamp rather than a flag because the
     #: record of *when* is the point: it is what a deployment running a
@@ -306,13 +300,6 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-
-    @property
-    def email(self) -> str:
-        """Return the decrypted email address. Used by schema serialization."""
-        from app.core.encryption import decrypt_field, SALT_EMAIL
-
-        return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
     # An account has no standing view of guild content. What refers to a person
     # from inside a guild schema — an assignment, a membership, an ordering, a

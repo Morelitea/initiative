@@ -100,7 +100,9 @@
   },
   "historyAsk": {
     "title": "Waiting for your messages",
-    "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you."
+    "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you.",
+    "dismiss": "Dismiss",
+    "dismissNote": "Dismissing this only hides it. Your messages still arrive if you approve on your other device."
   },
   "safetyEmoji": {
     "dog": "Dog",

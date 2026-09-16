@@ -13,16 +13,19 @@
  */
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   createConversationApiV1MeDmConversationsPost as createConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
+  markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
+import { invalidate, q } from "@/api/query-keys";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
   answerHistoryRequest,
   collect,
+  dismissHistoryAskNotice,
   ensureDevice,
   historyAskWaiting,
   historyRequestToAnswer,
@@ -98,11 +101,11 @@ export function useThread(conversationId: string | undefined) {
   });
 }
 
-export function useSendMessage(conversationId: string, otherUserId: number) {
+export function useSendMessage(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ body, replyTo }: { body: string; replyTo?: string }) =>
-      sendText(conversationId, otherUserId, body, { replyTo }),
+      sendText(conversationId, memberIds, body, { replyTo }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: messageKeys.thread(conversationId),
@@ -119,7 +122,7 @@ export function useSendMessage(conversationId: string, otherUserId: number) {
  * round trip. Refreshing the thread is what puts the answer on screen, since
  * the log is where a thread is read from.
  */
-export function useMessageActions(conversationId: string, otherUserId: number) {
+export function useMessageActions(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
@@ -127,16 +130,16 @@ export function useMessageActions(conversationId: string, otherUserId: number) {
 
   const react = useMutation({
     mutationFn: ({ targetId, emoji, on }: { targetId: string; emoji: string; on: boolean }) =>
-      sendReaction(conversationId, otherUserId, targetId, emoji, on),
+      sendReaction(conversationId, memberIds, targetId, emoji, on),
     onSettled: refresh,
   });
   const edit = useMutation({
     mutationFn: ({ targetId, body }: { targetId: string; body: string }) =>
-      sendEdit(conversationId, otherUserId, targetId, body),
+      sendEdit(conversationId, memberIds, targetId, body),
     onSettled: refresh,
   });
   const remove = useMutation({
-    mutationFn: (targetId: string) => sendRemove(conversationId, otherUserId, targetId),
+    mutationFn: (targetId: string) => sendRemove(conversationId, memberIds, targetId),
     onSettled: refresh,
   });
 
@@ -266,6 +269,22 @@ export function useHistoryAsk() {
   });
 }
 
+/**
+ * Put the waiting notice away without answering the question.
+ *
+ * The ask stays outstanding — this is the banner going quiet, not the transfer
+ * being called off — so a history approved later still arrives and still lands.
+ */
+export function useDismissHistoryAsk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => dismissHistoryAskNotice(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
+    },
+  });
+}
+
 export function useAnswerHistoryRequest() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -306,19 +325,53 @@ export function useUnreadMessages(conversationIds: string[]) {
   });
 }
 
-/** Mark a thread as looked at, whenever what is in it changes. */
+/**
+ * Mark a thread as looked at, whenever what is in it changes.
+ *
+ * Two readers to satisfy, and only one of them is here. The local marker is
+ * what the conversation list counts from, and the server's rolled-up bell line
+ * is a separate thing that only the account holder's own client can close —
+ * nothing else knows a message reached a screen. So the look is reported
+ * onwards, but only where it read something: an already-current thread has
+ * nothing to tell anybody.
+ *
+ * The report is best-effort — it affects a bell line, and a thread should not
+ * surface an error because one did not clear — but it is not fire-and-forget.
+ * The local marker has already advanced by the time it is sent, so a dropped
+ * request would leave a count nothing ever says again. A failure is remembered
+ * against its conversation and retried the next time the effect runs, which is
+ * the next message or the next time the thread is opened.
+ */
 export function useMarkThreadRead(
   conversationId: string,
   messageCount: number,
-  otherUserId: number
+  memberIds: number[]
 ) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
+  const unreported = useRef<string | null>(null);
+  // The roster by its contents, not by the array it arrived in. A caller that
+  // builds one inline hands a new array every render, and this effect reads the
+  // local log and invalidates the unread queries -- work that belongs to the
+  // thread changing, not to the page re-rendering.
+  const roster = memberIds.join(",");
   useEffect(() => {
-    void markRead(conversationId, { otherUserId, receipts }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["dm", "unread"] })
-    );
-  }, [conversationId, messageCount, otherUserId, receipts, queryClient]);
+    // Rebuilt from the key rather than closed over, so the effect depends on
+    // the roster by value and nothing else.
+    const members = roster ? roster.split(",").map(Number) : [];
+    void markRead(conversationId, { memberIds: members, receipts })
+      .then(async (readCount) => {
+        if (readCount === 0 && unreported.current !== conversationId) return;
+        try {
+          await reportThreadRead(conversationId);
+          if (unreported.current === conversationId) unreported.current = null;
+          await invalidate(q.notifications());
+        } catch {
+          unreported.current = conversationId;
+        }
+      })
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["dm", "unread"] }));
+  }, [conversationId, messageCount, roster, receipts, queryClient]);
 }
 
 /**

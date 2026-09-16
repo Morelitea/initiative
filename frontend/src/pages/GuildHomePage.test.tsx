@@ -289,6 +289,19 @@ describe("GuildHomePage", () => {
     expect(within(rail).queryByRole("link", { name: "Calendar" })).not.toBeInTheDocument();
   });
 
+  it("drops the Projects circle for an initiative that turned projects off", async () => {
+    // The point of the change: projects are a tool like any other now, so an
+    // initiative that is only documents has no Projects circle to offer.
+    stubInitiatives({ projects_enabled: false });
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome();
+
+    const rail = await screen.findByRole("navigation", { name: "Community tools" });
+    expect(await within(rail).findByRole("link", { name: "Documents" })).toBeInTheDocument();
+    expect(within(rail).queryByRole("link", { name: "Projects" })).not.toBeInTheDocument();
+  });
+
   it("switches the table to the tool named in the address", async () => {
     stubInitiatives({ queues_enabled: true });
     stubTools({
@@ -681,7 +694,8 @@ describe("GuildHomePage", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /New initiative/i }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
   it("keeps creating out of a member's hands", async () => {
@@ -703,7 +717,8 @@ describe("GuildHomePage", () => {
     renderHome({ create: "true" });
 
     // The sidebar's "Add initiative" and the retired /i list route both land here.
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
   it("re-reads the community once the reader joins, so the card flips to joined", async () => {
@@ -851,7 +866,25 @@ describe("GuildHomePage", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /Create initiative/i }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+    // The wizard opens on its first question, not on a form of everything.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
+  });
+
+  it("does not tell the admin of a new community to ask an admin", async () => {
+    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    stubTools();
+    stubDirectory([]);
+
+    renderHome();
+
+    // A community with nothing in it is now the ordinary first minute, and the
+    // reader looking at it is the person who fills it. Telling them they
+    // haven't joined anything, or that an admin could add them to one, would
+    // be sending them to themselves.
+    expect(await screen.findByText("This community has no initiatives yet")).toBeInTheDocument();
+    expect(screen.getByText("Start the first initiative")).toBeInTheDocument();
+    expect(screen.queryByText(/You haven’t joined any initiatives yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/A community admin or project manager/)).not.toBeInTheDocument();
   });
 
   it("keeps documents on the same table shape as projects", async () => {

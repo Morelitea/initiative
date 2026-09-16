@@ -69,8 +69,6 @@ from app.testing.factories import (
     set_notification_prefs,
     get_auth_headers,
     get_auth_token,
-    get_legacy_auth_headers,
-    get_legacy_auth_token,
     set_auth_scope,
 )
 from app.testing.schema_harness import route_session_to_guild
@@ -133,8 +131,6 @@ __all__ = [
     "set_notification_prefs",
     "get_auth_headers",
     "get_auth_token",
-    "get_legacy_auth_headers",
-    "get_legacy_auth_token",
     "set_auth_scope",
     "route_session_to_guild",
 ]

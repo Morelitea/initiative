@@ -119,6 +119,64 @@ describe("acting on a message already said", () => {
     expect(stored.find((entry) => entry.id === "m")?.body).toBe("changed");
   });
 
+  it("lets only the author rewrite what they said, on a roster", async () => {
+    // Bob said it; Carol is on the same thread. Both arrive as "theirs", which
+    // is why the side alone stopped being enough once a thread could hold more
+    // than two people.
+    await messageLog.append("group", {
+      id: "b1",
+      body: "bob said this",
+      at: "2026-01-01T00:00:00Z",
+      mine: false,
+      author: 7,
+    });
+
+    expect(
+      await messageLog.applyEdit(
+        "group",
+        "b1",
+        "carol wrote this",
+        "2026-01-02T00:00:00Z",
+        "theirs",
+        1,
+        9
+      )
+    ).toBe(false);
+    expect(await messageLog.applyRemove("group", "b1", "theirs", "2026-01-02T00:00:00Z", 9)).toBe(
+      false
+    );
+
+    // Bob may, on his own message.
+    expect(
+      await messageLog.applyEdit(
+        "group",
+        "b1",
+        "bob meant this",
+        "2026-01-02T00:00:00Z",
+        "theirs",
+        1,
+        7
+      )
+    ).toBe(true);
+    const stored = await messageLog.get("group");
+    expect(stored.find((entry) => entry.id === "b1")?.body).toBe("bob meant this");
+  });
+
+  it("still lets a pair edit where neither side records an author", async () => {
+    // A thread from before a message carried one, on a session opened before a
+    // session carried one. Two people, so the side already answers it.
+    await messageLog.append("old", {
+      id: "o1",
+      body: "said once",
+      at: "2026-01-01T00:00:00Z",
+      mine: false,
+    });
+
+    expect(
+      await messageLog.applyEdit("old", "o1", "said twice", "2026-01-02T00:00:00Z", "theirs", 1)
+    ).toBe(true);
+  });
+
   it("keeps the newest edit whichever order two arrive in", async () => {
     await messageLog.applyEdit("conv", "m", "second", "2026-01-03T00:00:00Z", "mine", 2);
     await messageLog.applyEdit("conv", "m", "first", "2026-01-02T00:00:00Z", "mine", 1);

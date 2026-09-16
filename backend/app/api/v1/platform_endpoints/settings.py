@@ -22,6 +22,8 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+from app.core.messages import AuthProviderMessages
+from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
@@ -38,12 +40,9 @@ from app.schemas.platform.settings import (
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
-    OIDCClaimPathResponse,
-    OIDCClaimPathUpdate,
     OIDCMappingOptionsResponse,
     OIDCMappingsResponse,
     OIDCSettingsResponse,
-    OIDCSettingsUpdate,
     StorageBackfillStatusResponse,
     StorageSettingsResponse,
     StorageSettingsUpdate,
@@ -111,8 +110,12 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
 
 
 def _platform_oidc_response(provider) -> OIDCSettingsResponse:
-    """Serialize the platform provider row (or its not-yet-created default)
-    into the settings wire format — unchanged from the app_settings era."""
+    """The deployment's auth posture and the redirect addresses that belong to
+    the install rather than to any one provider.
+
+    The provider fields are the platform row's, kept for readers that have not
+    moved to the registry; a provider is configured through
+    ``/settings/auth/providers``, which is the only place that writes one."""
     return OIDCSettingsResponse(
         auth_scope=app_config.AUTH_SCOPE,
         enabled=provider.enabled if provider else False,
@@ -133,31 +136,10 @@ async def get_oidc_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
-    """Platform OIDC config — read straight from the provider registry row
-    (its source of truth). System engine: ``auth_providers`` carries no
-    request-path grant; the capability gate stays ``config.manage``."""
+    """The deployment's auth posture and redirect addresses. System engine:
+    ``auth_providers`` carries no request-path grant; the capability gate stays
+    ``config.manage``."""
     provider = await platform_provider_service.get_platform_provider(session)
-    return _platform_oidc_response(provider)
-
-
-@router.put("/auth", response_model=OIDCSettingsResponse)
-async def update_oidc_settings(
-    payload: OIDCSettingsUpdate,
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCSettingsResponse:
-    """Write the platform provider row directly (create-on-first-save).
-    ``client_secret`` keeps its write-only convention: omitted keeps the
-    stored secret, empty clears it, a value replaces it."""
-    provider = await platform_provider_service.upsert_platform_provider(
-        session,
-        enabled=payload.enabled,
-        issuer=payload.issuer,
-        client_id=payload.client_id,
-        provider_name=payload.provider_name,
-        scopes=payload.scopes,
-        client_secret=payload.client_secret,
-    )
     return _platform_oidc_response(provider)
 
 
@@ -520,6 +502,9 @@ async def list_platform_guild_storage(
             banner_image_enabled=(
                 administration.banner_image_enabled if administration else True
             ),
+            support_enabled=(
+                administration.support_enabled if administration else False
+            ),
         )
         for g, administration in rows
     ]
@@ -556,6 +541,7 @@ async def update_platform_guild_storage(
             max_users_provided="max_users" in provided,
             guild_auth_enabled=payload.guild_auth_enabled,
             banner_image_enabled=payload.banner_image_enabled,
+            support_enabled=payload.support_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(
@@ -751,6 +737,25 @@ async def _lookup_guild_initiative(
         await _reset_admin_session(session)
 
 
+async def _check_provider_reaches_guild(
+    session: AsyncSession, provider_id: int, guild_id: int
+) -> None:
+    """Whether a rule for this provider may name this guild.
+
+    A guild's own provider is configured by that guild and speaks for it, so
+    its rules stay inside it. An operator-global provider — the platform login
+    registry, ``guild_id IS NULL`` — has no guild of its own, and its rules
+    name whichever guild they grant in.
+    """
+    provider = await session.get(AuthProvider, provider_id)
+    if provider is None:
+        raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
+    if provider.guild_id is not None and provider.guild_id != guild_id:
+        raise HTTPException(
+            status_code=400, detail=SettingsMessages.PROVIDER_WRONG_GUILD
+        )
+
+
 async def _enrich_mapping(
     session: AsyncSession, mapping: OIDCClaimMapping
 ) -> OIDCClaimMappingRead:
@@ -758,6 +763,17 @@ async def _enrich_mapping(
     guild_name = None
     initiative_name = None
     initiative_role_name = None
+
+    # Which provider's claims this rule reads, by name — the editor lists rules
+    # from several and the value alone does not say whose it is.
+    provider_name = None
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.id == mapping.provider_id)
+        )
+    ).one_or_none()
+    if provider:
+        provider_name = provider.display_name
 
     guild = (
         await session.exec(select(Guild).where(Guild.id == mapping.guild_id))
@@ -781,6 +797,8 @@ async def _enrich_mapping(
 
     return OIDCClaimMappingRead(
         id=mapping.id,
+        provider_id=mapping.provider_id,
+        provider_name=provider_name,
         claim_value=mapping.claim_value,
         target_type=mapping.target_type.value
         if isinstance(mapping.target_type, OIDCMappingTargetType)
@@ -808,20 +826,6 @@ async def get_oidc_mappings(
         claim_path=provider.role_claim_path if provider else None,
         mappings=enriched,
     )
-
-
-@router.put("/oidc-mappings/claim-path")
-async def update_oidc_claim_path(
-    payload: OIDCClaimPathUpdate,
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCClaimPathResponse:
-    # The role-claim path lives on the platform provider row; setting it
-    # before the provider is configured creates a dormant skeleton row.
-    claim_path = await platform_provider_service.set_platform_claim_path(
-        session, payload.claim_path
-    )
-    return OIDCClaimPathResponse(claim_path=claim_path)
 
 
 @router.post(
@@ -852,6 +856,9 @@ async def create_oidc_mapping(
     ).one_or_none()
     if not guild:
         raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
+
+    # Validate the provider exists and may grant in that guild
+    await _check_provider_reaches_guild(session, payload.provider_id, payload.guild_id)
 
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
@@ -887,6 +894,7 @@ async def create_oidc_mapping(
             )
 
     mapping = OIDCClaimMapping(
+        provider_id=payload.provider_id,
         claim_value=payload.claim_value.strip(),
         target_type=target_type,
         guild_id=payload.guild_id,
@@ -920,6 +928,8 @@ async def update_oidc_mapping(
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
     data = payload.model_dump(exclude_unset=True)
+    if "provider_id" in data and data["provider_id"] is not None:
+        mapping.provider_id = data["provider_id"]
     if "claim_value" in data and data["claim_value"] is not None:
         mapping.claim_value = data["claim_value"].strip()
     if "target_type" in data and data["target_type"] is not None:
@@ -949,7 +959,10 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Full validation of the final state
+    # Full validation of the final state. Either side of the pair can move in
+    # one request, so the provider is checked against the guild that results.
+    await _check_provider_reaches_guild(session, mapping.provider_id, mapping.guild_id)
+
     effective_target = mapping.target_type
     if isinstance(effective_target, str):
         effective_target = OIDCMappingTargetType(effective_target)

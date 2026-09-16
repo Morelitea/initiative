@@ -1,0 +1,93 @@
+{
+  "title": "Moderation",
+  "subtitle": "Was hier gemeldet wurde und was damit geschehen ist.",
+  "open": "Offen",
+  "tabs": {
+    "open": "Offen",
+    "settled": "Erledigt"
+  },
+  "empty": {
+    "open": "Es wurde nichts gemeldet.",
+    "settled": "Es wurde noch nichts erledigt.",
+    "noFurther": "Nichts weiter."
+  },
+  "reportedCount_one": "Von {{count}} Person gemeldet",
+  "reportedCount_other": "Von {{count}} Personen gemeldet",
+  "whatTheySaid": "Was gesagt wurde",
+  "reviewElsewhere": "Öffne das gemeldete Element, sieh es dir im Zusammenhang an und entscheide dann hier.",
+  "notePlaceholder": "Was du festgestellt hast und warum du so entschieden hast (optional)",
+  "settledAt": "Erledigt {{when}}.",
+  "settledToast": "Meldung erledigt.",
+  "settleError": "Die Meldung konnte nicht erledigt werden.",
+  "outcomes": {
+    "dismissed": "Verwerfen",
+    "content_removed": "Inhalt entfernt",
+    "member_warned": "Mitglied verwarnt",
+    "escalated": "Eskalieren"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Belästigung",
+    "hate": "Hass",
+    "violence": "Gewalt",
+    "sexual_content": "Sexuelle Inhalte",
+    "self_harm": "Selbstverletzung",
+    "illegal": "Rechtswidrig",
+    "misinformation": "Falschinformation",
+    "other": "Sonstiges"
+  },
+  "targets": {
+    "comment": "Ein Kommentar",
+    "post": "Eine Mitteilung",
+    "task": "Eine Aufgabe",
+    "document": "Ein Dokument",
+    "project": "Ein Projekt",
+    "queue": "Eine Warteschlange",
+    "queue_item": "Ein Eintrag",
+    "gallery": "Eine Galerie",
+    "gallery_image": "Ein Bild",
+    "calendar": "Ein Kalender",
+    "calendar_event": "Ein Termin",
+    "counter": "Ein Zähler",
+    "counter_group": "Eine Zählergruppe",
+    "dashboard": "Ein Dashboard"
+  },
+  "paging": {
+    "newer": "Neuer",
+    "older": "Älter",
+    "page": "Seite {{page}}"
+  },
+  "report": {
+    "action": "Melden",
+    "title": "Das melden",
+    "description": "Sag den Zuständigen, was nicht stimmt. Sie sehen, was du schreibst.",
+    "reasonLabel": "Was stimmt nicht?",
+    "reasonPlaceholder": "Grund auswählen",
+    "detailLabel": "Sonst noch etwas?",
+    "detailPlaceholder": "Was sie wissen sollten (optional)",
+    "submit": "Meldung senden",
+    "thanks": "Danke — jemand sieht sich das an.",
+    "error": "Die Meldung konnte nicht gesendet werden."
+  },
+  "areas": {
+    "reports": "Meldungen",
+    "members": "Mitglieder",
+    "sharing": "Freigaben"
+  },
+  "members": {
+    "description": "Wer in dieser Initiative ist und was die einzelnen dürfen.",
+    "fullAccess": "Voller Zugriff",
+    "noRole": "Keine Rolle"
+  },
+  "sharing": {
+    "description": "Wie weit hier jeweils der Zugriff reicht. Zum Ändern das Element öffnen.",
+    "empty": "Hier wurde nichts gezielt freigegeben.",
+    "everyone": "Alle hier",
+    "viaDashboard": "Über ein Dashboard",
+    "people_one": "{{count}} Person",
+    "people_other": "{{count}} Personen",
+    "roles_one": "{{count}} Rolle",
+    "roles_other": "{{count}} Rollen"
+  },
+  "loadFailed": "Das konnte nicht geladen werden. Versuche es erneut."
+}

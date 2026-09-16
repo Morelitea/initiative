@@ -168,16 +168,6 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
         return True
 
 
-def create_access_token(
-    subject: str, *, token_version: int, expires_delta: timedelta | None = None
-) -> str:
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
-    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-
-
 # ──────────────────────────────────────────────────────────────────────────
 # New login model — stateless access token (auth rewrite, Phase 0)
 #
@@ -254,47 +244,26 @@ def mint_access_token(
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode a session credential, accepting BOTH schemes during the
-    dual-verify cutover window (history/auth-detailed-design.md §3.1):
+    """Decode a session credential (history/auth-detailed-design.md §3.1).
 
-    - the **new-model access token** — ``aud=initiative:access`` /
-      ``iss=initiative``, additionally carrying ``sid``/``amr``/``sat``.
-    - the **legacy session JWT** — no ``aud``/``iss``.
+    One shape: the access token ``mint_access_token`` issues —
+    ``aud=initiative:access`` / ``iss=initiative``, carrying ``sub``, ``ver``
+    (the caller checks it against ``users.token_version``) and
+    ``sid``/``amr``/``sat``.
 
-    Both carry ``sub`` + ``ver`` (the caller checks ``ver`` against
-    ``users.token_version``). Raises :class:`jwt.PyJWTError` for anything else,
-    which every call site already maps to 401. Crucially this keeps the session
-    path refusing **scoped** tokens: an upload/handoff token carries a *foreign*
-    ``aud`` that fails the new decode (wrong audience) AND the legacy decode
-    (which rejects any token bearing an ``aud``), so neither is honored as a
-    session. Bad signature / expiry / missing claims raise as before.
-
-    New scheme is tried first, so once issuance flips it's the single-decode
-    fast path; during the window a legacy token pays one extra HMAC verify.
+    Anything else raises :class:`jwt.PyJWTError`, which every call site maps to
+    401. That covers the scoped credentials — an upload or handoff token
+    carries its own ``aud`` — and the pre-session JWT this accepted until
+    0.69.0, whose holder renews through the refresh cookie and carries on.
     """
-    try:
-        return jwt.decode(
-            token,
-            settings.jwt_signing_key,
-            algorithms=[JWT_ALGORITHM],
-            audience=AUTH_ACCESS_AUDIENCE,
-            issuer=AUTH_TOKEN_ISSUER,
-            options={"require": ["exp", "sub", "ver", "aud", "iss"]},
-        )
-    except (
-        jwt.InvalidAudienceError,
-        jwt.InvalidIssuerError,
-        jwt.MissingRequiredClaimError,
-    ):
-        # These three mean "not a new-model token" — absent/foreign aud or iss,
-        # or missing the new claims — so fall back to the legacy scheme. An
-        # expired/invalid-signature/malformed JWT raises a *different* PyJWTError
-        # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
-        # it propagates with its true type instead of being masked by the
-        # legacy decode's audience error — keeping cutover-window logs honest.
-        # A legacy token bearing any aud (upload/handoff) still fails the legacy
-        # decode below and is rejected.
-        return jwt.decode(token, settings.jwt_signing_key, algorithms=[JWT_ALGORITHM])
+    return jwt.decode(
+        token,
+        settings.jwt_signing_key,
+        algorithms=[JWT_ALGORITHM],
+        audience=AUTH_ACCESS_AUDIENCE,
+        issuer=AUTH_TOKEN_ISSUER,
+        options={"require": ["exp", "sub", "ver", "aud", "iss"]},
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────

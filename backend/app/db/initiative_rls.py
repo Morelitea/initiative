@@ -36,7 +36,7 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -188,19 +188,17 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    if tool not in CORE_TOOLS:
-        # Opt-in tools carry a switch on the initiative; the core two are always
-        # on and have no column. A guild admin or a PAM grantee reaches the
-        # content of a tool that is switched off — the endpoints still refuse
-        # them, and a maintenance sweep has to be able to see it.
-        legs.append(
-            f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-            f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-            f" WHERE i.id = {initiative}), false))"
-        )
+    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # grantee reaches the content of a tool that is switched off — the endpoints
+    # still refuse them, and a maintenance sweep has to be able to see it.
+    legs.append(
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {initiative}), false))"
+    )
 
     key = tool.create_permission if creating else tool.view_permission
-    default = "false" if creating else str(tool in CORE_TOOLS).lower()
+    default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
         f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
     )
@@ -330,6 +328,43 @@ _PAM_ANY = (
 
 def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
+
+
+def _full_access(initiative_expr: str, write: bool) -> str:
+    """Defer to the narrower standing: full access in this initiative.
+
+    ``public.initiative_full_access`` reads ``app.override_initiatives`` — the
+    GUC the request already sets from the reader's roles, and the one
+    ``public.resource_access`` already consults for the sharing override. So a
+    table taking this path is reachable by whoever already sees everything in
+    the initiative, and by the guild admin, and by nobody else.
+    """
+    return f"public.initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
+
+
+def direct_full_access() -> InitiativePath:
+    """Own ``initiative_id`` column, gated on full access rather than membership."""
+    return InitiativePath(
+        predicate=lambda t, w: _full_access(f"{t}.initiative_id", w),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+        parents=_no_parents,
+    )
+
+
+def via_full_access(parent: str, fk: str) -> InitiativePath:
+    """One hop to a parent that is itself gated on full access."""
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM {parent} "
+            f"WHERE {parent}.id = {t}.{fk} "
+            f"AND {_full_access(f'{parent}.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
+            f"WHERE {parent}.id = {r}.{fk})"
+        ),
+        parents=lambda r: _one_parent(parent, f"{r}.{fk}"),
+    )
 
 
 def direct() -> InitiativePath:
@@ -983,21 +1018,15 @@ def _search_tool_gate(t: str, write: bool) -> str:
     """
     switch_arms = " ".join(
         f"WHEN '{tool.value}' THEN "
-        + (
-            "true"
-            if tool in CORE_TOOLS
-            else (
-                f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-                f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-                f" WHERE i.id = {t}.initiative_id), false))"
-            )
-        )
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {t}.initiative_id), false))"
         for tool in Tool
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN public.initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
-        f"{str(tool in CORE_TOOLS).lower()})"
+        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
         for tool in Tool
     )
     return (
@@ -1091,6 +1120,13 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Reports a community settles. Reached by whoever already sees everything
+    # in the initiative, plus the guild admin — see direct_full_access.
+    "moderation_reports": direct_full_access(),
+    "moderation_report_reporters": via_full_access("moderation_reports", "report_id"),
+    # Where a stream of operations work lands. Reached by whoever can reach the
+    # project it names, which is the initiative that does the work.
+    "intake_bindings": via("projects", "project_id"),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -1113,6 +1149,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "task_assignees": via_task_project("task_id"),
+    # A case is read exactly as hard as the task it describes, so it hangs off
+    # the task rather than off the project column it is keyed by.
+    "intake_cases": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
@@ -1540,6 +1579,10 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "webhook_subscriptions": Silent(
         "integration config; it reports on content, not on itself"
     ),
+    "intake_bindings": Silent("routing config; it reports on no content"),
+    "moderation_reports": Silent("who reported whom is not an automation signal"),
+    "moderation_report_reporters": Silent("the reporters behind one report"),
+    "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     # Guild-level, and kept out on disclosure: an upload row is reachable from
     # more than one place, so the initiative gate is not the whole answer for it
     # the way it is for tags. Gate it properly or leave it silent — silent.

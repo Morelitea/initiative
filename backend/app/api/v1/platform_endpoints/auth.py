@@ -26,9 +26,6 @@ from app.core import auth_context
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
-    encrypt_field,
-    hash_email,
-    SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.messages import AuthMessages, GuildMessages, OidcMessages
@@ -65,7 +62,9 @@ from app.schemas.platform.token import Token
 from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
+    DeviceTokenExchangeRequest,
     DeviceTokenResponse,
+    RefreshRequest,
     LoginProviderEntry,
     LoginProvidersResponse,
     PasswordResetRequest,
@@ -78,6 +77,7 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+from app.services.platform import security_rules
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
@@ -88,6 +88,7 @@ from app.services.auth.assurance import (
 )
 from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
+from app.services.platform import users as users_service
 from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
@@ -103,6 +104,7 @@ from app.services.auth.oidc.provider import (
     OidcProvider,
 )
 from app.services.auth import provider_registry
+from app.services.auth.provider_registry import provider_callback_url
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     get_platform_provider,
@@ -179,7 +181,7 @@ async def register_user(
     user_in: UserCreate,
     session: AdminSessionDep,
     invite_code: str | None = Query(default=None),
-) -> User:
+) -> UserRead:
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -192,7 +194,7 @@ async def register_user(
         normalized_email = user_in.email.lower().strip()
         # Address-aware: the address is taken if it reaches ANY account, not
         # only if it is the one that account was created with.
-        if await addresses.find_user_by_address(session, normalized_email):
+        if await addresses.account_holding(session, normalized_email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
@@ -255,9 +257,10 @@ async def register_user(
         # column default ``"UTC"`` applies.
         normalized_timezone = normalize_timezone(user_in.timezone)
 
+        # Confirmed on the spot when there is no mail to confirm it with, and
+        # for the account that bootstraps the deployment.
+        address_confirmed = is_first_user or not smtp_configured
         user_kwargs: dict[str, Any] = dict(
-            email_hash=hash_email(normalized_email),
-            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.
             username="",
@@ -268,7 +271,6 @@ async def register_user(
             password_set_at=datetime.now(timezone.utc),
             role=user_role,
             status=UserStatus.active,
-            email_verified=is_first_user or not smtp_configured,
         )
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
@@ -290,7 +292,7 @@ async def register_user(
             user_id=user.id,
             email=normalized_email,
             source=addresses.SOURCE_SIGNUP,
-            verified=user.email_verified,
+            verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
@@ -385,7 +387,7 @@ async def register_user(
     await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
-    if smtp_configured and not user.email_verified:
+    if smtp_configured and not address_confirmed:
         try:
             token = await user_tokens.create_token(
                 session,
@@ -400,7 +402,7 @@ async def register_user(
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
-    return user
+    return await users_service.to_self_read(user)
 
 
 @router.get("/bootstrap")
@@ -427,7 +429,7 @@ async def _record_sign_in_failure(
     that table.
     """
     target_user_id = user.id if user is not None else None
-    await audit_service.record(
+    event = await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
@@ -437,6 +439,17 @@ async def _record_sign_in_failure(
         detail={"method": "password", "reason": reason},
     )
     await admin_session.commit()
+
+    # The refusal is recorded; a rule now reads the window it belongs to. Only
+    # where an account resolved, because a rule names the account and an
+    # address nobody holds names nothing. Detached from this request, which is
+    # about to refuse regardless.
+    if target_user_id is not None:
+        security_rules.watch(
+            security_rules.note_failed_sign_in(
+                target_user_id, event_uuid=str(event.event_uuid)
+            )
+        )
 
 
 @router.post("/token", response_model=Token)
@@ -452,6 +465,14 @@ async def login_access_token(
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # An address its holder has not confirmed admits nobody, but it is worth
+    # saying so: resolved here only so the refusal below can name the reason.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Unconditional, and deliberately not folded into the `or` below: that
     # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
@@ -474,7 +495,7 @@ async def login_access_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
+    if unconfirmed is not None:
         await _record_sign_in_failure(admin_session, user, reason="email_unverified")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -549,6 +570,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     admin_session: AdminSessionDep,
+    payload: RefreshRequest | None = None,
 ) -> Token | JSONResponse:
     """Rotate the refresh cookie → a fresh short-lived access token + new refresh.
 
@@ -559,7 +581,14 @@ async def refresh_access_token(
     was detected. Runs on the system engine: validation is a pre-auth lookup by
     refresh-token hash.
     """
+    # Cookie first, so the browser is unchanged. A native client has no cookie
+    # to send — its refresh token lives in the platform's secure storage — so it
+    # presents one in the body and gets the rotated one back the same way.
     raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    presented_in_body = False
+    if not raw and payload is not None and payload.refresh_token:
+        raw = payload.refresh_token
+        presented_in_body = True
     if not raw:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -626,7 +655,10 @@ async def refresh_access_token(
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
+    return Token(
+        access_token=access_token,
+        refresh_token=issued.refresh_token if presented_in_body else None,
+    )
 
 
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
@@ -751,6 +783,13 @@ async def create_device_token(
     """
     normalized_email = payload.email.lower().strip()
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Same reason as the token route.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Same reason as the token route: paid before the branch, never inside it.
     password_matches = verify_sign_in_password(
         payload.password, user.hashed_password if user is not None else None
@@ -767,7 +806,7 @@ async def create_device_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
+    if unconfirmed is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -778,12 +817,141 @@ async def create_device_token(
             admin_session, user=user, password=payload.password
         )
 
-    device_token = await user_tokens.create_device_token(
-        session,
-        user_id=user.id,
-        device_name=payload.device_name.strip(),
+    device_name = payload.device_name.strip()
+
+    # Both credentials on one transaction, so a failure takes both. Minted on
+    # the system engine rather than the request one for that reason alone: a
+    # device token committed on its own would outlive the response it was for,
+    # and each retry would leave another live one in the account's device list.
+    #
+    # The session carries ``pwd`` because that is what was presented here —
+    # which is what the device token itself cannot say, and why a device-token
+    # session satisfies no policy.
+    #
+    # A session that cannot be opened is a 503, not a quiet fall back to the
+    # device token alone: D2a settled that a sign-in hands back the credential
+    # it means to, or says it could not.
+    user_id, token_version = user.id, user.token_version
+    try:
+        device_token = await user_tokens.create_device_token(
+            admin_session,
+            user_id=user_id,
+            device_name=device_name,
+            commit=False,
+        )
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            actor_user_id=user_id,
+            detail={"method": "password", "device_name": device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
-    return DeviceTokenResponse(device_token=device_token)
+    return DeviceTokenResponse(
+        device_token=device_token,
+        access_token=access_token,
+        refresh_token=issued.refresh_token,
+        expires_in=access_max_age,
+    )
+
+
+@router.post("/device-token/exchange", response_model=Token)
+@limiter.limit("20/15minutes")
+async def exchange_device_token(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    payload: DeviceTokenExchangeRequest,
+) -> Token:
+    """Trade a device token for a session of the ordinary kind.
+
+    How an installed client moves across without asking anybody to sign in
+    again: it presents the token it already holds and is handed an access token
+    and a refresh token. The device token is left alone — it keeps working
+    until the client stops sending it, and the build that stops is the one that
+    decides when.
+
+    The session carries **no** factors. A device token does not record what was
+    presented when it was minted, and a session that claimed otherwise would be
+    asserting assurance nobody established — so this satisfies no guild
+    sign-in requirement, exactly as the device token itself does not.
+    """
+    record = await user_tokens.get_device_token(session, token=payload.device_token)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = await admin_session.get(User, record.user_id)
+    if user is None or user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id, token_version = user.id, user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=[],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=record.device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED,
+            actor_user_id=user_id,
+            detail={"device_name": record.device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, _ = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    return Token(access_token=access_token, refresh_token=issued.refresh_token)
 
 
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
@@ -819,18 +987,6 @@ async def revoke_device_token(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.TOKEN_NOT_FOUND
         )
-
-
-def _provider_redirect_uri(provider_slug: str, guild_id: int | None = None) -> str:
-    """Per-provider callback URL. For the platform slug this is the same
-    ``/auth/oidc/callback`` operators registered at their IdP before the
-    routes were generalized — the slug is literally ``oidc``. Guild-scoped
-    providers get a guild-addressed callback (their slug is only unique
-    within the guild)."""
-    base = settings.APP_URL.rstrip("/")
-    if guild_id is not None:
-        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{provider_slug}/callback"
-    return f"{base}{API_V1_STR}/auth/{provider_slug}/callback"
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -967,7 +1123,7 @@ async def _build_row_oidc_provider(
         OidcClientConfig(
             issuer=row.issuer,
             client_id=row.client_id,
-            redirect_uri=_provider_redirect_uri(row.slug, row.guild_id),
+            redirect_uri=provider_callback_url(row.slug, row.guild_id),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
             provider_slug=_provider_state_key(row),
@@ -1320,8 +1476,6 @@ async def _complete_provider_login(
         )
 
     # Profile refresh from the verified claims.
-    if email_verified and not user.email_verified:
-        user.email_verified = True
     if full_name and user.full_name != full_name:
         user.full_name = full_name
     if avatar_url and user.avatar_url != avatar_url:
@@ -1389,6 +1543,7 @@ async def _complete_provider_login(
                 sync_result = await sync_oidc_assignments(
                     sync_session,
                     user_id=user.id,
+                    provider_id=provider_row.id,
                     claim_values=claim_values,
                 )
                 logger.info(
@@ -1405,11 +1560,31 @@ async def _complete_provider_login(
         logger.exception("OIDC claim sync failed for user %s", user.id)
 
     if is_mobile:
+        device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
             session,
             user_id=user.id,
-            device_name=completion.device_name or "Mobile Device",
+            device_name=device_name,
         )
+        # No session alongside this one: it answers with a redirect, and a
+        # refresh token does not belong in a URL. ``POST /auth/device-token/
+        # exchange`` is where this client trades the token for one.
+        #
+        # The record is best-effort here, unlike the password route. This
+        # branch has already authenticated somebody against their IdP, and the
+        # rule it works under — stated a few lines down for the session — is
+        # that a store that is briefly unavailable does not fail an SSO login.
+        try:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+                actor_user_id=user.id,
+                detail={"method": "oidc", "device_name": device_name},
+            )
+            await admin_session.commit()
+        except Exception:
+            await admin_session.rollback()
+            logger.exception("Could not record device-token issue for user %s", user.id)
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
@@ -1572,7 +1747,7 @@ async def resend_verification_email(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
-    if current_user.email_verified:
+    if await addresses.has_proven_address(session, user_id=current_user.id):
         return VerificationSendResponse(status="already_verified")
     try:
         token = await user_tokens.create_token(
@@ -1642,10 +1817,6 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-    if not user.email_verified:
-        user.email_verified = True
-        user.updated_at = datetime.now(timezone.utc)
-        admin_session.add(user)
     await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
@@ -1663,7 +1834,9 @@ async def request_password_reset(
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
-    user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Held, not necessarily confirmed: an account that never confirmed the
+    # address it signed up with is exactly the one a reset has to reach.
+    user = await addresses.account_holding(admin_session, normalized_email)
     if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:
@@ -1743,8 +1916,6 @@ async def reset_password(
     await user_tokens.revoke_user_sessions(
         session, user=user, admin_session=admin_session
     )
-    if not user.email_verified:
-        user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
     admin_session.add(user)
     await session.commit()

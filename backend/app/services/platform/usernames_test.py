@@ -105,12 +105,9 @@ class TestClaim:
 
 class TestInsertWithHandle:
     async def test_stages_a_user_with_a_free_pair(self, session):
-        from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
         from app.models.platform.user import User
 
         user = User(
-            email_hash=hash_email("insert-handle@example.com"),
-            email_encrypted=encrypt_field("insert-handle@example.com", SALT_EMAIL),
             username="",
             discriminator=0,
             hashed_password="x",
@@ -127,7 +124,6 @@ class TestInsertWithHandle:
         concurrent registration can take the pair in between. The index refuses
         it and the insert draws again rather than turning a valid registration
         away."""
-        from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
         from app.models.platform.user import User
 
         held = await create_user(session, username="racer", discriminator=4242)
@@ -142,8 +138,6 @@ class TestInsertWithHandle:
         monkeypatch.setattr(usernames, "random_discriminator", lambda: next(draws))
 
         user = User(
-            email_hash=hash_email("racer-two@example.com"),
-            email_encrypted=encrypt_field("racer-two@example.com", SALT_EMAIL),
             username="",
             discriminator=0,
             hashed_password="x",

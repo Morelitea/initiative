@@ -20,7 +20,6 @@ from app.services.auth.platform_provider import (
     login_ready_clause,
     get_platform_provider,
     seed_platform_provider_from_env,
-    set_platform_claim_path,
     upsert_platform_provider,
 )
 
@@ -97,32 +96,6 @@ async def test_empty_provider_name_falls_back(session):
     assert provider.display_name == "SSO"
 
 
-async def test_claim_path_targets_provider_row(session):
-    await _upsert(session)
-
-    assert await set_platform_claim_path(session, " groups ") == "groups"
-    provider = await get_platform_provider(session)
-    assert provider.role_claim_path == "groups"
-
-    assert await set_platform_claim_path(session, None) is None
-    provider = await get_platform_provider(session)
-    assert provider.role_claim_path is None
-
-
-async def test_claim_path_creates_dormant_skeleton(session):
-    """Setting a claim path before the provider is configured creates a
-    disabled skeleton row to carry it — dormant until configured."""
-    assert await get_platform_provider(session) is None
-
-    assert await set_platform_claim_path(session, "roles") == "roles"
-
-    provider = await get_platform_provider(session)
-    assert provider is not None
-    assert provider.enabled is False
-    assert provider.issuer is None
-    assert provider.role_claim_path == "roles"
-
-
 async def test_upsert_lands_payload_after_lost_creation_race(session, monkeypatch):
     """A lost concurrent-creation race must not discard the caller's payload:
     the race resolves to the winner's row, and the desired fields are applied
@@ -153,26 +126,6 @@ async def test_upsert_lands_payload_after_lost_creation_race(session, monkeypatc
     assert provider.id == winner.id
     assert provider.client_id == "late-client"
     assert provider.display_name == "Late Writer"
-
-
-async def test_claim_path_lands_after_lost_creation_race(session, monkeypatch):
-    from app.services.auth import platform_provider as svc
-
-    winner = await _upsert(session)
-    real_get = svc.get_platform_provider
-    calls = {"n": 0}
-
-    async def racy_get(s):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return None
-        return await real_get(s)
-
-    monkeypatch.setattr(svc, "get_platform_provider", racy_get)
-    assert await set_platform_claim_path(session, "groups") == "groups"
-    provider = await get_platform_provider(session)
-    assert provider.id == winner.id
-    assert provider.role_claim_path == "groups"
 
 
 async def test_env_seed_creates_row_once(session, monkeypatch):

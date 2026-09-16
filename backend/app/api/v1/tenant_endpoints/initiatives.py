@@ -19,7 +19,7 @@ from app.core.messages import (
     GuildMessages,
     InitiativeMessages,
 )
-from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
@@ -1101,10 +1101,10 @@ async def get_my_initiative_permissions(
         initiative_id, session, guild_context.guild_id
     )
 
-    # Whether a tool is available in this initiative at all: core tools always,
-    # toggleable tools per their master switch.
+    # Whether a tool is available in this initiative at all: its master switch,
+    # for every tool.
     def tool_available(t: Tool) -> bool:
-        return t in CORE_TOOLS or bool(getattr(initiative, t.view_permission))
+        return bool(getattr(initiative, t.view_permission))
 
     # Content writes are frozen (read_only lifecycle status): report create
     # permissions as denied so the UI hides its create affordances instead of

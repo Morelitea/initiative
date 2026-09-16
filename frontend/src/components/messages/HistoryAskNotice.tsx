@@ -1,8 +1,9 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { SafetyCode } from "@/components/messages/SafetyCode";
-import { useHistoryAsk } from "@/hooks/useMyMessages";
+import { Button } from "@/components/ui/button";
+import { useDismissHistoryAsk, useHistoryAsk } from "@/hooks/useMyMessages";
 
 /**
  * This device, waiting to be sent the messages it arrived without.
@@ -12,10 +13,16 @@ import { useHistoryAsk } from "@/hooks/useMyMessages";
  * two things against each other rather than being told a number and trusting
  * it. It says nothing about how long that will take, because nothing here
  * knows: the other device has to be opened by a person before it can answer.
+ *
+ * It can be put away by hand as well as by the day running out. Dismissing it
+ * settles nothing: the ask is still outstanding, and history approved on the
+ * other device afterwards still arrives — which is what the closing line says,
+ * so nobody reads the button as calling the transfer off.
  */
 export const HistoryAskNotice = () => {
   const { t } = useTranslation("messages");
   const ask = useHistoryAsk();
+  const dismiss = useDismissHistoryAsk();
 
   if (!ask.data) return null;
 
@@ -29,7 +36,18 @@ export const HistoryAskNotice = () => {
             <p className="max-w-prose text-muted-foreground text-sm">{t("historyAsk.body")}</p>
           </div>
           <SafetyCode fingerprint={ask.data.fingerprint} />
+          <p className="max-w-prose text-muted-foreground text-xs">{t("historyAsk.dismissNote")}</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto shrink-0 text-muted-foreground"
+          aria-label={t("historyAsk.dismiss")}
+          disabled={dismiss.isPending}
+          onClick={() => dismiss.mutate()}
+        >
+          <X className="size-4" aria-hidden />
+        </Button>
       </div>
     </section>
   );

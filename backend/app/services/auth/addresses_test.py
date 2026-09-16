@@ -8,7 +8,6 @@ says so in the log, and erasure takes every address rather than the one
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 
 import pytest
@@ -104,35 +103,17 @@ async def test_an_address_nobody_holds_resolves_to_nobody(session: AsyncSession)
 
 
 @pytest.mark.unit
-async def test_an_account_with_no_address_row_still_resolves_and_says_so(
-    session: AsyncSession, caplog
+async def test_an_account_with_no_address_row_does_not_sign_in(
+    session: AsyncSession,
 ):
-    """An account with no row in the address set signs in on what ``users``
-    carries, and the log names it — which is what says whether the columns are
-    still needed."""
+    """The address set is the whole answer. An account holding no row in it is
+    resolved by nothing — there is no second place to look."""
     user = await create_user(session, email="stranded@example.com")
-    user_id = user.id
-    for row in await _addresses(session, user_id):
+    for row in await _addresses(session, user.id):
         await session.delete(row)
     await session.commit()
 
-    with caplog.at_level(logging.WARNING, logger="app.services.auth.addresses"):
-        found = await addresses.find_user_by_address(session, "stranded@example.com")
-
-    assert found is not None and found.id == user_id
-    assert f"account {user_id}" in caplog.text
-
-
-@pytest.mark.unit
-async def test_a_resolved_address_does_not_report_a_fallback(
-    session: AsyncSession, caplog
-):
-    await create_user(session, email="present@example.com")
-
-    with caplog.at_level(logging.WARNING, logger="app.services.auth.addresses"):
-        assert await addresses.find_user_by_address(session, "present@example.com")
-
-    assert caplog.text == ""
+    assert await addresses.find_user_by_address(session, "stranded@example.com") is None
 
 
 @pytest.mark.unit
@@ -216,67 +197,13 @@ async def test_registering_records_the_address(
     session.expire_all()
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("registered@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("registered@example.com"))
         )
     ).one()
     rows = await _addresses(session, user.id)
     assert [(r.is_primary, r.source) for r in rows] == [(True, addresses.SOURCE_SIGNUP)]
-
-
-@pytest.mark.integration
-async def test_the_backfill_carries_every_account(session: AsyncSession):
-    """The statement the migration runs, against rows.
-
-    A fresh install has no accounts to carry, so this is the only place the
-    statement meets data: what it selects, what it casts, and what each account
-    ends up holding.
-    """
-    import importlib.util
-
-    verified = await create_user(session, email="carry-verified@example.com")
-    unverified = await create_user(
-        session, email="carry-unverified@example.com", email_verified=False
-    )
-    verified_id, unverified_id = verified.id, unverified.id
-    ids = [verified_id, unverified_id]
-
-    for user_id in ids:
-        for row in await _addresses(session, user_id):
-            await session.delete(row)
-    await session.commit()
-
-    spec = importlib.util.spec_from_file_location(
-        "_backfill_migration",
-        "alembic/versions/20260911_0261_an_account_has_addresses.py",
-    )
-    migration = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(migration)
-
-    from sqlalchemy import text
-
-    await session.exec(text(migration._BACKFILL))
-    await session.commit()
-
-    # Plain values, taken as each account's rows are read: the next read
-    # expires the objects from the one before it.
-    carried = {}
-    for user_id in ids:
-        rows = await _addresses(session, user_id)
-        carried[user_id] = [(r.is_primary, r.source, r.verified_at) for r in rows]
-
-    assert [len(rows) for rows in carried.values()] == [1, 1]
-    for rows in carried.values():
-        is_primary, source, _ = rows[0]
-        assert is_primary is True
-        assert source == addresses.SOURCE_SIGNUP
-
-    # The flag each account had comes across as a time, or as nothing.
-    assert carried[verified_id][0][2] is not None
-    assert carried[unverified_id][0][2] is None
-
-    # And the addresses resolve through the new table afterwards.
-    for address in ("carry-verified@example.com", "carry-unverified@example.com"):
-        assert await addresses.find_user_by_address(session, address) is not None
 
 
 @pytest.mark.integration

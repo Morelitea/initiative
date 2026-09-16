@@ -37,6 +37,7 @@ from app.schemas.platform.access_grant import (
     BreakGlassCreate,
 )
 from app.services import email as email_service
+from app.services.auth import addresses
 from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
@@ -613,6 +614,10 @@ async def to_read(
 
     users_result = await session.exec(select(User).where(User.id.in_(user_ids)))
     users = {u.id: u for u in users_result.all()}
+    # An account's address lives in ``user_emails``; one query for the page.
+    addresses_by_user = await addresses.primary_addresses(
+        session, user_ids=sorted(user_ids)
+    )
     guilds = {}
     for gid in guild_ids:
         guild = await guilds_service.get_guild(session, guild_id=gid)
@@ -624,7 +629,7 @@ async def to_read(
         read = AccessGrantRead.model_validate(g)
         grantee = users.get(g.user_id)
         if grantee is not None:
-            read.user_email = grantee.email
+            read.user_email = addresses_by_user.get(g.user_id)
             read.user_full_name = grantee.full_name
         guild = guilds.get(g.guild_id)
         if guild is not None:
@@ -633,7 +638,7 @@ async def to_read(
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:
-                read.approved_by_email = approver.email
+                read.approved_by_email = addresses_by_user.get(g.approved_by_id)
         out.append(read)
     return out
 

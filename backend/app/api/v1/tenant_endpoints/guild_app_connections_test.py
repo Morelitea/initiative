@@ -443,8 +443,8 @@ class TestConnect:
         ref_b = await connect(b)
 
         # Nothing about the person survives into it.
-        assert a.user.email not in ref_a
-        assert a.user.email.split("@")[0] not in ref_a
+        assert a.user.seeded_address not in ref_a
+        assert a.user.seeded_address.split("@")[0] not in ref_a
         # Two members of the same guild connecting to the same app get handles
         # with nothing in common — neither equal nor a shared derivation.
         assert ref_a != ref_b

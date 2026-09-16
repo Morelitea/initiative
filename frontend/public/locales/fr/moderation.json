@@ -1,0 +1,93 @@
+{
+  "title": "Modération",
+  "subtitle": "Ce qui a été signalé ici, et ce qui en a été fait.",
+  "open": "Ouvert",
+  "tabs": {
+    "open": "Ouverts",
+    "settled": "Traités"
+  },
+  "empty": {
+    "open": "Rien n'a été signalé.",
+    "settled": "Rien n'a encore été traité.",
+    "noFurther": "Rien de plus."
+  },
+  "reportedCount_one": "Signalé par {{count}} personne",
+  "reportedCount_other": "Signalé par {{count}} personnes",
+  "whatTheySaid": "Ce qu'ils ont dit",
+  "reviewElsewhere": "Ouvrez l'élément signalé pour le voir en contexte, puis décidez ici.",
+  "notePlaceholder": "Ce que vous avez constaté et pourquoi vous avez décidé ainsi (facultatif)",
+  "settledAt": "Traité le {{when}}.",
+  "settledToast": "Signalement traité.",
+  "settleError": "Impossible de traiter ce signalement.",
+  "outcomes": {
+    "dismissed": "Rejeter",
+    "content_removed": "Contenu supprimé",
+    "member_warned": "Membre averti",
+    "escalated": "Escalader"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Harcèlement",
+    "hate": "Haine",
+    "violence": "Violence",
+    "sexual_content": "Contenu sexuel",
+    "self_harm": "Automutilation",
+    "illegal": "Illégal",
+    "misinformation": "Désinformation",
+    "other": "Autre"
+  },
+  "targets": {
+    "comment": "Un commentaire",
+    "post": "Une annonce",
+    "task": "Une tâche",
+    "document": "Un document",
+    "project": "Un projet",
+    "queue": "Une file",
+    "queue_item": "Un élément",
+    "gallery": "Une galerie",
+    "gallery_image": "Une image",
+    "calendar": "Un calendrier",
+    "calendar_event": "Un événement",
+    "counter": "Un compteur",
+    "counter_group": "Un groupe de compteurs",
+    "dashboard": "Un tableau de bord"
+  },
+  "paging": {
+    "newer": "Plus récents",
+    "older": "Plus anciens",
+    "page": "Page {{page}}"
+  },
+  "report": {
+    "action": "Signaler",
+    "title": "Signaler ceci",
+    "description": "Dites aux personnes qui s'en occupent ce qui ne va pas. Elles verront ce que vous écrivez.",
+    "reasonLabel": "Qu'est-ce qui ne va pas ?",
+    "reasonPlaceholder": "Choisissez un motif",
+    "detailLabel": "Autre chose ?",
+    "detailPlaceholder": "Ce que vous voulez leur dire (facultatif)",
+    "submit": "Envoyer le signalement",
+    "thanks": "Merci — quelqu'un va regarder.",
+    "error": "Impossible d'envoyer ce signalement."
+  },
+  "areas": {
+    "reports": "Signalements",
+    "members": "Membres",
+    "sharing": "Accès"
+  },
+  "members": {
+    "description": "Qui est dans cette initiative, et ce que chacun peut faire.",
+    "fullAccess": "Accès complet",
+    "noRole": "Aucun rôle"
+  },
+  "sharing": {
+    "description": "Jusqu'où va l'accès à chaque chose. Ouvrez-la pour le modifier.",
+    "empty": "Rien ici n'a été partagé avec quelqu'un en particulier.",
+    "everyone": "Tout le monde ici",
+    "viaDashboard": "Via un tableau de bord",
+    "people_one": "{{count}} personne",
+    "people_other": "{{count}} personnes",
+    "roles_one": "{{count}} rôle",
+    "roles_other": "{{count}} rôles"
+  },
+  "loadFailed": "Impossible de charger. Réessayez."
+}

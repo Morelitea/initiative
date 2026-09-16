@@ -3,7 +3,6 @@ import {
   BadgeInfo,
   ChevronLeft,
   ChevronRight,
-  CircleQuestionMark,
   CircleUserRound,
   LogOut,
   Settings,
@@ -18,6 +17,7 @@ import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { ThoughtBubble } from "@/components/icons/ThoughtBubble";
 import { AppearanceMenuItems, ThemeIcon } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { AskForHelpButton } from "@/components/support/AskForHelpButton";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -423,22 +423,11 @@ export const SidebarUserFooter = ({
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <a
-                    href="https://morelitea.github.io/initiative/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={t("viewDocumentation")}
-                  >
-                    <CircleQuestionMark className="h-4 w-4" />
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{t("viewDocumentation")}</p>
-                </TooltipContent>
-              </Tooltip>
+              {/* The question mark was the documentation link and still leaves
+                  for the docs where nobody takes help requests — it just leads
+                  with the FAQ now, and becomes the form itself in a community
+                  that has switched support on. */}
+              <AskForHelpButton />
             </div>
           </div>
         </div>
