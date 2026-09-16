@@ -73,7 +73,7 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # a_guild_can_have_a_security_admin: PostgreSQL cannot drop a value from
         # an enum type, and reversing it means rebuilding guild_role and every
         # column using it while memberships reference it.
-        "20260915_0276",
+        "20260915_0277",
     }
 )
 
