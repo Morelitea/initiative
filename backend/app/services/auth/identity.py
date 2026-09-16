@@ -321,17 +321,19 @@ async def password_only_user_count(session: AsyncSession) -> int:
 async def federated_only_user_count(session: AsyncSession) -> int:
     """How many accounts can sign in today only through an identity provider.
 
-    What withdrawing the platform SSO method would strand: no usable password,
-    and a login-ready *platform* identity that is currently their way in.
-    Guild-scoped providers cannot answer the platform login route, so they must
-    not hide a lockout in this count.
+    What withdrawing the SSO method would strand: no usable password, and a
+    login-ready identity that is currently their way in.
+
+    Every namespace counts, operator-global and guild-scoped alike. Withdrawing
+    the method closes the guild-addressed login route as well as the
+    platform one, so an account reached through a guild's provider is one this
+    has to report.
     """
     holds_any_identity = (
         select(FederatedIdentity.id)
         .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
         .where(
             FederatedIdentity.user_id == User.id,
-            AuthProvider.guild_id.is_(None),
             can_serve_login_clause(),
         )
     )

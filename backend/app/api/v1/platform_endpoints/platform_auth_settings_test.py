@@ -112,10 +112,12 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
     assert allowed.status_code == 200
 
 
-async def test_guild_identity_does_not_hide_a_password_lockout(
+async def test_a_guild_only_identity_is_counted_when_sso_is_withdrawn(
     client: AsyncClient, session: AsyncSession
 ):
-    """A guild provider cannot replace the platform SSO login method."""
+    """Withdrawing single sign-on closes the guild-addressed login route as
+    well as the platform one, so an account reached only through a guild's
+    provider is one the count has to report."""
     _, headers = await _owner(session)
     guild = await create_guild(session)
     provider = await create_auth_provider(session, slug="guild", guild_id=guild.id)
