@@ -40,7 +40,6 @@ from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
-    PermissionKey,
 )
 from app.core import usernames
 from app.models.platform.user import User, UserStatus
@@ -58,7 +57,6 @@ from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import search as search_service
-from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
@@ -1234,18 +1232,9 @@ async def create_project(
         initiative_id, session, guild_context.guild_id
     )
     resource_access.require_tool_enabled(Tool.project, initiative)
-    if not rls_service.is_guild_admin(guild_context.role):
-        has_perm = await rls_service.check_initiative_permission(
-            session,
-            initiative_id=initiative_id,
-            user=current_user,
-            permission_key=PermissionKey.create_projects,
-        )
-        if not has_perm:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=Tool.project.create_permission_code,
-            )
+    await resource_access.require_create(
+        session, Tool.project, initiative, current_user, guild_context
+    )
     await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
         name=project_in.name,
