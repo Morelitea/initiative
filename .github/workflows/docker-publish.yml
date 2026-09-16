@@ -108,29 +108,15 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      # The keystore lands in RUNNER_TEMP, never in the workspace, and signing
-      # passwords reach Gradle through its environment-property interface.
-      #
-      # Two separate reasons, and the second is the one that is easy to miss:
-      #
-      #   * a file under `frontend/android` is inside the checkout, where an
-      #     artifact glob that widens by one character can upload it;
-      #   * a `-P` flag is an ARGUMENT, so the value is in the process table
-      #     for the life of the build and in any log that echoes the command
-      #     line it ran. Log masking does not reach either place.
-      #
-      # This limits accidental disclosure; it does not make the keystore
-      # unreadable to Gradle or other code in this job, which runs as the same
-      # OS user. Secrets arrive through `env:` so they are never substituted
-      # into script text. See T61.
+      # Keep the signing file outside the checkout and pass signing values
+      # through Gradle's environment-property interface.
       - name: Stage signing material outside the workspace
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          # Restrict before creating anything, not after: between a create and
-          # a chmod there is a window in which the file is world-readable.
+          # Apply restrictive permissions to every file created in this step.
           umask 077
           signing_dir="$RUNNER_TEMP/signing"
           mkdir -p "$signing_dir"
