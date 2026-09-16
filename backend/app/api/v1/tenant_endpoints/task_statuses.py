@@ -17,7 +17,7 @@ from app.api.v1.tenant_endpoints.tasks import (
     _ensure_can_manage,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
+from app.models.tenant.task import Task, TaskStatus
 from app.models.platform.user import User
 from app.schemas.tenant.task_status import (
     InitiativeTaskStatusRead,
@@ -58,10 +58,10 @@ def _resequence(statuses: List[TaskStatus]) -> None:
 def _ensure_default(statuses: List[TaskStatus]) -> None:
     if any(status.is_default for status in statuses):
         return
-    for status_obj in statuses:
-        if status_obj.category == TaskStatusCategory.backlog:
-            status_obj.is_default = True
-            return
+    preferred = task_statuses_service.first_by_category_preference(statuses)
+    if preferred is not None:
+        preferred.is_default = True
+        return
     if statuses:
         statuses[0].is_default = True
 
@@ -81,24 +81,50 @@ async def _load_status_or_404(
     return status_obj
 
 
-async def _ensure_category_not_last(
+async def _ensure_not_only_status(
     session: SessionDep,
     *,
     project_id: int,
-    target: TaskStatus,
 ) -> None:
-    if target.category not in {TaskStatusCategory.backlog, TaskStatusCategory.done}:
-        return
-    stmt = select(func.count(TaskStatus.id)).where(
-        TaskStatus.project_id == project_id, TaskStatus.category == target.category
-    )
+    """A board needs somewhere to put a task, so the last column stays.
+
+    Which categories a project keeps is its own business — a team that never
+    blocks on anything can drop every ``todo`` column — but a project with no
+    statuses at all has nowhere to create a task.
+    """
+    stmt = select(func.count(TaskStatus.id)).where(TaskStatus.project_id == project_id)
     result = await session.exec(stmt)
-    count = result.one()
-    if count <= 1:
+    if (result.one() or 0) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=TaskStatusMessages.CANNOT_REMOVE_LAST,
         )
+
+
+async def _pick_fallback_status(
+    session: SessionDep,
+    *,
+    project_id: int,
+    excluding: TaskStatus,
+) -> TaskStatus | None:
+    """Where a deleted column's tasks go when the caller names no destination.
+
+    The project's own default column, the entry column for its categories, or
+    failing both the first column on the board.
+    """
+    statuses = [
+        status_obj
+        for status_obj in await task_statuses_service.list_statuses(session, project_id)
+        if status_obj.id != excluding.id
+    ]
+    if not statuses:
+        return None
+    marked_default = next(
+        (status_obj for status_obj in statuses if status_obj.is_default), None
+    )
+    if marked_default is not None:
+        return marked_default
+    return task_statuses_service.first_by_category_preference(statuses) or statuses[0]
 
 
 @router.get("/", response_model=List[TaskStatusRead])
@@ -183,7 +209,6 @@ async def update_task_status(
 
     new_category = update_data.get("category")
     if new_category and new_category != target.category:
-        await _ensure_category_not_last(session, project_id=project_id, target=target)
         target.category = new_category
         # Recategorising a column moves every task in it across the done
         # boundary without any task row being written, so realign their
@@ -282,36 +307,48 @@ async def delete_task_status(
     )
 
     target = await _load_status_or_404(session, project_id, status_id)
-    await _ensure_category_not_last(session, project_id=project_id, target=target)
+    await _ensure_not_only_status(session, project_id=project_id)
 
     stmt = select(func.count(Task.id)).where(Task.task_status_id == target.id)
     result = await session.exec(stmt)
     task_count = result.one() or 0
 
-    fallback_obj: TaskStatus | None = None
     if task_count:
-        if delete_in.fallback_status_id is None:
+        fallback_obj: TaskStatus | None = None
+        if delete_in.fallback_status_id is not None:
+            if delete_in.fallback_status_id == target.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=TaskStatusMessages.FALLBACK_MUST_DIFFER,
+                )
+            fallback_obj = await _load_status_or_404(
+                session, project_id, delete_in.fallback_status_id
+            )
+        else:
+            # Naming a destination is a courtesy, not a requirement: a column
+            # nobody can empty is a column nobody can delete, and a project
+            # whose only other statuses sit in other categories used to be
+            # exactly that. Fall back to where the project puts a new task.
+            fallback_obj = await _pick_fallback_status(
+                session, project_id=project_id, excluding=target
+            )
+        if fallback_obj is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=TaskStatusMessages.FALLBACK_REQUIRED,
-            )
-        if delete_in.fallback_status_id == target.id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=TaskStatusMessages.FALLBACK_MUST_DIFFER,
-            )
-        fallback_obj = await _load_status_or_404(
-            session, project_id, delete_in.fallback_status_id
-        )
-        if fallback_obj.category != target.category:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=TaskStatusMessages.FALLBACK_CATEGORY_MISMATCH,
             )
         await session.exec(
             update(Task)
             .where(Task.task_status_id == target.id)
             .values(task_status_id=fallback_obj.id)
+        )
+        # The destination may sit on the other side of the done boundary from
+        # the column being emptied, so realign the tasks that just landed in it.
+        await task_completion.resync_status_tasks(
+            session,
+            status_id=fallback_obj.id,
+            category=fallback_obj.category,
+            now=datetime.now(timezone.utc),
         )
 
     await session.exec(delete(TaskStatus).where(TaskStatus.id == target.id))

@@ -83,9 +83,7 @@ async def test_task_created_in_open_status_is_incomplete(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     statuses = await _statuses(session, a.project)
 
-    task = await _create_task(
-        client, a, status_id=statuses[TaskStatusCategory.backlog].id
-    )
+    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
 
     assert task["completed_at"] is None
 
@@ -212,7 +210,7 @@ async def test_recategorising_a_column_out_of_done_clears_its_tasks(
     """Flipping a Done column to another category reopens everything in it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     statuses = await _statuses(session, a.project)
-    # A second done status, so the flip isn't rejected as removing the last one.
+    # A second done status, so the project still has one after the flip.
     keeper = await client.post(
         a.g(f"/projects/{a.project.id}/task-statuses/"),
         headers=a.headers,

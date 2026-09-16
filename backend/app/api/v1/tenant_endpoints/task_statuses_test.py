@@ -52,8 +52,8 @@ async def test_create_status_uses_category_defaults(
 
     assert response.status_code == 201
     body = response.json()
-    assert body["color"] == "#FBBF24"
-    assert body["icon"] == "circle-pause"
+    assert body["color"] == "#94A3B8"
+    assert body["icon"] == "circle"
 
 
 @pytest.mark.integration
@@ -84,10 +84,10 @@ async def test_patch_updates_color_and_icon(client: AsyncClient, session: AsyncS
     project, headers = await _setup_project(session)
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     await session.commit()
-    backlog = next(s for s in statuses if s.category == TaskStatusCategory.backlog)
+    todo = next(s for s in statuses if s.category == TaskStatusCategory.todo)
 
     response = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{backlog.id}",
+        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
         json={"color": "#123456", "icon": "star"},
         headers=headers,
     )
@@ -105,18 +105,15 @@ async def test_patch_category_change_keeps_existing_color_icon(
     project, headers = await _setup_project(session)
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     await session.commit()
-    # Pick the "Blocked" (category=todo) status so changing category away from
-    # todo is allowed (backlog and done cannot be moved to a different category
-    # when they're the last of their kind, but todo has no such restriction).
-    blocked = next(
+    todo = next(
         s
         for s in statuses
-        if s.category == TaskStatusCategory.todo and s.name == "Blocked"
+        if s.category == TaskStatusCategory.todo and s.name == "To Do"
     )
 
     # First set explicit custom color/icon
     first = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{blocked.id}",
+        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
         json={"color": "#ABCDEF", "icon": "flag"},
         headers=headers,
     )
@@ -124,7 +121,7 @@ async def test_patch_category_change_keeps_existing_color_icon(
 
     # Now change category only — color/icon should remain untouched
     second = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{blocked.id}",
+        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
         json={"category": "in_progress"},
         headers=headers,
     )
@@ -167,12 +164,19 @@ async def test_default_seeded_statuses_have_category_colors(
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     by_category = {s.category: s for s in statuses}
 
-    assert by_category[TaskStatusCategory.backlog].color == "#94A3B8"
-    assert by_category[TaskStatusCategory.backlog].icon == "circle-dashed"
+    assert [(s.name, s.category, s.is_default) for s in statuses] == [
+        ("To Do", TaskStatusCategory.todo, True),
+        ("In Progress", TaskStatusCategory.in_progress, False),
+        ("Done", TaskStatusCategory.done, False),
+    ]
+    assert by_category[TaskStatusCategory.todo].color == "#94A3B8"
+    assert by_category[TaskStatusCategory.todo].icon == "circle"
+    assert task_statuses_service.defaults_for_category(TaskStatusCategory.backlog) == (
+        "#94A3B8",
+        "circle-dashed",
+    )
     assert by_category[TaskStatusCategory.in_progress].color == "#60A5FA"
     assert by_category[TaskStatusCategory.in_progress].icon == "circle-play"
-    assert by_category[TaskStatusCategory.todo].color == "#FBBF24"
-    assert by_category[TaskStatusCategory.todo].icon == "circle-pause"
     assert by_category[TaskStatusCategory.done].color == "#34D399"
     assert by_category[TaskStatusCategory.done].icon == "circle-check"
 
@@ -451,3 +455,198 @@ async def test_initiative_statuses_404_for_an_unknown_initiative(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "INITIATIVE_NOT_FOUND"
+
+
+# ---------------------------------------------------------------------------
+# DELETE /projects/{project_id}/task-statuses/{status_id} — a column can be
+# retired without another column in its own category to catch its tasks.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_delete_moves_tasks_to_the_default_without_a_fallback(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The case a legacy Blocked column was stuck in: no todo sibling to name."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    default_status = next(s for s in statuses if s.is_default)
+    blocked = await create_task_status(
+        session, a.project, name="Blocked", category=TaskStatusCategory.todo, position=9
+    )
+    created = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "project_id": a.project.id,
+            "title": "Waiting on legal",
+            "task_status_id": blocked.id,
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={},
+    )
+
+    assert response.status_code == 204, response.text
+    task = await client.get(a.g(f"/tasks/{created.json()['id']}"), headers=a.headers)
+    assert task.json()["task_status_id"] == default_status.id
+
+
+@pytest.mark.integration
+async def test_delete_accepts_a_fallback_in_another_category(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    in_progress = next(
+        s for s in statuses if s.category == TaskStatusCategory.in_progress
+    )
+    blocked = await create_task_status(
+        session, a.project, name="Blocked", category=TaskStatusCategory.todo, position=9
+    )
+    created = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "project_id": a.project.id,
+            "title": "Unblocked",
+            "task_status_id": blocked.id,
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={"fallback_status_id": in_progress.id},
+    )
+
+    assert response.status_code == 204, response.text
+    task = await client.get(a.g(f"/tasks/{created.json()['id']}"), headers=a.headers)
+    assert task.json()["task_status_id"] == in_progress.id
+
+
+@pytest.mark.integration
+async def test_delete_into_done_completes_the_tasks_it_moves(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Crossing the done boundary stamps ``completed_at``, as a task move would."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    todo = next(s for s in statuses if s.category == TaskStatusCategory.todo)
+    done = next(s for s in statuses if s.category == TaskStatusCategory.done)
+    created = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "project_id": a.project.id,
+            "title": "Shipped after all",
+            "task_status_id": todo.id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["completed_at"] is None
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{todo.id}"),
+        headers=a.headers,
+        json={"fallback_status_id": done.id},
+    )
+
+    assert response.status_code == 204, response.text
+    task = await client.get(a.g(f"/tasks/{created.json()['id']}"), headers=a.headers)
+    assert task.json()["completed_at"] is not None
+
+
+@pytest.mark.integration
+async def test_delete_can_remove_the_last_status_of_a_category(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    done = next(s for s in statuses if s.category == TaskStatusCategory.done)
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{done.id}"),
+        headers=a.headers,
+        json={},
+    )
+
+    assert response.status_code == 204, response.text
+    remaining = await client.get(
+        a.g(f"/projects/{a.project.id}/task-statuses/"), headers=a.headers
+    )
+    assert [s["category"] for s in remaining.json()] == ["todo", "in_progress"]
+
+
+@pytest.mark.integration
+async def test_delete_refuses_the_projects_only_status(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    only = await create_task_status(
+        session, a.project, name="Everything", category=TaskStatusCategory.todo
+    )
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{only.id}"),
+        headers=a.headers,
+        json={},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TASK_STATUS_CANNOT_REMOVE_LAST"
+
+
+@pytest.mark.integration
+async def test_deleting_the_default_promotes_the_next_entry_column(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    todo = next(s for s in statuses if s.category == TaskStatusCategory.todo)
+    await create_task_status(
+        session,
+        a.project,
+        name="Someday",
+        category=TaskStatusCategory.backlog,
+        position=9,
+    )
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{todo.id}"),
+        headers=a.headers,
+        json={},
+    )
+
+    assert response.status_code == 204, response.text
+    remaining = await client.get(
+        a.g(f"/projects/{a.project.id}/task-statuses/"), headers=a.headers
+    )
+    default = next(s for s in remaining.json() if s["is_default"])
+    assert default["name"] == "Someday"

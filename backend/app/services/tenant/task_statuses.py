@@ -11,9 +11,12 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import TaskStatus, TaskStatusCategory
 from app.schemas.tenant.task_status import InitiativeTaskStatusRead
 
+# To Do and Backlog share the slate now that To Do is the column new projects
+# open with. The circle is what tells them apart: solid for the work you have
+# agreed to, dashed for the work still only an idea.
 CATEGORY_DEFAULTS: dict[TaskStatusCategory, tuple[str, str]] = {
     TaskStatusCategory.backlog: ("#94A3B8", "circle-dashed"),
-    TaskStatusCategory.todo: ("#FBBF24", "circle-pause"),
+    TaskStatusCategory.todo: ("#94A3B8", "circle"),
     TaskStatusCategory.in_progress: ("#60A5FA", "circle-play"),
     TaskStatusCategory.done: ("#34D399", "circle-check"),
 }
@@ -37,12 +40,38 @@ def _seeded(
     }
 
 
+# Three columns, because three is what a board needs to be useful. Blocked
+# left with relations, which say what a task is waiting on rather than parking
+# it in a status; Backlog left because most people read it as To Do anyway. The
+# ``backlog`` category stays available for projects that already use it, and for
+# anyone who wants to add the column back.
 DEFAULT_TASK_STATUSES: Sequence[dict] = (
-    _seeded("Backlog", TaskStatusCategory.backlog, 0, is_default=True),
+    _seeded("To Do", TaskStatusCategory.todo, 0, is_default=True),
     _seeded("In Progress", TaskStatusCategory.in_progress, 1),
-    _seeded("Blocked", TaskStatusCategory.todo, 2),
-    _seeded("Done", TaskStatusCategory.done, 3),
+    _seeded("Done", TaskStatusCategory.done, 2),
 )
+
+# Where an unmarked project's default lands when no status carries the flag.
+_DEFAULT_CATEGORY_PREFERENCE: Sequence[TaskStatusCategory] = (
+    TaskStatusCategory.todo,
+    TaskStatusCategory.backlog,
+)
+
+
+def first_by_category_preference(
+    statuses: Sequence[TaskStatus],
+) -> TaskStatus | None:
+    """The status a project should treat as its entry column.
+
+    Prefers ``todo`` (where new projects start) and then ``backlog``, so a
+    project seeded before To Do became the default still resolves to the column
+    its board opens on.
+    """
+    for category in _DEFAULT_CATEGORY_PREFERENCE:
+        match = next((s for s in statuses if s.category == category), None)
+        if match is not None:
+            return match
+    return None
 
 
 def _sorted(statuses: Iterable[TaskStatus]) -> list[TaskStatus]:
@@ -80,16 +109,9 @@ async def get_default_status(session: AsyncSession, project_id: int) -> TaskStat
     for status in statuses:
         if status.is_default:
             return status
-    backlog = next(
-        (
-            status
-            for status in statuses
-            if status.category == TaskStatusCategory.backlog
-        ),
-        None,
-    )
-    if backlog is not None:
-        return backlog
+    preferred = first_by_category_preference(statuses)
+    if preferred is not None:
+        return preferred
     return statuses[0]
 
 
