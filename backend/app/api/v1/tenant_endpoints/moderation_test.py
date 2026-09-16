@@ -609,3 +609,55 @@ async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
         headers=get_auth_headers(admin),
     )
     assert response.status_code == 200
+
+
+async def test_a_communitys_moderation_leaves_no_trace_in_the_platform_log(
+    client, session, scene, operations
+):
+    """A community's own moderation decisions are not the platform's record.
+
+    ``public.audit_events`` is the deployment operator's log, and what it holds
+    is the population we have to show we triaged. A community deciding its own
+    business is that community's, kept in its own schema and governed by its
+    own retention — so filing a report and settling it must add nothing here.
+    Escalation is the one crossing, and even it carries no row: what it opens
+    is an intake case, which is work rather than a record.
+
+    Asserted against the table rather than against the event registry, so a
+    moderation decision that started writing one would fail here whichever
+    member it chose.
+    """
+    from app.models.platform.audit_event import AuditEvent
+
+    await set_rls_context(session)
+    before = (await session.exec(select(AuditEvent))).all()
+    before_ids = {row.id for row in before}
+
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="harassment",
+        detail="This is abusive.",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    report_id = (await session.exec(select(ModerationReport))).one().id
+    await set_rls_context(session)
+
+    settle = await client.post(
+        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        json={"outcome": "content_removed", "note": "Taken down."},
+        headers=scene["mod"].headers,
+    )
+    assert settle.status_code == 200, settle.text
+
+    await set_rls_context(session)
+    session.expunge_all()
+    after = (await session.exec(select(AuditEvent))).all()
+    added = [row for row in after if row.id not in before_ids]
+    assert added == [], (
+        "a community's moderation wrote to the platform audit log: "
+        f"{[row.event_type for row in added]}"
+    )
