@@ -49,19 +49,47 @@ _SUFFIXES = {
 #: bounded so the check stays a slice of the head rather than a scan of 10 MB.
 _SVG_HEAD_BYTES = 1024
 
+#: What may follow the root element's name: whitespace before an attribute, or
+#: the end of an empty or opening tag. Anything else is a different element
+#: whose name happens to start with the same three letters.
+_ROOT_NAME_ENDS = (b" ", b"\t", b"\r", b"\n", b">", b"/")
+
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
+def _past_the_prolog(head: bytes) -> bytes:
+    """Drop what an XML document may carry before its root element — a
+    byte-order mark, whitespace, the declaration, comments and a doctype —
+    and return what is left of ``head``."""
+    head = head.lstrip(b"\xef\xbb\xbf").lstrip()
+    while True:
+        if head.startswith(b"<?"):
+            end, skip = head.find(b"?>"), 2
+        elif head.startswith(b"<!--"):
+            end, skip = head.find(b"-->"), 3
+        elif head.startswith(b"<!"):
+            end, skip = head.find(b">"), 1
+        else:
+            return head
+        if end < 0:
+            # The construct runs past the slice being read; nothing to return.
+            return b""
+        head = head[end + skip :].lstrip()
+
+
 def _opens_an_svg(contents: bytes) -> bool:
-    """Whether the head of the file reads as an SVG document.
+    """Whether the file's root element is ``<svg>``.
 
     Raster signatures are checked before this, so the question here is only
     whether markup is an SVG rather than something else — and the answer is
     read from a bounded slice of the head, not from a parse of the body.
     """
-    head = contents[:_SVG_HEAD_BYTES].lstrip(b"\xef\xbb\xbf").lstrip()
-    return head[:1] == b"<" and b"<svg" in head.lower()
+    head = _past_the_prolog(contents[:_SVG_HEAD_BYTES])
+    if head[:1] != b"<":
+        return False
+    name = head[1:5].lower()
+    return name[:3] == b"svg" and name[3:4] in _ROOT_NAME_ENDS
 
 
 def _detect_content_type(contents: bytes) -> str | None:

@@ -5,6 +5,7 @@ import io
 import pytest
 from httpx import AsyncClient
 
+from app.api.v1.tenant_endpoints.attachments import _detect_content_type
 from app.models.platform.guild import GuildRole
 
 #: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
@@ -134,3 +135,47 @@ async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, actin
 
     assert response.status_code == 400
     assert response.json()["detail"] == "ATTACHMENT_INVALID_IMAGE"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "contents",
+    [
+        b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+        b"<svg/>",
+        b'\xef\xbb\xbf<svg xmlns="x"></svg>',
+        b'<?xml version="1.0"?>\n<svg xmlns="x"/>',
+        b"<!-- drawn by a program -->\n<svg xmlns='x'/>",
+        b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" '
+        b'"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg xmlns="x"/>',
+        b'<?xml version="1.0"?><!-- one --><!-- two --><svg/>',
+    ],
+)
+def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
+    """Whatever an SVG carries ahead of its root element, the root is what
+    decides."""
+    assert _detect_content_type(contents) == "image/svg+xml"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "contents",
+    [
+        b"<!-- <svg -->not an image",
+        b"<svgfoo></svgfoo>",
+        b"<html><svg/></html>",
+        b"<!-- a comment that never closes <svg/>",
+        b"plain text mentioning <svg",
+        b"",
+    ],
+)
+def test_markup_that_is_not_an_svg_is_not_an_image(contents: bytes):
+    """Naming the element somewhere in the file is not being it — the root
+    element is, so none of these are stored as pictures."""
+    assert _detect_content_type(contents) is None
+
+
+@pytest.mark.unit
+def test_a_raster_is_identified_before_markup():
+    """A raster signature settles it; nothing goes looking for markup in a PNG."""
+    assert _detect_content_type(TINY_PNG) == "image/png"
