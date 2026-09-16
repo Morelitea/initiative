@@ -138,6 +138,21 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew assembleRelease
 
+      # A signing property that does not reach Gradle is not a build failure:
+      # Gradle writes app-release-unsigned.apk and the rename step below
+      # happily publishes that instead. This job asked for a signed build, so
+      # the absence of one has to end it rather than change what it ships.
+      - name: Assert the APK was actually signed
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: |
+          set -euo pipefail
+          signed=frontend/android/app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$signed" ]; then
+            echo "::error::Signing was configured but Gradle produced no signed APK." >&2
+            ls -l frontend/android/app/build/outputs/apk/release/ >&2 || true
+            exit 1
+          fi
+
       - name: Rename APK with version
         run: |
           mkdir -p artifacts
