@@ -111,6 +111,12 @@ describe("toggleLinePrefix", () => {
     expect(run(quote, "|one\n\ntwo|")).toBe("|> one\n\n> two|");
   });
 
+  it("does not reach the line after a selection that ends on a newline", () => {
+    // Selecting a whole line takes its newline with it, and that offset is the
+    // start of the next line — which the writer did not select.
+    expect(run(bullets, "|one\n|two")).toBe("|- one|\ntwo");
+  });
+
   it("only takes the prefix off when every written line has it", () => {
     expect(run(bullets, "|- one\ntwo|")).toBe("|- one\n- two|");
   });

@@ -187,8 +187,9 @@ const useRowCapacity = (count: number) => {
       return;
     }
 
-    // The overflow control is the same button as the first item, which never
-    // carries a separator — so that item's width is the control's width.
+    // The overflow control is exactly the first item: the same button, and no
+    // separator on either of them. So that item's width IS the control's, with
+    // nothing left over to clip a button the row thought it had room for.
     let used = known[0] + gap;
     let fitted = 0;
     for (const width of known) {
@@ -271,7 +272,6 @@ export const MarkdownToolbar = ({
       ))}
 
       <span hidden={overflowed.length === 0} className="flex shrink-0 items-center">
-        <Divider />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

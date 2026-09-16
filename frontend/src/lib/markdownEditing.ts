@@ -42,7 +42,11 @@ const replaceBlock = (
   rewrite: (block: string) => string
 ): MarkdownSelection => {
   const from = lineStart(value, start);
-  const to = lineEnd(value, end);
+  // A selection that runs to the end of a line takes the newline with it, and
+  // that offset is the START of the next line — a line the writer did not
+  // select. Step back off it, or the edit reaches a line nobody asked for.
+  const selected = end > start && value[end - 1] === "\n" ? end - 1 : end;
+  const to = lineEnd(value, selected);
   const next = rewrite(value.slice(from, to));
   const result = value.slice(0, from) + next + value.slice(to);
 
