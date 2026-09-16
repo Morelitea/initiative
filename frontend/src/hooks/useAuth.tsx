@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import {
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  renewSession,
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
@@ -240,22 +241,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(accessToken, false);
       };
 
-      const stored = readRefreshToken();
-      if (stored) {
+      if (readRefreshToken()) {
         // The access token is short-lived and was never written down, so the
         // launch begins by renewing rather than by being turned away once.
-        try {
-          const renewed = await apiClient.post<{
-            access_token: string;
-            refresh_token?: string;
-          }>("/auth/refresh", { refresh_token: stored });
-          adopt(renewed.data.access_token, renewed.data.refresh_token || stored);
-          return;
-        } catch {
-          clearRefreshToken();
-          carryOnWithDeviceToken();
+        //
+        // Through the shared coordinator rather than posting here: a refresh
+        // token is spent by its first use, and two requests carrying the same
+        // one read as a replay and revoke the chain. Anything else renewing at
+        // the same moment — a mount run twice, a request that raced this —
+        // joins the attempt already in flight instead of starting a second.
+        const renewed = await renewSession();
+        if (renewed) {
+          if (!cancelled) {
+            setTokenState(renewed);
+            setIsDeviceToken(false);
+          }
           return;
         }
+        clearRefreshToken();
+        carryOnWithDeviceToken();
+        return;
       }
 
       if (hasDeviceToken) {

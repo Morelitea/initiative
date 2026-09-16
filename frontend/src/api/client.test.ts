@@ -49,6 +49,37 @@ describe("renewal for a client that holds its own refresh token", () => {
     expect(readRefreshToken()).toBe("rt-new");
   });
 
+  it("renews on native rather than signing the app out", async () => {
+    // Native was excluded from renewal when the only credential it could hold
+    // was a device token that never expired — a 401 then really was the end.
+    // An app holding a refresh token is in the browser's position, and an
+    // expired access token has to renew rather than end the session.
+    const { Capacitor } = await import("@capacitor/core");
+    const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    storeRefreshToken("rt-native");
+    setHasActiveSession(true);
+    const signedOut = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, signedOut);
+
+    let renewed = false;
+    server.use(
+      http.get("/api/v1/users/me", () =>
+        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        renewed = true;
+        return HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" });
+      })
+    );
+
+    const response = await apiClient.get("/users/me");
+
+    expect(response.data).toEqual({ id: 1 });
+    expect(signedOut).not.toHaveBeenCalled();
+    window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, signedOut);
+    native.mockRestore();
+  });
+
   it("sends no body when there is nothing stored", async () => {
     let sentBody: string | null = null;
     let renewed = false;
