@@ -85,6 +85,7 @@ nav = [
     "en/security/how-your-data-is-kept-separate.md",
     "en/security/private-messages.md",
     "en/security/data-and-compliance.md",
+    "en/security/control-mapping.md",
     "en/security/reporting-a-problem.md",
   ] },
   { "Account & settings" = [
