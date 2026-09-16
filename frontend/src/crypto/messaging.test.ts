@@ -118,6 +118,7 @@ import {
   sendRemove,
   sendText,
   unreadIn,
+  wantThreadHistory,
 } from "./messaging";
 import {
   accountPickle,
@@ -129,6 +130,7 @@ import {
   peerKeyChanges,
   sessionForDevice,
   sessionPickle,
+  threadCatchUp,
 } from "./store";
 
 // Registration order matters: an ask only travels from a newer device to an
@@ -1346,6 +1348,221 @@ describe("history between this account's own devices", () => {
     expect(await messageLog.get("conv-1")).toEqual([]);
     // Taken off the server rather than retried forever.
     expect(api.ackQueue).toHaveBeenCalled();
+  });
+});
+
+describe("catching up on a group joined late", () => {
+  /** A second member, so it can be told which of them was asked. */
+  const SAM = { device_id: "device-8", identity_key: "sam", fingerprint_key: "fp" };
+
+  const asGroup = () => {
+    api.listConversations.mockResolvedValue({
+      conversations: [
+        {
+          id: "conv-1",
+          other_user_id: 7,
+          created_at: "2026-09-01T00:00:00Z",
+          kind: "group",
+          member_ids: [7, 9],
+        },
+      ],
+    });
+    api.readDirectory.mockImplementation(async (userId: number) =>
+      userId === 9 ? { user_id: 9, devices: [SAM] } : { user_id: 7, devices: [THEIRS] }
+    );
+    api.claimSessionKeys.mockImplementation(async (userId: number) => {
+      const device = userId === 9 ? SAM : THEIRS;
+      return {
+        user_id: userId,
+        devices: [{ ...device, one_time_key: { key_id: `k${userId}`, public_key: `pk${userId}` } }],
+      };
+    });
+  };
+
+  /** Every envelope handed to the server, with the device it was addressed to. */
+  const sent = () =>
+    api.sendMessages.mock.calls.flatMap(
+      ([, body]: [string, { messages: { recipient_device_id: string; payload: string }[] }]) =>
+        body.messages.map((message) => ({
+          to: message.recipient_device_id,
+          envelope: JSON.parse(JSON.parse(message.payload).body) as Record<string, unknown>,
+        }))
+    );
+
+  const asks = () => sent().filter((row) => row.envelope.kind === "thread-history-request");
+
+  it("asks one member, and the next only when the first has not answered", async () => {
+    asGroup();
+    await wantThreadHistory("conv-1");
+
+    await collect({ receipts: false });
+
+    // One member, not the whole roster: asking everybody at once lands the
+    // same thread here once per member.
+    expect(asks()).toHaveLength(1);
+    expect(asks()[0].to).toBe(THEIRS.device_id);
+
+    // Straight away again, and nobody else is disturbed: the first has had no
+    // chance to answer.
+    await collect({ receipts: false });
+    expect(asks()).toHaveLength(1);
+
+    // Once the wait is up, the next name on the roster.
+    const state = await threadCatchUp.get("conv-1");
+    await threadCatchUp.set("conv-1", { ...state!, at: "2026-09-01T00:00:00Z" });
+    await collect({ receipts: false });
+    expect(asks()).toHaveLength(2);
+    expect(asks()[1].to).toBe(SAM.device_id);
+  });
+
+  it("gives up once everybody on the roster has been asked", async () => {
+    asGroup();
+    await wantThreadHistory("conv-1");
+
+    for (let round = 0; round < 3; round += 1) {
+      const state = await threadCatchUp.get("conv-1");
+      if (state) await threadCatchUp.set("conv-1", { ...state, at: "2026-09-01T00:00:00Z" });
+      await collect({ receipts: false });
+    }
+
+    // Two members, two asks, and then it stops rather than going round again.
+    expect(asks()).toHaveLength(2);
+    expect(await threadCatchUp.get("conv-1")).toBeUndefined();
+  });
+
+  it("takes the thread it is sent, and stops asking once it is all there", async () => {
+    asGroup();
+    await wantThreadHistory("conv-1");
+    await collect({ receipts: false });
+    const { requestId } = (await threadCatchUp.get("conv-1"))!;
+
+    api.collectQueue.mockResolvedValueOnce({
+      items: [
+        queued({
+          id: 2,
+          payload: from(
+            "theirs",
+            JSON.stringify({
+              v: 1,
+              kind: "thread-history",
+              requestId,
+              seq: 1,
+              last: true,
+              messages: [
+                // No author: the member serving it does not name itself in its
+                // own log, and the session it arrives on says who they are.
+                {
+                  id: "m1",
+                  at: "2026-09-01T00:00:00Z",
+                  body: "said before you answered",
+                  mine: false,
+                },
+              ],
+            })
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    expect(await messageLog.get("conv-1")).toMatchObject([
+      { id: "m1", body: "said before you answered", mine: false, author: 7 },
+    ]);
+    // Answered, so nothing is asked of anybody else.
+    expect(await threadCatchUp.get("conv-1")).toBeUndefined();
+  });
+
+  it("ignores a transfer that answers no ask of its own", async () => {
+    asGroup();
+    api.collectQueue.mockResolvedValueOnce({
+      items: [
+        queued({
+          payload: from(
+            "theirs",
+            JSON.stringify({
+              v: 1,
+              kind: "thread-history",
+              requestId: "never-asked",
+              seq: 1,
+              last: true,
+              messages: [
+                { id: "m9", at: "2026-09-01T00:00:00Z", body: "unasked for", mine: false },
+              ],
+            })
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    expect(await messageLog.get("conv-1")).toEqual([]);
+  });
+
+  it("sends its own thread to a member who asks, from their side of it", async () => {
+    asGroup();
+    await messageLog.append("conv-1", {
+      id: "m1",
+      at: "2026-09-01T00:00:00Z",
+      body: "mine",
+      mine: true,
+      receipt: "read",
+    });
+    await messageLog.append("conv-1", {
+      id: "m2",
+      at: "2026-09-01T00:01:00Z",
+      body: "theirs",
+      mine: false,
+      author: 7,
+    });
+    api.collectQueue.mockResolvedValueOnce({
+      items: [
+        queued({
+          payload: from(
+            "theirs",
+            JSON.stringify({ v: 1, kind: "thread-history-request", requestId: "r1" })
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    const served = sent().filter((row) => row.envelope.kind === "thread-history");
+    const carried = served.flatMap(
+      (row) => (row.envelope.messages ?? []) as Record<string, unknown>[]
+    );
+    // A log is written from its holder's own side, so what is handed over is
+    // turned around: this account's own message arrives as theirs. It carries
+    // no author, because a log does not name the person keeping it -- the far
+    // end fills that in from the session the transfer came on, which is the
+    // next test.
+    expect(carried).toEqual([
+      expect.objectContaining({ id: "m1", body: "mine", mine: false }),
+      expect.objectContaining({ id: "m2", body: "theirs", mine: false, author: 7 }),
+    ]);
+    expect(carried[0].author).toBeUndefined();
+    // Receipts are this account's record of where its own copies got to.
+    expect(carried[0]).not.toHaveProperty("receipt", "read");
+    // Terminated, so the far end knows it has the lot and stops asking.
+    expect(served.at(-1)?.envelope).toMatchObject({ last: true, messages: [] });
+  });
+
+  it("says nothing about a transfer, because it is not news", async () => {
+    asGroup();
+    await wantThreadHistory("conv-1");
+
+    await collect({ receipts: false });
+
+    const askedWith = api.sendMessages.mock.calls.find(
+      ([, body]: [string, { messages: { payload: string }[] }]) =>
+        body.messages.some(
+          (message) =>
+            JSON.parse(JSON.parse(message.payload).body).kind === "thread-history-request"
+        )
+    );
+    expect(askedWith?.[1]).toMatchObject({ silent: true });
   });
 });
 

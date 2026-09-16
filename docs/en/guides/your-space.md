@@ -41,7 +41,7 @@ The tool, the search, the order, the page and the communities you picked all liv
 
 ## My Messages
 
-Your private conversations — one to one, end-to-end encrypted, and the only page here whose contents live on your device rather than on the server.
+Your private conversations — two people or a few, end-to-end encrypted, and the only page here whose contents live on your device rather than on the server.
 
 Beside them is everyone you can reach. Unread first, then the people you starred, then your connections, then everybody else — each group folds away and stays folded. **Requests waiting on you** sit above the lot, connection or message, either direction, so answering one doesn't mean going rummaging in Settings.
 

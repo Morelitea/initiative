@@ -6,20 +6,18 @@ icon: lucide/message-square
 
 Sometimes the thing you need to say really doesn't belong on a task.
 
-**Messages** are private one-to-one conversations. They're end-to-end encrypted, which means what you write can be read by the person you sent it to and by absolutely nobody else — not a community admin, not whoever runs the server, and not us.
+**Messages** are private conversations — two of you, or a few. They're end-to-end encrypted, which means what you write can be read by the people you sent it to and by absolutely nobody else — not a community admin, not whoever runs the server, and not us.
 
 Open them from the **Initiative logo** in the top-left corner, then **My Messages**.
 
-!!! info "One to one, on purpose"
-    There are no group messages, and there aren't going to be — because you've already got somewhere better to have that conversation.
+!!! info "A message with a few people on it, not a room"
+    A group message here is a thread. It has no name, no topic, no pinned post and nobody in charge of it — it's the people on it, the way a text with three friends is.
 
-    **Everything in Initiative has comments.** Projects, tasks, documents, queues, counters, calendars, dashboards, posts, the lot. So the discussion about a thing lives *on* that thing, right where the next person will find it, instead of forty messages upstream of where they started reading.
+    That's deliberate, because the conversation about your *work* has a better home. **Everything in Initiative has comments** — projects, tasks, documents, queues, counters, calendars, dashboards, posts, the lot — so the discussion about a thing lives *on* that thing, where the next person finds it. **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back.
 
-    **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back. This is a genuinely nice feeling and we recommend it.
+    Which is the trouble with the other kind: somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
 
-    Which is the real trouble with a group chat: somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
-
-    Messages are for the quiet word on the side. Different job, and the one they're good at.
+    Messages are for the quiet word on the side. Sometimes three of you need to have it.
 
 !!! screenshot "My Messages"
     **Show:** the Messages page with a conversation open — the list of people on the left, a thread on the right, and the encrypted notice under the title.
@@ -66,6 +64,28 @@ Accept it and a conversation opens for both of you. Decline it and the request s
 
 Requests waiting on you are on **My Messages**, above the conversations, and under **User settings → Privacy → Pending**.
 
+## Talking to a few people at once
+
+Same button. **Start a conversation**, then keep adding people — once there's more than one, it offers **Start a group with 3 people** and you're making a group instead.
+
+Everyone you name is **asked**, including when none of you has ever messaged before. Starting the group *is* the request: they see who else is on it, and nothing reaches them until they say yes.
+
+A few things follow from a group being a thread rather than a room:
+
+- **It's called who's on it.** No name to think of, no name to argue about. Propose the same people again and you land back in the thread you already have, rather than a second identical one.
+- **Nobody joins later.** Wanting one more person is a new conversation, which everybody agrees to afresh — including the people who were already talking. It's a slightly annoying rule that buys you a real one: nobody is ever reading a thread they didn't agree to be in.
+- **Nobody is in charge.** No owner, and no way to remove anyone. You can leave, that's it.
+- **Everyone has to be able to reach everyone.** Not just you and them — them and them. If two people on your list can't message each other, Initiative says so while you're still choosing, and the fix is a connection or a wider [privacy setting](#who-can-reach-you).
+- **At most 40 people.** Well past the point where this is the right shape for the conversation, which is rather the idea.
+
+Somebody who declined, or who left, can be asked again another time. A no is about today.
+
+### If you say yes a bit later
+
+Nothing is held for you while you're deciding — there's no copy on the server to hold. So when you join, one of the others sends you the thread from their own device, as much of it as they still have.
+
+Which means it might not be all of it, and it might arrive a minute after you do, and if everybody else has their laptop shut it'll turn up when one of them opens it. Genuinely the best anybody can do when the server can't read a word of it.
+
 ## Ignoring someone
 
 Ignoring is the firm answer, for when the polite one hasn't worked. From the actions menu on any profile, conversation or roster row, choose **Ignore**.
@@ -81,7 +101,7 @@ This is the bit to read before you rely on it, because it genuinely works differ
 A message is delivered to your devices and then **deleted from the server**. There is no copy in the middle for a new device to catch up from. So:
 
 - **Each device keeps its own copy** of a conversation.
-- **A device that wasn't there doesn't have the history.** Sign in on a new laptop and your conversations are there, but they start from the moment that laptop joined them.
+- **A device that wasn't there doesn't have the history.** Sign in on a new laptop and your conversations are there, but they start from the moment that laptop joined them. Your other device can offer to send it across, and a group will catch you up when you join it — but there's nothing on the server to fall back on.
 - **Signing out takes this device's copy with it.** Exactly what you want on a shared computer, and exactly what you don't want if you were hoping to read them again — so keep the conversations that matter on a device you stay signed in to.
 
 If the person you're writing to has never opened Messages, there's no device to deliver to yet, and Initiative tells you so rather than pretending the message went.

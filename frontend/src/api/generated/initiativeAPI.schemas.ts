@@ -2691,13 +2691,30 @@ export interface DmConversationCreate {
   user_id: number;
 }
 
+/**
+ * One person on a conversation, as a client has to draw them.
+ *
+ * The public projection of an account and nothing else: what it is called,
+ * the picture, and what is worn around it. A real name is absent because a
+ * real name is a per-community disclosure and a conversation is outside every
+ * community.
+ */
+export interface DmRosterMember {
+  user_id: number;
+  username: string;
+  discriminator: number;
+  avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput;
+  presence?: Presence;
+}
+
 export interface DmConversationRead {
   id: string;
   other_user_id: number;
   created_at: string;
   kind?: string;
   member_ids?: number[];
-  member_handles?: string[];
+  members?: DmRosterMember[];
   pending?: boolean;
 }
 
