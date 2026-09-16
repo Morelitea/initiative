@@ -54,7 +54,7 @@ export function SettingsGuildAppsPage() {
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
 
   const apps = appsQuery.data?.items ?? [];
 

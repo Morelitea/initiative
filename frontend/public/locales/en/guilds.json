@@ -465,6 +465,7 @@
     "person": "Member",
     "name": "Name",
     "admin": "Admin",
+    "securityAdmin": "Security admin",
     "alsoIn": "Also in",
     "actions": "Actions",
     "failed": "This community's members could not be loaded.",

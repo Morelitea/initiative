@@ -52,6 +52,10 @@ class AuditEventType(str, Enum):
     #: apart from ``issued``, because nothing was issued — this is the one
     #: that reads as movement onto the session path.
     AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
+    #: Who holds a guild's sign-in configuration changed. An operator seats
+    #: the first one; from then on the seat is passed on by whoever holds it,
+    #: and both paths record this.
+    GUILD_SECURITY_ADMIN_CHANGED = "guild.security_admin_changed"
 
 
 class AuditCategory(str, Enum):
@@ -117,6 +121,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.GUILD_SECURITY_ADMIN_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
 }

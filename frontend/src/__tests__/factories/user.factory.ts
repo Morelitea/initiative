@@ -82,6 +82,7 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
  *  pass on a field the real payload never carries. */
 export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSummary {
   counter++;
+  const guildRole = overrides.guild_role;
   return {
     id: counter,
     username: `user-${counter}`,
@@ -89,6 +90,7 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
+    is_guild_admin: guildRole === "admin" || guildRole === "security_admin",
     ...overrides,
   };
 }
@@ -148,13 +150,15 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
 
 export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): UserGuildMember {
   counter++;
+  const guildRole = overrides.guild_role ?? "member";
   return {
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
-    guild_role: "member",
+    guild_role: guildRole,
+    is_guild_admin: guildRole === "admin" || guildRole === "security_admin",
     oidc_managed: false,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",

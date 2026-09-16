@@ -58,6 +58,9 @@ const person = (id: number, username: string, overrides: Record<string, unknown>
   full_name: null,
   avatar_url: null,
   status: "active" as const,
+  // The server answers "does this one administer the place"; a role override
+  // here carries it, the way the real payload does.
+  is_guild_admin: overrides.guild_role === "admin" || overrides.guild_role === "security_admin",
   ...overrides,
 });
 

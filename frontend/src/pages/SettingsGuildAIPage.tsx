@@ -28,7 +28,7 @@ export const SettingsGuildAIPage = () => {
   const { t } = useTranslation("settings");
   const { activeGuild, activeGuildReadOnly } = useGuilds();
   const guildId = useActiveGuildId();
-  const isGuildAdmin = activeGuild?.role === "admin" && !activeGuildReadOnly;
+  const isGuildAdmin = (activeGuild?.is_admin ?? false) && !activeGuildReadOnly;
 
   // The member view is the readable-by-anyone source of the global AI mode.
   const modeQuery = useMemberAI(guildId, { enabled: isGuildAdmin });

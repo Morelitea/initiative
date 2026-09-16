@@ -368,9 +368,8 @@ def _require_guild_admin(guild_context: GuildContext) -> None:
     """Guild-scope exports are for guild admins — real membership, not a
     break-glass stand-in (the adapter re-checks actual membership, so a
     synthesized admin role would only fail later; reject it up front)."""
-    from app.models.platform.guild import GuildRole
 
-    if guild_context.grant is not None or guild_context.role != GuildRole.admin:
+    if guild_context.grant is not None or not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ExportMessages.EXPORT_ADMIN_REQUIRED,

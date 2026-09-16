@@ -13,6 +13,7 @@ from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
+    GUILD_ADMIN_ROLES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -274,7 +275,7 @@ async def enroll_new_member_in_auto_join_initiatives(
     whole excursion sits inside a savepoint: landing somewhere useful is a
     convenience, and it must never be the reason someone's guild join fails.
     """
-    if role == GuildRole.admin:
+    if role in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service
@@ -322,7 +323,7 @@ async def align_admin_initiative_roles(
     reconciling rows underneath it must never be what makes it fail. Flush-only;
     the caller owns the transaction.
     """
-    if role != GuildRole.admin:
+    if role not in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service
@@ -456,7 +457,11 @@ async def get_membership(
         GuildMembership.user_id == user_id,
     )
     if for_update:
-        stmt = stmt.with_for_update()
+        # ``populate_existing`` so the lock returns what the row holds *now*:
+        # an instance already in the identity map would otherwise come back as
+        # it was first read, which is the state the lock was taken to leave
+        # behind.
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
 
@@ -516,13 +521,13 @@ async def list_memberships(
         # absent for members.
         if (
             guild.status == GuildStatus.suspended.value
-            and membership.role != GuildRole.admin
+            and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         retention: int | None = None
         administration: GuildAdministration | None = None
-        if membership.role == GuildRole.admin:
+        if membership.role in GUILD_ADMIN_ROLES:
             row = (
                 await session.exec(
                     select(GuildSetting).where(GuildSetting.guild_id == guild.id)

@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
 from app.models.tenant.initiative import (
@@ -181,8 +181,15 @@ async def sync_oidc_assignments(
         )
         if membership:
             # Only a row this provider manages. One somebody joined by
-            # hand, or another provider's, is not this sync's to move.
-            if desired is not None and membership.oidc_provider_id == provider_id:
+            # hand, or another provider's, is not this sync's to move — and
+            # neither is a security admin: that seat is passed on by an
+            # operator or by somebody already holding it, never by a rule
+            # matching a claim value.
+            if (
+                desired is not None
+                and membership.oidc_provider_id == provider_id
+                and membership.role != GuildRole.security_admin
+            ):
                 role = GuildRole(desired)
                 if membership.role != role:
                     membership.role = role
@@ -201,7 +208,7 @@ async def sync_oidc_assignments(
             # Nobody was at a keyboard for this one — it is the case the
             # standing checks exist for. Their tabs re-read the account.
             account_stream.queue_account_signal(session, user_id, "membership")
-            if role != GuildRole.admin:
+            if role not in GUILD_ADMIN_ROLES:
                 newly_admitted_guilds.add(guild_id)
             # Event-driven seats (billing plan D5); no-op unless billing is
             # configured. Once per changed guild, not per member row.
@@ -347,6 +354,7 @@ async def sync_oidc_assignments(
             select(GuildMembership.guild_id).where(
                 GuildMembership.user_id == user_id,
                 GuildMembership.oidc_provider_id == provider_id,
+                GuildMembership.role != GuildRole.security_admin,
             )
         )
     ).all()

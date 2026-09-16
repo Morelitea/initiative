@@ -239,7 +239,7 @@ export function CommandCenter() {
     scopeQuery.isSuccess &&
     !scopeQuery.isPlaceholderData;
 
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const showPlatformSettings = canManagePlatformConfig(user);
   const showAdminDashboard = canAccessAdminDashboard(user);
 

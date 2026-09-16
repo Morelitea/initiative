@@ -35,7 +35,7 @@ from typing import Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildMembership
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
@@ -80,7 +80,7 @@ async def _installer_user_id(
             select(GuildMembership.user_id)
             .where(
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
+                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
             .order_by(GuildMembership.user_id)
             .limit(1)

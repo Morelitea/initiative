@@ -89,7 +89,7 @@ export const SettingsUsersPage = () => {
   const { activeGuild } = useGuilds();
   const { billing, openPortal } = useBillingPortal();
   // Guild admin check is based on guild membership role only (independent from platform role)
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
 
   const activeGuildId = activeGuild?.id ?? null;
 
@@ -153,8 +153,7 @@ export const SettingsUsersPage = () => {
   // Ownership can only be handed to a guild admin, so the picker is the guild's
   // admin roster rather than every member.
   const guildAdmins = useMemo(
-    () =>
-      (usersQuery.data ?? []).filter((m) => m.guild_role === "admin" && m.status !== "anonymized"),
+    () => (usersQuery.data ?? []).filter((m) => m.is_guild_admin && m.status !== "anonymized"),
     [usersQuery.data]
   );
 

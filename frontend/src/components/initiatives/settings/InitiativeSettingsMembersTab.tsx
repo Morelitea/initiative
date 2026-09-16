@@ -84,7 +84,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         (usersQuery.data ?? [])
-          .filter((candidate) => candidate.guild_role === "admin")
+          .filter((candidate) => candidate.is_guild_admin)
           .map((candidate) => candidate.id)
       ),
     [usersQuery.data]

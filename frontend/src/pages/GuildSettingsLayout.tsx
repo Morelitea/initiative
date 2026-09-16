@@ -13,7 +13,7 @@ import { matchActiveTab } from "@/lib/tabs";
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };

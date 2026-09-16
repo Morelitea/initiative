@@ -91,7 +91,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const isInitiativeManager = Boolean(membership?.is_manager);
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);

@@ -47,7 +47,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const { billing, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
-  const isAdmin = guild.role === "admin";
+  const isAdmin = guild.is_admin;
   const [creatingInvite, setCreatingInvite] = useState(false);
   // A guild at its seat cap mints no invite (the server refuses), so the item
   // says so rather than handing back an error toast. Both fields are

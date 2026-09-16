@@ -212,7 +212,7 @@ const InitiativeManagersCell = ({
 export const SettingsInitiativesPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
 
   // The guild-wide listing, not the admin's own memberships — this table is
   // where they manage initiatives they have not joined.
@@ -228,8 +228,7 @@ export const SettingsInitiativesPage = () => {
     [usersQuery.data]
   );
   const adminUserIds = useMemo(
-    () =>
-      new Set(candidates.filter((candidate) => candidate.guild_role === "admin").map((c) => c.id)),
+    () => new Set(candidates.filter((candidate) => candidate.is_guild_admin).map((c) => c.id)),
     [candidates]
   );
 

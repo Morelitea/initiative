@@ -16,7 +16,7 @@ from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.audit_event import AuditEvent
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
@@ -1018,7 +1018,10 @@ async def admin_update_guild_member_role(
         )
 
     # Check if demoting the last guild admin
-    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
+    if (
+        target_membership.role in GUILD_ADMIN_ROLES
+        and payload.role not in GUILD_ADMIN_ROLES
+    ):
         if await users_service.is_last_admin_of_guild(
             session, guild_id, user_id, for_update=True
         ):
@@ -1027,8 +1030,21 @@ async def admin_update_guild_member_role(
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
             )
 
+    previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
+    if GuildRole.security_admin in (previous_role, payload.role):
+        # An operator seats a guild's first security admin here; the guild's own
+        # role endpoint records the same event when the seat is passed on.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
+            actor_user_id=_current_user.id,
+            target_user_id=user_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

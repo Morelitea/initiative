@@ -3,12 +3,7 @@ import { GripVertical } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type GuildRole,
-  type InitiativeRead,
-  type ProjectRead,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import { type InitiativeRead, type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -43,7 +38,7 @@ interface ProjectLinkProps {
 export const canPinProject = (
   project: ProjectRead,
   userId?: number,
-  guildRole?: GuildRole
+  isGuildAdmin?: boolean
 ): boolean => {
   if (!userId) return false;
 
@@ -52,8 +47,9 @@ export const canPinProject = (
   // the read-only indicator.
   if (project.archived_at !== null) return false;
 
-  // Guild admins can always pin
-  if (guildRole === "admin") return true;
+  // Guild admins can always pin. Which roles count is the server's answer,
+  // carried on the guild.
+  if (isGuildAdmin) return true;
 
   // Manager standing in this project's initiative — `is_manager` is the flag
   // the role carries, so a renamed or additional managing role counts.
@@ -77,7 +73,7 @@ export const ProjectCardLink = ({
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.role);
+  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
 
   return (
     <div className="relative">
@@ -176,7 +172,7 @@ export const ProjectRowLink = ({
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.role);
+  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
   return (
     <div className="relative">
       {dragHandleProps ? (

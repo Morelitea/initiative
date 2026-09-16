@@ -42,7 +42,7 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -954,7 +954,7 @@ async def delete_comment(
     initiative_id = ctx.initiative_id
 
     is_author = comment.created_by == user.id
-    is_guild_admin = guild_role == GuildRole.admin
+    is_guild_admin = guild_role in GUILD_ADMIN_ROLES
     is_initiative_manager = False
     if not is_author and not is_guild_admin and initiative_id is not None:
         is_initiative_manager = await rls_service.is_initiative_manager(

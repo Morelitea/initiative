@@ -47,7 +47,7 @@ from app.core.user_input_validators import (
 )
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import GuildRole, GuildMembership
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
@@ -228,11 +228,21 @@ async def list_users(
     for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
+        member.is_guild_admin = guild_role in GUILD_ADMIN_ROLES
         member.oidc_managed = oidc_provider_id is not None
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
     return response
+
+
+def _membership_standing(role: GuildRole | None) -> dict[str, object]:
+    """The two membership fields a picker row carries: the role to show, and
+    whether it administers the guild — which is the question a caller asks."""
+    return {
+        "guild_role": role.value if role is not None else None,
+        "is_guild_admin": role in GUILD_ADMIN_ROLES,
+    }
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
@@ -314,7 +324,7 @@ async def search_users(
     return UserSummaryListResponse(
         items=[
             UserSummary.model_validate(user).model_copy(
-                update={"guild_role": roles.get(user.id)}
+                update=_membership_standing(roles.get(user.id))
             )
             for user in users
         ],
@@ -1467,7 +1477,7 @@ async def _require_receiving_admin(
                 MemberProfile.id == new_owner_id,
                 MemberProfile.status == UserStatus.active,
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
+                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
         )
     ).one_or_none()

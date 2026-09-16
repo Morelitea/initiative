@@ -317,3 +317,62 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
             select(GuildMembership).where(GuildMembership.user_id == person.id)
         )
     ).all()
+
+
+@pytest.mark.integration
+async def test_stale_provider_claim_preserves_a_promoted_security_admin(
+    session: AsyncSession,
+):
+    provider = await create_auth_provider(session, slug="corp")
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner, name="Corp")
+    person = await create_user(session)
+    rule = OIDCClaimMapping(
+        provider_id=provider.id,
+        claim_value="staff",
+        target_type=OIDCMappingTargetType.guild,
+        guild_id=guild.id,
+        guild_role=GuildRole.member.value,
+    )
+    session.add(rule)
+    await session.commit()
+
+    await set_rls_context(session)
+    await sync_oidc_assignments(
+        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+    )
+    await session.commit()
+
+    session.expunge_all()
+    await set_rls_context(session)
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == person.id,
+                GuildMembership.guild_id == guild.id,
+            )
+        )
+    ).one()
+    membership.role = GuildRole.security_admin
+    session.add(membership)
+    await session.delete(await session.get(OIDCClaimMapping, rule.id))
+    await session.commit()
+
+    await set_rls_context(session)
+    result = await sync_oidc_assignments(
+        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+    )
+
+    session.expunge_all()
+    await set_rls_context(session)
+    preserved = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == person.id,
+                GuildMembership.guild_id == guild.id,
+            )
+        )
+    ).one_or_none()
+    assert preserved is not None
+    assert preserved.role == GuildRole.security_admin
+    assert result.guilds_removed == []

@@ -26,7 +26,7 @@ from typing import Collection, Iterable, Optional
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.models.tenant.initiative import InitiativeMember
 
 
@@ -189,4 +189,4 @@ async def is_guild_admin(session: AsyncSession, guild_id: int, user_id: int) -> 
     """Whether the user is an admin of the guild. Shared table — works on any
     session."""
     role = (await guild_role_map(session, guild_id, (user_id,))).get(user_id)
-    return role == GuildRole.admin
+    return role in GUILD_ADMIN_ROLES

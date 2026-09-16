@@ -465,6 +465,7 @@
     "person": "Miembro",
     "name": "Nombre",
     "admin": "Administrador",
+    "securityAdmin": "Administrador de seguridad",
     "alsoIn": "También en",
     "actions": "Acciones",
     "failed": "No se pudieron cargar los miembros de esta comunidad.",

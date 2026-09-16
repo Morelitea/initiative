@@ -51,7 +51,7 @@ export function deriveGuildAccess(
   guild: GuildEntry | null | undefined,
   user: Pick<UserRead, "capabilities"> | null | undefined
 ): GuildAccessContext {
-  const isGuildAdmin = guild?.role === "admin";
+  const isGuildAdmin = guild?.is_admin ?? false;
   const isGrantGuild = guild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && guild?.grantAccessLevel === "read_write";
   const isBreakGlass = grantReadWrite && hasCapability(user, Capability.dataBypass);

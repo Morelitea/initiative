@@ -65,7 +65,7 @@ export function MarketplaceListingPage() {
   const backToShelf = { kind: parseCommunityShelf(shelf ?? listing?.kind) };
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   // Whether this guild already has it. Every member may read the installs, so
   // this answers for the person asking as well as the one who could act.
   //
