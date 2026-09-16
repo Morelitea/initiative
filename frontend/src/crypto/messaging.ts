@@ -76,6 +76,8 @@ interface Destination {
   id: string;
   identityKey: string;
   origin: SessionOrigin;
+  /** Whose device this is. Absent on this account's own. */
+  userId?: number;
 }
 
 /**
@@ -273,7 +275,7 @@ export async function unreadIn(conversationId: string): Promise<number> {
  */
 export async function markRead(
   conversationId: string,
-  { otherUserId, receipts = true }: { otherUserId?: number; receipts?: boolean } = {}
+  { memberIds, receipts = true }: { memberIds?: number[]; receipts?: boolean } = {}
 ): Promise<number> {
   const [log, seen] = await Promise.all([
     messageLog.get(conversationId),
@@ -287,10 +289,10 @@ export async function markRead(
   if (newly.length === 0) return 0;
 
   await lastRead.set(conversationId, newly[newly.length - 1].id);
-  if (receipts && otherUserId !== undefined) {
+  if (receipts && memberIds !== undefined) {
     await acknowledge(
       conversationId,
-      otherUserId,
+      memberIds,
       newly.map((message) => message.id),
       "read"
     );
@@ -350,13 +352,21 @@ async function openOutboundSession(
  */
 async function claimKeysFor(
   missing: Destination[],
-  otherUserId: number,
   ownDeviceId: string
 ): Promise<Map<string, string>> {
   const keys = new Map<string, string>();
   const claims = [];
-  if (missing.some((destination) => destination.origin === "other")) {
-    claims.push(claimSessionKeys(otherUserId));
+  // One claim per account that still needs a session opened with it, rather
+  // than one per device: the endpoint answers for the whole account, and asking
+  // twice would spend two of their prekeys where one covers it.
+  const accounts = new Set(
+    missing
+      .filter((destination) => destination.origin === "other")
+      .map((destination) => destination.userId)
+      .filter((userId): userId is number => userId !== undefined)
+  );
+  for (const userId of accounts) {
+    claims.push(claimSessionKeys(userId));
   }
   if (missing.some((destination) => destination.origin === "self")) {
     claims.push(claimOwnSessionKeys({ device_id: ownDeviceId }));
@@ -556,29 +566,46 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * Encrypt one envelope for every device that should see it and hand the
  * ciphertext to the server.
  *
- * Returns whether it reached the other party at all -- as opposed to only this
+ * One copy per destination device, which is what carries a group: there is no
+ * group key, so a roster of four costs four times what a pair costs and every
+ * member's copy travels on the pairwise ratchet that was already there.
+ *
+ * Returns whether it reached anybody else at all -- as opposed to only this
  * account's own devices, which is what "nobody there to read it" looks like
- * from here.
+ * from here. Anybody, not everybody: one member with no devices published must
+ * not stop the rest hearing it.
  */
 async function sendEnvelope(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope,
   { toSelf, silent = false }: { toSelf: boolean; silent?: boolean }
 ): Promise<boolean> {
   const { id: mine, devices: ourDevices } = await ensureDeviceContext();
 
   // The directory rather than a claim: reading it spends nothing, and most
-  // messages go to devices this one already has a session with.
-  const theirs = await readDirectory(otherUserId);
-  if (theirs.devices.length === 0) return false;
+  // messages go to devices this one already has a session with. One member
+  // being unreadable is not the others being unreadable, so each is asked for
+  // separately and a failure only removes that member.
+  const directories = await Promise.all(
+    memberIds.map(async (userId) => {
+      try {
+        return { userId, devices: (await readDirectory(userId)).devices };
+      } catch {
+        return { userId, devices: [] };
+      }
+    })
+  );
 
   const destinations: Destination[] = [
-    ...theirs.devices.map((device) => ({
-      id: device.device_id,
-      identityKey: device.identity_key,
-      origin: "other" as const,
-    })),
+    ...directories.flatMap(({ userId, devices }) =>
+      devices.map((device) => ({
+        id: device.device_id,
+        identityKey: device.identity_key,
+        origin: "other" as const,
+        userId,
+      }))
+    ),
     // A receipt is about their message and is for them, so it does not go to
     // this account's own tabs; an outgoing message does, or their copy of the
     // thread would be missing this side of it.
@@ -604,7 +631,7 @@ async function sendEnvelope(
   }
   const missing = destinations.filter((destination) => !held.get(destination.id));
   const claimed =
-    missing.length > 0 ? await claimKeysFor(missing, otherUserId, mine) : new Map<string, string>();
+    missing.length > 0 ? await claimKeysFor(missing, mine) : new Map<string, string>();
 
   const messages = [];
   let reachedThem = false;
@@ -632,9 +659,9 @@ async function sendEnvelope(
     });
   }
 
-  // Nothing goes out at all if it could not reach them: an envelope this
-  // account's own tabs hold and the other party never got would put a message
-  // in their thread that was never said to anybody.
+  // Nothing goes out at all if it reached nobody: an envelope this account's
+  // own tabs hold and nobody else ever got would put a message in their thread
+  // that was never said to anybody.
   if (!reachedThem) return false;
 
   await sendMessages(conversationId, { messages, silent });
@@ -651,7 +678,7 @@ async function sendEnvelope(
  */
 export async function sendText(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   body: string,
   { replyTo }: { replyTo?: string } = {}
 ): Promise<StoredMessage> {
@@ -666,7 +693,7 @@ export async function sendText(
   // Their devices were all there was to address and none could be opened.
   // Nothing is sent, here or later, so the thread should not show a message as
   // though something had been.
-  if (!(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true }))) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 
@@ -697,12 +724,10 @@ export async function sendText(
  */
 async function sendControl(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope
 ): Promise<void> {
-  if (
-    !(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true }))
-  ) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true, silent: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 }
@@ -729,13 +754,13 @@ async function actOn(
  */
 export async function sendReaction(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   emoji: string,
   on: boolean
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: false }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "reaction", targetId, emoji, on });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "reaction", targetId, emoji, on });
   return messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
 }
 
@@ -751,7 +776,7 @@ export async function sendReaction(
  */
 export async function sendEdit(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   body: string
 ): Promise<boolean> {
@@ -759,18 +784,18 @@ export async function sendEdit(
   if (!entry || entry.body === body) return false;
   const at = new Date().toISOString();
   const rev = (entry.rev ?? 0) + 1;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body, rev });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "edit", targetId, at, body, rev });
   return messageLog.applyEdit(conversationId, targetId, body, at, "mine", rev);
 }
 
 /** Take one of your own messages back. */
 export async function sendRemove(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: true }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "remove", targetId });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "remove", targetId });
   return messageLog.applyRemove(conversationId, targetId, "mine", new Date().toISOString());
 }
 
@@ -783,7 +808,7 @@ export async function sendRemove(
  */
 export async function acknowledge(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   ids: string[],
   state: ReceiptState
 ): Promise<void> {
@@ -791,7 +816,7 @@ export async function acknowledge(
   try {
     await sendEnvelope(
       conversationId,
-      otherUserId,
+      memberIds,
       { v: 1, kind: "receipt", state, ids },
       // Nothing to announce: a receipt says a client collected or read
       // something, which is not a person saying anything to anybody.
@@ -828,9 +853,20 @@ async function identitiesForPreKeys(
   for (const conversation of conversations.conversations) {
     if (!conversationIds.has(conversation.id)) continue;
     try {
-      const theirs = await readDirectory(conversation.other_user_id);
+      const roster = conversation.member_ids?.length
+        ? conversation.member_ids
+        : [conversation.other_user_id];
+      const directories = await Promise.all(
+        roster.map(async (userId) => {
+          try {
+            return (await readDirectory(userId)).devices;
+          } catch {
+            return [];
+          }
+        })
+      );
       candidates.set(conversation.id, [
-        ...theirs.devices.map((device) => ({
+        ...directories.flat().map((device) => ({
           id: device.device_id,
           identityKey: device.identity_key,
           origin: "other" as const,
@@ -1463,7 +1499,10 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
     for (const conversation of conversations.conversations) {
       const ids = landed.get(conversation.id);
       if (ids) {
-        await acknowledge(conversation.id, conversation.other_user_id, ids, "delivered");
+        const roster = conversation.member_ids?.length
+          ? conversation.member_ids
+          : [conversation.other_user_id];
+        await acknowledge(conversation.id, roster, ids, "delivered");
       }
     }
   }
