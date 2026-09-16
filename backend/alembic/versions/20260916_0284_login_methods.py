@@ -18,8 +18,8 @@ row rewrite, and no policy-bound DML to route around ``FORCE ROW LEVEL
 SECURITY``. ``app_settings`` is granted table-wide to the owner tier, so the
 column arrives writable.
 
-Revision ID: 20260916_0282
-Revises: 20260916_0281
+Revision ID: 20260916_0284
+Revises: 20260916_0283
 Create Date: 2026-09-16
 """
 
@@ -27,8 +27,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20260916_0282"
-down_revision = "20260916_0281"
+revision = "20260916_0284"
+down_revision = "20260916_0283"
 branch_labels = None
 depends_on = None
 

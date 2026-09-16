@@ -24,7 +24,7 @@ class LoginMethod(str, Enum):
     sso = "sso"
 
 
-#: Mirrors the Postgres enum type created in migration 0282. A value added to
+#: Mirrors the Postgres enum type created in migration 0284. A value added to
 #: one has to be added to the other.
 LOGIN_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in LoginMethod)
 
