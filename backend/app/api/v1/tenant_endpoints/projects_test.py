@@ -187,6 +187,9 @@ async def test_search_project_members_returns_write_access_set(
         "guild_role",
         "is_guild_admin",
     }
+    by_username = {item["username"]: item for item in body["items"]}
+    assert by_username[admin.user.username]["is_guild_admin"] is True
+    assert by_username["quill"]["is_guild_admin"] is False
 
     # The filter matches what the guild renders — the handle always.
     response = await client.get(
