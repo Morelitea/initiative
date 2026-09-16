@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
-from app.core.config import AuthScope
+from app.core.login_methods import LoginMethod
 from app.core.user_input_validators import validate_provider_slug
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -104,7 +104,6 @@ class AuthProviderUpdate(SanitizedBaseModel):
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    auth_scope: AuthScope
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
@@ -126,15 +125,49 @@ class OIDCSettingsUpdate(SanitizedBaseModel):
     scopes: List[str] = Field(default_factory=list)
 
 
+class LoginMethodStatus(SanitizedBaseModel):
+    """One way in, and what withdrawing it would cost."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    method: LoginMethod
+    enabled: bool
+    #: Accounts that can sign in today and could not if this method were
+    #: withdrawn. Computed for every method, withdrawn or not, so the settings
+    #: page can warn before the write rather than after a refusal — and so the
+    #: number an operator acknowledges is one they were shown.
+    would_strand: int
+
+
+class PlatformAuthSettingsResponse(SanitizedBaseModel):
+    """The ways in this deployment permits, with the facts a change would turn
+    on."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    methods: List[LoginMethodStatus]
+    #: Guilds that require a sign-in through a provider of their own.
+    #: Withdrawing single sign-on is refused while any exist; lifting the
+    #: requirement releases it.
+    guilds_requiring_sign_in: int
+
+
+class LoginMethodsUpdate(SanitizedBaseModel):
+    """The methods to permit from now on. Order and repetition are ignored."""
+
+    methods: List[LoginMethod] = Field(min_length=1)
+    #: Set to proceed with a change that strands accounts. It must equal the
+    #: number the server currently computes, so it cannot be sent blind or
+    #: replayed once the number has moved — an operator acknowledges a figure
+    #: they were actually shown.
+    acknowledge_stranded: Optional[int] = Field(default=None, ge=0)
+
+
 class InterfaceSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     light_accent_color: str
     dark_accent_color: str
-    # Non-secret posture info: the login page and guild settings need to know
-    # where sign-in is configured without a config.manage read. Required — a
-    # construction site that forgets it must fail, not silently claim platform.
-    auth_scope: AuthScope
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):

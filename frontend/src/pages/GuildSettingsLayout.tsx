@@ -6,7 +6,6 @@ import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 import { matchActiveTab } from "@/lib/tabs";
 
@@ -17,14 +16,11 @@ export const GuildSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
-  // The Authentication tab exists only when the platform has opted into
-  // per-guild auth (non-secret posture info from the public interface settings)
-  // AND an operator has enabled sign-in for this specific guild. Disabling the
-  // guild toggle hides the config surface without touching existing providers
-  // or member logins (guild_auth_enabled is admin-only on GuildRead).
-  const interfaceSettings = useInterfaceSettings();
-  const guildAuthEnabled =
-    interfaceSettings.data?.auth_scope === "guild" && activeGuild?.guild_auth_enabled === true;
+  // The Authentication tab exists when an operator has enabled sign-in for
+  // this guild. Disabling the toggle hides the config surface without touching
+  // existing providers or member logins (guild_auth_enabled is admin-only on
+  // GuildRead).
+  const guildAuthEnabled = activeGuild?.guild_auth_enabled === true;
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;

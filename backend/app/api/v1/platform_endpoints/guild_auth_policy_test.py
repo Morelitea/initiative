@@ -25,7 +25,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    set_auth_scope,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -53,7 +52,6 @@ async def _require_provider(
 async def test_admin_sets_reads_and_clears_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -92,7 +90,6 @@ async def test_admin_sets_reads_and_clears_policy(
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
@@ -111,7 +108,6 @@ async def test_non_admin_cannot_manage_policy(
 async def test_policy_rejects_unusable_provider(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -143,7 +139,6 @@ async def test_policy_rejects_other_namespace_providers(
 ):
     """A requirement can only name one of the guild's own providers — never an
     operator-global row (dormant under per-guild auth) or another guild's."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -170,7 +165,6 @@ async def test_policy_requires_admin_own_session_to_satisfy(
 ):
     """An admin can only require a provider their own session has satisfied —
     proving it works and keeping them from locking out their guild."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -187,33 +181,39 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
 
 
-async def test_policy_endpoints_absent_in_platform_posture(
+async def test_a_requirement_can_be_cleared_without_the_entitlement(
     client: AsyncClient, session: AsyncSession
 ):
-    """Under platform posture the guild sign-in surface does not exist:
-    both endpoints 404 even for a satisfied guild admin, and nothing is
-    written. (Enforcement of an existing row is a separate, ungated path —
-    covered by the step-up tests below.)"""
+    """A requirement can be read and lifted by a guild admin whatever the
+    guild's entitlement says.
+
+    Enforcement reads the policy row alone, so a requirement outlives the
+    entitlement that allowed it to be set; the way to lift one outlives it too.
+    Lifting only ever admits more, so it carries none of the gating the setting
+    path does."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    provider = await create_auth_provider(session, slug="corp")
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    await _require_provider(session, guild.id, provider)
     headers = _sat_headers(admin, [provider.id])
-
-    got = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
-    assert got.status_code == 404
-    assert got.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
-
     guild_id = guild.id
-    put = await client.put(
+
+    # Platform posture: the requirement is still there, and still visible.
+    got = await client.get(f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers)
+    assert got.status_code == 200
+    assert got.json()["policy"] == "required"
+    assert got.json()["provider_slug"] == "corp"
+
+    cleared = await client.put(
         f"/api/v1/guilds/{guild_id}/auth-policy",
         headers=headers,
-        json={"policy": "required", "provider_id": provider.id},
+        json={"policy": "open"},
     )
-    assert put.status_code == 404
-    assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    assert cleared.status_code == 200
+    assert cleared.json()["policy"] == "open"
     session.expire_all()
     assert await session.get(GuildAuthPolicy, guild_id) is None
 
@@ -221,10 +221,10 @@ async def test_policy_endpoints_absent_in_platform_posture(
 async def test_policy_surface_404_when_guild_auth_disabled(
     client: AsyncClient, session: AsyncSession
 ):
-    """With the operator toggle off, the policy config surface 404s for the
-    guild admin — the same GUILD_AUTH_NOT_ENABLED shape as platform posture,
-    and nothing is written."""
-    set_auth_scope()
+    """With the operator toggle off, a guild cannot acquire a requirement: the
+    PUT that would set one 404s with the same GUILD_AUTH_NOT_ENABLED shape as
+    platform posture, and nothing is written. Reading stays open, as it does
+    under platform posture."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
     await create_guild_membership(
@@ -235,8 +235,8 @@ async def test_policy_surface_404_when_guild_auth_disabled(
     guild_id = guild.id
 
     got = await client.get(f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers)
-    assert got.status_code == 404
-    assert got.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    assert got.status_code == 200
+    assert got.json()["policy"] == "open"
 
     put = await client.put(
         f"/api/v1/guilds/{guild_id}/auth-policy",

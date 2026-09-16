@@ -63,5 +63,14 @@ export const useAppConfig = () => {
      *  true is also the default — the question is the safe thing to ask when
      *  we do not yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,
+    /** Whether this deployment permits signing in with a password. True until
+     *  the config loads: the form is the thing most deployments have, and the
+     *  server refuses either way, so showing it briefly costs nothing while
+     *  hiding it briefly would look like an outage. */
+    passwordLoginEnabled: query.data?.login_methods?.includes("password") ?? true,
+    /** Whether this deployment permits single sign-on at all. The provider
+     *  listing is already empty when it does not, so this is for copy that has
+     *  to explain the absence rather than for hiding buttons. */
+    ssoLoginEnabled: query.data?.login_methods?.includes("sso") ?? true,
   };
 };

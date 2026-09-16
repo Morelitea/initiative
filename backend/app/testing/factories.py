@@ -82,6 +82,7 @@ from app.models.tenant.task import (
 from app.models.tenant.upload import Upload
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
@@ -2101,16 +2102,6 @@ async def create_upload(
     return upload
 
 
-def set_auth_scope(scope: str = "guild") -> None:
-    """Set the deploy-time login posture (``settings.AUTH_SCOPE``) for the
-    current test; defaults to per-guild, the posture the guild auth surface
-    requires. The ``_reset_auth_scope`` autouse fixture (conftest) restores the
-    default after each test."""
-    from app.core.config import AuthScope, settings
-
-    settings.AUTH_SCOPE = AuthScope(scope)
-
-
 async def create_auth_provider(
     session: AsyncSession,
     commit: bool = True,
@@ -2142,6 +2133,34 @@ async def create_auth_provider(
         await session.refresh(provider)
 
     return provider
+
+
+async def create_guild_auth_policy(
+    session: AsyncSession,
+    guild: "Guild",
+    provider: "AuthProvider",
+    *,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildAuthPolicy:
+    """Make ``guild`` require a sign-in through ``provider``.
+
+    ``provider_slug`` is denormalised onto the row in production so a step-up
+    response can name the provider without a registry read; this keeps the two
+    in step the same way.
+    """
+    defaults = {
+        "guild_id": guild.id,
+        "policy": "required",
+        "provider_id": provider.id,
+        "provider_slug": provider.slug,
+    }
+    policy = GuildAuthPolicy(**{**defaults, **overrides})
+    session.add(policy)
+    if commit:
+        await session.commit()
+        await session.refresh(policy)
+    return policy
 
 
 async def create_federated_identity(

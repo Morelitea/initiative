@@ -648,5 +648,10 @@
   "SUPPORT_NOT_AVAILABLE": "Diese Community nimmt keine Hilfeanfragen entgegen. Sieh stattdessen in den FAQ nach.",
   "SUPPORT_NOWHERE_TO_SEND": "Hilfeanfragen sind hier aktiviert, aber es ist noch niemand eingerichtet, der sie empfängt. Sag einem Community-Admin Bescheid.",
   "PROJECTS_NOT_ENABLED": "Projekte sind für diese Initiative nicht aktiviert",
-  "DOCUMENTS_NOT_ENABLED": "Dokumente sind für diese Initiative nicht aktiviert"
+  "DOCUMENTS_NOT_ENABLED": "Dokumente sind für diese Initiative nicht aktiviert",
+  "SETTINGS_LOGIN_METHODS_EMPTY": "Mindestens ein Zugangsweg muss aktiv bleiben.",
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND": "Einige Konten melden sich ausschließlich so an. Bestätige, um den Weg dennoch zu entziehen.",
+  "SETTINGS_LOGIN_METHODS_STALE_ACK": "Die Zahl der betroffenen Konten hat sich geändert. Prüfe sie und versuche es erneut.",
+  "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Dieses Deployment erlaubt diese Art der Anmeldung nicht.",
+  "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "Eine Community verlangt weiterhin eine Anmeldung über einen eigenen Anbieter. Hebe diese Anforderung zuerst auf."
 }

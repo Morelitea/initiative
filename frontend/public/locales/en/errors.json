@@ -648,5 +648,10 @@
   "SUPPORT_NOT_AVAILABLE": "This community does not take help requests. Have a look at the FAQ instead.",
   "SUPPORT_NOWHERE_TO_SEND": "Help requests are switched on here, but nobody is set up to receive them yet. Tell a community admin.",
   "PROJECTS_NOT_ENABLED": "Projects are not enabled for this initiative",
-  "DOCUMENTS_NOT_ENABLED": "Documents are not enabled for this initiative"
+  "DOCUMENTS_NOT_ENABLED": "Documents are not enabled for this initiative",
+  "SETTINGS_LOGIN_METHODS_EMPTY": "At least one way in has to stay on.",
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND": "Some accounts sign in only this way. Confirm to withdraw it anyway.",
+  "SETTINGS_LOGIN_METHODS_STALE_ACK": "The number of affected accounts changed. Check it and try again.",
+  "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "This deployment does not permit signing in that way.",
+  "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "A community still requires a sign-in through a provider of its own. Lift that requirement first."
 }

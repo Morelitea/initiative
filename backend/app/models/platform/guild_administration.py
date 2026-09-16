@@ -68,8 +68,7 @@ class GuildAdministration(SQLModel, table=True):
     # IdP. Turning it OFF never deletes providers or signs existing members out
     # — it only closes the config surface and stops NEW-account provisioning;
     # members with a linked identity keep signing in and any existing sign-in
-    # requirement stays enforced. Irrelevant under platform AUTH_SCOPE (the
-    # whole guild-auth surface is dormant then).
+    # requirement stays enforced.
     guild_auth_enabled: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),

@@ -85,6 +85,7 @@ const stubConfig = (billing: { url: string } | null) =>
       max_upload_bytes: 1024,
       community_directory_enabled: false,
       community_age_gate_enabled: true,
+      login_methods: ["password"],
       min_native_version: NATIVE_FLOOR,
     })
   );

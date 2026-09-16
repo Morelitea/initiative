@@ -51,7 +51,6 @@ const guildsData = [
 
 // The guild-auth toggle column only renders under per-guild posture; flip this
 // before a render to exercise both cases.
-let authScope: "platform" | "guild" = "platform";
 
 // The billing column only renders when a portal is configured; flip this to
 // exercise the self-hosted case (no portal, no column).
@@ -75,7 +74,6 @@ vi.mock("@/api/generated/settings/settings", () => ({
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformGuilds: () => ({ data: guildsData, isLoading: false, isError: false }),
   useUpdateGuildStorage: () => ({ mutate, isPending: false }),
-  useInterfaceSettings: () => ({ data: { auth_scope: authScope } }),
 }));
 
 import { AdminDashboardGuildsPage } from "./AdminDashboardGuildsPage";
@@ -94,7 +92,6 @@ describe("AdminDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
     mintHandoff.mockReset();
-    authScope = "platform";
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
   });
 
@@ -264,15 +261,7 @@ describe("AdminDashboardGuildsPage", () => {
     const authToggle = (guildName: string) =>
       screen.getByLabelText(`Per-community sign-in for ${guildName}`);
 
-    it("is hidden under platform posture", async () => {
-      renderPage(); // authScope defaults to "platform"
-
-      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Per-community sign-in for Capped Community")).toBeNull();
-    });
-
-    it("renders each community's entitlement under community posture", async () => {
-      authScope = "guild";
+    it("renders each community's entitlement", async () => {
       renderPage();
 
       expect(await screen.findByText("Capped Community")).toBeInTheDocument();
@@ -281,7 +270,6 @@ describe("AdminDashboardGuildsPage", () => {
     });
 
     it("turns the entitlement on", async () => {
-      authScope = "guild";
       const user = userEvent.setup();
       renderPage();
 
@@ -290,7 +278,6 @@ describe("AdminDashboardGuildsPage", () => {
     });
 
     it("turns the entitlement off", async () => {
-      authScope = "guild";
       const user = userEvent.setup();
       renderPage();
 
