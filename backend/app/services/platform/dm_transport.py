@@ -652,19 +652,30 @@ async def accept_invitation(
     )
 
 
-async def _handles_for(session: AsyncSession, user_ids: set[int]) -> dict[int, str]:
-    """What to call each of these accounts.
+async def _handles_on(
+    session: AsyncSession, conversation_id: uuid.UUID
+) -> dict[int, str]:
+    """What to call each account on one conversation.
 
-    Handles rather than display names: a direct message happens outside any
-    community, so there is no community whose naming applies.
+    Asked of ``dm_roster_handles`` rather than of ``users``: the request path
+    reads its own row there and nothing else below moderator, so a query would
+    answer for nobody. The entry point answers only for a conversation the
+    caller is named on, and only with the two fields a handle is made of.
+
+    Formatted here rather than in SQL, so there is one place that knows what a
+    handle looks like.
     """
-    if not user_ids:
-        return {}
-    from app.core.user_display import handle_of
-    from app.models.platform.user import User
+    from app.core.usernames import format_handle
 
-    rows = (await session.exec(select(User).where(User.id.in_(user_ids)))).all()
-    return {user.id: handle_of(user) for user in rows if user.id is not None}
+    rows = (
+        await session.exec(
+            text(
+                "SELECT member_id, username, discriminator "
+                "FROM public.dm_roster_handles(:c)"
+            ).bindparams(c=conversation_id)
+        )
+    ).all()
+    return {row[0]: format_handle(row[1], row[2]) for row in rows}
 
 
 async def list_conversations(
@@ -709,9 +720,9 @@ async def list_conversations(
         else:
             others.setdefault(conversation.id, []).append(member_id)
 
-    handles = await _handles_for(
-        session, {member_id for roster in others.values() for member_id in roster}
-    )
+    handles: dict[int, str] = {}
+    for conversation_id in others:
+        handles.update(await _handles_on(session, conversation_id))
 
     listed = []
     for conversation_id, conversation in conversations.items():

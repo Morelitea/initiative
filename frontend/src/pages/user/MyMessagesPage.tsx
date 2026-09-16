@@ -130,8 +130,13 @@ export function MyMessagesPage() {
   // opened with. A handle still opens one that does not exist yet, which is
   // what the effect below is for and what an id cannot do.
   const namedThread = withThread ? rows.find((row) => row.id === withThread) : undefined;
+  // Pairs only. A group's `other_user_id` is the lowest id on its roster, so a
+  // handle would otherwise match a group that happens to contain that person
+  // and open it in place of the conversation with them.
   const targetConversation =
-    targetId !== undefined ? (rows.find((row) => row.other_user_id === targetId) ?? null) : null;
+    targetId !== undefined
+      ? (rows.find((row) => !isGroup(row) && row.other_user_id === targetId) ?? null)
+      : null;
   const current = namedThread ?? targetConversation;
 
   // Acting on the handle in the URL, once per handle: select their thread, or
@@ -163,6 +168,10 @@ export function MyMessagesPage() {
   );
 
   useEffect(() => {
+    // A named thread is what is on screen, so the handle is not acted on: it
+    // would open a conversation with somebody in the background, under a thread
+    // that is not theirs.
+    if (withThread) return;
     if (!withHandle || targetId === undefined || !conversationsLoaded) return;
     if (opened.current === withHandle) return;
     // Already there: nothing to open, and nothing to select -- the render
@@ -175,7 +184,15 @@ export function MyMessagesPage() {
       opened.current = withHandle;
       openWith(targetId, withHandle);
     }
-  }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, openWith]);
+  }, [
+    withThread,
+    withHandle,
+    targetId,
+    targetConversation,
+    channelOpen,
+    conversationsLoaded,
+    openWith,
+  ]);
 
   // A runtime with no web workers cannot hold a ratchet at all, and saying so
   // is more use than the generic failure it would otherwise reach.

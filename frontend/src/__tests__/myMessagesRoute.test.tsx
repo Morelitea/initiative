@@ -892,6 +892,38 @@ describe("a group thread", () => {
     await waitFor(() => expect(mocks.leaveConversation).toHaveBeenCalledWith("conv-g"));
   });
 
+  it("does not open a conversation behind a thread named by id", async () => {
+    // Both selectors at once: the id is what is on screen, so acting on the
+    // handle would open a conversation with somebody under a thread that is
+    // not theirs.
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+
+    await renderMessages({ thread: "conv-g", with: "alex1234" });
+    await screen.findByText("alex#1234, sam#5678");
+
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+  });
+
+  it("is not mistaken for the conversation with its lowest member", async () => {
+    // A group's other_user_id is the lowest id on its roster, so a handle
+    // lookup must not land on it.
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.dmPermission.mockReturnValue({ data: { permission: "open" } });
+
+    await renderMessages({ with: "alex1234" });
+
+    // It opened the pair rather than showing the group.
+    await waitFor(() => expect(mocks.createConversation).toHaveBeenCalledWith({ user_id: 7 }));
+  });
+
   it("reads nothing into a thread nobody has answered yet", async () => {
     mocks.conversations.mockResolvedValue({
       conversations: [groupThread({ pending: true })],

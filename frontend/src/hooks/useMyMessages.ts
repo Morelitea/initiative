@@ -41,6 +41,8 @@ import {
   unreadIn,
 } from "@/crypto/messaging";
 import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -406,13 +408,18 @@ export function useAnswerInvitation(conversationId: string) {
   const settle = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
   };
+  // An invitation goes stale -- somebody proposes the roster again, or it is
+  // answered on another device -- so both of these can be refused, and a button
+  // that quietly becomes pressable again reads as having been ignored.
   const accept = useMutation({
     mutationFn: () => acceptInvitation(conversationId),
     onSuccess: settle,
+    onError: (error) => toast.error(getErrorMessage(error, "errors:DM_NO_INVITATION")),
   });
   const decline = useMutation({
     mutationFn: () => leaveConversation(conversationId),
     onSuccess: settle,
+    onError: (error) => toast.error(getErrorMessage(error, "errors:DM_CONVERSATION_NOT_FOUND")),
   });
   return { accept, decline };
 }

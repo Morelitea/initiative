@@ -738,10 +738,15 @@ class TestProposingAGroup:
     ):
         """A group has no name, so it is named by its roster -- and the client
         cannot look those names up, because a group needs no accepted grant
-        between every pair."""
-        a = await acting_user()
-        b = await acting_user()
-        c = await acting_user()
+        between every pair.
+
+        Every account here is an ordinary member. ``users`` is own-row for the
+        request path below moderator, so a platform tier that can read the whole
+        table would pass this for a reason no ordinary account has.
+        """
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
         await self._reachable(session, [a, b, c])
         conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
 
