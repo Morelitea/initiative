@@ -5,7 +5,8 @@ was what held it there. Lifting that is most of this migration; the rest is
 giving a conversation the two things it needs once a roster can be any size.
 
 **``roster_key``** is the sorted member ids as text -- ``"7,19,44"`` -- written
-once from the roster the conversation was made with and never updated. It is
+from the roster the conversation was made with, and released to null when the
+conversation is down to one member and nobody can use it again. It is
 what makes "one thread per set of people" a property of the table rather than a
 lookup somebody could be reading while somebody else inserts. Plain rather than
 hashed: the roster it encodes is already sitting in ``dm_conversation_members``
@@ -34,6 +35,13 @@ Create Date: 2026-09-15
 
 import sqlalchemy as sa
 from alembic import op
+
+from app.core.config import settings
+
+
+def _platform_base() -> str:
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+
 
 revision = "20260915_0273"
 down_revision = "20260915_0272"
@@ -243,10 +251,35 @@ def upgrade() -> None:
     op.execute(_IN_CONVERSATION)
     op.execute(_DEVICE_IN_CONVERSATION)
 
+    # Leaving a conversation that is down to one member releases its roster
+    # name, so the two of them are free to open a channel again. That is the one
+    # write a member makes to the conversation row, and the grant is on that one
+    # column so it stays the only one.
+    base = _platform_base()
+    op.execute(
+        f'GRANT UPDATE (roster_key) ON TABLE public.dm_conversations TO "{base}"'
+    )
+    op.execute(
+        "DROP POLICY IF EXISTS dm_conversations_self_update ON public.dm_conversations"
+    )
+    op.execute(
+        "CREATE POLICY dm_conversations_self_update ON public.dm_conversations "
+        f'AS PERMISSIVE FOR UPDATE TO "{base}" '
+        "USING (public.dm_in_conversation(id)) "
+        "WITH CHECK (public.dm_in_conversation(id))"
+    )
+
 
 def downgrade() -> None:
     bind = op.get_bind()
 
+    base = _platform_base()
+    op.execute(
+        "DROP POLICY IF EXISTS dm_conversations_self_update ON public.dm_conversations"
+    )
+    op.execute(
+        f'REVOKE UPDATE (roster_key) ON TABLE public.dm_conversations FROM "{base}"'
+    )
     op.execute(_IN_CONVERSATION_BEFORE)
     op.execute(_DEVICE_IN_CONVERSATION_BEFORE)
     op.drop_index("uq_dm_conversations_roster", table_name="dm_conversations")
