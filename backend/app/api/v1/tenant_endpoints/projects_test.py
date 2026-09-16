@@ -185,6 +185,7 @@ async def test_search_project_members_returns_write_access_set(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
 
     # The filter matches what the guild renders — the handle always.

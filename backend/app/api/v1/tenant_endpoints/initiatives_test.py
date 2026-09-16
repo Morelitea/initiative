@@ -650,6 +650,7 @@ async def test_search_initiative_members_slim_and_filtered(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
 
     # Filtered by handle, which every guild has for every member.
