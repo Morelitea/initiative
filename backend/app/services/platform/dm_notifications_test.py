@@ -312,3 +312,87 @@ class TestLeaving:
         )
 
         assert await _lines(session, b.user.id) != []
+
+
+class TestAGroupLine:
+    """A group thread has no name, so the line is named by who is on it."""
+
+    async def _group(self, client, session, members):
+        from datetime import datetime, timezone
+
+        from app.models.platform.dm_conversation import (
+            DmConversation,
+            DmConversationKind,
+            DmConversationMember,
+            roster_key,
+        )
+
+        for actor in members:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(members):
+            for second in members[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+        devices = {
+            actor.user.id: await _register(client, actor, seed=1 + 40 * i)
+            for i, actor in enumerate(members)
+        }
+        now = datetime.now(timezone.utc)
+        conversation = DmConversation(
+            kind=DmConversationKind.group,
+            roster_key=roster_key(actor.user.id for actor in members),
+        )
+        session.add(conversation)
+        await session.flush()
+        for actor in members:
+            session.add(
+                DmConversationMember(
+                    conversation_id=conversation.id,
+                    user_id=actor.user.id,
+                    accepted_at=now,
+                )
+            )
+        await session.commit()
+        return str(conversation.id), devices
+
+    async def test_the_line_names_everybody_but_the_reader(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+
+        await _send(client, a, conversation_id, devices[b.user.id])
+
+        lines = await _lines(session, b.user.id)
+        assert len(lines) == 1
+        names = lines[0]["data"]["member_names"]
+        # A and C, not B: listing the reader back to themselves would be naming
+        # the one person who already knows they are there.
+        assert len(names) == 2
+        assert all(isinstance(name, str) and name for name in names)
+        assert lines[0]["data"]["sender_id"] == a.user.id
+
+    async def test_a_pair_carries_no_roster(self, client, session, acting_user):
+        """Nothing changes for two people: the line already names the sender."""
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, b_device = await _channel(client, session, a, b)
+
+        await _send(client, a, conversation_id, b_device)
+
+        assert "member_names" not in (await _lines(session, b.user.id))[0]["data"]
+
+    async def test_the_line_still_carries_no_message(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+
+        await _send(client, a, conversation_id, devices[b.user.id], b"a group secret")
+
+        data = (await _lines(session, b.user.id))[0]["data"]
+        assert b"a group secret" not in repr(data).encode()
+        assert "payload" not in data and "body" not in data
