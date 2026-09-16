@@ -53,7 +53,7 @@ from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
+from app.core.encryption import hash_email  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.services.auth import addresses  # noqa: E402
@@ -641,10 +641,7 @@ async def _find_superuser(session: AsyncSession) -> User:
     if not email:
         print("ERROR: FIRST_OWNER_EMAIL is not set in .env or environment.")
         sys.exit(1)
-    result = await session.exec(
-        select(User).where(User.email_hash == hash_email(email))
-    )
-    user = result.one_or_none()
+    user = await addresses.account_holding(session, email)
     if user is None:
         print(f"ERROR: Superuser {email} not found.")
         print("  Make sure init_db has run (dev:migrate task).")
@@ -744,11 +741,7 @@ async def _create_users(
         # A prior interrupted seed run may have committed this user (users
         # commit before the later steps): reuse the existing row so a re-run
         # resumes instead of violating the unique email constraint.
-        existing = (
-            await session.exec(
-                select(User).where(User.email_hash == hash_email(ud["email"]))
-            )
-        ).one_or_none()
+        existing = await addresses.account_holding(session, ud["email"])
         if existing is not None:
             # A row seeded before handles existed was given one by the
             # backfill, which marks it unchosen — so signing in would land on
@@ -771,8 +764,6 @@ async def _create_users(
             session, seed=ud.get("username") or ud["full_name"]
         )
         user = User(
-            email_hash=hash_email(ud["email"]),
-            email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
             username=handle,
             discriminator=discriminator,
             # Seeded accounts are set up ready to use, so they never meet the
