@@ -1,23 +1,21 @@
-"""Where sign-in is configured, and which ways in the deployment permits."""
+"""Which ways in the deployment permits."""
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import UserRole
 from app.testing import (
     create_auth_provider,
     create_federated_identity,
     create_guild,
+    create_guild_auth_policy,
     create_user,
     get_auth_headers,
-    set_auth_scope,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
-SCOPE_URL = "/api/v1/settings/auth/scope"
 METHODS_URL = "/api/v1/settings/auth/methods"
 READ_URL = "/api/v1/settings/auth/platform"
 
@@ -27,119 +25,18 @@ async def _owner(session: AsyncSession):
     return owner, get_auth_headers(owner)
 
 
-async def _require_sign_in(session: AsyncSession, guild_id: int, provider) -> None:
-    session.add(
-        GuildAuthPolicy(
-            guild_id=guild_id,
-            policy="required",
-            provider_id=provider.id,
-            provider_slug=provider.slug,
-        )
-    )
-    await session.commit()
-
-
-async def test_read_reports_env_posture_until_one_is_chosen(
+async def test_read_reports_every_method_and_its_cost(
     client: AsyncClient, session: AsyncSession
 ):
-    """With nothing stored the deploy-time value governs, and the payload says
-    so rather than implying somebody chose it."""
-    set_auth_scope("guild")
+    """Both methods are listed whether or not they are on, each with the number
+    withdrawing it would concern."""
     _, headers = await _owner(session)
 
     got = await client.get(READ_URL, headers=headers)
     assert got.status_code == 200
-    assert got.json()["auth_scope"] == "guild"
-    assert got.json()["auth_scope_from_env"] is True
     assert {m["method"] for m in got.json()["methods"]} == {"password", "sso"}
     assert all(m["enabled"] for m in got.json()["methods"])
-
-
-async def test_choosing_a_posture_pins_it_over_the_env_value(
-    client: AsyncClient, session: AsyncSession
-):
-    """A stored posture governs, and the env value stops being consulted."""
-    set_auth_scope("platform")
-    _, headers = await _owner(session)
-
-    put = await client.put(SCOPE_URL, headers=headers, json={"auth_scope": "guild"})
-    assert put.status_code == 200
-    assert put.json()["auth_scope"] == "guild"
-    assert put.json()["auth_scope_from_env"] is False
-
-    # The env still says platform; the stored value is what answers.
-    set_auth_scope("platform")
-    got = await client.get(READ_URL, headers=headers)
-    assert got.json()["auth_scope"] == "guild"
-
-
-async def test_moving_to_platform_posture_waits_for_guild_requirements(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild requiring a sign-in of its own is reported, with its count, and
-    the posture is left as it was. Clearing the requirement releases it."""
-    set_auth_scope("guild")
-    _, headers = await _owner(session)
-    guild = await create_guild(session)
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
-    await _require_sign_in(session, guild.id, provider)
-
-    refused = await client.put(
-        SCOPE_URL, headers=headers, json={"auth_scope": "platform"}
-    )
-    assert refused.status_code == 409
-    assert refused.json()["detail"] == "SETTINGS_AUTH_SCOPE_GUILD_POLICIES"
-    assert refused.headers["X-Affected-Count"] == "1"
-
-    row = await session.get(GuildAuthPolicy, guild.id)
-    await session.delete(row)
-    await session.commit()
-
-    allowed = await client.put(
-        SCOPE_URL, headers=headers, json={"auth_scope": "platform"}
-    )
-    assert allowed.status_code == 200
-    assert allowed.json()["auth_scope"] == "platform"
-
-
-async def test_moving_to_platform_posture_waits_for_guild_only_sign_ins(
-    client: AsyncClient, session: AsyncSession
-):
-    """An account whose only way in is a guild-scoped provider is reported with
-    its count, and the posture is left as it was."""
-    set_auth_scope("guild")
-    _, headers = await _owner(session)
-    guild = await create_guild(session)
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
-    member = await create_user(session, hashed_password=None)
-    await create_federated_identity(session, member, provider=provider)
-
-    refused = await client.put(
-        SCOPE_URL, headers=headers, json={"auth_scope": "platform"}
-    )
-    assert refused.status_code == 409
-    assert refused.json()["detail"] == "SETTINGS_AUTH_SCOPE_WOULD_STRAND"
-    assert refused.headers["X-Affected-Count"] == "1"
-
-    got = await client.get(READ_URL, headers=headers)
-    assert got.json()["auth_scope"] == "guild"
-    assert got.json()["platform_switch_would_strand"] == 1
-
-
-async def test_moving_to_guild_posture_is_never_refused(
-    client: AsyncClient, session: AsyncSession
-):
-    """Guild posture withdraws no way in — operator-global providers answer in
-    both — so the guards that apply in the other direction do not apply here."""
-    set_auth_scope("platform")
-    _, headers = await _owner(session)
-    provider = await create_auth_provider(session, slug="corp")
-    member = await create_user(session, hashed_password=None)
-    await create_federated_identity(session, member, provider=provider)
-
-    put = await client.put(SCOPE_URL, headers=headers, json={"auth_scope": "guild"})
-    assert put.status_code == 200
-    assert put.json()["auth_scope"] == "guild"
+    assert got.json()["guilds_requiring_sign_in"] == 0
 
 
 async def test_at_least_one_way_in_must_remain(
@@ -185,6 +82,36 @@ async def test_withdrawing_a_method_reports_who_it_strands(
     assert enabled == {"password"}
 
 
+async def test_withdrawing_sso_waits_for_guild_requirements(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild requiring a sign-in through a provider of its own is reported
+    with its count. A requirement is enforced from its policy row and stands on
+    its own, so it is lifted first and the withdrawal then goes through."""
+    _, headers = await _owner(session)
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    policy = await create_guild_auth_policy(session, guild, provider)
+
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password"]}
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.headers["X-Affected-Count"] == "1"
+
+    got = await client.get(READ_URL, headers=headers)
+    assert got.json()["guilds_requiring_sign_in"] == 1
+
+    await session.delete(policy)
+    await session.commit()
+
+    allowed = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password"]}
+    )
+    assert allowed.status_code == 200
+
+
 async def test_withdrawing_a_method_nobody_uses_needs_no_acknowledgement(
     client: AsyncClient, session: AsyncSession
 ):
@@ -211,6 +138,28 @@ async def test_withdrawing_sso_closes_the_provider_routes(
 
     assert (await client.get("/api/v1/auth/providers")).json()["providers"] == []
     login = await client.get("/api/v1/auth/corp/login", follow_redirects=False)
+    assert login.status_code == 404
+
+
+async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
+    client: AsyncClient, session: AsyncSession
+):
+    """The guild-addressed listing and login go with it."""
+    _, headers = await _owner(session)
+    guild = await create_guild(session)
+    await create_auth_provider(session, slug="corp", guild_id=guild.id)
+
+    listed = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    assert any(p["slug"] == "corp" for p in listed.json()["providers"])
+
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
+    assert put.status_code == 200
+
+    after = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    assert after.json()["providers"] == []
+    login = await client.get(
+        f"/api/v1/auth/g/{guild.id}/corp/login", follow_redirects=False
+    )
     assert login.status_code == 404
 
 
@@ -254,11 +203,35 @@ async def test_withdrawing_password_closes_its_routes(
     assert forgot.status_code == 403
 
 
+async def test_an_account_with_only_a_guild_provider_counts_as_signed_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild-scoped provider answers logins, so an account holding only one
+    is not counted as stranded by withdrawing the password."""
+    owner, headers = await _owner(session)
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+
+    before = await client.get(READ_URL, headers=headers)
+    baseline = next(m for m in before.json()["methods"] if m["method"] == "password")[
+        "would_strand"
+    ]
+
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+
+    after = await client.get(READ_URL, headers=headers)
+    password = next(m for m in after.json()["methods"] if m["method"] == "password")
+    # A guild-scoped provider answers logins, so the member it linked is a way
+    # in rather than an account the password is holding up.
+    assert password["would_strand"] == baseline
+
+
 async def test_withdrawing_a_method_signs_nobody_out(
     client: AsyncClient, session: AsyncSession
 ):
     """Sessions already open keep working; this gates opening a new one."""
-    owner, headers = await _owner(session)
+    _, headers = await _owner(session)
     provider = await create_auth_provider(session, slug="corp")
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
@@ -274,15 +247,13 @@ async def test_withdrawing_a_method_signs_nobody_out(
     assert still_in.status_code == 200
 
 
-async def test_both_surfaces_need_the_config_capability(
+async def test_the_surface_needs_the_config_capability(
     client: AsyncClient, session: AsyncSession
 ):
     member = await create_user(session, role=UserRole.member)
     headers = get_auth_headers(member)
 
     assert (await client.get(READ_URL, headers=headers)).status_code == 403
-    scope = await client.put(SCOPE_URL, headers=headers, json={"auth_scope": "guild"})
-    assert scope.status_code == 403
     methods = await client.put(
         METHODS_URL, headers=headers, json={"methods": ["password"]}
     )

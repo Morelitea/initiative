@@ -47,6 +47,7 @@ from app.testing.factories import (
     create_document,
     create_document_property_value,
     create_federated_identity,
+    create_guild_auth_policy,
     create_guild,
     guild_administration,
     create_guild_app,
@@ -69,7 +70,6 @@ from app.testing.factories import (
     set_notification_prefs,
     get_auth_headers,
     get_auth_token,
-    set_auth_scope,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -108,6 +108,7 @@ __all__ = [
     "create_document",
     "create_document_property_value",
     "create_federated_identity",
+    "create_guild_auth_policy",
     "create_guild",
     "guild_administration",
     "create_guild_app",
@@ -131,6 +132,5 @@ __all__ = [
     "set_notification_prefs",
     "get_auth_headers",
     "get_auth_token",
-    "set_auth_scope",
     "route_session_to_guild",
 ]

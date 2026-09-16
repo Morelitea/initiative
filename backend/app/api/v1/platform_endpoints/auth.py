@@ -59,7 +59,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
-from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
@@ -1105,14 +1104,11 @@ async def _resolve_guild_login_provider(
     provider_slug: str,
 ) -> AuthProvider:
     """The login-ready guild-scoped provider row for one (guild, slug), or
-    404. Guild providers serve logins only under per-guild auth posture —
-    the mirror image of ``_resolve_login_provider``'s operator-global gate.
-    An unknown guild, slug, or config-incomplete row all look identical."""
+    404. Whether a guild has providers at all is decided when it configures
+    them (the operator's per-guild entitlement); once it has one, that provider
+    answers. An unknown guild, slug, or config-incomplete row all look
+    identical."""
     if not is_valid_provider_slug(provider_slug):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    if await auth_posture.resolve_auth_scope(admin_session) != AuthScope.guild:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -1279,11 +1275,9 @@ async def list_guild_login_providers(
 ) -> LoginProvidersResponse:
     """One guild's sign-in providers — non-secret metadata only, with
     guild-addressed login URLs and the guild's display name for its login
-    page. Empty (and nameless) outside per-guild auth posture and for a
-    guild with no login-ready providers; an unknown guild id is
+    page. Empty (and nameless) for a guild with no login-ready providers and
+    where single sign-on is not permitted; an unknown guild id is
     indistinguishable from an empty registry."""
-    if await auth_posture.resolve_auth_scope(admin_session) != AuthScope.guild:
-        return LoginProvidersResponse(providers=[])
     if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
     rows = (

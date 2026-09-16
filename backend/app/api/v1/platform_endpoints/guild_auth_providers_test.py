@@ -15,7 +15,6 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
     get_auth_headers,
-    set_auth_scope,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -38,7 +37,6 @@ async def _guild_admin(session: AsyncSession):
 
 
 async def test_guild_admin_full_crud(client: AsyncClient, session: AsyncSession):
-    set_auth_scope()
     admin, guild = await _guild_admin(session)
     headers = get_auth_headers(admin)
     base = f"/api/v1/guilds/{guild.id}/auth/providers"
@@ -80,7 +78,6 @@ async def test_provider_crud_404_when_guild_auth_disabled(
     """With the operator toggle off, the whole config surface 404s
     (GUILD_AUTH_NOT_ENABLED) — and the guild's existing provider rows are left
     intact, so existing members keep signing in through them."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
     await create_guild_membership(
@@ -108,23 +105,7 @@ async def test_provider_crud_404_when_guild_auth_disabled(
     assert await session.get(AuthProvider, provider_id) is not None
 
 
-async def test_crud_absent_in_platform_posture(
-    client: AsyncClient, session: AsyncSession
-):
-    admin, guild = await _guild_admin(session)
-    headers = get_auth_headers(admin)
-    base = f"/api/v1/guilds/{guild.id}/auth/providers"
-
-    for response in (
-        await client.get(base, headers=headers),
-        await client.post(base, headers=headers, json=PROVIDER_BODY),
-    ):
-        assert response.status_code == 404
-        assert response.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
-
-
 async def test_member_and_non_member_denied(client: AsyncClient, session: AsyncSession):
-    set_auth_scope()
     _admin, guild = await _guild_admin(session)
     member = await create_user(session)
     await create_guild_membership(
@@ -146,7 +127,6 @@ async def test_slug_unique_per_guild_not_across_namespaces(
 ):
     """A slug is taken only within its own namespace: the same slug can exist
     operator-globally, in guild A, and in guild B at once."""
-    set_auth_scope()
     await create_auth_provider(session, slug="corp")  # operator-global
     admin_a, guild_a = await _guild_admin(session)
     admin_b, guild_b = await _guild_admin(session)
@@ -180,7 +160,6 @@ async def test_a_guild_may_use_any_slug_including_the_platforms(
     """A guild's slugs are its own. ``oidc`` names the platform provider in the
     operator-global namespace and nothing in a guild's, and a guild provider is
     addressed through its guild — so the two never meet."""
-    set_auth_scope()
     admin, guild = await _guild_admin(session)
 
     response = await client.post(
@@ -199,7 +178,6 @@ async def test_other_namespace_rows_unreachable(
 ):
     """An operator-global row or another guild's row is a 404 through this
     guild's CRUD, for both update and delete."""
-    set_auth_scope()
     admin, guild = await _guild_admin(session)
     _admin_b, guild_b = await _guild_admin(session)
     global_row = await create_auth_provider(session, slug="corp")
@@ -220,7 +198,6 @@ async def test_other_namespace_rows_unreachable(
 async def test_delete_refused_while_policy_requires(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     admin, guild = await _guild_admin(session)
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     session.add(

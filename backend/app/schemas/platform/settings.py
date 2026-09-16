@@ -2,7 +2,6 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
-from app.core.config import AuthScope
 from app.core.login_methods import LoginMethod
 from app.core.user_input_validators import validate_provider_slug
 from app.models.platform.user_dm_settings import DmPolicy
@@ -105,7 +104,6 @@ class AuthProviderUpdate(SanitizedBaseModel):
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    auth_scope: AuthScope
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
@@ -142,28 +140,16 @@ class LoginMethodStatus(SanitizedBaseModel):
 
 
 class PlatformAuthSettingsResponse(SanitizedBaseModel):
-    """The deployment's sign-in posture and permitted methods, with the facts
-    a change to either would turn on."""
+    """The ways in this deployment permits, with the facts a change would turn
+    on."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    auth_scope: AuthScope
-    #: True when nothing has been chosen here and the deploy-time ``AUTH_SCOPE``
-    #: value is what governs. The page says so rather than implying a choice
-    #: was made.
-    auth_scope_from_env: bool
     methods: List[LoginMethodStatus]
-    #: Guilds that require a sign-in of their own. Switching to platform
-    #: posture is refused while any exist; clearing the requirement releases
-    #: the switch.
+    #: Guilds that require a sign-in through a provider of their own.
+    #: Withdrawing single sign-on is refused while any exist; lifting the
+    #: requirement releases it.
     guilds_requiring_sign_in: int
-    #: Accounts that sign in today only through a guild-scoped provider, which
-    #: is the count a switch to platform posture is refused on.
-    platform_switch_would_strand: int
-
-
-class AuthScopeUpdate(SanitizedBaseModel):
-    auth_scope: AuthScope
 
 
 class LoginMethodsUpdate(SanitizedBaseModel):
@@ -182,10 +168,6 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
 
     light_accent_color: str
     dark_accent_color: str
-    # Non-secret posture info: the login page and guild settings need to know
-    # where sign-in is configured without a config.manage read. Required — a
-    # construction site that forgets it must fail, not silently claim platform.
-    auth_scope: AuthScope
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):

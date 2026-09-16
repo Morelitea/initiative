@@ -449,11 +449,9 @@ class SettingsMessages:
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_ROLE_NOT_FOUND = "SETTINGS_INITIATIVE_ROLE_NOT_FOUND"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
-    # Login posture and the permitted sign-in methods.
-    #: A guild still requires a sign-in its members would lose access to.
-    AUTH_SCOPE_GUILD_POLICIES = "SETTINGS_AUTH_SCOPE_GUILD_POLICIES"
-    #: Accounts sign in only by a route the change withdraws.
-    AUTH_SCOPE_WOULD_STRAND = "SETTINGS_AUTH_SCOPE_WOULD_STRAND"
+    # The permitted sign-in methods.
+    #: A guild still requires a sign-in through a provider of its own.
+    LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
     LOGIN_METHODS_WOULD_STRAND = "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
     #: The acknowledged number no longer matches what withdrawing would strand.

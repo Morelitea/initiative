@@ -614,23 +614,6 @@
     "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
-    "scope": {
-      "title": "Where sign-in is configured",
-      "description": "Whether sign-in belongs to the platform or to each community. The two are alternatives — an instance runs one of them.",
-      "fromEnvBadge": "Set at deployment",
-      "fromEnvHelp": "This instance is running the posture its deployment configuration asks for. Choosing here overrides that from now on.",
-      "platformLabel": "Platform-wide sign-in",
-      "guildLabel": "Per-community sign-in",
-      "platformExplained": "Sign-in is the platform's: the providers below serve every community, and a community cannot add one of its own.",
-      "guildExplained": "Communities may add providers of their own alongside the ones below, and people still sign in to one account whichever they use.",
-      "ssoWithdrawn": "This deployment does not permit single sign-on, so neither option changes how anyone signs in.",
-      "confirmTitle": "Change where sign-in is configured?",
-      "confirmToPlatform": "Communities will stop being able to configure sign-in of their own. Providers they have already set up are kept, not deleted, and come back if you switch again.",
-      "confirmToGuild": "Communities will be able to configure sign-in of their own. The providers below keep working for everyone.",
-      "confirmAction": "Change",
-      "saved": "Sign-in configuration updated.",
-      "saveError": "Could not change where sign-in is configured."
-    },
     "deploymentTitle": "This deployment",
     "mappingProvider": "Provider",
     "mappingProviderPlaceholder": "Which provider asserts this claim",
@@ -654,7 +637,9 @@
       "confirmBody_other": "{{count}} accounts sign in only this way and will not be able to sign in until they have another. Nobody is signed out.",
       "confirmAction": "Withdraw",
       "saved": "Ways in updated.",
-      "saveError": "Could not change the ways in."
+      "saveError": "Could not change the ways in.",
+      "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
+      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own."
     }
   },
   "platformUsers": {

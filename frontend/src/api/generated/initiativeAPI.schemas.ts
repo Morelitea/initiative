@@ -1102,28 +1102,6 @@ export interface AuthProviderUpdate {
   button_style?: string | null;
 }
 
-/**
- * Where login is configured — a **deploy-time** posture, set once at boot
- * via the ``AUTH_SCOPE`` env value, never toggled at runtime.
- *
- * ``platform`` — sign-in is configured once for the whole instance
- * (operator-global providers). ``guild`` — each guild configures its own
- * sign-in and may require it. The two are mutually exclusive; an instance is
- * built one way. Switching is non-destructive (it never deletes users,
- * memberships, or providers), but a deployment that has granted access via
- * guild auth does not switch back.
- */
-export type AuthScope = (typeof AuthScope)[keyof typeof AuthScope];
-
-export const AuthScope = {
-  platform: "platform",
-  guild: "guild",
-} as const;
-
-export interface AuthScopeUpdate {
-  auth_scope: AuthScope;
-}
-
 export interface BackupToolEstimate {
   count?: number;
   disabled?: boolean;
@@ -4558,7 +4536,6 @@ export interface IntakeSettingsRead {
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
-  auth_scope: AuthScope;
 }
 
 export interface InterfaceSettingsUpdate {
@@ -5068,7 +5045,6 @@ export interface OIDCMappingsResponse {
 }
 
 export interface OIDCSettingsResponse {
-  auth_scope: AuthScope;
   enabled: boolean;
   issuer: string | null;
   client_id: string | null;
@@ -5193,15 +5169,12 @@ export interface PlatformAdminCountResponse {
 }
 
 /**
- * The deployment's sign-in posture and permitted methods, with the facts
- * a change to either would turn on.
+ * The ways in this deployment permits, with the facts a change would turn
+ * on.
  */
 export interface PlatformAuthSettingsResponse {
-  auth_scope: AuthScope;
-  auth_scope_from_env: boolean;
   methods: LoginMethodStatus[];
   guilds_requiring_sign_in: number;
-  platform_switch_would_strand: number;
 }
 
 /**

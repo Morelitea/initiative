@@ -34,7 +34,6 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
-    AuthScopeUpdate,
     CommunitySettingsResponse,
     CommunitySettingsUpdate,
     EmailSettingsResponse,
@@ -75,7 +74,6 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import LoginMethod
-from app.services.auth import identity as identity_service
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
@@ -126,15 +124,14 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     )
 
 
-def _platform_oidc_response(provider, auth_scope) -> OIDCSettingsResponse:
-    """The deployment's auth posture and the redirect addresses that belong to
-    the install rather than to any one provider.
+def _platform_oidc_response(provider) -> OIDCSettingsResponse:
+    """The redirect addresses that belong to the install rather than to any one
+    provider.
 
     The provider fields are the platform row's, kept for readers that have not
     moved to the registry; a provider is configured through
     ``/settings/auth/providers``, which is the only place that writes one."""
     return OIDCSettingsResponse(
-        auth_scope=auth_scope,
         enabled=provider.enabled if provider else False,
         issuer=provider.issuer if provider else None,
         client_id=provider.client_id if provider else None,
@@ -153,17 +150,15 @@ async def get_oidc_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
-    """The deployment's auth posture and redirect addresses. System engine:
-    ``auth_providers`` carries no request-path grant; the capability gate stays
+    """The install's redirect addresses. System engine: ``auth_providers``
+    carries no request-path grant; the capability gate stays
     ``config.manage``."""
     provider = await platform_provider_service.get_platform_provider(session)
-    return _platform_oidc_response(
-        provider, await auth_posture.resolve_auth_scope(session)
-    )
+    return _platform_oidc_response(provider)
 
 
 async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
-    """The posture, the permitted methods, and what changing either would cost.
+    """The permitted ways in, and what withdrawing one would cost.
 
     The counts are computed on every read so the page can state the
     consequence before the write instead of after a refusal — and so the figure
@@ -172,8 +167,6 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
     row = await app_settings_service.get_app_settings(session)
     permitted = auth_posture.methods_from_row(row)
     return PlatformAuthSettingsResponse(
-        auth_scope=auth_posture.scope_from_row(row),
-        auth_scope_from_env=not (row.auth_scope or "").strip(),
         methods=[
             LoginMethodStatus(
                 method=method,
@@ -185,9 +178,6 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
-        platform_switch_would_strand=(
-            await identity_service.guild_provider_only_user_count(session)
-        ),
     )
 
 
@@ -196,27 +186,9 @@ async def get_platform_auth_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
-    """Where sign-in is configured and which ways in are permitted. System
-    engine: the guard counts read ``auth_providers`` and
-    ``federated_identities``, neither of which carries a request-path grant."""
-    return await _platform_auth_payload(session)
-
-
-@router.put("/auth/scope", response_model=PlatformAuthSettingsResponse)
-async def update_auth_scope(
-    payload: AuthScopeUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> PlatformAuthSettingsResponse:
-    """Pin where sign-in is configured for this deployment.
-
-    Refused (409) while any guild still requires a sign-in of its own, or
-    while accounts sign in only by a route the switch withdraws; the refusal
-    carries the count in ``X-Affected-Count``. Writing a value also ends this
-    deployment's reliance on the ``AUTH_SCOPE`` env value."""
-    await auth_posture.set_auth_scope(
-        session, scope=payload.auth_scope, actor_user_id=admin.id
-    )
+    """Which ways in are permitted. System engine: the guard counts read
+    ``auth_providers`` and ``federated_identities``, neither of which carries a
+    request-path grant."""
     return await _platform_auth_payload(session)
 
 
@@ -249,7 +221,6 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=auth_posture.scope_from_row(settings_obj),
     )
 
 
@@ -267,7 +238,6 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=auth_posture.scope_from_row(settings_obj),
     )
 
 

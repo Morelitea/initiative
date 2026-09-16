@@ -292,49 +292,6 @@ def _no_usable_password_clause():
     )
 
 
-async def guild_provider_only_user_count(session: AsyncSession) -> int:
-    """How many accounts can sign in today only through a guild-scoped provider.
-
-    The question a switch to platform posture has to ask: guild-scoped
-    providers do not answer logins there, so the accounts it concerns are those
-    with no usable password and no operator-global identity.
-
-    Counts only accounts the switch would actually strand — it requires a
-    login-ready guild-scoped identity, so an account that already cannot sign
-    in (no password, no working identity) is not counted and does not block a
-    switch over a condition that predates it.
-    """
-    holds_guild_scoped = (
-        select(FederatedIdentity.id)
-        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
-        .where(
-            FederatedIdentity.user_id == User.id,
-            AuthProvider.guild_id.is_not(None),
-            can_serve_login_clause(),
-        )
-    )
-    holds_operator_global = (
-        select(FederatedIdentity.id)
-        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
-        .where(
-            FederatedIdentity.user_id == User.id,
-            AuthProvider.guild_id.is_(None),
-            can_serve_login_clause(),
-        )
-    )
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(
-                _no_usable_password_clause(),
-                holds_guild_scoped.exists(),
-                ~holds_operator_global.exists(),
-            )
-        )
-    ).one()
-
-
 async def password_only_user_count(session: AsyncSession) -> int:
     """How many accounts can sign in today only with a password.
 

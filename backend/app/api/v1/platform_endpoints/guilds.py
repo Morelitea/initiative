@@ -74,7 +74,6 @@ from app.schemas.platform.guild import (
     GuildUpdate,
     LeaveGuildEligibilityResponse,
 )
-from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
@@ -937,22 +936,6 @@ async def create_guild_billing_handoff(
     )
 
 
-async def _require_guild_auth_scope(session: AsyncSession) -> None:
-    """The guild sign-in configuration surface exists only when the instance's
-    posture is per-guild login; under platform posture it is absent (404), the
-    same way dormant login providers behave.
-
-    Two things are deliberately outside this gate. Enforcement of an existing
-    policy row is not posture-gated, and neither is *clearing* one — a
-    requirement outlives a posture change, so the way to lift it has to outlive
-    one too."""
-    if await auth_posture.resolve_auth_scope(session) != AuthScope.guild:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
-        )
-
-
 async def _require_guild_auth_enabled(
     admin_session: AsyncSession, guild_id: int
 ) -> None:
@@ -998,10 +981,10 @@ async def get_guild_auth_policy(
     a blocked session learns the required provider from the step-up 401's
     header, not from here.
 
-    Readable whatever the posture and whatever the guild's entitlement, because
-    a requirement stays enforced through changes to both (the gate in
-    ``deps.py`` and ``public.guild_auth_satisfied()`` read the policy row and
-    nothing else). An admin who cannot see what is set cannot clear it."""
+    Readable whatever the guild's entitlement, because a requirement stays
+    enforced through changes to it (the gate in ``deps.py`` and
+    ``public.guild_auth_satisfied()`` read the policy row and nothing else).
+    An admin who cannot see what is set cannot clear it."""
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     display_name = None
@@ -1028,11 +1011,11 @@ async def set_guild_auth_policy(
     behind a sign-in they haven't completed.
 
     The two verbs are gated differently, and deliberately. Setting a
-    requirement needs per-guild posture and the guild's entitlement, as before.
-    **Clearing one is always reachable**: enforcement reads the policy row
-    alone, so a requirement outlives both switches and the way to lift one
-    outlives them too. Lifting only ever admits more, so it carries none of the
-    conditions imposing it does."""
+    requirement needs the guild's entitlement, as before. **Clearing one is
+    always reachable**: enforcement reads the policy row alone, so a
+    requirement outlives the entitlement and the way to lift one outlives it
+    too. Lifting only ever admits more, so it carries none of the conditions
+    imposing it does."""
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
 
     if payload.policy == "open":
@@ -1042,8 +1025,13 @@ async def set_guild_auth_policy(
             await admin_session.commit()
         return GuildAuthPolicyRead(policy="open")
 
-    await _require_guild_auth_scope(session)
     await _require_guild_auth_enabled(admin_session, guild_id)
+    # Hold the settings row for the rest of this transaction. An operator
+    # withdrawing single sign-on takes the same row exclusively, so the two
+    # order rather than interleave: either they see this requirement and are
+    # told, or this sees single sign-on already gone and its provider is no
+    # longer login-ready.
+    await auth_posture.hold_settings_for_read(admin_session)
 
     if payload.provider_id is None:
         raise HTTPException(

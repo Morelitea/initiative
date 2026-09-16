@@ -56,9 +56,6 @@ class AuditEventType(str, Enum):
     #: the first one; from then on the seat is passed on by whoever holds it,
     #: and both paths record this.
     GUILD_SECURITY_ADMIN_CHANGED = "guild.security_admin_changed"
-    #: Where sign-in is configured for the whole deployment changed, moving
-    #: which providers answer a login.
-    PLATFORM_AUTH_SCOPE_CHANGED = "platform.auth_scope_changed"
     #: Which ways in the deployment permits changed. Carries the count of
     #: accounts an operator acknowledged stranding, where they did.
     PLATFORM_LOGIN_METHODS_CHANGED = "platform.login_methods_changed"
@@ -117,9 +114,6 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_REFRESH_REUSE_DETECTED: AuditEventMeta(
-        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
-    ),
-    AuditEventType.PLATFORM_AUTH_SCOPE_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(

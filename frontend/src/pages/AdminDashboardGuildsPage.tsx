@@ -20,11 +20,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  useInterfaceSettings,
-  usePlatformGuilds,
-  useUpdateGuildStorage,
-} from "@/hooks/useSettings";
+import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -392,10 +388,6 @@ export const AdminDashboardGuildsPage = () => {
   const canManageGuilds = hasCapability(user, Capability.guildsManage);
 
   const guildsQuery = usePlatformGuilds({ enabled: canManageGuilds });
-  // The guild-auth column is only meaningful when the instance runs per-guild
-  // sign-in; under platform posture the toggle would do nothing, so hide it.
-  const interfaceSettings = useInterfaceSettings();
-  const guildAuthPosture = interfaceSettings.data?.auth_scope === "guild";
   const { billing } = useAppConfig();
 
   const columns: AppColumnDef<PlatformGuildStorageRead>[] = [
@@ -422,16 +414,12 @@ export const AdminDashboardGuildsPage = () => {
       enableSorting: false,
       cell: ({ row }) => <GuildStorageCell guild={row.original} />,
     },
-    ...(guildAuthPosture
-      ? [
-          {
-            id: "guildAuth",
-            header: t("guilds.columns.guildAuth"),
-            enableSorting: false,
-            cell: ({ row }) => <GuildAuthCell guild={row.original} />,
-          } satisfies AppColumnDef<PlatformGuildStorageRead>,
-        ]
-      : []),
+    {
+      id: "guildAuth",
+      header: t("guilds.columns.guildAuth"),
+      enableSorting: false,
+      cell: ({ row }) => <GuildAuthCell guild={row.original} />,
+    },
     {
       id: "support",
       header: t("guilds.columns.support"),

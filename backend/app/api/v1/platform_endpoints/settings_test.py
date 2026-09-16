@@ -26,7 +26,6 @@ from app.testing import (
     create_initiative,
     create_user,
     get_auth_headers,
-    set_auth_scope,
 )
 
 
@@ -1215,57 +1214,6 @@ async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
-
-
-@pytest.mark.integration
-async def test_auth_scope_defaults_to_platform(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    owner = await create_user(session, role=UserRole.owner)
-
-    resp = await client.get("/api/v1/settings/auth", headers=get_auth_headers(owner))
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-
-    # Non-secret posture info is readable without config.manage (login page,
-    # guild settings) via the interface settings.
-    resp = await client.get("/api/v1/settings/interface")
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-
-
-@pytest.mark.integration
-async def test_guild_posture_keeps_platform_oidc_offered(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Moving to guild posture leaves the platform provider offered and its
-    configuration untouched.
-
-    An operator-global provider signs a person into their account. It is
-    authoritative for no guild — a guild requirement may only name a provider
-    of that guild's own — so which posture the instance runs in does not decide
-    whether it answers a login."""
-    owner = await create_user(session, role=UserRole.owner)
-    headers = get_auth_headers(owner)
-    await _configure_platform_oidc(client, headers)
-
-    async def _login_offered() -> bool:
-        listing = await client.get("/api/v1/auth/providers")
-        return any(p["slug"] == "oidc" for p in listing.json()["providers"])
-
-    assert await _login_offered() is True
-
-    set_auth_scope("guild")
-
-    resp = await client.get("/api/v1/settings/auth", headers=headers)
-    assert resp.json()["auth_scope"] == "guild"
-    assert resp.json()["enabled"] is True
-    assert resp.json()["issuer"] == "https://idp.example.com"
-    assert await _login_offered() is True
-    # The provider resolves rather than being refused as absent. What the flow
-    # then does with an unreachable test issuer is not what this is about.
-    login_resp = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-    assert login_resp.status_code != 404
 
 
 # --- Guilds tab: billing portal operator handoff ---

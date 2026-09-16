@@ -614,23 +614,6 @@
     "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
-    "scope": {
-      "title": "Où la connexion est configurée",
-      "description": "Si la connexion appartient à la plateforme ou à chaque communauté. Les deux s'excluent : une instance fonctionne avec l'une d'elles.",
-      "fromEnvBadge": "Défini au déploiement",
-      "fromEnvHelp": "Cette instance utilise le mode demandé par sa configuration de déploiement. Choisir ici le remplace désormais.",
-      "platformLabel": "Connexion à l'échelle de la plateforme",
-      "guildLabel": "Connexion par communauté",
-      "platformExplained": "La connexion appartient à la plateforme : les fournisseurs ci-dessous servent toutes les communautés, et une communauté ne peut pas ajouter le sien.",
-      "guildExplained": "Les communautés peuvent ajouter leurs propres fournisseurs à côté de ceux ci-dessous, et l'on se connecte toujours à un seul compte quel que soit celui utilisé.",
-      "ssoWithdrawn": "Ce déploiement n'autorise pas l'authentification unique ; aucune des deux options ne change donc la façon dont on se connecte.",
-      "confirmTitle": "Changer l'endroit où la connexion est configurée ?",
-      "confirmToPlatform": "Les communautés ne pourront plus configurer leur propre connexion. Les fournisseurs déjà créés sont conservés, non supprimés, et reviennent si vous changez à nouveau.",
-      "confirmToGuild": "Les communautés pourront configurer leur propre connexion. Les fournisseurs ci-dessous continuent de fonctionner pour tout le monde.",
-      "confirmAction": "Changer",
-      "saved": "Configuration de connexion mise à jour.",
-      "saveError": "Impossible de changer l'endroit où la connexion est configurée."
-    },
     "deploymentTitle": "Cette installation",
     "mappingProvider": "Fournisseur",
     "mappingProviderPlaceholder": "Quel fournisseur déclare ce claim",
@@ -654,7 +637,9 @@
       "confirmBody_other": "{{count}} comptes se connectent uniquement ainsi et ne pourront plus se connecter tant qu'ils n'en auront pas un autre. Personne n'est déconnecté.",
       "confirmAction": "Retirer",
       "saved": "Moyens d'accès mis à jour.",
-      "saveError": "Impossible de modifier les moyens d'accès."
+      "saveError": "Impossible de modifier les moyens d'accès.",
+      "guildsRequire_one": "{{count}} communauté exige une connexion via un fournisseur qui lui est propre.",
+      "guildsRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre."
     }
   },
   "platformUsers": {

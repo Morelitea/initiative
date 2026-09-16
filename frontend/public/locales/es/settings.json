@@ -614,23 +614,6 @@
     "loadingOptions": "Cargando opciones…",
     "loadingOidcMappings": "Cargando mapeos OIDC…",
     "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC.",
-    "scope": {
-      "title": "Dónde se configura el inicio de sesión",
-      "description": "Si el inicio de sesión pertenece a la plataforma o a cada comunidad. Son alternativas: una instancia funciona con una de ellas.",
-      "fromEnvBadge": "Definido en el despliegue",
-      "fromEnvHelp": "Esta instancia usa la modalidad que pide su configuración de despliegue. Elegir aquí la sustituye a partir de ahora.",
-      "platformLabel": "Inicio de sesión de toda la plataforma",
-      "guildLabel": "Inicio de sesión por comunidad",
-      "platformExplained": "El inicio de sesión es de la plataforma: los proveedores de abajo sirven a todas las comunidades, y una comunidad no puede añadir el suyo.",
-      "guildExplained": "Las comunidades pueden añadir sus propios proveedores junto a los de abajo, y se sigue entrando en una sola cuenta use el que use.",
-      "ssoWithdrawn": "Este despliegue no permite el inicio de sesión único, así que ninguna de las dos opciones cambia cómo entra nadie.",
-      "confirmTitle": "¿Cambiar dónde se configura el inicio de sesión?",
-      "confirmToPlatform": "Las comunidades dejarán de poder configurar su propio inicio de sesión. Los proveedores que ya hayan creado se conservan, no se borran, y vuelven si se cambia de nuevo.",
-      "confirmToGuild": "Las comunidades podrán configurar su propio inicio de sesión. Los proveedores de abajo siguen funcionando para todo el mundo.",
-      "confirmAction": "Cambiar",
-      "saved": "Configuración de inicio de sesión actualizada.",
-      "saveError": "No se pudo cambiar dónde se configura el inicio de sesión."
-    },
     "deploymentTitle": "Esta instalación",
     "mappingProvider": "Proveedor",
     "mappingProviderPlaceholder": "Qué proveedor declara este claim",
@@ -654,7 +637,9 @@
       "confirmBody_other": "{{count}} cuentas entran solo de esta forma y no podrán iniciar sesión hasta tener otra. No se cierra la sesión de nadie.",
       "confirmAction": "Retirar",
       "saved": "Formas de entrar actualizadas.",
-      "saveError": "No se pudieron cambiar las formas de entrar."
+      "saveError": "No se pudieron cambiar las formas de entrar.",
+      "guildsRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
+      "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio."
     }
   },
   "platformUsers": {

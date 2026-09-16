@@ -11,7 +11,6 @@ import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
   AuthProviderUpdate,
-  AuthScopeUpdate,
   ChangelogResponse,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
@@ -62,7 +61,6 @@ import {
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
-  updateAuthScopeApiV1SettingsAuthScopePut,
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
@@ -266,26 +264,6 @@ export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettings
     queryFn: () => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(),
     ...options,
   });
-
-/**
- * Pin where sign-in is configured.
- *
- * Invalidates the settings read that every auth surface hangs off, and the
- * OIDC read whose badge names the same posture.
- */
-export const useUpdateAuthScope = (
-  options?: MutationOpts<PlatformAuthSettingsResponse, AuthScopeUpdate>
-) =>
-  useApiMutation<PlatformAuthSettingsResponse, AuthScopeUpdate>(
-    {
-      mutationFn: (data) =>
-        updateAuthScopeApiV1SettingsAuthScopePut(
-          data as Parameters<typeof updateAuthScopeApiV1SettingsAuthScopePut>[0]
-        ),
-      invalidate: () => invalidate(q.platformAuthSettings(), q.authSettings(), q.appConfig()),
-    },
-    options
-  );
 
 /**
  * Set which ways in the deployment permits.

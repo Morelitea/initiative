@@ -1,31 +1,19 @@
 /**
- * Platform → Authentication: the two decisions that belong to the deployment
- * rather than to any one provider.
+ * Platform → Authentication: which ways in the deployment permits.
  *
- * Which ways in it permits, and where sign-in is configured. Both are written
- * here; both are also enforced server-side, so what this page does is offer the
+ * Written here and enforced server-side, so what this page does is offer the
  * choice and state what it costs — never decide it.
  */
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  AuthScope,
-  LoginMethod,
-  LoginMethodStatus,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { LoginMethod, LoginMethodStatus } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsSection } from "@/components/settings/SettingsSection";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  usePlatformAuthSettings,
-  useUpdateAuthScope,
-  useUpdateLoginMethods,
-} from "@/hooks/useSettings";
+import { usePlatformAuthSettings, useUpdateLoginMethods } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -39,23 +27,16 @@ export const PlatformAuthSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
   const [pendingMethods, setPendingMethods] = useState<LoginMethod[] | null>(null);
-  const [pendingScope, setPendingScope] = useState<AuthScope | null>(null);
 
   const updateMethods = useUpdateLoginMethods({
     onSuccess: () => toast.success(t("auth.methods.saved")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:auth.methods.saveError")),
   });
-  const updateScope = useUpdateAuthScope({
-    onSuccess: () => toast.success(t("auth.scope.saved")),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:auth.scope.saveError")),
-  });
-
   if (query.isLoading || !query.data) return null;
 
-  const { methods, auth_scope, auth_scope_from_env } = query.data;
+  const { methods, guilds_requiring_sign_in } = query.data;
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
-  const ssoPermitted = enabled.includes("sso");
-  const busy = updateMethods.isPending || updateScope.isPending;
+  const busy = updateMethods.isPending;
 
   const applyMethods = (next: LoginMethod[], acknowledge?: number) =>
     updateMethods.mutate({
@@ -113,48 +94,18 @@ export const PlatformAuthSection = () => {
                       {t("auth.methods.wouldStrand", { count: entry.would_strand })}
                     </p>
                   ) : null}
+                  {entry.method === "sso" && entry.enabled && guilds_requiring_sign_in > 0 ? (
+                    <p className="text-amber-600 text-xs dark:text-amber-500">
+                      {t("auth.methods.guildsRequire", {
+                        count: guilds_requiring_sign_in,
+                      })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             );
           })}
         </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title={
-          <span className="flex items-center gap-2">
-            {t("auth.scope.title")}
-            {auth_scope_from_env ? (
-              <Badge variant="secondary">{t("auth.scope.fromEnvBadge")}</Badge>
-            ) : null}
-          </span>
-        }
-        description={
-          auth_scope_from_env ? t("auth.scope.fromEnvHelp") : t("auth.scope.description")
-        }
-      >
-        {ssoPermitted ? null : (
-          <p className="mb-3 text-muted-foreground text-sm">{t("auth.scope.ssoWithdrawn")}</p>
-        )}
-        <RadioGroup
-          value={auth_scope}
-          onValueChange={(value) => setPendingScope(value as AuthScope)}
-          disabled={busy || !ssoPermitted}
-        >
-          {(["platform", "guild"] as const).map((option) => (
-            <div key={option} className="flex items-start gap-3 rounded-lg border p-4">
-              <RadioGroupItem value={option} id={`auth-scope-${option}`} className="mt-0.5" />
-              <div className="space-y-1">
-                <Label htmlFor={`auth-scope-${option}`} className="cursor-pointer font-medium">
-                  {t(`auth.scope.${option}Label`)}
-                </Label>
-                <p className="text-muted-foreground text-sm">
-                  {t(`auth.scope.${option}Explained`)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </RadioGroup>
       </SettingsSection>
 
       <ConfirmDialog
@@ -168,23 +119,6 @@ export const PlatformAuthSection = () => {
         onConfirm={() => {
           if (pendingMethods) applyMethods(pendingMethods, pendingStrandCount);
           setPendingMethods(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={pendingScope !== null}
-        onOpenChange={(open) => !open && setPendingScope(null)}
-        title={t("auth.scope.confirmTitle")}
-        description={
-          pendingScope === "platform"
-            ? t("auth.scope.confirmToPlatform")
-            : t("auth.scope.confirmToGuild")
-        }
-        confirmLabel={t("auth.scope.confirmAction")}
-        isLoading={updateScope.isPending}
-        onConfirm={() => {
-          if (pendingScope) updateScope.mutate({ auth_scope: pendingScope });
-          setPendingScope(null);
         }}
       />
     </>

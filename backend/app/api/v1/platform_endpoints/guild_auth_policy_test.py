@@ -25,7 +25,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    set_auth_scope,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -53,7 +52,6 @@ async def _require_provider(
 async def test_admin_sets_reads_and_clears_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -92,7 +90,6 @@ async def test_admin_sets_reads_and_clears_policy(
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
@@ -111,7 +108,6 @@ async def test_non_admin_cannot_manage_policy(
 async def test_policy_rejects_unusable_provider(
     client: AsyncClient, session: AsyncSession
 ):
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -143,7 +139,6 @@ async def test_policy_rejects_other_namespace_providers(
 ):
     """A requirement can only name one of the guild's own providers — never an
     operator-global row (dormant under per-guild auth) or another guild's."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -170,7 +165,6 @@ async def test_policy_requires_admin_own_session_to_satisfy(
 ):
     """An admin can only require a provider their own session has satisfied —
     proving it works and keeping them from locking out their guild."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -187,48 +181,16 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
 
 
-async def test_setting_a_requirement_is_absent_in_platform_posture(
+async def test_a_requirement_can_be_cleared_without_the_entitlement(
     client: AsyncClient, session: AsyncSession
 ):
-    """Under platform posture a guild cannot acquire a sign-in requirement:
-    the PUT that would set one 404s even for a satisfied guild admin, and
-    nothing is written.
-
-    Reading is a separate matter and stays open — see the reading and clearing
-    tests below."""
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    provider = await create_auth_provider(session, slug="corp")
-    headers = _sat_headers(admin, [provider.id])
-
-    got = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
-    assert got.status_code == 200
-    assert got.json()["policy"] == "open"
-
-    guild_id = guild.id
-    put = await client.put(
-        f"/api/v1/guilds/{guild_id}/auth-policy",
-        headers=headers,
-        json={"policy": "required", "provider_id": provider.id},
-    )
-    assert put.status_code == 404
-    assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
-    session.expire_all()
-    assert await session.get(GuildAuthPolicy, guild_id) is None
-
-
-async def test_a_requirement_can_be_cleared_whatever_the_posture(
-    client: AsyncClient, session: AsyncSession
-):
-    """A requirement set under per-guild posture can be read and lifted after
-    the instance moves to platform posture.
+    """A requirement can be read and lifted by a guild admin whatever the
+    guild's entitlement says.
 
     Enforcement reads the policy row alone, so a requirement outlives the
-    posture that set it; the way to lift one outlives it too. Lifting only ever
-    admits more, so it carries none of the gating the setting path does."""
+    entitlement that allowed it to be set; the way to lift one outlives it too.
+    Lifting only ever admits more, so it carries none of the gating the setting
+    path does."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -263,7 +225,6 @@ async def test_policy_surface_404_when_guild_auth_disabled(
     PUT that would set one 404s with the same GUILD_AUTH_NOT_ENABLED shape as
     platform posture, and nothing is written. Reading stays open, as it does
     under platform posture."""
-    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
     await create_guild_membership(

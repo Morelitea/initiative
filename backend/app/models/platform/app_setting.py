@@ -9,8 +9,8 @@ from app.core.login_methods import LoginMethod
 from app.models.platform.user_dm_settings import DmPolicy
 
 # Platform OIDC config lives on the provider registry row (``auth_providers``
-# slug ``oidc``), not here. Login posture does live here — see ``auth_scope``
-# below, and ``app.services.platform.auth_posture`` for the one read of it.
+# slug ``oidc``), not here. Which ways in the deployment permits does — see
+# ``login_methods`` below and ``app.services.platform.auth_posture``.
 
 
 class AppSetting(SQLModel, table=True):
@@ -41,23 +41,6 @@ class AppSetting(SQLModel, table=True):
     )
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
-    )
-
-    # Login posture: 'platform' (sign-in configured once for the instance) or
-    # 'guild' (each guild configures and may require its own). See
-    # ``app.core.config.AuthScope``.
-    #
-    # NULL means nobody has chosen here, and the deploy-time ``AUTH_SCOPE`` env
-    # value governs. That is what makes this column safe to add to a running
-    # deployment: an install configured with ``AUTH_SCOPE=guild`` upgrades to
-    # NULL, keeps reading its env, and keeps its posture — no backfill, and no
-    # way for an upgrade to move an instance between postures. Writing it once
-    # from the settings UI pins the value and the env stops being consulted.
-    #
-    # Read through ``auth_posture.resolve_auth_scope`` and never directly, so
-    # the NULL-means-env rule lives in exactly one place.
-    auth_scope: Optional[str] = Field(
-        default=None, sa_column=Column(String(20), nullable=True)
     )
 
     # Which ways in this deployment permits. A Postgres enum array: adding a

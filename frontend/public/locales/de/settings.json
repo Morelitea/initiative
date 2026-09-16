@@ -614,23 +614,6 @@
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
-    "scope": {
-      "title": "Wo die Anmeldung konfiguriert wird",
-      "description": "Ob die Anmeldung der Plattform gehört oder jeder Community. Die beiden schließen einander aus – eine Instanz betreibt eine davon.",
-      "fromEnvBadge": "Beim Deployment gesetzt",
-      "fromEnvHelp": "Diese Instanz verwendet die in ihrer Deployment-Konfiguration gewählte Variante. Eine Auswahl hier setzt das ab sofort außer Kraft.",
-      "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung je Community",
-      "platformExplained": "Die Anmeldung gehört der Plattform: Die Anbieter unten gelten für jede Community, und eine Community kann keinen eigenen hinzufügen.",
-      "guildExplained": "Communities dürfen neben den unten aufgeführten eigene Anbieter hinzufügen; man meldet sich weiterhin bei einem Konto an, welchen man auch nutzt.",
-      "ssoWithdrawn": "Dieses Deployment erlaubt kein Single Sign-on, daher ändert keine der beiden Optionen etwas an der Anmeldung.",
-      "confirmTitle": "Ändern, wo die Anmeldung konfiguriert wird?",
-      "confirmToPlatform": "Communities können dann keine eigene Anmeldung mehr konfigurieren. Bereits eingerichtete Anbieter bleiben erhalten, werden nicht gelöscht und kehren bei einem erneuten Wechsel zurück.",
-      "confirmToGuild": "Communities können dann eine eigene Anmeldung konfigurieren. Die Anbieter unten funktionieren weiterhin für alle.",
-      "confirmAction": "Ändern",
-      "saved": "Anmeldekonfiguration aktualisiert.",
-      "saveError": "Konnte nicht ändern, wo die Anmeldung konfiguriert wird."
-    },
     "deploymentTitle": "Diese Installation",
     "mappingProvider": "Anbieter",
     "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
@@ -654,7 +637,9 @@
       "confirmBody_other": "{{count}} Konten melden sich ausschließlich so an und können sich erst wieder anmelden, wenn sie einen anderen Weg haben. Niemand wird abgemeldet.",
       "confirmAction": "Entziehen",
       "saved": "Zugangswege aktualisiert.",
-      "saveError": "Die Zugangswege konnten nicht geändert werden."
+      "saveError": "Die Zugangswege konnten nicht geändert werden.",
+      "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
+      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter."
     }
   },
   "platformUsers": {

@@ -1417,8 +1417,8 @@ export function useListLoginProvidersApiV1AuthProvidersGet<
 /**
  * One guild's sign-in providers — non-secret metadata only, with
  * guild-addressed login URLs and the guild's display name for its login
- * page. Empty (and nameless) outside per-guild auth posture and for a
- * guild with no login-ready providers; an unknown guild id is
+ * page. Empty (and nameless) for a guild with no login-ready providers and
+ * where single sign-on is not permitted; an unknown guild id is
  * indistinguishable from an empty registry.
  * @summary List Guild Login Providers
  */

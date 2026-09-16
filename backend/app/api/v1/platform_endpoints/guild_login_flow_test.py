@@ -26,7 +26,6 @@ from app.testing.factories import (
     create_auth_provider,
     create_federated_identity,
     create_user,
-    set_auth_scope,
 )
 from app.testing.oidc import ISSUER as OIDC_ISSUER, FakeIdp, mint_id_token
 
@@ -41,7 +40,6 @@ async def _guild_provider(
     the operator has not enabled sign-in for."""
     from app.testing.factories import create_guild
 
-    set_auth_scope()
     guild = await create_guild(session, guild_auth_enabled=guild_auth_enabled)
     provider = await create_auth_provider(
         session, slug="corp", guild_id=guild.id, **overrides
@@ -123,16 +121,6 @@ async def test_guild_listing_serves_guild_login_urls(
     assert empty.json() == {"providers": [], "guild_name": None}
 
 
-async def test_guild_listing_empty_in_platform_posture(
-    client: AsyncClient, session: AsyncSession
-):
-    guild, _provider = await _guild_provider(session)
-    set_auth_scope("platform")
-
-    response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
-    assert response.json()["providers"] == []
-
-
 async def test_guild_login_begins_flow_and_carries_next(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -147,19 +135,6 @@ async def test_guild_login_begins_flow_and_carries_next(
     assert response.status_code in (302, 307)
     assert response.headers["location"].startswith(f"{OIDC_ISSUER}/authorize?")
     assert "oidc_next=" in response.headers.get("set-cookie", "")
-
-
-async def test_guild_login_absent_in_platform_posture(
-    client: AsyncClient, session: AsyncSession
-):
-    guild, _provider = await _guild_provider(session)
-    set_auth_scope("platform")
-
-    response = await client.get(
-        f"/api/v1/auth/g/{guild.id}/corp/login", follow_redirects=False
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "OIDC_NOT_ENABLED"
 
 
 async def test_guild_callback_signs_in_linked_user_with_sat(
