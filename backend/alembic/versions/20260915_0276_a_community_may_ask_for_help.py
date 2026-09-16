@@ -12,8 +12,8 @@ No grant goes with it. Nothing on the request path writes
 ``guild_administration`` — the operator endpoints run on the system engine —
 so the column inherits the table's existing terms.
 
-Revision ID: 20260915_0275
-Revises: 20260915_0274
+Revision ID: 20260915_0276
+Revises: 20260915_0275
 Create Date: 2026-09-15
 """
 
@@ -22,8 +22,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260915_0275"
-down_revision = "20260915_0274"
+revision = "20260915_0276"
+down_revision = "20260915_0275"
 branch_labels = None
 depends_on = None
 
