@@ -186,5 +186,22 @@
     "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
   },
   "archiveError": "No se pudo archivar. Inténtalo de nuevo.",
-  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo."
+  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo.",
+  "markdownEditor": {
+    "toolbar": "Formato",
+    "write": "Escribir",
+    "preview": "Vista previa",
+    "nothingToPreview": "Todavía no hay nada que previsualizar.",
+    "heading": "Encabezado",
+    "bold": "Negrita",
+    "italic": "Cursiva",
+    "strikethrough": "Tachado",
+    "link": "Enlace",
+    "quote": "Cita",
+    "code": "Código",
+    "bulletedList": "Lista con viñetas",
+    "numberedList": "Lista numerada",
+    "taskList": "Lista de tareas",
+    "more": "Más formato"
+  }
 }

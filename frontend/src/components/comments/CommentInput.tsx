@@ -1,12 +1,22 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { AtSign, Hash } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
+import type { ToolbarItem } from "@/components/markdown/MarkdownToolbar";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { getCaretCoordinates } from "@/lib/caretCoordinates";
 import type { ActiveMention } from "@/lib/mentions";
-import { activeMention, entityMentionSyntax, userMentionSyntax } from "@/lib/mentions";
+import {
+  activeMention,
+  ENTITY_TRIGGER,
+  entityMentionSyntax,
+  USER_TRIGGER,
+  userMentionSyntax,
+} from "@/lib/mentions";
 
+import { CommentContent } from "./CommentContent";
+import { CommentReferences } from "./CommentReferences";
 import type { MentionChoice } from "./MentionPopover";
 import { MentionPopover } from "./MentionPopover";
 
@@ -49,6 +59,21 @@ interface CommentInputProps {
 
 /** How long the mention popover survives a blur, so a click on it lands. */
 const MENTION_BLUR_GRACE_MS = 200;
+
+/**
+ * The preview of a comment that has not been posted yet.
+ *
+ * It resolves its own mentions rather than borrowing the thread's: the names a
+ * draft points at are, by definition, ones no posted comment has asked about.
+ */
+const DraftPreview = ({ content }: { content: string }) => {
+  const contents = useMemo(() => [content], [content]);
+  return (
+    <CommentReferences contents={contents}>
+      <CommentContent content={content} />
+    </CommentReferences>
+  );
+};
 
 export const CommentInput = ({
   value,
@@ -101,12 +126,12 @@ export const CommentInput = ({
   );
 
   // Handle text changes and detect mention triggers
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value;
+  const handleComposerChange = useCallback(
+    (newValue: string) => {
       onChange(newValue);
       onClearError?.();
-      syncMentionTrigger(e.target, newValue, e.target.selectionStart);
+      const field = textareaRef.current;
+      if (field) syncMentionTrigger(field, newValue, field.selectionStart);
     },
     [onChange, onClearError, syncMentionTrigger]
   );
@@ -162,6 +187,58 @@ export const CommentInput = ({
     setMentionTrigger(null);
   }, []);
 
+  const renderDraft = useCallback((draft: string) => <DraftPreview content={draft} />, []);
+
+  // A trigger the toolbar inserted, waiting for the new text to reach the
+  // field before the caret can go after it.
+  const pendingTrigger = useRef<number | null>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    const caret = pendingTrigger.current;
+    if (!textarea || caret === null) return;
+    pendingTrigger.current = null;
+    textarea.focus();
+    textarea.setSelectionRange(caret, caret);
+    // Nothing was typed, so open the picker on the trigger that was placed.
+    syncMentionTrigger(textarea, value, caret);
+  }, [value, syncMentionTrigger]);
+
+  /** Write a bare trigger at the caret and open the picker on it. */
+  const insertTrigger = useCallback(
+    (trigger: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const { selectionStart, selectionEnd } = textarea;
+      const before = value.slice(0, selectionStart);
+      // A trigger only counts at a word boundary, so one landing against a
+      // word brings its own space — otherwise it reads as part of the word.
+      const written = before === "" || /[\s([{]$/.test(before) ? trigger : ` ${trigger}`;
+      pendingTrigger.current = selectionStart + written.length;
+      onChange(before + written + value.slice(selectionEnd));
+      onClearError?.();
+    },
+    [value, onChange, onClearError]
+  );
+
+  const mentionTools = useMemo<ToolbarItem[]>(
+    () => [
+      {
+        id: "mention-user",
+        label: t("insertUserMention"),
+        icon: AtSign,
+        onClick: () => insertTrigger(USER_TRIGGER),
+      },
+      {
+        id: "mention-entity",
+        label: t("insertEntityMention"),
+        icon: Hash,
+        onClick: () => insertTrigger(ENTITY_TRIGGER),
+      },
+    ],
+    [insertTrigger, t]
+  );
+
   // Handle form submit
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -186,54 +263,56 @@ export const CommentInput = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleChange}
-          onSelect={handleSelect}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !mentionTrigger) {
-              e.preventDefault();
-              const trimmed = value.trim();
-              if (trimmed && !isSubmitting) {
-                onSubmit(trimmed);
-              }
-              return;
+      <MarkdownComposer
+        textareaRef={textareaRef}
+        value={value}
+        onChange={handleComposerChange}
+        renderPreview={renderDraft}
+        tools={mentionTools}
+        onSelect={handleSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !mentionTrigger) {
+            e.preventDefault();
+            const trimmed = value.trim();
+            if (trimmed && !isSubmitting) {
+              onSubmit(trimmed);
             }
-            // The mention popover claims Escape first; a second press dismisses
-            // the whole field.
-            if (e.key === "Escape" && !mentionTrigger && onCancel) {
-              e.preventDefault();
-              onCancel();
-            }
-          }}
-          onBlur={() => {
-            // Held open a moment so a click on the popover lands before the
-            // blur closes it — and the handle is kept so an unmount can cancel
-            // it. Left to run, it sets state on a component that is gone.
-            window.clearTimeout(blurTimer.current);
-            blurTimer.current = window.setTimeout(() => {
-              setMentionTrigger(null);
-            }, MENTION_BLUR_GRACE_MS);
-          }}
-          placeholder={resolvedPlaceholder}
-          rows={compact ? 2 : 4}
-          disabled={isSubmitting}
-          autoFocus={autoFocus}
-        />
-
-        {mentionTrigger && (
-          <MentionPopover
-            active={mentionTrigger}
-            initiativeId={initiativeId}
-            subject={subject}
-            anchor={mentionAnchor}
-            onSelect={handleMentionSelect}
-            onClose={handleCloseMention}
-          />
-        )}
-      </div>
+            return;
+          }
+          // The mention popover claims Escape first; a second press dismisses
+          // the whole field.
+          if (e.key === "Escape" && !mentionTrigger && onCancel) {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        onBlur={() => {
+          // Held open a moment so a click on the popover lands before the
+          // blur closes it — and the handle is kept so an unmount can cancel
+          // it. Left to run, it sets state on a component that is gone.
+          window.clearTimeout(blurTimer.current);
+          blurTimer.current = window.setTimeout(() => {
+            setMentionTrigger(null);
+          }, MENTION_BLUR_GRACE_MS);
+        }}
+        placeholder={resolvedPlaceholder}
+        rows={compact ? 2 : 4}
+        disabled={isSubmitting}
+        autoFocus={autoFocus}
+        compact={compact}
+        overlay={
+          mentionTrigger ? (
+            <MentionPopover
+              active={mentionTrigger}
+              initiativeId={initiativeId}
+              subject={subject}
+              anchor={mentionAnchor}
+              onSelect={handleMentionSelect}
+              onClose={handleCloseMention}
+            />
+          ) : null
+        }
+      />
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 
