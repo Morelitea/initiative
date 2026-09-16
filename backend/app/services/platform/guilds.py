@@ -13,6 +13,7 @@ from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
+    GUILD_ADMIN_ROLES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -516,13 +517,13 @@ async def list_memberships(
         # absent for members.
         if (
             guild.status == GuildStatus.suspended.value
-            and membership.role != GuildRole.admin
+            and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         retention: int | None = None
         administration: GuildAdministration | None = None
-        if membership.role == GuildRole.admin:
+        if membership.role in GUILD_ADMIN_ROLES:
             row = (
                 await session.exec(
                     select(GuildSetting).where(GuildSetting.guild_id == guild.id)

@@ -12,8 +12,8 @@ admin's answer is an admin's — so every policy comparing against it, here and
 in every guild schema, keeps meaning what it meant. What tells the two apart is
 the membership row.
 
-Revision ID: 20260915_0275
-Revises: 20260915_0274
+Revision ID: 20260915_0276
+Revises: 20260915_0275
 Create Date: 2026-09-15
 """
 
@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "20260915_0275"
-down_revision = "20260915_0274"
+revision = "20260915_0276"
+down_revision = "20260915_0275"
 branch_labels = None
 depends_on = None
 

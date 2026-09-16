@@ -15,7 +15,7 @@ from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
@@ -79,7 +79,9 @@ async def is_last_admin_of_guild(
     result = await session.exec(membership_stmt)
     membership = result.one_or_none()
 
-    if not membership or membership.role != GuildRole.admin:
+    # Admin or above: a security admin is one of the people who can administer
+    # this guild, so it counts on both sides of the question.
+    if not membership or membership.role not in GUILD_ADMIN_ROLES:
         return False
 
     # Count all admins in this guild (with lock if for_update)
@@ -88,7 +90,7 @@ async def is_last_admin_of_guild(
             select(GuildMembership)
             .where(
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
+                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
             .with_for_update()
         )
@@ -97,7 +99,7 @@ async def is_last_admin_of_guild(
     else:
         count_stmt = select(func.count(GuildMembership.user_id)).where(
             GuildMembership.guild_id == guild_id,
-            GuildMembership.role == GuildRole.admin,
+            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
         )
         count_result = await session.exec(count_stmt)
         admin_count = count_result.one()

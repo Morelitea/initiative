@@ -24,7 +24,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.platform.user import UserInitiativeRole, UserSummary
@@ -95,14 +95,14 @@ async def is_guild_admin_member(
     guild_id: int,
     user_id: int,
 ) -> bool:
-    """Whether ``user_id`` holds the admin role in ``guild_id``."""
+    """Whether ``user_id`` administers ``guild_id`` — admin or above."""
     result = await session.exec(
         select(GuildMembership.role).where(
             GuildMembership.guild_id == guild_id,
             GuildMembership.user_id == user_id,
         )
     )
-    return result.one_or_none() == GuildRole.admin
+    return result.one_or_none() in GUILD_ADMIN_ROLES
 
 
 async def resolve_membership_role(
