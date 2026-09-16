@@ -41,5 +41,28 @@ class AndroidSigningWorkflowTest(unittest.TestCase):
         )
 
 
+    def test_a_configured_signing_run_cannot_publish_an_unsigned_apk(self) -> None:
+        """The failure this guards is quiet, which is why it needs a test.
+
+        Gradle does not fail when a signing property is missing -- it writes
+        `app-release-unsigned.apk`. The rename step accepts whichever file is
+        there, so without an assertion in between, a signing run that lost its
+        credentials still uploads a release artifact, and nothing is red.
+        """
+        self.assertRegex(
+            self.job,
+            r"- name: Assert the APK was actually signed\n\s+if: \$\{\{ env\.HAS_KEYSTORE == 'true' \}\}",
+        )
+        guard = self.job.split("- name: Assert the APK was actually signed", 1)[1]
+        guard = guard.split("- name:", 1)[0]
+        self.assertIn("app-release.apk", guard)
+        self.assertIn("exit 1", guard)
+        # And it has to come before the step that chooses what to publish.
+        self.assertLess(
+            self.job.index("Assert the APK was actually signed"),
+            self.job.index("Rename APK with version"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
