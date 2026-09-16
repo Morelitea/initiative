@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 
 import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
+import { PlatformAuthSection } from "@/components/admin/PlatformAuthSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useOidcSettings } from "@/hooks/useSettings";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -12,10 +12,11 @@ import { Capability, hasCapability } from "@/lib/permissions";
 /**
  * Platform → Authentication.
  *
- * Providers are a list and nothing else: the one an install started with is a
- * row like any other, added and edited the same way as the fifth. What is left
- * on this page beside the list belongs to the deployment rather than to any
- * provider — the posture it runs in, and the two addresses every provider
+ * Two decisions that belong to the deployment — which ways in it permits, and
+ * where sign-in is configured — then the providers, which are a list and
+ * nothing else: the one an install started with is a row like any other, added
+ * and edited the same way as the fifth. What is left beside the list belongs to
+ * the install rather than to any provider: the two addresses every provider
  * shares.
  */
 export const SettingsAuthPage = () => {
@@ -40,23 +41,11 @@ export const SettingsAuthPage = () => {
     return <p className="text-destructive text-sm">{t("auth.loadError")}</p>;
   }
 
-  const guildScoped = oidcQuery.data.auth_scope === "guild";
-
   return (
     <div className="space-y-6">
-      <SettingsSection
-        title={
-          <span className="flex items-center gap-2">
-            {t("auth.deploymentTitle")}
-            <Badge variant="secondary">
-              {guildScoped ? t("auth.scope.guildLabel") : t("auth.scope.platformLabel")}
-            </Badge>
-          </span>
-        }
-        description={
-          guildScoped ? t("auth.scope.guildExplained") : t("auth.scope.platformExplained")
-        }
-      >
+      <PlatformAuthSection />
+
+      <SettingsSection title={t("auth.deploymentTitle")}>
         {/* Shared by every provider, so stated once rather than on each. The
             per-provider callback lives on its row in the list below. */}
         <dl className="space-y-2 text-sm">

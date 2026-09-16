@@ -1266,11 +1266,12 @@ export const useRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = <
 /**
  * The sign-in providers the login page offers — non-secret metadata only.
  *
- * Empty in guild posture (operator-global providers are dormant there) and
- * on instances with no SSO configured. Strictly read-only: the platform
- * entry, like every other, is its registry row (the source of truth) — no
- * write path is reachable from here. Registry rows are read on the system
- * engine (``auth_providers`` carries no request-path grant).
+ * Listed in both postures — an operator-global provider signs a person into
+ * their account and is authoritative for no guild — and empty on instances
+ * with no SSO configured. Strictly read-only: the platform entry, like every
+ * other, is its registry row (the source of truth) — no write path is
+ * reachable from here. Registry rows are read on the system engine
+ * (``auth_providers`` carries no request-path grant).
  * @summary List Login Providers
  */
 export const listLoginProvidersApiV1AuthProvidersGet = (
@@ -1416,8 +1417,8 @@ export function useListLoginProvidersApiV1AuthProvidersGet<
 /**
  * One guild's sign-in providers — non-secret metadata only, with
  * guild-addressed login URLs and the guild's display name for its login
- * page. Empty (and nameless) outside per-guild auth posture and for a
- * guild with no login-ready providers; an unknown guild id is
+ * page. Empty (and nameless) for a guild with no login-ready providers and
+ * where single sign-on is not permitted; an unknown guild id is
  * indistinguishable from an empty registry.
  * @summary List Guild Login Providers
  */

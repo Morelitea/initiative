@@ -1,15 +1,16 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.login_methods import LoginMethod
 from app.models.platform.user_dm_settings import DmPolicy
 
-# Login posture (platform vs guild) is a deploy-time setting, read from
-# ``settings.AUTH_SCOPE`` — see ``app.core.config.AuthScope``. Platform OIDC
-# config lives on the provider registry row (``auth_providers`` slug ``oidc``);
-# neither is stored here.
+# Platform OIDC config lives on the provider registry row (``auth_providers``
+# slug ``oidc``), not here. Which ways in the deployment permits does — see
+# ``login_methods`` below and ``app.services.platform.auth_posture``.
 
 
 class AppSetting(SQLModel, table=True):
@@ -40,6 +41,20 @@ class AppSetting(SQLModel, table=True):
     )
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
+    )
+
+    # Which ways in this deployment permits. A Postgres enum array: adding a
+    # method later is a value on the type, not a column per method, and the
+    # database validates the elements rather than a hand-kept CHECK list. The
+    # non-empty constraint is the "at least one" rule — see
+    # ``app.core.login_methods``.
+    login_methods: list[str] = Field(
+        default_factory=lambda: [m.value for m in LoginMethod],
+        sa_column=Column(
+            ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
+            nullable=False,
+            server_default="{password,sso}",
+        ),
     )
 
     smtp_host: Optional[str] = Field(

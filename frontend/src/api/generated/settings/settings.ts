@@ -32,12 +32,14 @@ import type {
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
+  LoginMethodsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
+  PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -67,8 +69,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * The deployment's auth posture and redirect addresses. System engine:
- * ``auth_providers`` carries no request-path grant; the capability gate stays
+ * The install's redirect addresses. System engine: ``auth_providers``
+ * carries no request-path grant; the capability gate stays
  * ``config.manage``.
  * @summary Get Oidc Settings
  */
@@ -208,6 +210,252 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Which ways in are permitted. System engine: the guard counts read
+ * ``auth_providers`` and ``federated_identities``, neither of which carries a
+ * request-path grant.
+ * @summary Get Platform Auth Settings
+ */
+export const getPlatformAuthSettingsApiV1SettingsAuthPlatformGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformAuthSettingsResponse>(
+    { url: `/api/v1/settings/auth/platform`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey = () => {
+  return [`/api/v1/settings/auth/platform`] as const;
+};
+
+export const getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+  > = ({ signal }) => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+>;
+export type GetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Platform Auth Settings
+ */
+
+export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Set which ways in this deployment permits — at least one.
+ *
+ * Withdrawing one that is somebody's only way in is refused (409) with the
+ * count in ``X-Affected-Count``, and proceeds only when the caller echoes
+ * that exact number back in ``acknowledge_stranded``. Nobody is signed out
+ * either way.
+ * @summary Update Login Methods
+ */
+export const updateLoginMethodsApiV1SettingsAuthMethodsPut = (
+  loginMethodsUpdate: BodyType<LoginMethodsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformAuthSettingsResponse>(
+    {
+      url: `/api/v1/settings/auth/methods`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: loginMethodsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+    TError,
+    { data: BodyType<LoginMethodsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+  TError,
+  { data: BodyType<LoginMethodsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateLoginMethodsApiV1SettingsAuthMethodsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+    { data: BodyType<LoginMethodsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateLoginMethodsApiV1SettingsAuthMethodsPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>
+>;
+export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationBody =
+  BodyType<LoginMethodsUpdate>;
+export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Login Methods
+ */
+export const useUpdateLoginMethodsApiV1SettingsAuthMethodsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+      TError,
+      { data: BodyType<LoginMethodsUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+  TError,
+  { data: BodyType<LoginMethodsUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * @summary Get Interface Settings
  */

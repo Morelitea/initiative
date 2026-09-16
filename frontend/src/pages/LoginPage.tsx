@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
@@ -39,6 +40,7 @@ export const LoginPage = () => {
     clearServerUrl,
     serverUrl,
   } = useServer();
+  const { passwordLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -171,44 +173,51 @@ export const LoginPage = () => {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
-              <div className="space-y-2">
-                <Label htmlFor="email">{t("login.emailLabel")}</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder={t("login.emailPlaceholder")}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("login.passwordLabel")}</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder={t("login.passwordPlaceholder")}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-                <div className="text-right">
-                  <Link
-                    className="text-primary text-sm underline-offset-4 hover:underline"
-                    to="/forgot-password"
-                  >
-                    {t("login.forgotPassword")}
-                  </Link>
-                </div>
-              </div>
-              <Button className="w-full" type="submit" disabled={submitting}>
-                {submitting ? t("login.submitting") : t("login.submit")}
-              </Button>
+              {/* Offered only where the deployment permits it. The server
+                  refuses the sign-in either way; this keeps the page from
+                  presenting a form that cannot work. */}
+              {passwordLoginEnabled ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">{t("login.emailLabel")}</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder={t("login.emailPlaceholder")}
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">{t("login.passwordLabel")}</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder={t("login.passwordPlaceholder")}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <div className="text-right">
+                      <Link
+                        className="text-primary text-sm underline-offset-4 hover:underline"
+                        to="/forgot-password"
+                      >
+                        {t("login.forgotPassword")}
+                      </Link>
+                    </div>
+                  </div>
+                  <Button className="w-full" type="submit" disabled={submitting}>
+                    {submitting ? t("login.submitting") : t("login.submit")}
+                  </Button>
+                </>
+              ) : null}
               {providers.map((provider) => (
                 <Button
                   key={provider.slug}
@@ -237,16 +246,18 @@ export const LoginPage = () => {
                 </button>
               </p>
             )}
-            <p>
-              {t("login.needAccount")}{" "}
-              <Link
-                className="text-primary underline-offset-4 hover:underline"
-                to="/register"
-                search={inviteCodeParam ? { invite_code: inviteCodeParam } : undefined}
-              >
-                {t("login.register")}
-              </Link>
-            </p>
+            {passwordLoginEnabled ? (
+              <p>
+                {t("login.needAccount")}{" "}
+                <Link
+                  className="text-primary underline-offset-4 hover:underline"
+                  to="/register"
+                  search={inviteCodeParam ? { invite_code: inviteCodeParam } : undefined}
+                >
+                  {t("login.register")}
+                </Link>
+              </p>
+            ) : null}
           </CardFooter>
         </Card>
       </div>

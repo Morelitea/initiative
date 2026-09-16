@@ -614,16 +614,33 @@
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
-    "scope": {
-      "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung pro Community",
-      "platformExplained": "Die Anmeldung gehört der Plattform: Die Anbieter unten gelten für jede Community, und eine Community kann keinen eigenen hinzufügen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier.",
-      "guildExplained": "Communities können neben den unten aufgeführten eigene Anbieter hinzufügen; angemeldet wird man weiterhin an einem Konto, egal über welchen. Welche der beiden Varianten diese Instanz nutzt, wird beim Deployment festgelegt, nicht hier."
-    },
     "deploymentTitle": "Diese Installation",
     "mappingProvider": "Anbieter",
     "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
-    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat."
+    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat.",
+    "methods": {
+      "title": "Zugangswege",
+      "description": "Wie man sich bei diesem Deployment anmelden kann. Mindestens einer bleibt aktiv.",
+      "password": {
+        "label": "Passwort",
+        "help": "Eine E-Mail-Adresse und ein hier hinterlegtes Passwort."
+      },
+      "sso": {
+        "label": "Single Sign-on",
+        "help": "Jeder unten konfigurierte Identitätsanbieter."
+      },
+      "lastRemaining": "Der letzte Zugangsweg kann nicht entzogen werden.",
+      "wouldStrand_one": "{{count}} Konto meldet sich ausschließlich so an.",
+      "wouldStrand_other": "{{count}} Konten melden sich ausschließlich so an.",
+      "confirmTitle": "Diesen Zugangsweg entziehen?",
+      "confirmBody_one": "{{count}} Konto meldet sich ausschließlich so an und kann sich erst wieder anmelden, wenn es einen anderen Weg hat. Niemand wird abgemeldet.",
+      "confirmBody_other": "{{count}} Konten melden sich ausschließlich so an und können sich erst wieder anmelden, wenn sie einen anderen Weg haben. Niemand wird abgemeldet.",
+      "confirmAction": "Entziehen",
+      "saved": "Zugangswege aktualisiert.",
+      "saveError": "Die Zugangswege konnten nicht geändert werden.",
+      "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
+      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter."
+    }
   },
   "platformUsers": {
     "title": "Plattformbenutzer",

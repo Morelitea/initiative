@@ -704,6 +704,7 @@ export interface AppConfig {
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
+  login_methods: string[];
 }
 
 export type AppDataParamLabel = { [key: string]: string };
@@ -1100,24 +1101,6 @@ export interface AuthProviderUpdate {
   icon?: string | null;
   button_style?: string | null;
 }
-
-/**
- * Where login is configured — a **deploy-time** posture, set once at boot
- * via the ``AUTH_SCOPE`` env value, never toggled at runtime.
- *
- * ``platform`` — sign-in is configured once for the whole instance
- * (operator-global providers). ``guild`` — each guild configures its own
- * sign-in and may require it. The two are mutually exclusive; an instance is
- * built one way. Switching is non-destructive (it never deletes users,
- * memberships, or providers), but a deployment that has granted access via
- * guild auth does not switch back.
- */
-export type AuthScope = (typeof AuthScope)[keyof typeof AuthScope];
-
-export const AuthScope = {
-  platform: "platform",
-  guild: "guild",
-} as const;
 
 export interface BackupToolEstimate {
   count?: number;
@@ -4570,7 +4553,6 @@ export interface IntakeSettingsRead {
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
-  auth_scope: AuthScope;
 }
 
 export interface InterfaceSettingsUpdate {
@@ -4612,6 +4594,31 @@ export const ListingSource = {
   operator: "operator",
   registry: "registry",
 } as const;
+
+export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
+
+export const LoginMethod = {
+  password: "password",
+  sso: "sso",
+} as const;
+
+/**
+ * One way in, and what withdrawing it would cost.
+ */
+export interface LoginMethodStatus {
+  method: LoginMethod;
+  enabled: boolean;
+  would_strand: number;
+}
+
+/**
+ * The methods to permit from now on. Order and repetition are ignored.
+ */
+export interface LoginMethodsUpdate {
+  /** @minItems 1 */
+  methods: LoginMethod[];
+  acknowledge_stranded?: number | null;
+}
 
 /**
  * One sign-in provider offered on the login page (non-secret metadata).
@@ -5055,7 +5062,6 @@ export interface OIDCMappingsResponse {
 }
 
 export interface OIDCSettingsResponse {
-  auth_scope: AuthScope;
   enabled: boolean;
   issuer: string | null;
   client_id: string | null;
@@ -5177,6 +5183,15 @@ export interface PlatformAIModeUpdate {
  */
 export interface PlatformAdminCountResponse {
   count: number;
+}
+
+/**
+ * The ways in this deployment permits, with the facts a change would turn
+ * on.
+ */
+export interface PlatformAuthSettingsResponse {
+  methods: LoginMethodStatus[];
+  guilds_requiring_sign_in: number;
 }
 
 /**

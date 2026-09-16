@@ -614,16 +614,33 @@
     "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
-    "scope": {
-      "platformLabel": "Platform-wide sign-in",
-      "guildLabel": "Per-community sign-in",
-      "platformExplained": "Sign-in is the platform's: the providers below serve every community, and a community cannot add one of its own. Which of the two this instance runs is set when it is deployed, not here.",
-      "guildExplained": "Communities may add providers of their own alongside the ones below, and people still sign in to one account whichever they use. Which of the two this instance runs is set when it is deployed, not here."
-    },
     "deploymentTitle": "This deployment",
     "mappingProvider": "Provider",
     "mappingProviderPlaceholder": "Which provider asserts this claim",
-    "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did."
+    "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did.",
+    "methods": {
+      "title": "Ways in",
+      "description": "How people may sign in to this deployment. At least one stays on.",
+      "password": {
+        "label": "Password",
+        "help": "An email address and a password held here."
+      },
+      "sso": {
+        "label": "Single sign-on",
+        "help": "Any identity provider configured below."
+      },
+      "lastRemaining": "The last way in cannot be withdrawn.",
+      "wouldStrand_one": "{{count}} account signs in only this way.",
+      "wouldStrand_other": "{{count}} accounts sign in only this way.",
+      "confirmTitle": "Withdraw this way in?",
+      "confirmBody_one": "{{count}} account signs in only this way and will not be able to sign in until it has another. Nobody is signed out.",
+      "confirmBody_other": "{{count}} accounts sign in only this way and will not be able to sign in until they have another. Nobody is signed out.",
+      "confirmAction": "Withdraw",
+      "saved": "Ways in updated.",
+      "saveError": "Could not change the ways in.",
+      "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
+      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own."
+    }
   },
   "platformUsers": {
     "title": "Platform users",

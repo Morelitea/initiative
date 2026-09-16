@@ -20,12 +20,14 @@ import type {
   GetChangelogApiV1ChangelogGetParams,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
+  LoginMethodsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
+  PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   StorageBackfillStatusResponse,
@@ -44,6 +46,7 @@ import {
   getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
   getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
+  getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
@@ -51,6 +54,7 @@ import {
   getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
+  getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
@@ -60,6 +64,7 @@ import {
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
+  updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateStorageSettingsApiV1SettingsStoragePut,
@@ -245,6 +250,37 @@ export const useUpdateCommunitySettings = (
           data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
         ),
       invalidate: () => invalidate(q.appConfig(), q.communitySettings()),
+    },
+    options
+  );
+
+/**
+ * Where sign-in is configured, which ways in are permitted, and what changing
+ * either would cost. Owner only.
+ */
+export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettingsResponse>) =>
+  useQuery<PlatformAuthSettingsResponse>({
+    queryKey: getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey(),
+    queryFn: () => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(),
+    ...options,
+  });
+
+/**
+ * Set which ways in the deployment permits.
+ *
+ * Also invalidates the boot config: the login page reads the permitted methods
+ * from there to decide whether to offer the password form.
+ */
+export const useUpdateLoginMethods = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, LoginMethodsUpdate>
+) =>
+  useApiMutation<PlatformAuthSettingsResponse, LoginMethodsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateLoginMethodsApiV1SettingsAuthMethodsPut(
+          data as Parameters<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>[0]
+        ),
+      invalidate: () => invalidate(q.platformAuthSettings(), q.authSettings(), q.appConfig()),
     },
     options
   );

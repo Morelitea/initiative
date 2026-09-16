@@ -258,7 +258,30 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             can_serve_login_clause(),
         )
     )
-    no_usable_password = or_(
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                _no_usable_password_clause(),
+                holds_this.exists(),
+                ~holds_another.exists(),
+            )
+        )
+    ).one()
+
+
+def _no_usable_password_clause():
+    """Accounts whose stored hash is not one any scheme verifies.
+
+    Reads the hash rather than NULL alone: an account can carry a value no
+    scheme verifies (the ``'!'`` marker a 0152 downgrade writes), and that is
+    not a password. What it cannot read is an account provisioned before 0152,
+    whose throwaway hash is a real argon2 value indistinguishable from a chosen
+    one — that account reads as having a password, which is the conservative
+    direction for the account, and it reaches itself through password reset.
+    """
+    return or_(
         User.hashed_password.is_(None),
         ~or_(
             *(
@@ -267,14 +290,60 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             )
         ),
     )
+
+
+async def password_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only with a password.
+
+    What withdrawing the password method would strand: an account with a usable
+    password and no identity link any provider could answer for.
+    """
+    holds_any_identity = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+    )
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
             .where(
-                no_usable_password,
-                holds_this.exists(),
-                ~holds_another.exists(),
+                ~_no_usable_password_clause(),
+                ~holds_any_identity.exists(),
+            )
+        )
+    ).one()
+
+
+async def federated_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only through an identity provider.
+
+    What withdrawing the SSO method would strand: no usable password, and a
+    login-ready identity that is currently their way in.
+
+    Every namespace counts, operator-global and guild-scoped alike. Withdrawing
+    the method closes the guild-addressed login route as well as the
+    platform one, so an account reached through a guild's provider is one this
+    has to report.
+    """
+    holds_any_identity = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+    )
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                _no_usable_password_clause(),
+                holds_any_identity.exists(),
             )
         )
     ).one()
