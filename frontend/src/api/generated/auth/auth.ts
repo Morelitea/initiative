@@ -24,6 +24,7 @@ import type {
   BodyLoginAccessTokenApiV1AuthTokenPost,
   BootstrapStatusApiV1AuthBootstrapGet200,
   CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams,
+  DeviceTokenExchangeRequest,
   DeviceTokenInfo,
   DeviceTokenRequest,
   DeviceTokenResponse,
@@ -35,6 +36,7 @@ import type {
   PasswordResetSubmit,
   ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
   ProviderLoginApiV1AuthProviderSlugLoginGetParams,
+  RefreshRequest,
   RegisterUserApiV1AuthRegisterPostParams,
   Token,
   UploadTokenResponse,
@@ -418,27 +420,37 @@ export const useLoginAccessTokenApiV1AuthTokenPost = <
  * @summary Refresh Access Token
  */
 export const refreshAccessTokenApiV1AuthRefreshPost = (
+  refreshRequestNull?: BodyType<RefreshRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<Token>({ url: `/api/v1/auth/refresh`, method: "POST", signal }, options);
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/refresh`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: refreshRequestNull,
+      signal,
+    },
+    options
+  );
 };
 
 export const getRefreshAccessTokenApiV1AuthRefreshPostMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>,
     TError,
-    void,
+    { data?: BodyType<RefreshRequest | null> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>,
   TError,
-  void,
+  { data?: BodyType<RefreshRequest | null> },
   TContext
 > => {
   const mutationKey = ["refreshAccessTokenApiV1AuthRefreshPost"];
@@ -450,9 +462,11 @@ export const getRefreshAccessTokenApiV1AuthRefreshPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>,
-    void
-  > = () => {
-    return refreshAccessTokenApiV1AuthRefreshPost(requestOptions);
+    { data?: BodyType<RefreshRequest | null> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return refreshAccessTokenApiV1AuthRefreshPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -461,21 +475,23 @@ export const getRefreshAccessTokenApiV1AuthRefreshPostMutationOptions = <
 export type RefreshAccessTokenApiV1AuthRefreshPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>
 >;
-
-export type RefreshAccessTokenApiV1AuthRefreshPostMutationError = ErrorType<unknown>;
+export type RefreshAccessTokenApiV1AuthRefreshPostMutationBody =
+  | BodyType<RefreshRequest | null>
+  | undefined;
+export type RefreshAccessTokenApiV1AuthRefreshPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Refresh Access Token
  */
 export const useRefreshAccessTokenApiV1AuthRefreshPost = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>,
       TError,
-      void,
+      { data?: BodyType<RefreshRequest | null> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -484,7 +500,7 @@ export const useRefreshAccessTokenApiV1AuthRefreshPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof refreshAccessTokenApiV1AuthRefreshPost>>,
   TError,
-  void,
+  { data?: BodyType<RefreshRequest | null> },
   TContext
 > => {
   return useMutation(
@@ -910,6 +926,110 @@ export const useCreateDeviceTokenApiV1AuthDeviceTokenPost = <
 > => {
   return useMutation(
     getCreateDeviceTokenApiV1AuthDeviceTokenPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Trade a device token for a session of the ordinary kind.
+ *
+ * How an installed client moves across without asking anybody to sign in
+ * again: it presents the token it already holds and is handed an access token
+ * and a refresh token. The device token is left alone — it keeps working
+ * until the client stops sending it, and the build that stops is the one that
+ * decides when.
+ *
+ * The session carries **no** factors. A device token does not record what was
+ * presented when it was minted, and a session that claimed otherwise would be
+ * asserting assurance nobody established — so this satisfies no guild
+ * sign-in requirement, exactly as the device token itself does not.
+ * @summary Exchange Device Token
+ */
+export const exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = (
+  deviceTokenExchangeRequest: BodyType<DeviceTokenExchangeRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/device-token/exchange`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: deviceTokenExchangeRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
+    TError,
+    { data: BodyType<DeviceTokenExchangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
+  TError,
+  { data: BodyType<DeviceTokenExchangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
+    { data: BodyType<DeviceTokenExchangeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>
+>;
+export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationBody =
+  BodyType<DeviceTokenExchangeRequest>;
+export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Exchange Device Token
+ */
+export const useExchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
+      TError,
+      { data: BodyType<DeviceTokenExchangeRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
+  TError,
+  { data: BodyType<DeviceTokenExchangeRequest> },
+  TContext
+> => {
+  return useMutation(
+    getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationOptions(options),
     queryClient
   );
 };
