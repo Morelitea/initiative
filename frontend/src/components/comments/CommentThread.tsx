@@ -4,11 +4,9 @@ import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import { ReportButton } from "@/components/moderation/ReportButton";
-import { ReportDialog } from "@/components/moderation/ReportDialog";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 

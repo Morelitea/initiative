@@ -1,6 +1,5 @@
 import { useParams } from "@tanstack/react-router";
 import { UserX } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
@@ -12,7 +11,6 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { ProfilePageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { UserHandle } from "@/components/UserHandle";
-import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileJoined } from "@/components/user/ProfileJoined";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
