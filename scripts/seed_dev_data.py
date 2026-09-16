@@ -635,6 +635,24 @@ def _load_state() -> dict | None:
     return json.loads(STATE_FILE.read_text())
 
 
+async def _state_outlived_its_database(state: dict) -> bool:
+    """Whether the recorded ids belong to a database that is no longer there.
+
+    The state file lives in the checkout and the rows it names live in a Docker
+    volume, so recreating the volume leaves the file describing nothing. Asking
+    the database rather than the filesystem is what tells the two apart: not one
+    of the accounts it recorded still exists.
+    """
+    recorded = state.get("users") or []
+    if not recorded:
+        return False
+    async with AdminSessionLocal() as session:
+        survivor = (
+            await session.exec(select(User.id).where(User.id.in_(recorded)))
+        ).first()
+    return survivor is None
+
+
 async def _find_superuser(session: AsyncSession) -> User:
     """Find the superuser created by init_db."""
     email = settings.FIRST_OWNER_EMAIL
@@ -803,9 +821,9 @@ async def _ensure_seeded_account_rows(
     its address keeps it, and seeding the direct-message policy twice is a
     no-op.
     """
-    # Asked of ``user_emails`` alone. ``holds_address`` resolves through the
-    # sign-in lookup, which falls back to the ``users`` column — so it answers
-    # yes for exactly the accounts this is here to give a row to.
+    # Asked of ``user_emails`` alone, and of every row in it rather than the
+    # proven ones ``holds_address`` reads: a claim already recorded is one this
+    # should leave alone, not record a second time.
     digest = hash_email(addresses.normalize(email))
     if digest not in await addresses.held_hashes(session, user_id=user.id):
         addresses.record_address(
@@ -2982,6 +3000,10 @@ async def _create_access_grants(
 
 async def seed() -> None:
     state = _load_state()
+    if state is not None and await _state_outlived_its_database(state):
+        print("The recorded seed data is gone (the database was recreated).")
+        print("  Seeding again from scratch.")
+        state = None
     if state is not None:
         if state.get("seed_incomplete"):
             print("A previous seed was interrupted and left partial data.")
