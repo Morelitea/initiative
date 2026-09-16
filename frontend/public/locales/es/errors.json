@@ -648,5 +648,11 @@
   "SUPPORT_NOT_AVAILABLE": "Esta comunidad no acepta solicitudes de ayuda. Consulta las preguntas frecuentes.",
   "SUPPORT_NOWHERE_TO_SEND": "Las solicitudes de ayuda están activadas aquí, pero todavía no hay nadie configurado para recibirlas. Avisa a un administrador de la comunidad.",
   "PROJECTS_NOT_ENABLED": "Los proyectos no están habilitados para esta iniciativa",
-  "DOCUMENTS_NOT_ENABLED": "Los documentos no están habilitados para esta iniciativa"
+  "DOCUMENTS_NOT_ENABLED": "Los documentos no están habilitados para esta iniciativa",
+  "SETTINGS_AUTH_SCOPE_GUILD_POLICIES": "Una comunidad todavía exige un inicio de sesión propio. Retira antes esos requisitos.",
+  "SETTINGS_AUTH_SCOPE_WOULD_STRAND": "Algunas cuentas entran solo mediante el proveedor de una comunidad. Necesitan antes una contraseña u otro proveedor.",
+  "SETTINGS_LOGIN_METHODS_EMPTY": "Al menos una forma de entrar debe seguir activa.",
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND": "Algunas cuentas entran solo de esta forma. Confirma para retirarla de todos modos.",
+  "SETTINGS_LOGIN_METHODS_STALE_ACK": "El número de cuentas afectadas ha cambiado. Compruébalo e inténtalo de nuevo.",
+  "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Este despliegue no permite iniciar sesión de esa forma."
 }

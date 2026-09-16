@@ -704,6 +704,7 @@ export interface AppConfig {
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
+  login_methods: string[];
 }
 
 export type AppDataParamLabel = { [key: string]: string };
@@ -1118,6 +1119,10 @@ export const AuthScope = {
   platform: "platform",
   guild: "guild",
 } as const;
+
+export interface AuthScopeUpdate {
+  auth_scope: AuthScope;
+}
 
 export interface BackupToolEstimate {
   count?: number;
@@ -4596,6 +4601,31 @@ export const ListingSource = {
   registry: "registry",
 } as const;
 
+export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
+
+export const LoginMethod = {
+  password: "password",
+  sso: "sso",
+} as const;
+
+/**
+ * One way in, and what withdrawing it would cost.
+ */
+export interface LoginMethodStatus {
+  method: LoginMethod;
+  enabled: boolean;
+  would_strand: number;
+}
+
+/**
+ * The methods to permit from now on. Order and repetition are ignored.
+ */
+export interface LoginMethodsUpdate {
+  /** @minItems 1 */
+  methods: LoginMethod[];
+  acknowledge_stranded?: number | null;
+}
+
 /**
  * One sign-in provider offered on the login page (non-secret metadata).
  */
@@ -5160,6 +5190,18 @@ export interface PlatformAIModeUpdate {
  */
 export interface PlatformAdminCountResponse {
   count: number;
+}
+
+/**
+ * The deployment's sign-in posture and permitted methods, with the facts
+ * a change to either would turn on.
+ */
+export interface PlatformAuthSettingsResponse {
+  auth_scope: AuthScope;
+  auth_scope_from_env: boolean;
+  methods: LoginMethodStatus[];
+  guilds_requiring_sign_in: number;
+  platform_switch_would_strand: number;
 }
 
 /**

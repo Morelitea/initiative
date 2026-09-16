@@ -258,7 +258,30 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             can_serve_login_clause(),
         )
     )
-    no_usable_password = or_(
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                _no_usable_password_clause(),
+                holds_this.exists(),
+                ~holds_another.exists(),
+            )
+        )
+    ).one()
+
+
+def _no_usable_password_clause():
+    """Accounts whose stored hash is not one any scheme verifies.
+
+    Reads the hash rather than NULL alone: an account can carry a value no
+    scheme verifies (the ``'!'`` marker a 0152 downgrade writes), and that is
+    not a password. What it cannot read is an account provisioned before 0152,
+    whose throwaway hash is a real argon2 value indistinguishable from a chosen
+    one — that account reads as having a password, which is the conservative
+    direction for the account, and it reaches itself through password reset.
+    """
+    return or_(
         User.hashed_password.is_(None),
         ~or_(
             *(
@@ -267,14 +290,98 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             )
         ),
     )
+
+
+async def guild_provider_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only through a guild-scoped provider.
+
+    The question a switch to platform posture has to ask: guild-scoped
+    providers do not answer logins there, so the accounts it concerns are those
+    with no usable password and no operator-global identity.
+
+    Counts only accounts the switch would actually strand — it requires a
+    login-ready guild-scoped identity, so an account that already cannot sign
+    in (no password, no working identity) is not counted and does not block a
+    switch over a condition that predates it.
+    """
+    holds_guild_scoped = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            AuthProvider.guild_id.is_not(None),
+            can_serve_login_clause(),
+        )
+    )
+    holds_operator_global = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            AuthProvider.guild_id.is_(None),
+            can_serve_login_clause(),
+        )
+    )
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
             .where(
-                no_usable_password,
-                holds_this.exists(),
-                ~holds_another.exists(),
+                _no_usable_password_clause(),
+                holds_guild_scoped.exists(),
+                ~holds_operator_global.exists(),
+            )
+        )
+    ).one()
+
+
+async def password_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only with a password.
+
+    What withdrawing the password method would strand: an account with a usable
+    password and no identity link any provider could answer for.
+    """
+    holds_any_identity = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+    )
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                ~_no_usable_password_clause(),
+                ~holds_any_identity.exists(),
+            )
+        )
+    ).one()
+
+
+async def federated_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only through an identity provider.
+
+    What withdrawing the SSO method would strand: no usable password, and a
+    login-ready identity that is currently their way in.
+    """
+    holds_any_identity = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+    )
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                _no_usable_password_clause(),
+                holds_any_identity.exists(),
             )
         )
     ).one()

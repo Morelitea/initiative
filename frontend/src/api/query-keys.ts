@@ -403,6 +403,12 @@ const appConfig = (): Spec => ({ personalExact: ["/api/v1/config"] });
 /** The owner's own read of the three community-wide decisions. */
 const communitySettings = (): Spec => ({ personalExact: ["/api/v1/settings/community"] });
 
+/** Where sign-in is configured, which ways in are permitted, and the counts a
+ *  change to either would turn on. */
+const platformAuthSettings = (): Spec => ({
+  personalExact: ["/api/v1/settings/auth/platform"],
+});
+
 /** Where each stream of operations work lands, and what it could land in. */
 const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
 
@@ -653,6 +659,7 @@ export const q = {
   calendarEvent,
   commentsOnResource,
   communitySettings,
+  platformAuthSettings,
   intakeOptions,
   intakeSettings,
   moderationReports,

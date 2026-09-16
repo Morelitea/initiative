@@ -1,15 +1,16 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.login_methods import LoginMethod
 from app.models.platform.user_dm_settings import DmPolicy
 
-# Login posture (platform vs guild) is a deploy-time setting, read from
-# ``settings.AUTH_SCOPE`` — see ``app.core.config.AuthScope``. Platform OIDC
-# config lives on the provider registry row (``auth_providers`` slug ``oidc``);
-# neither is stored here.
+# Platform OIDC config lives on the provider registry row (``auth_providers``
+# slug ``oidc``), not here. Login posture does live here — see ``auth_scope``
+# below, and ``app.services.platform.auth_posture`` for the one read of it.
 
 
 class AppSetting(SQLModel, table=True):
@@ -40,6 +41,37 @@ class AppSetting(SQLModel, table=True):
     )
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
+    )
+
+    # Login posture: 'platform' (sign-in configured once for the instance) or
+    # 'guild' (each guild configures and may require its own). See
+    # ``app.core.config.AuthScope``.
+    #
+    # NULL means nobody has chosen here, and the deploy-time ``AUTH_SCOPE`` env
+    # value governs. That is what makes this column safe to add to a running
+    # deployment: an install configured with ``AUTH_SCOPE=guild`` upgrades to
+    # NULL, keeps reading its env, and keeps its posture — no backfill, and no
+    # way for an upgrade to move an instance between postures. Writing it once
+    # from the settings UI pins the value and the env stops being consulted.
+    #
+    # Read through ``auth_posture.resolve_auth_scope`` and never directly, so
+    # the NULL-means-env rule lives in exactly one place.
+    auth_scope: Optional[str] = Field(
+        default=None, sa_column=Column(String(20), nullable=True)
+    )
+
+    # Which ways in this deployment permits. A Postgres enum array: adding a
+    # method later is a value on the type, not a column per method, and the
+    # database validates the elements rather than a hand-kept CHECK list. The
+    # non-empty constraint is the "at least one" rule — see
+    # ``app.core.login_methods``.
+    login_methods: list[str] = Field(
+        default_factory=lambda: [m.value for m in LoginMethod],
+        sa_column=Column(
+            ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
+            nullable=False,
+            server_default="{password,sso}",
+        ),
     )
 
     smtp_host: Optional[str] = Field(

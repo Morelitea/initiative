@@ -1837,8 +1837,12 @@ export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = 
 /**
  * The guild's sign-in requirement. Guild admin only (the settings UI);
  * a blocked session learns the required provider from the step-up 401's
- * header, not from here. Absent (404) unless the platform posture is
- * per-guild login.
+ * header, not from here.
+ *
+ * Readable whatever the posture and whatever the guild's entitlement, because
+ * a requirement stays enforced through changes to both (the gate in
+ * ``deps.py`` and ``public.guild_auth_satisfied()`` read the policy row and
+ * nothing else). An admin who cannot see what is set cannot clear it.
  * @summary Get Guild Auth Policy
  */
 export const getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet = (
@@ -2007,8 +2011,14 @@ export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
  * of the guild's own login-ready providers — and the calling admin's own
  * session must already satisfy it, which both proves the provider works
  * end-to-end and keeps an admin from locking their guild (and themselves)
- * behind a sign-in they haven't completed. Absent (404) unless the platform
- * posture is per-guild login.
+ * behind a sign-in they haven't completed.
+ *
+ * The two verbs are gated differently, and deliberately. Setting a
+ * requirement needs per-guild posture and the guild's entitlement, as before.
+ * **Clearing one is always reachable**: enforcement reads the policy row
+ * alone, so a requirement outlives both switches and the way to lift one
+ * outlives them too. Lifting only ever admits more, so it carries none of the
+ * conditions imposing it does.
  * @summary Set Guild Auth Policy
  */
 export const setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = (

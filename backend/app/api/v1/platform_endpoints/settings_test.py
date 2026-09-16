@@ -1235,12 +1235,16 @@ async def test_auth_scope_defaults_to_platform(
 
 
 @pytest.mark.integration
-async def test_guild_posture_keeps_platform_oidc_dormant(
+async def test_guild_posture_keeps_platform_oidc_offered(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Under guild posture the platform OIDC provider is dormant — not offered
-    on the login page and refused server-side — while its stored configuration
-    is left untouched (posture never deletes config)."""
+    """Moving to guild posture leaves the platform provider offered and its
+    configuration untouched.
+
+    An operator-global provider signs a person into their account. It is
+    authoritative for no guild — a guild requirement may only name a provider
+    of that guild's own — so which posture the instance runs in does not decide
+    whether it answers a login."""
     owner = await create_user(session, role=UserRole.owner)
     headers = get_auth_headers(owner)
     await _configure_platform_oidc(client, headers)
@@ -1253,16 +1257,15 @@ async def test_guild_posture_keeps_platform_oidc_dormant(
 
     set_auth_scope("guild")
 
-    # Config retained...
     resp = await client.get("/api/v1/settings/auth", headers=headers)
     assert resp.json()["auth_scope"] == "guild"
     assert resp.json()["enabled"] is True
     assert resp.json()["issuer"] == "https://idp.example.com"
-    # ...but the provider is neither offered nor usable.
-    assert await _login_offered() is False
-    login_resp = await client.get("/api/v1/auth/oidc/login")
-    assert login_resp.status_code == 404
-    assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
+    assert await _login_offered() is True
+    # The provider resolves rather than being refused as absent. What the flow
+    # then does with an unreachable test issuer is not what this is about.
+    login_resp = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert login_resp.status_code != 404
 
 
 # --- Guilds tab: billing portal operator handoff ---

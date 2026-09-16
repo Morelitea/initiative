@@ -49,7 +49,7 @@ async def _require_guild_provider_admin(
     per-guild enablement toggle, then guild admin. When the toggle is off the
     surface 404s but the guild's provider rows are left intact — existing
     members keep signing in through them."""
-    _require_guild_auth_scope()
+    await _require_guild_auth_scope(session)
     await _require_guild_auth_enabled(admin_session, guild_id)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
 

@@ -648,5 +648,11 @@
   "SUPPORT_NOT_AVAILABLE": "Cette communauté n'accepte pas les demandes d'aide. Consultez plutôt la FAQ.",
   "SUPPORT_NOWHERE_TO_SEND": "Les demandes d'aide sont activées ici, mais personne n'est encore configuré pour les recevoir. Prévenez un administrateur de la communauté.",
   "PROJECTS_NOT_ENABLED": "Les projets ne sont pas activés pour cette initiative",
-  "DOCUMENTS_NOT_ENABLED": "Les documents ne sont pas activés pour cette initiative"
+  "DOCUMENTS_NOT_ENABLED": "Les documents ne sont pas activés pour cette initiative",
+  "SETTINGS_AUTH_SCOPE_GUILD_POLICIES": "Une communauté exige encore une connexion qui lui est propre. Levez d'abord ces exigences.",
+  "SETTINGS_AUTH_SCOPE_WOULD_STRAND": "Certains comptes se connectent uniquement via le fournisseur d'une communauté. Il leur faut d'abord un mot de passe ou un autre fournisseur.",
+  "SETTINGS_LOGIN_METHODS_EMPTY": "Au moins un moyen d'accès doit rester actif.",
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND": "Certains comptes se connectent uniquement ainsi. Confirmez pour le retirer malgré tout.",
+  "SETTINGS_LOGIN_METHODS_STALE_ACK": "Le nombre de comptes concernés a changé. Vérifiez-le et réessayez.",
+  "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Ce déploiement n'autorise pas ce mode de connexion."
 }

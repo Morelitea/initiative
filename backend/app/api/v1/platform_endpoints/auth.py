@@ -28,7 +28,13 @@ from app.core.encryption import (
     decrypt_field,
     SALT_OIDC_CLIENT_SECRET,
 )
-from app.core.messages import AuthMessages, GuildMessages, OidcMessages
+from app.core.login_methods import LoginMethod
+from app.core.messages import (
+    AuthMessages,
+    GuildMessages,
+    OidcMessages,
+    SettingsMessages,
+)
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
 from app.core.usernames import UsernameError
@@ -112,6 +118,7 @@ from app.services.auth.platform_provider import (
 )
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import auth_posture
 from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
 from app.services.platform import user_tokens
@@ -182,6 +189,10 @@ async def register_user(
     session: AdminSessionDep,
     invite_code: str | None = Query(default=None),
 ) -> UserRead:
+    # Registering here mints a password account, so it is the password method's
+    # own door. A deployment that does not permit passwords onboards through an
+    # identity provider instead, which provisions on first sign-in.
+    await _require_login_method(session, LoginMethod.password)
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -461,6 +472,7 @@ async def login_access_token(
     admin_session: AdminSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
+    await _require_login_method(session, LoginMethod.password)
     normalized_email = form_data.username.lower().strip()
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
@@ -1011,17 +1023,32 @@ OIDC_NEXT_COOKIE = "oidc_next"
 OIDC_NEXT_COOKIE_MAX_AGE = 600
 
 
+async def _require_login_method(session, method: LoginMethod) -> None:
+    """Refuse a sign-in by a route this deployment does not permit.
+
+    Server-side, so withdrawing a method closes the route rather than only
+    hiding its form. Existing sessions are untouched — this gates opening a new
+    one, not holding one already open.
+    """
+    if not await auth_posture.login_method_allowed(session, method):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SettingsMessages.LOGIN_METHOD_NOT_PERMITTED,
+        )
+
+
 async def _active_platform_provider(
     admin_session: AsyncSession,
 ) -> AuthProvider | None:
     """The platform provider row when its login is actually offerable —
-    platform posture, enabled, issuer + client id, AND a stored client secret
-    (the platform flow has always required one; PKCE-only stays a guild-provider
-    affordance). In guild scope the platform provider is dormant (kept, not
-    deleted) and must not authenticate anyone — enforced here, server-side,
-    not just hidden in the UI. Returns None when any condition fails."""
-    if settings.AUTH_SCOPE != AuthScope.platform:
-        return None
+    enabled, issuer + client id, AND a stored client secret (the platform flow
+    has always required one; PKCE-only stays a guild-provider affordance).
+
+    Offered in both postures. An operator-global provider is never
+    authoritative for a guild — a guild policy may only name a provider of its
+    own (``set_guild_auth_policy`` refuses any other), so signing in through
+    one satisfies no guild's requirement. Returns None when any condition
+    fails."""
     row = await get_platform_provider(admin_session)
     if row is None or not is_login_ready(row):
         return None
@@ -1035,17 +1062,17 @@ async def _resolve_login_provider(
 ) -> AuthProvider:
     """The enabled operator-global provider row for one login slug, or 404.
 
-    The scope gate comes first: in guild posture every operator-global provider
-    is dormant and must not authenticate anyone — enforced server-side, not
-    just hidden in the UI. Every slug — the platform ``oidc`` slug included —
-    resolves to its registry row directly (the row is the source of truth; the
-    old reconcile-from-settings shim is gone). A malformed slug is treated like
-    an unknown one (no registry row can carry it)."""
+    Resolves in both postures: an operator-global provider authenticates a
+    person into their account and speaks for no guild (see
+    ``_active_platform_provider``). Every slug — the platform ``oidc`` slug
+    included — resolves to its registry row directly (the row is the source of
+    truth; the old reconcile-from-settings shim is gone). A malformed slug is
+    treated like an unknown one (no registry row can carry it)."""
     if not is_valid_provider_slug(provider_slug):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    if settings.AUTH_SCOPE != AuthScope.platform:
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -1085,7 +1112,11 @@ async def _resolve_guild_login_provider(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    if settings.AUTH_SCOPE != AuthScope.guild:
+    if await auth_posture.resolve_auth_scope(admin_session) != AuthScope.guild:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -1156,14 +1187,14 @@ async def list_login_providers(
 ) -> LoginProvidersResponse:
     """The sign-in providers the login page offers — non-secret metadata only.
 
-    Empty in guild posture (operator-global providers are dormant there) and
-    on instances with no SSO configured. Strictly read-only: the platform
-    entry, like every other, is its registry row (the source of truth) — no
-    write path is reachable from here. Registry rows are read on the system
-    engine (``auth_providers`` carries no request-path grant)."""
-    if settings.AUTH_SCOPE != AuthScope.platform:
+    Listed in both postures — an operator-global provider signs a person into
+    their account and is authoritative for no guild — and empty on instances
+    with no SSO configured. Strictly read-only: the platform entry, like every
+    other, is its registry row (the source of truth) — no write path is
+    reachable from here. Registry rows are read on the system engine
+    (``auth_providers`` carries no request-path grant)."""
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
-
     entries: list[LoginProviderEntry] = []
     platform_row = await _active_platform_provider(admin_session)
     if platform_row is not None:
@@ -1251,7 +1282,9 @@ async def list_guild_login_providers(
     page. Empty (and nameless) outside per-guild auth posture and for a
     guild with no login-ready providers; an unknown guild id is
     indistinguishable from an empty registry."""
-    if settings.AUTH_SCOPE != AuthScope.guild:
+    if await auth_posture.resolve_auth_scope(admin_session) != AuthScope.guild:
+        return LoginProvidersResponse(providers=[])
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
     rows = (
         await admin_session.exec(
@@ -1833,6 +1866,7 @@ async def request_password_reset(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
+    await _require_login_method(session, LoginMethod.password)
     normalized_email = payload.email.lower().strip()
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
@@ -1867,6 +1901,7 @@ async def reset_password(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
+    await _require_login_method(session, LoginMethod.password)
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
     await enforce_password_policy(payload.password)

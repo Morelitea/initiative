@@ -615,15 +615,47 @@
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
+      "title": "Où la connexion est configurée",
+      "description": "Si la connexion appartient à la plateforme ou à chaque communauté. Les deux s'excluent : une instance fonctionne avec l'une d'elles.",
+      "fromEnvBadge": "Défini au déploiement",
+      "fromEnvHelp": "Cette instance utilise le mode demandé par sa configuration de déploiement. Choisir ici le remplace désormais.",
       "platformLabel": "Connexion à l'échelle de la plateforme",
       "guildLabel": "Connexion par communauté",
-      "platformExplained": "La connexion appartient à la plateforme : les fournisseurs ci-dessous servent toutes les communautés, et une communauté ne peut pas ajouter le sien. Laquelle des deux cette instance utilise se décide au déploiement, pas ici.",
-      "guildExplained": "Les communautés peuvent ajouter leurs propres fournisseurs à côté de ceux ci-dessous, et l'on se connecte à un seul compte quel que soit celui utilisé. Laquelle des deux cette instance utilise se décide au déploiement, pas ici."
+      "platformExplained": "La connexion appartient à la plateforme : les fournisseurs ci-dessous servent toutes les communautés, et une communauté ne peut pas ajouter le sien.",
+      "guildExplained": "Les communautés peuvent ajouter leurs propres fournisseurs à côté de ceux ci-dessous, et l'on se connecte toujours à un seul compte quel que soit celui utilisé.",
+      "ssoWithdrawn": "Ce déploiement n'autorise pas l'authentification unique ; aucune des deux options ne change donc la façon dont on se connecte.",
+      "confirmTitle": "Changer l'endroit où la connexion est configurée ?",
+      "confirmToPlatform": "Les communautés ne pourront plus configurer leur propre connexion. Les fournisseurs déjà créés sont conservés, non supprimés, et reviennent si vous changez à nouveau.",
+      "confirmToGuild": "Les communautés pourront configurer leur propre connexion. Les fournisseurs ci-dessous continuent de fonctionner pour tout le monde.",
+      "confirmAction": "Changer",
+      "saved": "Configuration de connexion mise à jour.",
+      "saveError": "Impossible de changer l'endroit où la connexion est configurée."
     },
     "deploymentTitle": "Cette installation",
     "mappingProvider": "Fournisseur",
     "mappingProviderPlaceholder": "Quel fournisseur déclare ce claim",
-    "mappingProviderHelp": "Une règle vaut pour un fournisseur. Se connecter par un autre ne la lit pas et ne défait pas ce qu'elle a fait."
+    "mappingProviderHelp": "Une règle vaut pour un fournisseur. Se connecter par un autre ne la lit pas et ne défait pas ce qu'elle a fait.",
+    "methods": {
+      "title": "Moyens d'accès",
+      "description": "Comment on peut se connecter à ce déploiement. Au moins un reste actif.",
+      "password": {
+        "label": "Mot de passe",
+        "help": "Une adresse e-mail et un mot de passe conservé ici."
+      },
+      "sso": {
+        "label": "Authentification unique",
+        "help": "Tout fournisseur d'identité configuré ci-dessous."
+      },
+      "lastRemaining": "Le dernier moyen d'accès ne peut pas être retiré.",
+      "wouldStrand_one": "{{count}} compte se connecte uniquement ainsi.",
+      "wouldStrand_other": "{{count}} comptes se connectent uniquement ainsi.",
+      "confirmTitle": "Retirer ce moyen d'accès ?",
+      "confirmBody_one": "{{count}} compte se connecte uniquement ainsi et ne pourra plus se connecter tant qu'il n'en aura pas un autre. Personne n'est déconnecté.",
+      "confirmBody_other": "{{count}} comptes se connectent uniquement ainsi et ne pourront plus se connecter tant qu'ils n'en auront pas un autre. Personne n'est déconnecté.",
+      "confirmAction": "Retirer",
+      "saved": "Moyens d'accès mis à jour.",
+      "saveError": "Impossible de modifier les moyens d'accès."
+    }
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",

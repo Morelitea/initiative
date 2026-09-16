@@ -958,19 +958,20 @@ async def _federated_identities(session: AsyncSession) -> list[FederatedIdentity
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_oidc_login_requires_configured_platform_posture(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """No OIDC config → 404; configured but guild-scoped posture → still 404
-    (the platform provider is dormant in guild scope, server-side)."""
+    """No OIDC config → 404. Configuration is what the login needs, not a
+    posture: an operator-global provider answers in both, because it signs a
+    person into their account and is authoritative for no guild."""
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
     assert response.status_code == 404
     assert response.json()["detail"] == "OIDC_NOT_ENABLED"
 
     await _enable_platform_oidc(session)
+    _wire_fake_idp(monkeypatch, FakeIdp())
     set_auth_scope("guild")
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-    assert response.status_code == 404
-    assert response.json()["detail"] == "OIDC_NOT_ENABLED"
+    assert response.status_code in (302, 307)
 
 
 @pytest.mark.integration
@@ -978,7 +979,8 @@ async def test_oidc_login_requires_configured_platform_posture(
 async def test_oidc_callback_gated_like_login(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_platform_oidc(session)
+    """The callback resolves its provider the same way the login does, so an
+    unconfigured instance 404s on both."""
     set_auth_scope("guild")
     response = await client.get(
         "/api/v1/auth/oidc/callback",
@@ -1420,9 +1422,11 @@ async def test_login_providers_listing(client: AsyncClient, session: AsyncSessio
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_login_providers_empty_in_guild_posture_or_unconfigured(
+async def test_login_providers_listed_whatever_the_posture(
     client: AsyncClient, session: AsyncSession
 ):
+    """The listing reflects configuration, not posture: operator-global
+    providers are offered in both, and an unconfigured instance offers none."""
     response = await client.get("/api/v1/auth/providers")
     assert response.json()["providers"] == []  # nothing configured
 
@@ -1430,7 +1434,8 @@ async def test_login_providers_empty_in_guild_posture_or_unconfigured(
     set_auth_scope("guild")
     await create_auth_provider(session, slug="corp")
     response = await client.get("/api/v1/auth/providers")
-    assert response.json()["providers"] == []  # dormant in guild posture
+    slugs = {p["slug"] for p in response.json()["providers"]}
+    assert {"oidc", "corp"} <= slugs
 
 
 @pytest.mark.integration
