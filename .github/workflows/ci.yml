@@ -61,100 +61,12 @@ jobs:
         id: changes
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            DIFF="git diff --name-only origin/${{ github.base_ref }}...HEAD"
+            mapfile -t PATHS < <(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           else
-            DIFF="git diff --name-only HEAD~1...HEAD"
+            mapfile -t PATHS < <(git diff --name-only HEAD~1...HEAD)
           fi
-
-          # This workflow file is in scope for itself: it defines the roles,
-          # URLs and services the backend job runs against, so a change to it
-          # has to run the job — in full, migrations included — to be worth
-          # anything. Scope selection below reads backend/ paths, which a
-          # workflow-only change has none of, so short-circuit here.
-          if [[ -n "$($DIFF -- .github/workflows/ci.yml || true)" ]]; then
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
-            echo "CI workflow changed — running the full backend job"
-            exit 0
-          fi
-
-          # A push to an integration branch runs the whole suite, whatever it
-          # touched. Scope selection is a pull-request affordance: it answers
-          # "did THIS change break something", quickly. The branch everyone
-          # cuts from has to answer a different question — "is this branch
-          # sound" — and no per-commit scope can, because two merges that each
-          # passed their own narrow scope can combine into a break that neither
-          # ran the test for. That is not hypothetical: `dev` sat red for three
-          # member-search tests while every run on it reported success, one
-          # having printed "No backend changes — skipping".
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
-            echo "Push to an integration branch — running the full backend job"
-            exit 0
-          fi
-
-          CHANGED=$($DIFF -- backend/ || true)
-
-          if [[ -z "$CHANGED" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "No backend changes — skipping"
-            exit 0
-          fi
-
-          echo "skip=false" >> $GITHUB_OUTPUT
-
-          # Migration tests are slow (real upgrade/downgrade against
-          # Postgres) and only relevant when the alembic/ folder itself
-          # changes. Track them as a separate scope token so they're only
-          # appended when needed. Also expose a flag so we can skip the
-          # explicit `alembic upgrade head` step on non-alembic PRs —
-          # conftest.py already runs migrations as a pytest fixture, so
-          # the only value of the standalone step is an early failure
-          # signal when a migration is broken.
-          ALEMBIC_SCOPE=""
-          if echo "$CHANGED" | grep -q '^backend/alembic/'; then
-            ALEMBIC_SCOPE="alembic/"
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "Alembic changes detected — including migration tests"
-          else
-            echo "alembic_changed=false" >> $GITHUB_OUTPUT
-          fi
-
-          NON_ALEMBIC=$(echo "$CHANGED" | grep -v '^backend/alembic/' || true)
-
-          if [[ -z "$NON_ALEMBIC" ]]; then
-            # Only alembic/ changes — skip the app/ test pass entirely.
-            echo "scope=$ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-            echo "Only alembic changes — running migration tests only"
-            exit 0
-          fi
-
-          # Check if shared infra changed (requires full test run)
-          # `app/services/` is in this list because a service is imported by
-          # routers in other directories, and directory-scoped selection
-          # assumes a caller lives beside what it calls. It does not: changing
-          # a helper's signature in app/services/platform/ ran that directory's
-          # tests and not app/api/v1/platform_endpoints/, where the caller that
-          # broke lives. The job was green and the endpoint raised TypeError.
-          if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|app/services/|conftest\.py)'; then
-            echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-            echo "Shared infrastructure changed — running all tests"
-          else
-            # Extract unique directories, strip backend/ prefix, and exclude non-code dirs.
-            # Catalog data files carry no tests of their own — the marketplace
-            # service seeds and validates them, so its suite is the one to run.
-            DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sed 's|^app/marketplace_catalog$|app/services/marketplace|' | sort -u | tr '\n' ' ')
-            if [[ -z "${DIRS// }" ]]; then
-              echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-              echo "Only non-code files changed — running all tests"
-            else
-              echo "scope=$DIRS$ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-              echo "Running tests in: $DIRS$ALEMBIC_SCOPE"
-            fi
-          fi
+          PATHS_JSON=$(printf '%s\n' "${PATHS[@]}" | python3 -c 'import json,sys; print(json.dumps([p for p in sys.stdin.read().splitlines() if p]))')
+          python3 scripts/ci/backend_scope.py --event "${{ github.event_name }}" --paths-json "$PATHS_JSON" >> "$GITHUB_OUTPUT"
 
       - name: Install uv
         if: steps.changes.outputs.skip != 'true'
