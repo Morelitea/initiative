@@ -31,7 +31,7 @@ from app.models.tenant.post_poll import (
     MIN_POLL_OPTIONS,
 )
 from app.schemas.base import SanitizedBaseModel
-from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.schemas.platform.user import ProfileDecorations
 
 
 class PollOptionWrite(SanitizedBaseModel):
@@ -125,7 +125,7 @@ class PollRead(SanitizedBaseModel):
     is_locked: bool = False
 
 
-class PollVoter(GuildNameVisibility):
+class PollVoter(SanitizedBaseModel):
     """One person on a poll's roster, named the way readers and reactors are."""
 
     model_config = ConfigDict(from_attributes=True)

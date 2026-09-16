@@ -89,6 +89,10 @@ class PamGrantee:
     a grantee does not have; the grant is scoped by ``pam_guild_id`` instead.
     That separation used to be a paragraph of docstring. It is now the reason
     this class has no field for it.
+
+    It does narrow like any other routed read: the query surface replays a
+    request's own context with the reader flag and a scope added, and a
+    grantee reaching that surface is replayed the same way a member is.
     """
 
     pam_guild_id: int
@@ -97,16 +101,26 @@ class PamGrantee:
     read: bool = False
     write: bool = False
     satisfied_providers: Optional[Sequence[int] | str] = None
+    scope_initiative_id: Optional[int] = None
+    via_dashboard_id: Optional[int] = None
+    query: bool = False
 
 
 RequestContext = Union[Unattributed, Platform, GuildScoped, PamGrantee]
 
 
-#: Keywords that only mean anything inside a guild.
-_GUILD_ONLY = (
+#: Keywords that describe how a guild is routed into, which a grant does not
+#: do — its read/write level settles the role it gets instead.
+_GUILD_ROUTING = (
     "guild_role",
     "read_only",
     "override_initiatives",
+)
+
+#: Keywords that narrow a read that is already routed. They only ever remove
+#: rows, and a grantee narrows the same way a member does — the query surface
+#: replays a request's own context with these added, whichever it was.
+_NARROWING = (
     "scope_initiative_id",
     "via_dashboard_id",
     "query",
@@ -139,7 +153,8 @@ def classify(**kwargs) -> RequestContext:
     role = kwargs.get("guild_role")
 
     pam_named = [k for k in _PAM if _set(kwargs.get(k))]
-    guild_only_named = [k for k in _GUILD_ONLY if _set(kwargs.get(k))]
+    routing_named = [k for k in _GUILD_ROUTING if _set(kwargs.get(k))]
+    narrowing_named = [k for k in _NARROWING if _set(kwargs.get(k))]
 
     if _set(role) and role not in CONTENT_ROLES:
         raise ContextShapeError(
@@ -155,9 +170,10 @@ def classify(**kwargs) -> RequestContext:
             )
         if not _set(kwargs.get("pam_guild_id")):
             raise ContextShapeError("a PAM grant must name the guild it reaches")
-        if guild_only_named:
+        if routing_named:
             raise ContextShapeError(
-                f"{', '.join(guild_only_named)} belong to a guild context, not a grant"
+                f"{', '.join(routing_named)} say how a guild is routed into; a "
+                "grant's read/write level settles that instead"
             )
         return PamGrantee(
             pam_guild_id=int(kwargs["pam_guild_id"]),
@@ -166,6 +182,9 @@ def classify(**kwargs) -> RequestContext:
             read=bool(kwargs.get("pam_read")),
             write=bool(kwargs.get("pam_write")),
             satisfied_providers=kwargs.get("satisfied_providers"),
+            scope_initiative_id=kwargs.get("scope_initiative_id"),
+            via_dashboard_id=kwargs.get("via_dashboard_id"),
+            query=bool(kwargs.get("query")),
         )
 
     if _set(guild_id):
@@ -182,9 +201,10 @@ def classify(**kwargs) -> RequestContext:
             query=bool(kwargs.get("query")),
         )
 
-    if guild_only_named:
+    if routing_named or narrowing_named:
         raise ContextShapeError(
-            f"{', '.join(guild_only_named)} need a guild to be about"
+            f"{', '.join(routing_named + narrowing_named)} need a guild or a "
+            "grant to be about"
         )
 
     if _set(user_id) or _set(tier):

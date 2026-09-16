@@ -65,10 +65,32 @@ def test_a_grant_must_name_the_guild_it_reaches():
         classify(user_id=7, pam_read=True)
 
 
-def test_guild_modifiers_need_a_guild():
+def test_guild_modifiers_need_something_to_be_about():
     for kwargs in ({"guild_role": "admin"}, {"read_only": True}, {"query": True}):
         with pytest.raises(ContextShapeError):
             classify(user_id=7, **kwargs)
+
+
+def test_a_grant_narrows_the_way_a_member_does():
+    """The query surface replays a request's own context with the reader flag
+    and a scope added. A grantee reaching it is replayed the same way, so the
+    narrowing keywords have to be part of that shape too."""
+    shape = classify(
+        user_id=7,
+        pam_guild_id=3,
+        pam_read=True,
+        query=True,
+        scope_initiative_id=11,
+        via_dashboard_id=None,
+    )
+    assert isinstance(shape, PamGrantee)
+    assert (shape.query, shape.scope_initiative_id) == (True, 11)
+
+
+def test_a_grant_still_does_not_say_how_a_guild_is_routed():
+    for kwargs in ({"guild_role": "admin"}, {"read_only": True}):
+        with pytest.raises(ContextShapeError):
+            classify(user_id=7, pam_guild_id=3, pam_read=True, **kwargs)
 
 
 def test_a_stored_role_does_not_reach_the_guc():
@@ -113,13 +135,23 @@ def _call_sites() -> list[tuple[str, int, dict]]:
             if name != "set_rls_context":
                 continue
             kwargs = {}
+            splatted = False
             for keyword in node.keywords:
                 if keyword.arg is None:
+                    # ``set_rls_context(session, **context)`` — the keys are not
+                    # in the source, so this walk cannot judge the call. Reading
+                    # it as "no keywords" would pass it vacuously, which is how
+                    # the query surface's replay of a grantee's context got
+                    # through the first time. Skipped here and covered by the
+                    # round-trip tests above instead.
+                    splatted = True
                     continue
                 try:
                     kwargs[keyword.arg] = ast.literal_eval(keyword.value)
                 except Exception:
                     kwargs[keyword.arg] = _STAND_IN.get(keyword.arg, 1)
+            if splatted:
+                continue
             found.append((str(path.relative_to(root)), node.lineno, kwargs))
     return found
 

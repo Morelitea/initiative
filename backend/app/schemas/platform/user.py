@@ -27,7 +27,6 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
-from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import Presence, UserRole, UserStatus
 from app.core.config import settings
 
@@ -60,22 +59,6 @@ from app.core.config import settings
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
 # than one string because the client styles them differently.
-
-
-class GuildNameVisibility(SanitizedBaseModel):
-    """Drops ``full_name`` unless the request's guild renders real names.
-
-    One validator rather than a branch at each serializer: the flag is set with
-    the guild context (``app.core.role_context``), so nothing that builds one of
-    these shapes has to remember. A request outside any guild renders handles
-    too, which is the same default.
-    """
-
-    @model_validator(mode="after")
-    def _apply_guild_name_visibility(self):
-        if not guild_shows_member_names():
-            object.__setattr__(self, "full_name", None)
-        return self
 
 
 class UserBase(SanitizedBaseModel):
@@ -142,7 +125,7 @@ class UserIdentity(SanitizedBaseModel):
     status: UserStatus = UserStatus.active
 
 
-class UserPublic(UserIdentity, GuildNameVisibility):
+class UserPublic(UserIdentity):
     """A person, as everyone else sees them — the handle, and the name where
     the guild being read renders one."""
 
@@ -170,7 +153,7 @@ class UserGuildRead(UserIdentity):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserGuildMember(UserGuildRead, GuildNameVisibility):
+class UserGuildMember(UserGuildRead):
     """A member, for the guild's own member-management surface.
 
     :class:`UserGuildRead` plus the membership facts a guild admin manages —
@@ -187,7 +170,7 @@ class UserGuildMember(UserGuildRead, GuildNameVisibility):
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
-class UserSummary(UserIdentity, GuildNameVisibility):
+class UserSummary(UserIdentity):
     """Slim user projection for typeahead and picker surfaces.
 
     What it keeps is what it takes to *draw* a person and say where they stand

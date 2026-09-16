@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.role_context import set_guild_shows_member_names
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
@@ -480,12 +479,6 @@ async def set_rls_context(
         session.info.pop(_RLS_TIER_INFO_KEY, None)
     else:
         platform_role = session.info.get(_RLS_TIER_INFO_KEY)
-
-    # Establishing a context closes the name rule. Whether this guild renders
-    # real names is the guild's own answer: the projection reads it off the
-    # row, and a caller holding the row records it here for the schemas that
-    # still consult it in Python.
-    set_guild_shows_member_names(False)
 
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the

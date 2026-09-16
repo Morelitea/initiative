@@ -8,11 +8,11 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.schemas.platform.user import ProfileDecorations
 from app.services.platform import presence
 
 
-class CommentAuthor(GuildNameVisibility):
+class CommentAuthor(SanitizedBaseModel):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names

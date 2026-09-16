@@ -8,7 +8,6 @@ from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
 from app.core.audit_events import AuditEventType
-from app.core.role_context import set_guild_shows_member_names
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
@@ -59,7 +58,6 @@ from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
-from app.services.platform.guilds import guild_renders_member_names
 from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
@@ -1072,9 +1070,7 @@ async def admin_get_initiative_members(
     admin so the member list comes from the live data, not the frozen
     ``public`` backup.
     """
-    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-    set_guild_shows_member_names(shows_names)
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)
