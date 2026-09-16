@@ -1,7 +1,7 @@
 """One-shot, re-runnable SECRET_KEY rotation.
 
 ``SECRET_KEY`` roots every Fernet-encrypted field (emails, OIDC client secret +
-refresh tokens, SMTP password, AI API keys) and the ``users.email_hash`` HMAC. It
+refresh tokens, SMTP password, AI API keys) and the ``user_emails.email_hash`` HMAC. It
 is NOT a JWT signing key (that's the separately-rotatable ``JWT_SIGNING_KEY``), so
 rotating it means re-encrypting at-rest data — it cannot be swapped in place.
 
@@ -64,7 +64,7 @@ from app.db.schema_provisioning import guild_role_name, guild_schema_name
 
 logger = logging.getLogger(__name__)
 
-# Every Fernet column EXCEPT users.email_encrypted, which is handled specially
+# Every Fernet column EXCEPT user_emails.email_encrypted, which is handled specially
 # because its plaintext also feeds the email_hash HMAC (the two must move together).
 # (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
 # columns (e.g. guild_settings) are re-keyed per guild schema via
@@ -334,7 +334,7 @@ async def _rotate_user_emails(
     old_key: str,
     new_key: str,
     dry_run: bool,
-    table: str = "users",
+    table: str = "user_emails",
 ) -> ColumnResult:
     """Re-encrypt ``email_encrypted`` AND recompute ``email_hash`` from the same
     plaintext, in one UPDATE so the two never disagree. email_hash is a deterministic
@@ -342,10 +342,8 @@ async def _rotate_user_emails(
     old ones — no unique-constraint conflict. Streamed read / separate write like
     ``_rotate_fernet_column``.
 
-    Both tables carrying an address have that pair of columns, and both are swept:
-    ``users`` holds the one an account was created with, ``user_emails`` holds every
-    address it has. A row missed here would still decrypt, but its hash would no
-    longer match what a lookup computes."""
+    ``user_emails`` is where an account's addresses live. A row missed here would
+    still decrypt, but its hash would no longer match what a lookup computes."""
     result = ColumnResult("public", table, "email_encrypted+email_hash")
     stream = await read_conn.stream(
         text(
@@ -366,7 +364,7 @@ async def _rotate_user_emails(
         except InvalidToken:
             result.failed += 1
             logger.warning(
-                "secret-key rotation: a users.email_encrypted value decrypts under "
+                "secret-key rotation: a stored address decrypts under "
                 "neither key — skipping (already unreadable)"
             )
             continue
@@ -422,11 +420,6 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
             await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
-        )
-        summary.columns.append(
-            await _rotate_user_emails(
-                read_conn, write_conn, old_key, new_key, dry_run, table="user_emails"
-            )
         )
         for table, column, salt in _PUBLIC_FERNET_COLUMNS:
             summary.columns.append(

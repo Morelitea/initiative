@@ -3,6 +3,7 @@
 import pytest
 
 from app.core.email_i18n import email_t
+from app.services.auth import addresses
 from app.services import email as email_service
 from app.testing import create_user
 
@@ -102,7 +103,9 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
         message=EVIL_NAME,
     )
 
-    assert captured["recipients"] == [manager.email]
+    assert captured["recipients"] == [
+        await addresses.primary_address(session, user_id=manager.id)
+    ]
     assert captured["subject"] == "Request to join Parser Guild"
     # Templates resolved rather than falling through as their keys.
     assert "initiativeJoinRequest." not in captured["html_body"]

@@ -19,6 +19,7 @@ from app.core.security import REFRESH_COOKIE_NAME
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User
+from app.models.platform.user_email import UserEmail
 from app.services.auth import sessions as session_service
 from app.testing.factories import (
     guild_administration,
@@ -292,7 +293,9 @@ async def test_guild_callback_refused_when_guild_full_discards_provisioned_user(
     session.expire_all()
     assert (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("late@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("late@example.com"))
         )
     ).one_or_none() is None
 
@@ -372,7 +375,9 @@ async def test_guild_callback_refuses_new_user_when_guild_auth_disabled(
     session.expire_all()
     assert (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("new@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("new@example.com"))
         )
     ).one_or_none() is None
 

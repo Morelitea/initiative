@@ -33,6 +33,8 @@ from app.core.security import (
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.user_email import UserEmail
+from app.services.auth import addresses
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
@@ -197,7 +199,9 @@ async def test_register_persists_browser_timezone(
     assert response.status_code == 201
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("tz-user@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("tz-user@example.com"))
         )
     ).one()
     assert user.timezone == "America/Los_Angeles"
@@ -244,7 +248,9 @@ async def test_register_without_timezone_keeps_utc_default(
     assert response.status_code == 201
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("no-tz@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("no-tz@example.com"))
         )
     ).one()
     assert user.timezone == "UTC"
@@ -1062,11 +1068,13 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
 
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("new@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("new@example.com"))
         )
     ).one()
     assert user.full_name == "New User"
-    assert user.email_verified is True
+    assert await addresses.has_proven_address(session, user_id=user.id)
     # SSO-only account: no password hash — the identity link carries the
     # subject, sync stamp, and (companion) refresh token.
     assert user.hashed_password is None
@@ -1113,7 +1121,9 @@ async def test_oidc_callback_establishes_refresh_session(
     ).one()
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("sso-session@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-session@example.com"))
         )
     ).one()
     auth_session = (
@@ -1164,9 +1174,9 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
     ).one()
     user = (
         await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("sso-assurance@example.com")
-            )
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-assurance@example.com"))
         )
     ).one()
     auth_session = (
@@ -1268,7 +1278,9 @@ async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
 
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("sso-silent@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-silent@example.com"))
         )
     ).one()
     auth_session = (
@@ -1316,7 +1328,9 @@ async def test_an_oidc_callback_that_cannot_open_a_session_says_so(
 
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("sso-nostore@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-nostore@example.com"))
         )
     ).one()
     rows = (
@@ -1548,7 +1562,9 @@ async def test_row_provider_full_login_flow(
 
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("corp-user@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("corp-user@example.com"))
         )
     ).one()
     identity = (
@@ -1634,7 +1650,9 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     assert "session_token" not in response.cookies
     assert (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("brandnew@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("brandnew@example.com"))
         )
     ).one_or_none() is None
 
@@ -1681,7 +1699,7 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     # The account must not have been silently promoted to verified, and its
     # profile must not have been overwritten by the attacker-supplied claims.
     await session.refresh(existing)
-    assert existing.email_verified is False
+    assert not await addresses.has_proven_address(session, user_id=existing.id)
     assert existing.full_name == "Victim"
 
 
@@ -1716,7 +1734,7 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     assert "OIDC_EMAIL_UNVERIFIED" not in response.headers["location"]
     assert SESSION_COOKIE_NAME in response.cookies
     await session.refresh(existing)
-    assert existing.email_verified is True
+    assert await addresses.has_proven_address(session, user_id=existing.id)
     identities = await _federated_identities(session)
     assert [(i.user_id, i.subject) for i in identities] == [
         (existing.id, "idp-subject-1")
@@ -1799,9 +1817,9 @@ async def test_oidc_callback_enriches_missing_email_from_userinfo(
     assert response.status_code in (302, 307)
     user = (
         await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("fromuserinfo@example.com")
-            )
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("fromuserinfo@example.com"))
         )
     ).one()
     assert user.full_name == "Info User"
@@ -1824,15 +1842,17 @@ async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
     assert response.status_code in (302, 307)
     assert (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("hijack@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("hijack@example.com"))
         )
     ).one_or_none() is None
     # Provisioned off the subject instead — never off the mismatched userinfo.
     assert (
         await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("idp-subject-1@oidc.local")
-            )
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("idp-subject-1@oidc.local"))
         )
     ).one_or_none() is not None
 
@@ -2062,7 +2082,9 @@ async def test_register_rolls_back_when_guild_seed_fails(
     # Neither the user nor its guild may survive a failed registration.
     users = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("seedfail@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("seedfail@example.com"))
         )
     ).all()
     assert users == [], "user row must be rolled back when guild seeding fails"
@@ -2330,7 +2352,9 @@ async def test_registering_records_when_the_password_was_set(
     session.expire_all()
     user = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("stamped@example.com"))
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("stamped@example.com"))
         )
     ).one()
     assert user.password_set_at is not None
