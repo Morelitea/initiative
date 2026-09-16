@@ -186,5 +186,22 @@
     "failed": "That photo could not be read. Try again."
   },
   "archiveError": "Couldn't archive that. Please try again.",
-  "unarchiveError": "Couldn't unarchive that. Please try again."
+  "unarchiveError": "Couldn't unarchive that. Please try again.",
+  "markdownEditor": {
+    "toolbar": "Formatting",
+    "write": "Write",
+    "preview": "Preview",
+    "nothingToPreview": "Nothing to preview yet.",
+    "heading": "Heading",
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "link": "Link",
+    "quote": "Quote",
+    "code": "Code",
+    "bulletedList": "Bulleted list",
+    "numberedList": "Numbered list",
+    "taskList": "Task list",
+    "more": "More formatting"
+  }
 }
