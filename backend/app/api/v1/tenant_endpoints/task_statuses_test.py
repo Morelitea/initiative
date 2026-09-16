@@ -14,7 +14,7 @@ from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
-from app.models.tenant.task import TaskStatusCategory
+from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
 from app.testing import route_session_to_guild
 from app.testing.factories import (
@@ -22,6 +22,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_task,
     create_task_status,
     create_user,
     get_auth_headers,
@@ -572,6 +573,66 @@ async def test_delete_into_done_completes_the_tasks_it_moves(
     assert response.status_code == 204, response.text
     task = await client.get(a.g(f"/tasks/{created.json()['id']}"), headers=a.headers)
     assert task.json()["completed_at"] is not None
+
+
+@pytest.mark.integration
+async def test_delete_into_done_advances_a_recurring_task(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    default_status = next(status for status in statuses if status.is_default)
+    remaining_statuses = [
+        status for status in statuses if status.id != default_status.id
+    ]
+    successor_status = (
+        task_statuses_service.first_by_category_preference(remaining_statuses)
+        or remaining_statuses[0]
+    )
+    done = next(
+        status for status in statuses if status.category == TaskStatusCategory.done
+    )
+    due = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
+    recurring = await create_task(
+        session,
+        a.project,
+        title="Daily check",
+        task_status_id=default_status.id,
+        due_date=due,
+        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence_strategy="fixed",
+    )
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{default_status.id}"),
+        headers=a.headers,
+        json={"fallback_status_id": done.id},
+    )
+
+    assert response.status_code == 204, response.text
+    session.expunge_all()
+    tasks = list(
+        await session.exec(
+            select(Task).where(
+                Task.project_id == a.project.id,
+                Task.title == "Daily check",
+            )
+        )
+    )
+    assert len(tasks) == 2
+    completed = next(task for task in tasks if task.id == recurring.id)
+    successor = next(task for task in tasks if task.id != recurring.id)
+    assert completed.completed_at is not None
+    assert completed.recurrence is None
+    assert successor.task_status_id == successor_status.id
+    assert successor.due_date == datetime(2026, 9, 17, 12, 0, tzinfo=timezone.utc)
+    assert successor.recurrence is not None
+    assert successor.recurrence["frequency"] == "daily"
+    assert successor.recurrence["interval"] == 1
+    assert successor.recurrence["ends"] == "never"
 
 
 @pytest.mark.integration

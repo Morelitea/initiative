@@ -3,6 +3,7 @@ from typing import Annotated, List, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete, update
 
 from app.api.deps import (
@@ -13,12 +14,13 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.api.v1.tenant_endpoints.tasks import (
+    _advance_recurrence_if_needed,
     _get_project_with_access,
     _ensure_can_manage,
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
-from app.models.tenant.task import Task, TaskStatus
+from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.models.platform.user import User
 from app.schemas.tenant.task_status import (
     InitiativeTaskStatusRead,
@@ -345,6 +347,42 @@ async def delete_task_status(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=TaskStatusMessages.FALLBACK_REQUIRED,
             )
+
+        # Recurrence opens the successor in the project's entry column. If the
+        # column being retired is that entry, choose its replacement before any
+        # successor is made so it never points back at the row being deleted.
+        if target.is_default:
+            target.is_default = False
+            session.add(target)
+            replacement_statuses = [
+                status_obj
+                for status_obj in await task_statuses_service.list_statuses(
+                    session, project_id
+                )
+                if status_obj.id != target.id
+            ]
+            _ensure_default(replacement_statuses)
+            await session.flush()
+
+        recurring_tasks: list[Task] = []
+        if (
+            target.category != TaskStatusCategory.done
+            and fallback_obj.category == TaskStatusCategory.done
+        ):
+            recurring_tasks = list(
+                await session.exec(
+                    select(Task)
+                    .where(
+                        Task.task_status_id == target.id,
+                        Task.recurrence.is_not(None),
+                        Task.due_date.is_not(None),
+                    )
+                    .options(
+                        selectinload(Task.assignees),
+                        selectinload(Task.task_status),
+                    )
+                )
+            )
         await session.exec(
             update(Task)
             .where(Task.task_status_id == target.id)
@@ -352,12 +390,23 @@ async def delete_task_status(
         )
         # The destination may sit on the other side of the done boundary from
         # the column being emptied, so realign the tasks that just landed in it.
+        now = datetime.now(timezone.utc)
         await task_completion.resync_status_tasks(
             session,
             status_id=fallback_obj.id,
             category=fallback_obj.category,
-            now=datetime.now(timezone.utc),
+            now=now,
         )
+        for task in recurring_tasks:
+            task.task_status_id = fallback_obj.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+            task.task_status = fallback_obj
+            await _advance_recurrence_if_needed(
+                session,
+                task,
+                previous_status_category=target.category,
+                now=now,
+                user_timezone=current_user.timezone,
+            )
 
     await session.exec(delete(TaskStatus).where(TaskStatus.id == target.id))
     remaining = await task_statuses_service.list_statuses(session, project_id)
