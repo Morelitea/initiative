@@ -452,6 +452,7 @@ async def send_messages(
                 sender=current_user,
                 sender_name=handle_of(current_user),
                 conversation_id=conversation_id,
+                group=outcome.group,
             )
     return DmSendResponse(
         accepted=outcome.accepted, queue_full_for=list(outcome.queue_full)

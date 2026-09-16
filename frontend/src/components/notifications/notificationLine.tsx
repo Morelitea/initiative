@@ -306,6 +306,15 @@ export const notificationText = (
       // the server has no key to the message it is announcing.
       const count = typeof data.count === "number" ? data.count : 1;
       const senderName = data.sender_name ?? "Someone";
+      // A group thread has no name, so it is named by who is on it -- everybody
+      // but the reader. Present only on a group line.
+      const members = Array.isArray(data.member_names) ? data.member_names : null;
+      if (members?.length) {
+        const groupName = members.join(", ");
+        return count > 1
+          ? t("notifications.directMessageGroupMany", { senderName, groupName, count })
+          : t("notifications.directMessageGroup", { senderName, groupName });
+      }
       return count > 1
         ? t("notifications.directMessageMany", { senderName, count })
         : t("notifications.directMessage", { senderName });

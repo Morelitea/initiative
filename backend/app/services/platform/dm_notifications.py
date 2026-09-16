@@ -36,6 +36,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
+from app.core.user_display import handle_of
 from app.core.notification_categories import Channel
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
@@ -85,12 +86,43 @@ async def _dm_device_token_ids(session: AsyncSession, user_id: int) -> set[int]:
     return {row for row in rows if row is not None}
 
 
+async def _roster_names(
+    session: AsyncSession, *, conversation_id: uuid.UUID, recipient_id: int
+) -> list[str]:
+    """Who else is on this conversation, as the recipient would name them.
+
+    Everybody but the reader, in id order so the same thread reads the same way
+    every time. Handles rather than display names: a direct message happens
+    outside any community, so there is no community whose naming applies.
+
+    This is the roster the server had to resolve in order to route the message
+    at all — the fact of who is talking, which is not the secret. What they
+    said is, and nothing here can reach it.
+    """
+    from app.models.platform.dm_conversation import DmConversationMember
+
+    rows = (
+        await session.exec(
+            select(User)
+            .join(DmConversationMember, DmConversationMember.user_id == User.id)
+            .where(
+                DmConversationMember.conversation_id == conversation_id,
+                DmConversationMember.user_id != recipient_id,
+                DmConversationMember.accepted_at.is_not(None),
+            )
+            .order_by(User.id)
+        )
+    ).all()
+    return [handle_of(user) for user in rows]
+
+
 async def notify(
     *,
     recipient_id: int,
     sender: User,
     sender_name: str,
     conversation_id: uuid.UUID,
+    group: bool = False,
 ) -> None:
     """Roll one message into the recipient's bell line, then wake their tabs.
 
@@ -104,12 +136,22 @@ async def notify(
             recipient = await session.get(User, recipient_id)
             if recipient is None:
                 return
+            others = (
+                await _roster_names(
+                    session,
+                    conversation_id=conversation_id,
+                    recipient_id=recipient_id,
+                )
+                if group
+                else []
+            )
             await _roll_up(
                 session,
                 recipient=recipient,
                 sender=sender,
                 sender_name=sender_name,
                 conversation_id=conversation_id,
+                others=others,
             )
             await session.commit()
     except Exception:  # noqa: BLE001 - a bell line never fails a send
@@ -241,6 +283,7 @@ async def _roll_up(
     sender: User,
     sender_name: str,
     conversation_id: uuid.UUID,
+    others: list[str],
 ) -> None:
     match = {"conversation_id": str(conversation_id)}
     await _lock_line(session, f"dm-bell:{conversation_id}:{recipient.id}")
@@ -252,12 +295,18 @@ async def _roll_up(
     )
     previous: Mapping[str, Any] = (existing.data if existing else None) or {}
     count = cast(int, previous.get("count", 0)) + 1
-    line = {
+    line: dict[str, Any] = {
         "conversation_id": str(conversation_id),
         "sender_id": sender.id,
         "sender_name": sender_name,
         "count": count,
     }
+    if others:
+        # A group thread is named by who is on it, because it has no other name
+        # and is not going to get one. Everybody but the reader: a line that
+        # listed them back to themselves would be naming the one person who
+        # already knows they are there.
+        line["member_names"] = others
     if existing is None:
         await user_notifications.create_notification(
             session,
@@ -286,7 +335,9 @@ async def _roll_up(
     # hold a conversation on. This is what every messenger does and what people
     # expect; the preference and quiet hours are where it is turned down.
     if _wanted(Channel.push):
-        await _push(session, recipient=recipient, sender_name=sender_name)
+        await _push(
+            session, recipient=recipient, sender_name=sender_name, others=others
+        )
 
     # Email does not. It is the channel for somebody who is not there at all,
     # and one per message would be a mailbox nobody could use -- so it fires on
@@ -313,22 +364,40 @@ async def _email(session: AsyncSession, *, recipient: User, sender_name: str) ->
         return
 
 
-async def _push(session: AsyncSession, *, recipient: User, sender_name: str) -> None:
+async def _push(
+    session: AsyncSession, *, recipient: User, sender_name: str, others: list[str]
+) -> None:
     token_ids = await _dm_device_token_ids(session, recipient.id)
     if not token_ids:
         return
     locale = _locale(recipient)
-    await push_notifications.send_push_to_user(
-        session,
-        recipient.id,
-        NotificationType.direct_message,
-        translate(
+    if others:
+        # The thread goes in the title and the sender in the body, which is how
+        # a lock screen is read: which conversation first, then who spoke. The
+        # roster is not shortened -- the platform truncates a long title on its
+        # own, and picking a number of names to keep would be inventing a rule
+        # about whose name matters.
+        title = ", ".join(others)
+        body = translate(
+            "directMessageGroup.body",
+            locale,
+            namespace="notifications",
+            sender=sender_name,
+        )
+    else:
+        title = translate(
             "directMessage.title",
             locale,
             namespace="notifications",
             sender=sender_name,
-        ),
-        translate("directMessage.body", locale, namespace="notifications"),
+        )
+        body = translate("directMessage.body", locale, namespace="notifications")
+    await push_notifications.send_push_to_user(
+        session,
+        recipient.id,
+        NotificationType.direct_message,
+        title,
+        body,
         # Where tapping it goes, and nothing more. The conversation's id would
         # open the right thread, but it would also put a record of who is
         # talking to whom through a push service, which is the one thing this
