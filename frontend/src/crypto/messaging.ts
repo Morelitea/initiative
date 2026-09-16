@@ -617,13 +617,15 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  */
 async function readPeerDirectory(otherUserId: number) {
   const theirs = await readDirectory(otherUserId);
-  const changes = await peerDeviceKeys.reconcile(
-    otherUserId,
-    theirs.devices.map((device) => ({
+  const seen = await Promise.all(
+    theirs.devices.map(async (device) => ({
       deviceId: device.device_id,
       fingerprint: device.fingerprint_key,
+      identityKey: device.identity_key,
+      previouslyAddressed: (await sessionForDevice.get(device.device_id)) !== undefined,
     }))
   );
+  const changes = await peerDeviceKeys.reconcile(otherUserId, seen);
   if (changes.length > 0) {
     // The hold is already recorded -- `reconcile` writes it in the same
     // transaction that records the key, so no send can see one without the

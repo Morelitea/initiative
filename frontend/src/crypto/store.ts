@@ -701,9 +701,20 @@ export interface PeerKeyChange {
 const PEER_KEYS_PREFIX = "peer-keys:";
 const PEER_CHANGES = "peer-key-changes";
 
+interface RememberedPeerKey {
+  fingerprint: string;
+  /** Absent only for records written before identities were bound here. */
+  identityKey?: string;
+}
+
+type StoredPeerKey = string | RememberedPeerKey;
+
+const rememberedPeerKey = (stored: StoredPeerKey): RememberedPeerKey =>
+  typeof stored === "string" ? { fingerprint: stored } : stored;
+
 export const peerDeviceKeys = {
-  all: async (userId: number): Promise<Record<string, string>> =>
-    (await read<Record<string, string>>(PEER_KEYS_PREFIX + userId)) ?? {},
+  all: async (userId: number): Promise<Record<string, StoredPeerKey>> =>
+    (await read<Record<string, StoredPeerKey>>(PEER_KEYS_PREFIX + userId)) ?? {},
   /**
    * Record what the directory returned, report the keys that changed, and hold
    * them pending a check -- all in one transaction.
@@ -724,23 +735,32 @@ export const peerDeviceKeys = {
    */
   reconcile: async (
     userId: number,
-    seen: { deviceId: string; fingerprint: string }[]
+    seen: {
+      deviceId: string;
+      fingerprint: string;
+      identityKey?: string;
+      previouslyAddressed?: boolean;
+    }[]
   ): Promise<PeerKeyChange[]> => {
     const changes: PeerKeyChange[] = [];
     const at = new Date().toISOString();
-    await updatePair<Record<string, string>, PeerKeyChange[]>(
+    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
       PEER_KEYS_PREFIX + userId,
       PEER_CHANGES,
       (existing, heldNow) => {
         const known = existing ?? {};
         const hasBaseline = Object.keys(known).length > 0;
         const next = { ...known };
-        for (const { deviceId, fingerprint } of seen) {
-          const knownFingerprint = known[deviceId];
-          if (knownFingerprint !== fingerprint && (knownFingerprint !== undefined || hasBaseline)) {
+        for (const { deviceId, fingerprint, identityKey, previouslyAddressed } of seen) {
+          const stored = known[deviceId];
+          const knownKey = stored === undefined ? undefined : rememberedPeerKey(stored);
+          const keyChanged =
+            knownKey !== undefined &&
+            (knownKey.fingerprint !== fingerprint || knownKey.identityKey !== identityKey);
+          if (keyChanged || (stored === undefined && (hasBaseline || previouslyAddressed))) {
             changes.push({ userId, deviceId, now: fingerprint, at });
           }
-          next[deviceId] = fingerprint;
+          next[deviceId] = { fingerprint, ...(identityKey ? { identityKey } : {}) };
         }
         // Devices that stopped being listed are left in place, so a device that
         // disappears and comes back with a different key is still a change

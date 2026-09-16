@@ -127,6 +127,7 @@ import {
   historyAsk,
   messageLog,
   peerKeyChanges,
+  sessionForDevice,
   sessionPickle,
 } from "./store";
 
@@ -1349,6 +1350,15 @@ describe("history between this account's own devices", () => {
 });
 
 describe("sending", () => {
+  it("holds a first directory baseline when an existing session shows the peer is not new", async () => {
+    await sessionForDevice.set(THEIRS.device_id, "existing-session");
+
+    const error = await sendText("conv-1", [7], "private after upgrade").catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(RecipientDevicesUnverifiedError);
+    expect(api.sendMessages).not.toHaveBeenCalled();
+  });
+
   it("says the devices are unverified, not that the recipient has none", async () => {
     // A partner who reinstalls gets a NEW device id -- register_device inserts a
     // row per call, it does not upsert -- so withholding it is correct. What the
@@ -1359,14 +1369,14 @@ describe("sending", () => {
     // messaging at all. That is rendered as "<name> has not set up encrypted
     // messages yet", which is false, and it points at the wrong person: the
     // action that unblocks it belongs to the reader, on the notice beside it.
-    await sendText("conv-1", 7, "establishes the directory baseline");
+    await sendText("conv-1", [7], "establishes the directory baseline");
     api.sendMessages.mockClear();
     api.readDirectory.mockResolvedValue({
       user_id: 7,
       devices: [{ device_id: "replacement", identity_key: "new-key", fingerprint_key: "new-fp" }],
     });
 
-    const error = await sendText("conv-1", 7, "private after replacement").catch((e) => e);
+    const error = await sendText("conv-1", [7], "private after replacement").catch((e) => e);
 
     expect(api.sendMessages).not.toHaveBeenCalled();
     expect(error).toBeInstanceOf(RecipientDevicesUnverifiedError);
@@ -1380,11 +1390,13 @@ describe("sending", () => {
     // narrowed away from.
     api.readDirectory.mockResolvedValue({ user_id: 7, devices: [] });
 
-    await expect(sendText("conv-1", 7, "hello")).rejects.toBeInstanceOf(RecipientHasNoDeviceError);
+    await expect(sendText("conv-1", [7], "hello")).rejects.toBeInstanceOf(
+      RecipientHasNoDeviceError
+    );
   });
 
   it("does not send private text to a newly introduced peer device", async () => {
-    await sendText("conv-1", 7, "establishes the directory baseline");
+    await sendText("conv-1", [7], "establishes the directory baseline");
     api.sendMessages.mockClear();
     api.readDirectory.mockResolvedValue({
       user_id: 7,
@@ -1406,7 +1418,7 @@ describe("sending", () => {
     // withholding is this client's own doing. The earlier expectation here read
     // as "they have not set up encrypted messages", which is false about
     // somebody who just reinstalled and points the reader at the wrong action.
-    await expect(sendText("conv-1", 7, "private after replacement")).rejects.toBeInstanceOf(
+    await expect(sendText("conv-1", [7], "private after replacement")).rejects.toBeInstanceOf(
       RecipientDevicesUnverifiedError
     );
 
@@ -1415,13 +1427,13 @@ describe("sending", () => {
       expect.objectContaining({ deviceId: "replacement", now: "new-fp" }),
     ]);
 
-    await expect(sendText("conv-1", 7, "still private")).rejects.toBeInstanceOf(
+    await expect(sendText("conv-1", [7], "still private")).rejects.toBeInstanceOf(
       RecipientDevicesUnverifiedError
     );
     expect(api.sendMessages).not.toHaveBeenCalled();
 
     await acknowledgePeerKeyChange("replacement");
-    await sendText("conv-1", 7, "verified out of band");
+    await sendText("conv-1", [7], "verified out of band");
     expect(api.sendMessages).toHaveBeenCalledTimes(1);
   });
 

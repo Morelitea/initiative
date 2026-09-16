@@ -426,7 +426,9 @@ describe("remembered peer device keys", () => {
     ]);
 
     expect(changes).toEqual([]);
-    expect(await peerDeviceKeys.all(7)).toEqual({ "their-phone": "fp-1" });
+    expect(await peerDeviceKeys.all(7)).toEqual({
+      "their-phone": { fingerprint: "fp-1" },
+    });
   });
 
   it("reports a key that replaced one already used", async () => {
@@ -441,6 +443,24 @@ describe("remembered peer device keys", () => {
         userId: 7,
         deviceId: "their-phone",
         now: "fp-2",
+      }),
+    ]);
+  });
+
+  it("reports an encryption identity change when the displayed fingerprint is unchanged", async () => {
+    await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-1", identityKey: "identity-1" },
+    ]);
+
+    const changes = await peerDeviceKeys.reconcile(7, [
+      { deviceId: "their-phone", fingerprint: "fp-1", identityKey: "identity-2" },
+    ]);
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        userId: 7,
+        deviceId: "their-phone",
+        now: "fp-1",
       }),
     ]);
   });
