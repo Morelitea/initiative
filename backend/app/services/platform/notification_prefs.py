@@ -227,16 +227,6 @@ async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
         return await load_prefs(admin_session, user_id)
 
 
-async def load_prefs_for_delivery_many(
-    user_ids: list[int],
-) -> dict[int, dict[str, Any]]:
-    """The same, for a whole audience in one query."""
-    from app.db.session import AdminSessionLocal
-
-    async with AdminSessionLocal() as admin_session:
-        return await load_prefs_for(admin_session, user_ids)
-
-
 async def load_prefs(session: AsyncSession, user_id: int) -> dict[str, Any]:
     """One account's settings document, or ``{}`` where it has none."""
     row = (

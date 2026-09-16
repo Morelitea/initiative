@@ -214,8 +214,8 @@ async def _get_document_or_404(
             document_id,
             user_id,
             guild_id,
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     return document
 
@@ -263,7 +263,7 @@ async def _require_initiative_access(
         if not has_perm:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.PERMISSION_REQUIRED,
+                detail=Tool.document.role_permission_code,
             )
         return
 
@@ -277,7 +277,7 @@ async def _require_initiative_access(
         if not is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.MANAGER_REQUIRED,
+                detail=InitiativeMessages.MANAGER_REQUIRED,
             )
 
 
@@ -1957,12 +1957,12 @@ async def download_document_file(
             document_id,
             int(current_user.id),
             int(guild_id),
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     if document.document_type != DocumentType.file or document.file_url is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
     # ``guild_role`` feeds the initiative-scope gate's guild-admin leg — the
@@ -2010,12 +2010,12 @@ async def download_document_file_version(
             document_id,
             int(current_user.id),
             int(guild_id),
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     if document.document_type != DocumentType.file:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
     _require_document_access(

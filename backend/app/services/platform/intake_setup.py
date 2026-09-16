@@ -20,7 +20,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
-from app.core.messages import IntakeMessages
+from app.core.tools import Tool
+from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildStatus
@@ -88,7 +89,7 @@ async def set_operations_guild(
         if guild is None:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=IntakeMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.GUILD_NOT_FOUND,
             )
         if guild.status != GuildStatus.active.value:
             raise HTTPException(
@@ -123,7 +124,7 @@ async def _resolve_project(
     if project is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=IntakeMessages.PROJECT_NOT_FOUND,
+            detail=Tool.project.not_found_code,
         )
     if project.archived_at is not None or project.deleted_at is not None:
         # Archived and trashed content takes no writes, so a case could not be
@@ -143,7 +144,7 @@ async def _resolve_project(
     if initiative is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=IntakeMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
     return project, initiative
 
@@ -392,7 +393,7 @@ async def provision_from_blueprint(
     if initiative is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=IntakeMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     result = await import_project(

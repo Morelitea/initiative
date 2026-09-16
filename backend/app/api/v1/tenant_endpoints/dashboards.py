@@ -213,7 +213,7 @@ async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashb
     if not dashboard:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=DashboardMessages.NOT_FOUND,
+            detail=Tool.dashboard.not_found_code,
         )
     return dashboard
 
@@ -445,7 +445,7 @@ async def create_dashboard(
     if not initiative.dashboards_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=DashboardMessages.FEATURE_DISABLED,
+            detail=Tool.dashboard.feature_disabled_code,
         )
     await resource_access.require_create(
         session, Tool.dashboard, initiative, current_user, guild_context
@@ -925,7 +925,7 @@ async def revoke_published_view(
     except ValueError as unknown:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=DashboardMessages.NOT_FOUND,
+            detail=Tool.dashboard.not_found_code,
         ) from unknown
 
     grant = (
@@ -939,7 +939,7 @@ async def revoke_published_view(
     ).first()
     if grant is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DashboardMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.dashboard.not_found_code
         )
 
     if not await _may_revoke(
@@ -947,7 +947,7 @@ async def revoke_published_view(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=DashboardMessages.PERMISSION_REQUIRED,
+            detail=Tool.dashboard.no_access_code,
         )
     await session.delete(grant)
     await session.commit()

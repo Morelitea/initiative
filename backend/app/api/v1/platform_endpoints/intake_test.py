@@ -86,7 +86,7 @@ async def test_pointing_at_a_guild_that_does_not_exist_is_refused(client, owner)
         headers=owner["actor"].headers,
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "INTAKE_GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "GUILD_NOT_FOUND"
 
 
 async def test_binding_before_a_guild_is_named_is_refused(client, owner):

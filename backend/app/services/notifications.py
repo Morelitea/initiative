@@ -449,13 +449,6 @@ async def clear_digest_queue_for_user(
         )
 
 
-async def clear_task_assignment_queue_for_user(
-    session: AsyncSession, user_id: int
-) -> None:
-    """The assignment queue alone, in the currently routed guild schema."""
-    await clear_digest_queue_for_user(session, user_id, (TaskAssignmentDigestItem,))
-
-
 async def clear_digest_queue_across_guilds(
     session: AsyncSession, user_id: int, models: Sequence[type]
 ) -> None:
@@ -475,15 +468,6 @@ async def clear_digest_queue_across_guilds(
     # the user belongs to, including auth-policy-gated ones.
     await cross_guild.gather_across_guilds(
         session, user_id, guild_ids, _clear, satisfied_providers=SYSTEM_SATISFIED
-    )
-
-
-async def clear_task_assignment_queue_across_guilds(
-    session: AsyncSession, user_id: int
-) -> None:
-    """The assignment queue alone, across every guild the user belongs to."""
-    await clear_digest_queue_across_guilds(
-        session, user_id, (TaskAssignmentDigestItem,)
     )
 
 

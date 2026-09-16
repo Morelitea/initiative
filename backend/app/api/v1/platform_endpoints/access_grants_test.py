@@ -389,7 +389,7 @@ async def test_grant_cannot_manage_counter_group_access(
         headers=headers,
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == "COUNTER_GRANT_CANNOT_MANAGE"
+    assert resp.json()["detail"] == "COUNTER_GROUP_GRANT_CANNOT_MANAGE_MEMBERS"
 
 
 @pytest.mark.integration

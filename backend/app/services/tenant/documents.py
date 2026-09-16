@@ -195,7 +195,7 @@ async def get_document_for_export(
     if document is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=DocumentMessages.NOT_FOUND,
+            detail=Tool.document.not_found_code,
         )
     permissions_service.require_document_access(
         document,

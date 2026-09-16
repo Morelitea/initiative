@@ -43,6 +43,7 @@ from app.core.messages import (
     AdminMessages,
     AuthMessages,
     GuildMessages,
+    InitiativeMessages,
     SettingsMessages,
     UserMessages,
 )
@@ -137,7 +138,7 @@ async def export_platform_users_csv(
 
     if user_id and not users:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # Through the same shape the roster returns, so the export cannot be the one
@@ -196,7 +197,7 @@ async def trigger_password_reset(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     if user.status != UserStatus.active:
@@ -237,7 +238,7 @@ async def reactivate_user(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     if user.status == UserStatus.active:
@@ -249,7 +250,7 @@ async def reactivate_user(
     if user.status == UserStatus.anonymized:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_REACTIVATE_ANONYMIZED,
+            detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
         )
 
     user.status = UserStatus.active
@@ -425,7 +426,7 @@ async def set_user_username(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     previous_handle = handle_of(user)
@@ -487,7 +488,7 @@ async def set_user_suspension(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # A closed or erased account is not a live one to freeze, and thawing it
@@ -572,7 +573,7 @@ async def clear_age_block(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
     if user.age_below_minimum_at is None:
         raise HTTPException(
@@ -625,7 +626,7 @@ async def update_platform_role(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # Refuse role changes on non-active accounts. A deactivated row's role
@@ -704,7 +705,7 @@ async def check_user_deletion_eligibility(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     can_delete, blockers = await users_service.check_deletion_eligibility(
@@ -781,7 +782,7 @@ async def delete_user(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # Check if target is the last platform owner (last config manager)
@@ -892,7 +893,7 @@ async def admin_delete_guild(
     guild = result.one_or_none()
     if not guild:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
     # Delete the shared guild row (cascades clear the roster), then drop the
@@ -954,7 +955,7 @@ async def admin_delete_initiative(
     if not initiative:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     project_result = await session.exec(
@@ -1003,7 +1004,7 @@ async def admin_update_guild_member_role(
     guild = result.one_or_none()
     if not guild:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
     # Get target membership with lock
@@ -1013,7 +1014,7 @@ async def admin_update_guild_member_role(
     if target_membership is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.USER_NOT_IN_GUILD,
+            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
         )
 
     # Check if demoting the last guild admin
@@ -1026,7 +1027,7 @@ async def admin_update_guild_member_role(
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
+                detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
 
     previous_role = target_membership.role
@@ -1077,7 +1078,7 @@ async def admin_get_initiative_members(
     if not result.one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     # Active members only — anonymized rows are husks of departed users
@@ -1131,7 +1132,7 @@ async def admin_update_initiative_member_role(
     if not initiative:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     # Get target membership with lock
@@ -1160,7 +1161,7 @@ async def admin_update_initiative_member_role(
     if not new_role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.ROLE_NOT_FOUND,
+            detail=InitiativeMessages.ROLE_NOT_FOUND,
         )
 
     # Check if demoting the last PM

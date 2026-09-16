@@ -92,7 +92,12 @@ from app.schemas.tenant.ownership import (
 )
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.encryption import SALT_EMAIL, decrypt_field
-from app.core.messages import AddressMessages, AuthMessages, UserMessages
+from app.core.messages import (
+    AddressMessages,
+    AuthMessages,
+    GuildMessages,
+    UserMessages,
+)
 from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
@@ -1707,13 +1712,13 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     if not user_avatars_service.is_valid_digest(digest):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=UserMessages.AVATAR_NOT_FOUND,
+            detail=GuildMessages.IMAGE_NOT_FOUND,
         )
     avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
     if avatar is None or avatar.sha256 != digest:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=UserMessages.AVATAR_NOT_FOUND,
+            detail=GuildMessages.IMAGE_NOT_FOUND,
         )
     return Response(
         content=avatar.data,

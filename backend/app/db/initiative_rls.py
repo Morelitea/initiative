@@ -419,29 +419,6 @@ def via_task_project(fk: str = "task_id") -> InitiativePath:
     )
 
 
-def via_queue_item(fk: str = "queue_item_id") -> InitiativePath:
-    """Two hops: ``table.<fk> -> queue_items -> queues.initiative_id``."""
-    return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM queue_items qi JOIN queues q ON q.id = qi.queue_id "
-            f"WHERE qi.id = {t}.{fk} "
-            f"AND {_access('q.initiative_id', w)})"
-        ),
-        initiative_expr=lambda r: (
-            f"(SELECT q.initiative_id FROM queue_items qi "  # noqa: S608
-            f"JOIN queues q ON q.id = qi.queue_id WHERE qi.id = {r}.{fk})"
-        ),
-        parents=lambda r: _parent_chain(
-            "queue_items qi",
-            "qi.id",
-            f"{r}.{fk}",
-            ("queue_items", "qi.id"),
-            ("queues", "qi.queue_id"),
-        ),
-        dac=_dac_two_hop("queue_items", "queue_id", "queues", fk),
-    )
-
-
 def via_post_poll(fk: str = "poll_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> post_polls -> posts.initiative_id``."""
     return InitiativePath(

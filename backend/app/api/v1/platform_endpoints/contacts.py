@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, get_current_active_user
-from app.core.messages import ContactMessages
+from app.core.messages import AuthMessages, ContactMessages
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import user_profiles
@@ -127,7 +127,7 @@ async def add_favorite_contact(
     if subject is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ContactMessages.USER_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
         )
 
     # Let the primary key decide, rather than reading first and inserting after:

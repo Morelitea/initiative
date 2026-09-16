@@ -237,7 +237,7 @@ async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=PostMessages.NOT_FOUND,
+            detail=Tool.post.not_found_code,
         )
     # Every write answers with the row a read would return — count, chips,
     # tallies and all.
@@ -547,7 +547,7 @@ async def read_post(
     if not post.is_published and not _may_edit(post, current_user, guild_context):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=PostMessages.NOT_FOUND,
+            detail=Tool.post.not_found_code,
         )
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
     await posts_service.attach_reactions(session, post)
@@ -572,7 +572,7 @@ async def create_post(
     if not initiative.posts_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=PostMessages.FEATURE_DISABLED,
+            detail=Tool.post.feature_disabled_code,
         )
     await resource_access.require_create(
         session, Tool.post, initiative, current_user, guild_context

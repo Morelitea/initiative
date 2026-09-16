@@ -29,6 +29,7 @@ from app.schemas.tenant.import_data import (
     ImportResult,
 )
 from app.core.messages import ImportMessages
+from app.core.tools import Tool
 from app.services.tenant import import_service
 from app.services import permissions as permissions_service
 from app.services.tenant import filter_presets as filter_presets_service
@@ -66,7 +67,7 @@ async def _validate_project_write_access(
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ImportMessages.PROJECT_NOT_FOUND,
+            detail=Tool.project.not_found_code,
         )
 
     if project.archived_at is not None:

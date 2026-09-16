@@ -889,7 +889,7 @@ async def test_update_guild_storage_unknown_guild_returns_404(
         headers=get_auth_headers(owner),
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
 
 
 # The Guilds tab moved from Platform settings (owner-only) to the Admin
@@ -1306,7 +1306,7 @@ async def test_billing_handoff_404_for_unknown_guild(
         headers=get_auth_headers(owner),
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
 
 
 @pytest.mark.integration

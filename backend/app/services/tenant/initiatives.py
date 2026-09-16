@@ -242,64 +242,6 @@ async def create_builtin_roles(
     return roles
 
 
-async def ensure_default_initiative(
-    session: AsyncSession, admin_user: User, *, guild_id: int
-) -> Initiative:
-    """The guild's ``is_default`` initiative, made if it isn't there yet.
-
-    **Guild creation no longer calls this.** A new guild arrives with no
-    initiative at all, because the seeded one only ever named the fact that
-    nobody had chosen a name yet. What is left is the dev seeder, which wants a
-    community it can hang demo content off, and the guilds provisioned before
-    the change — for those the lookup leg is what runs, and the undeletable
-    ``is_default`` row keeps behaving as it always did.
-    """
-    statement = select(Initiative).where(
-        Initiative.guild_id == guild_id,
-        Initiative.is_default.is_(True),
-    )
-    result = await session.exec(statement)
-    default_initiative = result.one_or_none()
-    if default_initiative:
-        await _ensure_membership_as_moderator(
-            session,
-            initiative_id=default_initiative.id,
-            user_id=admin_user.id,
-            guild_id=guild_id,
-        )
-        await session.refresh(default_initiative, attribute_names=["memberships"])
-        return default_initiative
-
-    now = datetime.now(timezone.utc)
-    default_initiative = Initiative(
-        guild_id=guild_id,
-        name=DEFAULT_INITIATIVE_NAME,
-        description="Automatically created default initiative",
-        color=DEFAULT_INITIATIVE_COLOR,
-        is_default=True,
-        created_at=now,
-        updated_at=now,
-    )
-    session.add(default_initiative)
-    await session.flush()
-
-    # Create built-in roles for this initiative
-    roles = await create_builtin_roles(session, initiative_id=default_initiative.id)
-
-    # The guild's admin joins on the moderator role, as every admin does.
-    session.add(
-        InitiativeMember(
-            initiative_id=default_initiative.id,
-            user_id=admin_user.id,
-            role_id=roles["moderator"].id,
-            guild_id=guild_id,
-        )
-    )
-    await session.flush()
-    await session.refresh(default_initiative, attribute_names=["memberships"])
-    return default_initiative
-
-
 async def load_user_initiative_roles(
     session: AsyncSession, users: Sequence[User]
 ) -> None:

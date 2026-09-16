@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
+from app.core.tools import Tool
 from app.services.permissions import (
     DAC_RESOURCES,
     compute_permission,
@@ -125,12 +126,12 @@ async def get_queue_for_export(
     if queue is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.NOT_FOUND,
+            detail=Tool.queue.not_found_code,
         )
     if queue.initiative is not None and not queue.initiative.queues_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.FEATURE_DISABLED,
+            detail=Tool.queue.feature_disabled_code,
         )
     require_queue_access(
         queue,

@@ -65,7 +65,12 @@ from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.schemas.platform.access_grant import BreakGlassCreate
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
-from app.core.messages import BillingMessages, GuildMessages, SettingsMessages
+from app.core.messages import (
+    BillingMessages,
+    GuildMessages,
+    InitiativeMessages,
+    SettingsMessages,
+)
 from app.core.security import (
     BillingSupportHandoffNotConfiguredError,
     create_billing_support_handoff_token,
@@ -630,7 +635,7 @@ async def update_platform_guild_storage(
         if str(exc) == GuildMessages.GUILD_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SettingsMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.GUILD_NOT_FOUND,
             ) from exc
         raise
     await session.commit()
@@ -678,7 +683,7 @@ async def create_platform_guild_billing_service_handoff(
     if exists is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=SettingsMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.GUILD_NOT_FOUND,
         )
 
     grant = await access_grants_service.get_live_grant(
@@ -924,7 +929,7 @@ async def create_oidc_mapping(
         await session.exec(select(Guild).where(Guild.id == payload.guild_id))
     ).one_or_none()
     if not guild:
-        raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
+        raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
 
     # Validate the provider exists and may grant in that guild
     await _check_provider_reaches_guild(session, payload.provider_id, payload.guild_id)
@@ -946,9 +951,7 @@ async def create_oidc_mapping(
             payload.initiative_role_id,
         )
         if not initiative:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
         # Defence-in-depth: the lookup already routed into guild_<payload.guild_id>,
         # so a found initiative's guild_id matches by construction. Retained to
         # catch a data-integrity anomaly (an initiative row whose stored guild_id
@@ -959,7 +962,7 @@ async def create_oidc_mapping(
             )
         if not role:
             raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
+                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
             )
 
     mapping = OIDCClaimMapping(
@@ -1013,9 +1016,7 @@ async def update_oidc_mapping(
             await session.exec(select(Guild).where(Guild.id == data["guild_id"]))
         ).one_or_none()
         if not guild:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
         mapping.guild_id = data["guild_id"]
     if "guild_role" in data and data["guild_role"] is not None:
         if data["guild_role"] not in _MAPPABLE_GUILD_ROLES:
@@ -1047,9 +1048,7 @@ async def update_oidc_mapping(
             mapping.initiative_role_id,
         )
         if not initiative:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
         # Defence-in-depth: structurally guaranteed now (the lookup routes into
         # guild_<mapping.guild_id>), kept to catch a stored guild_id that disagrees
         # with its schema rather than binding the mapping to a mismatched guild.
@@ -1059,7 +1058,7 @@ async def update_oidc_mapping(
             )
         if not role:
             raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
+                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
             )
     else:
         # Guild-only mapping: clear initiative fields

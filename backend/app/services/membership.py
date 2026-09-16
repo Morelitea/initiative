@@ -51,25 +51,6 @@ def initiative_member_clause(
     )
 
 
-def guild_member_clause(
-    user_id: int,
-    guild_id_col: ColumnElement[int] | int,
-    *,
-    role: Optional[GuildRole] = None,
-) -> ColumnElement[bool]:
-    """EXISTS predicate: ``user_id`` belongs to the referenced guild.
-
-    Pass ``role=GuildRole.admin`` to require a specific guild role.
-    """
-    conditions = [
-        GuildMembership.guild_id == guild_id_col,
-        GuildMembership.user_id == user_id,
-    ]
-    if role is not None:
-        conditions.append(GuildMembership.role == role)
-    return exists(select(1).where(*conditions))
-
-
 def initiative_scope_clause(
     user_id: int,
     initiative_id_col: ColumnElement[int] | int,

@@ -49,13 +49,6 @@ from app.core.messages import (
     CommonMessages,
     SharingMessages,
     ProjectMessages,
-    DocumentMessages,
-    QueueMessages,
-    CounterMessages,
-    CalendarMessages,
-    DashboardMessages,
-    GalleryMessages,
-    PostMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -277,62 +270,30 @@ def writable_scope_clause(
 
 @dataclass(frozen=True)
 class DacResource:
+    """One tool's DAC identity: the tool itself, and the three refusals.
+
+    The refusals are derived from ``name`` rather than stored, so a new
+    ``Tool`` member arrives with its full set and none of them can be wired to
+    another tool's code by a copy-paste.
+    """
+
     name: Tool
-    denied_msg: str
-    owner_msg: str
-    write_msg: str
+
+    @property
+    def denied_msg(self) -> str:
+        return self.name.no_access_code
+
+    @property
+    def owner_msg(self) -> str:
+        return self.name.owner_required_code
+
+    @property
+    def write_msg(self) -> str:
+        return self.name.write_required_code
 
 
-DAC_RESOURCES: dict[Tool, DacResource] = {
-    Tool.project: DacResource(
-        Tool.project,
-        ProjectMessages.NO_ACCESS,
-        ProjectMessages.OWNER_REQUIRED,
-        ProjectMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.document: DacResource(
-        Tool.document,
-        DocumentMessages.NO_ACCESS,
-        DocumentMessages.OWNER_REQUIRED,
-        DocumentMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.queue: DacResource(
-        Tool.queue,
-        QueueMessages.PERMISSION_REQUIRED,
-        QueueMessages.OWNER_REQUIRED,
-        QueueMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.counter_group: DacResource(
-        Tool.counter_group,
-        CounterMessages.PERMISSION_REQUIRED,
-        CounterMessages.OWNER_REQUIRED,
-        CounterMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.calendar: DacResource(
-        Tool.calendar,
-        CalendarMessages.PERMISSION_REQUIRED,
-        CalendarMessages.OWNER_REQUIRED,
-        CalendarMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.dashboard: DacResource(
-        Tool.dashboard,
-        DashboardMessages.PERMISSION_REQUIRED,
-        DashboardMessages.OWNER_REQUIRED,
-        DashboardMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.post: DacResource(
-        Tool.post,
-        PostMessages.PERMISSION_REQUIRED,
-        PostMessages.OWNER_REQUIRED,
-        PostMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.gallery: DacResource(
-        Tool.gallery,
-        GalleryMessages.PERMISSION_REQUIRED,
-        GalleryMessages.OWNER_REQUIRED,
-        GalleryMessages.WRITE_ACCESS_REQUIRED,
-    ),
-}
+#: Every tool, by construction — ``tools_test`` has nothing to catch up on.
+DAC_RESOURCES: dict[Tool, DacResource] = {t: DacResource(t) for t in Tool}
 
 
 def _grant_level(level: Any) -> str:
@@ -918,21 +879,6 @@ def compute_document_permission(
 def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
     """Effective calendar permission string for the client (delegates to the engine)."""
     return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
-
-
-def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
-    """Effective dashboard permission string for the client (delegates to the
-    engine). Governs authoring the canvas only — the data each widget displays
-    is authorized separately, per viewer, by that data's own tool."""
-    return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
-
-
-def compute_gallery_permission(gallery: Any, user_id: int) -> str | None:
-    """Effective gallery permission string for the client (delegates to the
-    engine). Write access on a gallery is what adding, replacing and removing
-    its pictures asks for — the pictures are the gallery's content, the way
-    tasks are a project's."""
-    return compute_permission(DAC_RESOURCES[Tool.gallery], gallery, user_id)
 
 
 def compute_post_permission(post: Any, user_id: int) -> str | None:

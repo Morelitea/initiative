@@ -1531,19 +1531,3 @@ async def remove_user_from_guild(
         # than run here: the sweep reads the state this delete leaves behind,
         # and this delete is not committed yet.
         contact_grants_service.queue_stale_grant_sweep(session, user_id)
-
-
-async def guild_renders_member_names(session: AsyncSession, *, guild_id: int) -> bool:
-    """Whether ``guild_id`` renders its members’ real names.
-
-    The guild path reads this with the rest of the guild context. The two
-    endpoints that route into a guild by hand — the platform and self-service
-    initiative-member pickers — have no guild context to carry it, so they ask
-    here and hand the answer to ``set_rls_context``, which is what puts it both
-    on the session and on the request. Ask before routing: this reads a
-    ``public`` table, and the answer is what the routing needs.
-    """
-    shows = (
-        await session.exec(select(Guild.show_member_names).where(Guild.id == guild_id))
-    ).one_or_none()
-    return bool(shows)

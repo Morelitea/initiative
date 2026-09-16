@@ -28,7 +28,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import GuildMessages, InitiativeMessages, ProjectMessages
+from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import Tool, plural_of
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
@@ -93,7 +93,7 @@ async def _load(session: RLSSessionDep, entity_type: str, entity_id: int) -> Any
 #: The "no such thing" code per kind — a tool's own, and the two non-tools'.
 _NOT_FOUND: dict[str, str] = {
     **{t.value: resource_access.RESOURCE_ACCESS[t].not_found_msg for t in Tool},
-    "task": ProjectMessages.NOT_FOUND,
+    "task": Tool.project.not_found_code,
     "initiative": InitiativeMessages.NOT_FOUND,
 }
 

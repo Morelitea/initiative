@@ -102,7 +102,7 @@ async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calenda
     if not calendar:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=CalendarMessages.NOT_FOUND,
+            detail=Tool.calendar.not_found_code,
         )
     return calendar
 
@@ -315,7 +315,7 @@ async def create_calendar(
         if not initiative.calendars_enabled:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=CalendarMessages.FEATURE_DISABLED,
+                detail=Tool.calendar.feature_disabled_code,
             )
         await resource_access.require_create(
             session, Tool.calendar, initiative, current_user, guild_context

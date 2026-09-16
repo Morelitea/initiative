@@ -739,7 +739,7 @@ async def _get_project_with_access(
     project = project_result.one_or_none()
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.project.not_found_code
         )
     if project.archived_at is not None and access == "write":
         raise HTTPException(
