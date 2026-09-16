@@ -180,14 +180,6 @@ jobs:
                       await conn.execute(f"ALTER SYSTEM SET {name} = '{value}'")
                   await conn.execute("SELECT pg_reload_conf()")
 
-                  applied = {
-                      row["name"]: row["setting"]
-                      for row in await conn.fetch(
-                          "SELECT name, setting FROM pg_settings "
-                          "WHERE name = ANY($1::text[])",
-                          list(settings),
-                      )
-                  }
                   expected = {
                       "checkpoint_timeout": "1800",
                       "fsync": "off",
@@ -195,10 +187,24 @@ jobs:
                       "max_wal_size": "4096",
                       "synchronous_commit": "off",
                   }
-                  if applied != expected:
-                      raise RuntimeError(
-                          f"ephemeral PostgreSQL tuning did not apply: {applied!r}"
-                      )
+                  deadline = asyncio.get_running_loop().time() + 5
+                  while True:
+                      applied = {
+                          row["name"]: row["setting"]
+                          for row in await conn.fetch(
+                              "SELECT name, setting FROM pg_settings "
+                              "WHERE name = ANY($1::text[])",
+                              list(settings),
+                          )
+                      }
+                      if applied == expected:
+                          break
+                      if asyncio.get_running_loop().time() >= deadline:
+                          raise RuntimeError(
+                              "ephemeral PostgreSQL tuning did not converge: "
+                              f"{applied!r}"
+                          )
+                      await asyncio.sleep(0.1)
               finally:
                   await conn.close()
 
