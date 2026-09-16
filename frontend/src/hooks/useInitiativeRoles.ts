@@ -23,8 +23,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
-  CORE_TOOLS,
-  TOGGLEABLE_TOOLS,
+  DEFAULT_ENABLED_TOOLS,
   TOOLS,
   toolCamelPlural,
   toolCreatePermission,
@@ -246,14 +245,18 @@ const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
   keys: [toolViewPermission(tool), toolCreatePermission(tool)],
 });
 
-// Core (always-on) tools' permissions, always visible
+// The permissions for the tools an initiative starts with, always visible.
+// This is a question of what to put in front of someone editing a role, not of
+// what a tool is: every tool is switchable now, and these two are simply the
+// ones almost every initiative has.
 export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
-  CORE_TOOLS.has(tool)
+  DEFAULT_ENABLED_TOOLS.has(tool)
 ).map(toolPermissionGroup);
 
-// Opt-in tools' permissions, shown in an accordion.
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] =
-  TOGGLEABLE_TOOLS.map(toolPermissionGroup);
+// The rest, shown in an accordion.
+export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
+  (tool) => !DEFAULT_ENABLED_TOOLS.has(tool)
+).map(toolPermissionGroup);
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

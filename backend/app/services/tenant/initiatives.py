@@ -1220,7 +1220,7 @@ async def create_imported_initiative(
     on collision (always-create policy) instead of 409ing, and the tool
     master switches taken from the backup manifest. Flush-only — the backup
     orchestrator owns its per-chunk transaction."""
-    from app.core.tools import TOGGLEABLE_TOOLS
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
     from app.services.import_engine.common import unique_name
 
     existing = {
@@ -1237,7 +1237,13 @@ async def create_imported_initiative(
         color=color,
         guild_id=guild_id,
         **{
-            t.view_permission: bool(tool_flags.get(t.view_permission, False))
+            # A manifest that says nothing about a tool falls back to that
+            # tool's own default rather than to off: a backup written before
+            # projects and documents had switches names no state for them, and
+            # restoring it must not produce an initiative with neither.
+            t.view_permission: bool(
+                tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)
+            )
             for t in TOGGLEABLE_TOOLS
         },
     )

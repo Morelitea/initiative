@@ -277,8 +277,8 @@
       "toolTurnedOff": "Dieses Werkzeug ist für die Initiative ausgeschaltet, daher gewähren diese Berechtigungen nichts, bis es wieder eingeschaltet wird."
     }
   },
-  "advancedTools": "Erweiterte Tools",
-  "advancedToolsDescription": "Aktiviere optionale Tools für diese Initiative.",
+  "advancedTools": "Werkzeuge",
+  "advancedToolsDescription": "Wähle, woraus diese Initiative besteht. Projekte und Dokumente sind von Anfang an aktiv; den Rest fügst du selbst hinzu.",
   "queuesFeature": "Abläufe (Queues)",
   "queuesFeatureDescription": "Organisiere Elemente nach Priorität, verfolge die Reihenfolge und verwalte, wer als Nächstes dran ist.",
   "calendarsFeature": "Kalender",
@@ -290,5 +290,9 @@
   "postsFeature": "Beiträge",
   "postsFeatureDescription": "Ein schwarzes Brett für die Initiative – Mitteilungen, die alle lesen, kommentieren und mit Reaktionen versehen können, wobei die wichtigsten oben angeheftet werden.",
   "galleriesFeature": "Galerien",
-  "galleriesFeatureDescription": "Bildersammlungen – Mockups, Screenshots, exportierte Entwürfe – als Wand durchstöbert statt einzeln gelesen, mit Tags und Versionsverlauf für jedes Bild."
+  "galleriesFeatureDescription": "Bildersammlungen – Mockups, Screenshots, exportierte Entwürfe – als Wand durchstöbert statt einzeln gelesen, mit Tags und Versionsverlauf für jedes Bild.",
+  "projectsFeature": "Projekte",
+  "projectsFeatureDescription": "Aufgabenboards — wer was tut, in welchem Stadium es ist und was noch offen ist.",
+  "documentsFeature": "Dokumente",
+  "documentsFeatureDescription": "Geschriebene Seiten — Notizen, Pläne, Referenzen — die sich mit allem anderen in der Initiative verknüpfen lassen."
 }

@@ -643,5 +643,7 @@
   "MODERATION_TARGET_NOT_FOUND": "No encontramos eso",
   "MODERATION_NOT_A_MODERATOR": "Solo los moderadores pueden ver eso",
   "SUPPORT_NOT_AVAILABLE": "Esta comunidad no acepta solicitudes de ayuda. Consulta las preguntas frecuentes.",
-  "SUPPORT_NOWHERE_TO_SEND": "Las solicitudes de ayuda están activadas aquí, pero todavía no hay nadie configurado para recibirlas. Avisa a un administrador de la comunidad."
+  "SUPPORT_NOWHERE_TO_SEND": "Las solicitudes de ayuda están activadas aquí, pero todavía no hay nadie configurado para recibirlas. Avisa a un administrador de la comunidad.",
+  "PROJECTS_NOT_ENABLED": "Los proyectos no están habilitados para esta iniciativa",
+  "DOCUMENTS_NOT_ENABLED": "Los documentos no están habilitados para esta iniciativa"
 }

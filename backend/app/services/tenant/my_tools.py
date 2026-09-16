@@ -25,7 +25,7 @@ from sqlalchemy import ColumnElement, func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import CORE_TOOLS, Tool
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -59,13 +59,10 @@ def tool_model(tool: Tool) -> Any:
 def _tool_enabled_clause(tool: Tool, model: Any) -> Optional[ColumnElement[bool]]:
     """Rows whose tool is switched on for the initiative holding them.
 
-    Core tools have no switch. For the rest the switch is the initiative
-    column named by the tool's view permission — and a row belonging to no
-    initiative (a guild calendar, mounted by an app) answers to no switch, so
-    it is kept.
+    The switch is the initiative column named by the tool's view permission —
+    and a row belonging to no initiative (a guild calendar, mounted by an app)
+    answers to no switch, so it is kept.
     """
-    if tool in CORE_TOOLS:
-        return None
     switch = getattr(Initiative, tool.view_permission)
     return or_(
         model.initiative_id.is_(None),
