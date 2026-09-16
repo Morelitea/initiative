@@ -1091,7 +1091,9 @@
       "saved": "Requisito de inicio de sesión guardado",
       "error": "No se pudo guardar el requisito de inicio de sesión",
       "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
-      "signInWith": "Iniciar sesión con {{providerName}}"
+      "signInWith": "Iniciar sesión con {{providerName}}",
+      "anyProvider": "Cualquiera de nuestros proveedores",
+      "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta."
     }
   },
   "authProviders": {

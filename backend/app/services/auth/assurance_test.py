@@ -18,6 +18,7 @@ from app.services.auth.assurance import (
     read_assurance,
     record_for_provider,
     session_amr,
+    sso_guilds_from_amr,
 )
 
 pytestmark = [pytest.mark.unit, pytest.mark.auth]
@@ -163,3 +164,43 @@ def test_the_record_is_bounded_and_keeps_the_provider_just_used():
     # The least recently authenticated fall off first.
     assert "1" not in merged
     assert str(MAX_TRACKED_PROVIDERS + 4) in merged
+
+
+# --- The marker that says which community's sign-in this was ----------------
+
+
+def test_a_deployment_wide_provider_marks_no_community():
+    """The operator's own providers belong to nobody in particular, so a
+    community asking for its own sign-in is not answered by them."""
+    amr = session_amr("google", ProviderAssurance(amr=["pwd"]))
+    assert amr == ["oidc:google", "pwd"]
+    assert sso_guilds_from_amr(amr) == frozenset()
+
+
+def test_a_communitys_provider_marks_that_community():
+    amr = session_amr("corp", ProviderAssurance(amr=["mfa"]), guild_id=7)
+    assert "guild:7" in amr
+    assert sso_guilds_from_amr(amr) == {7}
+
+
+def test_a_step_up_keeps_both_communities():
+    """Sessions merge on step-up by unioning ``amr``, so completing a second
+    community's sign-in never un-completes the first."""
+    first = session_amr("corp", ProviderAssurance(), guild_id=7)
+    second = session_amr("other", ProviderAssurance(), guild_id=9)
+    assert sso_guilds_from_amr(sorted(set(first) | set(second))) == {7, 9}
+
+
+@pytest.mark.parametrize(
+    "recorded", [None, [], ["pwd"], ["mfa", "oidc:corp"], ["guild:"], ["guild:x"]]
+)
+def test_nothing_readable_is_no_community(recorded):
+    """A credential that records no sign-in, and a value in a shape this does
+    not read, both come back empty — which satisfies no requirement."""
+    assert sso_guilds_from_amr(recorded) == frozenset()
+
+
+def test_an_identity_providers_own_values_are_left_alone():
+    """The IdP's vocabulary travels untouched beside our markers."""
+    amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk"]), guild_id=7)
+    assert set(amr) == {"oidc:corp", "guild:7", "mfa", "hwk"}

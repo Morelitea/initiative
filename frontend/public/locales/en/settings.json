@@ -1091,7 +1091,9 @@
       "saved": "Sign-in requirement saved",
       "error": "Could not save the sign-in requirement",
       "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
-      "signInWith": "Sign in with {{providerName}}"
+      "signInWith": "Sign in with {{providerName}}",
+      "anyProvider": "Any of our sign-in providers",
+      "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count."
     }
   },
   "authProviders": {

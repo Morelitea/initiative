@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Field, SQLModel
 
 
@@ -45,6 +47,21 @@ class GuildAuthPolicy(SQLModel, table=True):
     )
     provider_slug: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
+    )
+
+    #: What this guild asks for beyond naming one provider, from the same
+    #: vocabulary as the platform's own checklist. ``sso`` means the guild's own
+    #: single sign-on, whichever of its providers serves it — read from the
+    #: markers the session records when it does. Empty asks
+    #: nothing. ``password`` is refused by a CHECK: whether passwords exist is
+    #: the deployment's question, not a guild's.
+    require_methods: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(
+            ARRAY(PGEnum("password", "sso", name="login_method", create_type=False)),
+            nullable=False,
+            server_default="{}",
+        ),
     )
 
     updated_at: datetime = Field(

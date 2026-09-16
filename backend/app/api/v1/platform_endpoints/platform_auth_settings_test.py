@@ -278,3 +278,25 @@ async def test_the_surface_needs_the_config_capability(
         METHODS_URL, headers=headers, json={"methods": ["password"]}
     )
     assert methods.status_code == 403
+
+
+async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
+    client: AsyncClient, session: AsyncSession
+):
+    """A requirement can name a way in rather than a provider, and the guard
+    that holds single sign-on back has to see both kinds."""
+    from app.models.platform.guild_auth_policy import GuildAuthPolicy
+
+    _, headers = await _owner(session)
+    guild = await create_guild(session)
+    session.add(
+        GuildAuthPolicy(guild_id=guild.id, policy="required", require_methods=["sso"])
+    )
+    await session.commit()
+
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password"]}
+    )
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.headers["X-Affected-Count"] == "1"

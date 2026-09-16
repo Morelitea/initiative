@@ -3860,13 +3860,16 @@ export const GuildAuthPolicyReadPolicy = {
 
 /**
  * The guild's sign-in requirement. ``open`` is the default (no stored
- * row); ``required`` names the provider a session must have satisfied.
+ * row). ``required`` names a provider a session must have satisfied, asks for
+ * the guild's own single sign-on without naming which provider serves it, or
+ * both.
  */
 export interface GuildAuthPolicyRead {
   policy: GuildAuthPolicyReadPolicy;
   provider_id: number | null;
   provider_slug: string | null;
   provider_display_name: string | null;
+  require_methods: "sso"[];
 }
 
 export type GuildAuthPolicyUpdatePolicy =
@@ -3880,6 +3883,7 @@ export const GuildAuthPolicyUpdatePolicy = {
 export interface GuildAuthPolicyUpdate {
   policy: GuildAuthPolicyUpdatePolicy;
   provider_id?: number | null;
+  require_methods?: "sso"[];
 }
 
 /**

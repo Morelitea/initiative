@@ -179,6 +179,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
+    "set_config('app.sso_guilds', :ssog, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
@@ -233,6 +234,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pr": "false",
             "pw": "false",
             "satp": "",
+            "ssog": "",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
@@ -310,6 +312,11 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     else:
         satp = ""
 
+    # The communities whose own single sign-on this session completed, as a
+    # comma list the policy leg reads with one ``string_to_array``. Empty when
+    # the credential records none.
+    ssog = ",".join(str(int(gid)) for gid in sorted(params.get("sso_guilds") or ()))
+
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
@@ -318,6 +325,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
+        "ssog": ssog,
         "bgid": "",
         "ovr": override_csv,
         "sinit": str(int(scope_initiative_id))
@@ -377,6 +385,7 @@ async def set_rls_context(
     read_only: bool = False,
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
+    sso_guilds: Optional[Sequence[int]] = None,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
@@ -459,6 +468,7 @@ async def set_rls_context(
         read_only=read_only,
         query=query,
         satisfied_providers=satisfied_providers,
+        sso_guilds=sso_guilds,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
@@ -507,6 +517,7 @@ async def set_rls_context(
         "read_only": read_only,
         "query": query,
         "satisfied_providers": satisfied_providers,
+        "sso_guilds": sso_guilds,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,

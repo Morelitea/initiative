@@ -18,7 +18,7 @@ before they reach a session row or an access token.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -75,14 +75,51 @@ def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
     )
 
 
-def session_amr(provider_slug: str, assurance: ProviderAssurance) -> list[str]:
-    """The session-level ``amr`` one provider login contributes: our own marker
-    naming the provider, plus the methods the IdP named.
+#: Marks a session as having completed one community's own single sign-on.
+#: Written when the provider is that community's rather than the deployment's,
+#: so a rule reading "any of ours" can be answered from the session alone.
+GUILD_AMR_PREFIX = "guild:"
 
-    The marker is what a guild policy keyed to *this* provider matches; the
-    IdP's own values are what an assurance-only policy reads.
+
+def session_amr(
+    provider_slug: str,
+    assurance: ProviderAssurance,
+    *,
+    guild_id: int | None = None,
+) -> list[str]:
+    """The session-level ``amr`` one provider login contributes: our own marker
+    naming the provider, the community it belongs to when it belongs to one,
+    plus the methods the IdP named.
+
+    The provider marker is what a guild policy keyed to *this* provider
+    matches; the community marker is what a policy asking for any of that
+    community's own providers matches; the IdP's own values are what an
+    assurance-only policy reads.
     """
-    return sorted({f"oidc:{provider_slug}", *assurance.amr})
+    markers = {f"oidc:{provider_slug}"}
+    if guild_id is not None:
+        markers.add(f"{GUILD_AMR_PREFIX}{guild_id}")
+    return sorted({*markers, *assurance.amr})
+
+
+def sso_guilds_from_amr(amr: Iterable[str] | None) -> frozenset[int]:
+    """The communities whose own single sign-on a session completed.
+
+    Read back from the markers :func:`session_amr` wrote. A value that is not
+    one of those markers is ignored — an identity provider's own ``amr``
+    vocabulary is its own.
+    """
+    if not amr:
+        return frozenset()
+    found: set[int] = set()
+    for value in amr:
+        if not value.startswith(GUILD_AMR_PREFIX):
+            continue
+        try:
+            found.add(int(value[len(GUILD_AMR_PREFIX) :]))
+        except ValueError:
+            continue
+    return frozenset(found)
 
 
 def record_for_provider(

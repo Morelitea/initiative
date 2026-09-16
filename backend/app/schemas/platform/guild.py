@@ -301,9 +301,19 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     support_enabled: Optional[bool] = None
 
 
+#: What a community may require, beyond naming one provider. ``sso`` means its
+#: own single sign-on, whichever of its providers serves it — the deployment's
+#: providers are not its own. The platform's ``login_method`` vocabulary minus
+#: ``password``, which only the deployment decides about: the same asymmetry the
+#: database holds as a CHECK on ``require_methods``.
+GuildRequirableMethod = Literal["sso"]
+
+
 class GuildAuthPolicyRead(SanitizedBaseModel):
     """The guild's sign-in requirement. ``open`` is the default (no stored
-    row); ``required`` names the provider a session must have satisfied."""
+    row). ``required`` names a provider a session must have satisfied, asks for
+    the guild's own single sign-on without naming which provider serves it, or
+    both."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -311,11 +321,16 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
     provider_id: Optional[int] = None
     provider_slug: Optional[str] = None
     provider_display_name: Optional[str] = None
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
 class GuildAuthPolicyUpdate(SanitizedBaseModel):
     policy: Literal["open", "required"]
     provider_id: Optional[int] = None
+    #: ``["sso"]`` asks for the guild's own single sign-on. ``password`` is
+    #: absent from the type on purpose: whether passwords exist at all is the
+    #: deployment's question.
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

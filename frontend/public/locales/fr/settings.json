@@ -1091,7 +1091,9 @@
       "saved": "Exigence de connexion enregistrée",
       "error": "Impossible d'enregistrer l'exigence de connexion",
       "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
-      "signInWith": "Se connecter avec {{providerName}}"
+      "signInWith": "Se connecter avec {{providerName}}",
+      "anyProvider": "L'un de nos fournisseurs de connexion",
+      "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas."
     }
   },
   "authProviders": {

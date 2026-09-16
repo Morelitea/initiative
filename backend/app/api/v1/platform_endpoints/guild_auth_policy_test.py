@@ -3,11 +3,16 @@ session-satisfaction enforcement inside the guild RLS."""
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import GuildAccessError, establish_guild_access
+from app.api.deps import (
+    GuildAccessError,
+    _enforce_guild_auth_policy,
+    establish_guild_access,
+)
 from app.core.auth_context import satisfied_provider_ids
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import GuildRole
@@ -73,6 +78,7 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
         "provider_id": provider.id,
         "provider_slug": "corp",
         "provider_display_name": "Corp SSO",
+        "require_methods": [],
     }
 
     got = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
@@ -718,3 +724,250 @@ async def test_db_layer_blocks_unsatisfied_session(session: AsyncSession, role_s
     # Pure system routing (no user context) is not a session to gate.
     await set_rls_context(app_session, guild_id=guild_id, guild_role="admin")
     assert await _visible_projects() == 1
+
+
+# --- "Any of ours": a requirement that names no single provider -------------
+
+
+def _sso_headers(user, guild_ids: list[int], provider_ids: list[int] | None = None):
+    """A session that completed those communities' own sign-in."""
+    token = get_auth_token(
+        user,
+        amr=[f"guild:{gid}" for gid in guild_ids] + ["oidc:whatever"],
+        satisfied_providers=provider_ids or [],
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _guild_requiring_its_own_sso(session: AsyncSession):
+    member = await create_user(session)
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    row = GuildAuthPolicy(guild_id=guild.id, policy="required", require_methods=["sso"])
+    session.add(row)
+    await session.commit()
+    return member, guild, provider
+
+
+async def test_any_of_this_communitys_providers_satisfies_the_rule(
+    client: AsyncClient, session: AsyncSession
+):
+    """The rule a community with two providers could not write before: come in
+    through one of ours, and we do not mind which."""
+    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+
+    allowed = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_sso_headers(member, [guild.id]),
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
+async def test_another_communitys_sign_in_does_not_satisfy_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Single sign-on somewhere else — the deployment's own providers included
+    — is not this community's single sign-on."""
+    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+    elsewhere = await create_guild(session)
+
+    blocked = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_sso_headers(member, [elsewhere.id]),
+    )
+    assert blocked.status_code == 401
+    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+
+
+async def test_a_password_session_is_stepped_up_to_the_communitys_login_page(
+    client: AsyncClient, session: AsyncSession
+):
+    """The challenge names the community rather than a provider: a rule that
+    named none is served by the community's own login page."""
+    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+
+    blocked = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers={"Authorization": f"Bearer {get_auth_token(member, amr=['pwd'])}"},
+    )
+    assert blocked.status_code == 401
+    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.headers["X-Auth-Step-Up"] == ""
+    assert blocked.headers["X-Auth-Step-Up-Guild"] == str(guild.id)
+
+
+async def test_a_device_token_session_does_not_satisfy_the_rule(
+    client: AsyncClient, session: AsyncSession
+):
+    """It records nothing about how its owner signed in, so it answers this
+    the way it answers a rule naming one provider."""
+    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=member.id, device_name="old-phone"
+    )
+    await session.commit()
+
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    blocked = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers={"Authorization": f"Bearer {exchanged.json()['access_token']}"},
+    )
+    assert blocked.status_code == 401
+    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+
+
+async def test_the_database_refuses_a_password_requirement(session: AsyncSession):
+    """Whether passwords exist at all is the deployment's question, held as a
+    constraint so it holds for every writer rather than only the endpoint."""
+    guild = await create_guild(session)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id, policy="required", require_methods=["password"]
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await session.commit()
+    await session.rollback()
+
+
+# --- The rule is decided twice, and the two must agree ----------------------
+
+
+async def _database_admits(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    satisfied: list[int],
+    sso_guilds: list[int],
+) -> bool:
+    """What ``public.guild_auth_satisfied()`` says, given the GUCs a request
+    with this standing would have set.
+
+    One statement, so the settings and the question are certainly in the same
+    transaction — the context is transaction-local and replays on each new one.
+    """
+    verdict = (
+        await session.exec(
+            text(
+                "SELECT set_config('app.current_user_id', :uid, true), "
+                "set_config('app.current_guild_id', :gid, true), "
+                "set_config('app.satisfied_providers', :satp, true), "
+                "set_config('app.sso_guilds', :ssog, true), "
+                "public.guild_auth_satisfied() AS verdict"
+            ),
+            params={
+                "uid": str(user_id),
+                "gid": str(guild_id),
+                "satp": ",".join(str(p) for p in satisfied),
+                "ssog": ",".join(str(g) for g in sso_guilds),
+            },
+        )
+    ).one()
+    return bool(verdict.verdict)
+
+
+def _app_admits(policy, guild_id: int, satisfied, sso_guilds) -> bool:
+    """What the gate in ``deps.py`` says, given the same standing."""
+    try:
+        _enforce_guild_auth_policy(
+            policy, guild_id, frozenset(satisfied), frozenset(sso_guilds)
+        )
+    except GuildAccessError:
+        return False
+    return True
+
+
+async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSession):
+    """A rule is enforced in two places — Python before the request is routed,
+    SQL inside the community's own row-level rules — and a disagreement between
+    them is either a rule that does nothing or a refusal nobody can explain.
+
+    Every shape a rule can take, against every standing a session can have.
+    """
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    guild_id, user_id, provider_id = int(guild.id), int(user.id), int(provider.id)
+    other_provider_id, other_guild_id = provider_id + 1000, guild_id + 1000
+
+    rules: list[tuple[str, dict]] = [
+        ("open", {"policy": "open"}),
+        (
+            "one named provider",
+            {"policy": "required", "provider_id": provider_id, "provider_slug": "corp"},
+        ),
+        ("any of ours", {"policy": "required", "require_methods": ["sso"]}),
+        (
+            "that provider, and any of ours",
+            {
+                "policy": "required",
+                "provider_id": provider_id,
+                "provider_slug": "corp",
+                "require_methods": ["sso"],
+            },
+        ),
+    ]
+    standings: list[tuple[str, list[int], list[int]]] = [
+        ("nothing at all", [], []),
+        ("that provider, recorded both ways", [provider_id], [guild_id]),
+        (
+            "this community's sign-in, some other provider",
+            [other_provider_id],
+            [guild_id],
+        ),
+        ("another community's sign-in", [other_provider_id], [other_guild_id]),
+        ("that provider, no community recorded", [provider_id], []),
+        ("this community recorded, no provider", [], [guild_id]),
+    ]
+
+    for rule_name, fields in rules:
+        row = await session.get(GuildAuthPolicy, guild_id)
+        if row is not None:
+            await session.delete(row)
+            await session.commit()
+        stored = GuildAuthPolicy(guild_id=guild_id, **fields)
+        session.add(stored)
+        await session.commit()
+        await session.refresh(stored)
+
+        for standing, satisfied, guilds in standings:
+            in_app = _app_admits(stored, guild_id, satisfied, guilds)
+            in_db = await _database_admits(
+                session,
+                guild_id=guild_id,
+                user_id=user_id,
+                satisfied=satisfied,
+                sso_guilds=guilds,
+            )
+            assert in_app == in_db, (
+                f"rule {rule_name!r} against a session showing {standing!r}: "
+                f"the gate says {in_app}, the database says {in_db}"
+            )
+
+    # The matrix would pass if both layers refused everything, so pin the two
+    # ends of it: an open community admits a bare session, and a rule refuses one.
+    await session.exec(
+        text("DELETE FROM guild_auth_policies WHERE guild_id = :g"),
+        params={"g": guild_id},
+    )
+    await session.commit()
+    assert await _database_admits(
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], sso_guilds=[]
+    )
+    session.add(
+        GuildAuthPolicy(guild_id=guild_id, policy="required", require_methods=["sso"])
+    )
+    await session.commit()
+    assert not await _database_admits(
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], sso_guilds=[]
+    )

@@ -299,6 +299,7 @@ def create_upload_token(
     *,
     user_id: int,
     satisfied_providers: Sequence[int] = (),
+    sso_guilds: Sequence[int] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -308,8 +309,9 @@ def create_upload_token(
     JWT but distinguished by its ``aud``/``scope`` claims and the absence of
     ``ver`` — the general auth path will not accept it.
 
-    ``satisfied_providers`` copies the minting session's ``sat`` claim so a
-    download/keepalive in a policy-gated guild carries the same satisfaction
+    ``satisfied_providers`` copies the minting session's ``sat`` claim, and
+    ``sso_guilds`` the communities whose own sign-in it completed, so a
+    download/keepalive in a guild with a requirement carries the same standing
     as the session that requested it (bounded by this token's short lifetime).
     """
     now = datetime.now(timezone.utc)
@@ -318,6 +320,7 @@ def create_upload_token(
         "aud": UPLOAD_TOKEN_AUDIENCE,
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
+        "sg": [int(gid) for gid in sso_guilds],
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -325,8 +328,9 @@ def create_upload_token(
     return token, int(expires_in.total_seconds())
 
 
-def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
-    """Verify a scoped upload token; return the user id and satisfied set.
+def verify_upload_token(token: str) -> tuple[int, frozenset[int], frozenset[int]]:
+    """Verify a scoped upload token; return the user id, its satisfied set and
+    the communities whose own sign-in the minting session completed.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -356,7 +360,11 @@ def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
         satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sat must be a list of provider ids") from exc
-    return user_id, satisfied
+    try:
+        guilds = frozenset(int(gid) for gid in payload.get("sg") or ())
+    except (TypeError, ValueError) as exc:
+        raise UploadTokenError("sg must be a list of guild ids") from exc
+    return user_id, satisfied, guilds
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):

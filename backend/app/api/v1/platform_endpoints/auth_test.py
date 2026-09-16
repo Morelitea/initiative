@@ -771,20 +771,27 @@ async def test_upload_token_copies_session_satisfied_providers(
     satisfied = await client.post(
         "/api/v1/auth/upload-token",
         headers={
-            "Authorization": f"Bearer {get_auth_token(user, satisfied_providers=[7, 3])}"
+            "Authorization": "Bearer "
+            + get_auth_token(
+                user, satisfied_providers=[7, 3], amr=["guild:11", "oidc:corp"]
+            )
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, sso_guilds = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
+    # And the communities whose own sign-in the session completed, so a rule
+    # asking for one reads this token the way it reads that session.
+    assert sso_guilds == frozenset({11})
 
     # A session that satisfied no provider hands the upload token an empty set
     # rather than leaving the claim off.
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat = verify_upload_token(unsatisfied.json()["upload_token"])
+    _, sat, sso_guilds = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
+    assert sso_guilds == frozenset()
 
 
 @pytest.mark.integration

@@ -776,6 +776,7 @@ async def issue_upload_token(
         satisfied_providers=sorted(satisfied)
         if isinstance(satisfied, frozenset)
         else (),
+        sso_guilds=sorted(auth_context.sso_guilds()),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
@@ -1650,7 +1651,7 @@ async def _complete_provider_login(
     # entry is replaced by what it just asserted, and every other provider's
     # account of its own event is left as it was.
     assurance = read_assurance(completion.claims)
-    amr = session_amr(provider_slug, assurance)
+    amr = session_amr(provider_slug, assurance, guild_id=provider_guild_id)
     satisfied = [provider_id]
     provider_auth = record_for_provider(
         None, provider_id=provider_id, assurance=assurance

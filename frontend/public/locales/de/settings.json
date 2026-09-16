@@ -1091,7 +1091,9 @@
       "saved": "Anmeldeanforderung gespeichert",
       "error": "Anmeldeanforderung konnte nicht gespeichert werden",
       "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
-      "signInWith": "Mit {{providerName}} anmelden"
+      "signInWith": "Mit {{providerName}} anmelden",
+      "anyProvider": "Einer unserer Anmeldeanbieter",
+      "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht."
     }
   },
   "authProviders": {

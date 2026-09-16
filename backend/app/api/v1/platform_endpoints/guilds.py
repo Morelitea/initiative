@@ -22,6 +22,7 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
+from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
@@ -992,6 +993,7 @@ def _auth_policy_read(
         provider_id=policy_row.provider_id,
         provider_slug=policy_row.provider_slug,
         provider_display_name=provider_display_name,
+        require_methods=list(policy_row.require_methods or ()),
     )
 
 
@@ -1062,22 +1064,36 @@ async def set_guild_auth_policy(
     # longer login-ready.
     await auth_posture.hold_settings_for_read(admin_session)
 
-    if payload.provider_id is None:
+    require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
+    if payload.provider_id is None and not require_methods:
+        # ``required`` has to require something.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
         )
-    provider = await admin_session.get(AuthProvider, payload.provider_id)
-    if (
-        provider is None
-        or provider.guild_id != guild_id
-        or not is_login_ready(provider)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
-        )
-    if provider.id not in satisfied_provider_ids():
+
+    provider = None
+    if payload.provider_id is not None:
+        provider = await admin_session.get(AuthProvider, payload.provider_id)
+        if (
+            provider is None
+            or provider.guild_id != guild_id
+            or not is_login_ready(provider)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+            )
+        if provider.id not in satisfied_provider_ids():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            )
+
+    # The same rule the provider check makes, for "any of ours": the caller's
+    # own session must have come in that way. Meeting it is also proof the
+    # community has a provider that works, so there is nothing else to ask.
+    if require_methods and guild_id not in auth_context.sso_guilds():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
@@ -1085,19 +1101,14 @@ async def set_guild_auth_policy(
 
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     if policy_row is None:
-        policy_row = GuildAuthPolicy(
-            guild_id=guild_id,
-            policy="required",
-            provider_id=provider.id,
-            provider_slug=provider.slug,
-        )
-    else:
-        policy_row.policy = "required"
-        policy_row.provider_id = provider.id
-        policy_row.provider_slug = provider.slug
+        policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
+    policy_row.policy = "required"
+    policy_row.provider_id = provider.id if provider else None
+    policy_row.provider_slug = provider.slug if provider else None
+    policy_row.require_methods = require_methods
     admin_session.add(policy_row)
     await admin_session.commit()
-    return _auth_policy_read(policy_row, provider.display_name)
+    return _auth_policy_read(policy_row, provider.display_name if provider else None)
 
 
 @router.delete(
