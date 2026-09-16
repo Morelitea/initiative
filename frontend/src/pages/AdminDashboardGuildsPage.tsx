@@ -350,6 +350,42 @@ const GuildAuthCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+/**
+ * Whether this community's members may send a help request.
+ *
+ * Off everywhere until an operator says otherwise: the deployment that would
+ * receive them is the one that decides it is staffing them. Off, the "Ask for
+ * help" control in their sidebar opens the FAQ instead — so turning this on
+ * changes what that control does, and does not add or remove it.
+ */
+const GuildSupportCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation("settings");
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      toast.success(
+        row.support_enabled
+          ? t("guilds.supportOn", { name: row.name })
+          : t("guilds.supportOff", { name: row.name })
+      );
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:guilds.saveError"));
+    },
+  });
+
+  return (
+    <Switch
+      checked={guild.support_enabled}
+      onCheckedChange={(checked) =>
+        update.mutate({ guildId: guild.id, data: { support_enabled: Boolean(checked) } })
+      }
+      disabled={update.isPending}
+      aria-label={t("guilds.supportInputLabel", { name: guild.name })}
+    />
+  );
+};
+
 export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
@@ -396,6 +432,12 @@ export const AdminDashboardGuildsPage = () => {
           } satisfies AppColumnDef<PlatformGuildStorageRead>,
         ]
       : []),
+    {
+      id: "support",
+      header: t("guilds.columns.support"),
+      enableSorting: false,
+      cell: ({ row }) => <GuildSupportCell guild={row.original} />,
+    },
     {
       id: "status",
       header: t("guilds.columns.status"),

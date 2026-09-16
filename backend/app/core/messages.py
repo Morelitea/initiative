@@ -467,6 +467,13 @@ class ModerationMessages:
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
 
 
+class SupportMessages:
+    """Asking whoever runs this deployment for help."""
+
+    NOT_AVAILABLE = "SUPPORT_NOT_AVAILABLE"
+    NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
+
+
 class IntakeMessages:
     """Binding a stream of operations work to a project."""
 

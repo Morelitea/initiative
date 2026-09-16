@@ -777,6 +777,7 @@ async def update_guild(
     max_users_provided: bool = False,
     guild_auth_enabled: bool | None = None,
     banner_image_enabled: bool | None = None,
+    support_enabled: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -851,6 +852,7 @@ async def update_guild(
         or max_users_provided
         or guild_auth_enabled is not None
         or banner_image_enabled is not None
+        or support_enabled is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -880,6 +882,12 @@ async def update_guild(
             and administration.banner_image_enabled != banner_image_enabled
         ):
             administration.banner_image_enabled = banner_image_enabled
+            administration_updated = True
+        if (
+            support_enabled is not None
+            and administration.support_enabled != support_enabled
+        ):
+            administration.support_enabled = support_enabled
             administration_updated = True
         if administration_updated:
             session.add(administration)

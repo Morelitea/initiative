@@ -645,5 +645,7 @@
   "MODERATION_CANNOT_REPORT_YOURSELF": "Du kannst eigene Inhalte nicht melden",
   "MODERATION_NOWHERE_TO_SEND": "Meldungen sind auf dieser Installation noch nicht eingerichtet",
   "MODERATION_TARGET_NOT_FOUND": "Das können wir nicht finden",
-  "MODERATION_NOT_A_MODERATOR": "Das können nur Moderatoren sehen"
+  "MODERATION_NOT_A_MODERATOR": "Das können nur Moderatoren sehen",
+  "SUPPORT_NOT_AVAILABLE": "Diese Community nimmt keine Hilfeanfragen entgegen. Sieh stattdessen in den FAQ nach.",
+  "SUPPORT_NOWHERE_TO_SEND": "Hilfeanfragen sind hier aktiviert, aber es ist noch niemand eingerichtet, der sie empfängt. Sag einem Community-Admin Bescheid."
 }

@@ -63,5 +63,18 @@
     "title": "No se pudieron cargar estos ajustes",
     "description": "No se ha cambiado nada. Inténtalo de nuevo; si sigue fallando, el registro del servidor dirá por qué.",
     "retry": "Reintentar"
+  },
+  "help": {
+    "action": "Pedir ayuda",
+    "title": "Pedir ayuda",
+    "description": "Cuéntanos qué ocurre y alguien se encargará.",
+    "subjectLabel": "¿De qué se trata?",
+    "subjectPlaceholder": "Una línea, para poder encontrarlo después",
+    "bodyLabel": "¿Qué ha pasado?",
+    "bodyPlaceholder": "Qué estabas haciendo, qué esperabas y qué ocurrió en su lugar.",
+    "browseFaq": "Consultar las preguntas frecuentes",
+    "submit": "Enviar",
+    "thanks": "Enviado. Alguien se encargará.",
+    "error": "No se ha podido enviar. Inténtalo de nuevo en un momento."
   }
 }

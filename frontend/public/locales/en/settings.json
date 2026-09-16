@@ -959,13 +959,17 @@
       "storageLimit": "Storage limit",
       "guildAuth": "Per-community sign-in",
       "status": "Status",
-      "billing": "Billing"
+      "billing": "Billing",
+      "support": "Help requests"
     },
     "billing": {
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal."
-    }
+    },
+    "supportOn": "{{name}} can now send help requests.",
+    "supportOff": "{{name}} can no longer send help requests.",
+    "supportInputLabel": "Help requests for {{name}}"
   },
   "adminDashboard": {
     "title": "Admin dashboard",

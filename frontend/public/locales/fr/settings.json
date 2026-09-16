@@ -970,13 +970,17 @@
       "storageLimit": "Limite de stockage",
       "guildAuth": "Connexion par communauté",
       "status": "Statut",
-      "billing": "Facturation"
+      "billing": "Facturation",
+      "support": "Demandes d'aide"
     },
     "billing": {
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation."
-    }
+    },
+    "supportOn": "{{name}} peut désormais envoyer des demandes d'aide.",
+    "supportOff": "{{name}} ne peut plus envoyer de demandes d'aide.",
+    "supportInputLabel": "Demandes d'aide pour {{name}}"
   },
   "storage": {
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
