@@ -85,6 +85,25 @@ def test_every_platform_target_names_a_public_relation():
     assert "users" not in set(PLATFORM_TARGET_RELATION.values())
 
 
+def test_every_platform_relation_resolves_to_a_table():
+    """The name a target maps to must be a relation the query builder finds.
+
+    The visibility check is built from column objects, so an entry naming
+    something neither the models nor the views declare would be discovered at
+    the first report of that kind rather than here.
+    """
+    from app.core.moderation import PLATFORM_TARGET_RELATION
+    from app.services.tenant.moderation import public_relation
+
+    for target, name in PLATFORM_TARGET_RELATION.items():
+        relation = public_relation(name)
+        assert "id" in relation.c, f"{target.value} -> {name} has no id column"
+    listing = public_relation(
+        PLATFORM_TARGET_RELATION[PlatformReportTarget.directory_listing]
+    )
+    assert "is_community" in listing.c
+
+
 def test_private_conversations_are_not_reportable():
     """Direct messages are not moderated, so nothing can name one.
 
