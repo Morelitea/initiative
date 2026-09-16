@@ -84,6 +84,14 @@ class GuildAdministration(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # Operator entitlement: may this guild's members send a help request?
+    # Default off, which is the answer for any deployment with nobody staffing
+    # a queue — the "Ask for help" control then opens the FAQ. Turning it on
+    # only offers the form; where it lands is the intake binding's business.
+    support_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
 
     guild: Optional["Guild"] = Relationship(
         back_populates="administration",

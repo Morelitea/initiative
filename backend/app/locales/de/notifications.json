@@ -124,6 +124,9 @@
     "title": "{{sender}} hat dir eine Nachricht gesendet",
     "body": "Öffne Initiative, um sie zu lesen."
   },
+  "directMessageGroup": {
+    "body": "{{sender}} hat eine Nachricht geschickt."
+  },
   "deviceSync": {
     "title": "Ein neues Gerät wartet",
     "body": "Öffne Initiative, um ihm deinen Nachrichtenverlauf zu senden."

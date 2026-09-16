@@ -74,6 +74,9 @@ class DmSendOutcome:
     #: Members whose mailbox was too full to take it. A fact about capacity
     #: rather than about permission, so this one is theirs to see.
     queue_full: tuple[int, ...]
+    #: Whether this went to a group, so the bell and the push can name the
+    #: thread by who is on it rather than by the one other party.
+    group: bool = False
 
 
 class DmTransportError(Exception):
@@ -788,6 +791,7 @@ async def send(
         accepted=len(messages),
         reached=tuple(sorted(reached)),
         queue_full=tuple(sorted(full)),
+        group=conversation.kind == DmConversationKind.group,
     )
 
 

@@ -63,5 +63,18 @@
     "title": "Could not load these settings",
     "description": "Nothing has been changed. Try again, and if it keeps failing the server log will say why.",
     "retry": "Try again"
+  },
+  "help": {
+    "action": "Ask for help",
+    "title": "Ask for help",
+    "description": "Tell us what is going on and somebody will pick it up.",
+    "subjectLabel": "What is this about?",
+    "subjectPlaceholder": "One line, so it can be found again",
+    "bodyLabel": "What happened?",
+    "bodyPlaceholder": "What you were doing, what you expected, and what happened instead.",
+    "browseFaq": "Browse the FAQ",
+    "submit": "Send",
+    "thanks": "Sent. Somebody will pick it up.",
+    "error": "Could not send that. Try again in a moment."
   }
 }

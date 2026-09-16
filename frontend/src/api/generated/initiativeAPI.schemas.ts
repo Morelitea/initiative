@@ -5162,6 +5162,7 @@ export interface PlatformGuildStorageRead {
   status_changed_at: string | null;
   guild_auth_enabled: boolean;
   banner_image_enabled: boolean;
+  support_enabled: boolean;
 }
 
 /**
@@ -5179,6 +5180,7 @@ export interface PlatformGuildStorageUpdate {
   status?: GuildStatus | null;
   guild_auth_enabled?: boolean | null;
   banner_image_enabled?: boolean | null;
+  support_enabled?: boolean | null;
 }
 
 /**
@@ -6508,6 +6510,44 @@ export interface StorageSettingsUpdate {
 export interface StorageTestResponse {
   success: boolean;
   message: string;
+}
+
+/**
+ * Whether the help form should be offered in this community.
+ *
+ * One boolean rather than its two halves: the reader is choosing between a
+ * form and the FAQ, and which of the two reasons applies is the operator's
+ * business, not theirs.
+ */
+export interface SupportAvailability {
+  available?: boolean;
+}
+
+/**
+ * What they are told back: that it arrived.
+ *
+ * Not where it landed or who will read it — the project a deployment routes
+ * support into is its own arrangement, and naming it here would make it the
+ * asker's business.
+ */
+export interface SupportRequestAccepted {
+  accepted?: boolean;
+}
+
+/**
+ * What somebody asking for help sends.
+ */
+export interface SupportRequestCreate {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
 }
 
 /**

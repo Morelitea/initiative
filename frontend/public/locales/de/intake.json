@@ -63,5 +63,18 @@
     "title": "Diese Einstellungen konnten nicht geladen werden",
     "description": "Es wurde nichts geändert. Versuche es erneut; wenn es weiter fehlschlägt, steht der Grund im Server-Log.",
     "retry": "Erneut versuchen"
+  },
+  "help": {
+    "action": "Hilfe anfordern",
+    "title": "Hilfe anfordern",
+    "description": "Schreib uns, was los ist, und jemand kümmert sich darum.",
+    "subjectLabel": "Worum geht es?",
+    "subjectPlaceholder": "Eine Zeile, damit es wiederzufinden ist",
+    "bodyLabel": "Was ist passiert?",
+    "bodyPlaceholder": "Was du getan hast, was du erwartet hast und was stattdessen passiert ist.",
+    "browseFaq": "FAQ durchsehen",
+    "submit": "Senden",
+    "thanks": "Gesendet. Jemand kümmert sich darum.",
+    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
   }
 }

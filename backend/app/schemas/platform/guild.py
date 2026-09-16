@@ -269,6 +269,10 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.
     banner_image_enabled: bool = True
+    # Whether this guild's members may send a help request (operator toggle).
+    # Off by default: the deployment that receives them is the one that decides
+    # it is staffing them.
+    support_enabled: bool = False
 
 
 class GuildMemberRoleRead(SanitizedBaseModel):
@@ -307,6 +311,8 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     guild_auth_enabled: Optional[bool] = None
     # Banner-artwork entitlement. Omit-to-skip, same as the one above.
     banner_image_enabled: Optional[bool] = None
+    # Help-request entitlement. Omit-to-skip, same as the one above.
+    support_enabled: Optional[bool] = None
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
