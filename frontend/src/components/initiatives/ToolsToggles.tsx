@@ -1,18 +1,19 @@
-import { TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRoleRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolIconTile, ToolSketch } from "@/components/initiatives/ToolSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_ENABLED_TOOLS,
-  TOGGLEABLE_TOOLS,
+  SIDEBAR_TOOLS,
   toolCamelPlural,
   toolRouteSegment,
   toolViewPermission,
 } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 /**
  * The roles that can actually see a tool once its master switch is on.
@@ -54,17 +55,29 @@ export interface ToolsSectionProps {
   onGrantToEveryone?: (tool: Tool) => void;
 }
 
-interface ToolToggleProps {
+interface ToolPickerCardProps {
+  tool: Tool;
   id: string;
   title: string;
   description: string;
   checked: boolean;
   onCheckedChange: (value: boolean) => void;
   disabled: boolean;
-  audience?: React.ReactNode;
+  /** Rendered under the card, OUTSIDE the toggle. The audience line carries
+   *  its own buttons, and a button inside a button is invalid HTML. */
+  audience?: ReactNode;
 }
 
-const ToolToggle = ({
+/**
+ * One tool, as something you can look at rather than a row with a switch.
+ *
+ * The sketch is the point: "queue" and "counter" mean nothing to somebody who
+ * has not seen one, and this card is where both the create wizard and the
+ * settings screen ask them to decide. Same card in both places, so the picture
+ * somebody learned the tool from is the picture they see again later.
+ */
+export const ToolPickerCard = ({
+  tool,
   id,
   title,
   description,
@@ -72,15 +85,42 @@ const ToolToggle = ({
   onCheckedChange,
   disabled,
   audience,
-}: ToolToggleProps) => (
-  <div className="space-y-2 rounded-md border p-3">
-    <div className="flex items-center justify-between gap-4">
-      <div className="space-y-0.5">
-        <Label htmlFor={id}>{title}</Label>
-        <p className="text-muted-foreground text-xs">{description}</p>
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-    </div>
+}: ToolPickerCardProps) => (
+  <div
+    data-slot="tool-card"
+    className={cn(
+      "flex flex-col gap-2 rounded-lg border p-3 transition-colors",
+      checked ? "border-primary bg-primary/5" : "hover:bg-accent"
+    )}
+  >
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      id={id}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        "flex flex-col gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60",
+        checked ? "text-foreground" : "text-muted-foreground"
+      )}
+    >
+      <span className="flex items-center gap-2">
+        <ToolIconTile tool={tool} active={checked} />
+        <span className="flex-1 font-medium text-sm">{title}</span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex h-5 w-5 items-center justify-center rounded-full border",
+            checked ? "border-primary bg-primary text-primary-foreground" : "border-border"
+          )}
+        >
+          {checked ? <Check className="h-3 w-3" /> : null}
+        </span>
+      </span>
+      <ToolSketch tool={tool} active={checked} />
+      <span className="text-xs leading-snug">{description}</span>
+    </button>
     {audience}
   </div>
 );
@@ -150,10 +190,12 @@ const ToolAudience = ({
 };
 
 /**
- * One master-switch row per tool, derived from the registry — projects and
- * documents included. They were exempt when everything else hung off them;
- * relationships ended that, so they are rows here like the rest and differ
- * only in starting switched on.
+ * The tool grid, derived from the registry — projects and documents included.
+ * They were exempt when everything else hung off them; relationships ended
+ * that, so they are cards here like the rest and differ only in starting on.
+ *
+ * Pass `roles` and each enabled card gains its audience line; omit it (the
+ * create wizard, where no roles exist yet) and it does not.
  */
 export const ToolsSection = ({
   values,
@@ -170,15 +212,19 @@ export const ToolsSection = ({
   const disabled = !canManage || isSaving;
 
   const rows = (
-    <div className="space-y-3">
-      {TOGGLEABLE_TOOLS.map((tool) => {
+    // Sized to the space it is in, not to the viewport: this grid renders
+    // both inside a dialog and across a full settings page, and a viewport
+    // breakpoint would give the narrow one three columns on a wide screen.
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
+      {SIDEBAR_TOOLS.map((tool) => {
         const camel = toolCamelPlural(tool);
         // Unset means the tool's own default, not off — projects and documents
         // are in this list now and start on.
         const enabled = values[tool] ?? DEFAULT_ENABLED_TOOLS.has(tool);
         return (
-          <ToolToggle
+          <ToolPickerCard
             key={tool}
+            tool={tool}
             id={`${idPrefix}-${toolRouteSegment(tool)}-toggle`}
             title={t(`${camel}Feature` as never)}
             description={t(`${camel}FeatureDescription` as never)}

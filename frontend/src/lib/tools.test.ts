@@ -15,6 +15,7 @@ import {
   RecentEntityType,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { TOOL_SKETCHES } from "@/components/initiatives/ToolSkeletons";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import {
   counterRoute,
@@ -68,6 +69,8 @@ const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];
 describe("tool registry", () => {
   it("covers exactly the canonical Tool enum", () => {
     expect(Object.keys(TOOL_ICONS).sort()).toEqual(Object.values(Tool).sort());
+    // And a sketch for the create wizard, for the same reason.
+    expect(Object.keys(TOOL_SKETCHES).sort()).toEqual(Object.values(Tool).sort());
   });
 
   it("sidebar order is a permutation of the tools", () => {

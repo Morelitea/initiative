@@ -296,7 +296,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("switch", { name: /Posts/ }));
 
       expect(await screen.findByRole("dialog")).toHaveTextContent("Turn on Posts");
       // Nothing is saved until the audience question is answered.
@@ -309,7 +309,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("switch", { name: /Posts/ }));
       await userEvent.click(await screen.findByRole("radio", { name: /Everyone in this/ }));
       await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
 
@@ -332,7 +332,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("switch", { name: /Posts/ }));
       await userEvent.click(await screen.findByRole("radio", { name: /Managers only/ }));
       await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
 
@@ -349,7 +349,9 @@ describe("InitiativeSettingsDetailsPage", () => {
       // Scoped to the Posts row: projects and documents are switched on too
       // now, so the page says "Visible to Member" in several places and only
       // this one is the answer under test.
-      const postsRow = (await screen.findByLabelText("Posts")).closest("div.rounded-md");
+      const postsRow = (await screen.findByRole("switch", { name: /Posts/ })).closest(
+        "[data-slot='tool-card']"
+      );
       expect(postsRow).not.toBeNull();
       expect(within(postsRow as HTMLElement).getByText(/Visible to Member/)).toBeInTheDocument();
     });
@@ -388,7 +390,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("switch", { name: /Posts/ }));
       await userEvent.click(await screen.findByRole("radio", { name: /Everyone in this/ }));
       await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
 
@@ -405,7 +407,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("switch", { name: /Posts/ }));
 
       expect(await screen.findByRole("alertdialog")).toHaveTextContent(
         /hides Posts and everything in it from everyone/

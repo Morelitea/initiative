@@ -179,7 +179,7 @@
     "roleUpdated": "Rol actualizado.",
     "roleUpdateError": "No se pudo actualizar el rol en este momento.",
     "rolesTitle": "Permisos de roles",
-    "rolesDescription": "Configura lo que cada rol puede hacer dentro de esta iniciativa. Los permisos de Gerente de Proyecto están bloqueados para evitar bloqueos accidentales.",
+    "rolesDescription": "Lo que cada rol puede ver y lo que puede crear. Los gestores lo tienen todo.",
     "loadingRoles": "Cargando roles...",
     "addCustomRole": "Agregar rol personalizado",
     "builtIn": "Integrado",
@@ -255,7 +255,9 @@
       "viewPosts": "Ver publicaciones",
       "createPosts": "Crear publicaciones",
       "viewGalleries": "Ver galerías",
-      "createGalleries": "Crear galerías"
+      "createGalleries": "Crear galerías",
+      "viewShort": "Ver",
+      "createShort": "Crear"
     },
     "handleColumn": "Identificador",
     "toolAudience": {
@@ -274,25 +276,56 @@
       "disableTitle": "Desactivar {{tool}}",
       "disableDescription": "Esto oculta {{tool}} y todo su contenido a todo el mundo en esta iniciativa, responsables incluidos. No se borra nada: al volver a activarla, todo regresa.",
       "disableConfirm": "Desactivarla",
-      "toolTurnedOff": "Esta herramienta está desactivada para la iniciativa, así que estos permisos no conceden nada hasta que se vuelva a activar."
-    }
+      "turnedOffHeading": "Desactivadas en esta iniciativa",
+      "turnedOffNote": "No conceden nada hasta que la herramienta se vuelva a activar en Detalles. Mientras tanto no se pierde nada de lo que contienen."
+    },
+    "managerDescription": "Los gestores dirigen esta iniciativa — sus miembros, sus roles y sus ajustes — y pueden ver y crear en todas las herramientas. Qué elementos concretos pueden abrir lo sigue decidiendo cómo se comparte cada uno."
   },
   "advancedTools": "Herramientas",
   "advancedToolsDescription": "Elige de qué se compone esta iniciativa. Los proyectos y los documentos vienen activados; el resto lo añades tú.",
   "queuesFeature": "Colas",
-  "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
+  "queuesFeatureDescription": "A quién le toca. Turnos, órdenes de actuación, ruedas de tareas, orden de iniciativa — y nunca le toca a nadie.",
   "calendarsFeature": "Calendario",
-  "calendarsFeatureDescription": "Organiza eventos en calendarios compartibles con asistentes y seguimiento de confirmaciones.",
+  "calendarsFeatureDescription": "Cosas que ocurren a una hora. Confirmaciones, recordatorios y un sitio donde mirar antes de que alguien pregunte si es este jueves.",
   "dashboardsFeature": "Paneles",
-  "dashboardsFeatureDescription": "Crea un lienzo de gráficos, indicadores y cronogramas que muestra el trabajo existente: un panel nunca edita los datos que muestra.",
+  "dashboardsFeatureDescription": "Cómo va el trabajo, para quien no para de preguntar cómo va el trabajo. Gráficos y totales sacados de lo que ya hay, solo lectura.",
   "counterGroupsFeature": "Contadores",
-  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales.",
+  "counterGroupsFeatureDescription": "Números que se mueven. Recuentos, totales, puntuaciones, plazas libres, puntos de vida: un número en el que todos en la sala coinciden.",
   "postsFeature": "Publicaciones",
-  "postsFeatureDescription": "Un tablón de anuncios para la iniciativa: avisos que todos pueden leer, comentar y reaccionar, con los más importantes fijados arriba.",
+  "postsFeatureDescription": "Un tablón de anuncios. Avisos, encuestas, quién los ha leído — con el importante fijado arriba, para que no se lo pierdan cuatro personas.",
   "galleriesFeature": "Galerías",
-  "galleriesFeatureDescription": "Colecciones de imágenes (maquetas, capturas, diseños exportados) que se recorren como un mural en lugar de leerse una a una, con etiquetas e historial de versiones en cada imagen.",
+  "galleriesFeatureDescription": "Una pared de imágenes. Maquetas, capturas, los cuatro logos que perdieron.",
   "projectsFeature": "Proyectos",
-  "projectsFeatureDescription": "Tableros de tareas: quién hace qué, en qué fase está y qué queda pendiente.",
+  "projectsFeatureDescription": "Tableros de pendientes: quién lo lleva, en qué fase está, qué falta. Míralos como tabla, tablero Kanban o calendario: las mismas tareas, tú eliges.",
   "documentsFeature": "Documentos",
-  "documentsFeatureDescription": "Páginas escritas — notas, planes, referencias — que enlazan con cualquier otra cosa de la iniciativa."
+  "documentsFeatureDescription": "Texto, hojas de cálculo y pizarras, escritos juntos en tiempo real.",
+  "createWizard": {
+    "title": "Nueva iniciativa",
+    "detailsStep": "¿Cómo se llama?",
+    "toolsStep": "¿De qué se compone?",
+    "joiningStep": "¿Quién puede entrar?",
+    "membersStep": "¿Qué pueden hacer?",
+    "toolsHelp": "Elige lo que necesita esta iniciativa. Puedes cambiarlo todo después, y desactivar algo nunca borra lo que hay dentro.",
+    "pickOneTool": "Elige al menos una: una iniciativa necesita dónde poner las cosas.",
+    "joiningHelp": "Puedes añadir gente tú mismo, elijas lo que elijas aquí.",
+    "membersHelp": "Esto es lo que un miembro corriente puede hacer con las herramientas que elegiste. Los gestores siempre pueden hacerlo todo.",
+    "members": {
+      "create": "Crear cosas",
+      "createHelp": "Los miembros pueden añadir proyectos, documentos y lo demás. Ideal para un grupo que trabaja junto.",
+      "view": "Ver cosas",
+      "viewHelp": "Los miembros leen todo, pero solo los gestores añaden. Ideal para algo que publicas a un grupo.",
+      "managers": "Solo gestores",
+      "managersHelp": "Los miembros no ven nada hasta que des acceso a un rol. Ideal para trabajo sensible."
+    },
+    "back": "Atrás",
+    "next": "Siguiente",
+    "create": "Crear iniciativa",
+    "memberGrantFailed": "La iniciativa se creó, pero no se pudo establecer lo que pueden hacer los miembros. Puedes ajustarlo en Ajustes → Roles.",
+    "firstIntroTitle": "Tu primera iniciativa",
+    "firstIntro": "Una **iniciativa** es una carpeta para un gran esfuerzo o equipo dentro de tu comunidad. Contiene las herramientas de ese esfuerzo, como proyectos o documentos y más.",
+    "nextTools": "Siguiente: Herramientas",
+    "nextJoining": "Siguiente: Membresía",
+    "nextMembers": "Siguiente: Permisos",
+    "firstIntroLink": "Leer más aquí"
+  }
 }
