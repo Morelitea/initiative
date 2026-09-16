@@ -60,6 +60,9 @@ async def scene(session, acting_user):
     session.add(
         ResourceGrant(
             guild_id=owner.guild.id,
+            # The service sets this on every grant it writes; a hand-made one
+            # without it is a grant no initiative-scoped read would find.
+            initiative_id=owner.initiative.id,
             resource_type=Tool.project.value,
             resource_id=owner.project.id,
             all_initiative_members=True,
@@ -564,3 +567,45 @@ async def test_any_account_can_be_reported_by_profile(
         reason="harassment",
     )
     assert response.status_code == 202
+
+
+async def test_the_sharing_overview_is_for_moderators(client, session, scene):
+    """Grants on every resource is a wider question than grants on one.
+
+    ``resource_grants`` is scoped to initiative membership, which is right for
+    reading the sharing on something you can already reach. The aggregate asks
+    about resources the reader may not reach at all, so it takes the standing
+    the moderation tables take.
+    """
+    url = f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing"
+    assert (await client.get(url, headers=scene["member"].headers)).status_code == 404
+    assert (await client.get(url, headers=scene["mod"].headers)).status_code == 200
+
+
+async def test_the_sharing_overview_names_what_is_shared(client, scene):
+    response = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing",
+        headers=scene["mod"].headers,
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    # The fixture shares its project with the whole initiative.
+    project = next(i for i in items if i["resource_type"] == "project")
+    assert project["all_initiative_members"] is True
+    assert project["name"]
+
+
+async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
+    client, session, scene
+):
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=admin, guild=scene["guild"], role=GuildRole.admin
+    )
+    await set_rls_context(session)
+
+    response = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing",
+        headers=get_auth_headers(admin),
+    )
+    assert response.status_code == 200

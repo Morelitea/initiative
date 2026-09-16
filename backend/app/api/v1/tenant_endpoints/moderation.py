@@ -27,14 +27,18 @@ from app.api.deps import (
 from app.core.messages import ModerationMessages
 from app.core.moderation import parse_target
 from app.models.platform.user import User
+from app.core.role_context import is_request_guild_admin, request_overrides_sharing
 from app.schemas.tenant.moderation import (
+    InitiativeSharingRead,
     ModerationReportList,
     ModerationReportRead,
     ReportAccepted,
     ReportCreate,
     ReportSettle,
+    SharedResourceRead,
 )
 from app.services.tenant import moderation as moderation_service
+from app.services.tenant import sharing_overview
 
 router = APIRouter()
 me_router = APIRouter()
@@ -151,3 +155,47 @@ async def settle_report(
     # it already had with nothing.
     counts, details = await moderation_service.reporters_for(session, [report.id])
     return _read(report, counts.get(report.id, 0), details.get(report.id, []))
+
+
+@router.get(
+    "/initiatives/{initiative_id}/sharing", response_model=InitiativeSharingRead
+)
+async def read_initiative_sharing(
+    initiative_id: int,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+) -> InitiativeSharingRead:
+    """Who can reach what, across this initiative.
+
+    Gated here rather than by the tables: ``resource_grants`` is scoped to
+    initiative *membership*, which is right for reading the grants on a
+    resource you can already reach and too wide for an aggregate over every
+    resource in the initiative. The standing required is the one the moderation
+    tables admit — "Full access", or guild admin — read from the same
+    request context the sharing override itself uses.
+    """
+    if not (
+        request_overrides_sharing(initiative_id)
+        or is_request_guild_admin(guild_context.guild_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.NOT_A_MODERATOR,
+        )
+    items = await sharing_overview.initiative_sharing(
+        session, initiative_id=initiative_id
+    )
+    return InitiativeSharingRead(
+        items=[
+            SharedResourceRead(
+                resource_type=item.resource_type,
+                resource_id=item.resource_id,
+                name=item.name,
+                all_initiative_members=item.all_initiative_members,
+                user_grant_count=item.user_grant_count,
+                role_grant_count=item.role_grant_count,
+                via_dashboard=item.via_dashboard,
+            )
+            for item in items
+        ]
+    )

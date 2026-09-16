@@ -16,6 +16,7 @@ const settleMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
+  sharing: [] as Array<Record<string, unknown>>,
   offset: 0,
 }));
 
@@ -39,6 +40,7 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useModeration")>();
   return {
     ...actual,
+    useInitiativeSharing: () => ({ data: { items: state.sharing }, isLoading: false }),
     useModerationReports: (params: { offset?: number }) => {
       state.offset = params.offset ?? 0;
       return {
@@ -67,6 +69,7 @@ describe("ModerationPage", () => {
   beforeEach(() => {
     settleMutate.mockClear();
     state.items = [];
+    state.sharing = [];
     state.offset = 0;
   });
 
@@ -203,5 +206,59 @@ describe("ModerationPage", () => {
     await user.click(screen.getByRole("button", { name: "Older" }));
 
     expect(screen.queryByText("Nothing has been reported.")).not.toBeInTheDocument();
+  });
+
+  it("gathers what a moderator acts with beside what they act on", async () => {
+    render();
+    for (const area of ["Reports", "Members", "Sharing"]) {
+      expect(await screen.findByRole("tab", { name: area })).toBeInTheDocument();
+    }
+  });
+
+  it("shows how widely each thing is reached, and links to it", async () => {
+    state.sharing = [
+      {
+        resource_type: "project",
+        resource_id: 4,
+        name: "Spring Play",
+        all_initiative_members: true,
+        user_grant_count: 2,
+        role_grant_count: 1,
+        via_dashboard: false,
+      },
+    ];
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+
+    expect(await screen.findByText("Everyone here")).toBeInTheDocument();
+    expect(screen.getByText("2 people · 1 roles")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Spring Play" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/go/project/4")
+    );
+  });
+
+  it("offers no way to change sharing from here", async () => {
+    state.sharing = [
+      {
+        resource_type: "project",
+        resource_id: 4,
+        name: "Spring Play",
+        all_initiative_members: false,
+        user_grant_count: 1,
+        role_grant_count: 0,
+        via_dashboard: false,
+      },
+    ];
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    await screen.findByText("Spring Play");
+    // Changing it goes through the resource's own control, which is the one
+    // editor for it.
+    expect(screen.queryByRole("button", { name: /share|remove|add/i })).toBeNull();
   });
 });

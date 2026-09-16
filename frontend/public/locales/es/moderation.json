@@ -68,5 +68,22 @@
     "submit": "Enviar denuncia",
     "thanks": "Gracias, alguien lo revisará.",
     "error": "No se pudo enviar la denuncia."
+  },
+  "areas": {
+    "reports": "Denuncias",
+    "members": "Miembros",
+    "sharing": "Acceso"
+  },
+  "members": {
+    "description": "Quién está en esta iniciativa y qué puede hacer cada cual.",
+    "fullAccess": "Acceso total",
+    "noRole": "Sin rol"
+  },
+  "sharing": {
+    "description": "Hasta dónde llega el acceso a cada cosa. Ábrela para cambiarlo.",
+    "empty": "Aquí no se ha compartido nada con nadie en concreto.",
+    "everyone": "Todo el mundo aquí",
+    "viaDashboard": "A través de un panel",
+    "counts": "{{people}} personas · {{roles}} roles"
   }
 }

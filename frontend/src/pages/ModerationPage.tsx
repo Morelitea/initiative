@@ -24,7 +24,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { REPORTS_PAGE_SIZE, useModerationReports, useSettleReport } from "@/hooks/useModeration";
+import { useInitiative } from "@/hooks/useInitiatives";
+import {
+  REPORTS_PAGE_SIZE,
+  useInitiativeSharing,
+  useModerationReports,
+  useSettleReport,
+} from "@/hooks/useModeration";
 import { toast } from "@/lib/chesterToast";
 import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -44,6 +50,7 @@ export const ModerationPage = () => {
   const guildId = useActiveGuildId();
   const { initiativeId } = useParams({ strict: false }) as { initiativeId?: string };
   const initiative = Number(initiativeId);
+  const [area, setArea] = useState<ConsoleArea>("reports");
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [page, setPage] = useState(0);
 
@@ -75,69 +82,87 @@ export const ModerationPage = () => {
         <p className="text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => showTab(v as "open" | "settled")}>
+      {/* What a moderator acts on, and what they act with. The second two are
+          views onto standing they already hold — being here grants nothing. */}
+      <Tabs value={area} onValueChange={(v) => setArea(v as ConsoleArea)}>
         <TabsList>
-          <TabsTrigger value="open">{t("tabs.open")}</TabsTrigger>
-          <TabsTrigger value="settled">{t("tabs.settled")}</TabsTrigger>
+          <TabsTrigger value="reports">{t("areas.reports")}</TabsTrigger>
+          <TabsTrigger value="members">{t("areas.members")}</TabsTrigger>
+          <TabsTrigger value="sharing">{t("areas.sharing")}</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {isLoading ? (
-        <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
-      ) : (
-        <div className="space-y-4">
-          {reports.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {/* A later page that came back empty is a different thing from
-                  nothing ever having been reported, and says so. */}
-              {page > 0
-                ? t("empty.noFurther")
-                : tab === "open"
-                  ? t("empty.open")
-                  : t("empty.settled")}
-            </p>
-          ) : (
-            reports.map((report) => (
-              <ReportCard
-                key={report.id}
-                report={report}
-                guildId={guildId ?? 0}
-                initiativeId={initiative}
-              />
-            ))
-          )}
+      {area === "members" && <MembersArea initiativeId={initiative} />}
+      {area === "sharing" && <SharingArea guildId={guildId ?? 0} initiativeId={initiative} />}
 
-          {/* Outside the empty branch on purpose: a count that divides exactly
+      {area === "reports" && (
+        <Tabs value={tab} onValueChange={(v) => showTab(v as "open" | "settled")}>
+          <TabsList>
+            <TabsTrigger value="open">{t("tabs.open")}</TabsTrigger>
+            <TabsTrigger value="settled">{t("tabs.settled")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
+      {area === "reports" &&
+        (isLoading ? (
+          <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
+        ) : (
+          <div className="space-y-4">
+            {reports.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                {/* A later page that came back empty is a different thing from
+                  nothing ever having been reported, and says so. */}
+                {page > 0
+                  ? t("empty.noFurther")
+                  : tab === "open"
+                    ? t("empty.open")
+                    : t("empty.settled")}
+              </p>
+            ) : (
+              reports.map((report) => (
+                <ReportCard
+                  key={report.id}
+                  report={report}
+                  guildId={guildId ?? 0}
+                  initiativeId={initiative}
+                />
+              ))
+            )}
+
+            {/* Outside the empty branch on purpose: a count that divides exactly
               by the page size lands on an empty page, and the way back has to
               still be there. */}
-          {(page > 0 || hasMore) && (
-            <div className="flex items-center justify-between gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                {t("paging.newer")}
-              </Button>
-              <span className="text-muted-foreground text-sm">
-                {t("paging.page", { page: page + 1 })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!hasMore}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t("paging.older")}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+            {(page > 0 || hasMore) && (
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  {t("paging.newer")}
+                </Button>
+                <span className="text-muted-foreground text-sm">
+                  {t("paging.page", { page: page + 1 })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!hasMore}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  {t("paging.older")}
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
     </div>
   );
 };
+
+type ConsoleArea = "reports" | "members" | "sharing";
 
 interface ReportCardProps {
   report: ModerationReportRead;
@@ -258,6 +283,124 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
               })}
             </p>
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+/**
+ * The initiative's roster, with each member's role.
+ *
+ * Read-only. Who is in an initiative and what they may do is the initiative's
+ * own settings to change; this is here so a moderator deciding a report can see
+ * who they are deciding about without leaving the page.
+ */
+const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
+  const { t } = useTranslation(["moderation", "common"]);
+  const { data: initiative, isLoading } = useInitiative(initiativeId);
+  const members = initiative?.members ?? [];
+
+  if (isLoading) {
+    return <p className="text-muted-foreground text-sm">{t("common:loading")}</p>;
+  }
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("areas.members")}</CardTitle>
+        <CardDescription>{t("members.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {members.map((member) => (
+          <div
+            key={member.user.id}
+            className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0"
+          >
+            <span className="min-w-0 truncate text-sm">
+              {member.user.full_name || member.user.username}
+            </span>
+            <div className="flex items-center gap-2">
+              {member.override_share_restrictions && (
+                <Badge variant="secondary">{t("members.fullAccess")}</Badge>
+              )}
+              <span className="text-muted-foreground text-sm">
+                {member.role_display_name ?? t("members.noRole")}
+              </span>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+};
+
+/**
+ * Who can reach what, across the initiative.
+ *
+ * Read-only, and deliberately: changing sharing goes through the resource's own
+ * control, which is the one editor for it and the one that is tested. What this
+ * adds is the overview — how widely each thing is reached — so finding the one
+ * shared too far does not mean opening all of them.
+ */
+const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId: number }) => {
+  const { t } = useTranslation(["moderation", "common"]);
+  const { data, isLoading } = useInitiativeSharing(guildId, initiativeId);
+  const items = data?.items ?? [];
+
+  if (isLoading) {
+    return <p className="text-muted-foreground text-sm">{t("common:loading")}</p>;
+  }
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("areas.sharing")}</CardTitle>
+        <CardDescription>{t("sharing.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {items.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("sharing.empty")}</p>
+        ) : (
+          items.map((item) => {
+            const refType = isSearchEntityType(item.resource_type)
+              ? entityRefTypeFor(item.resource_type)
+              : null;
+            const label = item.name || `${item.resource_type} ${item.resource_id}`;
+            return (
+              <div
+                key={`${item.resource_type}-${item.resource_id}`}
+                className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0"
+              >
+                <span className="min-w-0 truncate text-sm">
+                  {refType ? (
+                    <Link
+                      to={guildPath(guildId, `/go/${refType}/${item.resource_id}`)}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {label}
+                    </Link>
+                  ) : (
+                    label
+                  )}
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.all_initiative_members && (
+                    <Badge variant="secondary">{t("sharing.everyone")}</Badge>
+                  )}
+                  {item.via_dashboard && (
+                    <Badge variant="outline">{t("sharing.viaDashboard")}</Badge>
+                  )}
+                  <span className="text-muted-foreground text-sm">
+                    {t("sharing.counts", {
+                      people: item.user_grant_count,
+                      roles: item.role_grant_count,
+                    })}
+                  </span>
+                </div>
+              </div>
+            );
+          })
         )}
       </CardContent>
     </Card>
