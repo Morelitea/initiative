@@ -169,5 +169,15 @@
     "headphones": "Auriculares",
     "folder": "Carpeta",
     "pin": "Chincheta"
+  },
+  "groupThreads": {
+    "heading": "Conversaciones de grupo",
+    "invited": "Invitación"
+  },
+  "invitation": {
+    "heading": "Te han incluido en un grupo",
+    "who": "Quiénes están:",
+    "join": "Unirme",
+    "decline": "No, gracias"
   }
 }

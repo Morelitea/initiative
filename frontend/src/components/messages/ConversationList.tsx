@@ -1,5 +1,5 @@
 import { Link, useSearch } from "@tanstack/react-router";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +24,7 @@ import {
   useRemoveMessageRequest,
 } from "@/hooks/useDirectMessages";
 import { useConversations, useUnreadMessages } from "@/hooks/useMyMessages";
+import { groupName, isGroup } from "@/lib/conversationName";
 import { getItem, setItem } from "@/lib/storage";
 import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,22 @@ const COLLAPSED_KEY = "messages-groups-collapsed";
 
 type GroupId = "unread" | "favorites" | "connections" | "messages";
 const GROUP_ORDER: GroupId[] = ["unread", "favorites", "connections", "messages"];
+
+/**
+ * A thread with more than two people on it.
+ *
+ * Kept apart from `Entry` rather than folded into it: every row above is a
+ * person -- it has their picture, their handle, and a menu of things to do
+ * about them -- and a group is none of those. It is a conversation, addressed
+ * by its id, named by who is on it.
+ */
+interface GroupRow {
+  conversationId: string;
+  name: string;
+  waiting: number;
+  /** Named on it, but has not answered yet. */
+  pending: boolean;
+}
 
 /** One person this list can offer, whether or not a thread is open with them. */
 interface Entry {
@@ -118,7 +135,10 @@ const readCollapsed = (): Record<string, boolean> => {
  */
 export const ConversationList = ({ explain = false }: { explain?: boolean } = {}) => {
   const { t } = useTranslation(["messages", "contacts"]);
-  const { with: openHandle } = useSearch({ strict: false }) as { with?: string };
+  const { with: openHandle, thread: openThread } = useSearch({ strict: false }) as {
+    with?: string;
+    thread?: string;
+  };
   const [term, setTerm] = useState("");
 
   const conversations = useConversations();
@@ -140,7 +160,10 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
 
   // Somebody you may message but have not opened a channel with yet.
   const unopened = useMemo(
-    () => reachable.filter((grant) => !rows.some((row) => row.other_user_id === grant.user_id)),
+    () =>
+      reachable.filter(
+        (grant) => !rows.some((row) => !isGroup(row) && row.other_user_id === grant.user_id)
+      ),
     [reachable, rows]
   );
 
@@ -211,6 +234,19 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
     [connections.data]
   );
 
+  const groupRows: GroupRow[] = useMemo(
+    () =>
+      rows
+        .filter((row) => isGroup(row))
+        .map((row) => ({
+          conversationId: row.id,
+          name: groupName(row),
+          waiting: unread.data?.get(row.id) ?? 0,
+          pending: Boolean(row.pending),
+        })),
+    [rows, unread.data]
+  );
+
   const entries: Entry[] = useMemo(
     () => [
       // Only conversations whose other side this reader can still see. A grant
@@ -219,7 +255,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
       // address, so listing it offers a person who cannot be opened. What this
       // device already collected stays on it either way.
       ...rows
-        .filter((row) => personFor.has(row.other_user_id))
+        .filter((row) => !isGroup(row) && personFor.has(row.other_user_id))
         .map((row) => ({
           userId: row.other_user_id,
           person: personFor.get(row.other_user_id) as ContactGrantRead,
@@ -258,6 +294,15 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
     }
     return groups;
   }, [entries, starred, connected, matches]);
+
+  // A term narrows groups on their names, which is all a group has.
+  const shownGroups = useMemo(
+    () =>
+      term.trim()
+        ? groupRows.filter((row) => row.name.toLowerCase().includes(term.trim().toLowerCase()))
+        : groupRows,
+    [groupRows, term]
+  );
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const fold = (group: GroupId, open: boolean) => {
@@ -459,7 +504,46 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
             </section>
           ) : null}
 
-          {filled.length === 0 ? (
+          {shownGroups.length > 0 ? (
+            <section>
+              <h3 className="px-2 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                {t("groupThreads.heading")}
+              </h3>
+              <ul>
+                {shownGroups.map((row) => (
+                  <li
+                    key={row.conversationId}
+                    className={cn(
+                      "group/row flex items-center rounded-md pe-1 hover:bg-accent",
+                      row.conversationId === openThread && "bg-accent"
+                    )}
+                  >
+                    <Link
+                      to="/messages"
+                      search={{ thread: row.conversationId }}
+                      className={cn(ROW, row.pending && "text-muted-foreground")}
+                    >
+                      <Users className="size-6 shrink-0 p-0.5" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                      {row.waiting ? (
+                        <span className="relative ms-auto flex shrink-0 items-center">
+                          <span className="sr-only">{t("unreadHere", { count: row.waiting })}</span>
+                          <span aria-hidden="true" className="size-2 rounded-full bg-destructive" />
+                        </span>
+                      ) : null}
+                      {/* Named on it, not yet on it. The row opens the thread,
+                          which is where the answer is given. */}
+                      {row.pending ? (
+                        <span className="shrink-0 text-xs">{t("groupThreads.invited")}</span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {filled.length === 0 && shownGroups.length === 0 ? (
             searching ? (
               // Only when the term found nothing at all. A request matching it
               // is drawn above, and saying "nobody matches" over the top of

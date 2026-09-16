@@ -2697,6 +2697,7 @@ export interface DmConversationRead {
   created_at: string;
   kind?: string;
   member_ids?: number[];
+  member_handles?: string[];
   pending?: boolean;
 }
 

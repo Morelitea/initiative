@@ -169,5 +169,15 @@
     "headphones": "Casque",
     "folder": "Dossier",
     "pin": "Punaise"
+  },
+  "groupThreads": {
+    "heading": "Conversations de groupe",
+    "invited": "Invitation"
+  },
+  "invitation": {
+    "heading": "Tu as été ajouté·e à un groupe",
+    "who": "Les personnes présentes :",
+    "join": "Rejoindre",
+    "decline": "Non merci"
   }
 }
