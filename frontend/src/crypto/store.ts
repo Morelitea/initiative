@@ -897,6 +897,52 @@ export const historyAsk = {
   },
 };
 
+/**
+ * A conversation this device has just joined and has yet to be caught up on.
+ *
+ * Only a group ever has one. A pair does not exist until both sides have
+ * agreed, so there is never anything said before you were there.
+ */
+export interface ThreadCatchUp {
+  /** What an arriving transfer is matched against. */
+  requestId: string;
+  /** How many members have been asked, which is also the next one to ask. */
+  asked: number;
+  /** When the outstanding ask went out, so a silent one can be moved on from. */
+  at: string;
+}
+
+/**
+ * The conversations waiting to be caught up on, all in one record.
+ *
+ * One key rather than one per conversation: every collection reads the whole
+ * set to decide whether anything is outstanding, and a key scan to answer
+ * "anything?" is a scan of every thread this device holds.
+ */
+export const threadCatchUp = {
+  all: async (): Promise<Record<string, ThreadCatchUp>> =>
+    (await read<Record<string, ThreadCatchUp>>("thread-catch-ups")) ?? {},
+  get: async (conversationId: string): Promise<ThreadCatchUp | undefined> =>
+    (await threadCatchUp.all())[conversationId],
+  /**
+   * Read-modify-write, like every other record two tabs can reach: a
+   * collection in one tab and an answer in another both land here.
+   */
+  set: async (conversationId: string, state: ThreadCatchUp): Promise<void> => {
+    await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => ({
+      ...(current ?? {}),
+      [conversationId]: state,
+    }));
+  },
+  clear: async (conversationId: string): Promise<void> => {
+    await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => {
+      if (!current || !(conversationId in current)) return undefined;
+      const { [conversationId]: _gone, ...rest } = current;
+      return rest;
+    });
+  },
+};
+
 /** Which device of theirs we already hold a session with, per session id. */
 export const sessionForDevice = {
   get: (deviceId: string) => read<string>("device-session:" + deviceId),

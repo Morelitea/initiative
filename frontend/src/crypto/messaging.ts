@@ -42,6 +42,7 @@ import {
   peerDeviceKeys,
   peerKeyChanges,
   pendingHistoryRequest,
+  type ReactionSides,
   type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
@@ -51,6 +52,7 @@ import {
   sessionPickle,
   sessionsInConversation,
   deviceId as storedDeviceId,
+  threadCatchUp,
 } from "./store";
 
 /** How many prekeys a device keeps published. */
@@ -440,7 +442,20 @@ type Envelope =
       conversationId: string;
       messages: StoredMessage[];
     }
-  | { v: 1; kind: "history-declined"; requestId: string };
+  | { v: 1; kind: "history-declined"; requestId: string }
+  // Between the people on one group, and only inside the conversation it is
+  // about. Somebody who answers an invitation an hour after it was sent has
+  // missed whatever was said while they were deciding; nothing was kept for
+  // them, so a member who was there sends it.
+  | { v: 1; kind: "thread-history-request"; requestId: string }
+  | {
+      v: 1;
+      kind: "thread-history";
+      requestId: string;
+      seq: number;
+      last: boolean;
+      messages: StoredMessage[];
+    };
 
 /** A name for one message, known to both sides and to nobody else. */
 const newMessageId = (): string =>
@@ -458,6 +473,8 @@ const KNOWN_KINDS: ReadonlySet<string> = new Set<Envelope["kind"]>([
   "history-request",
   "history",
   "history-declined",
+  "thread-history-request",
+  "thread-history",
 ]);
 
 /** One entry of a thread, with the two fields everything else is hung off. */
@@ -583,6 +600,27 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
   }
   if (parsed.kind === "history-declined" && typeof parsed.requestId === "string") {
     return { v: 1, kind: "history-declined", requestId: parsed.requestId };
+  }
+  if (parsed.kind === "thread-history-request" && typeof parsed.requestId === "string") {
+    return { v: 1, kind: "thread-history-request", requestId: parsed.requestId };
+  }
+  if (
+    parsed.kind === "thread-history" &&
+    typeof parsed.requestId === "string" &&
+    typeof parsed.seq === "number" &&
+    Array.isArray(parsed.messages)
+  ) {
+    return {
+      v: 1,
+      kind: "thread-history",
+      requestId: parsed.requestId,
+      seq: parsed.seq,
+      last: parsed.last === true,
+      // Checked entry by entry, to the same standard as every other kind: one
+      // missing the fields a thread is read by would be filed under
+      // `undefined`, where the next like it looks like the same message.
+      messages: parsed.messages.filter(isStoredMessage),
+    };
   }
   // A kind this version does not know is from a later one, and is not for it to
   // guess at: printing the protocol into somebody's thread is the one outcome
@@ -1380,6 +1418,160 @@ export async function serveHistory(): Promise<void> {
   await pendingHistoryRequest.clear();
 }
 
+/**
+ * How long an unanswered ask waits before the next member on the roster is
+ * asked instead.
+ *
+ * A member has to have a client open to answer at all, so the first one asked
+ * is quite often not the one who answers. Long enough that somebody who is
+ * there is not overtaken while their transfer is still running, short enough
+ * that a thread is not held up for the evening by the first name on a list.
+ */
+const CATCH_UP_RETRY_MS = 60 * 1000;
+
+/**
+ * Ask to be sent what was said on this conversation before now.
+ *
+ * Recorded rather than sent: the ask goes out on the next collection, which is
+ * also what retries it. Only a group ever wants this -- a pair does not exist
+ * until both sides have agreed, so there is never anything said before you
+ * were there.
+ */
+export async function wantThreadHistory(conversationId: string): Promise<void> {
+  // An empty time reads as never asked, so the next collection asks at once.
+  await threadCatchUp.set(conversationId, { requestId: newMessageId(), asked: 0, at: "" });
+}
+
+/**
+ * Send the outstanding ask for each conversation waiting to be caught up.
+ *
+ * One member per round, in the order the roster comes in. Asking everybody at
+ * once would land the whole thread on this device once per member, and the
+ * copies would be identical. A member who cannot be written to counts as
+ * asked: a client that cannot be reached is a client that cannot answer.
+ *
+ * The round ends when the roster is exhausted, so a conversation whose members
+ * are all away is given up on rather than asked forever.
+ */
+async function runThreadCatchUps(): Promise<void> {
+  const open = await threadCatchUp.all();
+  const wanted = Object.keys(open);
+  if (wanted.length === 0) return;
+  const conversations = await listConversations();
+  const now = Date.now();
+  for (const conversationId of wanted) {
+    const state = open[conversationId];
+    const asked = Date.parse(state.at);
+    if (!Number.isNaN(asked) && now - asked < CATCH_UP_RETRY_MS) continue;
+    const conversation = conversations.conversations.find((row) => row.id === conversationId);
+    const roster = conversation?.member_ids ?? [];
+    if (state.asked >= roster.length) {
+      // Everybody has been asked, or there is nobody left to ask.
+      await threadCatchUp.clear(conversationId);
+      continue;
+    }
+    try {
+      await sendEnvelope(
+        conversationId,
+        [roster[state.asked]],
+        { v: 1, kind: "thread-history-request", requestId: state.requestId },
+        // Nothing here is news, and nothing about it is theirs to be told.
+        { toSelf: false, silent: true }
+      );
+    } catch {
+      // Unreachable is an answer of sorts: the next round asks somebody else.
+    }
+    await threadCatchUp.set(conversationId, {
+      ...state,
+      asked: state.asked + 1,
+      at: new Date().toISOString(),
+    });
+  }
+}
+
+/**
+ * Reactions as the person receiving them holds them.
+ *
+ * A log records which of two sides put each emoji there, so this account's own
+ * are the other side's once they are somebody else's.
+ */
+const theirSideOf = (reactions: Record<string, ReactionSides>): Record<string, ReactionSides> =>
+  Object.fromEntries(
+    Object.entries(reactions).map(([emoji, sides]) => [
+      emoji,
+      { mine: false, theirs: sides.mine || sides.theirs },
+    ])
+  );
+
+/**
+ * One entry of this device's log, as the person being sent it will read it.
+ *
+ * A log is written from its holder's own side, so handing one over unchanged
+ * would file this account's words as the recipient's own. Its receipts go with
+ * it: they are this account's record of where its own copies got to, and mean
+ * nothing on somebody else's.
+ */
+const asSeenByThem = (entry: StoredMessage, meId?: number): StoredMessage => {
+  const carried: StoredMessage = { ...entry };
+  if (entry.reactions) carried.reactions = theirSideOf(entry.reactions);
+  if (!entry.mine) return carried;
+  carried.receipt = undefined;
+  carried.mine = false;
+  // Who said it. A group draws every message against its author, and one
+  // arriving without one would be drawn against nobody.
+  if (meId !== undefined) carried.author = meId;
+  return carried;
+};
+
+/**
+ * Send a member what was said on this conversation before they answered.
+ *
+ * Nobody approves this. The asker is on the conversation -- the server will
+ * not carry anything into it otherwise -- and a group's roster is fixed, so
+ * every message being sent was written to a roster they were already on.
+ *
+ * Newest first, so a transfer that stops leaves the oldest behind rather than
+ * a random half, and terminated by an empty chunk that says so.
+ */
+async function serveThreadHistory(
+  conversationId: string,
+  requestId: string,
+  toUserId: number,
+  meId?: number
+): Promise<void> {
+  const messages = await messageLog.get(conversationId);
+  const chunks: StoredMessage[][] = [];
+  for (let index = messages.length; index > 0; index -= HISTORY_CHUNK) {
+    chunks.push(messages.slice(Math.max(0, index - HISTORY_CHUNK), index));
+  }
+  let seq = 0;
+  for (const chunk of chunks) {
+    seq += 1;
+    const sent = await sendEnvelope(
+      conversationId,
+      [toUserId],
+      {
+        v: 1,
+        kind: "thread-history",
+        requestId,
+        seq,
+        last: false,
+        messages: chunk.map((entry) => asSeenByThem(entry, meId)),
+      },
+      { toSelf: false, silent: true }
+    );
+    // Nothing more will get through this round. What did is already waiting
+    // for them, and their next ask reaches somebody else.
+    if (!sent) return;
+  }
+  await sendEnvelope(
+    conversationId,
+    [toUserId],
+    { v: 1, kind: "thread-history", requestId, seq: seq + 1, last: true, messages: [] },
+    { toSelf: false, silent: true }
+  );
+}
+
 /** Serve an approved request, without letting a failure stop a collection. */
 async function serveApprovedHistory(): Promise<void> {
   try {
@@ -1395,13 +1587,31 @@ async function serveApprovedHistory(): Promise<void> {
  * Acknowledging deletes the row on the server, so the local log is written
  * first — losing a message to a failed write is worse than collecting it twice.
  */
-export async function collect({ receipts = true }: { receipts?: boolean } = {}): Promise<string[]> {
+export async function collect({
+  receipts = true,
+  meId,
+}: {
+  receipts?: boolean;
+  /**
+   * Which account this is. Only needed to say who said what when this device
+   * sends its thread to somebody who has just joined a group; without it those
+   * messages arrive with no author, which draws them against nobody.
+   */
+  meId?: number;
+} = {}): Promise<string[]> {
   const { id: device, devices: ourDevices } = await ensureDeviceContext();
   // Before the queue is read, and before the early return below it: a device
   // that has just arrived has nothing waiting, and asking is the whole reason
   // it has nothing.
   try {
     await requestHistory();
+  } catch {
+    // The next collection asks again.
+  }
+  // Same reason, for the other kind of history: a conversation somebody has
+  // just joined has nothing waiting for it either, and asking is how it fills.
+  try {
+    await runThreadCatchUps();
   } catch {
     // The next collection asks again.
   }
@@ -1432,6 +1642,8 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   const collected: number[] = [];
   /** Their messages that reached this device, per conversation, to report. */
   const landed = new Map<string, string[]>();
+  /** Members who have just joined a group and asked for its thread. */
+  const asking: { conversationId: string; requestId: string; userId: number }[] = [];
 
   for (const item of queue.items) {
     try {
@@ -1582,6 +1794,41 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
+      // Between the people on one group, inside the conversation it is about:
+      // somebody who has just answered asking for what was said before they
+      // did, and the answer. Never on this account's own sessions -- a device
+      // of its own has its own kind of transfer, which is the one above.
+      if (envelope.kind === "thread-history-request" || envelope.kind === "thread-history") {
+        if (!mine) {
+          if (envelope.kind === "thread-history-request") {
+            // Served after the queue is drained rather than in the middle of
+            // it, so a transfer does not hold up the rest of the collection.
+            // Without a session author there is nobody to answer: the ask
+            // arrived on a session opened before this device recorded who is
+            // behind one.
+            if (author !== undefined) {
+              asking.push({
+                conversationId: item.conversation_id,
+                requestId: envelope.requestId,
+                userId: author,
+              });
+            }
+          } else {
+            const wanted = await threadCatchUp.get(item.conversation_id);
+            // Matched to the ask this device made, so what arrives is what it
+            // went looking for.
+            if (wanted?.requestId === envelope.requestId) {
+              if ((await messageLog.merge(item.conversation_id, envelope.messages)) > 0) {
+                touched.add(item.conversation_id);
+              }
+              if (envelope.last) await threadCatchUp.clear(item.conversation_id);
+            }
+          }
+        }
+        collected.push(item.id);
+        continue;
+      }
+
       if (envelope.kind === "receipt") {
         // Not a message: news about ones already sent. Their own tab reporting
         // is the sender's business, not this thread's, so a receipt that moved
@@ -1629,6 +1876,19 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   // After the acknowledgement, so a request that arrived in this batch is
   // served in it rather than a collection later.
   await serveApprovedHistory();
+
+  // The same, for a member who has just joined a group. One transfer each, so
+  // a second ask from the same person in the same batch is one answer.
+  const answered = new Set<string>();
+  for (const ask of asking) {
+    if (answered.has(ask.requestId)) continue;
+    answered.add(ask.requestId);
+    try {
+      await serveThreadHistory(ask.conversationId, ask.requestId, ask.userId, meId);
+    } catch {
+      // Their next ask reaches somebody else.
+    }
+  }
 
   // After the acknowledgement, and never in its way: a receipt is a courtesy
   // and the queue row it is about is already safely on this device.

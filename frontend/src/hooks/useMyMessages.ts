@@ -43,7 +43,9 @@ import {
   sendRemove,
   sendText,
   unreadIn,
+  wantThreadHistory,
 } from "@/crypto/messaging";
+import { useAuth } from "@/hooks/useAuth";
 import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -185,11 +187,14 @@ export function useStartConversation() {
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
+  // Who this is, so a thread handed to somebody who has just joined a group
+  // says who said what.
+  const { user } = useAuth();
 
   return useQuery({
     queryKey: messageKeys.inbox,
     queryFn: async () => {
-      const touched = await collect({ receipts });
+      const touched = await collect({ receipts, meId: user?.id });
       for (const conversationId of touched) {
         void queryClient.invalidateQueries({
           queryKey: messageKeys.thread(conversationId),
@@ -452,7 +457,13 @@ export function useAnswerInvitation(conversationId: string) {
   // that quietly becomes pressable again reads as having been ignored.
   const accept = useMutation({
     mutationFn: () => acceptInvitation(conversationId),
-    onSuccess: settle,
+    onSuccess: () => {
+      // Nothing was kept for somebody who had not answered, so the thread up
+      // to this moment has to be asked for. Recorded here and sent by the next
+      // collection, which is also what retries it.
+      void wantThreadHistory(conversationId);
+      settle();
+    },
     onError: (error) => toast.error(getErrorMessage(error, "errors:DM_NO_INVITATION")),
   });
   const decline = useMutation({
