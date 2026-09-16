@@ -290,22 +290,21 @@ async def roles_permitting(
     return {r.id for r in roles if _role_grants(r, permission_key) and r.id is not None}
 
 
-async def override_sharing_initiative_ids(
-    session: AsyncSession,
-    *,
-    user_id: int,
-) -> set[int]:
-    """Initiative ids (in the routed guild schema) where the user holds a role
-    with ``override_share_restrictions`` ("Full access") — the set the request's
-    DAC override consults (``role_context.request_overrides_sharing``).
+def override_sharing_initiatives_select(user_id: int):
+    """Select the initiative ids (in the routed guild schema) where the user
+    holds a role with ``override_share_restrictions`` ("Full access") — the set
+    the request's DAC override consults
+    (``role_context.request_overrides_sharing``).
 
-    One indexed query over the user's memberships, joined to their role. Called
-    once per guild request at session establishment; usually returns the empty
-    set (most users are full-access PMs nowhere).
+    One indexed read over the user's memberships, joined to their role. Handed
+    out as a statement rather than a result because the guild dependency folds
+    it into the ``set_config`` that records the answer
+    (:func:`app.db.session.apply_override_initiatives`), so this stays the one
+    place that says which initiatives those are.
     """
     from sqlmodel import select
 
-    stmt = (
+    return (
         select(InitiativeMember.initiative_id)
         .join(
             InitiativeRoleModel,
@@ -316,4 +315,17 @@ async def override_sharing_initiative_ids(
             InitiativeRoleModel.override_share_restrictions.is_(True),
         )
     )
-    return set((await session.exec(stmt)).all())
+
+
+async def override_sharing_initiative_ids(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> set[int]:
+    """Run :func:`override_sharing_initiatives_select` and return its ids.
+
+    For callers that want the set on its own — a cross-guild hop, a published
+    view resolving its author — rather than as the request's recorded override.
+    Usually empty (most users are full-access PMs nowhere).
+    """
+    return set((await session.exec(override_sharing_initiatives_select(user_id))).all())

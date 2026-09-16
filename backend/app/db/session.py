@@ -8,7 +8,9 @@ from urllib.parse import urlparse
 from alembic import command
 from alembic.config import Config
 from asyncpg.exceptions import InvalidCatalogNameError
-from sqlalchemy import event, text
+from sqlalchemy import Select, Text, cast, event, func, literal_column, text
+from sqlalchemy import select as sa_select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
@@ -164,6 +166,11 @@ CONNECTION_RESET_SQL = (
     f"set_config('search_path', '{_search_path('public')}', false)"
 )
 
+#: The GUC naming the initiatives this request holds "Full access" in. Written
+#: with the rest of the context below, and on its own by
+#: :func:`apply_override_initiatives` once the routed schema can answer for it.
+OVERRIDE_INITIATIVES_GUC = "app.override_initiatives"
+
 _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
@@ -173,13 +180,22 @@ _CONTEXT_SQL = (
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
-    "set_config('app.override_initiatives', :ovr, true), "
+    f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
     "set_config('app.query', :q, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
+
+
+_OVERRIDE_SQL = f"SELECT set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true)"
+
+
+def _override_csv(initiative_ids: Optional[Sequence[int]]) -> str:
+    """The GUC form of a "Full access" set: a sorted comma list the policy
+    reads with one ``string_to_array``, empty when there are none."""
+    return ",".join(str(i) for i in sorted({int(i) for i in initiative_ids or ()}))
 
 
 def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
@@ -199,12 +215,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     query = bool(params.get("query"))
     billing_guild_id = params.get("billing_guild_id")
     system_guild_id = params.get("system_guild_id")
-    # Initiatives where the request holds "Full access". Rendered as a comma
-    # list so the policy reads it with one string_to_array; empty when none.
-    override = params.get("override_initiatives") or ()
     scope_initiative_id = params.get("scope_initiative_id")
     via_dashboard_id = params.get("via_dashboard_id")
-    override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
+    override_csv = _override_csv(params.get("override_initiatives"))
 
     # Billing-service path (set_billing_context): assumes the
     # initiative_billing role with only the billing GUC set — no
@@ -532,13 +545,62 @@ async def set_override_initiatives(
     schema the routing selects. Stored with the other context parameters so the
     replay hook carries them onto every later transaction, rather than living
     only on the connection this call happens to be holding.
+
+    Only this one GUC is written. Every other value reached the open
+    transaction when the context was applied and has not changed since, and
+    what carries them onto the next transaction is the stored params, not the
+    connection.
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is None:
         return
     params["override_initiatives"] = tuple(initiative_ids)
     if session.in_transaction():
-        await _apply_stored_context(session)
+        await session.exec(
+            text(_OVERRIDE_SQL), params={"ovr": _override_csv(initiative_ids)}
+        )
+
+
+async def apply_override_initiatives(
+    session: AsyncSession, initiative_id_select: Select[Any]
+) -> frozenset[int]:
+    """Resolve this request's "Full access" initiatives and write their GUC in
+    one statement, returning the ids.
+
+    ``initiative_id_select`` is a one-column select of initiative ids out of
+    the guild schema the session has just been routed into — see
+    :func:`app.services.rls.override_sharing_initiatives_select`, which is
+    where the rule for which ones lives. The set is only answerable once that
+    routing is in place, so asking for it and recording it was a query followed
+    by a context write. Folding the answer straight into ``set_config`` makes
+    the pair one round trip, and ``set_config`` hands the value back, so the
+    caller still gets the ids.
+    """
+    ids = initiative_id_select.distinct().subquery()
+    initiative_id = ids.c[0]
+    csv = (
+        sa_select(
+            func.coalesce(
+                func.string_agg(
+                    cast(initiative_id, Text),
+                    aggregate_order_by(literal_column("','"), initiative_id),
+                ),
+                "",
+            )
+        )
+        .select_from(ids)
+        .scalar_subquery()
+    )
+    written = (
+        await session.exec(
+            sa_select(func.set_config(OVERRIDE_INITIATIVES_GUC, csv, True))
+        )
+    ).one()[0]
+    override_ids = frozenset(int(part) for part in written.split(",") if part)
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if params is not None:
+        params["override_initiatives"] = tuple(sorted(override_ids))
+    return override_ids
 
 
 def routed_guild_id(session: AsyncSession) -> int | None:

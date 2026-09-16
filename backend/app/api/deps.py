@@ -37,8 +37,8 @@ from app.core.security import (
 )
 from app.db.session import (
     SYSTEM_SATISFIED,
+    apply_override_initiatives,
     get_session,
-    set_override_initiatives,
     set_rls_context,
 )
 from app.models.platform.access_grant import AccessGrant, AccessLevel
@@ -64,7 +64,6 @@ from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.marketplace import registration_lookup
 from app.services.platform import auto_delegation_blocklist
-from app.services.platform import guilds as guilds_service
 from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -548,8 +547,8 @@ def _satp_param(value: frozenset[int] | str) -> list[int] | str:
     return value if isinstance(value, str) else sorted(value)
 
 
-async def _enforce_guild_auth_policy(
-    session: AsyncSession,
+def _enforce_guild_auth_policy(
+    policy: GuildAuthPolicy | None,
     guild_id: int,
     satisfied: frozenset[int] | str,
 ) -> None:
@@ -559,14 +558,14 @@ async def _enforce_guild_auth_policy(
     session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
     enqueueing request already passed this gate) passes. Mirrored at the
     database layer by ``public.guild_auth_satisfied()`` inside the guild
-    RLS."""
+    RLS.
+
+    ``policy`` is the guild's row as the session may see it, read by whichever
+    branch of :func:`_load_guild_context` got here — a member's read and a
+    grantee's happen under different contexts, and each carries its own.
+    """
     if satisfied == SYSTEM_SATISFIED:
         return
-    policy = (
-        await session.exec(
-            select(GuildAuthPolicy).where(GuildAuthPolicy.guild_id == guild_id)
-        )
-    ).one_or_none()
     if policy is None or policy.policy == "open" or policy.provider_id is None:
         return
     if isinstance(satisfied, str) or policy.provider_id not in satisfied:
@@ -575,6 +574,59 @@ async def _enforce_guild_auth_policy(
             step_up_provider_slug=policy.provider_slug,
             step_up_guild_id=guild_id,
         )
+
+
+async def _read_membership_gate(
+    session: AsyncSession, guild_id: int, user_id: int
+) -> tuple[GuildMembership, Guild, GuildAuthPolicy | None] | None:
+    """The three rows the gate needs about a member, in one query.
+
+    ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
+    ``public`` and are all keyed on the guild this request addresses, so asking
+    for them separately was three trips for one answer. Each row still comes
+    back under its own policies — an outer join to a row the session may not
+    read yields NULL, exactly as its own SELECT would have. ``None`` means no
+    membership the session can see, which is the grant branch's cue.
+    """
+    row = (
+        await session.exec(
+            select(GuildMembership, Guild, GuildAuthPolicy)
+            .select_from(GuildMembership)
+            .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
+            .outerjoin(
+                GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
+            )
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    membership, guild, policy = row
+    if guild is None:
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+    return membership, guild, policy
+
+
+async def _read_grant_gate(
+    session: AsyncSession, guild_id: int
+) -> tuple[Guild, GuildAuthPolicy | None]:
+    """The same two public rows for a grantee, whose PAM context has just been
+    applied — a grant reaches the guild row through its own policy leg, so this
+    read cannot be folded into the membership one above."""
+    row = (
+        await session.exec(
+            select(Guild, GuildAuthPolicy)
+            .select_from(Guild)
+            .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
+            .where(Guild.id == guild_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+    return row[0], row[1]
 
 
 async def _load_guild_context(
@@ -615,12 +667,8 @@ async def _load_guild_context(
         user_id=current_user.id,
     )
 
-    membership = await guilds_service.get_membership(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
-    if membership is None:
+    gate = await _read_membership_gate(session, guild_id, current_user.id)
+    if gate is None:
         # No standing membership — fall back to a live PAM grant for this
         # guild. The grantee can read (and write, if read_write) within the
         # grant's window; RLS scopes it to this one guild via the pam flags
@@ -651,10 +699,10 @@ async def _load_guild_context(
             pam_read=True,
             pam_write=is_read_write,
         )
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        guild, policy = await _read_grant_gate(session, guild_id)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
-        await _enforce_guild_auth_policy(session, guild_id, satisfied)
+        _enforce_guild_auth_policy(policy, guild_id, satisfied)
         # Break-glass acts as a full guild admin; a scoped grantee gets the
         # ``support`` role — a first-class identity for PAM access rather than a
         # ``member`` masquerade. ``support`` clears no admin guard (it is not
@@ -671,7 +719,7 @@ async def _load_guild_context(
         return GuildContext(
             guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
         )
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    membership, guild, policy = gate
     # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
     # deliberately never consults it (PAM/break-glass behave exactly as against
     # an active guild, so suspending a guild can never lock operators out).
@@ -683,7 +731,7 @@ async def _load_guild_context(
     # the SELECT-only guild role (see _apply_guild_session_context).
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
-    await _enforce_guild_auth_policy(session, guild_id, satisfied)
+    _enforce_guild_auth_policy(policy, guild_id, satisfied)
     return GuildContext(
         guild=guild,
         membership=membership,
@@ -899,17 +947,17 @@ async def _apply_guild_session_context(
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
     )
-    # Precompute the initiatives where this member holds "Full access" so the
-    # sync DAC checks can apply the gate-4 override without an async query. Runs
-    # in the routed guild schema (after SET ROLE), so it sees this guild's roles.
+    # The initiatives where this member holds "Full access", for the sync DAC
+    # checks (gate 4, without an async query) and for the policies that read
+    # the same override. Runs in the routed guild schema (after SET ROLE), so
+    # it sees this guild's roles — and resolving it and recording it are the
+    # same statement, which is what keeps the context above written once.
     from app.services import rls as rls_service
 
-    override_ids = await rls_service.override_sharing_initiative_ids(
-        session, user_id=current_user.id
+    override_ids = await apply_override_initiatives(
+        session, rls_service.override_sharing_initiatives_select(current_user.id)
     )
-    set_override_sharing_initiatives(frozenset(override_ids))
-    # And in the database, where the policies read the same override.
-    await set_override_initiatives(session, tuple(override_ids))
+    set_override_sharing_initiatives(override_ids)
     return session
 
 
