@@ -47,7 +47,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { isGuildAdminRole } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export function SettingsGuildAppsPage() {
@@ -55,7 +54,7 @@ export function SettingsGuildAppsPage() {
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = isGuildAdminRole(activeGuild?.role);
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
 
   const apps = appsQuery.data?.items ?? [];
 

@@ -96,6 +96,9 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // arrives and says so.
   online_count: 0,
   role: "member",
+  // A placeholder until the guild's own payload arrives and says what this
+  // grant reaches; the server settles it there.
+  is_admin: false,
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,

@@ -113,3 +113,17 @@ async def test_a_guard_naming_other_roles_is_left_alone():
     guard = deps.require_guild_roles(GuildRole.member)
     with pytest.raises(HTTPException):
         await guard(_context(GuildRole.security_admin))
+
+
+def test_a_claim_rule_cannot_name_the_seat():
+    """What an identity provider's rules may hand out.
+
+    The mapping surface stores a role as a string, and the set it validates
+    against is derived from the same one the guild's own endpoints use, so the
+    seat stays off it by construction rather than by a second list agreeing.
+    """
+    from app.api.v1.platform_endpoints.settings import _MAPPABLE_GUILD_ROLES
+
+    assert GuildRole.security_admin.value not in _MAPPABLE_GUILD_ROLES
+    assert GuildRole.support.value not in _MAPPABLE_GUILD_ROLES
+    assert _MAPPABLE_GUILD_ROLES == {r.value for r in GUILD_ASSIGNABLE_ROLES}
