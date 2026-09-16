@@ -73,11 +73,20 @@ def can_serve_login_clause() -> ColumnElement[bool]:
     PKCE-only public client is a guild-provider affordance (see
     ``_active_platform_provider``). Row-form callers branch between the two
     halves; a query that must ask of rows it is not loading needs them as one.
+
+    The platform row is ``guild_id IS NULL`` **and** the platform slug, which
+    is how :func:`get_platform_provider` names it. Both halves matter: a guild
+    may carry any slug in its own namespace, the platform's included, and a
+    guild row is reached through its guild rather than through this one.
     """
+    is_platform_row = and_(
+        AuthProvider.guild_id.is_(None),
+        AuthProvider.slug == PLATFORM_OIDC_SLUG,
+    )
     return and_(
         login_ready_clause(),
         or_(
-            AuthProvider.slug != PLATFORM_OIDC_SLUG,
+            ~is_platform_row,
             select(AuthProviderSecret.provider_id)
             .where(
                 AuthProviderSecret.provider_id == AuthProvider.id,
