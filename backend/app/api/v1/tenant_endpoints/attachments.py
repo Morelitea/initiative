@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
@@ -77,9 +76,9 @@ async def upload_attachment(
         )
 
     # Detect image format from magic bytes (imghdr was removed in Python 3.13)
-    is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:4] in (
-        b"<?xm",
-        b"<svg",
+    stripped = contents.lstrip()
+    is_svg = stripped.startswith(b"<svg") or (
+        stripped.startswith(b"<?xml") and b"<svg" in stripped[:1024]
     )
     detected_format: str | None = None
     if is_svg:
@@ -102,10 +101,11 @@ async def upload_attachment(
             detail=AttachmentMessages.INVALID_IMAGE,
         )
 
-    original_suffix = Path(file.filename or "").suffix.lower()
-    extension = original_suffix or f".{detected_format}"
-    safe_extension = extension if extension.startswith(".") else f".{extension}"
-    filename = f"{uuid4().hex}{safe_extension}"
+    # The URL suffix drives the serving policy for active formats, while the
+    # stored MIME type drives S3 streaming responses. Derive both from the
+    # bytes; a caller-controlled filename or Content-Type must not make those
+    # two security decisions disagree.
+    filename = f"{uuid4().hex}.{detected_format}"
 
     try:
         await enforce_storage_quota(
@@ -117,7 +117,7 @@ async def upload_attachment(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    resolved_content_type = file.content_type or _FORMAT_TO_MIME[detected_format]
+    resolved_content_type = _FORMAT_TO_MIME[detected_format]
     # Pick up a backend/credential change saved in another worker before writing,
     # so the blob lands in the configured store (TTL-gated; usually a no-op).
     await storage_config.ensure_storage_config_fresh(session)
