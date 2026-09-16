@@ -24,7 +24,6 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   DEFAULT_ENABLED_TOOLS,
-  TOGGLEABLE_TOOLS,
   TOOLS,
   toolCamelPlural,
   toolCreatePermission,
