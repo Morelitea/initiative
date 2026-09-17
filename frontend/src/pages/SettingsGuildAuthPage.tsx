@@ -33,6 +33,10 @@ import { getErrorMessage } from "@/lib/errorMessage";
  * set against it — sessions reach this guild only after signing in through
  * one specific provider; `open` (the default) admits any signed-in session.
  */
+/** The select's value for "any of ours" — a requirement that names no single
+ * provider. Not a number, so it can never collide with a provider id. */
+const ANY_PROVIDER = "any";
+
 export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
@@ -45,6 +49,10 @@ export const SettingsGuildAuthPage = () => {
   const grantedOptions = activeGuild?.auth_options ?? [];
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
+  // Who may *change* any of this, as opposed to read it. The seat above admin
+  // holds a community's sign-in configuration, so an ordinary admin sees the
+  // page and none of its controls.
+  const maySetSignIn = activeGuild?.role === "security_admin";
   const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
@@ -70,23 +78,31 @@ export const SettingsGuildAuthPage = () => {
     (loaded) => ({
       policy: loaded?.policy ?? ("open" as "open" | "required"),
       providerId: loaded?.provider_id ?? null,
+      // A rule that names no provider and asks for the community's own
+      // single sign-on is the "any of ours" choice below.
+      anyProvider: loaded?.provider_id == null && (loaded?.require_methods ?? []).length > 0,
     }),
     guildId
   );
-  const { policy, providerId } = form.values;
+  const { policy, providerId, anyProvider } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
-  const setProviderId = (next: number | null) => form.set({ providerId: next });
   const [error, setError] = useState<string | null>(null);
   const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
   const selectedProvider = eligibleProviders.find((entry) => entry.id === providerId);
+  const savedAnyProvider =
+    policyQuery.data != null &&
+    policyQuery.data.provider_id == null &&
+    (policyQuery.data.require_methods ?? []).length > 0;
   const isDirty =
     policyQuery.data != null &&
     (policy !== policyQuery.data.policy ||
-      (policy === "required" && providerId !== (policyQuery.data.provider_id ?? null)));
-  const canSave = policy === "open" || providerId != null;
+      (policy === "required" &&
+        (anyProvider !== savedAnyProvider ||
+          (!anyProvider && providerId !== (policyQuery.data.provider_id ?? null)))));
+  const canSave = policy === "open" || anyProvider || providerId != null;
 
   const save = () => {
     // What is being sent, so a choice changed while this is in flight is not
@@ -95,7 +111,9 @@ export const SettingsGuildAuthPage = () => {
     updatePolicy.mutate(
       policy === "open"
         ? { policy: "open" }
-        : { policy: "required", provider_id: providerId as number },
+        : anyProvider
+          ? { policy: "required", require_methods: ["sso"] }
+          : { policy: "required", provider_id: providerId as number },
       {
         onSuccess: () => {
           setError(null);
@@ -107,7 +125,10 @@ export const SettingsGuildAuthPage = () => {
           const detail = (err as { response?: { data?: { detail?: string } } }).response?.data
             ?.detail;
           if (detail === "GUILD_AUTH_POLICY_SELF_UNSATISFIED") {
-            const chosen = eligibleProviders.find((entry) => entry.id === providerId);
+            // "Any of ours" is satisfied by any of them, so offer the first.
+            const chosen = anyProvider
+              ? eligibleProviders[0]
+              : eligibleProviders.find((entry) => entry.id === providerId);
             setSelfUnsatisfiedSlug(chosen?.slug ?? null);
             setError(null);
             return;
@@ -127,8 +148,12 @@ export const SettingsGuildAuthPage = () => {
     setSelfUnsatisfiedSlug(null);
     setError(null);
   };
-  const changeProvider = (id: number) => {
-    setProviderId(id);
+  const changeProvider = (value: string) => {
+    form.set(
+      value === ANY_PROVIDER
+        ? { anyProvider: true, providerId: null }
+        : { anyProvider: false, providerId: Number(value) }
+    );
     setSelfUnsatisfiedSlug(null);
     setError(null);
   };
@@ -173,6 +198,11 @@ export const SettingsGuildAuthPage = () => {
 
   return (
     <div className="space-y-6">
+      {!maySetSignIn && (
+        <Alert>
+          <AlertDescription>{t("guildAuth.readOnlyNotice")}</AlertDescription>
+        </Alert>
+      )}
       {mayRequireSignIn ? (
         <Card className="shadow-sm">
           <CardHeader>
@@ -186,7 +216,12 @@ export const SettingsGuildAuthPage = () => {
               className="gap-3"
             >
               <div className="flex items-start gap-3 rounded-md border px-3 py-3">
-                <RadioGroupItem id="guild-auth-open" value="open" className="mt-1" />
+                <RadioGroupItem
+                  id="guild-auth-open"
+                  value="open"
+                  disabled={!maySetSignIn}
+                  className="mt-1"
+                />
                 <div>
                   <Label htmlFor="guild-auth-open" className="font-medium text-base">
                     {t("guildAuth.policy.openLabel")}
@@ -198,7 +233,7 @@ export const SettingsGuildAuthPage = () => {
                 <RadioGroupItem
                   id="guild-auth-required"
                   value="required"
-                  disabled={eligibleProviders.length === 0}
+                  disabled={!maySetSignIn || eligibleProviders.length === 0}
                   className="mt-1"
                 />
                 <div className="min-w-0 flex-1 space-y-2">
@@ -215,13 +250,23 @@ export const SettingsGuildAuthPage = () => {
                   ) : (
                     policy === "required" && (
                       <Select
-                        value={providerId != null ? String(providerId) : undefined}
-                        onValueChange={(value) => changeProvider(Number(value))}
+                        value={
+                          anyProvider
+                            ? ANY_PROVIDER
+                            : providerId != null
+                              ? String(providerId)
+                              : undefined
+                        }
+                        onValueChange={changeProvider}
+                        disabled={!maySetSignIn}
                       >
                         <SelectTrigger className="w-full sm:w-72">
                           <SelectValue placeholder={t("guildAuth.policy.providerPlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={ANY_PROVIDER}>
+                            {t("guildAuth.policy.anyProvider")}
+                          </SelectItem>
                           {eligibleProviders.map((entry) => (
                             <SelectItem key={entry.id} value={String(entry.id)}>
                               {entry.display_name}
@@ -230,6 +275,11 @@ export const SettingsGuildAuthPage = () => {
                         </SelectContent>
                       </Select>
                     )
+                  )}
+                  {policy === "required" && anyProvider && (
+                    <p className="text-muted-foreground text-sm">
+                      {t("guildAuth.policy.anyProviderHelp")}
+                    </p>
                   )}
                 </div>
               </div>
@@ -260,7 +310,10 @@ export const SettingsGuildAuthPage = () => {
             )}
 
             <div className="flex justify-end">
-              <Button onClick={save} disabled={!isDirty || !canSave || updatePolicy.isPending}>
+              <Button
+                onClick={save}
+                disabled={!maySetSignIn || !isDirty || !canSave || updatePolicy.isPending}
+              >
                 {updatePolicy.isPending ? t("common:submitting") : t("common:save")}
               </Button>
             </div>
@@ -268,7 +321,9 @@ export const SettingsGuildAuthPage = () => {
         </Card>
       ) : null}
 
-      {mayConfigureProviders ? <GuildAuthProvidersSection guildId={guildId} /> : null}
+      {mayConfigureProviders ? (
+        <GuildAuthProvidersSection guildId={guildId} readOnly={!maySetSignIn} />
+      ) : null}
 
       <Card className="shadow-sm">
         <CardHeader>

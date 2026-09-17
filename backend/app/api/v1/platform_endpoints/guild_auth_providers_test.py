@@ -27,17 +27,19 @@ PROVIDER_BODY = {
 }
 
 
-async def _guild_admin(session: AsyncSession):
+async def _guild_security_admin(session: AsyncSession):
+    """The guild's provider registry is its sign-in configuration, so the
+    member who manages it holds the seat rather than an ordinary admin's."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.security_admin
     )
     return admin, guild
 
 
-async def test_guild_admin_full_crud(client: AsyncClient, session: AsyncSession):
-    admin, guild = await _guild_admin(session)
+async def test_the_seat_has_full_crud(client: AsyncClient, session: AsyncSession):
+    admin, guild = await _guild_security_admin(session)
     headers = get_auth_headers(admin)
     base = f"/api/v1/guilds/{guild.id}/auth/providers"
 
@@ -106,7 +108,7 @@ async def test_provider_crud_404_when_guild_auth_disabled(
 
 
 async def test_member_and_non_member_denied(client: AsyncClient, session: AsyncSession):
-    _admin, guild = await _guild_admin(session)
+    _admin, guild = await _guild_security_admin(session)
     member = await create_user(session)
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
@@ -128,8 +130,8 @@ async def test_slug_unique_per_guild_not_across_namespaces(
     """A slug is taken only within its own namespace: the same slug can exist
     operator-globally, in guild A, and in guild B at once."""
     await create_auth_provider(session, slug="corp")  # operator-global
-    admin_a, guild_a = await _guild_admin(session)
-    admin_b, guild_b = await _guild_admin(session)
+    admin_a, guild_a = await _guild_security_admin(session)
+    admin_b, guild_b = await _guild_security_admin(session)
 
     first = await client.post(
         f"/api/v1/guilds/{guild_a.id}/auth/providers",
@@ -160,7 +162,7 @@ async def test_a_guild_may_use_any_slug_including_the_platforms(
     """A guild's slugs are its own. ``oidc`` names the platform provider in the
     operator-global namespace and nothing in a guild's, and a guild provider is
     addressed through its guild — so the two never meet."""
-    admin, guild = await _guild_admin(session)
+    admin, guild = await _guild_security_admin(session)
 
     response = await client.post(
         f"/api/v1/guilds/{guild.id}/auth/providers",
@@ -178,8 +180,8 @@ async def test_other_namespace_rows_unreachable(
 ):
     """An operator-global row or another guild's row is a 404 through this
     guild's CRUD, for both update and delete."""
-    admin, guild = await _guild_admin(session)
-    _admin_b, guild_b = await _guild_admin(session)
+    admin, guild = await _guild_security_admin(session)
+    _admin_b, guild_b = await _guild_security_admin(session)
     global_row = await create_auth_provider(session, slug="corp")
     foreign_row = await create_auth_provider(session, slug="corp", guild_id=guild_b.id)
     headers = get_auth_headers(admin)
@@ -198,7 +200,7 @@ async def test_other_namespace_rows_unreachable(
 async def test_delete_refused_while_policy_requires(
     client: AsyncClient, session: AsyncSession
 ):
-    admin, guild = await _guild_admin(session)
+    admin, guild = await _guild_security_admin(session)
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     session.add(
         GuildAuthPolicy(

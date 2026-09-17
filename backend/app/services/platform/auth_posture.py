@@ -54,21 +54,23 @@ async def login_method_allowed(session: AsyncSession, method: LoginMethod) -> bo
 
 
 async def guilds_requiring_sign_in(session: AsyncSession) -> int:
-    """How many guilds require a sign-in through a provider of their own.
+    """How many guilds require a sign-in of their own.
 
     A requirement is enforced from the policy row alone — the gate in
     ``deps.py`` and ``public.guild_auth_satisfied()`` read nothing else — so it
     stands whatever happens to the route that satisfies it. Counted before
     single sign-on is withdrawn for that reason.
+
+    Any row that is not ``open`` counts. A requirement names a provider, or a
+    way in, or both, and a table constraint is what makes that list complete —
+    so this stays right when a third thing becomes requirable, rather than
+    quietly skipping it.
     """
     return (
         await session.exec(
             select(func.count())
             .select_from(GuildAuthPolicy)
-            .where(
-                GuildAuthPolicy.policy != "open",
-                GuildAuthPolicy.provider_id.is_not(None),
-            )
+            .where(GuildAuthPolicy.policy != "open")
         )
     ).one()
 

@@ -18,7 +18,7 @@ before they reach a session row or an access token.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,6 +28,20 @@ from typing import Any
 MAX_AMR_VALUES = 16
 MAX_AMR_VALUE_LENGTH = 64
 MAX_ACR_LENGTH = 256
+
+#: Names the provider a session came in through.
+PROVIDER_AMR_PREFIX = "oidc:"
+
+#: Marks a session as having completed one community's own single sign-on.
+#: Written when the provider is that community's rather than the deployment's,
+#: so a rule reading "any of ours" can be answered from the session alone.
+GUILD_AMR_PREFIX = "guild:"
+
+#: The prefixes this application writes into a session's ``amr`` itself. They
+#: are its own account of a sign-in, so a value arriving under one of them from
+#: an identity provider is dropped rather than kept: a provider's ``amr`` is the
+#: provider's own vocabulary, and these markers are not part of it.
+RESERVED_AMR_PREFIXES = (PROVIDER_AMR_PREFIX, GUILD_AMR_PREFIX)
 
 # The far end of what could be a time: 9999-12-31T23:59:59Z in epoch seconds.
 # A value past it is not a timestamp, whatever else it is.
@@ -75,14 +89,45 @@ def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
     )
 
 
-def session_amr(provider_slug: str, assurance: ProviderAssurance) -> list[str]:
+def session_amr(
+    provider_slug: str,
+    assurance: ProviderAssurance,
+    *,
+    guild_id: int | None = None,
+) -> list[str]:
     """The session-level ``amr`` one provider login contributes: our own marker
-    naming the provider, plus the methods the IdP named.
+    naming the provider, the community it belongs to when it belongs to one,
+    plus the methods the IdP named.
 
-    The marker is what a guild policy keyed to *this* provider matches; the
-    IdP's own values are what an assurance-only policy reads.
+    The provider marker is what a guild policy keyed to *this* provider
+    matches; the community marker is what a policy asking for any of that
+    community's own providers matches; the IdP's own values are what an
+    assurance-only policy reads.
     """
-    return sorted({f"oidc:{provider_slug}", *assurance.amr})
+    markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
+    if guild_id is not None:
+        markers.add(f"{GUILD_AMR_PREFIX}{guild_id}")
+    return sorted({*markers, *assurance.amr})
+
+
+def sso_guilds_from_amr(amr: Iterable[str] | None) -> frozenset[int]:
+    """The communities whose own single sign-on a session completed.
+
+    Read back from the markers :func:`session_amr` wrote. A value that is not
+    one of those markers is ignored — an identity provider's own ``amr``
+    vocabulary is its own.
+    """
+    if not amr:
+        return frozenset()
+    found: set[int] = set()
+    for value in amr:
+        if not value.startswith(GUILD_AMR_PREFIX):
+            continue
+        try:
+            found.add(int(value[len(GUILD_AMR_PREFIX) :]))
+        except ValueError:
+            continue
+    return frozenset(found)
 
 
 def record_for_provider(
@@ -155,7 +200,9 @@ def _read_auth_time(value: Any) -> int | None:
 def _read_amr(value: Any) -> tuple[str, ...]:
     # OIDC Core §2: a JSON array of case-sensitive strings. RFC 8176 registers
     # the common names, but a provider may use its own, so the values are taken
-    # as given rather than checked against a list.
+    # as given rather than checked against a list — except under the prefixes
+    # this application writes for itself, which are dropped (see
+    # RESERVED_AMR_PREFIXES).
     if not isinstance(value, list):
         return ()
     kept: list[str] = []
@@ -164,6 +211,8 @@ def _read_amr(value: Any) -> tuple[str, ...]:
             continue
         cleaned = entry.strip()
         if not cleaned or len(cleaned) > MAX_AMR_VALUE_LENGTH:
+            continue
+        if cleaned.startswith(RESERVED_AMR_PREFIXES):
             continue
         if cleaned not in kept:
             kept.append(cleaned)

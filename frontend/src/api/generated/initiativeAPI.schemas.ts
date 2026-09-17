@@ -3860,13 +3860,16 @@ export const GuildAuthPolicyReadPolicy = {
 
 /**
  * The guild's sign-in requirement. ``open`` is the default (no stored
- * row); ``required`` names the provider a session must have satisfied.
+ * row). ``required`` names a provider a session must have satisfied, asks for
+ * the guild's own single sign-on without naming which provider serves it, or
+ * both.
  */
 export interface GuildAuthPolicyRead {
   policy: GuildAuthPolicyReadPolicy;
   provider_id: number | null;
   provider_slug: string | null;
   provider_display_name: string | null;
+  require_methods: "sso"[];
 }
 
 export type GuildAuthPolicyUpdatePolicy =
@@ -3880,6 +3883,7 @@ export const GuildAuthPolicyUpdatePolicy = {
 export interface GuildAuthPolicyUpdate {
   policy: GuildAuthPolicyUpdatePolicy;
   provider_id?: number | null;
+  require_methods?: "sso"[];
 }
 
 /**
@@ -4571,13 +4575,18 @@ export interface InterfaceSettingsUpdate {
 /**
  * Response for checking if a user can leave a guild.
  *
- * Being the guild's last admin is the only thing that stops them. Content they
- * own is released on the way out and left unowned for a guild admin to claim,
- * so there is nothing to hand over first.
+ * Two things stop them, and the caller is told which. Being the guild's last
+ * admin is one. Holding its only security admin seat while the guild requires
+ * a sign-in is the other — the requirement is lifted from the surface that
+ * seat holds, so the seat stays for as long as the requirement does.
+ *
+ * Content they own is released on the way out and left unowned for a guild
+ * admin to claim, so there is nothing to hand over first.
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
   is_last_admin: boolean;
+  is_last_security_admin: boolean;
 }
 
 /**

@@ -1183,3 +1183,147 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
 
 
 # --- Leave guild: project-orphan protection -------------------------------
+
+
+@pytest.mark.integration
+async def test_an_admin_can_leave_when_another_admin_remains(
+    client: AsyncClient, session: AsyncSession
+):
+    """How many admins a guild has is a question about the guild, so it is
+    asked where the whole roster is visible. Asked through the guild role the
+    request has assumed, the count reaches the caller's own membership row and
+    every admin is told they are the last one."""
+    staying = await create_user(session)
+    leaving = await create_user(session)
+    guild = await create_guild(session, creator=staying)
+    await create_guild_membership(
+        session, user=staying, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaving, guild=guild, role=GuildRole.admin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(leaving),
+    )
+    assert eligibility.status_code == 200, eligibility.text
+    assert eligibility.json()["can_leave"] is True
+    assert eligibility.json()["is_last_admin"] is False
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+    )
+    assert response.status_code == 204, response.text
+
+
+@pytest.mark.integration
+async def test_the_last_admin_still_cannot_leave(
+    client: AsyncClient, session: AsyncSession
+):
+    """The rule the count exists for, unchanged."""
+    only_admin = await create_user(session)
+    guild = await create_guild(session, creator=only_admin)
+    await create_guild_membership(
+        session, user=only_admin, guild=guild, role=GuildRole.admin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(only_admin),
+    )
+    assert eligibility.json()["can_leave"] is False
+    assert eligibility.json()["is_last_admin"] is True
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(only_admin)
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_LEAVE_LAST_ADMIN"
+
+
+@pytest.mark.integration
+async def test_a_security_admin_counts_as_an_admin_when_someone_leaves(
+    client: AsyncClient, session: AsyncSession
+):
+    """The seat sits above admin, so it answers the question on both sides:
+    it keeps an ordinary admin from being the last one, and leaving it behind
+    is refused like any other last admin's departure."""
+    keyholder = await create_user(session)
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=keyholder)
+    await create_guild_membership(
+        session, user=keyholder, guild=guild, role=GuildRole.security_admin
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    # The seat is an admin for this purpose, so the ordinary admin is free.
+    left = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(admin)
+    )
+    assert left.status_code == 204, left.text
+
+    # And now the seat is the last one, so it stays.
+    refused = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(keyholder)
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "CANNOT_LEAVE_LAST_ADMIN"
+
+
+@pytest.mark.integration
+async def test_leaving_takes_the_lock_before_it_counts_anyone(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Both of a departure's guards ask how many people of some kind a guild
+    has left, and each answer has to still be true when the departure is
+    written. So the lock comes first — not between them, and not after.
+
+    Pinned as an order because that is what the invariant is: a guard that runs
+    outside the lock is a guard two concurrent departures can both pass.
+    """
+    from app.services.platform import guilds as guilds_service
+    from app.services.platform import users as users_service
+
+    order: list[str] = []
+    real_lock = guilds_service.lock_guild_seats
+    real_last_admin = users_service.is_last_admin_of_guild
+    real_seat = guilds_service.must_keep_security_admin
+
+    async def record(name, fn, *args, **kwargs):
+        order.append(name)
+        return await fn(*args, **kwargs)
+
+    monkeypatch.setattr(
+        guilds_service,
+        "lock_guild_seats",
+        lambda *a, **k: record("lock", real_lock, *a, **k),
+    )
+    monkeypatch.setattr(
+        users_service,
+        "is_last_admin_of_guild",
+        lambda *a, **k: record("last admin", real_last_admin, *a, **k),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "must_keep_security_admin",
+        lambda *a, **k: record("last seat", real_seat, *a, **k),
+    )
+
+    staying = await create_user(session)
+    leaving = await create_user(session)
+    guild = await create_guild(session, creator=staying)
+    await create_guild_membership(
+        session, user=staying, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaving, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+    )
+    assert response.status_code == 204, response.text
+    assert order == ["lock", "last admin", "last seat"]

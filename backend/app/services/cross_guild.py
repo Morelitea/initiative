@@ -19,7 +19,7 @@ from app.core.role_context import (
     set_override_sharing_initiatives,
 )
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import Guild, GuildMembership, GuildStatus, content_role
 from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
@@ -152,7 +152,7 @@ async def gather_across_guilds(
             # access to a suspended guild, admins included.
             if guild_status == GuildStatus.suspended.value:
                 continue
-            role_value = role.value if role is not None else None
+            role_value = content_role(role) if role is not None else None
             content_read_only = guild_status == GuildStatus.read_only.value
             await set_rls_context(
                 session,
@@ -168,6 +168,7 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
+                sso_guilds=sorted(auth_context.sso_guilds()),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.

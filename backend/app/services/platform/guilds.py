@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -1478,6 +1479,74 @@ async def describe_invite_code(
     elif invite.max_uses is not None and invite.uses >= invite.max_uses:
         reason = GuildMessages.INVITE_USED
     return invite, guild, False, reason
+
+
+#: Namespace for the per-guild advisory lock below, so the key cannot collide
+#: with another feature's advisory lock on the same guild id.
+SEAT_LOCK_NAMESPACE = 8471
+
+
+async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
+    """Order the changes that could leave a guild's sign-in rule unliftable.
+
+    Advisory rather than row-based, for two reasons. The paths that change
+    these do not all write on the connection that asks the question — leaving
+    and being removed are decided on the system engine and written on the
+    request one — and a row lock would not span that. And the rows involved
+    differ per caller, so locking them directly has two demotions each waiting
+    on the other's row.
+
+    Every path that can empty the seat, or impose a requirement on it, takes
+    this first, so they order rather than interleave. Held to the end of the
+    transaction; the caller does not release it.
+    """
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": SEAT_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
+
+
+async def must_keep_security_admin(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether this member's seat has to stay where it is.
+
+    True only when all three hold: they hold ``security_admin``, they are the
+    only one who does, and the guild requires a sign-in. The requirement is
+    lifted from the guild's own sign-in surface and that surface is the seat's,
+    so the last holder stays for as long as the requirement does.
+
+    A guild with no requirement empties the seat freely — the common case, and
+    deliberately untouched.
+
+    Ask this on the system engine: ``guild_auth_policies`` is not part of the
+    request path's reach. Call :func:`lock_guild_seats` first — this reads
+    three things that have to agree with each other, and the lock is what makes
+    the answer still true when the caller acts on it.
+    """
+    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
+    if membership is None or membership.role != GuildRole.security_admin:
+        return False
+
+    policy = await session.get(GuildAuthPolicy, guild_id)
+    if policy is None or policy.policy == "open":
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+                GuildMembership.role == GuildRole.security_admin,
+            )
+        )
+    ).one()
+    return others == 0
 
 
 async def remove_user_from_guild(
