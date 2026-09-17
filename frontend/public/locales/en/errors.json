@@ -671,5 +671,7 @@
   "TOTP_CHALLENGE_INVALID": "That sign-in attempt has expired. Enter your password again to start over.",
   "TOTP_ALREADY_ENROLLED": "Two-factor authentication is already set up on this account.",
   "TOTP_NOT_ENROLLED": "Two-factor authentication isn't set up on this account.",
-  "RECOVERY_CODE_INVALID": "That recovery code isn't right, or it has already been used."
+  "RECOVERY_CODE_INVALID": "That recovery code isn't right, or it has already been used.",
+  "TOTP_NOT_PERMITTED": "This site doesn't offer the authenticator app.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — an authenticator code goes alongside a password or single sign-on, not instead of one."
 }

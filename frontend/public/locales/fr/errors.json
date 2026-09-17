@@ -671,5 +671,7 @@
   "TOTP_CHALLENGE_INVALID": "Cette tentative de connexion a expiré. Saisissez à nouveau votre mot de passe pour recommencer.",
   "TOTP_ALREADY_ENROLLED": "La double authentification est déjà configurée sur ce compte.",
   "TOTP_NOT_ENROLLED": "La double authentification n'est pas configurée sur ce compte.",
-  "RECOVERY_CODE_INVALID": "Ce code de secours n'est pas le bon, ou il a déjà été utilisé."
+  "RECOVERY_CODE_INVALID": "Ce code de secours n'est pas le bon, ou il a déjà été utilisé.",
+  "TOTP_NOT_PERMITTED": "Ce site ne propose pas l'application d'authentification.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un code d'authentification s'ajoute au mot de passe ou à l'authentification unique, il ne les remplace pas."
 }

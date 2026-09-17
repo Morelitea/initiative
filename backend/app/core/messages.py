@@ -61,6 +61,8 @@ class AuthMessages:
     TOTP_CHALLENGE_INVALID = "TOTP_CHALLENGE_INVALID"
     #: Enrolling over a factor the account has already proved.
     TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
+    #: The deployment does not offer the authenticator app.
+    TOTP_NOT_PERMITTED = "TOTP_NOT_PERMITTED"
     #: Confirming, disabling or re-issuing codes for a factor that is not there.
     TOTP_NOT_ENROLLED = "TOTP_NOT_ENROLLED"
     #: The recovery code did not match an unused one.
@@ -450,6 +452,9 @@ class SettingsMessages:
     #: A guild still requires a sign-in through a provider of its own.
     LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
+    #: Something is ticked, but nothing that can begin a session — an
+    #: authenticator code accompanies a sign-in rather than opening one.
+    LOGIN_METHODS_NO_PRIMARY = "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
     LOGIN_METHODS_WOULD_STRAND = "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
     #: The acknowledged number no longer matches what withdrawing would strand.
     LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"

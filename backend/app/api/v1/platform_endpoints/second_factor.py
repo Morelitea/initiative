@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import get_current_active_user, require_first_party_session
 from app.core.audit_events import AuditEventType
+from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, UserMessages
 from app.core.rate_limit import limiter
 from app.core.security import has_usable_password, verify_password
@@ -37,6 +38,7 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
+from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
 
 router = APIRouter()
@@ -85,13 +87,15 @@ async def read_second_factor(
 ) -> SecondFactorStatus:
     """What the account holds. A started-but-unproved enrolment reads as not
     enrolled, because that is what the sign-in makes of it too."""
+    offered = await auth_posture.login_method_allowed(admin_session, LoginMethod.totp)
     password_required = has_usable_password(current_user.hashed_password)
     factor = await totp_service.get_factor(admin_session, user_id=current_user.id)
     if factor is None or factor.confirmed_at is None:
-        return SecondFactorStatus(password_required=password_required)
+        return SecondFactorStatus(password_required=password_required, offered=offered)
     return SecondFactorStatus(
         enrolled=True,
         password_required=password_required,
+        offered=offered,
         confirmed_at=_iso(factor.confirmed_at),
         last_used_at=_iso(factor.last_used_at),
         recovery_codes_remaining=await totp_service.remaining_recovery_codes(
@@ -114,6 +118,11 @@ async def begin_second_factor(
     Nothing is asked for at sign-in until it is confirmed, so an enrolment
     begun and abandoned costs the account nothing. Beginning again replaces it.
     """
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.TOTP_NOT_PERMITTED,
+        )
     if await totp_service.is_enrolled(admin_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

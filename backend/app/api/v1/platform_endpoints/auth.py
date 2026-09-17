@@ -602,7 +602,9 @@ async def login_access_token(
     # The password is right, and for an account holding a proved factor that
     # is not the whole sign-in. Answered with a challenge to present the code
     # against rather than with a session.
-    if await totp_service.is_enrolled(admin_session, user_id=user_id):
+    if await auth_posture.login_method_allowed(
+        session, LoginMethod.totp
+    ) and await totp_service.is_enrolled(admin_session, user_id=user_id):
         issued = await challenge_service.create(
             admin_session,
             user_id=user_id,
@@ -997,7 +999,9 @@ async def create_device_token(
     # is the intended direction — an account holding a factor moves onto the
     # rotating credential rather than the ninety-day one — and it is why the
     # challenge records which sign-in opened it.
-    if await totp_service.is_enrolled(admin_session, user_id=user.id):
+    if await auth_posture.login_method_allowed(
+        session, LoginMethod.totp
+    ) and await totp_service.is_enrolled(admin_session, user_id=user.id):
         issued_challenge = await challenge_service.create(
             admin_session,
             user_id=user.id,

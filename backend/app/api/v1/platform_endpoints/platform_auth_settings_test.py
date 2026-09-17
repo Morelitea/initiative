@@ -28,13 +28,17 @@ async def _owner(session: AsyncSession):
 async def test_read_reports_every_method_and_its_cost(
     client: AsyncClient, session: AsyncSession
 ):
-    """Both methods are listed whether or not they are on, each with the number
+    """Every method is listed whether or not it is on, each with the number
     withdrawing it would concern."""
     _, headers = await _owner(session)
 
     got = await client.get(READ_URL, headers=headers)
     assert got.status_code == 200
-    assert {m["method"] for m in got.json()["methods"]} == {"password", "sso"}
+    assert {m["method"] for m in got.json()["methods"]} == {
+        "password",
+        "sso",
+        "totp",
+    }
     assert all(m["enabled"] for m in got.json()["methods"])
     assert got.json()["guilds_requiring_sign_in"] == 0
 
@@ -300,3 +304,33 @@ async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
+
+
+async def test_something_that_can_begin_a_session_must_remain(
+    client: AsyncClient, session: AsyncSession
+):
+    """A tick is not enough on its own. An authenticator code accompanies a
+    sign-in rather than opening one, so a deployment left with only that offers
+    no way to begin."""
+    _, headers = await _owner(session)
+
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["totp"]})
+    assert put.status_code == 400
+    assert put.json()["detail"] == "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
+
+
+async def test_withdrawing_the_authenticator_strands_nobody(
+    client: AsyncClient, session: AsyncSession
+):
+    """It is nobody's only way in, so it goes without an acknowledgement — what
+    it costs is that the factor stops being asked for, not anybody's access."""
+    _, headers = await _owner(session)
+
+    put = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+    assert put.status_code == 200, put.text
+    assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {
+        "password",
+        "sso",
+    }
