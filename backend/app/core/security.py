@@ -70,6 +70,28 @@ ARGON2_HASH_PREFIX = "$argon2"
 BCRYPT_HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
 USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
 
+
+def has_usable_password(hashed: str | None) -> bool:
+    """Whether a stored hash is one :func:`verify_password` can actually check.
+
+    The question a caller asks when it must know whether an account holds a
+    password *without* checking one — re-authenticating before a change, or
+    deciding whether there is anything to re-authenticate against at all.
+
+    A value outside :data:`USABLE_HASH_PREFIXES` never verifies, so it is not a
+    password: NULL and the ``'!'`` marker a 0152 downgrade writes read the same
+    here. The one thing it cannot see is an account provisioned before 0152,
+    whose throwaway hash is a real argon2 value — that reads as holding a
+    password, which is the conservative direction, and such an account reaches
+    itself through password reset.
+
+    The row-level form of the same question is
+    ``services.auth.identity._no_usable_password_clause``; both read these
+    prefixes, so there is one definition.
+    """
+    return bool(hashed) and hashed.startswith(USABLE_HASH_PREFIXES)
+
+
 # argon2id with library defaults — OWASP-aligned. Stored hashes embed the
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()

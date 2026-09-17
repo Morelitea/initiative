@@ -18,7 +18,7 @@ from app.api.deps import get_current_active_user, require_first_party_session
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthMessages, UserMessages
 from app.core.rate_limit import limiter
-from app.core.security import verify_password
+from app.core.security import has_usable_password, verify_password
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_admin_session
@@ -58,11 +58,13 @@ def _require_password(user: User, supplied: Optional[str]) -> None:
     """Re-check the password, as a password change does.
 
     The exemption is for an account that holds no password to re-check — one
-    provisioned through an identity provider, which carries no hash at all.
-    Holding a federated identity is not the same question: an account can have
-    both, and one that has a password is asked for it.
+    provisioned through an identity provider. Holding a federated identity is
+    not the same question: an account can have both, and one that has a
+    password is asked for it. Nor is "the column is NULL": a hash no scheme
+    verifies is not a password either, and asking for one nobody can supply
+    would shut the account out of its own settings.
     """
-    if user.hashed_password is None:
+    if not has_usable_password(user.hashed_password):
         return
     if not supplied:
         raise HTTPException(

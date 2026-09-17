@@ -4,11 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 import pyotp
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
-from app.models.platform.user import UserStatus
+from app.models.platform.user import User, UserStatus
 from app.services.auth import totp as totp_service
 from app.testing import create_user, get_auth_headers
 
@@ -29,7 +29,7 @@ def _next_code(secret: str) -> str:
     return pyotp.TOTP(secret).at(at)
 
 
-async def _account(session: AsyncSession, email: str):
+async def _account(session: AsyncSession, email: str) -> User:
     return await create_user(
         session,
         email=email,
@@ -39,13 +39,17 @@ async def _account(session: AsyncSession, email: str):
     )
 
 
-async def _sign_in(client: AsyncClient, email: str, password: str = PASSWORD):
+async def _sign_in(
+    client: AsyncClient, email: str, password: str = PASSWORD
+) -> Response:
     return await client.post(
         "/api/v1/auth/token", data={"username": email, "password": password}
     )
 
 
-async def _enrol(client: AsyncClient, session: AsyncSession, email: str):
+async def _enrol(
+    client: AsyncClient, session: AsyncSession, email: str
+) -> tuple[User, str, list[str]]:
     """Enrol and confirm, returning (user, secret, recovery codes)."""
     user = await _account(session, email)
     headers = get_auth_headers(user)
@@ -412,3 +416,22 @@ async def test_an_account_with_no_password_is_not_asked_for_one(
     )
     assert response.status_code == 200, response.text
     assert response.json()["secret"]
+
+
+async def test_a_hash_no_scheme_verifies_is_not_a_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """A 0152 downgrade fills NULL hashes with ``'!'``, which is not NULL and
+    which nothing can verify. Asking such an account for its password would ask
+    for one nobody can supply."""
+    user = await create_user(
+        session,
+        email="marker@example.com",
+        hashed_password="!",
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    response = await client.post(
+        "/api/v1/auth/totp/enroll", json={}, headers=get_auth_headers(user)
+    )
+    assert response.status_code == 200, response.text
