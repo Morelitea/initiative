@@ -16,6 +16,11 @@ class SecondFactorStatus(SanitizedBaseModel):
     confirmed_at: Optional[str] = None
     last_used_at: Optional[str] = None
     recovery_codes_remaining: int = 0
+    #: Whether this account holds a password the factor routes will re-check.
+    #: The form asks for one only when there is one to give: an account
+    #: provisioned through an identity provider has no hash, and holding a
+    #: federated identity is a different question — an account can have both.
+    password_required: bool = True
 
 
 class SecondFactorEnrolStart(SanitizedBaseModel):

@@ -1351,6 +1351,9 @@
     "enrolError": "Could not start setting that up.",
     "confirmError": "That code isn't right. Check your app and try again.",
     "regenerateError": "Could not make new codes.",
-    "disableError": "Could not turn that off."
+    "disableError": "Could not turn that off.",
+    "codePlaceholder": "123456",
+    "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
+    "copyUnavailable": "Couldn't copy — write the codes down instead."
   }
 }

@@ -1351,6 +1351,9 @@
     "enrolError": "No se ha podido empezar la configuración.",
     "confirmError": "Ese código no es correcto. Consulta tu aplicación e inténtalo de nuevo.",
     "regenerateError": "No se han podido crear códigos nuevos.",
-    "disableError": "No se ha podido desactivar."
+    "disableError": "No se ha podido desactivar.",
+    "codePlaceholder": "123456",
+    "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
+    "copyUnavailable": "No se ha podido copiar: anota los códigos a mano."
   }
 }

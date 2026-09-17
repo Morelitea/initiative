@@ -498,3 +498,40 @@ async def test_the_browser_is_not_handed_one_in_the_body(
     assert answered.status_code == 200, answered.text
     assert answered.json()["access_token"]
     assert answered.json()["refresh_token"] is None
+
+
+async def test_status_says_whether_a_password_will_be_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """The form cannot work this out for itself: holding a federated identity
+    is a different question from holding a password, and an account can have
+    both."""
+    with_password = await _account(session, "haspw@example.com")
+    without = await create_user(
+        session,
+        email="nopw@example.com",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+
+    for user, expected in ((with_password, True), (without, False)):
+        response = await client.get("/api/v1/auth/totp", headers=get_auth_headers(user))
+        assert response.status_code == 200, response.text
+        assert response.json()["password_required"] is expected
+
+
+async def test_a_hash_no_scheme_verifies_asks_for_no_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """Same answer as no hash at all — the marker a 0152 downgrade writes is
+    not a password, and the form must not insist on one."""
+    user = await create_user(
+        session,
+        email="marker-status@example.com",
+        hashed_password="!",
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    response = await client.get("/api/v1/auth/totp", headers=get_auth_headers(user))
+    assert response.json()["password_required"] is False

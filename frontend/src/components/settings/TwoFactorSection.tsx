@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
@@ -45,9 +44,6 @@ type Errand = "enrol" | "regenerate";
  */
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
-  const { user } = useAuth();
-  const mayHaveNoPassword = user?.has_federated_identity ?? false;
-
   const status = useReadSecondFactorApiV1AuthTotpGet();
   const refreshStatus = () => queryClient.invalidateQueries({ queryKey: ["/api/v1/auth/totp"] });
 
@@ -149,29 +145,46 @@ export const TwoFactorSection = () => {
   const submitDisable = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const entered = offCode.trim();
+    // Authenticator apps show a code as "123 456", and that is how people copy
+    // it. Six digits once the spacing is out is a live code; anything else is
+    // one of the written ones, which carries its own dashes and keeps them.
+    const compact = entered.replace(/[\s-]/g, "");
     disable.mutate({
       data: {
         current_password: offPassword || null,
-        // Six digits is a live code; anything else is one of the written ones.
-        ...(/^\d{6}$/.test(entered) ? { code: entered } : { recovery_code: entered }),
+        ...(/^\d{6}$/.test(compact) ? { code: compact } : { recovery_code: entered }),
       },
     });
   };
 
   const copyCodes = () => {
-    if (!codes || !navigator?.clipboard) return;
-    void navigator.clipboard.writeText(codes.join("\n")).then(() => {
-      toast.success(t("twoFactor.codesCopied"));
-    });
+    if (!codes) return;
+    // These are shown once. A copy that quietly did not happen would leave
+    // somebody thinking they had them.
+    if (!navigator?.clipboard) {
+      toast.error(t("twoFactor.copyUnavailable"));
+      return;
+    }
+    void navigator.clipboard
+      .writeText(codes.join("\n"))
+      .then(() => toast.success(t("twoFactor.codesCopied")))
+      .catch(() => toast.error(t("twoFactor.copyUnavailable")));
   };
 
   const enrolled = status.data?.enrolled ?? false;
+  // Asked for only where there is one to give. The server is what knows:
+  // an account can hold a federated identity and a password both.
+  const passwordRequired = status.data?.password_required ?? true;
   const remaining = status.data?.recovery_codes_remaining ?? 0;
 
   return (
     <div className="space-y-4">
       {status.isLoading ? (
         <p className="text-muted-foreground text-sm">{t("twoFactor.loading")}</p>
+      ) : status.isError ? (
+        // Unknown is not the same as off: offering setup here would send an
+        // enrolled account to a dead end.
+        <p className="text-destructive text-sm">{t("twoFactor.statusError")}</p>
       ) : enrolled ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -263,7 +276,7 @@ export const TwoFactorSection = () => {
                   autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  required={!mayHaveNoPassword}
+                  required={passwordRequired}
                 />
               </div>
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
@@ -294,7 +307,7 @@ export const TwoFactorSection = () => {
                   id="two-factor-code"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  placeholder="123456"
+                  placeholder={t("twoFactor.codePlaceholder")}
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
                   required
@@ -345,7 +358,7 @@ export const TwoFactorSection = () => {
                 autoComplete="current-password"
                 value={offPassword}
                 onChange={(event) => setOffPassword(event.target.value)}
-                required={!mayHaveNoPassword}
+                required={passwordRequired}
               />
             </div>
             <div className="space-y-2">

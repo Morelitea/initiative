@@ -1351,6 +1351,9 @@
     "enrolError": "Die Einrichtung konnte nicht gestartet werden.",
     "confirmError": "Dieser Code stimmt nicht. Sieh in deiner App nach und versuche es erneut.",
     "regenerateError": "Neue Codes konnten nicht erstellt werden.",
-    "disableError": "Das konnte nicht deaktiviert werden."
+    "disableError": "Das konnte nicht deaktiviert werden.",
+    "codePlaceholder": "123456",
+    "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
+    "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf."
   }
 }

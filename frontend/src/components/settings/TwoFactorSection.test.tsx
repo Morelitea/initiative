@@ -69,15 +69,21 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
 
 import { TwoFactorSection } from "./TwoFactorSection";
 
-const notEnrolled = { data: { enrolled: false, recovery_codes_remaining: 0 }, isLoading: false };
+const notEnrolled = {
+  data: { enrolled: false, recovery_codes_remaining: 0, password_required: true },
+  isLoading: false,
+  isError: false,
+};
 const enrolled = {
   data: {
     enrolled: true,
     confirmed_at: "2026-09-01T10:00:00Z",
     last_used_at: null,
     recovery_codes_remaining: 8,
+    password_required: true,
   },
   isLoading: false,
+  isError: false,
 };
 
 describe("TwoFactorSection", () => {
@@ -166,5 +172,45 @@ describe("TwoFactorSection", () => {
         data: { current_password: "a-password", recovery_code: "aaaaa-bbbbb" },
       })
     );
+  });
+
+  it("reads a code copied with the spacing an app shows it in", async () => {
+    // Authenticator apps render "123 456", and that is what gets copied. Sent
+    // as a recovery code it would be checked against the wrong thing.
+    const user = userEvent.setup();
+    mocks.status.mockReturnValue(enrolled);
+    renderWithProviders(<TwoFactorSection />);
+
+    await user.click(screen.getByRole("button", { name: /turn off/i }));
+    await user.type(await screen.findByLabelText(/current password/i), "a-password");
+    await user.type(screen.getByLabelText(/recovery code/i), "123 456");
+    await user.click(screen.getAllByRole("button", { name: /turn off/i }).at(-1) as HTMLElement);
+
+    await waitFor(() =>
+      expect(mocks.disable).toHaveBeenCalledWith({
+        data: { current_password: "a-password", code: "123456" },
+      })
+    );
+  });
+
+  it("does not offer setup when it could not read the status", () => {
+    // Unknown is not off: an enrolled account sent to setup only reaches a 409.
+    mocks.status.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+    renderWithProviders(<TwoFactorSection />);
+
+    expect(screen.queryByRole("button", { name: /set up/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/couldn't check/i)).toBeInTheDocument();
+  });
+
+  it("asks for no password where the account holds none", async () => {
+    const user = userEvent.setup();
+    mocks.status.mockReturnValue({
+      ...notEnrolled,
+      data: { ...notEnrolled.data, password_required: false },
+    });
+    renderWithProviders(<TwoFactorSection />);
+
+    await user.click(screen.getByRole("button", { name: /set up/i }));
+    expect(await screen.findByLabelText(/current password/i)).not.toBeRequired();
   });
 });

@@ -6513,6 +6513,7 @@ export interface SecondFactorStatus {
   confirmed_at?: string | null;
   last_used_at?: string | null;
   recovery_codes_remaining?: number;
+  password_required?: boolean;
 }
 
 /**

@@ -1351,6 +1351,9 @@
     "enrolError": "Impossible de démarrer la configuration.",
     "confirmError": "Ce code n'est pas le bon. Vérifiez votre application et réessayez.",
     "regenerateError": "Impossible de créer de nouveaux codes.",
-    "disableError": "Impossible de désactiver."
+    "disableError": "Impossible de désactiver.",
+    "codePlaceholder": "123456",
+    "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
+    "copyUnavailable": "Copie impossible — notez les codes à la main."
   }
 }
