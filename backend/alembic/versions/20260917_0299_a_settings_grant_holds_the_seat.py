@@ -35,6 +35,8 @@ AS $function$
           AND m.user_id = p_user_id
           AND m.role = 'superadmin'
     )
+    -- Or a live settings grant at the same rung. A grantee is not a member, so
+    -- the seat they hold for the grant's window is recorded on the grant.
     OR EXISTS (
         SELECT 1
         FROM public.access_grants g
@@ -46,6 +48,7 @@ AS $function$
           AND g.expires_at > now()
     )
 $function$
+
 """
 
 
