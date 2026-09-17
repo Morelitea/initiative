@@ -1,36 +1,78 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.core.email_masking import mask_email
-from app.models.platform.access_grant import AccessGrantStatus, AccessLevel
+from app.models.platform.access_grant import (
+    AccessGrantStatus,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
 
 class AccessGrantCreate(SanitizedBaseModel):
-    """A request for time-bound access to one guild."""
+    """A request for time-bound access to one guild.
+
+    Two kinds, asked for one at a time. A **content** request reaches what is
+    inside the community, at ``read`` or ``read_write``. A **settings** request
+    reaches its configuration and nothing inside it, at ``admin`` or
+    ``superadmin`` — helping with billing or a moderation setting is not a
+    reason to read anybody's documents, so the two are never one ask.
+
+    A settings request names its rung: there is no sensible default between
+    "what an admin runs" and "what the seat holds".
+    """
 
     guild_id: int
+    purpose: Literal["content", "settings"] = "content"
+    #: The content rung, for a content request. Ignored for a settings one.
     access_level: AccessLevel = AccessLevel.read
+    #: The settings rung. Required for a settings request, refused otherwise.
+    settings_level: Optional[SettingsLevel] = None
     # Omit to use the platform default; capped server-side to the configured
     # maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
 
+    @model_validator(mode="after")
+    def _rung_matches_purpose(self) -> "AccessGrantCreate":
+        if self.purpose == "settings" and self.settings_level is None:
+            raise ValueError("settings_level is required for a settings request")
+        if self.purpose != "settings" and self.settings_level is not None:
+            raise ValueError("settings_level belongs to a settings request")
+        return self
+
+    @property
+    def level(self) -> str:
+        """What goes in ``access_grants.access_level``, per purpose."""
+        if self.purpose == "settings":
+            assert self.settings_level is not None  # the validator above
+            return self.settings_level.value
+        return self.access_level.value
+
 
 class BreakGlassCreate(SanitizedBaseModel):
     """A self-approved, time-bound break-glass grant to one guild.
 
-    Issued by a ``data.bypass`` holder (admin/owner) who needs emergency
-    access without waiting for a second-person approval. Read-only by default;
-    ``read_write`` is a deliberate escalation. The window is short and capped
-    server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue to extend.
+    Issued by a ``data.bypass`` holder who needs emergency access without
+    waiting for a second-person approval. It is not a dial: breaking glass
+    issues write access to the community's content **and** a settings grant at
+    ``superadmin``, because that is what an emergency is for. Somebody who
+    wants less asks for less through the ordinary request flow. The window is
+    short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
+    to extend.
     """
 
     guild_id: int
-    access_level: AccessLevel = AccessLevel.read
     # Omit to use the break-glass default; capped server-side to the
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
@@ -62,7 +104,11 @@ class AccessGrantRead(SanitizedBaseModel):
     id: int
     user_id: int
     guild_id: int
-    access_level: AccessLevel
+    #: What this grant is for. ``purpose`` is what tells the two vocabularies
+    #: below apart: a content grant's level is ``read``/``read_write``, a
+    #: settings grant's is ``admin``/``superadmin``.
+    purpose: str = "content"
+    access_level: str
     status: AccessGrantStatus
     reason: str
     requested_duration_minutes: int

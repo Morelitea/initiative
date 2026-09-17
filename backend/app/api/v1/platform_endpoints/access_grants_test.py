@@ -498,12 +498,15 @@ async def test_scoped_read_write_grant_cannot_author_tools(
 
 
 @pytest.mark.integration
-async def test_break_glass_grant_reports_admin_permissions(
+async def test_an_operators_read_write_grant_reports_the_same_as_supports(
     client: AsyncClient, session: AsyncSession
 ):
-    """A read_write grant held by a ``data.bypass`` user is break-glass: it is
-    answered from the guild-admin branch, so create flags stay on — the
-    distinction the scoped branch above must not blur."""
+    """Holding ``data.bypass`` changes nothing about what a content grant is.
+
+    It used to be answered from the guild-admin branch, so the create flags
+    came back on. There is no such branch now: a grant reaches existing
+    content, and authoring is not part of it whoever holds it.
+    """
     owner = await create_user(
         session, email="owner-bg-perms@example.com", role=UserRole.owner
     )
@@ -523,9 +526,9 @@ async def test_break_glass_grant_reports_admin_permissions(
     )
     assert resp.status_code == 200, resp.text
     perms = resp.json()
-    assert perms["is_manager"] is True
-    assert perms["permissions"]["create_projects"] is True
-    assert perms["permissions"]["create_documents"] is True
+    assert perms["is_manager"] is False
+    assert perms["permissions"]["create_projects"] is False
+    assert perms["permissions"]["create_documents"] is False
 
 
 @pytest.mark.integration

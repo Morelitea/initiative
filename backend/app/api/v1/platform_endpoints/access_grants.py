@@ -19,6 +19,11 @@ from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
 from app.db.session import get_admin_session
 from app.models.platform.user import User
+from app.models.platform.access_grant import (
+    AccessGrantPurpose,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.schemas.platform.access_grant import (
     AccessGrantApprove,
     AccessGrantCreate,
@@ -97,6 +102,18 @@ async def create_access_request(
         )
     except service.AccessGrantError as exc:
         _raise(exc)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.ACCESS_GRANT_REQUESTED,
+        actor_user_id=current_user.id,
+        guild_id=grant.guild_id,
+        target_type="access_grant",
+        target_id=grant.id,
+        detail={
+            "purpose": grant.purpose,
+            "level": grant.access_level,
+        },
+    )
     read = await _one(session, grant)
     await session.commit()
     return read
@@ -177,13 +194,48 @@ async def break_glass_access(
     ``data.bypass``).
 
     Repurposes the old standing all-guild bypass: instead of ambient god-mode,
-    an admin/owner records a scoped, expiring, read-by-default PAM grant in one
-    step (created + self-approved). The grant is the audit trail; the holder then
-    routes into the guild via the normal PAM path until it expires.
+    the holder records scoped, expiring, self-approved PAM grants in one step.
+    The grants are the audit trail; the holder then routes into the guild via
+    the normal PAM path until they expire.
+
+    **Two grants, not one.** Write access to the community's content, and its
+    settings at ``superadmin``. They are separate rows with separate purposes,
+    so the log says which authority was exercised — and so that asking for one
+    of them, rather than both, is what the ordinary request flow is for. The
+    content grant is returned, being the one the caller routes in under; both
+    are in the list.
     """
     await _check_second_factor(session, actor=current_user, payload=payload)
     try:
-        grant = await service.break_glass(session, actor=current_user, payload=payload)
+        grant = await service.break_glass(
+            session,
+            actor=current_user,
+            payload=payload,
+            level=AccessLevel.read_write.value,
+        )
+        settings_grant = await service.break_glass(
+            session,
+            actor=current_user,
+            payload=payload,
+            purpose=AccessGrantPurpose.settings,
+            level=SettingsLevel.superadmin.value,
+        )
+        # One line per grant, each naming its purpose and its rung, so the log
+        # says what was taken and not merely that glass was broken.
+        for issued in (grant, settings_grant):
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.ACCESS_GRANT_SELF_ISSUED,
+                actor_user_id=current_user.id,
+                guild_id=issued.guild_id,
+                target_type="access_grant",
+                target_id=issued.id,
+                detail={
+                    "purpose": issued.purpose,
+                    "level": issued.access_level,
+                    "self_approved": True,
+                },
+            )
     except service.AccessGrantError as exc:
         _raise(exc)
     read = await _one(session, grant)
@@ -279,6 +331,19 @@ async def approve_access_grant(
         )
     except service.AccessGrantError as exc:
         _raise(exc)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+        actor_user_id=current_user.id,
+        guild_id=grant.guild_id,
+        target_type="access_grant",
+        target_id=grant.id,
+        detail={
+            "purpose": grant.purpose,
+            "level": grant.access_level,
+            "decision": "approved",
+        },
+    )
     read = await _one(session, grant)
     await session.commit()
     return read
@@ -299,6 +364,19 @@ async def deny_access_grant(
         grant = await service.deny(session, grant=grant, approver=current_user)
     except service.AccessGrantError as exc:
         _raise(exc)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+        actor_user_id=current_user.id,
+        guild_id=grant.guild_id,
+        target_type="access_grant",
+        target_id=grant.id,
+        detail={
+            "purpose": grant.purpose,
+            "level": grant.access_level,
+            "decision": "denied",
+        },
+    )
     read = await _one(session, grant)
     await session.commit()
     return read
@@ -319,6 +397,19 @@ async def revoke_access_grant(
         grant = await service.revoke(session, grant=grant, revoker=current_user)
     except service.AccessGrantError as exc:
         _raise(exc)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+        actor_user_id=current_user.id,
+        guild_id=grant.guild_id,
+        target_type="access_grant",
+        target_id=grant.id,
+        detail={
+            "purpose": grant.purpose,
+            "level": grant.access_level,
+            "decision": "revoked",
+        },
+    )
     read = await _one(session, grant)
     await session.commit()
     # PAM access revoked — drop the grantee's live content streams in that guild

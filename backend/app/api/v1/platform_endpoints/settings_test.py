@@ -1530,17 +1530,15 @@ async def test_billing_grant_does_not_block_a_content_break_glass(session, monke
     billing = await service.break_glass(
         session,
         actor=owner,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
+        level=AccessLevel.read.value,
     )
     content = await service.break_glass(
         session,
         actor=owner,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="incident", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="incident"),
+        level=AccessLevel.read_write.value,
     )
     assert billing.purpose == "billing"
     assert content.purpose == "content"
@@ -1575,10 +1573,9 @@ async def test_billing_grant_does_not_block_a_content_request(session):
     await service.break_glass(
         session,
         actor=support,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
+        level=AccessLevel.read.value,
     )
 
     requested = await service.request_grant(

@@ -65,6 +65,14 @@ class AuditEventType(str, Enum):
     #: the first one; from then on the seat is passed on by whoever holds it,
     #: and both paths record this.
     GUILD_SUPERADMIN_CHANGED = "guild.superadmin_changed"
+    #: A privileged-access grant was asked for, decided, or self-issued. The
+    #: ``access_grants`` row is the record of what was granted; these say when
+    #: each step happened and carry the purpose and the rung with them, so
+    #: "who held this community's settings, at what level, and on whose
+    #: authority" is answerable from the log by itself.
+    ACCESS_GRANT_REQUESTED = "access_grant.requested"
+    ACCESS_GRANT_DECIDED = "access_grant.decided"
+    ACCESS_GRANT_SELF_ISSUED = "access_grant.self_issued"
     #: Which ways in the deployment permits changed. Carries the count of
     #: accounts an operator acknowledged stranding, where they did.
     PLATFORM_LOGIN_METHODS_CHANGED = "platform.login_methods_changed"
@@ -75,6 +83,9 @@ class AuditCategory(str, Enum):
 
     MODERATION = "moderation"
     AUTHENTICATION = "authentication"
+    #: Privileged access: who was let into a community they are not in, on
+    #: whose say-so, and how far.
+    AUTHORIZATION = "authorization"
 
 
 @dataclass(frozen=True)
@@ -159,6 +170,15 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.GUILD_SUPERADMIN_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.ACCESS_GRANT_REQUESTED: AuditEventMeta(
+        tier=1, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.ACCESS_GRANT_DECIDED: AuditEventMeta(
+        tier=1, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.ACCESS_GRANT_SELF_ISSUED: AuditEventMeta(
+        tier=1, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
 }
 

@@ -7,10 +7,27 @@ from sqlmodel import Field, Index, SQLModel
 
 
 class AccessLevel(str, Enum):
-    """How much access a PAM grant confers within its target guild."""
+    """How much of a guild's *content* a PAM grant confers."""
 
     read = "read"
     read_write = "read_write"
+
+
+class SettingsLevel(str, Enum):
+    """Which rung of a guild's *configuration* a settings grant confers.
+
+    The guild's own ladder, borrowed: ``admin`` reaches what a guild admin
+    administers, ``superadmin`` reaches what the seat holds — its sign-in and
+    its billing. There is no default; a request names one.
+
+    Stored in the same ``access_level`` column as :class:`AccessLevel`, which
+    the purpose tells apart. A CHECK holds each vocabulary to its own purpose,
+    so a settings grant can never read as ``read_write`` content, nor a content
+    grant as ``superadmin``.
+    """
+
+    admin = "admin"
+    superadmin = "superadmin"
 
 
 class AccessGrantPurpose(str, Enum):
@@ -22,6 +39,11 @@ class AccessGrantPurpose(str, Enum):
 
     content = "content"
     billing = "billing"
+    #: The community's configuration, and nothing inside it. Held at a rung
+    #: from :class:`SettingsLevel`. Separate from content on purpose: helping
+    #: with billing or moderation settings is not a reason to read somebody's
+    #: documents.
+    settings = "settings"
 
 
 class AccessGrantStatus(str, Enum):
@@ -42,6 +64,15 @@ class AccessGrantStatus(str, Enum):
 # Mirror the CHECK constraints declared in the migration. Keep in sync with
 # ``20260530_0092_create_access_grants.py``.
 ACCESS_LEVELS: tuple[str, ...] = tuple(level.value for level in AccessLevel)
+SETTINGS_LEVELS: tuple[str, ...] = tuple(level.value for level in SettingsLevel)
+
+#: What ``access_level`` may say, per purpose. The CHECK in migration 0298
+#: mirrors this.
+LEVELS_BY_PURPOSE: dict[str, tuple[str, ...]] = {
+    "content": ACCESS_LEVELS,
+    "billing": ACCESS_LEVELS,
+    "settings": SETTINGS_LEVELS,
+}
 ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(
     status.value for status in AccessGrantStatus
 )

@@ -315,12 +315,10 @@ _LIST_LIMIT = 50
 
 def _require_writable(guild_context: GuildContext) -> None:
     """Imports are writes, always — no inline carve-out for read-only actors
-    (the inverse of the export engine's read-friendly inline path). A guild
-    in read_only lifecycle can't author rows; a regular PAM grantee must not
-    author content (break-glass acts as a full guild admin and may)."""
-    if guild_context.content_read_only or (
-        guild_context.is_pam and not guild_context.break_glass
-    ):
+    (the inverse of the export engine's read-friendly inline path). A guild in
+    read_only lifecycle can't author rows, and neither can a grantee: a grant
+    reaches existing content, whatever level it carries."""
+    if guild_context.content_read_only or guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,

@@ -209,7 +209,13 @@ async def _push_and_email(
 async def request_grant(
     session: AsyncSession, *, requester: User, payload: AccessGrantCreate
 ) -> AccessGrant:
-    """Create a pending access request for ``requester`` to ``payload.guild_id``."""
+    """Create a pending access request for ``requester`` to ``payload.guild_id``.
+
+    The purpose and rung come off the payload, which has already held the two
+    vocabularies apart: a settings request names ``admin`` or ``superadmin``, a
+    content one ``read`` or ``read_write``. Approving it is unchanged — the
+    approver is deciding about the request as written.
+    """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
@@ -230,7 +236,9 @@ async def request_grant(
         select(AccessGrant).where(
             AccessGrant.user_id == requester.id,
             AccessGrant.guild_id == payload.guild_id,
-            AccessGrant.purpose == AccessGrantPurpose.content.value,
+            # Per purpose: holding content access is no reason to refuse a
+            # settings request, and the reverse.
+            AccessGrant.purpose == payload.purpose,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
             ),
@@ -243,8 +251,8 @@ async def request_grant(
     grant = AccessGrant(
         user_id=requester.id,
         guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
-        purpose=AccessGrantPurpose.content.value,
+        access_level=payload.level,
+        purpose=payload.purpose,
         status=AccessGrantStatus.pending.value,
         reason=payload.reason,
         requested_duration_minutes=duration,
@@ -321,6 +329,7 @@ async def break_glass(
     payload: BreakGlassCreate,
     allow_member: bool = False,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
+    level: str,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
@@ -332,8 +341,11 @@ async def break_glass(
     default; ``read_write`` is a deliberate escalation. Short window, capped
     server-side; re-issue to extend.
 
-    ``purpose`` scopes what the grant authorises; ``allow_member`` goes with a
-    non-content purpose, which membership does not already confer.
+    ``purpose`` scopes what the grant authorises and ``level`` says how far it
+    reaches within that purpose — the two vocabularies are different, which is
+    why the caller states the level rather than a request body carrying one.
+    ``allow_member`` goes with a non-content purpose, which membership does not
+    already confer.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -380,7 +392,7 @@ async def break_glass(
     grant = AccessGrant(
         user_id=actor.id,
         guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
+        access_level=level,
         purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
         status=AccessGrantStatus.approved.value,
