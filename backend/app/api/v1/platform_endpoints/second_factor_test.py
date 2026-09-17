@@ -616,7 +616,7 @@ async def test_a_factor_can_be_added_to_the_session_already_open(
 
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": _next_code(secret)},
+        json={"code": _next_code(secret)},
         headers=await _session_headers(session, user),
     )
     assert response.status_code == 200, response.text
@@ -642,7 +642,7 @@ async def test_stepping_up_keeps_what_the_session_already_proved(
     # names is what has to be carried forward.
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": _next_code(secret)},
+        json={"code": _next_code(secret)},
         headers={
             "Authorization": "Bearer "
             + get_auth_token(
@@ -659,13 +659,34 @@ async def test_stepping_up_keeps_what_the_session_already_proved(
     assert claims["sat"] == [9]
 
 
+async def test_a_recovery_code_can_step_up_a_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """The step-up offers the same two answers the sign-in does — somebody
+    whose phone is not to hand reaches the community with a recovery code."""
+    from app.core.security import decode_session_token
+
+    user, _secret, codes = await _enrol(client, session, "recoverystep@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"recovery_code": codes[0]},
+        headers=await _session_headers(session, user),
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert "mfa" in claims["amr"]
+    # A recovery code is not the authenticator, and the session says so.
+    assert "otp" not in claims["amr"]
+
+
 async def test_a_wrong_code_does_not_upgrade_the_session(
     client: AsyncClient, session: AsyncSession
 ):
     user, _secret, _codes = await _enrol(client, session, "badstepup@example.com")
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": "000000"},
+        json={"code": "000000"},
         headers=await _session_headers(session, user),
     )
     assert response.status_code == 400
@@ -678,7 +699,7 @@ async def test_an_account_with_no_factor_cannot_step_up(
     user = await _account(session, "nofactor@example.com")
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": "123456"},
+        json={"code": "123456"},
         headers=await _session_headers(session, user),
     )
     assert response.status_code == 400
@@ -694,7 +715,7 @@ async def test_a_standing_credential_cannot_step_up(
 
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": _next_code(secret)},
+        json={"code": _next_code(secret)},
         headers=get_auth_headers(user),
     )
     assert response.status_code in (400, 403)
@@ -735,7 +756,7 @@ async def test_stepping_up_leaves_no_other_session_live(
 
     response = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"challenge": "unused", "code": _next_code(secret)},
+        json={"code": _next_code(secret)},
         headers={
             "Authorization": "Bearer "
             + get_auth_token(user, session_id=child_id, amr=["pwd"])

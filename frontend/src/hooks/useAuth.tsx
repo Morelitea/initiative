@@ -62,6 +62,12 @@ interface SecondFactorPayload {
   recoveryCode?: string;
 }
 
+/** The factor presented against a session that is already open. */
+interface StepUpPayload {
+  code?: string;
+  recoveryCode?: string;
+}
+
 interface RegisterPayload {
   email: string;
   password: string;
@@ -94,6 +100,7 @@ interface AuthContextValue {
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
+  stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -512,6 +519,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  /**
+   * Add the account's second factor to the session already signed in.
+   *
+   * What `completeSecondFactor` does at the end of a sign-in, this does in the
+   * middle of a visit: a community asked for the factor, and the answer goes
+   * against the live session rather than a fresh one. The server issues a new
+   * session carrying the factor and retires the old one, so the credential is
+   * replaced here the same way — including on native, where a device token
+   * minted before the account had a factor would not carry it.
+   */
+  const stepUpWithFactor = async ({ code, recoveryCode }: StepUpPayload) => {
+    const response = await apiClient.post<{
+      access_token: string;
+      refresh_token?: string | null;
+    }>("/auth/step-up/totp", {
+      code: code ?? null,
+      recovery_code: recoveryCode ?? null,
+    });
+    const accessToken = response.data.access_token;
+    removeItem(TOKEN_STORAGE_KEY);
+    removeItem(DEVICE_TOKEN_KEY);
+    if (isNative && response.data.refresh_token) {
+      storeRefreshToken(response.data.refresh_token);
+    } else if (!isNative) {
+      clearRefreshToken();
+    }
+    setAuthToken(accessToken, false);
+    setTokenState(accessToken);
+    setIsDeviceToken(false);
+    await refreshUser();
+  };
+
   const register = async ({
     email,
     password,
@@ -639,6 +678,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     sessionUnverified,
     login,
     completeSecondFactor,
+    stepUpWithFactor,
     register,
     completeOidcLogin,
     logout,

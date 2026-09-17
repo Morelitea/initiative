@@ -6535,6 +6535,18 @@ export interface SecondFactorStatus {
 }
 
 /**
+ * The factor, presented against a session that is already signed in.
+ *
+ * No challenge: the session the request is authenticated by is what names
+ * the account, so there is nothing for the client to carry between two legs
+ * of a sign-in that is not happening.
+ */
+export interface SecondFactorStepUpAnswer {
+  code?: string | null;
+  recovery_code?: string | null;
+}
+
+/**
  * The fact a chip is about.
  */
 export type SmartChipAspect = (typeof SmartChipAspect)[keyof typeof SmartChipAspect];

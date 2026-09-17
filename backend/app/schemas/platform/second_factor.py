@@ -72,3 +72,15 @@ class SecondFactorChallengeAnswer(SanitizedBaseModel):
     challenge: str = Field(min_length=1, max_length=512)
     code: Optional[str] = Field(default=None, max_length=64)
     recovery_code: Optional[str] = Field(default=None, max_length=64)
+
+
+class SecondFactorStepUpAnswer(SanitizedBaseModel):
+    """The factor, presented against a session that is already signed in.
+
+    No challenge: the session the request is authenticated by is what names
+    the account, so there is nothing for the client to carry between two legs
+    of a sign-in that is not happening.
+    """
+
+    code: Optional[str] = Field(default=None, max_length=64)
+    recovery_code: Optional[str] = Field(default=None, max_length=64)
