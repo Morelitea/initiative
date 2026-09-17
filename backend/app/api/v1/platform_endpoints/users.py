@@ -36,6 +36,7 @@ from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.security import (
     get_password_hash,
+    has_usable_password,
     mint_access_token,
     verify_password,
 )
@@ -980,10 +981,14 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it.
-        # SSO-only accounts have no local password to confirm and are exempt
-        # (mirrors the delete-account flow's gate).
-        if not is_sso_account:
+        # Re-authenticate with the current password before changing it. The
+        # exemption is for an account that holds no password to confirm — one
+        # provisioned through an identity provider. Holding a federated
+        # identity is a different question: an account can have both, and one
+        # that has a password is asked for it. So is "the column is NULL": a
+        # hash no scheme verifies is not a password, and asking for one nobody
+        # can supply would leave the account unable to set one.
+        if has_usable_password(current_user.hashed_password):
             current_password = update_data.get("current_password")
             if not current_password:
                 raise HTTPException(

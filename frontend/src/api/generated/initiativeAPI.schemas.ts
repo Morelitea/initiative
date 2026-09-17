@@ -6183,6 +6183,17 @@ export interface RecentViewWrite {
 }
 
 /**
+ * A set of codes, handed over once.
+ */
+export interface RecoveryCodes {
+  codes: string[];
+}
+
+export interface RecoveryCodesRegenerate {
+  current_password?: string | null;
+}
+
+/**
  * How a caller with no cookie presents its refresh token.
  *
  * The browser sends nothing here — its refresh token is a cookie it cannot
@@ -6445,6 +6456,63 @@ export interface SearchSuggestion {
   tool?: Tool | null;
   tool_id?: number | null;
   can_write?: boolean;
+}
+
+/**
+ * The second leg of a sign-in: the challenge, and the thing it asked for.
+ */
+export interface SecondFactorChallengeAnswer {
+  /**
+   * @minLength 1
+   * @maxLength 512
+   */
+  challenge: string;
+  code?: string | null;
+  recovery_code?: string | null;
+}
+
+export interface SecondFactorConfirm {
+  /**
+   * @minLength 1
+   * @maxLength 16
+   */
+  code: string;
+}
+
+/**
+ * Removing the factor asks for the password and for the factor itself —
+ * either a live code or one of the recovery codes.
+ */
+export interface SecondFactorDisable {
+  current_password?: string | null;
+  code?: string | null;
+  recovery_code?: string | null;
+}
+
+/**
+ * Beginning an enrolment. The password is re-checked here, as it is for a
+ * password change; an account with no usable password sends nothing.
+ */
+export interface SecondFactorEnrolStart {
+  current_password?: string | null;
+}
+
+/**
+ * The seed, once. There is no path that reads it back.
+ */
+export interface SecondFactorEnrolment {
+  secret: string;
+  otpauth_uri: string;
+}
+
+/**
+ * What the account holds, for the settings surface.
+ */
+export interface SecondFactorStatus {
+  enrolled?: boolean;
+  confirmed_at?: string | null;
+  last_used_at?: string | null;
+  recovery_codes_remaining?: number;
 }
 
 /**

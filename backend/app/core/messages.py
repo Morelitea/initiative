@@ -48,6 +48,23 @@ class AuthMessages:
     #: than through a standing credential (an API key, a device token, an app
     #: acting on someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
+    #: The password was right and the account holds a second factor, so the
+    #: sign-in is not finished. Answered with the challenge to present it
+    #: against.
+    TOTP_REQUIRED = "TOTP_REQUIRED"
+    #: The code did not match. The challenge is still standing, so the client
+    #: asks again.
+    TOTP_INVALID = "TOTP_INVALID"
+    #: The challenge is not standing: never issued, already spent, expired, or
+    #: out of attempts. One code for all four, so the client learns only that
+    #: it has to begin again — the same shape as the refresh rejection above.
+    TOTP_CHALLENGE_INVALID = "TOTP_CHALLENGE_INVALID"
+    #: Enrolling over a factor the account has already proved.
+    TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
+    #: Confirming, disabling or re-issuing codes for a factor that is not there.
+    TOTP_NOT_ENROLLED = "TOTP_NOT_ENROLLED"
+    #: The recovery code did not match an unused one.
+    RECOVERY_CODE_INVALID = "RECOVERY_CODE_INVALID"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"

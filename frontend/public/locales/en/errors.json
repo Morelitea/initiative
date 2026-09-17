@@ -665,5 +665,11 @@
   "POST_PERMISSION_REQUIRED": "Your initiative role doesn't include posts.",
   "GALLERY_PERMISSION_REQUIRED": "Your initiative role doesn't include galleries.",
   "GUILD_SECURITY_ADMIN_REQUIRED": "Only a security admin can change this community's sign-in settings.",
-  "CANNOT_VACATE_LAST_SECURITY_ADMIN": "This community requires a sign-in, and this is its only security admin. Appoint another one first, or lift the requirement."
+  "CANNOT_VACATE_LAST_SECURITY_ADMIN": "This community requires a sign-in, and this is its only security admin. Appoint another one first, or lift the requirement.",
+  "TOTP_REQUIRED": "Enter the code from your authenticator app to finish signing in.",
+  "TOTP_INVALID": "That code isn't right. Check your authenticator app and try again.",
+  "TOTP_CHALLENGE_INVALID": "That sign-in attempt has expired. Enter your password again to start over.",
+  "TOTP_ALREADY_ENROLLED": "Two-factor authentication is already set up on this account.",
+  "TOTP_NOT_ENROLLED": "Two-factor authentication isn't set up on this account.",
+  "RECOVERY_CODE_INVALID": "That recovery code isn't right, or it has already been used."
 }

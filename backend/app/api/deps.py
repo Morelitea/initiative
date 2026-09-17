@@ -385,6 +385,9 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
     request.state.credential = CREDENTIAL_SESSION
+    # Which session this request is: what lets an endpoint act on the
+    # account's other ones and leave the caller where they are.
+    request.state.session_id = token_data.sid
     return user
 
 

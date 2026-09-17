@@ -641,3 +641,18 @@ def test_the_sign_in_dummy_bcrypt_cost_is_pinned_not_inherited() -> None:
     cost = int(text.split("$")[2])
 
     assert cost == security.SIGN_IN_BCRYPT_COST
+
+
+def test_has_usable_password_reads_the_hash_not_the_null():
+    """The definition of "no usable password": a value outside the schemes
+    ``verify_password`` checks, whatever it is."""
+    from app.core.security import get_password_hash, has_usable_password
+
+    assert has_usable_password(get_password_hash("something")) is True
+    # NULL, and the marker a 0152 downgrade writes, read the same.
+    assert has_usable_password(None) is False
+    assert has_usable_password("!") is False
+    assert has_usable_password("") is False
+    assert has_usable_password("not-a-hash") is False
+    # A legacy bcrypt hash is still one we can check.
+    assert has_usable_password("$2b$12$" + "x" * 53) is True

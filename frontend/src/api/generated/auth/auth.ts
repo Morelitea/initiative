@@ -36,8 +36,16 @@ import type {
   PasswordResetSubmit,
   ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
   ProviderLoginApiV1AuthProviderSlugLoginGetParams,
+  RecoveryCodes,
+  RecoveryCodesRegenerate,
   RefreshRequest,
   RegisterUserApiV1AuthRegisterPostParams,
+  SecondFactorChallengeAnswer,
+  SecondFactorConfirm,
+  SecondFactorDisable,
+  SecondFactorEnrolStart,
+  SecondFactorEnrolment,
+  SecondFactorStatus,
   Token,
   UploadTokenResponse,
   UserCreate,
@@ -407,6 +415,102 @@ export const useLoginAccessTokenApiV1AuthTokenPost = <
   TContext
 > => {
   return useMutation(getLoginAccessTokenApiV1AuthTokenPostMutationOptions(options), queryClient);
+};
+/**
+ * The second leg of a password sign-in: the challenge, and the code.
+ *
+ * A recovery code is accepted here too — it is what the account holds when
+ * the authenticator is out of reach, and the set exists to be used this way.
+ * Which one answered is recorded, and told apart in ``amr``.
+ * @summary Answer Second Factor
+ */
+export const answerSecondFactorApiV1AuthTokenTotpPost = (
+  secondFactorChallengeAnswer: BodyType<SecondFactorChallengeAnswer>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/token/totp`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorChallengeAnswer,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAnswerSecondFactorApiV1AuthTokenTotpPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>,
+    TError,
+    { data: BodyType<SecondFactorChallengeAnswer> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>,
+  TError,
+  { data: BodyType<SecondFactorChallengeAnswer> },
+  TContext
+> => {
+  const mutationKey = ["answerSecondFactorApiV1AuthTokenTotpPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>,
+    { data: BodyType<SecondFactorChallengeAnswer> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return answerSecondFactorApiV1AuthTokenTotpPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnswerSecondFactorApiV1AuthTokenTotpPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>
+>;
+export type AnswerSecondFactorApiV1AuthTokenTotpPostMutationBody =
+  BodyType<SecondFactorChallengeAnswer>;
+export type AnswerSecondFactorApiV1AuthTokenTotpPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Answer Second Factor
+ */
+export const useAnswerSecondFactorApiV1AuthTokenTotpPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>,
+      TError,
+      { data: BodyType<SecondFactorChallengeAnswer> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof answerSecondFactorApiV1AuthTokenTotpPost>>,
+  TError,
+  { data: BodyType<SecondFactorChallengeAnswer> },
+  TContext
+> => {
+  return useMutation(
+    getAnswerSecondFactorApiV1AuthTokenTotpPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Rotate the refresh cookie → a fresh short-lived access token + new refresh.
@@ -2686,6 +2790,509 @@ export const useResetPasswordApiV1AuthPasswordResetPost = <
 > => {
   return useMutation(
     getResetPasswordApiV1AuthPasswordResetPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * What the account holds. A started-but-unproved enrolment reads as not
+ * enrolled, because that is what the sign-in makes of it too.
+ * @summary Read Second Factor
+ */
+export const readSecondFactorApiV1AuthTotpGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SecondFactorStatus>(
+    { url: `/api/v1/auth/totp`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadSecondFactorApiV1AuthTotpGetQueryKey = () => {
+  return [`/api/v1/auth/totp`] as const;
+};
+
+export const getReadSecondFactorApiV1AuthTotpGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadSecondFactorApiV1AuthTotpGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>> = ({
+    signal,
+  }) => readSecondFactorApiV1AuthTotpGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadSecondFactorApiV1AuthTotpGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>
+>;
+export type ReadSecondFactorApiV1AuthTotpGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadSecondFactorApiV1AuthTotpGet<
+  TData = Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+          TError,
+          Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadSecondFactorApiV1AuthTotpGet<
+  TData = Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+          TError,
+          Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadSecondFactorApiV1AuthTotpGet<
+  TData = Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Second Factor
+ */
+
+export function useReadSecondFactorApiV1AuthTotpGet<
+  TData = Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readSecondFactorApiV1AuthTotpGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadSecondFactorApiV1AuthTotpGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Mint a seed and hand it over, once.
+ *
+ * Nothing is asked for at sign-in until it is confirmed, so an enrolment
+ * begun and abandoned costs the account nothing. Beginning again replaces it.
+ * @summary Begin Second Factor
+ */
+export const beginSecondFactorApiV1AuthTotpEnrollPost = (
+  secondFactorEnrolStart: BodyType<SecondFactorEnrolStart>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SecondFactorEnrolment>(
+    {
+      url: `/api/v1/auth/totp/enroll`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorEnrolStart,
+      signal,
+    },
+    options
+  );
+};
+
+export const getBeginSecondFactorApiV1AuthTotpEnrollPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>,
+    TError,
+    { data: BodyType<SecondFactorEnrolStart> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>,
+  TError,
+  { data: BodyType<SecondFactorEnrolStart> },
+  TContext
+> => {
+  const mutationKey = ["beginSecondFactorApiV1AuthTotpEnrollPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>,
+    { data: BodyType<SecondFactorEnrolStart> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return beginSecondFactorApiV1AuthTotpEnrollPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BeginSecondFactorApiV1AuthTotpEnrollPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>
+>;
+export type BeginSecondFactorApiV1AuthTotpEnrollPostMutationBody = BodyType<SecondFactorEnrolStart>;
+export type BeginSecondFactorApiV1AuthTotpEnrollPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Begin Second Factor
+ */
+export const useBeginSecondFactorApiV1AuthTotpEnrollPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>,
+      TError,
+      { data: BodyType<SecondFactorEnrolStart> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof beginSecondFactorApiV1AuthTotpEnrollPost>>,
+  TError,
+  { data: BodyType<SecondFactorEnrolStart> },
+  TContext
+> => {
+  return useMutation(
+    getBeginSecondFactorApiV1AuthTotpEnrollPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Prove the enrolment with a code it produced, and hand back the recovery
+ * set — the one time those exist in the clear.
+ *
+ * Sessions are left alone: the person is where they are and has just proved
+ * it.
+ * @summary Confirm Second Factor
+ */
+export const confirmSecondFactorApiV1AuthTotpConfirmPost = (
+  secondFactorConfirm: BodyType<SecondFactorConfirm>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecoveryCodes>(
+    {
+      url: `/api/v1/auth/totp/confirm`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorConfirm,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConfirmSecondFactorApiV1AuthTotpConfirmPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>,
+    TError,
+    { data: BodyType<SecondFactorConfirm> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>,
+  TError,
+  { data: BodyType<SecondFactorConfirm> },
+  TContext
+> => {
+  const mutationKey = ["confirmSecondFactorApiV1AuthTotpConfirmPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>,
+    { data: BodyType<SecondFactorConfirm> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmSecondFactorApiV1AuthTotpConfirmPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmSecondFactorApiV1AuthTotpConfirmPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>
+>;
+export type ConfirmSecondFactorApiV1AuthTotpConfirmPostMutationBody = BodyType<SecondFactorConfirm>;
+export type ConfirmSecondFactorApiV1AuthTotpConfirmPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Confirm Second Factor
+ */
+export const useConfirmSecondFactorApiV1AuthTotpConfirmPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>,
+      TError,
+      { data: BodyType<SecondFactorConfirm> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmSecondFactorApiV1AuthTotpConfirmPost>>,
+  TError,
+  { data: BodyType<SecondFactorConfirm> },
+  TContext
+> => {
+  return useMutation(
+    getConfirmSecondFactorApiV1AuthTotpConfirmPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Remove the factor, its seed and its recovery codes.
+ *
+ * Asks for the password and for the factor itself — a live code, or one of
+ * the recovery codes. Every other session goes with it; this one stays.
+ * @summary Disable Second Factor
+ */
+export const disableSecondFactorApiV1AuthTotpDisablePost = (
+  secondFactorDisable: BodyType<SecondFactorDisable>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/auth/totp/disable`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorDisable,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDisableSecondFactorApiV1AuthTotpDisablePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>,
+    TError,
+    { data: BodyType<SecondFactorDisable> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>,
+  TError,
+  { data: BodyType<SecondFactorDisable> },
+  TContext
+> => {
+  const mutationKey = ["disableSecondFactorApiV1AuthTotpDisablePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>,
+    { data: BodyType<SecondFactorDisable> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return disableSecondFactorApiV1AuthTotpDisablePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DisableSecondFactorApiV1AuthTotpDisablePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>
+>;
+export type DisableSecondFactorApiV1AuthTotpDisablePostMutationBody = BodyType<SecondFactorDisable>;
+export type DisableSecondFactorApiV1AuthTotpDisablePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Disable Second Factor
+ */
+export const useDisableSecondFactorApiV1AuthTotpDisablePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>,
+      TError,
+      { data: BodyType<SecondFactorDisable> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof disableSecondFactorApiV1AuthTotpDisablePost>>,
+  TError,
+  { data: BodyType<SecondFactorDisable> },
+  TContext
+> => {
+  return useMutation(
+    getDisableSecondFactorApiV1AuthTotpDisablePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Retire the account's codes and hand over a fresh set, once.
+ * @summary Regenerate Recovery Codes
+ */
+export const regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost = (
+  recoveryCodesRegenerate: BodyType<RecoveryCodesRegenerate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecoveryCodes>(
+    {
+      url: `/api/v1/auth/recovery-codes/regenerate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: recoveryCodesRegenerate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>,
+    TError,
+    { data: BodyType<RecoveryCodesRegenerate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>,
+  TError,
+  { data: BodyType<RecoveryCodesRegenerate> },
+  TContext
+> => {
+  const mutationKey = ["regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>,
+    { data: BodyType<RecoveryCodesRegenerate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>
+>;
+export type RegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePostMutationBody =
+  BodyType<RecoveryCodesRegenerate>;
+export type RegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Regenerate Recovery Codes
+ */
+export const useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>,
+      TError,
+      { data: BodyType<RecoveryCodesRegenerate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost>>,
+  TError,
+  { data: BodyType<RecoveryCodesRegenerate> },
+  TContext
+> => {
+  return useMutation(
+    getRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePostMutationOptions(options),
     queryClient
   );
 };

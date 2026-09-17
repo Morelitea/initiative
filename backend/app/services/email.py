@@ -466,6 +466,59 @@ async def send_password_reset_email(
     )
 
 
+async def send_second_factor_changed_email(
+    session: AsyncSession, user: User, *, enabled: bool
+) -> None:
+    """Tell the account its second factor was turned on or off.
+
+    Account mail, so it reaches every address its holder has proved rather than
+    only the nominated one: a change nobody made is still seen by somebody who
+    no longer reads one of them.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    key = "secondFactor.enabled" if enabled else "secondFactor.disabled"
+    body = f"""
+    <p>{email_t("secondFactor.greeting", locale=locale, name=name)}</p>
+    <p>{email_t(f"{key}.body", locale=locale)}</p>
+    <p>{email_t("secondFactor.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t(f"{key}.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(f"{key}.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_second_factor_change(
+    session: AsyncSession, user: User, *, enabled: bool
+) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the factor has been turned on or off and committed. A
+    deployment with no mail configured still made that change, and answering the
+    request with a failure would say otherwise.
+    """
+    try:
+        await send_second_factor_changed_email(session, user, enabled=enabled)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; second-factor change for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception(
+            "could not announce second-factor change for account %s", user.id
+        )
+
+
 async def send_initiative_added_email(
     session: AsyncSession, user: User, initiative_name: str
 ) -> None:

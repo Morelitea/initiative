@@ -64,6 +64,7 @@ from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
+from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
@@ -84,6 +85,8 @@ from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.platform import security_rules
 from app.services.auth import addresses
+from app.services.auth import challenges as challenge_service
+from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
@@ -462,6 +465,72 @@ async def _record_sign_in_failure(
         )
 
 
+async def _open_password_session(
+    request: Request,
+    response: Response,
+    admin_session: AsyncSession,
+    *,
+    user_id: int,
+    token_version: int,
+    amr: list[str],
+    audit_detail: dict[str, Any],
+) -> Token:
+    """Open the session a password sign-in earned, and hand back its token.
+
+    The login model end-to-end (history/auth-detailed-design.md §3): the
+    server-side session is load-bearing — the access token carries sid/amr/sat
+    and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
+    session (the SPA renews silently). Session writes run on the system engine
+    (auth_sessions is app_admin-only).
+
+    A sign-in *is* the session. If it cannot be written the request says so
+    rather than handing back a lesser credential — ``auth_sessions`` shares a
+    database with everything the next request would need anyway.
+
+    ``amr`` is what this sign-in proved, which is where a second factor shows
+    up: a password alone records ``pwd``, and a password plus a factor records
+    what the factor was.
+    """
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=amr,
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=user_id,
+            detail=audit_detail,
+        )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
+    return Token(access_token=access_token)
+
+
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -470,7 +539,7 @@ async def login_access_token(
     session: SessionDep,
     admin_session: AdminSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Token:
+) -> Token | JSONResponse:
     await _require_login_method(session, LoginMethod.password)
     normalized_email = form_data.username.lower().strip()
     # Any of the account's addresses signs it in, resolved on the system engine
@@ -522,57 +591,133 @@ async def login_access_token(
     # telling an address in use from one nobody has signed in with.
     await addresses.note_sign_in(admin_session, email=normalized_email)
 
-    # The login model end-to-end (history/auth-detailed-design.md §3): the
-    # server-side session is load-bearing — the access token carries sid/amr/sat
-    # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
-    # session (the SPA renews silently). Session writes run on the system engine
-    # (auth_sessions is app_admin-only).
-    #
-    # A sign-in *is* the session. If it cannot be written the request says so
-    # rather than handing back a lesser credential — ``auth_sessions`` shares a
-    # database with everything the next request would need anyway.
-    #
-    # ``user`` is attached to ``admin_session``, so the rollback below expires
-    # its attributes; the plain values are captured up front.
+    # ``user`` is attached to ``admin_session``, so a rollback inside the
+    # helper expires its attributes; the plain values are captured up front.
     user_id, token_version = user.id, user.token_version
-    try:
-        issued = await session_service.create_session(
+
+    # The password is right, and for an account holding a proved factor that
+    # is not the whole sign-in. Answered with a challenge to present the code
+    # against rather than with a session.
+    if await totp_service.is_enrolled(admin_session, user_id=user_id):
+        issued = await challenge_service.create(
             admin_session,
             user_id=user_id,
-            amr=["pwd"],
-            satisfied_providers=[],
-            user_agent=request.headers.get("user-agent"),
-            ip=get_inet_client_ip(request),
+            purpose=challenge_service.ChallengePurpose.sign_in,
         )
+        await admin_session.commit()
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "detail": AuthMessages.TOTP_REQUIRED,
+                "challenge": issued.value,
+            },
+        )
+
+    return await _open_password_session(
+        request,
+        response,
+        admin_session,
+        user_id=user_id,
+        token_version=token_version,
+        amr=["pwd"],
+        audit_detail={"method": "password"},
+    )
+
+
+@router.post("/token/totp", response_model=Token)
+@limiter.limit("10/15minutes")
+async def answer_second_factor(
+    request: Request,
+    response: Response,
+    admin_session: AdminSessionDep,
+    payload: SecondFactorChallengeAnswer,
+) -> Token:
+    """The second leg of a password sign-in: the challenge, and the code.
+
+    A recovery code is accepted here too — it is what the account holds when
+    the authenticator is out of reach, and the set exists to be used this way.
+    Which one answered is recorded, and told apart in ``amr``.
+    """
+    challenge = await challenge_service.claim_attempt(
+        admin_session,
+        value=payload.challenge,
+        purpose=challenge_service.ChallengePurpose.sign_in,
+    )
+    if challenge is None:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_CHALLENGE_INVALID,
+        )
+
+    user_id = challenge.user_id
+    # Before the factor is read, not after: a code presented to an account that
+    # cannot sign in anyway should not be spent on finding that out.
+    user = await admin_session.get(User, user_id)
+    if user is None or user.status != UserStatus.active:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+
+    if payload.recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            admin_session, user_id=user_id, code=payload.recovery_code
+        )
+        method, factor_amr = "recovery_code", ["mfa"]
+        refusal = AuthMessages.RECOVERY_CODE_INVALID
+    else:
+        accepted = await totp_service.verify_code(
+            admin_session, user_id=user_id, code=payload.code or ""
+        )
+        method, factor_amr = "totp", ["otp", "mfa"]
+        refusal = AuthMessages.TOTP_INVALID
+
+    if not accepted:
+        # The attempt is already counted against the challenge, which stands
+        # until it runs out; this records the refusal and lets them try again.
         await audit_service.record(
             admin_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail={"method": "password"},
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=None,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+            detail={"method": method},
         )
-        # The name the token will carry, minted in the same transaction as the
-        # session it belongs to.
-        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
-    except Exception as exc:
-        await admin_session.rollback()
-        logger.exception("Could not open a session for user %s", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    access_token, access_max_age = mint_access_token(
-        subject=subject,
-        token_version=token_version,
-        session_id=issued.session.id,
-        amr=issued.session.amr,
-        satisfied_providers=issued.session.satisfied_providers,
-        provider_auth=issued.session.provider_auth,
+    if not await challenge_service.consume(admin_session, challenge):
+        # Spent between the claim and here, so the session it bought is not
+        # this request's to open a second time.
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_CHALLENGE_INVALID,
+        )
+
+    if method == "recovery_code":
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
+            actor_user_id=user_id,
+            detail={
+                "remaining": await totp_service.remaining_recovery_codes(
+                    admin_session, user_id=user_id
+                )
+            },
+        )
+
+    return await _open_password_session(
+        request,
+        response,
+        admin_session,
+        user_id=user_id,
+        token_version=user.token_version,
+        amr=["pwd", *factor_amr],
+        audit_detail={"method": "password", "second_factor": method},
     )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
 
 
 @router.post("/refresh", response_model=Token)

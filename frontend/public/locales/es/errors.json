@@ -665,5 +665,11 @@
   "POST_PERMISSION_REQUIRED": "Tu rol en la iniciativa no incluye publicaciones.",
   "GALLERY_PERMISSION_REQUIRED": "Tu rol en la iniciativa no incluye galerías.",
   "GUILD_SECURITY_ADMIN_REQUIRED": "Solo un administrador de seguridad puede cambiar los ajustes de inicio de sesión de esta comunidad.",
-  "CANNOT_VACATE_LAST_SECURITY_ADMIN": "Esta comunidad exige un inicio de sesión y este es su único administrador de seguridad. Nombra a otro primero o retira la exigencia."
+  "CANNOT_VACATE_LAST_SECURITY_ADMIN": "Esta comunidad exige un inicio de sesión y este es su único administrador de seguridad. Nombra a otro primero o retira la exigencia.",
+  "TOTP_REQUIRED": "Introduce el código de tu aplicación de autenticación para terminar de iniciar sesión.",
+  "TOTP_INVALID": "Ese código no es correcto. Consulta tu aplicación de autenticación e inténtalo de nuevo.",
+  "TOTP_CHALLENGE_INVALID": "Ese intento de inicio de sesión ha caducado. Vuelve a introducir tu contraseña para empezar de nuevo.",
+  "TOTP_ALREADY_ENROLLED": "La verificación en dos pasos ya está configurada en esta cuenta.",
+  "TOTP_NOT_ENROLLED": "La verificación en dos pasos no está configurada en esta cuenta.",
+  "RECOVERY_CODE_INVALID": "Ese código de recuperación no es correcto o ya se ha usado."
 }

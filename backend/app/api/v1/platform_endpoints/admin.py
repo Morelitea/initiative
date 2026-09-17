@@ -52,6 +52,9 @@ from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
+from app.services.auth import challenges as challenge_service
+from app.services.auth import sessions as session_service
+from app.services.auth import totp as totp_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
@@ -183,6 +186,48 @@ async def export_platform_users_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.delete("/users/{user_id}/second-factor", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_second_factor(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> None:
+    """Remove somebody's second factor for them.
+
+    The lost-phone path: the person cannot present the factor and cannot reach
+    the recovery codes either, so somebody with the run of platform accounts
+    takes it off and they enrol again.
+
+    A clear, never a read — nothing here hands back the seed or the codes, to
+    this caller or any other. Their sessions and any part-way sign-in go with
+    it, and the account is told.
+    """
+    user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if not await totp_service.is_enrolled(session, user_id=user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_NOT_ENROLLED,
+        )
+
+    await totp_service.disable(session, user_id=user_id)
+    await challenge_service.revoke_for_user(session, user_id=user_id)
+    await session_service.revoke_all_for_user(session, user_id=user_id)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_SECOND_FACTOR_RESET,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+    )
+    await session.commit()
+    await email_service.announce_second_factor_change(session, user, enabled=False)
 
 
 @router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)
