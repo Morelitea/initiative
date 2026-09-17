@@ -44,6 +44,7 @@ from app.schemas.platform.settings import (
     InterfaceSettingsUpdate,
     LoginMethodStatus,
     LoginMethodsUpdate,
+    SessionLifetimeUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
@@ -183,6 +184,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        session_max_hours=row.session_max_hours,
     )
 
 
@@ -215,6 +217,25 @@ async def update_login_methods(
         acknowledge_stranded=payload.acknowledge_stranded,
         actor_user_id=admin.id,
     )
+    return await _platform_auth_payload(session)
+
+
+@router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
+async def update_session_lifetime(
+    payload: SessionLifetimeUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set how long somebody may stay signed in before signing in again.
+
+    Separate from how long a session may be left alone, which the deployment's
+    own configuration holds. Sessions already open keep the terms they were
+    opened under and take the new figure at the next sign-in.
+    """
+    row = await app_settings_service.get_app_settings(session)
+    row.session_max_hours = payload.session_max_hours
+    session.add(row)
+    await session.commit()
     return await _platform_auth_payload(session)
 
 
@@ -585,6 +606,9 @@ async def list_platform_guild_storage(
             support_enabled=(
                 administration.support_enabled if administration else False
             ),
+            enforce_compliance_session=(
+                administration.enforce_compliance_session if administration else False
+            ),
         )
         for g, administration in rows
     ]
@@ -622,6 +646,7 @@ async def update_platform_guild_storage(
             auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,
+            enforce_compliance_session=payload.enforce_compliance_session,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(

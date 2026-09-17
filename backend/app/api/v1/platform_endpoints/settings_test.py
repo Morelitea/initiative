@@ -1655,3 +1655,63 @@ async def test_community_switch_is_owner_only(
 
     assert resp.status_code == 403, f"{role.value}: {resp.status_code}"
     assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+# ---------------------------------------------------------------------------
+# How long somebody stays signed in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_the_session_limit_starts_unset(client, acting_user):
+    """A self-hosted deployment is not answering to anybody, so it asks for no
+    limit until somebody sets one."""
+    a = await acting_user("owner")
+
+    response = await client.get("/api/v1/settings/auth/platform", headers=a.headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["session_max_hours"] is None
+
+
+@pytest.mark.integration
+async def test_an_owner_sets_and_clears_the_session_limit(client, acting_user):
+    a = await acting_user("owner")
+
+    set_it = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 12},
+        headers=a.headers,
+    )
+    assert set_it.status_code == 200, set_it.text
+    assert set_it.json()["session_max_hours"] == 12
+
+    cleared = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": None},
+        headers=a.headers,
+    )
+    assert cleared.json()["session_max_hours"] is None
+
+
+@pytest.mark.integration
+async def test_a_zero_hour_limit_is_refused(client, acting_user):
+    a = await acting_user("owner")
+
+    response = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 0},
+        headers=a.headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_setting_the_session_limit_needs_config_manage(client, acting_user):
+    a = await acting_user("operator")
+
+    response = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 12},
+        headers=a.headers,
+    )
+    assert response.status_code == 403

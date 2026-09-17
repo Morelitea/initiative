@@ -644,6 +644,15 @@
         "label": "Application d'authentification",
         "help": "Un code d'une application, demandé après le mot de passe. Chacun l'active pour soi."
       }
+    },
+    "sessionLifetime": {
+      "title": "Durée pendant laquelle les gens restent connectés",
+      "description": "Le temps maximal avant de devoir se reconnecter, quelle que soit l'utilisation de l'application. À distinguer de la déconnexion pour inactivité.",
+      "label": "Heures",
+      "placeholder": "Aucune limite",
+      "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions déjà ouvertes conservent les conditions dans lesquelles elles ont été ouvertes.",
+      "saved": "Limite de session enregistrée.",
+      "error": "Nous n'avons pas pu enregistrer la limite de session."
     }
   },
   "platformUsers": {
@@ -1020,7 +1029,9 @@
         }
       },
       "usersLabel": "Membres",
-      "storageLabel": "Limite de stockage"
+      "storageLabel": "Limite de stockage",
+      "complianceSessionLabel": "Limite de session de douze heures",
+      "complianceSessionHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité."
     },
     "unlimited": "Sans limite"
   },

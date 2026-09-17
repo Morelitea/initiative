@@ -34,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.auth_session import AuthSession
+from app.services.auth import session_lifetime
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,11 @@ SESSION_PURGE_POLL_SECONDS = 3600
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _capped(expires: datetime, chain_ends: datetime | None) -> datetime:
+    """An idle window never outlives the chain it belongs to."""
+    return expires if chain_ends is None else min(expires, chain_ends)
 
 
 def _generate_refresh_token() -> str:
@@ -185,6 +191,11 @@ async def create_session(
     """
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    # The end of the whole chain, read once here and carried forward from now
+    # on. ``expires_at`` is the idle window and never outlives it.
+    chain_ends = await session_lifetime.chain_deadline(
+        session, user_id=user_id, issued=issued
+    )
     raw = _generate_refresh_token()
     row = AuthSession(
         user_id=user_id,
@@ -193,7 +204,8 @@ async def create_session(
         satisfied_providers=list(satisfied_providers),
         provider_auth=dict(provider_auth or {}),
         created_at=issued,
-        expires_at=issued + ttl,
+        chain_expires_at=chain_ends,
+        expires_at=_capped(issued + ttl, chain_ends),
         user_agent=user_agent,
         ip=ip,
         device_name=device_name,
@@ -253,6 +265,11 @@ async def rotate_session(
     if row.expires_at <= issued:
         return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
+    # The chain's own end, which no rotation moves. Reached, the answer is a
+    # fresh sign-in rather than another renewal.
+    if row.chain_expires_at is not None and row.chain_expires_at <= issued:
+        return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
+
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
     claimed = (
@@ -288,7 +305,8 @@ async def rotate_session(
         ),
         parent_id=row.id,
         created_at=issued,
-        expires_at=issued + ttl,
+        chain_expires_at=row.chain_expires_at,
+        expires_at=_capped(issued + ttl, row.chain_expires_at),
         user_agent=user_agent if user_agent is not None else row.user_agent,
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,

@@ -785,6 +785,7 @@ async def update_guild(
     auth_options: list[GuildAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
     support_enabled: bool | None = None,
+    enforce_compliance_session: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -860,6 +861,7 @@ async def update_guild(
         or auth_options is not None
         or banner_image_enabled is not None
         or support_enabled is not None
+        or enforce_compliance_session is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -897,6 +899,12 @@ async def update_guild(
             and administration.support_enabled != support_enabled
         ):
             administration.support_enabled = support_enabled
+            administration_updated = True
+        if (
+            enforce_compliance_session is not None
+            and administration.enforce_compliance_session != enforce_compliance_session
+        ):
+            administration.enforce_compliance_session = enforce_compliance_session
             administration_updated = True
         if administration_updated:
             session.add(administration)

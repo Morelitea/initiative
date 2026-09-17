@@ -1,0 +1,74 @@
+"""How long somebody may stay signed in before signing in again.
+
+Two different questions, deliberately kept apart:
+
+* ``AUTH_REFRESH_TTL_DAYS`` is how long a session may be *left alone*. Every
+  rotation pushes it forward, so an app in daily use never reaches it.
+* This module answers the other one — the **absolute** limit, which nothing
+  pushes forward. It is what a deployment sets when it has to say "everybody
+  signs in again at least this often".
+
+The answer is stamped on the chain when the sign-in happens and carried
+through every rotation unchanged, so renewing a session costs no extra read.
+One consequence, and it is the right one: joining a community that asks for
+the stricter standard applies at that person's next sign-in rather than
+shortening the session they are in.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.platform.guild import GuildMembership
+from app.models.platform.guild_administration import GuildAdministration
+from app.services.platform import app_settings as app_settings_service
+
+#: What a community held to the compliance standard asks of its members.
+#: HIPAA's automatic-logoff expectation and NIST SP 800-63B's AAL2
+#: reauthentication limit land on the same number, so one constant serves both.
+COMPLIANCE_SESSION_HOURS = 12
+
+
+async def _belongs_to_a_compliance_guild(
+    session: AsyncSession, *, user_id: int
+) -> bool:
+    found = (
+        await session.exec(
+            select(GuildMembership.guild_id)
+            .join(
+                GuildAdministration,
+                GuildAdministration.guild_id == GuildMembership.guild_id,
+            )
+            .where(
+                GuildMembership.user_id == user_id,
+                GuildAdministration.enforce_compliance_session.is_(True),
+            )
+            .limit(1)
+        )
+    ).first()
+    return found is not None
+
+
+async def resolve_max_hours(session: AsyncSession, *, user_id: int) -> int | None:
+    """The absolute limit that applies to this person, in hours.
+
+    A community holding its members to the compliance standard settles it: one
+    standard rather than a number per community, so somebody in two of them has
+    an answer rather than a comparison. Otherwise the deployment's own figure
+    stands, and ``None`` means it asked for no limit.
+    """
+    if await _belongs_to_a_compliance_guild(session, user_id=user_id):
+        return COMPLIANCE_SESSION_HOURS
+    row = await app_settings_service.get_app_settings(session)
+    return row.session_max_hours
+
+
+async def chain_deadline(
+    session: AsyncSession, *, user_id: int, issued: datetime
+) -> datetime | None:
+    """When the chain this sign-in starts must end. ``None`` for no limit."""
+    hours = await resolve_max_hours(session, user_id=user_id)
+    return None if hours is None else issued + timedelta(hours=hours)

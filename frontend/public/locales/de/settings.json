@@ -644,6 +644,15 @@
         "label": "Authenticator-App",
         "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
       }
+    },
+    "sessionLifetime": {
+      "title": "Wie lange Personen angemeldet bleiben",
+      "description": "Die längste Zeit, die jemand ohne erneute Anmeldung auskommt, unabhängig von der Nutzung. Unabhängig davon, bei Nichtnutzung abgemeldet zu werden.",
+      "label": "Stunden",
+      "placeholder": "Kein Limit",
+      "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Sitzungen behalten die Bedingungen, unter denen sie geöffnet wurden.",
+      "saved": "Sitzungslimit gespeichert.",
+      "error": "Das Sitzungslimit konnte nicht gespeichert werden."
     }
   },
   "platformUsers": {
@@ -1020,7 +1029,9 @@
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit"
+      "storageLabel": "Speicherlimit",
+      "complianceSessionLabel": "Zwölf-Stunden-Sitzungslimit",
+      "complianceSessionHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen."
     },
     "unlimited": "Unbegrenzt"
   },
