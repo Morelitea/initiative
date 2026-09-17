@@ -207,3 +207,46 @@ async def test_device_token_slides_after_a_day_of_no_refresh(session: AsyncSessi
     refreshed = await user_tokens.get_device_token(session, token=raw)
     assert refreshed is not None
     assert refreshed.expires_at > two_days_in + timedelta(days=1)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_changing_the_password_drops_a_part_way_sign_in(
+    session: AsyncSession,
+):
+    """A challenge rests on the password it proved, so revoking an account's
+    credentials takes it with them."""
+    from app.services.auth import challenges as challenge_service
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    mine = await challenge_service.create(
+        session,
+        user_id=user.id,
+        purpose=challenge_service.ChallengePurpose.sign_in,
+    )
+    theirs = await challenge_service.create(
+        session,
+        user_id=bystander.id,
+        purpose=challenge_service.ChallengePurpose.sign_in,
+    )
+    await session.commit()
+
+    await user_tokens.revoke_user_sessions(session, user=user, admin_session=session)
+
+    assert (
+        await challenge_service.claim_attempt(
+            session,
+            value=mine.value,
+            purpose=challenge_service.ChallengePurpose.sign_in,
+        )
+        is None
+    )
+    assert (
+        await challenge_service.claim_attempt(
+            session,
+            value=theirs.value,
+            purpose=challenge_service.ChallengePurpose.sign_in,
+        )
+        is not None
+    )
