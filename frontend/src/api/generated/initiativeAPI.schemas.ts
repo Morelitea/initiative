@@ -1246,6 +1246,19 @@ export interface BreakGlassCreate {
    * @maxLength 2000
    */
   reason: string;
+  code?: string | null;
+  recovery_code?: string | null;
+}
+
+/**
+ * What a break-glass request will be asked for, before it is made.
+ *
+ * The form reads this to know whether to offer a code field, and whether the
+ * caller has a factor to answer with.
+ */
+export interface BreakGlassRequirements {
+  second_factor_required: boolean;
+  enrolled: boolean;
 }
 
 export type ResourceGrantSchemaLevel =

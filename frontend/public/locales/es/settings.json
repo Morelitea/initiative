@@ -789,7 +789,11 @@
       "reasonPlaceholder": "Por qué necesitas acceso de emergencia (p. ej. incidente n.º 123)",
       "submit": "Acceso de emergencia",
       "activated": "Acceso de emergencia activado",
-      "error": "No se pudo activar el acceso de emergencia"
+      "error": "No se pudo activar el acceso de emergencia",
+      "codeLabel": "Tu código de autenticación",
+      "codePlaceholder": "123456, o un código de recuperación",
+      "codeHelp": "Alguien que administra esta instalación ha configurado la verificación en dos pasos, así que el acceso de emergencia pide un código. Un código de recuperación también sirve.",
+      "codeNotEnrolled": "Esta cuenta no tiene ninguna aplicación de autenticación configurada. Configúrala en Seguridad y luego usa el acceso de emergencia."
     },
     "queueTitle": "Aprobaciones",
     "queueDescription": "Concede, deniega o revoca solicitudes de acceso temporal.",

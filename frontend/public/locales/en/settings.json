@@ -789,7 +789,11 @@
       "reasonPlaceholder": "Why you need emergency access (e.g. incident #123)",
       "submit": "Break glass",
       "activated": "Break-glass access activated",
-      "error": "Unable to break glass"
+      "error": "Unable to break glass",
+      "codeLabel": "Your authenticator code",
+      "codePlaceholder": "123456, or a recovery code",
+      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks for a code. A recovery code works too.",
+      "codeNotEnrolled": "This account has no authenticator set up. Set one up under Security, then break glass."
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",

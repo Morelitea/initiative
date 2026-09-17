@@ -20,6 +20,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
+from app.core.login_methods import LoginMethod
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
@@ -31,6 +32,7 @@ from app.models.platform.access_grant import (
 from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_totp import UserTotp
 from app.schemas.platform.access_grant import (
     AccessGrantCreate,
     AccessGrantRead,
@@ -38,6 +40,7 @@ from app.schemas.platform.access_grant import (
 )
 from app.services import email as email_service
 from app.services.auth import addresses
+from app.services.platform import auth_posture
 from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
@@ -276,6 +279,39 @@ async def request_grant(
             requester=requester_name,
         )
     return grant
+
+
+async def demands_second_factor(session: AsyncSession) -> bool:
+    """Whether breaking glass has to carry the account's own second factor.
+
+    Derived rather than configured, from two things that must both hold: the
+    deployment offers the authenticator app, and some active ``data.bypass``
+    holder has confirmed one.
+
+    The pair is what keeps the rule answerable. A holder who has not enrolled
+    is refused until they do, and the way back is their own Security page — so
+    the rule may only ask while that page can actually give them one. A
+    deployment that has withdrawn ``totp`` refuses new enrolments, which is why
+    it stops asking here too, rather than asking for something it will not let
+    anybody obtain.
+    """
+    if not await auth_posture.login_method_allowed(session, LoginMethod.totp):
+        return False
+
+    roles = list(roles_with_capability(Capability.DATA_BYPASS))
+    found = (
+        await session.exec(
+            select(UserTotp.user_id)
+            .join(User, User.id == UserTotp.user_id)
+            .where(
+                User.role.in_(roles),
+                User.status == UserStatus.active,
+                UserTotp.confirmed_at.is_not(None),
+            )
+            .limit(1)
+        )
+    ).first()
+    return found is not None
 
 
 async def break_glass(

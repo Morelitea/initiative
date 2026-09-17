@@ -674,5 +674,7 @@
   "RECOVERY_CODE_INVALID": "That recovery code isn't right, or it has already been used.",
   "TOTP_NOT_PERMITTED": "This site doesn't offer the authenticator app.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — an authenticator code goes alongside a password or single sign-on, not instead of one.",
-  "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on."
+  "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
+  "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Enter your authenticator code to break glass.",
+  "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Breaking glass needs an authenticator, and this account has none. Set one up under Security first."
 }
