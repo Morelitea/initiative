@@ -13,6 +13,14 @@ const banner = (look: Parameters<typeof renderableBanner>[0] = {}) => renderable
 const ground = (container: HTMLElement) =>
   container.firstElementChild?.firstElementChild as HTMLElement;
 
+/** The copy's own box — the heading, and the line under it. */
+const copy = (container: HTMLElement) =>
+  container.querySelector("h1")?.parentElement as HTMLElement;
+
+/** The column the copy and the badge corner share, which is what carries the
+ *  banner's minimum height and sits in the grid row the ground is behind. */
+const column = (container: HTMLElement) => copy(container).parentElement as HTMLElement;
+
 /** jsdom drops `mask-image` from a style declaration entirely, so the gradient
  *  itself is not assertable here. Everything it is derived from is: the extra
  *  row, the margin that gives it back, and which layer carries the fade. */
@@ -108,27 +116,25 @@ describe("PageBanner", () => {
     const { container, rerender } = render(
       <PageBanner banner={banner({ color: "#2563eb" })} title="Ravenloft" />
     );
-    const band = container.querySelector("h1")?.parentElement;
-    expect(band?.className).toContain("min-h-24");
+    expect(column(container).className).toContain("min-h-24");
 
     rerender(
       <PageBanner banner={banner({ image_url: "/images/banner.webp" })} title="Ravenloft" />
     );
-    expect(container.querySelector("h1")?.parentElement?.className).toContain("min-h-[44vw]");
+    expect(column(container).className).toContain("min-h-[44vw]");
   });
 
   it("centres the copy unless it is asked to align it left", () => {
     const { container, rerender } = render(
       <PageBanner banner={banner({ color: "#2563eb" })} title="Ravenloft" />
     );
-    expect(container.querySelector("h1")?.parentElement?.className).toContain("text-center");
+    expect(copy(container).className).toContain("text-center");
 
     rerender(
       <PageBanner banner={banner({ color: "#2563eb", text_align: "left" })} title="Ravenloft" />
     );
-    const copy = container.querySelector("h1")?.parentElement;
-    expect(copy?.className).toContain("text-left");
-    expect(copy?.className).toContain("items-start");
+    expect(copy(container).className).toContain("text-left");
+    expect(copy(container).className).toContain("items-start");
   });
 
   it("does not fade, extend, or take back any margin unless asked to", () => {
@@ -159,7 +165,7 @@ describe("PageBanner", () => {
     // The ground spans both rows — the fade band is as much banner as the
     // rest of it — while the copy sits in the first row alone and stays opaque.
     expect(ground(container).style.gridRow).toBe("1 / span 2");
-    expect(container.querySelector("h1")?.parentElement?.style.gridRow).toBe("1");
+    expect(column(container).style.gridRow).toBe("1");
   });
 
   it("fades over a shorter tail on the weaker setting", () => {
@@ -185,12 +191,32 @@ describe("PageBanner", () => {
         badges={<span>11 members</span>}
       />
     );
-    const corner = screen.getByText("11 members").parentElement;
-    expect(corner?.className).toContain("top-4");
-    expect(corner?.className).toContain("right-4");
+    const corner = screen.getByText("11 members").parentElement as HTMLElement;
+    expect(corner.className).toContain("justify-end");
     // Not inside the heading's box — the counts are about the banner, not
     // something it says.
-    expect(container.querySelector("h1")?.parentElement).not.toBe(corner);
+    expect(copy(container)).not.toBe(corner);
+  });
+
+  it("gives the badges a row of their own rather than floating them over the copy", () => {
+    // An overlay clears the title by luck: in the short band a guild with no
+    // artwork gets, a long enough name at a narrow enough width wraps straight
+    // under it. In flow the copy starts where the corner ended, so there is no
+    // width or name that can put them on top of each other.
+    const { container } = render(
+      <PageBanner
+        banner={banner({ color: "#2563eb" })}
+        title="The Ancient and Honourable Order of the Silver Ravens"
+        badges={<span>11 members</span>}
+      />
+    );
+
+    const corner = screen.getByText("11 members").parentElement as HTMLElement;
+    expect(corner.className).not.toContain("absolute");
+    // Same column, corner first: the copy is what is left underneath it.
+    expect(corner.parentElement).toBe(column(container));
+    expect(corner.nextElementSibling).toBe(copy(container));
+    expect(copy(container).className).toContain("flex-1");
   });
 
   it("covers the banner with the picture rather than letting it set the height", () => {

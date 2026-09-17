@@ -18,7 +18,8 @@
  *
  * It also rises behind the shell's sticky bar by that bar's own height, so a
  * guild's artwork runs under the recents tabs. Only the picture goes up there:
- * the copy and the badges pad themselves back down by the same amount.
+ * the column holding the badges and the copy pads itself back down by the same
+ * amount.
  */
 
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
@@ -237,24 +238,21 @@ export function PageBanner({
           />
         ) : null}
       </div>
+      {/* The corner and the copy share one column: the badges take a row of
+          their own at the top, and the copy has whatever is left. They are in
+          flow rather than laid over the words because an overlay only clears
+          them by luck — a long name in the short band a guild with no artwork
+          gets wraps straight under a corner that is floating above it. */}
       <div
-        // Left-aligned copy lines up with the page's own content rather than
-        // with the banner's edge: the banner is pulled out to the full width
-        // of the content area, and this puts the words back where the tool
-        // rail and the table below them start. Centred copy is centred on the
-        // whole banner, which is what being centred means. Until the measure
-        // lands the class padding holds it, so nothing starts off-screen.
         style={{
           gridRow: "1",
           gridColumn: "1",
           // Back down by what the banner rose behind the sticky bar, so the
           // words sit where they always did and only the artwork went up.
           ...(box.header ? { paddingTop: box.header } : null),
-          ...(align === "left" && box.inset.left ? { paddingLeft: box.inset.left } : null),
         }}
         className={cn(
-          "relative flex flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
-          align === "left" ? "items-start text-left" : "items-center text-center",
+          "relative flex flex-col",
           // These minimums are the banner's height at every width — the
           // picture covers whatever they come to. They fall away faster than
           // the screen does: a phone has a page to show under the banner and
@@ -262,57 +260,74 @@ export function PageBanner({
           // opens out once there is height to spend. `lg` keeps it roughly the
           // proportion the artwork is cut to.
           imageUrl
-            ? "min-h-[44vw] py-6 sm:min-h-[38vw] sm:py-10 md:min-h-[28vw] lg:min-h-[20vw]"
-            : "min-h-24 py-5 sm:min-h-32 sm:py-6 lg:min-h-36"
+            ? "min-h-[44vw] sm:min-h-[38vw] md:min-h-[28vw] lg:min-h-[20vw]"
+            : "min-h-24 sm:min-h-32 lg:min-h-36"
         )}
       >
-        <h1
-          className={cn(
-            "text-balance font-black tracking-tight",
-            imageUrl ? "text-3xl sm:text-5xl lg:text-6xl" : "text-xl sm:text-3xl lg:text-4xl",
-            halo &&
-              "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
-          )}
-          // A shadow of the ink's opposite, so the words survive the patch of
-          // artwork the guild's one text colour did not anticipate.
-          style={halo ? undefined : { color: ink, textShadow: readableTextShadow(ink) }}
-        >
-          {title}
-        </h1>
-        {subtitle ? (
-          <p
-            className={cn(
-              "max-w-2xl text-balance font-medium",
-              imageUrl ? "text-sm sm:text-lg lg:text-xl" : "text-xs sm:text-base",
-              halo &&
-                "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
-            )}
-            // Slightly softened against the fill, the way the halo variant is.
-            style={
-              halo ? undefined : { color: ink, opacity: 0.88, textShadow: readableTextShadow(ink) }
-            }
+        {/* The corner, not the copy: these say how big the guild is, which is
+            about the banner rather than part of what it says. Held off the
+            right edge by the same distance the page's own content is, so they
+            line up with what is below them however wide the shell happens to
+            be. */}
+        {badges ? (
+          <div
+            style={box.inset.right ? { paddingRight: box.inset.right } : undefined}
+            className="flex flex-wrap items-center justify-end gap-2 px-4 pt-4 md:px-8 md:pt-6"
           >
-            {subtitle}
-          </p>
+            {badges}
+          </div>
         ) : null}
-      </div>
-      {/* The corner, not the copy: these say how big the guild is, which is
-          about the banner rather than part of what it says. Held off the right
-          edge by the same distance the page's own content is, so they line up
-          with what is below them however wide the shell happens to be. */}
-      {badges ? (
         <div
-          style={{
-            // Clear of the sticky bar, for the same reason the copy is: the
-            // banner goes up behind it, and nothing readable follows it there.
-            ...(box.header ? { top: box.header + 16 } : null),
-            ...(box.inset.right ? { right: box.inset.right } : null),
-          }}
-          className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 md:top-6 md:right-8"
+          // Left-aligned copy lines up with the page's own content rather than
+          // with the banner's edge: the banner is pulled out to the full width
+          // of the content area, and this puts the words back where the tool
+          // rail and the table below them start. Centred copy is centred on
+          // the whole banner, which is what being centred means. Until the
+          // measure lands the class padding holds it, so nothing starts
+          // off-screen.
+          style={align === "left" && box.inset.left ? { paddingLeft: box.inset.left } : undefined}
+          className={cn(
+            // The copy takes the height the corner left it and sits in the
+            // middle of that, so a banner with badges reads the same as one
+            // without — just with the words starting under them.
+            "flex flex-1 flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
+            align === "left" ? "items-start text-left" : "items-center text-center",
+            imageUrl ? "py-6 sm:py-10" : "py-5 sm:py-6"
+          )}
         >
-          {badges}
+          <h1
+            className={cn(
+              "text-balance font-black tracking-tight",
+              imageUrl ? "text-3xl sm:text-5xl lg:text-6xl" : "text-xl sm:text-3xl lg:text-4xl",
+              halo &&
+                "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
+            )}
+            // A shadow of the ink's opposite, so the words survive the patch of
+            // artwork the guild's one text colour did not anticipate.
+            style={halo ? undefined : { color: ink, textShadow: readableTextShadow(ink) }}
+          >
+            {title}
+          </h1>
+          {subtitle ? (
+            <p
+              className={cn(
+                "max-w-2xl text-balance font-medium",
+                imageUrl ? "text-sm sm:text-lg lg:text-xl" : "text-xs sm:text-base",
+                halo &&
+                  "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
+              )}
+              // Slightly softened against the fill, the way the halo variant is.
+              style={
+                halo
+                  ? undefined
+                  : { color: ink, opacity: 0.88, textShadow: readableTextShadow(ink) }
+              }
+            >
+              {subtitle}
+            </p>
+          ) : null}
         </div>
-      ) : null}
+      </div>
       {/* The fade's own row. Nothing in it — the ground behind it is the whole
           point, and the page's next element is pulled back over it. */}
       {extend ? <div style={{ gridRow: "2", gridColumn: "1" }} /> : null}
