@@ -152,11 +152,15 @@ const isSecondFactorRefusal = (error: unknown): boolean =>
   (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail ===
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED";
 
+/** What a grant is for and how far it goes, in one phrase — the level alone is
+ *  ambiguous now that a settings grant carries its own vocabulary. */
+const grantScope = (grant: { purpose?: string; access_level: string }): string =>
+  grant.purpose === "settings" ? `settings · ${grant.access_level}` : grant.access_level;
+
 const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common"]);
   const { refreshGuilds } = useGuilds();
   const [guildId, setGuildId] = useState("");
-  const [level, setLevel] = useState("read");
   const [duration, setDuration] = useState("60");
   const [reason, setReason] = useState("");
   const [code, setCode] = useState("");
@@ -181,7 +185,6 @@ const BreakGlassSection = () => {
       setReason("");
       setCode("");
       setFactorRefused(false);
-      setLevel("read");
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
       // /c/{id} route guard read from the GuildProvider's context list (not
@@ -203,9 +206,10 @@ const BreakGlassSection = () => {
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim()) return;
     const entered = code.trim();
+    // No level to choose: breaking glass issues write access to the content
+    // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
       guild_id: gid,
-      access_level: level as "read" | "read_write",
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
       ...(needsCode && entered ? classifySecondFactorAnswer(entered) : {}),
@@ -230,18 +234,6 @@ const BreakGlassSection = () => {
               placeholder={t("accessGrants.guildIdPlaceholder")}
               required
             />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="bg-level">{t("accessGrants.levelLabel")}</Label>
-            <Select value={level} onValueChange={setLevel}>
-              <SelectTrigger id="bg-level">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
-                <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="bg-duration">{t("accessGrants.durationLabel")}</Label>
@@ -311,7 +303,11 @@ const RequestSection = () => {
   const durationOptions = allowedDurations(user?.role);
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? 240));
   const [guildId, setGuildId] = useState("");
+  // Two axes, asked for independently. "none" is how you say you do not want
+  // one — clearing up after an incident wants both; having a look wants only
+  // the first.
   const [level, setLevel] = useState("read");
+  const [settingsLevel, setSettingsLevel] = useState("none");
   const [duration, setDuration] = useState(defaultDuration);
   const [reason, setReason] = useState("");
 
@@ -328,13 +324,21 @@ const RequestSection = () => {
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.cancelError")),
   });
 
+  // Neither axis is not a request. An empty body would reach the server as a
+  // plain content read — asking for something nobody chose — so the form does
+  // not let it be sent.
+  const asksForSomething = level !== "none" || settingsLevel !== "none";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
-    if (!gid || !reason.trim()) return;
+    if (!gid || !reason.trim() || !asksForSomething) return;
     createRequest.mutate({
       guild_id: gid,
-      access_level: level as "read" | "read_write",
+      ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
+      ...(settingsLevel === "none"
+        ? {}
+        : { settings_level: settingsLevel as "admin" | "superadmin" }),
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
     });
@@ -360,16 +364,32 @@ const RequestSection = () => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ag-level">{t("accessGrants.levelLabel")}</Label>
+            <Label htmlFor="ag-level">{t("accessGrants.purposeContent")}</Label>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger id="ag-level">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
                 <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
                 <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeContentHelp")}</p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ag-settings-level">{t("accessGrants.purposeSettings")}</Label>
+            <Select value={settingsLevel} onValueChange={setSettingsLevel}>
+              <SelectTrigger id="ag-settings-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
+                <SelectItem value="admin">{t("accessGrants.levelAdmin")}</SelectItem>
+                <SelectItem value="superadmin">{t("accessGrants.levelSuperadmin")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeSettingsHelp")}</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="ag-duration">{t("accessGrants.durationLabel")}</Label>
@@ -397,9 +417,12 @@ const RequestSection = () => {
             />
           </div>
           <div className="sm:col-span-2">
-            <Button type="submit" disabled={createRequest.isPending}>
+            <Button type="submit" disabled={createRequest.isPending || !asksForSomething}>
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>
+            {!asksForSomething && (
+              <p className="mt-2 text-muted-foreground text-xs">{t("accessGrants.nothingAsked")}</p>
+            )}
           </div>
         </form>
 
@@ -415,7 +438,7 @@ const RequestSection = () => {
                   <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm">
-                        {guildLabel(grant)} · {grant.access_level}
+                        {guildLabel(grant)} · {grantScope(grant)}
                       </p>
                       <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
                     </div>
@@ -494,7 +517,7 @@ const ApprovalQueue = () => {
                   <div className="min-w-0">
                     <p className="truncate text-sm">
                       {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                      {grant.access_level} ·{" "}
+                      {grantScope(grant)} ·{" "}
                       {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
                     <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
@@ -542,7 +565,7 @@ const ApprovalQueue = () => {
                     <div className="min-w-0">
                       <p className="truncate text-sm">
                         {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                        {grant.access_level}
+                        {grantScope(grant)}
                       </p>
                       {left !== null && (
                         <p className="text-muted-foreground text-xs">

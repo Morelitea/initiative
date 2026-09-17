@@ -334,10 +334,9 @@ async def join_initiative(
     themselves onto an initiative is how they bring it into their own
     navigation. It is the same act as ticking themselves in guild settings.
     """
-    # A scoped grantee reaches this guild for a window; the membership row this
-    # would create has no end date, so joining is for real guild members.
-    # (Break-glass is routed as a full guild admin and already adds members.)
-    if guild_context.is_pam and not guild_context.break_glass:
+    # A grantee reaches this guild for a window; the membership row this would
+    # create has no end date, so joining is for real guild members.
+    if guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -380,10 +379,8 @@ def _require_no_scoped_grant(guild_context: GuildContext) -> None:
 
     A grant reaches the guild for a window; the membership row on the other side
     of an approval has no end date, so the two are never traded for each other.
-    Break-glass is routed as a full guild admin and passes — it is the same
-    authority a guild admin already exercises over its members.
     """
-    if guild_context.is_pam and not guild_context.break_glass:
+    if guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,

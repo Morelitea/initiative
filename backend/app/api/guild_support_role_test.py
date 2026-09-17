@@ -73,20 +73,20 @@ async def test_scoped_grant_synthesizes_support_role(session: AsyncSession):
     ctx = await _load_guild_context(session, support, guild.id)
     assert ctx.role == GuildRole.support
     assert ctx.is_pam is True
-    assert ctx.break_glass is False
 
 
-async def test_break_glass_stays_admin_not_support(session: AsyncSession):
-    """A read_write break-glass grant (data.bypass holder) still resolves to the
-    full ``admin`` role — break-glass is deliberately unlimited."""
-    admin = await create_user(session, role=UserRole.operator)
+async def test_an_operators_own_grant_is_support_too(session: AsyncSession):
+    """Self-issued, read_write, held by a ``data.bypass`` operator — and it
+    resolves exactly as support's does. What a grant reaches is what the grant
+    says, not who holds it."""
+    operator = await create_user(session, role=UserRole.operator)
     other = await create_user(session, role=UserRole.owner)
-    guild2 = await create_guild(session, creator=other)  # admin is NOT a member
-    await _live_grant(session, user=admin, guild=guild2, level="read_write")
+    guild2 = await create_guild(session, creator=other)  # operator is NOT a member
+    await _live_grant(session, user=operator, guild=guild2, level="read_write")
 
-    ctx = await _load_guild_context(session, admin, guild2.id)
-    assert ctx.role == GuildRole.admin
-    assert ctx.break_glass is True
+    ctx = await _load_guild_context(session, operator, guild2.id)
+    assert ctx.role == GuildRole.support
+    assert ctx.is_pam is True
 
 
 # ---------------------------------------------------------------------------

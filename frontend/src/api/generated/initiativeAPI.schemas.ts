@@ -96,7 +96,7 @@ export interface AccessGrantApprove {
 }
 
 /**
- * How much access a PAM grant confers within its target guild.
+ * How much of a guild's *content* a PAM grant confers.
  */
 export type AccessLevel = (typeof AccessLevel)[keyof typeof AccessLevel];
 
@@ -106,11 +106,45 @@ export const AccessLevel = {
 } as const;
 
 /**
+ * Which rung of a guild's *configuration* a settings grant confers.
+ *
+ * The guild's own ladder, borrowed: ``admin`` reaches what a guild admin
+ * administers, ``superadmin`` reaches what the seat holds — its sign-in and
+ * its billing. There is no default; a request names one.
+ *
+ * Stored in the same ``access_level`` column as :class:`AccessLevel`, which
+ * the purpose tells apart. A CHECK holds each vocabulary to its own purpose,
+ * so a settings grant can never read as ``read_write`` content, nor a content
+ * grant as ``superadmin``.
+ */
+export type SettingsLevel = (typeof SettingsLevel)[keyof typeof SettingsLevel];
+
+export const SettingsLevel = {
+  admin: "admin",
+  superadmin: "superadmin",
+} as const;
+
+/**
  * A request for time-bound access to one guild.
+ *
+ * Two axes, and a request may name either or both. **Content** reaches what
+ * is inside the community, at ``read`` or ``read_write``. **Settings**
+ * reaches its configuration and nothing inside it, at ``admin`` or
+ * ``superadmin``.
+ *
+ * Asking for both is a real errand rather than a mistake: clearing up after
+ * an incident takes write access to the content *and* the settings that
+ * govern it, which is the same pair breaking glass issues. Each axis becomes
+ * its own grant, so what was exercised is recorded separately even when both
+ * were asked for at once.
+ *
+ * Naming neither is read-only content — what a bare request has always
+ * meant.
  */
 export interface AccessGrantCreate {
   guild_id: number;
-  access_level?: AccessLevel;
+  access_level?: AccessLevel | null;
+  settings_level?: SettingsLevel | null;
   requested_duration_minutes?: number | null;
   /**
    * @minLength 1
@@ -163,7 +197,8 @@ export interface AccessGrantRead {
   id: number;
   user_id: number;
   guild_id: number;
-  access_level: AccessLevel;
+  purpose: string;
+  access_level: string;
   status: AccessGrantStatus;
   reason: string;
   requested_duration_minutes: number;
@@ -1260,14 +1295,16 @@ export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
 /**
  * A self-approved, time-bound break-glass grant to one guild.
  *
- * Issued by a ``data.bypass`` holder (admin/owner) who needs emergency
- * access without waiting for a second-person approval. Read-only by default;
- * ``read_write`` is a deliberate escalation. The window is short and capped
- * server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue to extend.
+ * Issued by a ``data.bypass`` holder who needs emergency access without
+ * waiting for a second-person approval. It is not a dial: breaking glass
+ * issues write access to the community's content **and** a settings grant at
+ * ``superadmin``, because that is what an emergency is for. Somebody who
+ * wants less asks for less through the ordinary request flow. The window is
+ * short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
+ * to extend.
  */
 export interface BreakGlassCreate {
   guild_id: number;
-  access_level?: AccessLevel;
   requested_duration_minutes?: number | null;
   /**
    * @minLength 1

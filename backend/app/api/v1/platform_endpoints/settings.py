@@ -737,9 +737,10 @@ async def create_platform_guild_billing_service_handoff(
             grant = await access_grants_service.break_glass(
                 session,
                 actor=admin,
+                # A visit to the portal, and nothing in the guild.
+                level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
                     guild_id=guild_id,
-                    access_level=AccessLevel.read,
                     reason=BILLING_PORTAL_GRANT_REASON,
                 ),
                 # Belonging to the guild says nothing about billing authority,

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -24,6 +24,7 @@ from app.core.login_methods import LoginMethod
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
+    LEVEL_LABEL_KEYS,
     AccessGrant,
     AccessGrantPurpose,
     AccessGrantStatus,
@@ -142,7 +143,7 @@ async def _push_and_email(
     push_key: str,
     email_event: str,
     guild_name: Optional[str],
-    access_level: Optional[str] = None,
+    levels: Optional[Sequence[str]] = None,
     requester: Optional[str] = None,
 ) -> None:
     """Best-effort push + email fan-out for a PAM event.
@@ -153,21 +154,25 @@ async def _push_and_email(
     ``accessGrant.<key>`` entry in the ``notifications`` namespace, localized to
     the recipient.
 
-    ``access_level`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
+    ``levels`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
     placeholders that only some body templates contain — ``requester`` is used by
     the ``requested`` event only and is intentionally ``None`` for approve/deny/
     revoke. Each is passed to the interpolator only when present, so it maps to
     exactly the placeholders its template declares.
+
+    ``levels`` is a sequence because one ask can be for two things at once. It
+    is what the recipient is being asked to decide about, so every one of them
+    is named: a message that described only the first would be asking for a
+    decision about something it had not mentioned.
     """
     locale = getattr(recipient, "locale", None) or "en"
     body_vars: dict[str, str] = {"guild": guild_name or "a guild"}
-    if access_level is not None:
-        level_key = (
-            "accessGrant.levelReadWrite"
-            if access_level == "read_write"
-            else "accessGrant.levelRead"
+    if levels:
+        body_vars["level"] = ", ".join(
+            translate(LEVEL_LABEL_KEYS[level], locale, namespace="notifications")
+            for level in levels
+            if level in LEVEL_LABEL_KEYS
         )
-        body_vars["level"] = translate(level_key, locale, namespace="notifications")
     if requester is not None:
         body_vars["requester"] = requester
     try:
@@ -197,7 +202,7 @@ async def _push_and_email(
             recipient,
             event=email_event,
             guild_name=guild_name or "a guild",
-            access_level=access_level,
+            levels=levels,
             requester=requester,
         )
     except email_service.EmailNotConfiguredError:
@@ -206,10 +211,23 @@ async def _push_and_email(
         logger.error("PAM email notification failed: %s", exc, exc_info=True)
 
 
-async def request_grant(
-    session: AsyncSession, *, requester: User, payload: AccessGrantCreate
-) -> AccessGrant:
-    """Create a pending access request for ``requester`` to ``payload.guild_id``."""
+async def request_grants(
+    session: AsyncSession,
+    *,
+    requester: User,
+    payload: AccessGrantCreate,
+    asks: list[tuple[str, str]],
+) -> list[AccessGrant]:
+    """Create the pending grants ``payload`` asks for, as one act.
+
+    A body may name content, settings, or both. Each becomes its own row, so
+    an approver decides about them separately and what was exercised stays
+    separable — but they are asked for together, so this checks every one
+    before creating any and tells the approvers only once everything has
+    passed. A conflict on the second ask leaves no trace of the first, which
+    a per-ask loop could not promise: the row rolls back with the transaction
+    and the email does not.
+    """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
@@ -223,51 +241,62 @@ async def request_grant(
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
-    # Reject a second open request for the same guild while one is still
-    # pending or live. Scoped to the purpose this flow issues, so an unrelated
-    # authority for the same guild neither blocks a request nor satisfies one.
-    existing = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == requester.id,
-            AccessGrant.guild_id == payload.guild_id,
-            AccessGrant.purpose == AccessGrantPurpose.content.value,
-            AccessGrant.status.in_(
-                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
-            ),
+    # Every ask is checked before any row is created. Rejecting a second open
+    # request for the same guild is per purpose, so an unrelated authority for
+    # the same guild neither blocks a request nor satisfies one.
+    for purpose, _level in asks:
+        existing = await session.exec(
+            select(AccessGrant).where(
+                AccessGrant.user_id == requester.id,
+                AccessGrant.guild_id == payload.guild_id,
+                AccessGrant.purpose == purpose,
+                AccessGrant.status.in_(
+                    [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+                ),
+            )
         )
-    )
-    for grant in existing.all():
-        if grant.status == AccessGrantStatus.pending.value or grant.is_live(now=_now()):
-            raise AccessGrantError("OVERLAPPING_GRANT")
+        for grant in existing.all():
+            if grant.status == AccessGrantStatus.pending.value or grant.is_live(
+                now=_now()
+            ):
+                raise AccessGrantError("OVERLAPPING_GRANT")
 
-    grant = AccessGrant(
-        user_id=requester.id,
-        guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
-        purpose=AccessGrantPurpose.content.value,
-        status=AccessGrantStatus.pending.value,
-        reason=payload.reason,
-        requested_duration_minutes=duration,
-        requested_by_id=requester.id,
-    )
-    session.add(grant)
+    created: list[AccessGrant] = []
+    for purpose, level in asks:
+        grant = AccessGrant(
+            user_id=requester.id,
+            guild_id=payload.guild_id,
+            access_level=level,
+            purpose=purpose,
+            status=AccessGrantStatus.pending.value,
+            reason=payload.reason,
+            requested_duration_minutes=duration,
+            requested_by_id=requester.id,
+        )
+        session.add(grant)
+        created.append(grant)
     await session.flush()
 
+    # Last, and only once everything above has held.
     requester_name = display_name(requester)
     for approver in await _approvers(session):
-        await user_notifications.create_notification(
-            session,
-            user_id=approver.id,
-            notification_type=NotificationType.access_grant_requested,
-            data={
-                "grant_id": str(grant.id),
-                "guild_id": str(grant.guild_id),
-                "guild_name": guild.name,
-                "requester_id": str(requester.id),
-                "requester_name": requester_name,
-                "access_level": grant.access_level,
-            },
-        )
+        for grant in created:
+            await user_notifications.create_notification(
+                session,
+                user_id=approver.id,
+                notification_type=NotificationType.access_grant_requested,
+                data={
+                    "grant_id": str(grant.id),
+                    "guild_id": str(grant.guild_id),
+                    "guild_name": guild.name,
+                    "requester_id": str(requester.id),
+                    "requester_name": requester_name,
+                    "access_level": grant.access_level,
+                },
+            )
+        # One message per approver, whatever was asked for: two arriving for
+        # one errand is noise, and the in-app notifications above are what
+        # link to each row.
         await _push_and_email(
             session,
             recipient=approver,
@@ -275,10 +304,10 @@ async def request_grant(
             push_key="requested",
             email_event="requested",
             guild_name=guild.name,
-            access_level=grant.access_level,
+            levels=[grant.access_level for grant in created],
             requester=requester_name,
         )
-    return grant
+    return created
 
 
 async def demands_second_factor(session: AsyncSession) -> bool:
@@ -321,6 +350,8 @@ async def break_glass(
     payload: BreakGlassCreate,
     allow_member: bool = False,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
+    level: str,
+    supersede: bool = False,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
@@ -332,8 +363,16 @@ async def break_glass(
     default; ``read_write`` is a deliberate escalation. Short window, capped
     server-side; re-issue to extend.
 
-    ``purpose`` scopes what the grant authorises; ``allow_member`` goes with a
-    non-content purpose, which membership does not already confer.
+    ``purpose`` scopes what the grant authorises and ``level`` says how far it
+    reaches within that purpose — the two vocabularies are different, which is
+    why the caller states the level rather than a request body carrying one.
+    ``allow_member`` goes with a non-content purpose, which membership does not
+    already confer.
+
+    ``supersede`` replaces whatever the actor already holds for this purpose
+    rather than refusing. An emergency is the wrong moment to be told that a
+    lesser grant is in the way — and the grant it replaces is revoked rather
+    than deleted, so the log keeps both.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -371,16 +410,24 @@ async def break_glass(
     )
     now = _now()
     for grant in existing.all():
+        if supersede:
+            grant.status = AccessGrantStatus.revoked.value
+            grant.revoked_by_id = actor.id
+            grant.revoked_at = now
+            session.add(grant)
+            continue
         if grant.status == AccessGrantStatus.pending.value:
             raise AccessGrantError("OVERLAPPING_GRANT")
         if grant.is_live(now=now):
             raise AccessGrantError("ALREADY_LIVE")
+    if supersede:
+        await session.flush()
 
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(
         user_id=actor.id,
         guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
+        access_level=level,
         purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
         status=AccessGrantStatus.approved.value,
@@ -410,7 +457,7 @@ async def break_glass(
         push_key="approved",
         email_event="approved",
         guild_name=data["guild_name"],
-        access_level=grant.access_level,
+        levels=[grant.access_level],
     )
     return grant
 
@@ -462,7 +509,7 @@ async def approve(
             push_key="approved",
             email_event="approved",
             guild_name=data["guild_name"],
-            access_level=grant.access_level,
+            levels=[grant.access_level],
         )
     return grant
 
@@ -684,7 +731,7 @@ DEFAULT_DURATION_MINUTES = settings.PAM_DEFAULT_DURATION_MINUTES
 MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
-    "request_grant",
+    "request_grants",
     "break_glass",
     "get_grant",
     "approve",

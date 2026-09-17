@@ -52,6 +52,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * Request time-bound access to a guild (requires ``access.request``).
+ *
+ * A body may ask for content, settings, or both; each becomes its own pending
+ * grant so an approver decides about them separately and the log keeps them
+ * apart. The content one is returned, being the one a caller routes in under.
  * @summary Create Access Request
  */
 export const createAccessRequestApiV1AccessGrantsPost = (
@@ -455,9 +459,16 @@ export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
  * ``data.bypass``).
  *
  * Repurposes the old standing all-guild bypass: instead of ambient god-mode,
- * an admin/owner records a scoped, expiring, read-by-default PAM grant in one
- * step (created + self-approved). The grant is the audit trail; the holder then
- * routes into the guild via the normal PAM path until it expires.
+ * the holder records scoped, expiring, self-approved PAM grants in one step.
+ * The grants are the audit trail; the holder then routes into the guild via
+ * the normal PAM path until they expire.
+ *
+ * **Two grants, not one.** Write access to the community's content, and its
+ * settings at ``superadmin``. They are separate rows with separate purposes,
+ * so the log says which authority was exercised — and so that asking for one
+ * of them, rather than both, is what the ordinary request flow is for. The
+ * content grant is returned, being the one the caller routes in under; both
+ * are in the list.
  * @summary Break Glass Access
  */
 export const breakGlassAccessApiV1AccessGrantsBreakGlassPost = (

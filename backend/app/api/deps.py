@@ -50,7 +50,12 @@ from app.db.session import (
     get_session,
     set_rls_context,
 )
-from app.models.platform.access_grant import AccessGrant, AccessLevel
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
@@ -501,17 +506,31 @@ class GuildContext:
     # so ``.role`` stays valid for endpoint guards, while RLS context is driven
     # off the grant (scoped pam_read/pam_write, not the all-guild bypass).
     grant: Optional[AccessGrant] = None
-    # True when the grant is a read_write *break-glass* grant held by a
-    # ``data.bypass`` user. Break-glass is deliberately unlimited — the holder
-    # acts as a full guild admin for the grant's window (synthesized admin role
-    # + guild-admin RLS context), unlike a regular PAM grant which stays scoped
-    # to content read/write. Still grant-gated: no live grant, no reach.
-    break_glass: bool = False
+    # The rung a live *settings* grant confers, or ``None``. Orthogonal to
+    # ``grant``: a settings grant says what of the community's configuration
+    # this request may work, and nothing about its content. ``role`` stays
+    # ``support`` and the RLS context stays PAM-scoped either way, so holding
+    # this reads nobody's documents.
+    settings_level: Optional[SettingsLevel] = None
     # True when the guild is in ``read_only`` status and access is via real
     # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
     # Postgres role so content writes are denied at the role level. Never set
-    # on the grant branches — PAM/break-glass override the guild status.
+    # on the grant branch — a grant carries its own read/write level.
     content_read_only: bool = False
+
+    def settings_rung_reaches(self, role: GuildRole) -> bool:
+        """Whether a live settings grant answers a guard asking for ``role``.
+
+        ``superadmin`` answers both rungs, ``admin`` answers only its own — the
+        guild's own ladder, read off the grant instead of a roster. Anything
+        that is not a settings rung (``member``, ``support``) is not something
+        a settings grant confers, so it answers no.
+        """
+        if self.settings_level is None:
+            return False
+        if self.settings_level is SettingsLevel.superadmin:
+            return role in (GuildRole.admin, GuildRole.superadmin)
+        return role is GuildRole.admin
 
     @property
     def guild_id(self) -> int:
@@ -767,15 +786,10 @@ async def _load_guild_context(
         )
         if grant is None:
             raise GuildAccessError()
-        # A read_write grant held by a ``data.bypass`` user is a *break-glass*
-        # grant: the holder acts as a full guild admin for its window (see
-        # GuildContext.break_glass). A read grant — or any grant held by a
-        # non-bypass requester (support/moderator's request→approve flow) — stays
-        # a scoped PAM grantee. Both are gated on the live grant existing.
+        # What the grant says, and nothing about who holds it: an operator's
+        # self-issued grant and a support request approved by somebody else
+        # reach the guild identically, at the level the grant records.
         is_read_write = grant.access_level == AccessLevel.read_write.value
-        break_glass = is_read_write and user_has_capability(
-            current_user, Capability.DATA_BYPASS
-        )
         # Apply the pam context now so the grantee can actually read the guild
         # row (and below, get_guild_session re-applies the full context). The
         # guilds table has an additive pam_read policy keyed on pam_guild_id.
@@ -785,6 +799,12 @@ async def _load_guild_context(
             pam_guild_id=guild_id,
             pam_read=True,
             pam_write=is_read_write,
+        )
+        settings_grant = await access_grants_service.get_live_grant(
+            session,
+            user_id=current_user.id,
+            guild_id=guild_id,
+            purpose=AccessGrantPurpose.settings,
         )
         guild, policy = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
@@ -797,26 +817,30 @@ async def _load_guild_context(
             auth_context.sso_guilds(),
             auth_context.session_mfa(),
         )
-        # Break-glass acts as a full guild admin; a scoped grantee gets the
-        # ``support`` role — a first-class identity for PAM access rather than a
-        # ``member`` masquerade. ``support`` clears no admin guard (it is not
-        # ``admin``) but does open the guild settings surface (bound by the
-        # grant's read/write level at the Postgres role layer). The role is
-        # in-memory only; it never reaches ``set_rls_context`` (the ``is_pam``
-        # branch passes ``guild_role=None``), so the ``guild_role`` GUC and DB
-        # enum stay admin/member.
+        # Every grantee gets the ``support`` role — a first-class identity for
+        # PAM access rather than a ``member`` masquerade. ``support`` clears no
+        # admin guard (it is not ``admin``) but does open the guild settings
+        # surface, bound by the grant's read/write level at the Postgres role
+        # layer. The role is in-memory only; it never reaches
+        # ``set_rls_context`` (the ``is_pam`` branch passes ``guild_role=None``),
+        # so the ``guild_role`` GUC and DB enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,
-            role=GuildRole.admin if break_glass else GuildRole.support,
+            role=GuildRole.support,
         )
         return GuildContext(
-            guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
+            guild=guild,
+            membership=synthetic,
+            grant=grant,
+            settings_level=(
+                SettingsLevel(settings_grant.access_level) if settings_grant else None
+            ),
         )
     membership, guild, policy = gate
     # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
-    # deliberately never consults it (PAM/break-glass behave exactly as against
-    # an active guild, so suspending a guild can never lock operators out).
+    # deliberately never consults it, so suspending a guild never locks out the
+    # support access that might be needed to sort it out.
     # This resolver is the one layer where a grantee is still distinguishable
     # from a member: at the DB layer break-glass is byte-identical to a real
     # guild admin, so the status check cannot live in RLS. ``suspended`` fails
@@ -951,6 +975,11 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
     async def dependency(
         context: Annotated[GuildContext, Depends(get_guild_membership)],
     ) -> GuildContext:
+        # A settings grant answers a role guard at its own rung. It confers no
+        # content access with it: the session is still routed as the grant's
+        # read/write level says.
+        if accepted and any(context.settings_rung_reaches(r) for r in accepted):
+            return context
         if accepted and context.membership.role not in accepted:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -970,33 +999,6 @@ async def _apply_guild_session_context(
     """Route ``session`` into ``guild_context``'s guild: set the RLS/session
     variables (and the request-scoped PAM/role contexts) for the user+guild,
     PAM-scoped when access is via a grant."""
-    if guild_context.break_glass:
-        # Break-glass (read_write grant + data.bypass): deliberately unlimited —
-        # the holder acts as a full guild admin for the grant's window. Route
-        # exactly like a real guild admin (current_guild_id + current_guild_role
-        # 'admin' + SET ROLE guild_<id>) so every guild-admin RLS/app-layer leg
-        # fires, including management ops. We intentionally DON'T set the PAM
-        # active-grant context: that would trip the grant-only management blocks
-        # (e.g. PROJECT_GRANT_CANNOT_MANAGE_MEMBERS) — break-glass has no limits.
-        # Still grant-gated: this path is only reached because a live grant exists.
-        set_active_grant(None, None)
-        set_active_role(guild_context.guild_id, GuildRole.admin.value)
-        # Break-glass acts as a full guild admin, which already bypasses gate 4
-        # everywhere; the per-initiative "Full access" set is moot here.
-        set_override_sharing_initiatives(None)
-        # Break-glass overrides the guild lifecycle status by design.
-        set_content_read_only_guild(None)
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            guild_role=GuildRole.admin.value,
-            platform_role=current_user.role.value,
-            satisfied_providers=_satp_param(satisfied),
-            sso_guilds=sorted(auth_context.sso_guilds()),
-            session_mfa=auth_context.session_mfa(),
-        )
-        return session
 
     if guild_context.is_pam:
         # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
