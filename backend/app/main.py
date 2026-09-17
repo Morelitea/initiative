@@ -19,7 +19,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_upload_user
+from app.api.deps import declines_this_credential, get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
@@ -616,14 +616,21 @@ async def serve_upload_file(
         )
         if grant is None:
             raise HTTPException(status_code=404)
-    else:
+
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    if membership is not None and guild.status == GuildStatus.suspended.value:
         # A suspended guild is unreadable to its members (mirrors the resolver
         # gate in deps._load_guild_context; this route resolves access inline).
         # The grant branch above deliberately skips the status — PAM overrides
         # suspension. read_only needs nothing here: serving a file is a read.
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
-        if guild.status == GuildStatus.suspended.value:
-            raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404)
+    # And the same resolver's question about the credential, which binds
+    # members and grantees alike. Asked once access is settled, so it is
+    # answered only to somebody who reaches the guild.
+    if declines_this_credential(guild):
+        raise HTTPException(
+            status_code=403, detail=GuildMessages.GUILD_API_KEYS_REFUSED
+        )
 
     # The admin login role has NO table grants on a guild schema, so SET ROLE
     # into the guild role (``set_rls_context``) before reading its ``uploads``

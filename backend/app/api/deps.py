@@ -632,21 +632,34 @@ def _enforce_guild_auth_policy(
         )
 
 
+def declines_this_credential(guild: Guild) -> bool:
+    """Whether ``guild`` declines the credential this request was made with.
+
+    True only for a personal API key against a community that has switched them
+    off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
+    and a key pinned nowhere both address this guild the same way.
+
+    The rule itself, so the three places that apply it read the same line — the
+    guild-context gate below, the ``/uploads`` route, which resolves the guild
+    itself, and the cross-guild aggregates, which visit each guild in turn (see
+    ``app.services.cross_guild``).
+    """
+    return not guild.allow_api_keys and auth_context.api_key_credential()
+
+
 def _enforce_guild_api_access(guild: Guild) -> None:
     """A community that declines personal API keys is not reached with one.
 
     Runs beside the sign-in gate and binds the same callers — members and
     grantees alike — because the question is what the request was made with,
-    not who made it. The key's own ``guild_id`` says nothing here: a key pinned
-    elsewhere and a key pinned nowhere both address this guild the same way.
+    not who made it.
 
-    Every path that reaches guild content resolves it through
-    :func:`_load_guild_context`, so this one call covers REST, uploads,
-    downloads, the realtime sockets and the keepalive. The cross-guild
-    aggregates never route through here and drop such a guild themselves (see
-    ``app.services.cross_guild``).
+    Covers every path that resolves its guild through
+    :func:`_load_guild_context`: REST, document downloads, the realtime sockets
+    and the keepalive. The two that resolve one themselves ask the same
+    question where they do it.
     """
-    if not guild.allow_api_keys and auth_context.api_key_credential():
+    if declines_this_credential(guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 

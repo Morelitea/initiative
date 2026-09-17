@@ -234,10 +234,6 @@ export const SettingsGuildAuthPage = () => {
     }
   };
 
-  if (!guildPostureActive) {
-    return null;
-  }
-
   return (
     <div className="space-y-6">
       {!maySetSignIn && (
@@ -417,25 +413,27 @@ export const SettingsGuildAuthPage = () => {
         <GuildAuthProvidersSection guildId={guildId} readOnly={!maySetSignIn} />
       ) : null}
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("guildAuth.shareUrl.title")}</CardTitle>
-          <CardDescription>{t("guildAuth.shareUrl.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-sm">
-            {memberLoginUrl}
-          </code>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void copyMemberLoginUrl()}
-          >
-            {t("guildAuth.shareUrl.copy")}
-          </Button>
-        </CardContent>
-      </Card>
+      {guildPostureActive ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("guildAuth.shareUrl.title")}</CardTitle>
+            <CardDescription>{t("guildAuth.shareUrl.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-sm">
+              {memberLoginUrl}
+            </code>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyMemberLoginUrl()}
+            >
+              {t("guildAuth.shareUrl.copy")}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 };

@@ -243,5 +243,16 @@ describe("SettingsGuildAuthPage", () => {
 
       expect(apiSwitch()).toBeDisabled();
     });
+
+    it("is reachable by a community an operator has granted nothing", () => {
+      // It only ever narrows what reaches the community, so it does not wait
+      // on the entitlement the sections around it need.
+      authOptions = [];
+      render();
+
+      expect(apiSwitch()).toBeInTheDocument();
+      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
+    });
   });
 });

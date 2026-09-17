@@ -16,12 +16,6 @@ export const GuildSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
-  // The Authentication tab exists when an operator has granted this guild
-  // something to configure. Withdrawing the grant hides the config surface
-  // without touching existing providers or member logins (auth_options is
-  // admin-only on GuildRead).
-  const guildAuthEnabled = (activeGuild?.auth_options ?? []).length > 0;
-
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
 
@@ -43,15 +37,14 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      ...(guildAuthEnabled
-        ? [
-            {
-              value: "auth",
-              label: t("guildLayout.tabs.auth"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
-            },
-          ]
-        : []),
+      {
+        // Always here, like the tabs around it: the API-access control on it
+        // needs nothing from an operator. What an operator grants (providers,
+        // and requiring a sign-in) is gated on the page itself.
+        value: "auth",
+        label: t("guildLayout.tabs.auth"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+      },
       {
         value: "initiatives",
         label: t("guildLayout.tabs.initiatives"),
@@ -81,7 +74,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, guildAuthEnabled]);
+  }, [urlGuildId, t]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by

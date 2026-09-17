@@ -186,6 +186,53 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
     assert refused.json()["detail"] == "GUILD_API_KEYS_REFUSED"
 
 
+async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
+    client: AsyncClient, session: AsyncSession, tmp_path, monkeypatch
+):
+    """``/uploads`` resolves its guild inline rather than through the gate, so
+    it asks the same question where it does that."""
+    from app.core.config import settings
+    from app.models.tenant.upload import Upload
+    from app.services.storage import get_guild_storage
+
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
+
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.security_admin
+    )
+    get_guild_storage(guild.id).write("note.txt", b"hello")
+    session.add(
+        Upload(
+            filename="note.txt",
+            guild_id=guild.id,
+            created_by=admin.id,
+            size_bytes=5,
+        )
+    )
+    await session.commit()
+
+    headers = get_auth_headers(admin)
+    key_headers = await _key_headers(client, headers)
+    path = f"/uploads/{guild.id}/note.txt"
+
+    assert (await client.get(path, headers=key_headers)).status_code == 200
+
+    await client.put(
+        f"/api/v1/guilds/{guild.id}/api-access",
+        headers=headers,
+        json={"allow_api_keys": False},
+    )
+
+    refused = await client.get(path, headers=key_headers)
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+
+    # The same account's own sign-in still gets the file.
+    assert (await client.get(path, headers=headers)).status_code == 200
+
+
 async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
     client: AsyncClient, session: AsyncSession
 ):
