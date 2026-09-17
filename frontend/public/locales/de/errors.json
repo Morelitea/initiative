@@ -671,5 +671,7 @@
   "TOTP_CHALLENGE_INVALID": "Dieser Anmeldeversuch ist abgelaufen. Gib dein Passwort erneut ein, um von vorn zu beginnen.",
   "TOTP_ALREADY_ENROLLED": "Die Zwei-Faktor-Authentifizierung ist für dieses Konto bereits eingerichtet.",
   "TOTP_NOT_ENROLLED": "Für dieses Konto ist keine Zwei-Faktor-Authentifizierung eingerichtet.",
-  "RECOVERY_CODE_INVALID": "Dieser Wiederherstellungscode stimmt nicht oder wurde bereits verwendet."
+  "RECOVERY_CODE_INVALID": "Dieser Wiederherstellungscode stimmt nicht oder wurde bereits verwendet.",
+  "TOTP_NOT_PERMITTED": "Diese Seite bietet die Authenticator-App nicht an.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle."
 }

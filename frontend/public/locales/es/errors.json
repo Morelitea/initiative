@@ -671,5 +671,7 @@
   "TOTP_CHALLENGE_INVALID": "Ese intento de inicio de sesión ha caducado. Vuelve a introducir tu contraseña para empezar de nuevo.",
   "TOTP_ALREADY_ENROLLED": "La verificación en dos pasos ya está configurada en esta cuenta.",
   "TOTP_NOT_ENROLLED": "La verificación en dos pasos no está configurada en esta cuenta.",
-  "RECOVERY_CODE_INVALID": "Ese código de recuperación no es correcto o ya se ha usado."
+  "RECOVERY_CODE_INVALID": "Ese código de recuperación no es correcto o ya se ha usado.",
+  "TOTP_NOT_PERMITTED": "Este sitio no ofrece la aplicación de autenticación.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: un código de autenticación acompaña a la contraseña o al inicio de sesión único, no lo sustituye."
 }
