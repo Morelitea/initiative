@@ -124,6 +124,26 @@ describe("SecondFactorStepUpDialog", () => {
     );
   });
 
+  it("offers both ways on when the status cannot be read", async () => {
+    // A failed status query knows nothing, so the form stays for the enrolled
+    // majority and the way to get a factor is offered beside it.
+    server.use(http.get("/api/v1/auth/totp", () => HttpResponse.error()));
+    const { router } = renderPage(SecondFactorStepUpDialog, {
+      auth: { stepUpWithFactor: vi.fn() },
+    });
+    await waitFor(() => {
+      expect(router.state.status).toBe("idle");
+    });
+
+    fireChallenge();
+    await screen.findByRole("dialog");
+
+    expect(await screen.findByLabelText(/authentication code/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /set one up/i })).toBeInTheDocument();
+    });
+  });
+
   it("opens once when a page's many requests are all refused", async () => {
     statusIs(true);
     renderWithProviders(<SecondFactorStepUpDialog />);

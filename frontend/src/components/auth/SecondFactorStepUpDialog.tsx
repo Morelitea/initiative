@@ -52,9 +52,13 @@ export const SecondFactorStepUpDialog = () => {
   const statusQuery = useReadSecondFactorApiV1AuthTotpGet({
     query: { enabled: open },
   });
-  // Until the answer arrives, assume the account has a factor: the refusal
-  // that opened this dialog is the common case, and a form is what it wants.
-  const enrolled = statusQuery.data?.enrolled !== false;
+  // Three states, not two. While the answer is in flight, offer the form: the
+  // refusal that opened this dialog is the common case and a form is what it
+  // wants. Only a definite "no factor" swaps it for the way to get one — and
+  // when the status cannot be read at all, the form stays but the way to get
+  // one is offered beside it, so neither audience is stranded.
+  const hasNoFactor = statusQuery.data?.enrolled === false;
+  const statusUnknown = statusQuery.isError;
 
   const dismiss = () => {
     clear();
@@ -89,7 +93,7 @@ export const SecondFactorStepUpDialog = () => {
         <DialogHeader>
           <DialogTitle>{t("factorStepUp.title")}</DialogTitle>
           <DialogDescription>
-            {!enrolled
+            {hasNoFactor
               ? t("factorStepUp.notEnrolled")
               : useRecoveryCode
                 ? t("factorStepUp.recoveryDescription")
@@ -97,7 +101,18 @@ export const SecondFactorStepUpDialog = () => {
           </DialogDescription>
         </DialogHeader>
 
-        {enrolled ? (
+        {hasNoFactor ? (
+          <DialogFooter>
+            <Button variant="outline" onClick={dismiss}>
+              {t("factorStepUp.dismiss")}
+            </Button>
+            <Button asChild>
+              <Link to="/profile/security" onClick={dismiss}>
+                {t("factorStepUp.setUp")}
+              </Link>
+            </Button>
+          </DialogFooter>
+        ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="step-up-code">
@@ -147,18 +162,19 @@ export const SecondFactorStepUpDialog = () => {
                 {submitting ? t("login.submitting") : t("factorStepUp.submit")}
               </Button>
             </DialogFooter>
+            {statusUnknown && (
+              <p className="text-muted-foreground text-sm">
+                {t("factorStepUp.noFactorHint")}{" "}
+                <Link
+                  to="/profile/security"
+                  onClick={dismiss}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {t("factorStepUp.setUp")}
+                </Link>
+              </p>
+            )}
           </form>
-        ) : (
-          <DialogFooter>
-            <Button variant="outline" onClick={dismiss}>
-              {t("factorStepUp.dismiss")}
-            </Button>
-            <Button asChild>
-              <Link to="/profile/security" onClick={dismiss}>
-                {t("factorStepUp.setUp")}
-              </Link>
-            </Button>
-          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>
