@@ -9,7 +9,14 @@ import {
 } from "@/hooks/useGuildAuthPolicy";
 
 /** The guild's own login provider registry (guild Settings → Authentication). */
-export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
+export const GuildAuthProvidersSection = ({
+  guildId,
+  readOnly = false,
+}: {
+  guildId: number;
+  /** An ordinary admin sees the registry; the security admin changes it. */
+  readOnly?: boolean;
+}) => {
   const { t } = useTranslation("settings");
   const providersQuery = useGuildAuthProviders(guildId);
   const createProvider = useCreateGuildAuthProvider(guildId);
@@ -26,6 +33,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
       createProvider={createProvider}
       updateProvider={updateProvider}
       deleteProvider={deleteProvider}
+      readOnly={readOnly}
     />
   );
 };

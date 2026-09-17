@@ -49,6 +49,10 @@ export const SettingsGuildAuthPage = () => {
   const grantedOptions = activeGuild?.auth_options ?? [];
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
+  // Who may *change* any of this, as opposed to read it. The seat above admin
+  // holds a community's sign-in configuration, so an ordinary admin sees the
+  // page and none of its controls.
+  const maySetSignIn = activeGuild?.role === "security_admin";
   const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
@@ -194,6 +198,11 @@ export const SettingsGuildAuthPage = () => {
 
   return (
     <div className="space-y-6">
+      {!maySetSignIn && (
+        <Alert>
+          <AlertDescription>{t("guildAuth.readOnlyNotice")}</AlertDescription>
+        </Alert>
+      )}
       {mayRequireSignIn ? (
         <Card className="shadow-sm">
           <CardHeader>
@@ -207,7 +216,12 @@ export const SettingsGuildAuthPage = () => {
               className="gap-3"
             >
               <div className="flex items-start gap-3 rounded-md border px-3 py-3">
-                <RadioGroupItem id="guild-auth-open" value="open" className="mt-1" />
+                <RadioGroupItem
+                  id="guild-auth-open"
+                  value="open"
+                  disabled={!maySetSignIn}
+                  className="mt-1"
+                />
                 <div>
                   <Label htmlFor="guild-auth-open" className="font-medium text-base">
                     {t("guildAuth.policy.openLabel")}
@@ -219,7 +233,7 @@ export const SettingsGuildAuthPage = () => {
                 <RadioGroupItem
                   id="guild-auth-required"
                   value="required"
-                  disabled={eligibleProviders.length === 0}
+                  disabled={!maySetSignIn || eligibleProviders.length === 0}
                   className="mt-1"
                 />
                 <div className="min-w-0 flex-1 space-y-2">
@@ -244,6 +258,7 @@ export const SettingsGuildAuthPage = () => {
                               : undefined
                         }
                         onValueChange={changeProvider}
+                        disabled={!maySetSignIn}
                       >
                         <SelectTrigger className="w-full sm:w-72">
                           <SelectValue placeholder={t("guildAuth.policy.providerPlaceholder")} />
@@ -295,7 +310,10 @@ export const SettingsGuildAuthPage = () => {
             )}
 
             <div className="flex justify-end">
-              <Button onClick={save} disabled={!isDirty || !canSave || updatePolicy.isPending}>
+              <Button
+                onClick={save}
+                disabled={!maySetSignIn || !isDirty || !canSave || updatePolicy.isPending}
+              >
                 {updatePolicy.isPending ? t("common:submitting") : t("common:save")}
               </Button>
             </div>
@@ -303,7 +321,9 @@ export const SettingsGuildAuthPage = () => {
         </Card>
       ) : null}
 
-      {mayConfigureProviders ? <GuildAuthProvidersSection guildId={guildId} /> : null}
+      {mayConfigureProviders ? (
+        <GuildAuthProvidersSection guildId={guildId} readOnly={!maySetSignIn} />
+      ) : null}
 
       <Card className="shadow-sm">
         <CardHeader>

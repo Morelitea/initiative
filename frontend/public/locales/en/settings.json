@@ -1094,7 +1094,8 @@
       "signInWith": "Sign in with {{providerName}}",
       "anyProvider": "Any of our sign-in providers",
       "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count."
-    }
+    },
+    "readOnlyNotice": "Only a security admin can change this. You can see what is set so you know who to ask."
   },
   "authProviders": {
     "title": "Identity providers",

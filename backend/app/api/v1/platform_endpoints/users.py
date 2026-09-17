@@ -1679,6 +1679,7 @@ async def delete_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
+    await guilds_service.lock_guild_seats(admin_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:
     # the requirement is lifted from the surface the seat holds.
     if await guilds_service.must_keep_security_admin(

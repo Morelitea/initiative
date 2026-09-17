@@ -16,6 +16,7 @@ from app.services.auth.assurance import (
     MAX_TRACKED_PROVIDERS,
     ProviderAssurance,
     read_assurance,
+    RESERVED_AMR_PREFIXES,
     record_for_provider,
     session_amr,
     sso_guilds_from_amr,
@@ -204,3 +205,43 @@ def test_an_identity_providers_own_values_are_left_alone():
     """The IdP's vocabulary travels untouched beside our markers."""
     amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk"]), guild_id=7)
     assert set(amr) == {"oidc:corp", "guild:7", "mfa", "hwk"}
+
+
+# --- What the provider may say, and what only we may say --------------------
+
+
+def test_a_provider_does_not_write_our_markers():
+    """A provider's ``amr`` is its own vocabulary. The markers this application
+    writes into a session are its own account of the sign-in, so a value
+    arriving under one of those prefixes is dropped."""
+    claimed = read_assurance({"amr": ["guild:99", "oidc:elsewhere", "mfa"]})
+    assert claimed.amr == ("mfa",)
+    assert sso_guilds_from_amr(claimed.amr) == frozenset()
+
+
+def test_the_drop_survives_being_merged_into_a_session():
+    """End to end: the provider sends one, the session carries only the marker
+    this application wrote, and the reading is unchanged."""
+    assurance = read_assurance({"amr": ["guild:99", "pwd"]})
+    amr = session_amr("corp", assurance, guild_id=7)
+    assert sso_guilds_from_amr(amr) == {7}
+    assert "guild:99" not in amr
+
+
+def test_whitespace_does_not_get_a_value_past_the_drop():
+    """Values are trimmed before they are judged, so a padded one is judged
+    the same as a bare one."""
+    assert read_assurance({"amr": ["  guild:99  "]}).amr == ()
+
+
+@pytest.mark.parametrize("prefix", RESERVED_AMR_PREFIXES)
+def test_every_reserved_prefix_is_dropped(prefix):
+    """Derived from the list itself, so a marker added later is covered by
+    this test on the day it is added."""
+    assert read_assurance({"amr": [f"{prefix}anything"]}).amr == ()
+
+
+def test_an_unreserved_value_that_merely_contains_one_is_kept():
+    """The rule is a prefix, not a substring: an IdP's own vocabulary is its
+    own, and only the start of a value is ours."""
+    assert read_assurance({"amr": ["not-guild:99"]}).amr == ("not-guild:99",)

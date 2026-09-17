@@ -1094,7 +1094,8 @@
       "signInWith": "Se connecter avec {{providerName}}",
       "anyProvider": "L'un de nos fournisseurs de connexion",
       "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas."
-    }
+    },
+    "readOnlyNotice": "Seul un administrateur de sécurité peut modifier ceci. Vous voyez ce qui est réglé, pour savoir à qui vous adresser."
   },
   "authProviders": {
     "title": "Fournisseurs d'identité",

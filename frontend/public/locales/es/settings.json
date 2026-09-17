@@ -1094,7 +1094,8 @@
       "signInWith": "Iniciar sesión con {{providerName}}",
       "anyProvider": "Cualquiera de nuestros proveedores",
       "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta."
-    }
+    },
+    "readOnlyNotice": "Solo un administrador de seguridad puede cambiar esto. Puedes ver lo que está configurado para saber a quién preguntar."
   },
   "authProviders": {
     "title": "Proveedores de identidad",

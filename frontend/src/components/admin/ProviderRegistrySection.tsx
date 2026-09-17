@@ -105,6 +105,8 @@ export interface ProviderRegistrySectionProps {
   createProvider: RegistryMutation<AuthProviderCreate>;
   updateProvider: RegistryMutation<{ providerId: number; data: AuthProviderUpdate }>;
   deleteProvider: RegistryMutation<number>;
+  /** Show the registry without the controls that change it. */
+  readOnly?: boolean;
 }
 
 /**
@@ -123,6 +125,7 @@ export const ProviderRegistrySection = ({
   createProvider,
   updateProvider,
   deleteProvider,
+  readOnly = false,
 }: ProviderRegistrySectionProps) => {
   const { t } = useTranslation("settings");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -252,7 +255,7 @@ export const ProviderRegistrySection = ({
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </div>
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" onClick={openCreate} disabled={readOnly}>
           {t("authProviders.addProvider")}
         </Button>
       </CardHeader>
@@ -282,25 +285,27 @@ export const ProviderRegistrySection = ({
                     <code className="rounded bg-muted px-1 py-0.5">{provider.callback_url}</code>
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEdit(provider)}
-                  >
-                    {t("authProviders.edit")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => setDeleting(provider)}
-                  >
-                    {t("authProviders.delete")}
-                  </Button>
-                </div>
+                {!readOnly && (
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEdit(provider)}
+                    >
+                      {t("authProviders.edit")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => setDeleting(provider)}
+                    >
+                      {t("authProviders.delete")}
+                    </Button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

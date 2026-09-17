@@ -1094,7 +1094,8 @@
       "signInWith": "Mit {{providerName}} anmelden",
       "anyProvider": "Einer unserer Anmeldeanbieter",
       "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht."
-    }
+    },
+    "readOnlyNotice": "Nur ein Sicherheitsadmin kann das ändern. Du siehst, was eingestellt ist, damit du weißt, wen du fragen musst."
   },
   "authProviders": {
     "title": "Identitätsanbieter",

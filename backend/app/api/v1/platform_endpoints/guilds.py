@@ -1063,6 +1063,9 @@ async def set_guild_auth_policy(
     # told, or this sees single sign-on already gone and its provider is no
     # longer login-ready.
     await auth_posture.hold_settings_for_read(admin_session)
+    # And order against the seat: a requirement must not commit while the only
+    # member who could lift it is being demoted, removed, or leaving.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
 
     require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
     if payload.provider_id is None and not require_methods:
@@ -1074,7 +1077,12 @@ async def set_guild_auth_policy(
 
     provider = None
     if payload.provider_id is not None:
-        provider = await admin_session.get(AuthProvider, payload.provider_id)
+        # Held for the rest of this transaction: the row this requirement is
+        # about to point at must still be there when it commits, and deleting
+        # a required provider is refused rather than allowed to race.
+        provider = await admin_session.get(
+            AuthProvider, payload.provider_id, with_for_update=True
+        )
         if (
             provider is None
             or provider.guild_id != guild_id
@@ -1338,6 +1346,7 @@ async def update_guild_membership(
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
+    await guilds_service.lock_guild_seats(session, guild_id)
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )
@@ -1377,7 +1386,7 @@ async def update_guild_membership(
         target_membership.role == GuildRole.security_admin
         and payload.role != GuildRole.security_admin
         and await guilds_service.must_keep_security_admin(
-            session, guild_id=guild_id, user_id=user_id, lock=True
+            session, guild_id=guild_id, user_id=user_id
         )
     ):
         raise HTTPException(
@@ -1446,6 +1455,7 @@ async def check_leave_eligibility(
         admin_session, guild_id, current_user.id
     )
 
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
     is_last_security_admin = await guilds_service.must_keep_security_admin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     )
@@ -1499,6 +1509,7 @@ async def leave_guild(
             detail=GuildMessages.CANNOT_LEAVE_LAST_ADMIN,
         )
 
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
     # Nor while they are the only member who can lift a sign-in requirement:
     # that is lifted from the surface the seat holds. Asked on the system
     # engine, which is where the policy row is readable.

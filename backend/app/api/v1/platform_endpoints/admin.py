@@ -1007,6 +1007,8 @@ async def admin_update_guild_member_role(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
+    await guilds_service.lock_guild_seats(session, guild_id)
+
     # Get target membership with lock
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
@@ -1036,7 +1038,7 @@ async def admin_update_guild_member_role(
         target_membership.role == GuildRole.security_admin
         and payload.role != GuildRole.security_admin
         and await guilds_service.must_keep_security_admin(
-            session, guild_id=guild_id, user_id=user_id, lock=True
+            session, guild_id=guild_id, user_id=user_id
         )
     ):
         raise HTTPException(

@@ -1135,3 +1135,47 @@ async def test_enrolment_hands_the_session_back_unrouted(session: AsyncSession):
         )
         is not None
     )
+
+
+# --- The lock that orders seat and sign-in-requirement changes ---------------
+
+
+async def _try_lock(probe, guild_id: int) -> bool:
+    """Whether a second connection can still take one guild's seat lock."""
+    row = (
+        await probe.exec(
+            text("SELECT pg_try_advisory_xact_lock(:ns, :gid) AS taken"),
+            params={"ns": guild_service.SEAT_LOCK_NAMESPACE, "gid": guild_id},
+        )
+    ).one()
+    return bool(row.taken if hasattr(row, "taken") else row)
+
+
+@pytest.mark.integration
+async def test_the_seat_lock_excludes_another_connection(session, role_session):
+    """The paths that could leave a sign-in requirement unliftable do not all
+    write on the connection that asks the question, so what orders them has to
+    reach across connections. This is that, demonstrated.
+    """
+    from app.testing.factories import create_guild
+
+    guild = await create_guild(session)
+    elsewhere = await create_guild(session)
+    guild_id, elsewhere_id = guild.id, elsewhere.id
+
+    await guild_service.lock_guild_seats(session, guild_id)
+
+    probe = await role_session("app_admin")
+    assert await _try_lock(probe, guild_id) is False, (
+        "a second connection must wait for this guild's seat lock"
+    )
+    # And it is per guild, not a global gate: every other community carries on.
+    assert await _try_lock(probe, elsewhere_id) is True
+    await probe.rollback()
+
+    # Transaction-scoped, so ending this one hands it on. That is also what
+    # makes it safe behind a transaction-mode pooler, which CI runs.
+    await session.rollback()
+    probe_again = await role_session("app_admin")
+    assert await _try_lock(probe_again, guild_id) is True
+    await probe_again.rollback()
