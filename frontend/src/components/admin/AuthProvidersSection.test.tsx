@@ -63,6 +63,7 @@ const reachable: AuthProviderProbeResult = {
   signing_algs: ["RS256"],
   scopes_supported: ["openid", "email", "profile", "groups"],
   claims_supported: ["sub", "email", "groups"],
+  callback_url_template: "https://app.example.com/api/v1/auth/{slug}/callback",
 };
 
 const rowFor = (name: string) => screen.getByText(name).closest("li") as HTMLElement;
@@ -221,7 +222,10 @@ describe("AuthProvidersSection", () => {
       await screen.findByText("Reachable");
       fireEvent.click(screen.getByRole("button", { name: /Next: credentials/ }));
 
-      expect(screen.getByText("http://localhost/api/v1/auth/google/callback")).toBeInTheDocument();
+      // The server's own answer, built from APP_URL — not this page's origin.
+      expect(
+        screen.getByText("https://app.example.com/api/v1/auth/google/callback")
+      ).toBeInTheDocument();
 
       fireEvent.change(screen.getByLabelText("Client ID"), {
         target: { value: "acme-client" },
@@ -244,6 +248,36 @@ describe("AuthProvidersSection", () => {
         allow_jit: true,
         icon: "google",
       });
+    });
+
+    it("does not let a late answer vouch for an address that has moved on", async () => {
+      // Verify address A, edit to B before the answer lands, and the answer
+      // about A must not unlock a form that now shows B.
+      let land: (() => void) | null = null;
+      discoverMutate.mockImplementation((vars, options) => {
+        land = () =>
+          options?.onSuccess?.({
+            ...reachable,
+            issuer: (vars as { issuer: string }).issuer,
+          });
+      });
+
+      renderWithProviders(<AuthProvidersSection />);
+      openWizard();
+      await pickPreset("Okta");
+
+      fireEvent.change(screen.getByLabelText("Okta domain"), {
+        target: { value: "dev-1.okta.com" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+      fireEvent.change(screen.getByLabelText("Okta domain"), {
+        target: { value: "dev-2.okta.com" },
+      });
+      land?.();
+
+      expect(screen.queryByText("Reachable")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Next: credentials/ })).toBeDisabled();
     });
 
     it("refuses a slug the server would refuse", async () => {

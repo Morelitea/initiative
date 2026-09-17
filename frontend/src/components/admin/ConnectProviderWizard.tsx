@@ -70,9 +70,6 @@ export interface WizardMutation<TVariables, TResult = unknown> {
 export interface ConnectProviderWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Where this provider will send the browser back, for the slug in hand.
-   *  Built by the caller because it differs per namespace. */
-  callbackUrlFor: (slug: string) => string;
   createProvider: WizardMutation<AuthProviderCreate>;
   discoverIssuer: WizardMutation<{ issuer: string }, AuthProviderProbeResult>;
 }
@@ -80,7 +77,6 @@ export interface ConnectProviderWizardProps {
 export const ConnectProviderWizard = ({
   open,
   onOpenChange,
-  callbackUrlFor,
   createProvider,
   discoverIssuer,
 }: ConnectProviderWizardProps) => {
@@ -98,16 +94,25 @@ export const ConnectProviderWizard = ({
   const [groupsClaim, setGroupsClaim] = useState("");
   const [allowJit, setAllowJit] = useState(true);
   const [enabled, setEnabled] = useState(true);
-  const [probe, setProbe] = useState<AuthProviderProbeResult | null>(null);
+  /** The look-up, and the address it was asked about. Kept together so an
+   *  answer that arrives after the address moved on is not mistaken for an
+   *  answer about the address now showing. */
+  const [probe, setProbe] = useState<{
+    forIssuer: string;
+    result: AuthProviderProbeResult;
+  } | null>(null);
   const [slugError, setSlugError] = useState(false);
 
   const issuer = isCustomPreset(preset) ? typedIssuer.trim() : buildIssuer(preset, blanks);
   const addressReady = isCustomPreset(preset)
     ? /^https:\/\/.+/.test(issuer)
     : issuerIsComplete(preset, blanks);
-  // Verified against the address as it stands, so editing it afterwards puts
-  // the tick away rather than leaving it vouching for something else.
-  const verified = probe?.ok === true && probe.issuer !== null;
+  // The answer only counts while it is about the address on screen, so
+  // editing it — or editing it mid-flight — puts the tick away rather than
+  // leaving it vouching for somewhere else.
+  const shown = probe?.forIssuer === issuer ? probe.result : null;
+  const verified = shown?.ok === true && shown.issuer !== null;
+  const callbackUrl = (shown?.callback_url_template ?? "").replace("{slug}", slug || "{slug}");
 
   const closeWizard = () => {
     onOpenChange(false);
@@ -139,11 +144,13 @@ export const ConnectProviderWizard = ({
   };
 
   const verify = () => {
+    const asked = issuer;
     discoverIssuer.mutate(
-      { issuer },
+      { issuer: asked },
       {
         onSuccess: (result) => {
-          setProbe(result);
+          // Recorded against the address asked about, not the address now.
+          setProbe({ forIssuer: asked, result });
           // What it says it offers is a better starting point than our guess.
           if (result.ok) setScopes(suggestScopes(result.scopes_supported));
         },
@@ -163,9 +170,10 @@ export const ConnectProviderWizard = ({
       {
         slug,
         display_name: displayName,
-        // The verified address, which may be the typed one trimmed of a
-        // pasted `.well-known` suffix.
-        issuer: probe?.issuer ?? issuer,
+        // The address that answered, which may be the typed one trimmed of a
+        // pasted `.well-known` suffix. `shown` is only set while the answer is
+        // about the address on screen, so this can never save a stale one.
+        issuer: shown?.issuer ?? issuer,
         client_id: clientId,
         client_secret: clientSecret || null,
         scopes: scopes || null,
@@ -289,7 +297,7 @@ export const ConnectProviderWizard = ({
             </Button>
           </div>
 
-          {probe ? <ProbeReport probe={probe} /> : null}
+          {shown ? <ProbeReport probe={shown} /> : null}
 
           <Button
             className="w-full"
@@ -310,12 +318,9 @@ export const ConnectProviderWizard = ({
             <Label>{t("authProviders.wizard.registerCallback")}</Label>
             <div className="flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1.5 text-xs">
-                {callbackUrlFor(slug)}
+                {callbackUrl}
               </code>
-              <CopyButton
-                value={callbackUrlFor(slug)}
-                copiedMessage={t("authProviders.callbackCopied")}
-              />
+              <CopyButton value={callbackUrl} copiedMessage={t("authProviders.callbackCopied")} />
             </div>
             <p className="text-muted-foreground text-xs">
               {t("authProviders.wizard.callbackHelp")}
@@ -391,7 +396,7 @@ export const ConnectProviderWizard = ({
               value={scopes}
               onChange={(event) => setScopes(event.target.value)}
             />
-            {probe && probe.scopes_supported.length > 0 ? (
+            {shown && shown.scopes_supported.length > 0 ? (
               <p className="text-muted-foreground text-xs">
                 {t("authProviders.scopesFromProvider")}
               </p>
@@ -402,7 +407,7 @@ export const ConnectProviderWizard = ({
             <Label>{t("authProviders.claimPathLabel")}</Label>
             <SuggestCombobox
               suggestions={[
-                ...new Set([...(probe?.claims_supported ?? []), ...GROUPS_CLAIM_SUGGESTIONS]),
+                ...new Set([...(shown?.claims_supported ?? []), ...GROUPS_CLAIM_SUGGESTIONS]),
               ]}
               value={groupsClaim}
               onValueChange={setGroupsClaim}

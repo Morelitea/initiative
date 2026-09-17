@@ -24,7 +24,7 @@ the cache the login path reads.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -54,6 +54,7 @@ class ProbeResult:
     signing_algs: list[str] = field(default_factory=list)
     scopes_supported: list[str] = field(default_factory=list)
     claims_supported: list[str] = field(default_factory=list)
+    callback_url_template: str = ""
 
     @classmethod
     def failed(cls, error_code: str) -> ProbeResult:
@@ -106,21 +107,29 @@ def _error_code_for(exc: DiscoveryError) -> str:
 
 
 async def probe_issuer(
-    issuer: str, *, discovery: OidcDiscovery | None = None
+    issuer: str,
+    *,
+    guild_id: int | None,
+    discovery: OidcDiscovery | None = None,
 ) -> ProbeResult:
     """Look up ``issuer`` and report what it offers.
 
     A pasted ``.well-known`` URL is accepted — discovery trims it — so the
     address somebody copied out of their provider's docs works as typed.
+
+    ``guild_id`` names the namespace, which is what the callback address hangs
+    off. It is attached whether the look-up succeeded or not: somebody whose
+    address did not answer is still mid-setup and still needs it.
     """
     client = discovery or fresh_discovery()
+    template = provider_registry.provider_callback_url("{slug}", guild_id)
     try:
         metadata = await client.fetch(issuer)
     except DiscoveryError as exc:
         code = _error_code_for(exc)
         logger.info("provider probe of %s reported %s: %s", issuer, code, exc)
-        return ProbeResult.failed(code)
-    return ProbeResult.found(metadata)
+        return replace(ProbeResult.failed(code), callback_url_template=template)
+    return replace(ProbeResult.found(metadata), callback_url_template=template)
 
 
 async def probe_provider(
@@ -141,4 +150,4 @@ async def probe_provider(
     )
     if not row.issuer:
         return ProbeResult.failed(AuthProviderMessages.DISCOVERY_NO_ISSUER)
-    return await probe_issuer(row.issuer, discovery=discovery)
+    return await probe_issuer(row.issuer, guild_id=guild_id, discovery=discovery)

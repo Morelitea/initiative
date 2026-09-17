@@ -97,7 +97,7 @@ async def discover_auth_provider(
     and timeout — so this never refuses an issuer a login would accept. What
     comes back is parsed and named; a failure is one of the discovery codes.
     """
-    result = await provider_probe.probe_issuer(payload.issuer)
+    result = await provider_probe.probe_issuer(payload.issuer, guild_id=None)
     return AuthProviderProbeResult.model_validate(result, from_attributes=True)
 
 

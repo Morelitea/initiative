@@ -131,7 +131,9 @@ export const SuggestCombobox = ({
                 )}
               </CommandEmpty>
               <CommandGroup className="max-h-64 overflow-y-auto">
-                {offerTyped && matching.length === 0 && (
+                {/* Offered whenever what was typed is not itself a suggestion —
+                    `role` has to be choosable while `roles` is on the list. */}
+                {offerTyped && (
                   <CommandItem
                     value={`__typed__${search}`}
                     onSelect={() => choose(search)}

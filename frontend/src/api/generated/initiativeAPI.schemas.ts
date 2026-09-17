@@ -1111,6 +1111,7 @@ export interface AuthProviderProbeResult {
   signing_algs: string[];
   scopes_supported: string[];
   claims_supported: string[];
+  callback_url_template: string;
 }
 
 /**

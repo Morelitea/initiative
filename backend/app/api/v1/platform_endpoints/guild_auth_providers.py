@@ -169,7 +169,7 @@ async def discover_guild_auth_provider(
     await _require_guild_provider_admin(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
-    result = await provider_probe.probe_issuer(payload.issuer)
+    result = await provider_probe.probe_issuer(payload.issuer, guild_id=guild_id)
     return AuthProviderProbeResult.model_validate(result, from_attributes=True)
 
 

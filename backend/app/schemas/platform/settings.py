@@ -136,6 +136,13 @@ class AuthProviderProbeResult(SanitizedBaseModel):
     #: and groups-claim fields, and no login decision reads them.
     scopes_supported: List[str] = Field(default_factory=list)
     claims_supported: List[str] = Field(default_factory=list)
+    #: Where a provider in this namespace sends the browser back, with
+    #: ``{slug}`` still to fill in. Computed here rather than guessed by the
+    #: caller: it is built from the deployment's own ``APP_URL``, which is what
+    #: the finished provider's callback is built from too, and the address has
+    #: to match exactly at the far end. Returned by the look-up because that is
+    #: when somebody is about to need it.
+    callback_url_template: str = ""
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

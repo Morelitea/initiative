@@ -76,8 +76,6 @@ export interface ProviderRegistrySectionProps {
   updateProvider: RegistryMutation<{ providerId: number; data: AuthProviderUpdate }>;
   deleteProvider: RegistryMutation<number>;
   testProvider: RegistryMutation<number, AuthProviderProbeResult>;
-  /** Where a provider with this slug sends the browser back. */
-  callbackUrlFor: (slug: string) => string;
   discoverIssuer: RegistryMutation<{ issuer: string }, AuthProviderProbeResult>;
 }
 
@@ -98,7 +96,6 @@ export const ProviderRegistrySection = ({
   updateProvider,
   deleteProvider,
   testProvider,
-  callbackUrlFor,
   discoverIssuer,
 }: ProviderRegistrySectionProps) => {
   const { t } = useTranslation("settings");
@@ -306,10 +303,10 @@ export const ProviderRegistrySection = ({
               <Label>{t("authProviders.callbackLabel")}</Label>
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1.5 text-xs">
-                  {editing ? editing.callback_url : callbackUrlFor(form.slug)}
+                  {editing?.callback_url}
                 </code>
                 <CopyButton
-                  value={editing ? editing.callback_url : callbackUrlFor(form.slug)}
+                  value={editing?.callback_url ?? ""}
                   copiedMessage={t("authProviders.callbackCopied")}
                 />
               </div>
@@ -481,7 +478,6 @@ export const ProviderRegistrySection = ({
       <ConnectProviderWizard
         open={wizardOpen}
         onOpenChange={setWizardOpen}
-        callbackUrlFor={callbackUrlFor}
         createProvider={createProvider}
         discoverIssuer={discoverIssuer}
       />
