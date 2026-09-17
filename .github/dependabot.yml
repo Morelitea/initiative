@@ -57,6 +57,21 @@ updates:
       - dependency-name: "esbuild"
         update-types: ["version-update:semver-major"]
 
+  # Container base-image digests. Language-version changes stay deliberate;
+  # Dependabot moves the immutable digest behind the readable current tag.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    target-branch: "dev"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"

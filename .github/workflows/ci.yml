@@ -373,3 +373,30 @@ jobs:
 
       - name: Test the Android signing workflow
         run: python3 scripts/ci/android_signing_workflow_test.py
+
+  image:
+    name: Build and scan runtime image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build runtime image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          load: true
+          tags: initiative:scan
+
+      - name: Scan runtime image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: initiative:scan
+          # This gate owns the pinned runtime base. Application dependency and
+          # secret/configuration findings remain in their existing estate-wide
+          # checks, rather than making a base refresh answer for unrelated debt.
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
