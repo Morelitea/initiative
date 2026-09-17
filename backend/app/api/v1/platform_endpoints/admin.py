@@ -919,8 +919,9 @@ async def admin_delete_guild(
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
     """
-    if not await users_service.is_sole_superadmin_of_guild(
-        session, guild_id, blocked_user_id, for_update=True
+    await guilds_service.lock_guild_seats(session, guild_id)
+    if not await guilds_service.would_strand_guild(
+        session, guild_id=guild_id, user_id=blocked_user_id
     ):
         # Either the user isn't the guild's sole seat (not a real blocker), or
         # the guild doesn't exist / they aren't in it — all refused identically.

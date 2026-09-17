@@ -1550,6 +1550,42 @@ async def must_keep_superadmin(
     return others == 0
 
 
+async def would_strand_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether this account *going* would leave the community without a seat.
+
+    :func:`must_keep_superadmin` with the exception that makes it liveable: a
+    community whose only member is the person leaving has nobody to strand, and
+    no remedy to offer either — appointing another superadmin takes somebody to
+    appoint. They go, and what is left is a community with no members.
+
+    Departure only. Demotion does not get the exception and asks
+    :func:`must_keep_superadmin` directly: somebody who demotes themselves
+    while alone is still there afterwards, in a community they can no longer
+    configure and cannot re-seat.
+
+    Call :func:`lock_guild_seats` first, as for the rule it builds on.
+    """
+    if not await must_keep_superadmin(session, guild_id=guild_id, user_id=user_id):
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+            )
+        )
+    ).one()
+    return others > 0
+
+
 async def remove_user_from_guild(
     session: AsyncSession,
     *,

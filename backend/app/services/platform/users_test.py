@@ -34,6 +34,10 @@ async def test_the_sole_seat_is_reported(session: AsyncSession):
     await create_guild_membership(
         session, user=seat, guild=guild, role=GuildRole.superadmin
     )
+    # Somebody to strand: a community of one is the exception, tested below.
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
 
@@ -80,6 +84,9 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
     await create_guild_membership(
         session, user=seat, guild=alone, role=GuildRole.superadmin
     )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=alone, role=GuildRole.member
+    )
     other = await create_user(session, email="other@example.com")
     shared = await create_guild(session, name="Shared", creator=other)
     for user in (seat, other):
@@ -123,6 +130,9 @@ async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSess
     guild = await create_guild(session, name="My Guild", creator=seat)
     await create_guild_membership(
         session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
     )
 
     can_delete, blockers = await user_service.check_deletion_eligibility(
@@ -171,6 +181,9 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     await create_guild_membership(
         session, user=seat, guild=guild, role=GuildRole.superadmin
     )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
 
     with pytest.raises(user_service.SeatWouldBeEmptied) as refusal:
         await user_service.deactivate_user(session, seat.id)
@@ -179,6 +192,47 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     # The account is untouched by the refusal.
     await session.refresh(seat)
     assert seat.status == UserStatus.active
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
+    """Nobody to strand, and no remedy to offer: appointing another superadmin
+    takes somebody to appoint. The community is left with no members."""
+    alone = await create_user(session)
+    guild = await create_guild(session, name="Just Me", creator=alone)
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    assert await user_service.is_last_guild_superadmin(session, alone.id) == []
+
+    alone_id = alone.id
+    await user_service.deactivate_user(session, alone_id)
+    reloaded = (await session.exec(select(User).where(User.id == alone_id))).one()
+    assert reloaded.status == UserStatus.deactivated
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_one_other_member_brings_the_block_back(session: AsyncSession):
+    """Somebody else is there, so there is somebody to appoint — and somebody
+    to strand by not appointing them."""
+    seat = await create_user(session, email="seat@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session, name="Not Just Me", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == [
+        "Not Just Me"
+    ]
+    with pytest.raises(user_service.SeatWouldBeEmptied):
+        await user_service.deactivate_user(session, seat.id)
 
 
 @pytest.mark.unit

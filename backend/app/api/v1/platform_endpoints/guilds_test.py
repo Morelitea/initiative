@@ -1224,6 +1224,10 @@ async def test_the_only_seat_cannot_leave(client: AsyncClient, session: AsyncSes
     await create_guild_membership(
         session, user=only_seat, guild=guild, role=GuildRole.superadmin
     )
+    # Somebody to strand. A community of one is the exception below.
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
 
     eligibility = await client.get(
         f"/api/v1/guilds/{guild.id}/leave/eligibility",
@@ -1251,6 +1255,9 @@ async def test_a_second_seat_frees_the_first(
         await create_guild_membership(
             session, user=user, guild=guild, role=GuildRole.superadmin
         )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
 
     left = await client.delete(
         f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(second)
@@ -1262,6 +1269,30 @@ async def test_a_second_seat_frees_the_first(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+
+
+@pytest.mark.integration
+async def test_the_only_member_leaves_whatever_they_hold(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nobody to strand, and nobody to appoint either. What is left behind is a
+    community with no members."""
+    alone = await create_user(session)
+    guild = await create_guild(session, creator=alone)
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(alone),
+    )
+    assert eligibility.json()["can_leave"] is True
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(alone)
+    )
+    assert response.status_code == 204, response.text
 
 
 @pytest.mark.integration

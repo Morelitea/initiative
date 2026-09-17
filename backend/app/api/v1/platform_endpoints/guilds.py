@@ -1511,7 +1511,7 @@ async def check_leave_eligibility(
     # Counting a guild's seats is a question about the guild rather than about
     # the caller, so it is asked on the system engine.
     await guilds_service.lock_guild_seats(admin_session, guild_id)
-    is_last_superadmin = await guilds_service.must_keep_superadmin(
+    is_last_superadmin = await guilds_service.would_strand_guild(
         admin_session, guild_id=guild_id, user_id=current_user.id
     )
 
@@ -1562,7 +1562,9 @@ async def leave_guild(
 
     # The seat is what a guild has to keep. An ordinary admin may leave freely:
     # every guild has a superadmin, so the community is never left without one.
-    if await guilds_service.must_keep_superadmin(
+    # And the only member of a community may leave whatever they hold — there
+    # is nobody there to strand.
+    if await guilds_service.would_strand_guild(
         admin_session, guild_id=guild_id, user_id=current_user.id
     ):
         raise HTTPException(

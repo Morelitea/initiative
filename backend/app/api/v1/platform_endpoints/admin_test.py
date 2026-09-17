@@ -368,6 +368,13 @@ async def test_admin_delete_guild_deletes_genuine_blocker(
     await create_guild_membership(
         session, user=target, guild=guild, role=GuildRole.superadmin
     )
+    # A community of one strands nobody, so it is not a blocker at all.
+    await create_guild_membership(
+        session,
+        user=await create_user(session, email="bystander@example.com"),
+        guild=guild,
+        role=GuildRole.member,
+    )
 
     resp = await client.delete(
         f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
