@@ -193,14 +193,7 @@ async def _guild_membership_of(
     guild_id: int,
     user_id: int,
 ) -> GuildMembership:
-    """The caller's own membership row, read under RLS.
-
-    Set minimal RLS context so the guild_memberships query succeeds (own-row
-    read). No standing bypass: these endpoints are for a guild's *own* admins —
-    a platform ``data.bypass`` holder who isn't a member is denied here and
-    manages other guilds via the dedicated ``/admin/*`` (capability-gated)
-    routes instead. Full context is set by _set_guild_admin_rls after validation.
-    """
+    """Return the caller's membership in ``guild_id``."""
     await set_rls_context(session, user_id=user_id)
     return await rls_service.require_guild_membership(
         session,
@@ -212,16 +205,7 @@ async def _guild_membership_of(
 async def _settings_grantee(
     session: SessionDep, *, guild_id: int, user_id: int
 ) -> Optional[GuildMembership]:
-    """A stand-in membership for somebody holding a live settings grant here.
-
-    These endpoints are on the platform router and never resolve a
-    ``GuildContext``, so the grant is read directly. ``support`` is the role a
-    grantee carries everywhere else; it clears no admin guard on its own, which
-    is why the callers below ask the rung rather than the role.
-
-    ``None`` when there is no settings grant — the caller then wants a real
-    membership, and says so.
-    """
+    """Return a support context for a live settings grant, if present."""
     grant = await access_grants_service.get_live_grant(
         session,
         user_id=user_id,
@@ -255,21 +239,8 @@ async def _ensure_guild_superadmin(
     guild_id: int,
     user_id: int,
 ) -> GuildMembership:
-    """The gate for the guild's sign-in configuration and its billing.
-
-    The seat exactly, not admin-or-above: an ordinary guild admin runs the
-    community, and this decides who may enter it and what it is billed for.
-
-    Answered by ``public.guild_superadmin`` — the function the policies on
-    ``guild_auth_policies`` defer to — so an endpoint and the database reach
-    the same verdict by asking the same question. ``_guild_membership_of``
-    still runs first: it establishes the request context the function is read
-    under, and a non-member is a membership refusal rather than a seat one.
-    """
+    """Require the guild seat or an equivalent settings grant."""
     await set_rls_context(session, user_id=user_id)
-    # ``guild_superadmin`` answers for a live ``superadmin`` settings grant as
-    # well as for the roster, so the seat check below is the whole rule. What
-    # this decides is only whether a real membership is also required.
     grantee = await _settings_grantee(session, guild_id=guild_id, user_id=user_id)
     membership = grantee or await _guild_membership_of(
         session, guild_id=guild_id, user_id=user_id
@@ -284,11 +255,7 @@ async def _set_guild_admin_rls(
     guild_id: int,
     user: User,
 ) -> None:
-    """Set RLS context after _ensure_guild_admin has validated the user's role.
-
-    The validated guild admin acts through the guild's own role
-    (``guild_<id>`` + ``current_guild_role='admin'``), not a standing all-guild
-    bypass — full authority within this one guild, scoped to it."""
+    """Route a validated guild administrator into ``guild_id``."""
     await set_rls_context(
         session,
         user_id=user.id,

@@ -1,10 +1,13 @@
 """A grant for a community's settings, and nothing inside it."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import UserRole
+from app.services.platform import access_grants as access_grants_service
 from app.testing.factories import (
     create_guild,
     create_initiative,
@@ -62,6 +65,25 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     # the guild's initiatives are not this grantee's to read.
     content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert content.status_code in (403, 404), content.text
+
+
+async def test_a_settings_only_grant_reaches_guild_scoped_configuration(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="admin"
+    )
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/settings/ai/connections",
+        headers=get_auth_headers(support),
+    )
+
+    assert response.status_code == 200, response.text
 
 
 async def test_the_admin_rung_does_not_reach_the_seat(
@@ -192,3 +214,39 @@ def test_every_level_has_its_own_label():
         assert len(set(rendered.values())) == len(rendered), f"{locale}: {rendered}"
         for level, text in rendered.items():
             assert not text.startswith("accessGrant."), f"{locale}/{level} unresolved"
+
+
+async def test_a_combined_conflict_sends_no_external_notification(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(support)
+
+    existing = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
+        json={
+            "guild_id": guild.id,
+            "settings_level": "admin",
+            "reason": "already pending",
+        },
+    )
+    assert existing.status_code == 201, existing.text
+
+    send = AsyncMock()
+    monkeypatch.setattr(access_grants_service, "_push_and_email", send)
+    response = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
+        json={
+            "guild_id": guild.id,
+            "access_level": "read",
+            "settings_level": "superadmin",
+            "reason": "combined request",
+        },
+    )
+
+    assert response.status_code == 409, response.text
+    send.assert_not_awaited()

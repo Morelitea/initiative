@@ -121,7 +121,23 @@ class PamGrantee:
     query: bool = False
 
 
-RequestContext = Union[Unattributed, Platform, GuildScoped, SystemGuild, PamGrantee]
+@dataclass(frozen=True)
+class SettingsGrantee:
+    """A settings-only grant routed to one guild's configuration tables."""
+
+    settings_guild_id: int
+    user_id: Optional[int] = None
+    tier: Optional[str] = None
+
+
+RequestContext = Union[
+    Unattributed,
+    Platform,
+    GuildScoped,
+    SystemGuild,
+    PamGrantee,
+    SettingsGrantee,
+]
 
 
 #: Keywords that describe how a guild is routed into, which a grant does not
@@ -170,11 +186,22 @@ def classify(**kwargs) -> RequestContext:
     pam_named = [k for k in _PAM if _set(kwargs.get(k))]
     routing_named = [k for k in _GUILD_ROUTING if _set(kwargs.get(k))]
     narrowing_named = [k for k in _NARROWING if _set(kwargs.get(k))]
+    settings_guild_id = kwargs.get("settings_guild_id")
 
     if _set(role) and role not in CONTENT_ROLES:
         raise ContextShapeError(
             f"guild_role {role!r} is not a content role; put a stored role "
             "through content_role() first"
+        )
+
+    if _set(settings_guild_id):
+        if _set(guild_id) or pam_named or routing_named or narrowing_named:
+            raise ContextShapeError(
+                "a settings grant is routed separately from membership and "
+                "content grants"
+            )
+        return SettingsGrantee(
+            settings_guild_id=int(settings_guild_id), user_id=user_id, tier=tier
         )
 
     if pam_named:
