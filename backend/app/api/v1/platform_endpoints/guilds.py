@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -87,6 +87,8 @@ from app.services.auth import (
 )
 from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption
+from app.models.platform.access_grant import AccessGrantPurpose
+from app.services.platform import access_grants as access_grants_service
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
 from app.services.platform import billing_claim
@@ -210,12 +212,41 @@ async def _guild_membership_of(
     )
 
 
+async def _settings_grantee(
+    session: SessionDep, *, guild_id: int, user_id: int
+) -> Optional[GuildMembership]:
+    """A stand-in membership for somebody holding a live settings grant here.
+
+    These endpoints are on the platform router and never resolve a
+    ``GuildContext``, so the grant is read directly. ``support`` is the role a
+    grantee carries everywhere else; it clears no admin guard on its own, which
+    is why the callers below ask the rung rather than the role.
+
+    ``None`` when there is no settings grant — the caller then wants a real
+    membership, and says so.
+    """
+    grant = await access_grants_service.get_live_grant(
+        session,
+        user_id=user_id,
+        guild_id=guild_id,
+        purpose=AccessGrantPurpose.settings,
+    )
+    if grant is None:
+        return None
+    return GuildMembership(guild_id=guild_id, user_id=user_id, role=GuildRole.support)
+
+
 async def _ensure_guild_admin(
     session: SessionDep,
     *,
     guild_id: int,
     user_id: int,
 ) -> GuildMembership:
+    await set_rls_context(session, user_id=user_id)
+    # Either rung reaches what a guild admin administers.
+    grantee = await _settings_grantee(session, guild_id=guild_id, user_id=user_id)
+    if grantee is not None:
+        return grantee
     membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
     rls_service.require_guild_admin(membership.role)
     return membership
@@ -238,7 +269,14 @@ async def _ensure_guild_superadmin(
     still runs first: it establishes the request context the function is read
     under, and a non-member is a membership refusal rather than a seat one.
     """
-    membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
+    await set_rls_context(session, user_id=user_id)
+    # ``guild_superadmin`` answers for a live ``superadmin`` settings grant as
+    # well as for the roster, so the seat check below is the whole rule. What
+    # this decides is only whether a real membership is also required.
+    grantee = await _settings_grantee(session, guild_id=guild_id, user_id=user_id)
+    membership = grantee or await _guild_membership_of(
+        session, guild_id=guild_id, user_id=user_id
+    )
     await rls_service.require_guild_seat(session, guild_id=guild_id, user_id=user_id)
     return membership
 

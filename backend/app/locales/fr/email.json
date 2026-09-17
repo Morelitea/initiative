@@ -149,6 +149,8 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "levelRead": "en lecture seule",
     "levelReadWrite": "en lecture-écriture",
+    "levelAdmin": "aux réglages de la communauté (admin)",
+    "levelSuperadmin": "aux réglages de la communauté (superadmin)",
     "requested": {
       "subject": "Demande d'accès pour {{guildName}}",
       "title": "Nouvelle demande d'accès",

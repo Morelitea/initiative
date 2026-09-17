@@ -86,6 +86,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "Diese Community erfordert die Anmeldung über ihren Identitätsanbieter",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Wählen Sie einen aktivierten Anmeldeanbieter für diese Anforderung",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Melden Sie sich selbst mit diesem Anbieter an, bevor Sie ihn für die Community verlangen",
+  "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE": "Diese Anmeldemethode ist auf dieser Plattform nicht verfügbar",
   "GUILD_AUTH_NOT_ENABLED": "Die Community-spezifische Anmeldung ist auf dieser Plattform nicht aktiviert",
   "GUILD_API_KEYS_REFUSED": "Diese Community akzeptiert keine persönlichen API-Schlüssel",
   "AUTH_PROVIDER_IN_USE": "Die Anmeldeanforderung einer Community verwendet diesen Anbieter; ändern Sie zuerst diese Anforderung",

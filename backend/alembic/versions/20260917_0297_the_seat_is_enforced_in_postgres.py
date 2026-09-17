@@ -6,10 +6,9 @@ decides it.
 
 Three things:
 
-* ``public.guild_superadmin(guild_id, user_id)`` — the rule, once. Imported
-  from ``app.db.authorization`` rather than copied, which is that module's
-  contract: it is re-applied on every boot and a test fails if the database and
-  the file disagree.
+* ``public.guild_superadmin(guild_id, user_id)`` — the rule at this revision.
+  The live definition remains in ``app.db.authorization`` and is re-applied on
+  every boot.
 * ``app_guild_base`` gains INSERT/UPDATE/DELETE, so a guild-routed session can
   reach the table at all. It is not granted to ``app_user``: an unrouted
   session stays unable to write one, which is where a request that never
@@ -32,12 +31,28 @@ Create Date: 2026-09-17
 
 from alembic import op
 
-from app.db.authorization import GUILD_SUPERADMIN
-
 revision = "20260917_0297"
 down_revision = "20260917_0296"
 branch_labels = None
 depends_on = None
+
+
+_GUILD_SUPERADMIN = """\
+CREATE OR REPLACE FUNCTION public.guild_superadmin(p_guild_id integer, p_user_id integer)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.guild_memberships m
+        WHERE m.guild_id = p_guild_id
+          AND m.user_id = p_user_id
+          AND m.role = 'superadmin'
+    )
+$function$
+
+"""
 
 
 _GUILD = "guild_id = NULLIF(current_setting('app.current_guild_id', true), '')::int"
@@ -63,7 +78,7 @@ def upgrade() -> None:
         return
 
     op.execute("SET LOCAL check_function_bodies = false")
-    op.execute(GUILD_SUPERADMIN)
+    op.execute(_GUILD_SUPERADMIN)
 
     op.execute(
         "GRANT INSERT, UPDATE, DELETE ON public.guild_auth_policies TO app_guild_base"

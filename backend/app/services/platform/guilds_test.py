@@ -157,8 +157,8 @@ async def test_create_guild(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_create_guild_creates_admin_membership(session: AsyncSession):
-    """Test that creating a guild makes the creator an admin."""
+async def test_create_guild_creates_superadmin_membership(session: AsyncSession):
+    """Creating a guild gives its creator the community's top seat."""
     creator = await create_user(session, email="creator@example.com")
 
     guild = await guild_service.create_guild(
@@ -175,7 +175,7 @@ async def test_create_guild_creates_admin_membership(session: AsyncSession):
     )
 
     assert membership is not None
-    assert membership.role == GuildRole.admin
+    assert membership.role == GuildRole.superadmin
 
 
 @pytest.mark.unit

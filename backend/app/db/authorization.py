@@ -277,11 +277,11 @@ $function$
 #: answers about a shared table rather than a guild-local one, so it resolves
 #: the same way from a routed session and an unrouted one.
 #:
-#: Not ``SECURITY DEFINER``, like everything else here: it runs as its caller
-#: and reads what that caller may read. ``guild_memberships_select`` admits a
-#: session its own rows and, when routed, the addressed guild's — which covers
-#: both questions asked of this: "am I the seat here" on the platform path, and
-#: "is the writer the seat" from inside a policy.
+#: Not ``SECURITY DEFINER``, like everything else here: it runs as its caller.
+#:
+#: A live settings grant at ``superadmin`` answers it too, for its window —
+#: which is what lets somebody sent to help with billing or moderation settings
+#: reach the surfaces that hold them, without reaching any content.
 #:
 #: The one definition of the rule. The policies on ``guild_auth_policies`` call
 #: it, and so does the app — ``func.guild_superadmin(...)`` where an endpoint
@@ -299,6 +299,18 @@ AS $function$
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
           AND m.role = 'superadmin'
+    )
+    -- Or a live settings grant at the same rung. A grantee is not a member, so
+    -- the seat they hold for the grant's window is recorded on the grant.
+    OR EXISTS (
+        SELECT 1
+        FROM public.access_grants g
+        WHERE g.guild_id = p_guild_id
+          AND g.user_id = p_user_id
+          AND g.purpose = 'settings'
+          AND g.access_level = 'superadmin'
+          AND g.status = 'approved'
+          AND g.expires_at > now()
     )
 $function$
 

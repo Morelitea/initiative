@@ -54,7 +54,9 @@ async def test_break_glass_self_issues_live_grant(
     grant = resp.json()
     assert grant["status"] == "approved"
     assert grant["is_live"] is True
-    assert grant["access_level"] == "read"  # read-only by default
+    # Breaking glass is not a dial: write access to the content, and a
+    # settings grant alongside it.
+    assert grant["access_level"] == "read_write"
     assert grant["expires_at"] is not None
     assert grant["user_id"] == admin.id
     assert grant["requested_by_id"] == admin.id
@@ -161,12 +163,16 @@ async def test_break_glass_read_default_is_read_only(
 
 
 @pytest.mark.integration
-async def test_break_glass_read_write_is_full_guild_admin(
+async def test_break_glass_reaches_no_further_than_any_other_grant(
     client: AsyncClient, session: AsyncSession
 ):
-    """A read_write break-glass grant is deliberately UNLIMITED: the holder acts
-    as a full guild admin — authoring content (create projects) AND managing
-    access (project members) — neither of which a regular PAM grant allows."""
+    """Breaking glass issues two grants and no special authority.
+
+    The content grant is `read_write` and means what it means for support:
+    existing content, not authoring and not access management. The settings
+    grant is what carries a community's configuration, and it is recorded
+    separately so the log says which was exercised.
+    """
     owner = await create_user(
         session, email="bg-owner8@example.com", role=UserRole.owner
     )
@@ -181,31 +187,36 @@ async def test_break_glass_read_write_is_full_guild_admin(
     headers = get_auth_headers(admin)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
-        json={
-            "guild_id": guild.id,
-            "access_level": "read_write",
-            "reason": "full incident response",
-        },
-        headers=get_auth_headers(admin),
+        json={"guild_id": guild.id, "reason": "full incident response"},
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["access_level"] == "read_write"
 
-    # Authoring: create a new project (regular read_write PAM cannot do this).
+    # Both rows are there, each naming what it is for.
+    listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
+    issued = {(g["purpose"], g["access_level"]) for g in listed.json()}
+    assert ("content", "read_write") in issued
+    assert ("settings", "superadmin") in issued
+
+    # Authoring is not what a content grant is: no new project.
     resp = await client.post(
         f"/api/v1/g/{guild.id}/projects/",
         json={"name": "New Front", "initiative_id": init.id},
         headers=headers,
     )
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 403, resp.text
 
-    # Management: change project access (a regular grant is blocked with
-    # PROJECT_GRANT_CANNOT_MANAGE_MEMBERS — break-glass has no limits).
+    # Nor is handing access out.
     resp = await client.put(
         f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
         json=[{"user_id": target.id, "level": "write"}],
         headers=headers,
     )
+    assert resp.status_code == 403, resp.text
+
+    # What the settings grant carries: the community's own configuration.
+    resp = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
     assert resp.status_code == 200, resp.text
 
 
@@ -263,11 +274,12 @@ async def test_break_glass_duration_capped(client: AsyncClient, session: AsyncSe
 
 
 @pytest.mark.integration
-async def test_break_glass_overlapping_live_rejected(
+async def test_breaking_glass_again_supersedes_rather_than_stacking(
     client: AsyncClient, session: AsyncSession
 ):
-    """A second break-glass while one is still live is rejected (no stacking);
-    re-trigger only after the current grant ends."""
+    """Re-issuing is how the window is extended, so a second one replaces the
+    first rather than being refused. Nothing stacks: the earlier pair is
+    revoked, and the log keeps it."""
     owner = await create_user(
         session, email="bg-owner7@example.com", role=UserRole.owner
     )
@@ -287,8 +299,15 @@ async def test_break_glass_overlapping_live_rejected(
         json={"guild_id": guild.id, "reason": "second"},
         headers=get_auth_headers(admin),
     )
-    assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "ACCESS_GRANT_ALREADY_LIVE"
+    assert resp.status_code == 201, resp.text
+
+    listed = await client.get(
+        "/api/v1/access-grants/?mine=true", headers=get_auth_headers(admin)
+    )
+    grants = listed.json()
+    live = {(g["purpose"], g["access_level"]) for g in grants if g["is_live"]}
+    assert live == {("content", "read_write"), ("settings", "superadmin")}
+    assert sum(1 for g in grants if g["status"] == "revoked") == 2
 
 
 # ---------------------------------------------------------------------------

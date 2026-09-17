@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t
 from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
+from app.models.platform.access_grant import LEVEL_LABEL_KEYS
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -611,7 +612,7 @@ async def send_access_grant_email(
     *,
     event: str,
     guild_name: str,
-    access_level: str | None = None,
+    levels: Sequence[str] | None = None,
     requester: str | None = None,
 ) -> None:
     """Email a PAM access-grant lifecycle event.
@@ -627,14 +628,14 @@ async def send_access_grant_email(
     button = _cta_button(
         email_t("accessGrant.buttonLabel", locale=locale), link, accent
     )
-    level_label = ""
-    if access_level:
-        level_key = (
-            "accessGrant.levelReadWrite"
-            if access_level == "read_write"
-            else "accessGrant.levelRead"
-        )
-        level_label = email_t(level_key, locale=locale)
+    # Every level asked for, named — one ask can be for two things, and a
+    # message describing only the first would ask for a decision about
+    # something it had not mentioned.
+    level_label = ", ".join(
+        email_t(LEVEL_LABEL_KEYS[level], locale=locale)
+        for level in (levels or ())
+        if level in LEVEL_LABEL_KEYS
+    )
     base = f"accessGrant.{event}"
     vars_ = {
         "guildName": guild_name,

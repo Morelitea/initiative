@@ -18,10 +18,8 @@ has ever been told it.
 The promotion runs first, under the old label, so the rename never has to be
 used in the transaction that performs it.
 
-The promotion runs with ``guild_memberships`` set ``NO FORCE ROW LEVEL
-SECURITY``, restored in a ``finally``, and counts what is left at the old value
-afterwards. It counts rather than asserting a rowcount because a fresh install
-has nothing to promote.
+The promotion counts what is left at the old value afterwards, rather than
+asserting a rowcount: a fresh install has nothing to promote.
 
 Revision ID: 20260917_0296
 Revises: 20260917_0295

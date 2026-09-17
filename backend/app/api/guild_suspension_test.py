@@ -360,12 +360,15 @@ async def test_read_only_admin_settings_still_writable(
 # ---------------------------------------------------------------------------
 
 
-async def test_break_glass_full_admin_on_suspended_guild(
+async def test_break_glass_reads_a_suspended_guild(
     client: AsyncClient, session: AsyncSession
 ):
-    """A break-glass holder behaves as a full guild admin against a SUSPENDED
-    guild — reads and writes — exactly as against an active one. This is the
-    requirement that suspension can never lock operators out."""
+    """Suspension never locks an operator out of *reaching* a guild.
+
+    What they may do once there is the grant's business, and the same as
+    anybody else's: managing an initiative is not something a content grant
+    confers, on a suspended guild or an active one.
+    """
     owner = await create_user(session, role=UserRole.owner)
     guild = await create_guild(session, creator=owner)
     initiative = await create_initiative(session, guild, owner, name="Frozen Wing")
@@ -389,13 +392,13 @@ async def test_break_glass_full_admin_on_suspended_guild(
     assert resp.status_code == 200, resp.text
     assert any(i["name"] == "Frozen Wing" for i in resp.json())
 
-    # Write (full admin: edits guild content).
+    # And gets no further than any other grantee would.
     resp = await client.patch(
         f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
         headers=headers,
-        json={"description": "reviewed under break-glass"},
+        json={"description": "reviewed under a grant"},
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 async def test_scoped_read_grant_reads_suspended_guild(

@@ -149,6 +149,8 @@
     "greeting": "Hi <strong>{{name}}</strong>,",
     "levelRead": "read-only",
     "levelReadWrite": "read-write",
+    "levelAdmin": "community-settings (admin)",
+    "levelSuperadmin": "community-settings (superadmin)",
     "requested": {
       "subject": "Access request for {{guildName}}",
       "title": "New access request",

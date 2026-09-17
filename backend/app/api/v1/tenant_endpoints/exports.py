@@ -55,12 +55,11 @@ def _inline_response(result: InlineExport) -> Response:
 
 def _allow_job(guild_context: GuildContext) -> bool:
     """Enqueueing a job authors a row. A guild in read_only lifecycle can't
-    write; a regular PAM grantee must not author content (break-glass acts as
-    a full guild admin and may). Inline export stays available to all — it is
-    a formatted read."""
+    write, and neither can a grantee: a grant reaches existing content. Inline
+    export stays available to all — it is a formatted read."""
     if guild_context.content_read_only:
         return False
-    if guild_context.is_pam and not guild_context.break_glass:
+    if guild_context.is_pam:
         return False
     return True
 
