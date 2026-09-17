@@ -465,6 +465,53 @@ async def test_a_holder_with_no_factor_is_told_to_set_one_up(
 
 
 @pytest.mark.integration
+async def test_withdrawing_the_authenticator_stops_it_being_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """The rule may only ask while the Security page can answer it.
+
+    A deployment that stops offering the authenticator app refuses new
+    enrolments, so a holder without one would have been refused with nowhere
+    to go. It stops asking instead.
+    """
+    from app.core.login_methods import LoginMethod
+    from app.services.platform import auth_posture
+
+    owner = await create_user(session, email="d9-wd-o@example.com", role=UserRole.owner)
+    guild = await create_guild(session, creator=owner)
+    enrolled = await create_user(
+        session, email="d9-wd-e@example.com", role=UserRole.operator
+    )
+    await _enrol_factor(client, session, enrolled)
+    bare = await create_user(
+        session, email="d9-wd-b@example.com", role=UserRole.operator
+    )
+
+    # While it is offered, the unenrolled holder is refused.
+    refused = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident"},
+        headers=get_auth_headers(bare),
+    )
+    assert refused.status_code == 403
+
+    await auth_posture.set_login_methods(
+        session,
+        methods=[LoginMethod.password, LoginMethod.sso],
+        acknowledge_stranded=None,
+        actor_user_id=owner.id,
+    )
+    await session.commit()
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident"},
+        headers=get_auth_headers(bare),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
 async def test_the_form_is_told_what_it_will_be_asked_for(
     client: AsyncClient, session: AsyncSession
 ):

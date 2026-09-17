@@ -147,6 +147,11 @@ const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 // Self-serve emergency access for data.bypass holders (operator/owner). Unlike a
 // request, this is approved on creation — live immediately, scoped to one guild,
 // read-only by default, short-lived, and recorded as an audited grant.
+/** The server saying this request had to carry the account's second factor. */
+const isSecondFactorRefusal = (error: unknown): boolean =>
+  (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail ===
+  "ACCESS_GRANT_SECOND_FACTOR_REQUIRED";
+
 const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common"]);
   const { refreshGuilds } = useGuilds();
@@ -159,9 +164,15 @@ const BreakGlassSection = () => {
   // What this request will be asked for. Breaking glass carries the account's
   // own second factor once any data.bypass holder has one, so the form asks
   // here rather than guessing from the caller's own enrolment.
+  //
+  // The answer can change while this page is open — somebody else enrolling is
+  // all it takes — so the server stays the authority: a refusal naming the
+  // factor reveals the field and refetches, rather than the form insisting on
+  // what it last heard.
   const requirements = useBreakGlassRequirements();
-  const needsCode = requirements.data?.second_factor_required ?? false;
-  const canAnswer = requirements.data?.enrolled ?? false;
+  const [factorRefused, setFactorRefused] = useState(false);
+  const needsCode = (requirements.data?.second_factor_required ?? false) || factorRefused;
+  const knownUnenrolled = requirements.data?.enrolled === false;
 
   const breakGlass = useBreakGlass({
     onSuccess: () => {
@@ -169,6 +180,7 @@ const BreakGlassSection = () => {
       setGuildId("");
       setReason("");
       setCode("");
+      setFactorRefused(false);
       setLevel("read");
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
@@ -177,7 +189,13 @@ const BreakGlassSection = () => {
       // doesn't appear until a manual reload.
       void refreshGuilds();
     },
-    onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error")),
+    onError: (err) => {
+      if (isSecondFactorRefusal(err)) {
+        setFactorRefused(true);
+        void requirements.refetch();
+      }
+      toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error"));
+    },
   });
 
   const submit = (e: React.FormEvent) => {
@@ -265,9 +283,9 @@ const BreakGlassSection = () => {
                 required
               />
               <p className="text-muted-foreground text-xs">
-                {canAnswer
-                  ? t("accessGrants.breakGlass.codeHelp")
-                  : t("accessGrants.breakGlass.codeNotEnrolled")}
+                {knownUnenrolled
+                  ? t("accessGrants.breakGlass.codeNotEnrolled")
+                  : t("accessGrants.breakGlass.codeHelp")}
               </p>
             </div>
           )}

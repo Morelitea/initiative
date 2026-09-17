@@ -140,6 +140,11 @@ export const useBreakGlassRequirements = () =>
   useQuery<BreakGlassRequirements>({
     queryKey: getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey(),
     queryFn: () => breakGlassRequirementsApiV1AccessGrantsBreakGlassGet(),
+    // Somebody else enrolling changes this answer, and nothing here would know
+    // to invalidate it — so it is read fresh on mount rather than inheriting
+    // the shared staleness window.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
 /**
