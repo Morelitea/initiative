@@ -1580,6 +1580,8 @@ async def test_billing_grant_does_not_block_a_content_request(session):
 
     requested = await service.request_grant(
         session,
+        purpose="content",
+        level=AccessLevel.read.value,
         requester=support,
         payload=AccessGrantCreate(
             guild_id=guild.id,

@@ -1,9 +1,7 @@
 """A grant can be for a community's settings, at a named rung.
 
-Access to a community's *content* and authority over its *configuration* were
-the same thing: a ``read_write`` grant held by somebody with ``data.bypass``
-was routed as a full guild admin. They are two grants now, asked for and
-recorded apart.
+Access to a community's *content* and authority over its *configuration* are
+two grants now, asked for and recorded apart.
 
 ``purpose`` gains ``settings``. Such a grant carries its rung in the existing
 ``access_level`` column — ``admin`` or ``superadmin``, the guild's own ladder —

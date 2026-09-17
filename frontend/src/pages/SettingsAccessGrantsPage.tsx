@@ -303,9 +303,11 @@ const RequestSection = () => {
   const durationOptions = allowedDurations(user?.role);
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? 240));
   const [guildId, setGuildId] = useState("");
-  const [purpose, setPurpose] = useState<"content" | "settings">("content");
+  // Two axes, asked for independently. "none" is how you say you do not want
+  // one — clearing up after an incident wants both; having a look wants only
+  // the first.
   const [level, setLevel] = useState("read");
-  const [settingsLevel, setSettingsLevel] = useState("admin");
+  const [settingsLevel, setSettingsLevel] = useState("none");
   const [duration, setDuration] = useState(defaultDuration);
   const [reason, setReason] = useState("");
 
@@ -326,15 +328,12 @@ const RequestSection = () => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim()) return;
-    // One kind at a time: reaching a community's configuration is a different
-    // errand from reading what is inside it, and the server refuses a request
-    // that tries to be both.
     createRequest.mutate({
       guild_id: gid,
-      purpose,
-      ...(purpose === "settings"
-        ? { settings_level: settingsLevel as "admin" | "superadmin" }
-        : { access_level: level as "read" | "read_write" }),
+      ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
+      ...(settingsLevel === "none"
+        ? {}
+        : { settings_level: settingsLevel as "admin" | "superadmin" }),
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
     });
@@ -360,50 +359,32 @@ const RequestSection = () => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ag-purpose">{t("accessGrants.purposeLabel")}</Label>
-            <Select
-              value={purpose}
-              onValueChange={(next) => setPurpose(next as "content" | "settings")}
-            >
-              <SelectTrigger id="ag-purpose">
+            <Label htmlFor="ag-level">{t("accessGrants.purposeContent")}</Label>
+            <Select value={level} onValueChange={setLevel}>
+              <SelectTrigger id="ag-level">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="content">{t("accessGrants.purposeContent")}</SelectItem>
-                <SelectItem value="settings">{t("accessGrants.purposeSettings")}</SelectItem>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
+                <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
+                <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-muted-foreground text-xs">
-              {t(
-                purpose === "settings"
-                  ? "accessGrants.purposeSettingsHelp"
-                  : "accessGrants.purposeContentHelp"
-              )}
-            </p>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeContentHelp")}</p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ag-level">{t("accessGrants.levelLabel")}</Label>
-            {purpose === "settings" ? (
-              <Select value={settingsLevel} onValueChange={setSettingsLevel}>
-                <SelectTrigger id="ag-level">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">{t("accessGrants.levelAdmin")}</SelectItem>
-                  <SelectItem value="superadmin">{t("accessGrants.levelSuperadmin")}</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Select value={level} onValueChange={setLevel}>
-                <SelectTrigger id="ag-level">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
-                  <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            <Label htmlFor="ag-settings-level">{t("accessGrants.purposeSettings")}</Label>
+            <Select value={settingsLevel} onValueChange={setSettingsLevel}>
+              <SelectTrigger id="ag-settings-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
+                <SelectItem value="admin">{t("accessGrants.levelAdmin")}</SelectItem>
+                <SelectItem value="superadmin">{t("accessGrants.levelSuperadmin")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeSettingsHelp")}</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="ag-duration">{t("accessGrants.durationLabel")}</Label>

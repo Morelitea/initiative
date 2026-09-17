@@ -274,11 +274,12 @@ async def test_break_glass_duration_capped(client: AsyncClient, session: AsyncSe
 
 
 @pytest.mark.integration
-async def test_break_glass_overlapping_live_rejected(
+async def test_breaking_glass_again_supersedes_rather_than_stacking(
     client: AsyncClient, session: AsyncSession
 ):
-    """A second break-glass while one is still live is rejected (no stacking);
-    re-trigger only after the current grant ends."""
+    """Re-issuing is how the window is extended, so a second one replaces the
+    first rather than being refused. Nothing stacks: the earlier pair is
+    revoked, and the log keeps it."""
     owner = await create_user(
         session, email="bg-owner7@example.com", role=UserRole.owner
     )
@@ -298,8 +299,15 @@ async def test_break_glass_overlapping_live_rejected(
         json={"guild_id": guild.id, "reason": "second"},
         headers=get_auth_headers(admin),
     )
-    assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "ACCESS_GRANT_ALREADY_LIVE"
+    assert resp.status_code == 201, resp.text
+
+    listed = await client.get(
+        "/api/v1/access-grants/?mine=true", headers=get_auth_headers(admin)
+    )
+    grants = listed.json()
+    live = {(g["purpose"], g["access_level"]) for g in grants if g["is_live"]}
+    assert live == {("content", "read_write"), ("settings", "superadmin")}
+    assert sum(1 for g in grants if g["status"] == "revoked") == 2
 
 
 # ---------------------------------------------------------------------------

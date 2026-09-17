@@ -95,25 +95,40 @@ async def create_access_request(
     session: AdminSessionDep,
     current_user: AccessRequestDep,
 ) -> AccessGrantRead:
-    """Request time-bound access to a guild (requires ``access.request``)."""
+    """Request time-bound access to a guild (requires ``access.request``).
+
+    A body may ask for content, settings, or both; each becomes its own pending
+    grant so an approver decides about them separately and the log keeps them
+    apart. The content one is returned, being the one a caller routes in under.
+    """
+    asked: list = []
     try:
-        grant = await service.request_grant(
-            session, requester=current_user, payload=payload
-        )
+        for purpose, level in payload.wanted:
+            asked.append(
+                await service.request_grant(
+                    session,
+                    requester=current_user,
+                    payload=payload,
+                    purpose=purpose,
+                    level=level,
+                )
+            )
     except service.AccessGrantError as exc:
         _raise(exc)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.ACCESS_GRANT_REQUESTED,
-        actor_user_id=current_user.id,
-        guild_id=grant.guild_id,
-        target_type="access_grant",
-        target_id=grant.id,
-        detail={
-            "purpose": grant.purpose,
-            "level": grant.access_level,
-        },
-    )
+    grant = asked[0]
+    for requested in asked:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_REQUESTED,
+            actor_user_id=current_user.id,
+            guild_id=requested.guild_id,
+            target_type="access_grant",
+            target_id=requested.id,
+            detail={
+                "purpose": requested.purpose,
+                "level": requested.access_level,
+            },
+        )
     read = await _one(session, grant)
     await session.commit()
     return read
@@ -207,11 +222,16 @@ async def break_glass_access(
     """
     await _check_second_factor(session, actor=current_user, payload=payload)
     try:
+        # Superseding, not stacking: whatever the caller already holds here is
+        # revoked and replaced by the pair. Breaking glass has to work when
+        # somebody already had a lesser grant open, which is when it is most
+        # likely to be reached for.
         grant = await service.break_glass(
             session,
             actor=current_user,
             payload=payload,
             level=AccessLevel.read_write.value,
+            supersede=True,
         )
         settings_grant = await service.break_glass(
             session,
@@ -219,6 +239,7 @@ async def break_glass_access(
             payload=payload,
             purpose=AccessGrantPurpose.settings,
             level=SettingsLevel.superadmin.value,
+            supersede=True,
         )
         # One line per grant, each naming its purpose and its rung, so the log
         # says what was taken and not merely that glass was broken.

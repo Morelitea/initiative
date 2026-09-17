@@ -95,14 +95,6 @@ export interface AccessGrantApprove {
   duration_minutes?: number | null;
 }
 
-export type AccessGrantCreatePurpose =
-  (typeof AccessGrantCreatePurpose)[keyof typeof AccessGrantCreatePurpose];
-
-export const AccessGrantCreatePurpose = {
-  content: "content",
-  settings: "settings",
-} as const;
-
 /**
  * How much of a guild's *content* a PAM grant confers.
  */
@@ -135,19 +127,23 @@ export const SettingsLevel = {
 /**
  * A request for time-bound access to one guild.
  *
- * Two kinds, asked for one at a time. A **content** request reaches what is
- * inside the community, at ``read`` or ``read_write``. A **settings** request
+ * Two axes, and a request may name either or both. **Content** reaches what
+ * is inside the community, at ``read`` or ``read_write``. **Settings**
  * reaches its configuration and nothing inside it, at ``admin`` or
- * ``superadmin`` — helping with billing or a moderation setting is not a
- * reason to read anybody's documents, so the two are never one ask.
+ * ``superadmin``.
  *
- * A settings request names its rung: there is no sensible default between
- * "what an admin runs" and "what the seat holds".
+ * Asking for both is a real errand rather than a mistake: clearing up after
+ * an incident takes write access to the content *and* the settings that
+ * govern it, which is the same pair breaking glass issues. Each axis becomes
+ * its own grant, so what was exercised is recorded separately even when both
+ * were asked for at once.
+ *
+ * Naming neither is read-only content — what a bare request has always
+ * meant.
  */
 export interface AccessGrantCreate {
   guild_id: number;
-  purpose?: AccessGrantCreatePurpose;
-  access_level?: AccessLevel;
+  access_level?: AccessLevel | null;
   settings_level?: SettingsLevel | null;
   requested_duration_minutes?: number | null;
   /**

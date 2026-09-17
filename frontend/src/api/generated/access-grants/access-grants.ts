@@ -52,6 +52,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * Request time-bound access to a guild (requires ``access.request``).
+ *
+ * A body may ask for content, settings, or both; each becomes its own pending
+ * grant so an approver decides about them separately and the log keeps them
+ * apart. The content one is returned, being the one a caller routes in under.
  * @summary Create Access Request
  */
 export const createAccessRequestApiV1AccessGrantsPost = (

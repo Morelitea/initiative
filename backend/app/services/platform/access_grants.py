@@ -207,14 +207,18 @@ async def _push_and_email(
 
 
 async def request_grant(
-    session: AsyncSession, *, requester: User, payload: AccessGrantCreate
+    session: AsyncSession,
+    *,
+    requester: User,
+    payload: AccessGrantCreate,
+    purpose: str,
+    level: str,
 ) -> AccessGrant:
     """Create a pending access request for ``requester`` to ``payload.guild_id``.
 
-    The purpose and rung come off the payload, which has already held the two
-    vocabularies apart: a settings request names ``admin`` or ``superadmin``, a
-    content one ``read`` or ``read_write``. Approving it is unchanged — the
-    approver is deciding about the request as written.
+    One grant, for one purpose. A body asking for both content and settings is
+    two calls — the caller decides what it asked for and this records each ask
+    on its own, so what was exercised is separable afterwards.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -238,7 +242,7 @@ async def request_grant(
             AccessGrant.guild_id == payload.guild_id,
             # Per purpose: holding content access is no reason to refuse a
             # settings request, and the reverse.
-            AccessGrant.purpose == payload.purpose,
+            AccessGrant.purpose == purpose,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
             ),
@@ -251,8 +255,8 @@ async def request_grant(
     grant = AccessGrant(
         user_id=requester.id,
         guild_id=payload.guild_id,
-        access_level=payload.level,
-        purpose=payload.purpose,
+        access_level=level,
+        purpose=purpose,
         status=AccessGrantStatus.pending.value,
         reason=payload.reason,
         requested_duration_minutes=duration,
@@ -330,6 +334,7 @@ async def break_glass(
     allow_member: bool = False,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
     level: str,
+    supersede: bool = False,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
@@ -346,6 +351,11 @@ async def break_glass(
     why the caller states the level rather than a request body carrying one.
     ``allow_member`` goes with a non-content purpose, which membership does not
     already confer.
+
+    ``supersede`` replaces whatever the actor already holds for this purpose
+    rather than refusing. An emergency is the wrong moment to be told that a
+    lesser grant is in the way — and the grant it replaces is revoked rather
+    than deleted, so the log keeps both.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -383,10 +393,18 @@ async def break_glass(
     )
     now = _now()
     for grant in existing.all():
+        if supersede:
+            grant.status = AccessGrantStatus.revoked.value
+            grant.revoked_by_id = actor.id
+            grant.revoked_at = now
+            session.add(grant)
+            continue
         if grant.status == AccessGrantStatus.pending.value:
             raise AccessGrantError("OVERLAPPING_GRANT")
         if grant.is_live(now=now):
             raise AccessGrantError("ALREADY_LIVE")
+    if supersede:
+        await session.flush()
 
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(

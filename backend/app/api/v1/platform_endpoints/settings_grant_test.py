@@ -21,7 +21,6 @@ async def _request_and_approve(client, *, requester, approver, guild, rung):
         headers=get_auth_headers(requester),
         json={
             "guild_id": guild.id,
-            "purpose": "settings",
             "settings_level": rung,
             "reason": "billing question from the community",
         },
@@ -86,21 +85,77 @@ async def test_the_admin_rung_does_not_reach_the_seat(
     assert refused.status_code == 403, refused.text
 
 
-async def test_a_settings_request_names_its_rung(
+async def test_a_bare_request_is_a_content_read(
     client: AsyncClient, session: AsyncSession
 ):
-    """There is no sensible default between what an admin runs and what the
-    seat holds, so a request that names neither is not a request."""
+    """Naming neither axis means what it always meant."""
     support = await create_user(session, role=UserRole.support)
     guild = await create_guild(session)
 
     response = await client.post(
         "/api/v1/access-grants/",
         headers=get_auth_headers(support),
+        json={"guild_id": guild.id, "reason": "having a look"},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["purpose"] == "content"
+    assert response.json()["access_level"] == "read"
+
+
+async def test_a_lesser_grant_does_not_stand_in_the_way_of_breaking_glass(
+    client: AsyncClient, session: AsyncSession
+):
+    """The moment glass is broken is the moment a standing grant is most likely
+    to be open. It is superseded, not an obstacle."""
+    owner = await create_user(session, role=UserRole.owner)
+    operator = await create_user(session, role=UserRole.operator)
+    guild = await create_guild(session, creator=owner)
+
+    lesser = await _request_and_approve(
+        client, requester=operator, approver=owner, guild=guild, rung="admin"
+    )
+
+    broken = await client.post(
+        "/api/v1/access-grants/break-glass",
+        headers=get_auth_headers(operator),
+        json={"guild_id": guild.id, "reason": "incident, and I already had one"},
+    )
+    assert broken.status_code == 201, broken.text
+
+    listed = await client.get(
+        "/api/v1/access-grants/?mine=true", headers=get_auth_headers(operator)
+    )
+    grants = {g["id"]: g for g in listed.json()}
+    # The pair is live...
+    live = {(g["purpose"], g["access_level"]) for g in grants.values() if g["is_live"]}
+    assert live == {("content", "read_write"), ("settings", "superadmin")}
+    # ...and the one it replaced is revoked rather than gone, so the log keeps
+    # both.
+    assert grants[lesser["id"]]["status"] == "revoked"
+
+
+async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncSession):
+    """Clearing up after an incident takes write access to the content *and*
+    the settings that govern it. One ask, two grants — so an approver decides
+    about each and the log keeps them apart."""
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session)
+    headers = get_auth_headers(support)
+
+    response = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
         json={
             "guild_id": guild.id,
-            "purpose": "settings",
-            "reason": "no rung named",
+            "access_level": "read_write",
+            "settings_level": "admin",
+            "reason": "clearing up after the incident",
         },
     )
-    assert response.status_code == 422, response.text
+    assert response.status_code == 201, response.text
+    # The content one comes back, being what a caller routes in under.
+    assert response.json()["purpose"] == "content"
+
+    listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
+    asked = {(g["purpose"], g["access_level"]) for g in listed.json()}
+    assert asked == {("content", "read_write"), ("settings", "admin")}

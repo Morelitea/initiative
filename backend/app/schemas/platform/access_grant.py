@@ -1,12 +1,11 @@
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import (
     ConfigDict,
     Field,
     computed_field,
     field_validator,
-    model_validator,
 )
 
 from app.core.email_masking import mask_email
@@ -22,42 +21,43 @@ from app.schemas.base import SanitizedBaseModel
 class AccessGrantCreate(SanitizedBaseModel):
     """A request for time-bound access to one guild.
 
-    Two kinds, asked for one at a time. A **content** request reaches what is
-    inside the community, at ``read`` or ``read_write``. A **settings** request
+    Two axes, and a request may name either or both. **Content** reaches what
+    is inside the community, at ``read`` or ``read_write``. **Settings**
     reaches its configuration and nothing inside it, at ``admin`` or
-    ``superadmin`` — helping with billing or a moderation setting is not a
-    reason to read anybody's documents, so the two are never one ask.
+    ``superadmin``.
 
-    A settings request names its rung: there is no sensible default between
-    "what an admin runs" and "what the seat holds".
+    Asking for both is a real errand rather than a mistake: clearing up after
+    an incident takes write access to the content *and* the settings that
+    govern it, which is the same pair breaking glass issues. Each axis becomes
+    its own grant, so what was exercised is recorded separately even when both
+    were asked for at once.
+
+    Naming neither is read-only content — what a bare request has always
+    meant.
     """
 
     guild_id: int
-    purpose: Literal["content", "settings"] = "content"
-    #: The content rung, for a content request. Ignored for a settings one.
-    access_level: AccessLevel = AccessLevel.read
-    #: The settings rung. Required for a settings request, refused otherwise.
+    #: The content rung, or ``None`` to ask for no content access.
+    access_level: Optional[AccessLevel] = None
+    #: The settings rung, or ``None`` to ask for no settings access. There is
+    #: no default: nothing sits between what an admin runs and what the seat
+    #: holds.
     settings_level: Optional[SettingsLevel] = None
     # Omit to use the platform default; capped server-side to the configured
     # maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
 
-    @model_validator(mode="after")
-    def _rung_matches_purpose(self) -> "AccessGrantCreate":
-        if self.purpose == "settings" and self.settings_level is None:
-            raise ValueError("settings_level is required for a settings request")
-        if self.purpose != "settings" and self.settings_level is not None:
-            raise ValueError("settings_level belongs to a settings request")
-        return self
-
     @property
-    def level(self) -> str:
-        """What goes in ``access_grants.access_level``, per purpose."""
-        if self.purpose == "settings":
-            assert self.settings_level is not None  # the validator above
-            return self.settings_level.value
-        return self.access_level.value
+    def wanted(self) -> list[tuple[str, str]]:
+        """``(purpose, level)`` for each grant this request asks for, content
+        first — the one a caller routes in under."""
+        asked: list[tuple[str, str]] = []
+        if self.access_level is not None or self.settings_level is None:
+            asked.append(("content", (self.access_level or AccessLevel.read).value))
+        if self.settings_level is not None:
+            asked.append(("settings", self.settings_level.value))
+        return asked
 
 
 class BreakGlassCreate(SanitizedBaseModel):

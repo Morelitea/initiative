@@ -43,7 +43,7 @@ describe("SettingsAccessGrantsPage", () => {
     breakGlass.mockClear();
   });
 
-  it("asks for content by default, at a content rung", async () => {
+  it("asks for a content read and no settings by default", async () => {
     const user = userEvent.setup();
     render();
 
@@ -54,29 +54,44 @@ describe("SettingsAccessGrantsPage", () => {
     expect(createRequest).toHaveBeenCalledTimes(1);
     expect(createRequest.mock.calls[0][0]).toMatchObject({
       guild_id: 7,
-      purpose: "content",
       access_level: "read",
     });
     expect(createRequest.mock.calls[0][0].settings_level).toBeUndefined();
   });
 
-  it("sends a settings rung, and no content level, for a settings request", async () => {
+  it("asks for both where the errand needs both", async () => {
     const user = userEvent.setup();
     render();
 
-    await user.click(await screen.findByLabelText(/what for/i));
-    await user.click(await screen.findByRole("option", { name: /settings/i }));
-    await user.click(screen.getByLabelText(/level/i));
+    await user.click(await screen.findByLabelText(/content access/i));
+    await user.click(await screen.findByRole("option", { name: /read & write/i }));
+    await user.click(screen.getByLabelText(/settings access/i));
     await user.click(await screen.findByRole("option", { name: /^superadmin$/i }));
+
+    await user.type(screen.getByLabelText(/community id/i), "7");
+    await user.type(screen.getByLabelText(/reason/i), "clearing up an incident");
+    await user.click(screen.getByRole("button", { name: /request access/i }));
+
+    expect(createRequest.mock.calls[0][0]).toMatchObject({
+      access_level: "read_write",
+      settings_level: "superadmin",
+    });
+  });
+
+  it("can ask for settings alone", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.click(await screen.findByLabelText(/content access/i));
+    await user.click(await screen.findByRole("option", { name: /^none$/i }));
+    await user.click(screen.getByLabelText(/settings access/i));
+    await user.click(await screen.findByRole("option", { name: /^admin$/i }));
 
     await user.type(screen.getByLabelText(/community id/i), "7");
     await user.type(screen.getByLabelText(/reason/i), "billing question");
     await user.click(screen.getByRole("button", { name: /request access/i }));
 
-    expect(createRequest.mock.calls[0][0]).toMatchObject({
-      purpose: "settings",
-      settings_level: "superadmin",
-    });
+    expect(createRequest.mock.calls[0][0]).toMatchObject({ settings_level: "admin" });
     expect(createRequest.mock.calls[0][0].access_level).toBeUndefined();
   });
 });
