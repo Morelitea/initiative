@@ -7,7 +7,6 @@ import pytest
 from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
-from app.models.platform.guild_administration import GuildAdministration
 from app.services.auth import session_lifetime, sessions as session_service
 from app.services.platform import app_settings as app_settings_service
 from app.testing import create_guild, create_guild_membership, create_user
@@ -43,16 +42,8 @@ async def _token_times(session, user_id):
 
 
 async def _hold_to_the_standard(session, guild):
-    # Queried rather than reached through ``guild.administration``: the
-    # relationship is lazy, and touching it outside a load is not IO this
-    # session can do.
-    admin = (
-        await session.exec(
-            select(GuildAdministration).where(GuildAdministration.guild_id == guild.id)
-        )
-    ).one()
-    admin.enforce_compliance_session = True
-    session.add(admin)
+    guild.enforce_compliance_session = True
+    session.add(guild)
     await session.flush()
 
 

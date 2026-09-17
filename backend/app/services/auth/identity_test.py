@@ -240,7 +240,7 @@ async def test_guild_provider_jit_allowed_when_providers_granted(session):
     """The mirror: an enabled guild JIT-provisions a new user (allow_jit alone,
     independent of instance registration)."""
     _guild, provider = await _create_guild_provider(
-        session, auth_options=["providers", "require_sign_in"]
+        session, auth_options=["restrictions", "providers", "require_sign_in"]
     )
 
     result = await _resolve(

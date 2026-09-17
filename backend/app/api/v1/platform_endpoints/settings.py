@@ -614,9 +614,6 @@ async def list_platform_guild_storage(
             support_enabled=(
                 administration.support_enabled if administration else False
             ),
-            enforce_compliance_session=(
-                administration.enforce_compliance_session if administration else False
-            ),
         )
         for g, administration in rows
     ]
@@ -654,7 +651,6 @@ async def update_platform_guild_storage(
             auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,
-            enforce_compliance_session=payload.enforce_compliance_session,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(

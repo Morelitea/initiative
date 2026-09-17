@@ -238,6 +238,19 @@ class Guild(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # Whether this guild's members are held to the compliance session standard:
+    # they sign in again every ``COMPLIANCE_SESSION_HOURS``, whatever the
+    # deployment's own limit says. A single standard rather than a number per
+    # guild, so somebody in two of them has one answer and not a comparison.
+    #
+    # Here for the same reason as the line above: it says what is asked of a
+    # session reaching this community, and the answer has to survive the guild
+    # lifting its sign-in requirement. Set by the guild's superadmin; read when
+    # a sign-in is stamped with its deadline.
+    enforce_compliance_session: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(

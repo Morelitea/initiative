@@ -1027,6 +1027,10 @@
       "supportLabel": "Solicitudes de ayuda",
       "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
       "authOption": {
+        "restrictions": {
+          "label": "Configurar su propio inicio de sesión",
+          "help": "Da a esta comunidad la pestaña Autenticación: claves de API personales, un límite de sesión de doce horas y lo que se marque debajo. Desactivado para la mayoría de comunidades: sin esto nunca ven la pestaña."
+        },
         "providers": {
           "label": "Sus propios proveedores de inicio de sesión",
           "help": "Permite que sus administradores conecten un proveedor de identidad y den de alta cuentas nuevas por ahí."
@@ -1037,9 +1041,7 @@
         }
       },
       "usersLabel": "Miembros",
-      "storageLabel": "Límite de almacenamiento",
-      "complianceSessionLabel": "Límite de sesión de doce horas",
-      "complianceSessionHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento."
+      "storageLabel": "Límite de almacenamiento"
     },
     "unlimited": "Sin límite"
   },
@@ -1132,6 +1134,15 @@
       "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
       "saved": "Acceso por API guardado",
       "error": "No se pudo guardar el acceso por API"
+    },
+    "sessionLimit": {
+      "title": "Límite de sesión",
+      "description": "Con qué frecuencia vuelven a iniciar sesión los miembros de esta comunidad.",
+      "allowLabel": "Límite de sesión de doce horas",
+      "onHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento.",
+      "offHelp": "Los miembros siguen con la sesión iniciada mientras lo permita la instalación.",
+      "saved": "Límite de sesión guardado",
+      "error": "No se pudo guardar el límite de sesión"
     }
   },
   "authProviders": {

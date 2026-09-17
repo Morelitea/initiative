@@ -19,18 +19,27 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, text, update
+from sqlalchemy import Interval, cast, func, literal, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildMembership
-from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.guild import Guild, GuildMembership
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import app_settings as app_settings_service
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _window(hours: int):
+    """``hours`` as an interval the statement carries as a value.
+
+    Cast rather than left to inference: the only place this is added to a
+    timestamp is inside ``least()``, whose arguments are polymorphic, so the
+    type is stated rather than worked out.
+    """
+    return cast(literal(timedelta(hours=int(hours))), Interval)
 
 
 #: What a community held to the compliance standard asks of its members.
@@ -45,13 +54,10 @@ async def _belongs_to_a_compliance_guild(
     found = (
         await session.exec(
             select(GuildMembership.guild_id)
-            .join(
-                GuildAdministration,
-                GuildAdministration.guild_id == GuildMembership.guild_id,
-            )
+            .join(Guild, Guild.id == GuildMembership.guild_id)
             .where(
                 GuildMembership.user_id == user_id,
-                GuildAdministration.enforce_compliance_session.is_(True),
+                Guild.enforce_compliance_session.is_(True),
             )
             .limit(1)
         )
@@ -113,8 +119,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
             .values(
                 expires_at=func.least(
                     UserToken.expires_at,
-                    UserToken.created_at
-                    + text(f"interval '{int(platform_hours)} hours'"),
+                    UserToken.created_at + _window(platform_hours),
                 )
             )
         )
@@ -126,11 +131,8 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
     )
     members = (
         select(GuildMembership.user_id)
-        .join(
-            GuildAdministration,
-            GuildAdministration.guild_id == GuildMembership.guild_id,
-        )
-        .where(GuildAdministration.enforce_compliance_session.is_(True))
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .where(Guild.enforce_compliance_session.is_(True))
     )
     await session.exec(
         update(UserToken)
@@ -142,8 +144,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
         .values(
             expires_at=func.least(
                 UserToken.expires_at,
-                UserToken.created_at
-                + text(f"interval '{int(compliance_hours)} hours'"),
+                UserToken.created_at + _window(compliance_hours),
             )
         )
     )

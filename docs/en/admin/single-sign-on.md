@@ -58,18 +58,19 @@ Turning off single sign-on waits if any community still requires one. Lift the r
 
 ## Letting a community run its own sign-in
 
-A community can have identity providers of its own — useful when it's a separate organisation with a separate staff directory. That's yours to grant, per community, in **Settings → Platform → Guilds**: find it in the list, hit **Manage**, and the **Sign-in** section has two ticks.
+A community can have identity providers of its own — useful when it's a separate organisation with a separate staff directory. That's yours to grant, per community, in **Settings → Platform → Guilds**: find it in the list, hit **Manage**, and the **Sign-in** section has three ticks. The first one turns the others on.
 
 | Option | What it lets their admins do |
 |---|---|
+| **Configuring its own sign-in** | Gives the community an Authentication page at all — and with it, personal API keys and a twelve-hour session limit. Off to start with, which is the right answer for most communities: they never see the page. |
 | **Its own sign-in providers** | Add providers on their own Authentication page, copy a member sign-in link that drops people straight into the community, and onboard new accounts through it. |
 | **Requiring a sign-in** | Insist members reach the community through one of those providers. |
 
-They're separate on purpose. A community can offer its provider as a convenience without forcing anyone through it — those are different arrangements, and one used to imply the other.
+The last two are separate on purpose. A community can offer its provider as a convenience without forcing anyone through it — those are different arrangements, and one used to imply the other.
 
 A community's own provider only ever admits people to that community, and everybody still has exactly one account however they signed in.
 
-Withdrawing an option closes the page it governs and nothing else. Their providers stay, their members keep signing in through them, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+Withdrawing the first takes the page away entirely; withdrawing either of the others closes the part it governs and nothing else. Their providers stay, their members keep signing in through them, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
 ## Provider quickstarts
 
