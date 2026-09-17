@@ -49,11 +49,11 @@ async def _owner_headers(session: AsyncSession) -> dict[str, str]:
     return get_auth_headers(owner)
 
 
-async def _security_admin(session: AsyncSession):
+async def _superadmin(session: AsyncSession):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     return admin, guild
 
@@ -156,7 +156,7 @@ async def test_test_404s_for_a_provider_that_is_not_there(
 async def test_the_operator_registry_cannot_test_a_guild_row(
     client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
 ):
-    admin, guild = await _security_admin(session)
+    admin, guild = await _superadmin(session)
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     headers = await _owner_headers(session)
 
@@ -172,7 +172,7 @@ async def test_the_operator_registry_cannot_test_a_guild_row(
 async def test_the_seat_may_discover_and_test(
     client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
 ):
-    admin, guild = await _security_admin(session)
+    admin, guild = await _superadmin(session)
     headers = get_auth_headers(admin)
     base = f"/api/v1/guilds/{guild.id}/auth/providers"
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
@@ -214,7 +214,7 @@ async def test_looking_up_404s_when_the_option_is_not_granted(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     headers = get_auth_headers(admin)
@@ -232,8 +232,8 @@ async def test_looking_up_404s_when_the_option_is_not_granted(
 async def test_a_guild_cannot_test_another_guilds_provider(
     client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
 ):
-    admin, guild = await _security_admin(session)
-    _, other_guild = await _security_admin(session)
+    admin, guild = await _superadmin(session)
+    _, other_guild = await _superadmin(session)
     theirs = await create_auth_provider(session, slug="corp", guild_id=other_guild.id)
 
     response = await client.post(

@@ -39,6 +39,7 @@ from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
 from app.services.platform import security_rules
+from app.services.platform.users import SeatWouldBeEmptied
 
 logger = logging.getLogger(__name__)
 
@@ -436,6 +437,24 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": safe_errors},
+    )
+
+
+@app.exception_handler(SeatWouldBeEmptied)
+async def seat_would_be_emptied_handler(
+    request: Request, exc: SeatWouldBeEmptied
+) -> JSONResponse:
+    """A removal that would leave a community without a superadmin.
+
+    Handled here rather than at each deletion route because the refusal is
+    raised from the membership drop, which every one of them goes through —
+    self-service deactivate and delete, and the operator's versions of both.
+    The communities are named by the eligibility call the dialog already
+    makes; this says why the action stopped.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN},
     )
 
 

@@ -320,7 +320,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
 
 
 @pytest.mark.integration
-async def test_stale_provider_claim_preserves_a_promoted_security_admin(
+async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     session: AsyncSession,
 ):
     provider = await create_auth_provider(session, slug="corp")
@@ -353,7 +353,7 @@ async def test_stale_provider_claim_preserves_a_promoted_security_admin(
             )
         )
     ).one()
-    membership.role = GuildRole.security_admin
+    membership.role = GuildRole.superadmin
     session.add(membership)
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
@@ -374,5 +374,5 @@ async def test_stale_provider_claim_preserves_a_promoted_security_admin(
         )
     ).one_or_none()
     assert preserved is not None
-    assert preserved.role == GuildRole.security_admin
+    assert preserved.role == GuildRole.superadmin
     assert result.guilds_removed == []

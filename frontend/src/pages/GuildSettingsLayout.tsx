@@ -14,7 +14,7 @@ export const GuildSettingsLayout = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.is_admin ?? false;
   // The seat above admin, which holds this community's sign-in configuration.
-  const isSecurityAdmin = activeGuild?.role === "security_admin";
+  const isSuperadmin = activeGuild?.role === "superadmin";
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
@@ -39,10 +39,10 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      ...(isSecurityAdmin
+      ...(isSuperadmin
         ? [
             {
-              // Everything on this tab is the security admin's to set, so the
+              // Everything on this tab is the superadmin's to set, so the
               // tab is theirs too — an ordinary admin has nothing to do on it.
               value: "auth",
               label: t("guildLayout.tabs.auth"),
@@ -79,7 +79,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, isSecurityAdmin]);
+  }, [urlGuildId, t, isSuperadmin]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by

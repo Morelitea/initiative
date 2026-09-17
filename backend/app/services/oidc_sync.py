@@ -182,13 +182,13 @@ async def sync_oidc_assignments(
         if membership:
             # Only a row this provider manages. One somebody joined by
             # hand, or another provider's, is not this sync's to move — and
-            # neither is a security admin: that seat is passed on by an
+            # neither is a superadmin: that seat is passed on by an
             # operator or by somebody already holding it, never by a rule
             # matching a claim value.
             if (
                 desired is not None
                 and membership.oidc_provider_id == provider_id
-                and membership.role != GuildRole.security_admin
+                and membership.role != GuildRole.superadmin
             ):
                 role = GuildRole(desired)
                 if membership.role != role:
@@ -354,7 +354,7 @@ async def sync_oidc_assignments(
             select(GuildMembership.guild_id).where(
                 GuildMembership.user_id == user_id,
                 GuildMembership.oidc_provider_id == provider_id,
-                GuildMembership.role != GuildRole.security_admin,
+                GuildMembership.role != GuildRole.superadmin,
             )
         )
     ).all()

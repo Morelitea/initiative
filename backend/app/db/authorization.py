@@ -42,6 +42,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = [
     "AUTHORIZATION_FUNCTIONS",
+    "GUILD_SUPERADMIN",
     "apply_authorization_functions",
     "authorization_functions_digest",
     "ensure_authorization_functions",
@@ -270,6 +271,40 @@ $function$
 
 """
 
+#: Who holds a guild's top seat — its sign-in configuration and its billing.
+#:
+#: Named ``public.guild_memberships`` in full, unlike its neighbours: this one
+#: answers about a shared table rather than a guild-local one, so it resolves
+#: the same way from a routed session and an unrouted one.
+#:
+#: Not ``SECURITY DEFINER``, like everything else here: it runs as its caller
+#: and reads what that caller may read. ``guild_memberships_select`` admits a
+#: session its own rows and, when routed, the addressed guild's — which covers
+#: both questions asked of this: "am I the seat here" on the platform path, and
+#: "is the writer the seat" from inside a policy.
+#:
+#: The one definition of the rule. The policies on ``guild_auth_policies`` call
+#: it, and so does the app — ``func.guild_superadmin(...)`` where an endpoint
+#: has to decide before it writes, the way ``initiative_scope_clause`` already
+#: defers to ``initiative_access`` rather than restating it in Python.
+GUILD_SUPERADMIN = """\
+CREATE OR REPLACE FUNCTION public.guild_superadmin(p_guild_id integer, p_user_id integer)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.guild_memberships m
+        WHERE m.guild_id = p_guild_id
+          AND m.user_id = p_user_id
+          AND m.role = 'superadmin'
+    )
+$function$
+
+"""
+
+
 #: Name -> definition, in dependency order: ``initiative_access`` and
 #: ``initiative_full_access`` call ``guild_auth_satisfied``, so it is created
 #: first. Applied in this order, a fresh database never sees a dangling call.
@@ -279,6 +314,7 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
     ("resource_access", RESOURCE_ACCESS),
+    ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
 

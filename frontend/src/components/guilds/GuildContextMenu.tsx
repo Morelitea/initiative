@@ -26,6 +26,7 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { holdsGuildSeat } from "@/lib/permissions";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
@@ -54,8 +55,9 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   // admin-only on the payload, and null max_users means uncapped.
   const atUserLimit = guild.max_users != null && guild.member_count >= guild.max_users;
   // Where a billing portal exists the cap travels with the plan, so a full
-  // guild leads there instead of dead-ending on an admin who can't lift it.
-  const upgradeForSeats = atUserLimit && billing != null;
+  // guild leads there — for the seat, which is who the portal answers. An
+  // ordinary admin sees the plain "community is full" wording instead.
+  const upgradeForSeats = atUserLimit && billing != null && holdsGuildSeat(guild);
 
   const handleInviteMembers = async () => {
     if (creatingInvite || atUserLimit) return;

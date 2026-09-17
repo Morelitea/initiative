@@ -420,7 +420,7 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     """Response for checking if a user can leave a guild.
 
     Two things stop them, and the caller is told which. Being the guild's last
-    admin is one. Holding its only security admin seat while the guild requires
+    admin is one. Holding its only superadmin seat while the guild requires
     a sign-in is the other — the requirement is lifted from the surface that
     seat holds, so the seat stays for as long as the requirement does.
 
@@ -431,8 +431,7 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
-    is_last_admin: bool
-    is_last_security_admin: bool = False
+    is_last_superadmin: bool = False
 
 
 class CommunityGuildRead(SanitizedBaseModel):

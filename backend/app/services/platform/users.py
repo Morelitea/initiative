@@ -15,7 +15,7 @@ from app.db.session import set_rls_context, set_system_guild_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
@@ -39,149 +39,128 @@ from app.models.platform.user_token import UserToken
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 
-async def is_last_admin_of_guild(
-    session: AsyncSession, guild_id: int, user_id: int, *, for_update: bool = False
-) -> bool:
-    """
-    Check if user is the last admin of a specific guild.
+class SeatWouldBeEmptied(Exception):
+    """Removing this account would leave a community with no superadmin.
 
-    Args:
-        session: Database session
-        guild_id: Guild ID to check
-        user_id: User ID to check
-        for_update: If True, lock the existing admin membership rows so a
-            concurrent demotion/removal of a *current* admin can't race this
-            check within the same transaction.
-
-    Concurrency caveat: ``for_update`` locks only the admin rows that already
-    exist. It does NOT prevent a concurrent transaction from INSERTing a
-    brand-new admin membership (a phantom — Postgres row locks aren't predicate
-    locks outside SERIALIZABLE). So a caller relying on a True result to gate a
-    follow-up mutation has a narrow window where a second admin could appear
-    just after the check. Harmless for the current callers (demote-last-admin
-    guards, and the blocker-scoped guild delete, which cascades that new row
-    away anyway); a caller needing a hard guarantee should take a per-guild
-    advisory lock that all admin-mutation paths also honor.
+    Raised from the membership drop rather than from an eligibility check,
+    because that is where it can be true at the moment it matters: the check
+    an endpoint runs first is a report, and two accounts can each pass it by
+    seeing the other.
     """
-    # Check if user is an admin of this guild
-    if for_update:
-        membership_stmt = (
-            select(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id == user_id,
+
+    def __init__(self, guild_names: List[str]) -> None:
+        self.guild_names = guild_names
+        super().__init__(", ".join(guild_names))
+
+
+async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
+    """Take every seat lock this removal touches, then check under it.
+
+    Ordered by guild id so two accounts leaving the same pair of communities
+    queue behind each other instead of each holding what the other wants. The
+    locks last to the end of the caller's transaction, which is the one that
+    removes the memberships — so the answer is still true when it does.
+    """
+    from app.services.platform.guilds import lock_guild_seats, would_strand_guild
+
+    guild_ids = sorted(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id,
+                    GuildMembership.role == GuildRole.superadmin,
+                )
             )
-            .with_for_update()
-        )
-    else:
-        membership_stmt = select(GuildMembership).where(
-            GuildMembership.guild_id == guild_id,
-            GuildMembership.user_id == user_id,
-        )
-    result = await session.exec(membership_stmt)
-    membership = result.one_or_none()
-
-    # Admin or above: a security admin is one of the people who can administer
-    # this guild, so it counts on both sides of the question.
-    if not membership or membership.role not in GUILD_ADMIN_ROLES:
-        return False
-
-    # Count all admins in this guild (with lock if for_update)
-    if for_update:
-        admin_stmt = (
-            select(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-            )
-            .with_for_update()
-        )
-        admin_result = await session.exec(admin_stmt)
-        admin_count = len(admin_result.all())
-    else:
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == guild_id,
-            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-        )
-        count_result = await session.exec(count_stmt)
-        admin_count = count_result.one()
-
-    return admin_count <= 1
-
-
-async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
-    """
-    Check if user is the last admin of any guild.
-    Returns list of guild names where user is the last admin.
-    """
-    # Get all guilds where user is an admin
-    stmt = select(GuildMembership).where(
-        GuildMembership.user_id == user_id,
-        GuildMembership.role.in_(GUILD_ADMIN_ROLES),
+        ).all()
     )
-    result = await session.exec(stmt)
-    user_admin_memberships = result.all()
+    if not guild_ids:
+        return
 
-    last_admin_guild_names = []
+    stranded: List[str] = []
+    for guild_id in guild_ids:
+        await lock_guild_seats(session, guild_id)
+        if not await would_strand_guild(session, guild_id=guild_id, user_id=user_id):
+            continue
+        from app.models.platform.guild import Guild
 
-    for membership in user_admin_memberships:
-        # Count other admins in this guild
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == membership.guild_id,
-            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-            GuildMembership.user_id != user_id,
-        )
-        count_result = await session.exec(count_stmt)
-        other_admin_count = count_result.one()
+        guild = (
+            await session.exec(select(Guild).where(Guild.id == guild_id))
+        ).one_or_none()
+        stranded.append(guild.name if guild else str(guild_id))
 
-        if other_admin_count == 0:
-            # User is the last admin, get guild name
-            from app.models.platform.guild import Guild
-
-            guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
-            guild_result = await session.exec(guild_stmt)
-            guild = guild_result.one_or_none()
-            if guild:
-                last_admin_guild_names.append(guild.name)
-
-    return last_admin_guild_names
+    if stranded:
+        raise SeatWouldBeEmptied(stranded)
 
 
-async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
-    """
-    Get detailed info about guilds where user is the last admin.
-    Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
+async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[str]:
+    """Communities where this account holds the only superadmin seat.
+
+    An ordinary admin does not count: a community left with admins but no
+    seat cannot appoint one, reach its billing, or change its sign-in until
+    an operator seats somebody. A community whose only member is this account
+    does not count either — there is nobody there to strand.
     """
     from app.models.platform.guild import Guild
 
-    stmt = select(GuildMembership).where(
-        GuildMembership.user_id == user_id,
-        GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-    )
-    result = await session.exec(stmt)
-    user_admin_memberships = result.all()
+    seats = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+
+    from app.services.platform.guilds import would_strand_guild
+
+    names: List[str] = []
+    for membership in seats:
+        if not await would_strand_guild(
+            session, guild_id=membership.guild_id, user_id=user_id
+        ):
+            continue
+        guild = (
+            await session.exec(select(Guild).where(Guild.id == membership.guild_id))
+        ).one_or_none()
+        if guild:
+            names.append(guild.name)
+    return names
+
+
+async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
+    """Communities this account's removal would leave without a superadmin.
+
+    What :func:`is_last_guild_superadmin` reports, with the roster the operator
+    needs to act on it: ``guild_id``, ``guild_name``, and the other members —
+    the people who could be made superadmin instead of the community being
+    deleted. An empty ``other_members`` is the case where deleting the
+    community is the only way through.
+    """
+    from app.models.platform.guild import Guild
+    from app.services.platform.guilds import would_strand_guild
+
+    seats = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
 
     blockers = []
 
-    for membership in user_admin_memberships:
-        # Count other admins in this guild
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == membership.guild_id,
-            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-            GuildMembership.user_id != user_id,
-        )
-        count_result = await session.exec(count_stmt)
-        other_admin_count = count_result.one()
-
-        if other_admin_count == 0:
-            # User is the last admin - get guild info and other members
+    for membership in seats:
+        if await would_strand_guild(
+            session, guild_id=membership.guild_id, user_id=user_id
+        ):
             guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
             guild_result = await session.exec(guild_stmt)
             guild = guild_result.one_or_none()
             if not guild:
                 continue
 
-            # Get other members who could be promoted
+            # Who could take the seat instead.
             members_stmt = (
                 select(User)
                 .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -230,10 +209,14 @@ async def check_deletion_eligibility(
     Check if user can be deleted.
     Returns: (can_delete, blockers)
 
-    The only blocker is being the last admin of a guild. Owning content is not
-    one: ownership is released on the way out and the content is left unowned
-    for a guild admin to claim, so there is nothing for the departing user to
-    decide.
+    The only blocker is holding a community's sole superadmin seat, which would
+    leave it with nobody who can appoint one, reach its billing, or change its
+    sign-in. Being its last ordinary admin is not one: every community has a
+    superadmin, so there is always somebody left who can promote another.
+
+    Owning content is not a blocker: ownership is released on the way out and
+    the content is left unowned for a guild admin to claim, so there is nothing
+    for the departing user to decide.
 
     Args:
         session: Database session
@@ -242,20 +225,19 @@ async def check_deletion_eligibility(
     """
     blockers = []
 
-    # Check if user is last admin of any guild
-    last_admin_guilds = await is_last_guild_admin(session, user_id)
-    if last_admin_guilds:
-        for guild_name in last_admin_guilds:
-            if admin_context:
-                blockers.append(
-                    f"User is the last admin of community '{guild_name}'. "
-                    f"Another user must be promoted to admin or the community must be deleted first."
-                )
-            else:
-                blockers.append(
-                    f"You are the last admin of community '{guild_name}'. "
-                    f"Promote another user to admin or delete the community before deleting your account."
-                )
+    for guild_name in await is_last_guild_superadmin(session, user_id):
+        if admin_context:
+            blockers.append(
+                f"User is the only superadmin of community '{guild_name}'. "
+                f"Another user must be made superadmin or the community must be "
+                f"deleted first."
+            )
+        else:
+            blockers.append(
+                f"You are the only superadmin of community '{guild_name}'. "
+                f"Make another user superadmin or delete the community before "
+                f"deleting your account."
+            )
 
     can_delete = len(blockers) == 0
 
@@ -287,6 +269,11 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             )
         ).all()
     )
+
+    # Every community this account holds the seat of keeps it. Asked here, under
+    # the same locks the leave and demotion paths take, because this is the
+    # transaction that removes the rows.
+    await _hold_seats_or_refuse(session, user_id)
 
     # Initiative membership + owned-document handoff is guild-scoped — its rows
     # live in each guild's schema. Route into every guild as superadmin (system

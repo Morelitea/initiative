@@ -38,7 +38,7 @@ describe("GuildUsagePanel", () => {
   beforeEach(() => {
     state.guild = buildGuild({
       id: 7,
-      role: "admin",
+      role: "superadmin",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -67,7 +67,7 @@ describe("GuildUsagePanel", () => {
   it("renders unlimited caps without a hard limit", () => {
     state.guild = buildGuild({
       id: 7,
-      role: "admin",
+      role: "superadmin",
       max_storage_bytes: null,
       max_users: null,
       member_count: 3,
@@ -80,7 +80,7 @@ describe("GuildUsagePanel", () => {
     state.billing = { url: "https://billing.example.com" };
     state.guild = buildGuild({
       id: 42,
-      role: "admin",
+      role: "superadmin",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -97,7 +97,7 @@ describe("GuildUsagePanel", () => {
     state.billing = { url: "https://billing.example.com" };
     state.guild = buildGuild({
       id: 42,
-      role: "admin",
+      role: "superadmin",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -121,7 +121,7 @@ describe("GuildUsagePanel", () => {
 
   it("admin: falls back to the anonymous link if the mint fails", async () => {
     state.billing = { url: "https://billing.example.com" };
-    state.guild = buildGuild({ id: 42, role: "admin", member_count: 1 });
+    state.guild = buildGuild({ id: 42, role: "superadmin", member_count: 1 });
     mintMock.mockRejectedValue(new Error("nope"));
     const tab = { location: { href: "" }, opener: {} as unknown };
     const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
@@ -133,5 +133,16 @@ describe("GuildUsagePanel", () => {
       expect(tab.location.href).toBe("https://billing.example.com/upgrade?guild=42&lang=en")
     );
     openSpy.mockRestore();
+  });
+
+  it("keeps the portal from an ordinary admin", async () => {
+    // Billing is the superadmin's, so an admin is not offered a button that
+    // would come back GUILD_SUPERADMIN_REQUIRED.
+    state.guild = buildGuild({ id: 42, role: "admin", member_count: 1 });
+    renderWithProviders(<GuildUsagePanel />);
+
+    expect(await screen.findByText(/storage/i)).toBeInTheDocument();
+    expect(screen.queryByText("Upgrade")).not.toBeInTheDocument();
+    expect(screen.queryByText(/manage billing/i)).not.toBeInTheDocument();
   });
 });

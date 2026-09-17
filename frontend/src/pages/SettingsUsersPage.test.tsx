@@ -38,7 +38,7 @@ vi.mock("@/components/guilds/UnownedContentCard", () => ({ UnownedContentCard: (
 import { SettingsUsersPage } from "./SettingsUsersPage";
 
 const setup = (overrides: Partial<GuildRead>) => {
-  const guild = buildGuild({ role: "admin", name: "Alpha", ...overrides }) as GuildRead;
+  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as GuildRead;
   renderPage(() => <SettingsUsersPage />, {
     guilds: { guilds: [guild], activeGuildId: guild.id, activeGuild: guild },
   });

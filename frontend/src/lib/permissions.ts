@@ -85,5 +85,17 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
 
 /** True when a server-computed per-resource permission level allows writing.
  * Reads `my_permission_level` — never derive this client-side. */
+/**
+ * Whether this membership holds the community's top seat.
+ *
+ * The seat owns what a community is billed for and how people get into it, so
+ * every affordance that leads to the billing portal or the Authentication tab
+ * asks this — an ordinary admin is not shown a button the server refuses.
+ * Mirrors the backend's ``public.guild_superadmin``, which is what actually
+ * decides.
+ */
+export const holdsGuildSeat = (guild: { role?: string | null } | null | undefined): boolean =>
+  guild?.role === "superadmin";
+
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";

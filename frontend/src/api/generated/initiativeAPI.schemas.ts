@@ -257,7 +257,7 @@ export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
 export const GuildRole = {
   admin: "admin",
   member: "member",
-  security_admin: "security_admin",
+  superadmin: "superadmin",
   support: "support",
 } as const;
 
@@ -2607,7 +2607,7 @@ export interface DefaultFilter {
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  last_admin_guilds: string[];
+  sole_superadmin_guilds: string[];
 }
 
 /**
@@ -4652,7 +4652,7 @@ export interface InterfaceSettingsUpdate {
  * Response for checking if a user can leave a guild.
  *
  * Two things stop them, and the caller is told which. Being the guild's last
- * admin is one. Holding its only security admin seat while the guild requires
+ * admin is one. Holding its only superadmin seat while the guild requires
  * a sign-in is the other — the requirement is lifted from the surface that
  * seat holds, so the seat stays for as long as the requirement does.
  *
@@ -4661,8 +4661,7 @@ export interface InterfaceSettingsUpdate {
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
-  is_last_admin: boolean;
-  is_last_security_admin: boolean;
+  is_last_superadmin: boolean;
 }
 
 /**

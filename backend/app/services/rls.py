@@ -25,6 +25,8 @@ project/document-level permissions lives in ``permissions.py``.
 from __future__ import annotations
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
@@ -49,7 +51,7 @@ from app.db.session import set_rls_context  # noqa: F401
 def is_guild_admin(guild_role: GuildRole) -> bool:
     """Whether the role carries a guild admin's authority.
 
-    ``security_admin`` sits above ``admin``, so it answers yes here — the
+    ``superadmin`` sits above ``admin``, so it answers yes here — the
     question is authority, and it has an admin's.
     """
     return guild_role in GUILD_ADMIN_ROLES
@@ -68,28 +70,38 @@ def require_guild_admin(guild_role: GuildRole) -> None:
         )
 
 
-def is_guild_security_admin(guild_role: GuildRole) -> bool:
-    """Whether the role holds the guild's sign-in configuration.
+async def holds_guild_seat(
+    session: AsyncSession, *, guild_id: int, user_id: int
+) -> bool:
+    """Whether this account holds ``guild_id``'s top seat.
 
-    Exact, not "or above": ``security_admin`` is the top of the guild ladder,
-    and an ordinary ``admin`` answers no here even though it answers yes to
-    :func:`is_guild_admin`. Running a community and deciding who may enter it
-    are separate jobs, and this is the predicate for the second.
+    Asked of ``public.guild_superadmin``, the same function the policies on
+    ``guild_auth_policies`` defer to — so the rule has one definition and this
+    reads it rather than restating it against a Python enum. The pattern is
+    ``initiative_scope_clause``'s: the app and the database agree because they
+    are the same SQL.
+
+    Exact, not "or above". An ordinary ``admin`` answers no here and yes to
+    :func:`is_guild_admin`: running a community, and deciding who may enter it
+    or what it is billed for, are different jobs.
     """
-    return guild_role == GuildRole.security_admin
+    return bool(
+        (await session.exec(select(func.guild_superadmin(guild_id, user_id)))).one()
+    )
 
 
-def require_guild_security_admin(guild_role: GuildRole) -> None:
-    """Raise HTTPException(403) unless the role holds the seat.
+async def require_guild_seat(
+    session: AsyncSession, *, guild_id: int, user_id: int
+) -> None:
+    """Raise HTTPException(403) unless this account holds the guild's seat.
 
-    Use this for the guild's sign-in configuration — its identity providers
-    and the requirement for entering it. Every other guild-admin operation
-    wants :func:`require_guild_admin`.
+    Use this for the guild's sign-in configuration and its billing portal.
+    Every other guild-admin operation wants :func:`require_guild_admin`.
     """
-    if not is_guild_security_admin(guild_role):
+    if not await holds_guild_seat(session, guild_id=guild_id, user_id=user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_SECURITY_ADMIN_REQUIRED,
+            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
         )
 
 
