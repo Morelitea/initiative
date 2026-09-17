@@ -3,13 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   createAuthProviderApiV1SettingsAuthProvidersPost,
   deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete,
+  discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost,
   getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey,
   listAuthProvidersApiV1SettingsAuthProvidersGet,
+  testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost,
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderProbeResult,
   AuthProviderUpdate,
   ChangelogResponse,
   CommunitySettingsResponse,
@@ -206,6 +209,26 @@ export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) =>
       mutationFn: (providerId) =>
         deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId),
       invalidate: () => invalidate(q.authProviders()),
+    },
+    options
+  );
+
+/** Look up an address somebody is still typing. Nothing is saved, and nothing
+ *  in the cache changes, so there is nothing to invalidate. */
+export const useDiscoverAuthProvider = (
+  options?: MutationOpts<AuthProviderProbeResult, { issuer: string }>
+) =>
+  useApiMutation<AuthProviderProbeResult, { issuer: string }>(
+    { mutationFn: (data) => discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost(data) },
+    options
+  );
+
+/** Look up a saved provider, against the address on its row. */
+export const useTestAuthProvider = (options?: MutationOpts<AuthProviderProbeResult, number>) =>
+  useApiMutation<AuthProviderProbeResult, number>(
+    {
+      mutationFn: (providerId) =>
+        testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost(providerId),
     },
     options
   );

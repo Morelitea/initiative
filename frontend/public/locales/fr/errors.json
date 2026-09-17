@@ -677,5 +677,9 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un code d'authentification s'ajoute au mot de passe ou à l'authentification unique, il ne les remplace pas.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Cette communauté demande un code de votre application d'authentification. Saisissez-en un pour continuer.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Saisissez votre code d'authentification pour utiliser l'accès d'urgence.",
-  "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "L'accès d'urgence nécessite une application d'authentification, et ce compte n'en a pas. Configurez-en une dans Sécurité d'abord."
+  "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "L'accès d'urgence nécessite une application d'authentification, et ce compte n'en a pas. Configurez-en une dans Sécurité d'abord.",
+  "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Rien n’a répondu à cette adresse",
+  "AUTH_PROVIDER_DISCOVERY_ISSUER_MISMATCH": "Cette adresse répond pour un autre issuer — comparez-la à la documentation de votre fournisseur",
+  "AUTH_PROVIDER_DISCOVERY_INVALID": "Cette adresse a répondu, mais pas avec des informations OpenID Connect",
+  "AUTH_PROVIDER_DISCOVERY_NO_ISSUER": "Ce fournisseur n’a aucune adresse à vérifier"
 }

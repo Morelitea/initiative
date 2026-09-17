@@ -62,6 +62,8 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useCreateGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
+  useTestGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
+  useDiscoverGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { SettingsGuildAuthPage } from "./SettingsGuildAuthPage";
