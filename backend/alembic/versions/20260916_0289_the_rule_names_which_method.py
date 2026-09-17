@@ -18,14 +18,16 @@ Behaviour is unchanged on every deployment — the two forms agree on every valu
 ``require_methods`` can currently hold. The app-side mirror of this rule in
 ``app/api/deps.py`` moves with it.
 
-**Executed from the module, not copied.** ``app/db/authorization.py`` is the
-source for these five functions and ``apply_authorization_functions`` runs on
-every boot, so a definition that exists only inside a migration is replaced at
-the next start; that module's contract is that a migration ``op.execute`` its
-constant rather than hold a copy. This revision is the first to do so. The
-constant is also where the method leg introduced by ``0286``/``0287`` now
-lives — those revisions were written on a branch running beside the one that
-gave these functions a home, so each was correct about the half it could see.
+**Stated here, not imported.** ``app/db/authorization.py`` is what these five
+functions converge on — it is re-applied on every boot — but a migration is a
+record of one revision, and a body read from the live module changes what this
+revision does every time that module is edited. It did: a later revision added
+a label to the enum this body compares against, and an upgrade from empty
+reached here first and named a value that did not exist yet. The body below is
+what this revision installs; the module is what every database ends up with.
+The method leg it carries was introduced by ``0286``/``0287``, written on a
+branch running beside the one that gave these functions a home, so each was
+correct about the half it could see.
 
 ``CREATE OR REPLACE`` keeps the function's OID, so every policy and every
 ``public.initiative_access`` call that already defers to it picks the new body
@@ -37,8 +39,6 @@ Create Date: 2026-09-16
 """
 
 from alembic import op
-
-from app.db.authorization import GUILD_AUTH_SATISFIED
 
 revision = "20260916_0289"
 down_revision = "20260916_0288"
@@ -99,8 +99,58 @@ $$;
 """
 
 
+GUILD_AUTH_SATISFIED_AT_0289 = """
+CREATE OR REPLACE FUNCTION public.guild_auth_satisfied() RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT
+        NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+        OR current_setting('app.satisfied_providers', true) = 'system'
+        OR NOT EXISTS (
+            SELECT 1 FROM public.guild_auth_policies p
+            WHERE p.guild_id = NULLIF(
+                    current_setting('app.current_guild_id', true), ''
+                  )::int
+              AND p.policy <> 'open'
+              AND (
+                  (
+                      p.provider_id IS NOT NULL
+                      AND NOT COALESCE(
+                            p.provider_id = ANY(
+                                string_to_array(
+                                    NULLIF(
+                                        current_setting(
+                                            'app.satisfied_providers', true
+                                        ), ''
+                                    ),
+                                    ','
+                                )::int[]
+                            ),
+                            false
+                          )
+                  )
+                  OR (
+                      'sso' = ANY(p.require_methods)
+                      AND NOT COALESCE(
+                            p.guild_id = ANY(
+                                string_to_array(
+                                    NULLIF(
+                                        current_setting('app.sso_guilds', true), ''
+                                    ),
+                                    ','
+                                )::int[]
+                            ),
+                            false
+                          )
+                  )
+              )
+        )
+$$;
+"""
+
+
 def upgrade() -> None:
-    op.execute(GUILD_AUTH_SATISFIED)
+    op.execute(GUILD_AUTH_SATISFIED_AT_0289)
 
 
 def downgrade() -> None:
