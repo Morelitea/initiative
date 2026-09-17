@@ -157,6 +157,8 @@ Commit the updated generated files alongside your schema changes. CI will fail i
 5. Open a pull request **targeting `dev`** describing what changed and why
 6. Include screenshots or GIFs for UI changes
 
+Greptile reviews are manual. Comment `@greptileai` only after the pull request description and comments are safe for public disclosure.
+
 **Important:** Do not open PRs against `main`. The `main` branch is restricted to project maintainers (@jordandrako, @LeeJMorel) who promote changes from `dev` using the release tooling below. PRs targeting `main` from non-maintainers will be closed.
 
 ## Releases (Maintainers)
