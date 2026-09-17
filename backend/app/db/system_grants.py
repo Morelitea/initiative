@@ -189,6 +189,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "user_email_assertions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # the second factor and what it is made of — enrolled, presented and
     # removed on the system engine, like the session store beside it
+    # Registered, renamed, used and removed on the system engine — the request
+    # path reaches a passkey only through a route running there, the same as
+    # the second-factor tables below.
+    "user_passkeys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_totp": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_totp_secrets": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "mfa_recovery_codes": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -351,6 +355,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "user_email_assertions": None,
     # the factor tables are system-engine-only; the bare login role never
     # touches them, and neither does any request-path role
+    "user_passkeys": None,
     "user_totp": None,
     "user_totp_secrets": None,
     "mfa_recovery_codes": None,

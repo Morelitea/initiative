@@ -236,11 +236,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "ssog": "",
+            # The billing service acts as itself, not for an account, so there
+            # is no sign-in for it to have carried a factor through.
+            "mfa": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
             "vdash": "",
-            "names": "false",
             "q": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),

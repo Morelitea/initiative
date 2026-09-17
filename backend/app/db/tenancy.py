@@ -134,6 +134,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_totp_secrets",
         "mfa_recovery_codes",
         "auth_challenges",  # a sign-in between its password and its code
+        # WebAuthn credentials. app_admin-only for the same reason as the rest
+        # of this group: an assertion arrives before any account is known.
+        "user_passkeys",
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
