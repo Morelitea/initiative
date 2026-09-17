@@ -251,9 +251,9 @@ async def read_community_settings(
     session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> CommunitySettingsResponse:
-    """The three community-wide decisions, for the owner's settings page.
+    """The four community-wide decisions, for the owner's settings page.
 
-    The two switches are also on ``GET /config``, which is where every signed-in
+    Three of them are also on ``GET /config``, which is where every signed-in
     page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
     — the server applies it when an account is made — so it is served here,
     behind the capability that writes it, rather than added to everyone's boot
@@ -264,6 +264,7 @@ async def read_community_settings(
         community_directory_enabled=settings_obj.community_directory_enabled,
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
+        direct_messages_enabled=settings_obj.direct_messages_enabled,
     )
 
 
@@ -293,17 +294,25 @@ async def update_community_settings(
     guild. Turning it off is the owner asserting that every account on this
     deployment already belongs to an adult, which is why it is a deliberate
     write and not a side effect of the first — omitting it leaves it alone.
+
+    ``direct_messages_enabled`` is the fourth, and independent of the other
+    three: a deployment can run a directory without messaging, or messaging
+    without a directory. Off, My Messages is not offered and every
+    direct-message route refuses; nothing is deleted, so turning it back on
+    restores the channels people already had.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
         community_directory_enabled=payload.community_directory_enabled,
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
+        direct_messages_enabled=payload.direct_messages_enabled,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
+        direct_messages_enabled=settings_obj.direct_messages_enabled,
     )
 
 

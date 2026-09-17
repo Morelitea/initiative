@@ -193,5 +193,7 @@
     "who": "Alle darin:",
     "join": "Beitreten",
     "decline": "Nein danke"
-  }
+  },
+  "platformDisabled": "Direktnachrichten sind hier deaktiviert",
+  "platformDisabledBody": "Diese Installation bietet keine Direktnachrichten. Es wurde nichts gelöscht – werden sie wieder aktiviert, sind Ihre Unterhaltungen dort, wo Sie sie verlassen haben."
 }

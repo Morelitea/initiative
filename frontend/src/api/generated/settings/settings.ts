@@ -693,9 +693,9 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
   );
 };
 /**
- * The three community-wide decisions, for the owner's settings page.
+ * The four community-wide decisions, for the owner's settings page.
  *
- * The two switches are also on ``GET /config``, which is where every signed-in
+ * Three of them are also on ``GET /config``, which is where every signed-in
  * page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
  * — the server applies it when an account is made — so it is served here,
  * behind the capability that writes it, rather than added to everyone's boot
@@ -865,6 +865,12 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * guild. Turning it off is the owner asserting that every account on this
  * deployment already belongs to an adult, which is why it is a deliberate
  * write and not a side effect of the first — omitting it leaves it alone.
+ *
+ * ``direct_messages_enabled`` is the fourth, and independent of the other
+ * three: a deployment can run a directory without messaging, or messaging
+ * without a directory. Off, My Messages is not offered and every
+ * direct-message route refuses; nothing is deleted, so turning it back on
+ * restores the channels people already had.
  * @summary Update Community Settings
  */
 export const updateCommunitySettingsApiV1SettingsCommunityPut = (

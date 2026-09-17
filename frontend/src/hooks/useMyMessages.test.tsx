@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   collect: vi.fn(),
   markRead: vi.fn(),
   reportThreadRead: vi.fn(),
+  dmEnabled: vi.fn(() => true),
 }));
 
 vi.mock("@/crypto/messaging", () => ({
@@ -41,6 +42,9 @@ vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal
 vi.mock("@/hooks/useDirectMessages", () => ({
   useDmSettings: () => ({ data: { send_receipts: true }, isSuccess: true }),
   usePendingContactRequests: () => ({ data: [] }),
+  // The deployment's switch, which every hook here is behind. On unless a test
+  // says otherwise, which is what a deployment offering messaging looks like.
+  useDirectMessagesEnabled: () => mocks.dmEnabled(),
 }));
 
 import { useCollectMessagesWhereRegistered, useDmDevice, useMarkThreadRead } from "./useMyMessages";
@@ -54,6 +58,9 @@ const wrapper = (client = createTestQueryClient()) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A deployment that offers messaging, which is every test but the one that
+  // says otherwise. Set here so that one cannot leak into the rest.
+  mocks.dmEnabled.mockReturnValue(true);
   mocks.collect.mockResolvedValue([]);
   mocks.ensureDevice.mockResolvedValue("device-1");
   mocks.markRead.mockResolvedValue(0);
@@ -112,6 +119,26 @@ describe("this browser's device", () => {
 
     await waitFor(() => expect(mocks.registeredDevice).toHaveBeenCalled());
     expect(mocks.collect).not.toHaveBeenCalled();
+  });
+
+  it("neither registers nor collects where the deployment offers no messaging", async () => {
+    // A browser that would otherwise do both: already set up, so the only
+    // thing holding it back is the switch.
+    mocks.dmEnabled.mockReturnValue(false);
+    mocks.registeredDevice.mockResolvedValue("device-1");
+    const Wrapper = wrapper();
+
+    renderHook(
+      () => {
+        useCollectMessagesWhereRegistered();
+        useDmDevice();
+      },
+      { wrapper: Wrapper }
+    );
+
+    await waitFor(() => expect(mocks.registeredDevice).toHaveBeenCalled());
+    expect(mocks.collect).not.toHaveBeenCalled();
+    expect(mocks.ensureDevice).not.toHaveBeenCalled();
   });
 });
 

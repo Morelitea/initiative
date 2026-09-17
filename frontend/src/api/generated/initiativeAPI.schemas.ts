@@ -704,6 +704,7 @@ export interface AppConfig {
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
+  direct_messages_enabled: boolean;
   login_methods: string[];
   min_native_version: string;
 }
@@ -2055,12 +2056,14 @@ export interface CommunitySettingsResponse {
   community_directory_enabled: boolean;
   age_gate_enabled: boolean;
   default_dm_policy: DmPolicy;
+  direct_messages_enabled: boolean;
 }
 
 export interface CommunitySettingsUpdate {
   community_directory_enabled: boolean;
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
+  direct_messages_enabled?: boolean | null;
 }
 
 /**

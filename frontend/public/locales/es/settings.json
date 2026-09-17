@@ -1220,7 +1220,15 @@
     "ageGateOffBody": "Desactivarlo afirma que todas las cuentas de esta instalación pertenecen a personas de 18 años o más. No se volverá a pedir a nadie que confirme su edad, ni siquiera a quien se una más adelante a una comunidad listada.",
     "ageGateOffConfirm": "Aquí todo el mundo tiene 18 o más",
     "defaultDmLabel": "Mensajes directos para cuentas nuevas",
-    "defaultDmHelpText": "El ajuste con el que empieza una cuenta. Se lee una sola vez, al crearla: cambiarlo no abre ninguna cuenta existente ni cierra ninguna. «Privado» es el valor de fábrica; con él, cada persona pasa a ser localizable cuando así lo decide."
+    "defaultDmHelpText": "El ajuste con el que empieza una cuenta. Se lee una sola vez, al crearla: cambiarlo no abre ninguna cuenta existente ni cierra ninguna. «Privado» es el valor de fábrica; con él, cada persona pasa a ser localizable cuando así lo decide.",
+    "directMessagesLabel": "Permitir que la gente se envíe mensajes",
+    "directMessagesHelpText": "Mis mensajes, junto con las conexiones y solicitudes que lo sostienen. Los mensajes están cifrados de extremo a extremo, así que nadie que gestione esta instalación puede leerlos: desactívalo donde la mensajería privada no tenga cabida, no para supervisarla.",
+    "directMessagesReversibleNote": "Desactivarlo oculta Mis mensajes y rechaza los nuevos; no borra nada. Las conversaciones, las conexiones y los ajustes siguen ahí si vuelves a activarlo.",
+    "directMessagesOffTitle": "¿Desactivar los mensajes directos?",
+    "directMessagesOffBody": "Mis mensajes desaparecerá para todo el mundo aquí, y los mensajes que ya iban en camino no se entregarán. No se borra nada, así que al volver a activarlo se recuperan las conversaciones y conexiones que ya existían.",
+    "directMessagesOffConfirm": "Desactivar los mensajes directos",
+    "directMessagesEnabledToast": "Los mensajes directos están activados.",
+    "directMessagesDisabledToast": "Los mensajes directos están desactivados."
   },
   "audit": {
     "title": "Auditoría",
@@ -1265,7 +1273,8 @@
       "communitiesHint": "Todas cuentan de forma predeterminada.",
       "ageLocked": "Los mensajes están disponibles para mayores de 13 años. Aún no nos has dicho si lo eres.",
       "confirmAge": "Confirmar mi edad",
-      "saved": "Guardado."
+      "saved": "Guardado.",
+      "platformDisabled": "Esta instalación no ofrece mensajes directos, así que aquí no hay nada que configurar. Si se vuelven a activar, recuperarás la política y las listas que tenías."
     },
     "receipts": {
       "title": "Confirmaciones de lectura",

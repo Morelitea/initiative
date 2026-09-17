@@ -1220,7 +1220,15 @@
     "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
     "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus",
     "defaultDmLabel": "Messages privés pour les nouveaux comptes",
-    "defaultDmHelpText": "Le réglage avec lequel un compte démarre. Il est lu une seule fois, à la création du compte : le modifier n'ouvre aucun compte existant et n'en ferme aucun. « Privé » est la valeur livrée ; avec elle, chacun devient joignable au moment où il le décide."
+    "defaultDmHelpText": "Le réglage avec lequel un compte démarre. Il est lu une seule fois, à la création du compte : le modifier n'ouvre aucun compte existant et n'en ferme aucun. « Privé » est la valeur livrée ; avec elle, chacun devient joignable au moment où il le décide.",
+    "directMessagesLabel": "Autoriser les membres à s'écrire",
+    "directMessagesHelpText": "Mes messages, ainsi que les connexions et les demandes qui le font fonctionner. Les messages sont chiffrés de bout en bout : personne qui administre cette installation ne peut les lire — désactivez ceci là où la messagerie privée n'a pas sa place, pas pour la surveiller.",
+    "directMessagesReversibleNote": "Désactiver masque Mes messages et refuse les nouveaux ; rien n'est supprimé. Les conversations, les connexions et les réglages sont toujours là si vous le réactivez.",
+    "directMessagesOffTitle": "Désactiver les messages privés ?",
+    "directMessagesOffBody": "Mes messages disparaîtra pour tout le monde ici, et les messages déjà en route ne seront pas remis. Rien n'est supprimé : en réactivant, les conversations et les connexions existantes réapparaissent.",
+    "directMessagesOffConfirm": "Désactiver les messages privés",
+    "directMessagesEnabledToast": "Les messages privés sont activés.",
+    "directMessagesDisabledToast": "Les messages privés sont désactivés."
   },
   "audit": {
     "title": "Audit",
@@ -1265,7 +1273,8 @@
       "communitiesHint": "Toutes comptent par défaut.",
       "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
       "confirmAge": "Confirmer mon âge",
-      "saved": "Enregistré."
+      "saved": "Enregistré.",
+      "platformDisabled": "Cette installation ne propose pas de messages privés : il n'y a donc rien à régler ici. S'ils sont réactivés, votre règle et vos listes reviennent telles quelles."
     },
     "receipts": {
       "title": "Accusés de lecture",

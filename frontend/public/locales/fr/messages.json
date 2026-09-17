@@ -193,5 +193,7 @@
     "who": "Les personnes présentes :",
     "join": "Rejoindre",
     "decline": "Non merci"
-  }
+  },
+  "platformDisabled": "Les messages privés sont désactivés ici",
+  "platformDisabledBody": "Cette installation ne propose pas de messages privés. Rien n'a été supprimé : s'ils sont réactivés, vos conversations seront là où vous les avez laissées."
 }

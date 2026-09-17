@@ -35,6 +35,7 @@ import type { ReceiptState, StoredMessage } from "@/crypto/store";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCanUseDirectMessages,
+  useDirectMessagesEnabled,
   useDmSettings,
   useMessageRequests,
 } from "@/hooks/useDirectMessages";
@@ -73,7 +74,7 @@ import { cn } from "@/lib/utils";
  * offer to ask for one instead.
  */
 export function MyMessagesPage() {
-  const { t } = useTranslation("messages");
+  const { t } = useTranslation(["messages", "nav"]);
   const device = useDmDevice();
   const conversations = useConversations();
   const requests = useMessageRequests();
@@ -84,6 +85,10 @@ export function MyMessagesPage() {
   const dmSettings = useDmSettings();
   const settingsLoaded = dmSettings.isSuccess;
   const canMessage = useCanUseDirectMessages();
+  // The deployment's own switch, read separately from `canMessage`: the two
+  // refusals have nothing to do with each other and only one of them is
+  // anything the reader can act on.
+  const dmEnabled = useDirectMessagesEnabled();
 
   // Who the URL asked for, resolved to a person. The profile is what a panel
   // for somebody with no channel has to draw, and the id is what everything
@@ -209,6 +214,25 @@ export function MyMessagesPage() {
     conversationsLoaded,
     openWith,
   ]);
+
+  // This deployment does not offer messaging. Checked before everything
+  // below, because none of it applies: there is no device to set up, no
+  // settings to have loaded, and nothing the reader could answer to change it.
+  // Somebody only gets here by address -- every way in is already gone -- so
+  // the page says where they are rather than looking broken.
+  if (!dmEnabled) {
+    return (
+      <div className="p-6">
+        <StatusMessage
+          icon={<ShieldCheck className="size-6" aria-hidden />}
+          title={t("platformDisabled")}
+          description={t("platformDisabledBody")}
+          backTo="/"
+          backLabel={t("nav:home")}
+        />
+      </div>
+    );
+  }
 
   // A runtime with no web workers cannot hold a ratchet at all, and saying so
   // is more use than the generic failure it would otherwise reach.

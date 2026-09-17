@@ -1230,6 +1230,10 @@ class DirectMessageMessages:
     CANNOT_IGNORE_SELF = "DM_CANNOT_IGNORE_SELF"
     #: A community named in a toggle write that this account is not in.
     NOT_A_MEMBER = "DM_NOT_A_MEMBER"
+    #: This deployment does not offer direct messages. A platform owner's
+    #: setting, so it is the same answer for everybody and nothing the caller
+    #: can do about it.
+    DISABLED_FOR_PLATFORM = "DM_DISABLED_FOR_PLATFORM"
 
 
 class DirectMessageTransportMessages:

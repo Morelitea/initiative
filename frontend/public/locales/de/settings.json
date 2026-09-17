@@ -1220,7 +1220,15 @@
     "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
     "ageGateOffConfirm": "Hier sind alle mindestens 18",
     "defaultDmLabel": "Direktnachrichten für neue Konten",
-    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen."
+    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen.",
+    "directMessagesLabel": "Direktnachrichten zwischen Mitgliedern erlauben",
+    "directMessagesHelpText": "Meine Nachrichten sowie die dahinterliegenden Verbindungen und Anfragen. Nachrichten sind Ende-zu-Ende-verschlüsselt, niemand im Betrieb dieser Installation kann sie lesen – deaktivieren Sie dies dort, wo private Nachrichten nicht hingehören, nicht um sie zu beaufsichtigen.",
+    "directMessagesReversibleNote": "Deaktivieren blendet Meine Nachrichten aus und weist neue ab; gelöscht wird nichts. Unterhaltungen, Verbindungen und Einstellungen sind beim Wiedereinschalten unverändert vorhanden.",
+    "directMessagesOffTitle": "Direktnachrichten deaktivieren?",
+    "directMessagesOffBody": "Meine Nachrichten verschwindet für alle hier, und bereits unterwegs befindliche Nachrichten werden nicht zugestellt. Es wird nichts gelöscht – beim Wiedereinschalten sind die bisherigen Unterhaltungen und Verbindungen wieder da.",
+    "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
+    "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
+    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert."
   },
   "audit": {
     "title": "Prüfprotokoll",
@@ -1265,7 +1273,8 @@
       "communitiesHint": "Standardmäßig zählen alle.",
       "ageLocked": "Nachrichten sind ab 13 Jahren verfügbar. Du hast uns noch nicht gesagt, ob du das bist.",
       "confirmAge": "Alter bestätigen",
-      "saved": "Gespeichert."
+      "saved": "Gespeichert.",
+      "platformDisabled": "Diese Installation bietet keine Direktnachrichten, daher gibt es hier nichts einzustellen. Wird die Funktion wieder aktiviert, sind die bisherige Regel und die Listen wieder da."
     },
     "receipts": {
       "title": "Lesebestätigungen",

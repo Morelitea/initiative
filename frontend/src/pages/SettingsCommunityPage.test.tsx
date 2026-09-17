@@ -18,12 +18,14 @@ const config = vi.hoisted(() => ({
   communityDirectory: false,
   ageGate: true,
   defaultDmPolicy: "private" as "private" | "community" | "public",
+  directMessages: true,
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({
     communityDirectoryEnabled: config.communityDirectory,
     communityAgeGateEnabled: config.ageGate,
+    directMessagesEnabled: config.directMessages,
     isLoading: false,
   }),
 }));
@@ -35,6 +37,7 @@ vi.mock("@/hooks/useSettings", () => ({
       community_directory_enabled: config.communityDirectory,
       age_gate_enabled: config.ageGate,
       default_dm_policy: config.defaultDmPolicy,
+      direct_messages_enabled: config.directMessages,
     },
   }),
 }));
@@ -54,6 +57,7 @@ describe("SettingsCommunityPage", () => {
     config.communityDirectory = false;
     config.ageGate = true;
     config.defaultDmPolicy = "private";
+    config.directMessages = true;
   });
 
   it("starts off, matching a deployment that has never turned it on", async () => {
@@ -123,6 +127,53 @@ describe("SettingsCommunityPage", () => {
 
     // The directory switch writes only its own half; omitting the other is
     // what leaves the owner's assertion alone.
+    expect(updateMutate).toHaveBeenCalledWith({ community_directory_enabled: true });
+  });
+
+  const messagesToggle = () => screen.getByLabelText("Let people message each other");
+
+  it("starts on, matching a deployment that upgraded into the switch", async () => {
+    renderPage();
+
+    expect(await screen.findByLabelText("Let people message each other")).toBeChecked();
+  });
+
+  it("only turns messaging off once the owner confirms", async () => {
+    renderPage();
+    fireEvent.click(messagesToggle());
+
+    // The switch alone writes nothing: this takes a feature away from
+    // everybody using it.
+    expect(updateMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Turn off direct messages" }));
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      direct_messages_enabled: false,
+    });
+  });
+
+  it("turns messaging back on without asking anything", () => {
+    config.directMessages = false;
+    renderPage();
+
+    expect(messagesToggle()).not.toBeChecked();
+    fireEvent.click(messagesToggle());
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      direct_messages_enabled: true,
+    });
+  });
+
+  it("leaves messaging alone when the directory is toggled", () => {
+    config.directMessages = false;
+    renderPage();
+    fireEvent.click(toggle());
+
+    // Omitting it is what leaves it as it was; the two are separate decisions
+    // on one endpoint.
     expect(updateMutate).toHaveBeenCalledWith({ community_directory_enabled: true });
   });
 

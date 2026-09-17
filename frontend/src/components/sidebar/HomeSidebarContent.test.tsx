@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   unread: vi.fn(),
   messageRequests: vi.fn(),
   pending: vi.fn(),
+  dmEnabled: vi.fn(),
 }));
 
 vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
@@ -30,6 +31,7 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useMessageRequests: () => mocks.messageRequests(),
   usePendingContactRequests: () => mocks.pending(),
+  useDirectMessagesEnabled: () => mocks.dmEnabled(),
   useAcceptMessageRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveMessageRequest: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -52,6 +54,7 @@ beforeEach(() => {
   mocks.unread.mockReturnValue({ data: new Map() });
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.pending.mockReturnValue(0);
+  mocks.dmEnabled.mockReturnValue(true);
 });
 
 describe("the home sidebar", () => {
@@ -77,6 +80,25 @@ describe("the home sidebar", () => {
 
     expect(await screen.findByRole("button", { name: /back to navigation/i })).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).toBeNull();
+  });
+
+  it("offers no My Messages where the deployment does not run it", async () => {
+    mocks.dmEnabled.mockReturnValue(false);
+    setup("/");
+
+    expect(await screen.findByText("My Tasks")).toBeInTheDocument();
+    expect(screen.queryByText("My Messages")).toBeNull();
+  });
+
+  it("does not drill into conversations on the messages route with it off", async () => {
+    // Somebody who had the page open, or who arrived by address. The column
+    // stays the column rather than becoming a list of conversations that the
+    // deployment has nothing to fill.
+    mocks.dmEnabled.mockReturnValue(false);
+    setup("/messages");
+
+    expect(await screen.findByText("My Tasks")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /back to navigation/i })).toBeNull();
   });
 
   it("drills back in when My Messages is picked again", async () => {

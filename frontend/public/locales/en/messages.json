@@ -193,5 +193,7 @@
     "who": "Everyone on it:",
     "join": "Join",
     "decline": "No thanks"
-  }
+  },
+  "platformDisabled": "Direct messages are off here",
+  "platformDisabledBody": "This deployment does not offer direct messages. Nothing has been deleted — if they are switched back on, your conversations are where you left them."
 }

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/command";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useRecents } from "@/hooks/useRecents";
@@ -240,6 +241,7 @@ export function CommandCenter() {
     !scopeQuery.isPlaceholderData;
 
   const isGuildAdmin = activeGuild?.is_admin ?? false;
+  const dmEnabled = useDirectMessagesEnabled();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showAdminDashboard = canAccessAdminDashboard(user);
 
@@ -249,7 +251,11 @@ export function CommandCenter() {
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myTools"), path: "/my-tools", icon: LayoutGrid },
-      { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
+      // Only where the deployment offers messaging: the palette is a way to
+      // reach a page, and this one would answer that it is not here.
+      ...(dmEnabled
+        ? [{ label: t("pages.myMessages"), path: "/messages", icon: MessageSquare }]
+        : []),
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
@@ -284,7 +290,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, dmEnabled, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);

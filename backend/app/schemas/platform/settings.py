@@ -190,6 +190,9 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: The policy a newly created account starts on. Read once, when the
     #: account is made; changing it moves no existing account.
     default_dm_policy: DmPolicy
+    #: Whether this deployment offers direct messages at all. Also on
+    #: ``GET /config``, which is where every signed-in page reads it.
+    direct_messages_enabled: bool
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -200,6 +203,10 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     age_gate_enabled: Optional[bool] = None
     #: Omitted leaves it as it was, like the switch above.
     default_dm_policy: Optional[DmPolicy] = None
+    #: Whether this deployment offers direct messages at all. Omitted leaves it
+    #: as it was; it is independent of the directory, which a deployment can
+    #: run with or without messaging.
+    direct_messages_enabled: Optional[bool] = None
 
 
 class EmailSettingsResponse(SanitizedBaseModel):
