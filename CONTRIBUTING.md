@@ -160,6 +160,7 @@ Commit the updated generated files alongside your schema changes. CI will fail i
 Greptile skips a pull request while its title or description contains the
 masked-review marker `Morelitea/security`. Once its content is safe for public
 disclosure, remove the marker and comment `@greptileai` to request a review.
+The marker behavior is defined by Greptile's `ignoreKeywords` PR filter.
 
 **Important:** Do not open PRs against `main`. The `main` branch is restricted to project maintainers (@jordandrako, @LeeJMorel) who promote changes from `dev` using the release tooling below. PRs targeting `main` from non-maintainers will be closed.
 
