@@ -224,6 +224,20 @@ class Guild(SQLModel, table=True):
     has_adult_content: Optional[bool] = Field(
         default=None, sa_column=Column(Boolean, nullable=True)
     )
+    # Whether a personal API key may be used against this guild. True by
+    # default. False means the guild declines that credential: no key can be
+    # minted into it, and a request authenticated by one does not reach it —
+    # pinned to this guild or not.
+    #
+    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
+    # here: the guild-access gate already holds this row, and the answer has to
+    # survive a guild lifting its sign-in requirement (which deletes the policy
+    # row). Read by the gate, by key creation, and by the cross-guild
+    # aggregates.
+    allow_api_keys: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(

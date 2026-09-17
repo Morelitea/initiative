@@ -92,6 +92,24 @@ def session_mfa() -> bool:
     return _session_mfa.get()
 
 
+#: Whether a personal API key is what authenticated this request. Recorded by
+#: the two validators that accept one, and read where a community's refusal of
+#: them is applied: the guild-access gate and the cross-guild aggregates.
+#: ``False`` for every other credential, which is the answer that reaches the
+#: guild.
+_api_key_credential: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_api_key_credential", default=False
+)
+
+
+def set_api_key_credential(value: bool) -> None:
+    _api_key_credential.set(bool(value))
+
+
+def api_key_credential() -> bool:
+    return _api_key_credential.get()
+
+
 _device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "auth_device_token_id", default=None
 )

@@ -14,6 +14,7 @@ from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
 from app.core.auth_context import (
+    set_api_key_credential,
     set_device_token_id,
     set_satisfied_providers,
     set_session_mfa,
@@ -302,6 +303,9 @@ async def get_current_user(
     set_sso_guilds(None)
     set_session_mfa(False)
     set_device_token_id(None)
+    # Not an API key until the branch below says so, which is the answer a
+    # community that declines them admits.
+    set_api_key_credential(False)
     # Which kind of credential this turns out to be, for the few endpoints that
     # care (see `require_first_party_session`). Set before any branch can
     # return, so an unrecognized path reads as something other than a session.
@@ -337,6 +341,7 @@ async def get_current_user(
     if api_auth:
         user, api_key = api_auth
         _enforce_api_key_scope(request, api_key)
+        set_api_key_credential(True)
         request.state.credential = CREDENTIAL_API_KEY
         return user
 
@@ -627,6 +632,37 @@ def _enforce_guild_auth_policy(
         )
 
 
+def declines_this_credential(guild: Guild) -> bool:
+    """Whether ``guild`` declines the credential this request was made with.
+
+    True only for a personal API key against a community that has switched them
+    off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
+    and a key pinned nowhere both address this guild the same way.
+
+    The rule itself, so the three places that apply it read the same line — the
+    guild-context gate below, the ``/uploads`` route, which resolves the guild
+    itself, and the cross-guild aggregates, which visit each guild in turn (see
+    ``app.services.cross_guild``).
+    """
+    return not guild.allow_api_keys and auth_context.api_key_credential()
+
+
+def _enforce_guild_api_access(guild: Guild) -> None:
+    """A community that declines personal API keys is not reached with one.
+
+    Runs beside the sign-in gate and binds the same callers — members and
+    grantees alike — because the question is what the request was made with,
+    not who made it.
+
+    Covers every path that resolves its guild through
+    :func:`_load_guild_context`: REST, document downloads, the realtime sockets
+    and the keepalive. The two that resolve one themselves ask the same
+    question where they do it.
+    """
+    if declines_this_credential(guild):
+        raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
+
+
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
 ) -> tuple[GuildMembership, Guild, GuildAuthPolicy | None] | None:
@@ -751,6 +787,7 @@ async def _load_guild_context(
             pam_write=is_read_write,
         )
         guild, policy = await _read_grant_gate(session, guild_id)
+        _enforce_guild_api_access(guild)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
         _enforce_guild_auth_policy(
@@ -788,6 +825,7 @@ async def _load_guild_context(
     # the SELECT-only guild role (see _apply_guild_session_context).
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
+    _enforce_guild_api_access(guild)
     _enforce_guild_auth_policy(
         policy,
         guild_id,
@@ -1271,6 +1309,7 @@ async def get_upload_user(
     set_satisfied_providers(None)
     set_sso_guilds(None)
     set_device_token_id(None)
+    set_api_key_credential(False)
 
     auth_header = request.headers.get("Authorization", "")
 
@@ -1315,6 +1354,7 @@ async def get_upload_user(
                 detail=AuthMessages.INACTIVE_USER,
             )
         _enforce_api_key_scope(request, api_key)
+        set_api_key_credential(True)
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as

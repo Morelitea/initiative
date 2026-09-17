@@ -1105,6 +1105,15 @@
       "requireFactor": "Exigir también un segundo factor",
       "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión."
     },
+    "apiAccess": {
+      "title": "Acceso por API",
+      "description": "Si se puede usar una clave de API personal en esta comunidad.",
+      "allowLabel": "Permitir claves de API personales",
+      "allowHelp": "Los miembros pueden crear una clave y usarla aquí: para scripts, integraciones y clientes MCP.",
+      "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
+      "saved": "Acceso por API guardado",
+      "error": "No se pudo guardar el acceso por API"
+    },
     "readOnlyNotice": "Solo un administrador de seguridad puede cambiar esto. Puedes ver lo que está configurado para saber a quién preguntar."
   },
   "authProviders": {

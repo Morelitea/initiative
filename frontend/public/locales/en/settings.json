@@ -1105,6 +1105,15 @@
       "requireFactor": "Also require a second factor",
       "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out."
     },
+    "apiAccess": {
+      "title": "API access",
+      "description": "Whether a personal API key may be used against this community.",
+      "allowLabel": "Allow personal API keys",
+      "allowHelp": "Members can create a key and use it here — for scripts, integrations and MCP clients.",
+      "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
+      "saved": "API access saved",
+      "error": "Could not save API access"
+    },
     "readOnlyNotice": "Only a security admin can change this. You can see what is set so you know who to ask."
   },
   "authProviders": {

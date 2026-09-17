@@ -8,6 +8,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 // What the server says about this community and this member. Flipped per test.
 let guildRole = "security_admin";
 let authOptions: string[] = ["providers", "require_sign_in"];
+let allowApiKeys = true;
 let policy: {
   policy: "open" | "required";
   provider_id: number | null;
@@ -23,12 +24,21 @@ let policy: {
 };
 
 const savePolicy = vi.fn();
+const saveApiAccess = vi.fn();
+const refreshGuilds = vi.fn(() => Promise.resolve());
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
   useGuilds: () => ({
-    activeGuild: { id: 4, name: "Test Community", role: guildRole, auth_options: authOptions },
+    activeGuild: {
+      id: 4,
+      name: "Test Community",
+      role: guildRole,
+      auth_options: authOptions,
+      allow_api_keys: allowApiKeys,
+    },
+    refreshGuilds,
   }),
 }));
 
@@ -40,6 +50,7 @@ vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 4 }));
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
+  useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useGuildAuthProviders: () => ({
     data: [
       { id: 11, slug: "corp", display_name: "Corp SSO", enabled: true },
@@ -70,8 +81,11 @@ const chooseOption = async (user: ReturnType<typeof userEvent.setup>, name: stri
 describe("SettingsGuildAuthPage", () => {
   beforeEach(() => {
     savePolicy.mockClear();
+    saveApiAccess.mockClear();
+    refreshGuilds.mockClear();
     guildRole = "security_admin";
     authOptions = ["providers", "require_sign_in"];
+    allowApiKeys = true;
     policy = {
       policy: "open",
       provider_id: null,
@@ -198,6 +212,47 @@ describe("SettingsGuildAuthPage", () => {
 
       expect(await screen.findByLabelText(/second factor/i)).toBeChecked();
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+    });
+  });
+
+  describe("declining personal API keys", () => {
+    const apiSwitch = () => screen.getByLabelText(/allow personal api keys/i);
+
+    it("saves as it is switched, with no button to press", async () => {
+      const user = userEvent.setup();
+      render();
+
+      expect(apiSwitch()).toBeChecked();
+      await user.click(apiSwitch());
+
+      expect(saveApiAccess).toHaveBeenCalledTimes(1);
+      expect(saveApiAccess.mock.calls[0][0]).toEqual({ allow_api_keys: false });
+    });
+
+    it("shows what a community that declines them has chosen", () => {
+      allowApiKeys = false;
+      render();
+
+      expect(apiSwitch()).not.toBeChecked();
+      expect(screen.getByText(/no key can be created for this community/i)).toBeInTheDocument();
+    });
+
+    it("is the security admin's to change, like the rest of the page", () => {
+      guildRole = "admin";
+      render();
+
+      expect(apiSwitch()).toBeDisabled();
+    });
+
+    it("is reachable by a community an operator has granted nothing", () => {
+      // It only ever narrows what reaches the community, so it does not wait
+      // on the entitlement the sections around it need.
+      authOptions = [];
+      render();
+
+      expect(apiSwitch()).toBeInTheDocument();
+      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
     });
   });
 });

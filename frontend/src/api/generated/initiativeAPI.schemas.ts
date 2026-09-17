@@ -3589,6 +3589,21 @@ export interface GenerateDocumentSummaryResponse {
 }
 
 /**
+ * Whether this guild accepts personal API keys.
+ */
+export interface GuildApiAccessRead {
+  allow_api_keys: boolean;
+}
+
+/**
+ * Set it. ``false`` means no key can be minted into this guild and no
+ * request carrying one reaches it; keys already minted stop working here.
+ */
+export interface GuildApiAccessUpdate {
+  allow_api_keys: boolean;
+}
+
+/**
  * One thing an install produced.
  */
 export interface GuildAppArtifact {
@@ -4075,6 +4090,7 @@ export interface GuildRead {
   status: GuildStatus | null;
   content_read_only: boolean;
   auth_options: GuildAuthOption[] | null;
+  allow_api_keys: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;

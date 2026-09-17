@@ -113,6 +113,9 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   content_read_only: false,
   // Admin-only entitlements; a grantee acts as a member here, so they're absent.
   auth_options: null,
+  // Likewise: the API-access setting is read by the surface that sets it, and a
+  // grantee does not reach that surface.
+  allow_api_keys: null,
   // A grant reaches one named guild directly; the directory is not how the
   // grantee got here, and this synthetic entry is never listed in it.
   is_community: false,
