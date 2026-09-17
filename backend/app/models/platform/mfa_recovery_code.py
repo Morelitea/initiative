@@ -31,7 +31,6 @@ class MfaRecoveryCode(SQLModel, table=True):
             Integer,
             ForeignKey("users.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         )
     )
 

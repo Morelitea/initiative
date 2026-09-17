@@ -87,47 +87,46 @@ async def create(
     return IssuedChallenge(challenge=challenge, value=value)
 
 
-async def resolve(
+async def claim_attempt(
     session: AsyncSession, *, value: str, purpose: ChallengePurpose
 ) -> AuthChallenge | None:
-    """The live challenge that value names, or ``None``.
+    """Take one of the challenge's attempts, and hand back the challenge.
 
-    Live means: it exists, it is for this purpose, it has not been spent, it
-    has not expired, and it has attempts left. Anything else reads the same
-    from here.
+    ``None`` when there is nothing to take one from: no such challenge, not for
+    this purpose, already spent, expired, or out of attempts. Every one of those
+    reads the same from here.
+
+    Taking the attempt *is* the lookup, and it is one statement, so two answers
+    arriving together take two attempts rather than reading the same count and
+    each writing it back. The count is why this is a write and not a read.
     """
-    row = (
+    digest = _hash(value)
+    result = await session.exec(
+        update(AuthChallenge)
+        .where(
+            AuthChallenge.challenge_hash == digest,
+            AuthChallenge.purpose == purpose.value,
+            AuthChallenge.consumed_at.is_(None),
+            AuthChallenge.expires_at > _now(),
+            AuthChallenge.attempts < MAX_ATTEMPTS,
+        )
+        .values(attempts=AuthChallenge.attempts + 1)
+    )
+    if not result.rowcount:
+        return None
+    return (
         await session.exec(
-            select(AuthChallenge).where(
-                AuthChallenge.challenge_hash == _hash(value),
-                AuthChallenge.purpose == purpose.value,
-            )
+            select(AuthChallenge).where(AuthChallenge.challenge_hash == digest)
         )
     ).first()
-    if row is None:
-        return None
-    if row.consumed_at is not None:
-        return None
-    if row.expires_at <= _now():
-        return None
-    if row.attempts >= MAX_ATTEMPTS:
-        return None
-    return row
-
-
-async def note_attempt(session: AsyncSession, challenge: AuthChallenge) -> None:
-    """Count one refused answer against the challenge. The caller commits."""
-    challenge.attempts += 1
-    session.add(challenge)
-    await session.flush()
 
 
 async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:
     """Spend the challenge, once.
 
     Returns whether this call is the one that spent it: the update carries its
-    own ``consumed_at IS NULL``, so two requests answering the same challenge
-    at the same moment cannot both go on to make a session.
+    own ``consumed_at IS NULL``, so of two requests answering the same challenge
+    at the same moment, one goes on to make a session.
     """
     result = await session.exec(
         update(AuthChallenge)

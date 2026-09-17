@@ -87,9 +87,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
-    op.create_index("ix_mfa_recovery_codes_user_id", "mfa_recovery_codes", ["user_id"])
     # One code is one row: the same digest twice for one account would be the
-    # same code issued twice.
+    # same code issued twice. Its index leads with user_id, which is also how
+    # an account's codes are read, so no separate index on that column.
     op.create_unique_constraint(
         "uq_mfa_recovery_codes_user_code",
         "mfa_recovery_codes",

@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 import pyotp
-from sqlalchemy import delete
+from sqlalchemy import delete, func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -189,12 +189,17 @@ async def confirm_enrolment(session: AsyncSession, *, user_id: int, code: str) -
     step = _matching_timestep(secret, code, at=now)
     if step is None:
         return False
-    factor.confirmed_at = now
-    factor.last_timestep = step
-    factor.last_used_at = now
-    factor.updated_at = now
-    session.add(factor)
-    await session.flush()
+    result = await session.exec(
+        update(UserTotp)
+        .where(
+            UserTotp.user_id == user_id,
+            UserTotp.confirmed_at.is_(None),
+        )
+        .values(confirmed_at=now, last_timestep=step, last_used_at=now, updated_at=now)
+    )
+    if not result.rowcount:
+        return False
+    session.expire(factor)
     return True
 
 
@@ -214,13 +219,23 @@ async def verify_code(session: AsyncSession, *, user_id: int, code: str) -> bool
     step = _matching_timestep(secret, code, at=now)
     if step is None:
         return False
-    if factor.last_timestep is not None and step <= factor.last_timestep:
+    # The interval has to still be ahead of the recorded one at the moment of
+    # the write, so of two answers carrying the same code, one is accepted.
+    result = await session.exec(
+        update(UserTotp)
+        .where(
+            UserTotp.user_id == user_id,
+            UserTotp.confirmed_at.is_not(None),
+            or_(
+                UserTotp.last_timestep.is_(None),
+                UserTotp.last_timestep < step,
+            ),
+        )
+        .values(last_timestep=step, last_used_at=now, updated_at=now)
+    )
+    if not result.rowcount:
         return False
-    factor.last_timestep = step
-    factor.last_used_at = now
-    factor.updated_at = now
-    session.add(factor)
-    await session.flush()
+    session.expire(factor)
     return True
 
 
@@ -245,11 +260,11 @@ async def disable(session: AsyncSession, *, user_id: int) -> bool:
 # --- Recovery codes --------------------------------------------------------
 
 
-def _hash_recovery_code(raw: str) -> bytes:
-    """SHA-256 of a normalised code — deterministic, so a presented code is one
-    indexed lookup. The value is ours and full-entropy, so a slow KDF would buy
-    nothing and cost the lookup."""
-    return hashlib.sha256(normalise_recovery_code(raw).encode("utf-8")).digest()
+def _hash_recovery_code(normalised: str) -> bytes:
+    """SHA-256 of an already-normalised code — deterministic, so a presented
+    code is one indexed lookup. The value is ours and full-entropy, so a slow
+    KDF would buy nothing and cost the lookup."""
+    return hashlib.sha256(normalised.encode("utf-8")).digest()
 
 
 def normalise_recovery_code(raw: str) -> str:
@@ -279,7 +294,10 @@ async def issue_recovery_codes(session: AsyncSession, *, user_id: int) -> list[s
     codes = [generate_recovery_code() for _ in range(RECOVERY_CODE_COUNT)]
     for code in codes:
         session.add(
-            MfaRecoveryCode(user_id=user_id, code_hash=_hash_recovery_code(code))
+            MfaRecoveryCode(
+                user_id=user_id,
+                code_hash=_hash_recovery_code(normalise_recovery_code(code)),
+            )
         )
     await session.flush()
     return codes
@@ -292,31 +310,29 @@ async def consume_recovery_code(
     normalised = normalise_recovery_code(code)
     if not normalised:
         return False
-    row = (
-        await session.exec(
-            select(MfaRecoveryCode).where(
-                MfaRecoveryCode.user_id == user_id,
-                MfaRecoveryCode.code_hash == _hash_recovery_code(normalised),
-                MfaRecoveryCode.used_at.is_(None),
-            )
+    # Marked used by the same statement that finds it, so one code answers for
+    # one sign-in.
+    result = await session.exec(
+        update(MfaRecoveryCode)
+        .where(
+            MfaRecoveryCode.user_id == user_id,
+            MfaRecoveryCode.code_hash == _hash_recovery_code(normalised),
+            MfaRecoveryCode.used_at.is_(None),
         )
-    ).first()
-    if row is None:
-        return False
-    row.used_at = _now()
-    session.add(row)
-    await session.flush()
-    return True
+        .values(used_at=_now())
+    )
+    return bool(result.rowcount)
 
 
 async def remaining_recovery_codes(session: AsyncSession, *, user_id: int) -> int:
     """How many of the account's codes are still good."""
-    rows = (
+    return (
         await session.exec(
-            select(MfaRecoveryCode.id).where(
+            select(func.count())
+            .select_from(MfaRecoveryCode)
+            .where(
                 MfaRecoveryCode.user_id == user_id,
                 MfaRecoveryCode.used_at.is_(None),
             )
         )
-    ).all()
-    return len(rows)
+    ).one()

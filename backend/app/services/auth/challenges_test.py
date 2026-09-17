@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.auth_challenge import AuthChallenge
 from app.services.auth import challenges
 from app.testing import create_user
 
@@ -26,21 +27,22 @@ async def _open(session: AsyncSession, user_id: int) -> challenges.IssuedChallen
     return issued
 
 
-async def test_the_value_resolves_to_the_challenge(session: AsyncSession, frozen):
+async def _claim(session: AsyncSession, value: str):
+    return await challenges.claim_attempt(session, value=value, purpose=PURPOSE)
+
+
+async def test_the_value_finds_the_challenge(session: AsyncSession, frozen):
     user = await create_user(session)
     issued = await _open(session, user.id)
 
-    found = await challenges.resolve(session, value=issued.value, purpose=PURPOSE)
+    found = await _claim(session, issued.value)
     assert found is not None
     assert found.user_id == user.id
 
 
-async def test_a_value_nobody_issued_resolves_to_nothing(session: AsyncSession, frozen):
+async def test_a_value_nobody_issued_finds_nothing(session: AsyncSession, frozen):
     await create_user(session)
-    assert (
-        await challenges.resolve(session, value="not-a-challenge", purpose=PURPOSE)
-        is None
-    )
+    assert await _claim(session, "not-a-challenge") is None
 
 
 async def test_the_raw_value_is_not_what_is_stored(session: AsyncSession, frozen):
@@ -51,7 +53,7 @@ async def test_the_raw_value_is_not_what_is_stored(session: AsyncSession, frozen
 
 
 async def test_it_is_spent_once(session: AsyncSession, frozen):
-    """Two requests answering the same challenge: one of them made the session."""
+    """Two answers arriving on the same challenge: one of them made a session."""
     user = await create_user(session)
     issued = await _open(session, user.id)
 
@@ -60,15 +62,13 @@ async def test_it_is_spent_once(session: AsyncSession, frozen):
     assert await challenges.consume(session, issued.challenge) is False
 
 
-async def test_a_spent_challenge_no_longer_resolves(session: AsyncSession, frozen):
+async def test_a_spent_challenge_is_no_longer_claimable(session: AsyncSession, frozen):
     user = await create_user(session)
     issued = await _open(session, user.id)
     await challenges.consume(session, issued.challenge)
     await session.commit()
 
-    assert (
-        await challenges.resolve(session, value=issued.value, purpose=PURPOSE) is None
-    )
+    assert await _claim(session, issued.value) is None
 
 
 async def test_it_stops_standing_once_it_has_expired(
@@ -79,26 +79,35 @@ async def test_it_stops_standing_once_it_has_expired(
 
     later = FIXED_NOW + challenges.CHALLENGE_TTL + timedelta(seconds=1)
     monkeypatch.setattr(challenges, "_now", lambda: later)
-    assert (
-        await challenges.resolve(session, value=issued.value, purpose=PURPOSE) is None
-    )
+    assert await _claim(session, issued.value) is None
 
 
-async def test_refused_answers_are_counted_against_it(session: AsyncSession, frozen):
+async def test_it_runs_out_of_attempts(session: AsyncSession, frozen):
     user = await create_user(session)
     issued = await _open(session, user.id)
 
     for _ in range(challenges.MAX_ATTEMPTS):
-        standing = await challenges.resolve(
-            session, value=issued.value, purpose=PURPOSE
-        )
-        assert standing is not None
-        await challenges.note_attempt(session, standing)
+        assert await _claim(session, issued.value) is not None
     await session.commit()
 
-    assert (
-        await challenges.resolve(session, value=issued.value, purpose=PURPOSE) is None
-    )
+    assert await _claim(session, issued.value) is None
+
+
+async def test_each_claim_takes_its_own_attempt(session: AsyncSession, frozen):
+    """The count is raised by the statement that finds the row, rather than
+    worked out first and written back, so two claims are two attempts."""
+    user = await create_user(session)
+    issued = await _open(session, user.id)
+    challenge_id = issued.challenge.id
+
+    assert await _claim(session, issued.value) is not None
+    assert await _claim(session, issued.value) is not None
+    await session.commit()
+
+    session.expire_all()
+    standing = await session.get(AuthChallenge, challenge_id)
+    assert standing is not None
+    assert standing.attempts == 2
 
 
 async def test_they_go_when_what_they_rest_on_moves(session: AsyncSession, frozen):
@@ -110,10 +119,7 @@ async def test_they_go_when_what_they_rest_on_moves(session: AsyncSession, froze
     await session.commit()
 
     for issued in (first, second):
-        assert (
-            await challenges.resolve(session, value=issued.value, purpose=PURPOSE)
-            is None
-        )
+        assert await _claim(session, issued.value) is None
 
 
 async def test_one_account_s_challenges_are_left_alone(session: AsyncSession, frozen):
@@ -124,9 +130,7 @@ async def test_one_account_s_challenges_are_left_alone(session: AsyncSession, fr
 
     assert await challenges.revoke_for_user(session, user_id=theirs.id) == 1
     await session.commit()
-    assert (
-        await challenges.resolve(session, value=ours.value, purpose=PURPOSE) is not None
-    )
+    assert await _claim(session, ours.value) is not None
 
 
 async def test_the_sweep_clears_what_nothing_can_use(
@@ -141,6 +145,4 @@ async def test_the_sweep_clears_what_nothing_can_use(
     await session.commit()
 
     monkeypatch.setattr(challenges, "_now", lambda: FIXED_NOW)
-    assert (
-        await challenges.resolve(session, value=issued.value, purpose=PURPOSE) is None
-    )
+    assert await _claim(session, issued.value) is None
