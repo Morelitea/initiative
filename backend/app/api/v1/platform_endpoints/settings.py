@@ -230,8 +230,10 @@ async def update_session_lifetime(
     """Set how long somebody may stay signed in before signing in again.
 
     Separate from how long a session may be left alone, which the deployment's
-    own configuration holds. Sessions already open keep the terms they were
-    opened under and take the new figure at the next sign-in.
+    own configuration holds. A session already open keeps the terms it was
+    opened under and takes the new figure at the next sign-in; a device token
+    is brought under the new figure now, measured from when it was issued, so
+    shortening the limit can end one on the spot.
     """
     row = await app_settings_service.get_app_settings(session)
     row.session_max_hours = payload.session_max_hours

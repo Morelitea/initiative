@@ -650,7 +650,7 @@
       "description": "Die längste Zeit, die jemand ohne erneute Anmeldung auskommt, unabhängig von der Nutzung. Unabhängig davon, bei Nichtnutzung abgemeldet zu werden.",
       "label": "Stunden",
       "placeholder": "Kein Limit",
-      "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Sitzungen behalten die Bedingungen, unter denen sie geöffnet wurden.",
+      "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
       "saved": "Sitzungslimit gespeichert.",
       "error": "Das Sitzungslimit konnte nicht gespeichert werden."
     }

@@ -650,7 +650,7 @@
       "description": "The longest anybody may go before signing in again, however much they use the app. Separate from being signed out for not using it.",
       "label": "Hours",
       "placeholder": "No limit",
-      "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Sessions already open keep the terms they were opened under.",
+      "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
       "saved": "Session limit saved.",
       "error": "We couldn't save the session limit."
     }

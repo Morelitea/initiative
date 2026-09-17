@@ -650,7 +650,7 @@
       "description": "Le temps maximal avant de devoir se reconnecter, quelle que soit l'utilisation de l'application. À distinguer de la déconnexion pour inactivité.",
       "label": "Heures",
       "placeholder": "Aucune limite",
-      "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions déjà ouvertes conservent les conditions dans lesquelles elles ont été ouvertes.",
+      "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions web déjà ouvertes conservent leurs conditions d'origine ; les téléphones passent immédiatement sous une limite raccourcie.",
       "saved": "Limite de session enregistrée.",
       "error": "Nous n'avons pas pu enregistrer la limite de session."
     }

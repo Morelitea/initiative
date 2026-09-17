@@ -63,7 +63,10 @@ The other one is the **absolute** limit: the longest anybody may go before signi
 !!! warning "Set it longer than the inactivity window"
     Set it shorter and it becomes the *only* thing ending a session: the inactivity window can never be reached first, so everybody gets signed out on a timer whether they're using the app or not. That may be exactly what you want. It's just rarely what somebody means to do.
 
-Changing the number never signs anybody out. Sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
+Web sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
+
+!!! warning "The app on a phone is different"
+    A phone holds a longer-lived credential, and the new limit is written into the ones already issued — measured from when that person last signed in. So somebody whose phone signed in three days ago, on a deployment that has just set twelve hours, is signed out at once and asked for their password again. Shortening the number, or turning on a community's twelve-hour switch, can therefore sign phones out immediately. Lengthening it never does, and clearing it hands nobody their old window back.
 
 **A community can be held to a stricter one.** Open **Manage** for it in the Guilds tab and there's a twelve-hour switch under Sign-in — the figure HIPAA and NIST both land on. Its members sign in again on that schedule whatever your own number says, and being in two such communities is still twelve hours, not six.
 

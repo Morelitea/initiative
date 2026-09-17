@@ -7,13 +7,15 @@ may be held to. Three columns and no data to move:
   default, asks for no limit, so an upgrade changes nobody's session.
 * ``guild_administration.enforce_compliance_session`` — operator-set, off by
   default.
-Plus one grant: the system engine gains ``UPDATE`` on ``user_tokens``, which it
-needs to bring tokens already issued under a limit that has just changed.
-
 * ``auth_sessions.chain_expires_at`` — where the answer is stamped for a
   session already open. NULL on every existing row, which is what "no limit was
   in force when you signed in" means: sessions open at upgrade keep the terms
   they were opened under and pick the new ones up at the next sign-in.
+
+Plus one grant: the system engine gains ``UPDATE`` on ``user_tokens``, which it
+needs to bring device tokens already issued under a limit that has just
+changed. A device token carries its deadline in its own ``expires_at`` rather
+than a column of its own, because that is what every request already reads.
 
 Revision ID: 20260917_0295
 Revises: 20260917_0294

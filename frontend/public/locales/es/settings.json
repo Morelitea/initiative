@@ -650,7 +650,7 @@
       "description": "El máximo que alguien puede pasar sin volver a iniciar sesión, por mucho que use la aplicación. Distinto de cerrar la sesión por no usarla.",
       "label": "Horas",
       "placeholder": "Sin límite",
-      "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones ya abiertas mantienen las condiciones con las que se abrieron.",
+      "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones web ya abiertas mantienen sus condiciones originales; los teléfonos pasan a un límite más corto de inmediato.",
       "saved": "Límite de sesión guardado.",
       "error": "No hemos podido guardar el límite de sesión."
     }

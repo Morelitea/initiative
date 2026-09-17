@@ -290,8 +290,9 @@ export const useUpdateLoginMethods = (
 /**
  * Set how long somebody may stay signed in before signing in again.
  *
- * Separate from how long a session may be left alone. Sessions already open
- * keep the terms they were opened under, so nothing here signs anybody out.
+ * Separate from how long a session may be left alone. A web session already
+ * open keeps the terms it was opened under; a device token is brought under
+ * the new figure now, so shortening the limit can sign a phone out.
  */
 export const useUpdateSessionLifetime = (
   options?: MutationOpts<PlatformAuthSettingsResponse, SessionLifetimeUpdate>
