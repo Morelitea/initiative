@@ -22,6 +22,7 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
+from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
@@ -46,6 +47,7 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildRole,
     GuildStatus,
+    content_role,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.guild_image import (
@@ -178,24 +180,52 @@ def _serialize_guild(
     )
 
 
+async def _guild_membership_of(
+    session: SessionDep,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> GuildMembership:
+    """The caller's own membership row, read under RLS.
+
+    Set minimal RLS context so the guild_memberships query succeeds (own-row
+    read). No standing bypass: these endpoints are for a guild's *own* admins —
+    a platform ``data.bypass`` holder who isn't a member is denied here and
+    manages other guilds via the dedicated ``/admin/*`` (capability-gated)
+    routes instead. Full context is set by _set_guild_admin_rls after validation.
+    """
+    await set_rls_context(session, user_id=user_id)
+    return await rls_service.require_guild_membership(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+    )
+
+
 async def _ensure_guild_admin(
     session: SessionDep,
     *,
     guild_id: int,
     user_id: int,
 ) -> GuildMembership:
-    # Set minimal RLS context so the guild_memberships query succeeds (own-row
-    # read). No standing bypass: these endpoints are for a guild's *own* admins —
-    # a platform ``data.bypass`` holder who isn't a member is denied here and
-    # manages other guilds via the dedicated ``/admin/*`` (capability-gated)
-    # routes instead. Full context is set by _set_guild_admin_rls after validation.
-    await set_rls_context(session, user_id=user_id)
-    membership = await rls_service.require_guild_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user_id,
-    )
+    membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
     rls_service.require_guild_admin(membership.role)
+    return membership
+
+
+async def _ensure_guild_security_admin(
+    session: SessionDep,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> GuildMembership:
+    """The gate for the guild's sign-in configuration.
+
+    The seat exactly, not admin-or-above: an ordinary guild admin runs the
+    community, and this decides who may enter it.
+    """
+    membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
+    rls_service.require_guild_security_admin(membership.role)
     return membership
 
 
@@ -963,6 +993,7 @@ def _auth_policy_read(
         provider_id=policy_row.provider_id,
         provider_slug=policy_row.provider_slug,
         provider_display_name=provider_display_name,
+        require_methods=list(policy_row.require_methods or ()),
     )
 
 
@@ -1012,7 +1043,9 @@ async def set_guild_auth_policy(
     requirement outlives the entitlement and the way to lift one outlives it
     too. Lifting only ever admits more, so it carries none of the conditions
     imposing it does."""
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_security_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
 
     if payload.policy == "open":
         policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
@@ -1030,23 +1063,45 @@ async def set_guild_auth_policy(
     # told, or this sees single sign-on already gone and its provider is no
     # longer login-ready.
     await auth_posture.hold_settings_for_read(admin_session)
+    # And order against the seat: a requirement must not commit while the only
+    # member who could lift it is being demoted, removed, or leaving.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
 
-    if payload.provider_id is None:
+    require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
+    if payload.provider_id is None and not require_methods:
+        # ``required`` has to require something.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
         )
-    provider = await admin_session.get(AuthProvider, payload.provider_id)
-    if (
-        provider is None
-        or provider.guild_id != guild_id
-        or not is_login_ready(provider)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+
+    provider = None
+    if payload.provider_id is not None:
+        # Held for the rest of this transaction: the row this requirement is
+        # about to point at must still be there when it commits, and deleting
+        # a required provider is refused rather than allowed to race.
+        provider = await admin_session.get(
+            AuthProvider, payload.provider_id, with_for_update=True
         )
-    if provider.id not in satisfied_provider_ids():
+        if (
+            provider is None
+            or provider.guild_id != guild_id
+            or not is_login_ready(provider)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+            )
+        if provider.id not in satisfied_provider_ids():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            )
+
+    # The same rule the provider check makes, for "any of ours": the caller's
+    # own session must have come in that way. Meeting it is also proof the
+    # community has a provider that works, so there is nothing else to ask.
+    if require_methods and guild_id not in auth_context.sso_guilds():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
@@ -1054,19 +1109,14 @@ async def set_guild_auth_policy(
 
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     if policy_row is None:
-        policy_row = GuildAuthPolicy(
-            guild_id=guild_id,
-            policy="required",
-            provider_id=provider.id,
-            provider_slug=provider.slug,
-        )
-    else:
-        policy_row.policy = "required"
-        policy_row.provider_id = provider.id
-        policy_row.provider_slug = provider.slug
+        policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
+    policy_row.policy = "required"
+    policy_row.provider_id = provider.id if provider else None
+    policy_row.provider_slug = provider.slug if provider else None
+    policy_row.require_methods = require_methods
     admin_session.add(policy_row)
     await admin_session.commit()
-    return _auth_policy_read(policy_row, provider.display_name)
+    return _auth_policy_read(policy_row, provider.display_name if provider else None)
 
 
 @router.delete(
@@ -1296,6 +1346,7 @@ async def update_guild_membership(
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
+    await guilds_service.lock_guild_seats(session, guild_id)
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )
@@ -1328,6 +1379,20 @@ async def update_guild_membership(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
+
+    # The seat cannot be emptied while the guild requires a sign-in: lifting the
+    # requirement happens on the surface the seat holds.
+    if (
+        target_membership.role == GuildRole.security_admin
+        and payload.role != GuildRole.security_admin
+        and await guilds_service.must_keep_security_admin(
+            session, guild_id=guild_id, user_id=user_id
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+        )
 
     previous_role = target_membership.role
     target_membership.role = payload.role
@@ -1364,6 +1429,7 @@ async def update_guild_membership(
 async def check_leave_eligibility(
     guild_id: int,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> LeaveGuildEligibilityResponse:
     """Check if the current user can leave a guild.
@@ -1382,11 +1448,23 @@ async def check_leave_eligibility(
 
     from app.services.platform.users import is_last_admin_of_guild
 
-    is_last_admin = await is_last_admin_of_guild(session, guild_id, current_user.id)
+    # Both answers under one lock, so this reports a state that held all at
+    # once rather than two taken a moment apart. Counting a guild's admins is a
+    # question about the guild, not about the caller, so it is asked on the
+    # system engine: a request-path session reaches its own membership row and
+    # answers "last admin" for everyone.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
+    is_last_admin = await is_last_admin_of_guild(
+        admin_session, guild_id, current_user.id
+    )
+    is_last_security_admin = await guilds_service.must_keep_security_admin(
+        admin_session, guild_id=guild_id, user_id=current_user.id
+    )
 
     return LeaveGuildEligibilityResponse(
-        can_leave=not is_last_admin,
+        can_leave=not is_last_admin and not is_last_security_admin,
         is_last_admin=is_last_admin,
+        is_last_security_admin=is_last_security_admin,
     )
 
 
@@ -1396,6 +1474,7 @@ async def check_leave_eligibility(
 async def leave_guild(
     guild_id: int,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Leave a guild.
@@ -1420,17 +1499,33 @@ async def leave_guild(
         session,
         user_id=current_user.id,
         guild_id=guild_id,
-        guild_role=membership.role.value,
+        guild_role=content_role(membership.role),
     )
 
     from app.services.platform.users import is_last_admin_of_guild
 
-    if await is_last_admin_of_guild(
-        session, guild_id, current_user.id, for_update=True
-    ):
+    # Ahead of both checks below, not between them: each asks how many people
+    # of some kind the guild has left, and the answer has to still be true when
+    # the departure is written. Counting a guild's admins is also a question
+    # about the guild rather than the caller, so it is asked on the system
+    # engine — a request-path session reaches the caller's own membership row
+    # and no other, and answers "last admin" for everyone.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
+
+    if await is_last_admin_of_guild(admin_session, guild_id, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.CANNOT_LEAVE_LAST_ADMIN,
+        )
+
+    # Nor while they are the only member who can lift a sign-in requirement:
+    # that is lifted from the surface the seat holds.
+    if await guilds_service.must_keep_security_admin(
+        admin_session, guild_id=guild_id, user_id=current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
         )
 
     # Ownership release happens inside remove_user_from_guild, while the

@@ -146,12 +146,14 @@ const TierCard = ({ tier, portalUrl, registrationOpen, isDark, visible, index }:
     data-tier={tier.id}
     data-layout="card"
   >
-    <div className="mb-4 flex min-h-6 items-start justify-between gap-3">
-      <h3 className="font-bold text-foreground text-xl">{tier.name}</h3>
-      <div className="text-right">
-        <TierBadge tier={tier} />
-      </div>
+    {/* The badge gets the card's full width on a row of its own: beside the
+        name it had only the gap left over, and a pill is not a paragraph —
+        "Where most communities start" broke across two lines inside it. The
+        row is reserved even when empty so every name sits on the same line. */}
+    <div className="mb-3 flex min-h-[1.375rem] items-start">
+      <TierBadge tier={tier} />
     </div>
+    <h3 className="mb-4 font-bold text-foreground text-xl">{tier.name}</h3>
     <p className="font-black text-4xl text-foreground tracking-tight">{tier.price.display}</p>
     {tier.price.sub_display && (
       <p className="mt-1 text-muted-foreground text-sm">{tier.price.sub_display}</p>

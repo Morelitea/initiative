@@ -15,16 +15,16 @@ restores what was there rather than asking everyone to rebuild it.
 arrives writable, and no policy references it -- an ``ADD COLUMN`` is not a
 policy-bound write, so there is no RLS to lift.
 
-Revision ID: 20260916_0286
-Revises: 20260916_0285
+Revision ID: 20260916_0288
+Revises: 20260916_0287
 Create Date: 2026-09-16
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260916_0286"
-down_revision = "20260916_0285"
+revision = "20260916_0288"
+down_revision = "20260916_0287"
 branch_labels = None
 depends_on = None
 

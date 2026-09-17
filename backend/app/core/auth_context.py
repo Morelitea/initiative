@@ -9,6 +9,10 @@ auth-policy check and the ``app.satisfied_providers`` GUC behind
 ``public.guild_auth_satisfied()``, without the value being threaded through
 every helper between the validator and the sink (mirroring ``role_context``).
 
+Alongside it, the communities whose own single sign-on the session completed
+(read back from its ``amr`` markers), which the same gate gives to
+``app.sso_guilds``.
+
 The value is either the frozenset of provider ids the session proved, or the
 ``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
 user-attributed system work sets explicitly. The default is the empty set —
@@ -41,6 +45,26 @@ def satisfied_provider_ids() -> frozenset[int]:
     live-session path records) reads as the empty, fail-closed set."""
     value = _satisfied_providers.get()
     return value if isinstance(value, frozenset) else frozenset()
+
+
+_sso_guilds: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
+    "auth_sso_guilds", default=frozenset()
+)
+
+
+def set_sso_guilds(value: frozenset[int] | None) -> None:
+    """Record the communities whose own single sign-on this session completed."""
+    _sso_guilds.set(frozenset() if value is None else value)
+
+
+def sso_guilds() -> frozenset[int]:
+    """Those communities, for this request/task.
+
+    Empty for every credential that records nothing about how its owner signed
+    in — device tokens, API keys, delegation JWTs — which is the fail-closed
+    answer against a community asking for its own sign-in.
+    """
+    return _sso_guilds.get()
 
 
 #: The ``user_tokens`` row that authenticated this request, when the credential

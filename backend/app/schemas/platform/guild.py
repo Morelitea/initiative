@@ -301,9 +301,19 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     support_enabled: Optional[bool] = None
 
 
+#: What a community may require, beyond naming one provider. ``sso`` means its
+#: own single sign-on, whichever of its providers serves it — the deployment's
+#: providers are not its own. The platform's ``login_method`` vocabulary minus
+#: ``password``, which only the deployment decides about: the same asymmetry the
+#: database holds as a CHECK on ``require_methods``.
+GuildRequirableMethod = Literal["sso"]
+
+
 class GuildAuthPolicyRead(SanitizedBaseModel):
     """The guild's sign-in requirement. ``open`` is the default (no stored
-    row); ``required`` names the provider a session must have satisfied."""
+    row). ``required`` names a provider a session must have satisfied, asks for
+    the guild's own single sign-on without naming which provider serves it, or
+    both."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -311,11 +321,16 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
     provider_id: Optional[int] = None
     provider_slug: Optional[str] = None
     provider_display_name: Optional[str] = None
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
 class GuildAuthPolicyUpdate(SanitizedBaseModel):
     policy: Literal["open", "required"]
     provider_id: Optional[int] = None
+    #: ``["sso"]`` asks for the guild's own single sign-on. ``password`` is
+    #: absent from the type on purpose: whether passwords exist at all is the
+    #: deployment's question.
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
 class GuildDeletionRequest(SanitizedBaseModel):
@@ -377,15 +392,20 @@ class GuildMembershipUpdate(SanitizedBaseModel):
 class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     """Response for checking if a user can leave a guild.
 
-    Being the guild's last admin is the only thing that stops them. Content they
-    own is released on the way out and left unowned for a guild admin to claim,
-    so there is nothing to hand over first.
+    Two things stop them, and the caller is told which. Being the guild's last
+    admin is one. Holding its only security admin seat while the guild requires
+    a sign-in is the other — the requirement is lifted from the surface that
+    seat holds, so the seat stays for as long as the requirement does.
+
+    Content they own is released on the way out and left unowned for a guild
+    admin to claim, so there is nothing to hand over first.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
     is_last_admin: bool
+    is_last_security_admin: bool = False
 
 
 class CommunityGuildRead(SanitizedBaseModel):

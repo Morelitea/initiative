@@ -1,9 +1,11 @@
-"""Guild-admin CRUD for the guild's own login provider registry.
+"""CRUD for the guild's own login provider registry.
 
 Managed here: guild-scoped ``auth_providers`` rows — the identity providers a
-guild configures for itself when the platform runs per-guild auth. Exists only
-in that posture (404 otherwise, like the rest of the guild auth surface) and
-only for the guild's own admins.
+guild configures for itself. Exists only where the operator has granted the
+guild that option (404 otherwise, like the rest of the guild auth surface).
+
+Reading is a guild admin's; changing is the security admin's, the seat that
+holds a guild's sign-in configuration.
 
 The CRUD logic — namespace scoping, slug rules, write-only secrets, delete
 semantics — lives in ``app.services.auth.provider_registry``, shared with the
@@ -22,6 +24,7 @@ from app.api.deps import SessionDep, get_current_active_user
 from app.core.guild_auth_options import GuildAuthOption
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
+    _ensure_guild_security_admin,
     _require_guild_auth_option,
 )
 from app.db.session import get_admin_session
@@ -38,6 +41,24 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
+async def _require_guild_provider_reader(
+    session: AsyncSession,
+    admin_session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> None:
+    """Seeing the registry: the operator's grant of the providers option, then
+    guild admin. Without the grant the surface 404s but the guild's provider
+    rows are left intact — existing members keep signing in through them.
+
+    Reading is admin-or-above, one rung below writing (below): an admin who
+    cannot see what is configured cannot ask for it to be changed.
+    """
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
+
+
 async def _require_guild_provider_admin(
     session: AsyncSession,
     admin_session: AsyncSession,
@@ -45,12 +66,10 @@ async def _require_guild_provider_admin(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """The shared gate for every route here: the operator's grant of the
-    providers option, then guild admin. Without the grant the surface 404s but
-    the guild's provider rows are left intact — existing members keep signing
-    in through them."""
+    """Changing the registry: the same operator grant, then the security admin
+    seat — the guild's identity providers are its sign-in configuration."""
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
+    await _ensure_guild_security_admin(session, guild_id=guild_id, user_id=user_id)
 
 
 @router.get("/{guild_id}/auth/providers", response_model=List[AuthProviderAdminRead])
@@ -60,7 +79,7 @@ async def list_guild_auth_providers(
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> List[AuthProviderAdminRead]:
-    await _require_guild_provider_admin(
+    await _require_guild_provider_reader(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await provider_registry.list_providers(admin_session, guild_id=guild_id)

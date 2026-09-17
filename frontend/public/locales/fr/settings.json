@@ -1008,7 +1008,7 @@
         },
         "require_sign_in": {
           "label": "Exiger une connexion",
-          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. Indépendant du réglage ci-dessus : une communauté peut proposer son fournisseur sans l'imposer."
+          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. C'est une autorisation distincte : une communauté peut proposer son fournisseur sans l'imposer."
         }
       },
       "usersLabel": "Membres",
@@ -1091,8 +1091,11 @@
       "saved": "Exigence de connexion enregistrée",
       "error": "Impossible d'enregistrer l'exigence de connexion",
       "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
-      "signInWith": "Se connecter avec {{providerName}}"
-    }
+      "signInWith": "Se connecter avec {{providerName}}",
+      "anyProvider": "L'un de nos fournisseurs de connexion",
+      "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas."
+    },
+    "readOnlyNotice": "Seul un administrateur de sécurité peut modifier ceci. Vous voyez ce qui est réglé, pour savoir à qui vous adresser."
   },
   "authProviders": {
     "title": "Fournisseurs d'identité",

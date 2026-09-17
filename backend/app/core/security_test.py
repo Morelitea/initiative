@@ -158,10 +158,16 @@ def test_upload_token_round_trips_to_user_id():
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == (123, frozenset())
+    assert verify_upload_token(token) == (123, frozenset(), frozenset())
 
-    satisfied_token, _ = create_upload_token(user_id=123, satisfied_providers=[5, 2])
-    assert verify_upload_token(satisfied_token) == (123, frozenset({2, 5}))
+    satisfied_token, _ = create_upload_token(
+        user_id=123, satisfied_providers=[5, 2], sso_guilds=[9]
+    )
+    assert verify_upload_token(satisfied_token) == (
+        123,
+        frozenset({2, 5}),
+        frozenset({9}),
+    )
 
 
 @pytest.mark.unit
