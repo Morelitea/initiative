@@ -79,6 +79,12 @@ Not sure you want to run a server at all? A paid hosted service is on the way â€
 
     [:octicons-arrow-right-24: Backups & updates](backups-and-updates.md)
 
+-   :material-pulse: __How it runs__
+
+    What a start actually does, why it sometimes refuses, and running more than one.
+
+    [:octicons-arrow-right-24: How it runs](how-it-runs.md)
+
 -   :material-book-edit-outline: __Maintaining these docs__
 
     Build, preview, and publish this help center.

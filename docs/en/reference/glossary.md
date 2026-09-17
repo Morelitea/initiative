@@ -48,6 +48,12 @@ How much somebody can do with one specific project or document: **Viewer** (read
 
 How an initiative lets people in: **invite only** (a manager adds you), **by request** (you ask, a manager answers), or **anyone can join** (one click). See [How people join an initiative](../guides/initiatives.md#how-people-join-an-initiative).
 
+### Superadmin
+
+The top seat **inside one community** — its sign-in, and nothing beyond that community. Whoever made the community holds it, and only they can pass it on.
+
+The name is the trap: it sounds server-wide and isn't. Somebody who runs the server is an [owner or operator](../admin/platform-roles.md), which is a different ladder entirely. See [Why superadmin is separate](../guides/communities.md#why-superadmin-is-separate).
+
 ### Break-glass
 
 A short-lived, recorded, self-issued grant that lets platform staff reach a community they don't belong to — used instead of any standing back door, and it expires on its own. See [Platform roles](../admin/platform-roles.md#cross-community-access-break-glass-and-time-bound-grants).

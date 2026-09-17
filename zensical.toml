@@ -106,6 +106,7 @@ nav = [
     "en/admin/platform-roles.md",
     "en/admin/announcements.md",
     "en/admin/backups-and-updates.md",
+    "en/admin/how-it-runs.md",
     "en/admin/maintaining-these-docs.md",
   ] },
   { "Help & reference" = [
