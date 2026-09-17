@@ -19,6 +19,8 @@ from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
+from app.services.auth import challenges as challenge_service
+from app.services.auth import totp as totp_service
 from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant.resource_grant import ResourceGrant
@@ -513,6 +515,11 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # and user agents its account signed in from. A hard delete gets this from
     # the ``users`` foreign key; the row survives here, so it is explicit.
     await session_service.delete_all_for_user(session, user_id=user_id)
+    # And the second factor, its seed and the codes that stand in for it. The
+    # seed goes with the factor by cascade; the rest are the account's, so a
+    # husk that keeps its ``users`` row would otherwise keep them.
+    await totp_service.disable(session, user_id=user_id)
+    await challenge_service.revoke_for_user(session, user_id=user_id)
 
     # Scrub the user's address out of any guild invite bound to it. Without
     # this, an unexpired/lingering invite keeps a recoverable copy of the very

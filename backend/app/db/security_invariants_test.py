@@ -81,6 +81,13 @@ _RLS_SHARED_TABLES = {
     "user_dm_settings",
     "user_emails",
     "user_email_assertions",
+    # The account's second factor, its seed, the codes that stand in for it,
+    # and a sign-in held between its password and its code. Forced with no
+    # policies: no request-path role is granted anything on them.
+    "user_totp",
+    "user_totp_secrets",
+    "mfa_recovery_codes",
+    "auth_challenges",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

@@ -889,3 +889,50 @@ async def test_soft_delete_user_removes_sign_in_sessions(session: AsyncSession):
     session.expire_all()
     assert await session.get(AuthSession, mine_id) is None
     assert await session.get(AuthSession, theirs_id) is not None
+
+
+async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession):
+    """Erasure empties the account of its factor, the seed behind it, the codes
+    that stand in for it, and any sign-in held part-way through."""
+    import pyotp
+
+    from app.models.platform.auth_challenge import AuthChallenge
+    from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+    from app.models.platform.user_totp import UserTotp
+    from app.models.platform.user_totp_secret import UserTotpSecret
+    from app.services.auth import challenges as challenge_service
+    from app.services.auth import totp as totp_service
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    for holder in (user, bystander):
+        enrolment = await totp_service.begin_enrolment(
+            session, user_id=holder.id, account="a@example.com", issuer="Initiative"
+        )
+        await totp_service.confirm_enrolment(
+            session, user_id=holder.id, code=pyotp.TOTP(enrolment.secret).now()
+        )
+        await totp_service.issue_recovery_codes(session, user_id=holder.id)
+        await challenge_service.create(
+            session,
+            user_id=holder.id,
+            purpose=challenge_service.ChallengePurpose.sign_in,
+        )
+    await session.commit()
+    user_id, bystander_id = user.id, bystander.id
+
+    await user_service.soft_delete_user(session, user_id)
+    session.expire_all()
+
+    assert await session.get(UserTotp, user_id) is None
+    assert await session.get(UserTotpSecret, user_id) is None
+    for model in (MfaRecoveryCode, AuthChallenge):
+        rows = (await session.exec(select(model).where(model.user_id == user_id))).all()
+        assert rows == [], f"{model.__tablename__} kept a row"
+
+    # The account beside it is untouched.
+    assert await session.get(UserTotp, bystander_id) is not None
+    assert (
+        await totp_service.remaining_recovery_codes(session, user_id=bystander_id)
+        == totp_service.RECOVERY_CODE_COUNT
+    )

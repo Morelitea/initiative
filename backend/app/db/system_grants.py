@@ -187,6 +187,13 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # resolving an address to an account is a pre-auth lookup, like a session
     "user_emails": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_email_assertions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # the second factor and what it is made of — enrolled, presented and
+    # removed on the system engine, like the session store beside it
+    "user_totp": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_totp_secrets": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "mfa_recovery_codes": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # resolved by digest before the account is known, as a refresh token is
+    "auth_challenges": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     # UPDATE joined the set for the rolled-up direct-message line: the system
@@ -338,6 +345,12 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": None,
     "user_emails": None,
     "user_email_assertions": None,
+    # the factor tables are system-engine-only; the bare login role never
+    # touches them, and neither does any request-path role
+    "user_totp": None,
+    "user_totp_secrets": None,
+    "mfa_recovery_codes": None,
+    "auth_challenges": None,
     "notifications": None,
     # An announcement is shown to a signed-in account, so nothing about it is
     # read before routing.

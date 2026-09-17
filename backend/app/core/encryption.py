@@ -28,6 +28,8 @@ SALT_APP_SERVICE_SECRET = b"app-service-secret"
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.
 SALT_APP_CONFIG = b"app-config"
+# The base32 seed behind an account's authenticator-app factor.
+SALT_TOTP_SECRET = b"totp-secret"
 
 
 def _resolve_secret_key(secret_key: str | None) -> str:
