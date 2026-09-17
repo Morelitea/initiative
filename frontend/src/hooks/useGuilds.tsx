@@ -42,7 +42,10 @@ import {
 export type GuildEntry = GuildRead & {
   accessType?: "member" | "grant";
   grantExpiresAt?: string | null;
-  grantAccessLevel?: "read" | "read_write" | null;
+  /** The content rung of the grant this guild is reached by. A settings grant
+   *  carries its own vocabulary in the same field, and never gets here — a
+   *  guild reached only by one confers no content access to gate. */
+  grantAccessLevel?: string | null;
 };
 
 interface GuildContextValue {
