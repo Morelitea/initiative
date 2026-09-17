@@ -134,6 +134,10 @@ class GuildRead(GuildBase):
     # ``None`` for non-admin members: it is read by the settings surface that
     # sets it, and nothing a member does depends on the answer.
     allow_api_keys: Optional[bool] = None
+    # ADMIN-ONLY. Whether this guild holds its members to the twelve-hour
+    # session standard. ``None`` for non-admin members, like the one above:
+    # the settings surface that sets it is what reads it.
+    enforce_compliance_session: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
@@ -281,10 +285,6 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Off by default: the deployment that receives them is the one that decides
     # it is staffing them.
     support_enabled: bool = False
-    # Whether this guild's members are held to the compliance session standard
-    # — signing in again every twelve hours whatever the deployment's own limit
-    # says. Off by default.
-    enforce_compliance_session: bool = False
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -307,8 +307,6 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     banner_image_enabled: Optional[bool] = None
     # Help-request entitlement. Omit-to-skip, same as the one above.
     support_enabled: Optional[bool] = None
-    # The compliance session standard. Omit-to-skip, same as the one above.
-    enforce_compliance_session: Optional[bool] = None
 
 
 #: What a community may require, beyond naming one provider. ``sso`` means its
@@ -345,6 +343,16 @@ class GuildAuthPolicyUpdate(SanitizedBaseModel):
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
+class GuildAuthSettingsRead(SanitizedBaseModel):
+    """The current controls on the superadmin's Authentication page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    auth_options: List[GuildAuthOption] = Field(default_factory=list)
+    allow_api_keys: bool
+    enforce_compliance_session: bool
+
+
 class GuildApiAccessRead(SanitizedBaseModel):
     """Whether this guild accepts personal API keys."""
 
@@ -358,6 +366,22 @@ class GuildApiAccessUpdate(SanitizedBaseModel):
     request carrying one reaches it; keys already minted stop working here."""
 
     allow_api_keys: bool
+
+
+class GuildSessionLimitRead(SanitizedBaseModel):
+    """Whether this guild holds its members to the twelve-hour session
+    standard."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    enforce_compliance_session: bool
+
+
+class GuildSessionLimitUpdate(SanitizedBaseModel):
+    """Set it. ``true`` means this guild's members sign in again every twelve
+    hours, whatever the deployment's own limit says."""
+
+    enforce_compliance_session: bool
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

@@ -1090,7 +1090,6 @@ export interface AuthProviderAdminRead {
   scopes: string | null;
   role_claim_path: string | null;
   allow_jit: boolean;
-  connectable_by_guilds: boolean;
   icon: string | null;
   button_style: string | null;
   secret_set: boolean;
@@ -1118,7 +1117,6 @@ export interface AuthProviderCreate {
   scopes?: string | null;
   role_claim_path?: string | null;
   allow_jit?: boolean;
-  connectable_by_guilds?: boolean;
   icon?: string | null;
   button_style?: string | null;
 }
@@ -1165,7 +1163,6 @@ export interface AuthProviderUpdate {
   scopes?: string | null;
   role_claim_path?: string | null;
   allow_jit?: boolean | null;
-  connectable_by_guilds?: boolean | null;
   icon?: string | null;
   button_style?: string | null;
 }
@@ -3959,6 +3956,7 @@ export interface GuildAppUpdate {
 export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
 
 export const GuildAuthOption = {
+  restrictions: "restrictions",
   providers: "providers",
   require_sign_in: "require_sign_in",
 } as const;
@@ -4013,6 +4011,15 @@ export interface GuildAuthPolicyUpdate {
   policy: GuildAuthPolicyUpdatePolicy;
   provider_id?: number | null;
   require_methods?: GuildAuthPolicyUpdateRequireMethodsItem[];
+}
+
+/**
+ * The current controls on the superadmin's Authentication page.
+ */
+export interface GuildAuthSettingsRead {
+  auth_options: GuildAuthOption[];
+  allow_api_keys: boolean;
+  enforce_compliance_session: boolean;
 }
 
 /**
@@ -4209,6 +4216,7 @@ export interface GuildRead {
   content_read_only: boolean;
   auth_options: GuildAuthOption[] | null;
   allow_api_keys: boolean | null;
+  enforce_compliance_session: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
@@ -4216,6 +4224,22 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+}
+
+/**
+ * Whether this guild holds its members to the twelve-hour session
+ * standard.
+ */
+export interface GuildSessionLimitRead {
+  enforce_compliance_session: boolean;
+}
+
+/**
+ * Set it. ``true`` means this guild's members sign in again every twelve
+ * hours, whatever the deployment's own limit says.
+ */
+export interface GuildSessionLimitUpdate {
+  enforce_compliance_session: boolean;
 }
 
 export interface GuildStorageUsageRead {
@@ -5415,7 +5439,6 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
-  enforce_compliance_session: boolean;
 }
 
 /**
@@ -5434,7 +5457,6 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
-  enforce_compliance_session?: boolean | null;
 }
 
 /**
@@ -7951,19 +7973,10 @@ export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   username: string;
 };
 
-export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams = {
-  next?: string;
-};
-
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
-};
-
-export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams = {
-  code?: string | null;
-  state?: string | null;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {

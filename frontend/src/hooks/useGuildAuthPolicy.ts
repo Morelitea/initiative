@@ -17,18 +17,23 @@ import {
 } from "@/api/generated/guild-provider-connections/guild-provider-connections";
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
+  getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
+  getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
 import type {
   ConnectableProviderRead,
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildAuthSettingsRead,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
+  GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -70,6 +75,19 @@ export const useGuildAuthPolicy = (guildId: number, options?: QueryOpts<GuildAut
   });
 };
 
+/** The complete Authentication settings available to a settings superadmin. */
+export const useGuildAuthSettings = (
+  guildId: number,
+  options?: QueryOpts<GuildAuthSettingsRead>
+) => {
+  return useQuery<GuildAuthSettingsRead>({
+    queryKey: getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey(guildId),
+    queryFn: () => getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
 /** Set the guild's sign-in requirement; refreshes the policy query on success. */
 export const useUpdateGuildAuthPolicy = (guildId: number) => {
   const queryClient = useQueryClient();
@@ -98,7 +116,18 @@ export const useUpdateGuildApiAccess = (guildId: number) => {
   });
 };
 
-/** Which of the platform's providers this community signs in through. */
+/**
+ * Whether the community holds its members to the twelve-hour session standard.
+ * Rides on the guild list the same way API access does.
+ */
+export const useUpdateGuildSessionLimit = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildSessionLimitUpdate) =>
+      setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
+  });
+};
+
+/** Which of the platform's providers this community counts as its own. */
 export const useGuildProviderConnections = (
   guildId: number,
   options?: QueryOpts<GuildProviderConnectionRead[]>

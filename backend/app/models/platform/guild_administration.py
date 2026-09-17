@@ -58,14 +58,6 @@ class GuildAdministration(SQLModel, table=True):
     max_users: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
     )
-    # Whether this guild is held to the compliance session standard: members
-    # sign in again every ``COMPLIANCE_SESSION_HOURS``, whatever the
-    # deployment's own limit says. A single standard rather than a number per
-    # guild, so somebody in two of them has one answer and not a comparison.
-    enforce_compliance_session: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
     # Display/audit label of the paid tier (NULL = none). CONTRACT: never an
     # enforcement input — enforcement reads only max_storage_bytes / max_users
     # / guilds.status, so the FOSS app enforces numbers, not plans. A test pins

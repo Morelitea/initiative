@@ -237,11 +237,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "satc": "",
+            # No session at all on this path, so it answers for none of the
+            # things a session records about how somebody signed in.
+            "mfa": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
             "vdash": "",
-            "names": "false",
             "q": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),

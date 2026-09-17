@@ -29,6 +29,7 @@ import type {
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildAuthSettingsRead,
   GuildCreate,
   GuildDeletionRequest,
   GuildEntitlementsRead,
@@ -39,6 +40,8 @@ import type {
   GuildMembershipUpdate,
   GuildOrderUpdate,
   GuildRead,
+  GuildSessionLimitRead,
+  GuildSessionLimitUpdate,
   GuildUpdate,
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
@@ -1840,6 +1843,172 @@ export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = 
   );
 };
 /**
+ * Read the controls held by this community's superadmin seat.
+ * @summary Get Guild Auth Settings
+ */
+export const getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAuthSettingsRead>(
+    { url: `/api/v1/guilds/${guildId}/auth-settings`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/guilds/${guildId}/auth-settings`] as const;
+};
+
+export const getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+  > = ({ signal }) =>
+    getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+>;
+export type GetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Guild Auth Settings
+ */
+
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * The guild's sign-in requirement. Guild admin only (the settings UI);
  * a blocked session learns the required provider from the step-up 401's
  * header, not from here.
@@ -2121,9 +2290,9 @@ export const useSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = <
  *
  * The same seat as the sign-in requirement, and for the same reason: it says
  * what may be used to reach the community, which is not the job of running
- * one. It carries no operator entitlement, though — turning it off only ever
- * narrows what reaches the guild, so there is nothing for an operator to
- * grant.
+ * one. Like everything else on that surface it needs the master entitlement,
+ * which most guilds never hold — a community that configures no part of its
+ * own sign-in is not asked about API keys either.
  *
  * Existing keys are left alone. What they may reach is decided when they are
  * used, so switching this back on restores them rather than leaving somebody
@@ -2217,6 +2386,111 @@ export const useSetGuildApiAccessApiV1GuildsGuildIdApiAccessPut = <
 > => {
   return useMutation(
     getSetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Hold this guild's members to the twelve-hour session standard, or stop.
+ *
+ * The same seat as the sign-in requirement beside it: how often somebody
+ * signs in again is part of what the community asks of a session, not part of
+ * running it. One standard rather than a figure of the guild's own, so
+ * somebody in two communities that ask for it has an answer and not a
+ * comparison. It needs the master entitlement, like the rest of the surface.
+ *
+ * It reaches members' sessions at their next sign-in. Phones are the
+ * exception: a device token carries its deadline in its own expiry, so the
+ * ones already issued are brought under the standard here — which can sign a
+ * phone out at once, where it signed in longer ago than the standard allows.
+ * @summary Set Guild Session Limit
+ */
+export const setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut = (
+  guildId: number,
+  guildSessionLimitUpdate: BodyType<GuildSessionLimitUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildSessionLimitRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/session-limit`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildSessionLimitUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+    TError,
+    { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+    { guildId: number; data: BodyType<GuildSessionLimitUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>
+>;
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationBody =
+  BodyType<GuildSessionLimitUpdate>;
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Session Limit
+ */
+export const useSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+      TError,
+      { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationOptions(options),
     queryClient
   );
 };

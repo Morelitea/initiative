@@ -42,9 +42,7 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
-from app.core.guild_auth_options import GuildAuthOption
 from app.services.auth.platform_provider import can_serve_login_clause
-from app.services.platform import guild_entitlements
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
 
@@ -78,7 +76,6 @@ async def resolve_oidc_identity(
     email_verified: bool,
     full_name: str | None = None,
     avatar_url: str | None = None,
-    guild_id: int | None = None,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
 
@@ -142,25 +139,14 @@ async def resolve_oidc_identity(
             )
 
     # Unknown user: JIT-provision if the provider allows it. A sign-in on the
-    # platform's own page additionally requires open registration; one on a
-    # community's page requires that community to still hold the sign-in
-    # option (the operator toggle) — off means no NEW accounts onboard there,
-    # though existing linked identities (LINKED, above) are untouched (see
-    # docstring).
-    #
-    # ``guild_id`` is the community whose page this sign-in came in on, from
-    # the route: every provider is the operator's, so the provider itself no
-    # longer says which community is being entered.
+    # deployment additionally requires open registration. There is one
+    # sign-in, so there is one answer: a community does not decide whether
+    # somebody may hold an account here, only whether an arrival is one of its
+    # own. Existing linked identities (LINKED, above) are untouched either way.
     if not provider.allow_jit:
         return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
-    if guild_id is None:
-        if not await _registration_open(session):
-            return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
-    else:
-        if not await guild_entitlements.has_auth_option(
-            session, guild_id, GuildAuthOption.providers
-        ):
-            return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
+    if not await _registration_open(session):
+        return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
     return await _provision(
         session,
         provider=provider,

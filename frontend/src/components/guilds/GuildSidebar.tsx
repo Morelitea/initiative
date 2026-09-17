@@ -775,14 +775,23 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
 
   const handleGuildSwitch = (guildId: number) => {
     setExpanded(false);
-    // Always navigate to the guild dashboard
+    const guild = guilds.find((entry) => entry.id === guildId);
     if (guildId !== activeGuildId) {
       // Switching guilds navigates, but the sidebar should stay open (unlike
       // most navigations, which auto-close it on mobile).
       suppressNextAutoClose();
       void switchGuild(guildId);
     }
-    router.navigate({ to: guildPath(guildId, "/") });
+    // A settings-only grant deliberately carries no content authority. Land
+    // it on the one page it can use instead of sending it through a denied
+    // guild-content request on the dashboard.
+    const destination =
+      guild?.accessType === "grant" &&
+      guild.grantAccessLevel == null &&
+      guild.grantSettingsLevel === "superadmin"
+        ? "/settings/auth"
+        : "/";
+    router.navigate({ to: guildPath(guildId, destination) });
   };
 
   const handleDragStart = useCallback(

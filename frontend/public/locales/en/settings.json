@@ -1016,6 +1016,10 @@
       "supportLabel": "Help requests",
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
       "authOption": {
+        "restrictions": {
+          "label": "Configuring its own sign-in",
+          "help": "Gives this community the Authentication tab: personal API keys, a twelve-hour session limit, and whatever is ticked below. Off for most communities — without it they never see the tab."
+        },
         "providers": {
           "label": "Its own sign-in providers",
           "help": "Let their admins connect an identity provider and onboard new accounts through it."
@@ -1026,9 +1030,7 @@
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit",
-      "complianceSessionLabel": "Twelve-hour session limit",
-      "complianceSessionHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard."
+      "storageLabel": "Storage limit"
     },
     "unlimited": "No limit"
   },
@@ -1127,6 +1129,15 @@
       "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
       "saved": "API access saved",
       "error": "Could not save API access"
+    },
+    "sessionLimit": {
+      "title": "Session limit",
+      "description": "How often this community's members sign in again.",
+      "allowLabel": "Twelve-hour session limit",
+      "onHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard.",
+      "offHelp": "Members stay signed in for as long as the deployment allows.",
+      "saved": "Session limit saved",
+      "error": "Could not save the session limit"
     },
     "connections": {
       "title": "How your members sign in",

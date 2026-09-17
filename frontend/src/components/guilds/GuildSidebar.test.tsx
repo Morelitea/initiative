@@ -59,7 +59,7 @@ const entry = (overrides: Partial<GuildEntry> = {}): GuildEntry =>
 
 const setup = (guilds: GuildEntry[]) => {
   const switchGuild = vi.fn();
-  renderPage(
+  const { router } = renderPage(
     () => (
       <SidebarProvider>
         <GuildSidebar />
@@ -67,7 +67,7 @@ const setup = (guilds: GuildEntry[]) => {
     ),
     { guilds: { guilds, activeGuildId: guilds[0]?.id ?? null, switchGuild } }
   );
-  return { switchGuild };
+  return { router, switchGuild };
 };
 
 // The router mounts asynchronously, so the first query in each test waits.
@@ -149,6 +149,28 @@ describe("GuildSidebar reorder mode", () => {
       "aria-pressed",
       "true"
     );
+  });
+});
+
+describe("GuildSidebar settings grants", () => {
+  it("lands a settings-only superadmin grant on its usable page", async () => {
+    const guilds = [
+      entry({ id: 1, name: "Alpha" }),
+      entry({
+        id: 8,
+        name: "Loaner",
+        accessType: "grant",
+        grantAccessLevel: null,
+        grantSettingsLevel: "superadmin",
+      }),
+    ];
+    const { router, switchGuild } = setup(guilds);
+    const { panel } = await openFlyout();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Switch to Loaner" }));
+
+    expect(switchGuild).toHaveBeenCalledWith(8);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings/auth"));
   });
 });
 
