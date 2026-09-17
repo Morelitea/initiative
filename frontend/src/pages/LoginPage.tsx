@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useAuth } from "@/hooks/useAuth";
+import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
 import { RegisterPage } from "./RegisterPage";
@@ -31,7 +31,7 @@ export const LoginPage = () => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
-  const { login } = useAuth();
+  const { login, completeSecondFactor } = useAuth();
   const {
     isNativePlatform,
     isServerConfigured,
@@ -44,6 +44,11 @@ export const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Set when the password was right and the account holds a second factor. The
+  // card swaps to asking for the code; the challenge is held in memory only.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
@@ -101,6 +106,18 @@ export const LoginPage = () => {
     void fetchBootstrapStatus();
   }, [isServerConfigured]);
 
+  const goWhereTheySignedInFor = () => {
+    if (inviteCodeParam) {
+      router.navigate({
+        to: "/invite/$code",
+        params: { code: encodeURIComponent(inviteCodeParam) },
+        replace: true,
+      });
+    } else {
+      router.navigate({ to: "/", replace: true });
+    }
+  };
+
   const handleChangeServer = () => {
     clearServerUrl();
     router.navigate({ to: "/connect", replace: true });
@@ -121,21 +138,49 @@ export const LoginPage = () => {
         }
       }
       await login({ email: email.toLowerCase().trim(), password, deviceName });
-      if (inviteCodeParam) {
-        router.navigate({
-          to: "/invite/$code",
-          params: { code: encodeURIComponent(inviteCodeParam) },
-          replace: true,
-        });
-      } else {
-        router.navigate({ to: "/", replace: true });
-      }
+      goWhereTheySignedInFor();
     } catch (err) {
+      if (err instanceof SecondFactorRequiredError) {
+        // Not a failure — the sign-in is half done. Drop the password; it has
+        // served its purpose and the code is what is asked for now.
+        setChallenge(err.challenge);
+        setPassword("");
+        setError(null);
+        return;
+      }
       console.error(err);
       setError(err instanceof Error ? err.message : t("login.defaultError"));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCodeSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!challenge) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const entered = code.trim();
+      await completeSecondFactor({
+        challenge,
+        ...(useRecoveryCode ? { recoveryCode: entered } : { code: entered }),
+      });
+      goWhereTheySignedInFor();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : t("login.defaultError"));
+      setCode("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startOver = () => {
+    setChallenge(null);
+    setCode("");
+    setUseRecoveryCode(false);
+    setError(null);
   };
 
   if (bootstrapStatus === "loading") {
@@ -168,69 +213,136 @@ export const LoginPage = () => {
         </div>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
-            <CardTitle>{t("login.title")}</CardTitle>
-            <CardDescription>{t("login.subtitle")}</CardDescription>
+            <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
+            <CardDescription>
+              {challenge
+                ? useRecoveryCode
+                  ? t("secondFactor.recoverySubtitle")
+                  : t("secondFactor.subtitle")
+                : t("login.subtitle")}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
-              {/* Offered only where the deployment permits it. The server
+            {challenge ? (
+              <form className="space-y-4" onSubmit={handleCodeSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="second-factor-code">
+                    {useRecoveryCode
+                      ? t("secondFactor.recoveryLabel")
+                      : t("secondFactor.codeLabel")}
+                  </Label>
+                  <Input
+                    id="second-factor-code"
+                    name="second-factor-code"
+                    // A recovery code carries letters and dashes; a live code
+                    // is six digits, and the numeric keypad is what a phone
+                    // should offer for it.
+                    inputMode={useRecoveryCode ? "text" : "numeric"}
+                    autoComplete="one-time-code"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    // The only field on a step the person was just sent to,
+                    // mid-sign-in.
+                    autoFocus
+                    placeholder={
+                      useRecoveryCode
+                        ? t("secondFactor.recoveryPlaceholder")
+                        : t("secondFactor.codePlaceholder")
+                    }
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    required
+                  />
+                </div>
+                <Button className="w-full" type="submit" disabled={submitting || !code.trim()}>
+                  {submitting ? t("login.submitting") : t("secondFactor.submit")}
+                </Button>
+                <div className="flex items-center justify-between text-sm">
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-4 hover:underline"
+                    onClick={() => {
+                      setUseRecoveryCode((previous) => !previous);
+                      setCode("");
+                      setError(null);
+                    }}
+                  >
+                    {useRecoveryCode
+                      ? t("secondFactor.useAuthenticator")
+                      : t("secondFactor.useRecoveryCode")}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={startOver}
+                  >
+                    {t("secondFactor.startOver")}
+                  </button>
+                </div>
+                {error ? <p className="text-destructive text-sm">{error}</p> : null}
+              </form>
+            ) : (
+              <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
+                {/* Offered only where the deployment permits it. The server
                   refuses the sign-in either way; this keeps the page from
                   presenting a form that cannot work. */}
-              {passwordLoginEnabled ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">{t("login.emailLabel")}</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder={t("login.emailPlaceholder")}
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      autoComplete="username"
-                      autoCapitalize="none"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">{t("login.passwordLabel")}</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      placeholder={t("login.passwordPlaceholder")}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      autoComplete="current-password"
-                      required
-                    />
-                    <div className="text-right">
-                      <Link
-                        className="text-primary text-sm underline-offset-4 hover:underline"
-                        to="/forgot-password"
-                      >
-                        {t("login.forgotPassword")}
-                      </Link>
+                {passwordLoginEnabled ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">{t("login.emailLabel")}</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder={t("login.emailPlaceholder")}
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        required
+                      />
                     </div>
-                  </div>
-                  <Button className="w-full" type="submit" disabled={submitting}>
-                    {submitting ? t("login.submitting") : t("login.submit")}
+                    <div className="space-y-2">
+                      <Label htmlFor="password">{t("login.passwordLabel")}</Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        placeholder={t("login.passwordPlaceholder")}
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        autoComplete="current-password"
+                        required
+                      />
+                      <div className="text-right">
+                        <Link
+                          className="text-primary text-sm underline-offset-4 hover:underline"
+                          to="/forgot-password"
+                        >
+                          {t("login.forgotPassword")}
+                        </Link>
+                      </div>
+                    </div>
+                    <Button className="w-full" type="submit" disabled={submitting}>
+                      {submitting ? t("login.submitting") : t("login.submit")}
+                    </Button>
+                  </>
+                ) : null}
+                {providers.map((provider) => (
+                  <Button
+                    key={provider.slug}
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => void handleProviderLogin(provider)}
+                  >
+                    {t("login.continueWith", { provider: provider.display_name })}
                   </Button>
-                </>
-              ) : null}
-              {providers.map((provider) => (
-                <Button
-                  key={provider.slug}
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => void handleProviderLogin(provider)}
-                >
-                  {t("login.continueWith", { provider: provider.display_name })}
-                </Button>
-              ))}
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
-            </form>
+                ))}
+                {error ? <p className="text-destructive text-sm">{error}</p> : null}
+              </form>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col items-start gap-2 text-muted-foreground text-sm">
             {isNativePlatform && (

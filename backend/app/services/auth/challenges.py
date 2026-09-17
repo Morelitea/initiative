@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -49,6 +50,10 @@ class ChallengePurpose(str, Enum):
 
     #: A password was accepted and the account's second factor is outstanding.
     sign_in = "sign_in"
+    #: The same, from the native sign-in. Kept apart because the two hand back
+    #: different things: a browser reads its refresh token from a cookie, and
+    #: the app is given it to keep.
+    sign_in_native = "sign_in_native"
 
 
 @dataclass(frozen=True)
@@ -88,13 +93,20 @@ async def create(
 
 
 async def claim_attempt(
-    session: AsyncSession, *, value: str, purpose: ChallengePurpose
+    session: AsyncSession,
+    *,
+    value: str,
+    purposes: Sequence[ChallengePurpose],
 ) -> AuthChallenge | None:
     """Take one of the challenge's attempts, and hand back the challenge.
 
     ``None`` when there is nothing to take one from: no such challenge, not for
-    this purpose, already spent, expired, or out of attempts. Every one of those
-    reads the same from here.
+    any of these purposes, already spent, expired, or out of attempts. Every one
+    of those reads the same from here.
+
+    The caller names the purposes it will answer for, and the row says which it
+    was — one endpoint can serve two sign-ins that differ in what they hand
+    back without the client being asked which it is.
 
     Taking the attempt *is* the lookup, and it is one statement, so two answers
     arriving together take two attempts rather than reading the same count and
@@ -105,7 +117,7 @@ async def claim_attempt(
         update(AuthChallenge)
         .where(
             AuthChallenge.challenge_hash == digest,
-            AuthChallenge.purpose == purpose.value,
+            AuthChallenge.purpose.in_([p.value for p in purposes]),
             AuthChallenge.consumed_at.is_(None),
             AuthChallenge.expires_at > _now(),
             AuthChallenge.attempts < MAX_ATTEMPTS,

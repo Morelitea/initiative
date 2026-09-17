@@ -474,6 +474,7 @@ async def _open_password_session(
     token_version: int,
     amr: list[str],
     audit_detail: dict[str, Any],
+    return_refresh_token: bool = False,
 ) -> Token:
     """Open the session a password sign-in earned, and hand back its token.
 
@@ -528,7 +529,10 @@ async def _open_password_session(
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
+    return Token(
+        access_token=access_token,
+        refresh_token=issued.refresh_token if return_refresh_token else None,
+    )
 
 
 @router.post("/token", response_model=Token)
@@ -641,7 +645,10 @@ async def answer_second_factor(
     challenge = await challenge_service.claim_attempt(
         admin_session,
         value=payload.challenge,
-        purpose=challenge_service.ChallengePurpose.sign_in,
+        purposes=(
+            challenge_service.ChallengePurpose.sign_in,
+            challenge_service.ChallengePurpose.sign_in_native,
+        ),
     )
     if challenge is None:
         await admin_session.commit()
@@ -717,6 +724,12 @@ async def answer_second_factor(
         token_version=user.token_version,
         amr=["pwd", *factor_amr],
         audit_detail={"method": "password", "second_factor": method},
+        # The app keeps its refresh token; a browser reads one from a cookie it
+        # never sees. Which of the two asked is on the challenge, not on the
+        # request, so the client is not the one saying.
+        return_refresh_token=(
+            challenge.purpose == challenge_service.ChallengePurpose.sign_in_native.value
+        ),
     )
 
 
@@ -933,7 +946,7 @@ async def create_device_token(
     session: SessionDep,
     admin_session: AdminSessionDep,
     payload: DeviceTokenRequest,
-) -> DeviceTokenResponse:
+) -> DeviceTokenResponse | JSONResponse:
     """
     Create a long-lived device token for mobile app authentication.
     Device tokens do not expire and can be used instead of JWT tokens.
@@ -975,6 +988,29 @@ async def create_device_token(
         )
 
     device_name = payload.device_name.strip()
+
+    # The same rule the browser sign-in follows: a proved factor is part of
+    # signing in, on every path that takes a password. Answered with a
+    # challenge, which the app presents the code against at /auth/token/totp.
+    #
+    # What comes back from there is a session rather than a device token. That
+    # is the intended direction — an account holding a factor moves onto the
+    # rotating credential rather than the ninety-day one — and it is why the
+    # challenge records which sign-in opened it.
+    if await totp_service.is_enrolled(admin_session, user_id=user.id):
+        issued_challenge = await challenge_service.create(
+            admin_session,
+            user_id=user.id,
+            purpose=challenge_service.ChallengePurpose.sign_in_native,
+        )
+        await admin_session.commit()
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "detail": AuthMessages.TOTP_REQUIRED,
+                "challenge": issued_challenge.value,
+            },
+        )
 
     # Both credentials on one transaction, so a failure takes both. Minted on
     # the system engine rather than the request one for that reason alone: a

@@ -237,3 +237,85 @@ describe("useAuth identity ordering", () => {
     expect(auth.user?.full_name).toBe("Fresh");
   });
 });
+
+describe("useAuth second factor", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+  });
+
+  /** The 401 both sign-in routes answer with when a factor is outstanding. */
+  const challengeRefusal = (challenge: string) => ({
+    response: { status: 401, data: { detail: "TOTP_REQUIRED", challenge } },
+  });
+
+  it("hands the page the challenge instead of an error message", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce(challengeRefusal("challenge-value"));
+
+    await expect(auth.login({ email: "a@example.com", password: "pw" })).rejects.toMatchObject({
+      name: "SecondFactorRequiredError",
+      challenge: "challenge-value",
+    });
+  });
+
+  it("still reports an ordinary refusal as one", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce({
+      response: { status: 400, data: { detail: "INCORRECT_CREDENTIALS" } },
+    });
+
+    const failure = auth.login({ email: "a@example.com", password: "wrong" });
+    await expect(failure).rejects.toThrow();
+    await expect(failure).rejects.not.toMatchObject({
+      name: "SecondFactorRequiredError",
+    });
+  });
+
+  it("does not mistake a 401 that carries no challenge for one", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce({
+      response: { status: 401, data: { detail: "TOTP_REQUIRED" } },
+    });
+
+    await expect(auth.login({ email: "a@example.com", password: "pw" })).rejects.not.toMatchObject({
+      name: "SecondFactorRequiredError",
+    });
+  });
+
+  it("answers the challenge with the code and signs in", async () => {
+    get.mockResolvedValue({ data: buildUser({ full_name: "Signed in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Signed in"));
+
+    post.mockResolvedValueOnce({ data: { access_token: "fresh-token" } });
+    await act(async () => {
+      await auth.completeSecondFactor({ challenge: "c", code: "123456" });
+    });
+
+    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+      challenge: "c",
+      code: "123456",
+      recovery_code: null,
+    });
+  });
+
+  it("sends a recovery code as one, not as a live code", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+
+    post.mockResolvedValueOnce({ data: { access_token: "fresh-token" } });
+    await act(async () => {
+      await auth.completeSecondFactor({ challenge: "c", recoveryCode: "abcde-fghij" });
+    });
+
+    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+      challenge: "c",
+      code: null,
+      recovery_code: "abcde-fghij",
+    });
+  });
+});

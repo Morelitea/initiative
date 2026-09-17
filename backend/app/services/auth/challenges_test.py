@@ -28,7 +28,7 @@ async def _open(session: AsyncSession, user_id: int) -> challenges.IssuedChallen
 
 
 async def _claim(session: AsyncSession, value: str):
-    return await challenges.claim_attempt(session, value=value, purpose=PURPOSE)
+    return await challenges.claim_attempt(session, value=value, purposes=[PURPOSE])
 
 
 async def test_the_value_finds_the_challenge(session: AsyncSession, frozen):
@@ -146,3 +146,32 @@ async def test_the_sweep_clears_what_nothing_can_use(
 
     monkeypatch.setattr(challenges, "_now", lambda: FIXED_NOW)
     assert await _claim(session, issued.value) is None
+
+
+async def test_a_challenge_answers_only_for_its_own_purpose(
+    session: AsyncSession, frozen
+):
+    """One table serves more than one unfinished sign-in, and a challenge
+    opened for one is not claimable as the other."""
+    user = await create_user(session)
+    issued = await challenges.create(
+        session,
+        user_id=user.id,
+        purpose=challenges.ChallengePurpose.sign_in_native,
+    )
+    await session.commit()
+
+    assert (
+        await challenges.claim_attempt(
+            session,
+            value=issued.value,
+            purposes=[challenges.ChallengePurpose.sign_in],
+        )
+        is None
+    )
+    claimed = await challenges.claim_attempt(
+        session,
+        value=issued.value,
+        purposes=[challenges.ChallengePurpose.sign_in_native],
+    )
+    assert claimed is not None
