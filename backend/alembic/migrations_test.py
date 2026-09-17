@@ -600,6 +600,56 @@ class TestMigrationsAgainstDatabase:
             "the shared user_api_keys id sequence must survive the drop"
         )
 
+    def test_guild_auth_upgrade_carries_the_entitlement_it_replaces(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260916_0285 coming forward carries a guild that held the flag.
+
+        The direction every existing deployment takes, and the one a fresh
+        database cannot exercise: with no rows to carry, the carry never runs
+        and its own row-count check never compares anything. So the rows are
+        fabricated at 0284 and the revision is applied over them.
+        """
+        _run_alembic("upgrade", "20260916_0284")
+
+        # Fabricated the same way as the case below, and restored before the
+        # revision runs so it meets the mode it ships against.
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Entitled', NULL), ('Plain', NULL);"
+            "INSERT INTO public.guild_administration (guild_id, guild_auth_enabled) "
+            "SELECT id, g.name = 'Entitled' FROM public.guilds g "
+            "WHERE g.name IN ('Entitled', 'Plain');"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
+
+        _run_alembic("upgrade", "20260916_0285")
+
+        def options(name: str):
+            return _fetchval(
+                "SELECT a.auth_options FROM public.guild_administration a "
+                "JOIN public.guilds g ON g.id = a.guild_id "
+                f"WHERE g.name = '{name}'"
+            )
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+        )
+        try:
+            assert sorted(options("Entitled")) == ["providers", "require_sign_in"], (
+                "one boolean stood for both options, so a guild that held it earns both"
+            )
+            assert options("Plain") == [], "a guild that never held it gains nothing"
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            )
+
     def test_guild_auth_downgrade_hands_back_no_more_than_was_granted(
         self, fresh_migrations_db: str
     ) -> None:
@@ -610,20 +660,28 @@ class TestMigrationsAgainstDatabase:
         """
         _run_alembic("upgrade", "head")
 
-        _execute_sql(
-            "INSERT INTO public.guilds (name, created_by) "
-            "VALUES ('Requires only', NULL), ('Both', NULL), ('Neither', NULL)"
-        )
-        for name, options in (
-            ("Requires only", "{require_sign_in}"),
-            ("Both", "{providers,require_sign_in}"),
-            ("Neither", "{}"),
-        ):
-            _execute_sql(
-                "INSERT INTO public.guild_administration (guild_id, auth_options) "
-                f"SELECT id, '{options}'::guild_auth_option[] "
-                f"FROM public.guilds WHERE name = '{name}'"
+        # Fabricating rows these tables would not otherwise take, the same
+        # lift-and-restore ``_SEED_SQL`` uses. Restored before the downgrade
+        # runs, so the revision under test meets the mode it ships against.
+        rows = "".join(
+            "INSERT INTO public.guild_administration (guild_id, auth_options) "
+            f"SELECT id, '{options}'::guild_auth_option[] "
+            f"FROM public.guilds WHERE name = '{name}';"
+            for name, options in (
+                ("Requires only", "{require_sign_in}"),
+                ("Both", "{providers,require_sign_in}"),
+                ("Neither", "{}"),
             )
+        )
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Requires only', NULL), ('Both', NULL), ('Neither', NULL);"
+            + rows
+            + "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
 
         _run_alembic("downgrade", "20260916_0284")
 
@@ -634,12 +692,25 @@ class TestMigrationsAgainstDatabase:
                 f"WHERE g.name = '{name}'"
             )
 
-        assert flag("Both") is True, "a guild that held providers keeps the flag"
-        assert flag("Requires only") is False, (
-            "the flag stands for provider management too, so it is earned by "
-            "holding that option"
+        # Reading the fixture back is this test's own business rather than the
+        # revision's, so it reads in the mode it wrote in. Otherwise an empty
+        # answer would stand in for a wrong one.
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
         )
-        assert flag("Neither") is False
+        try:
+            assert flag("Both") is True, "a guild that held providers keeps the flag"
+            assert flag("Requires only") is False, (
+                "the flag stands for provider management too, so it is earned by "
+                "holding that option"
+            )
+            assert flag("Neither") is False
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            )
 
     def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
         self, fresh_migrations_db: str

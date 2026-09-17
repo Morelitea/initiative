@@ -52,15 +52,16 @@ def upgrade() -> None:
         ),
     )
 
-    expected = conn.execute(
-        sa.text(
-            "SELECT count(*) FROM public.guild_administration "
-            "WHERE guild_auth_enabled IS TRUE"
-        )
-    ).scalar_one()
-
+    # The count and the write have to see the same rows, so both run in the
+    # same row-level-security mode.
     op.execute("ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY")
     try:
+        expected = conn.execute(
+            sa.text(
+                "SELECT count(*) FROM public.guild_administration "
+                "WHERE guild_auth_enabled IS TRUE"
+            )
+        ).scalar_one()
         carried = conn.execute(
             sa.text(
                 "UPDATE public.guild_administration "
@@ -94,16 +95,15 @@ def downgrade() -> None:
     )
 
     # The flag also stands for "may manage providers", so a guild earns it only
-    # by holding that option.
-    expected = conn.execute(
-        sa.text(
-            "SELECT count(*) FROM public.guild_administration "
-            "WHERE 'providers' = ANY(auth_options)"
-        )
-    ).scalar_one()
-
+    # by holding that option. Count and write in the same mode, as above.
     op.execute("ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY")
     try:
+        expected = conn.execute(
+            sa.text(
+                "SELECT count(*) FROM public.guild_administration "
+                "WHERE 'providers' = ANY(auth_options)"
+            )
+        ).scalar_one()
         carried = conn.execute(
             sa.text(
                 "UPDATE public.guild_administration SET guild_auth_enabled = true "
