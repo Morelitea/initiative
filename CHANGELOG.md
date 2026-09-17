@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An unavailable sign-in method explains itself** — asking a community to require a method the deployment has switched off showed an internal error code. It now says what is unavailable in every supported language.
 - **A community's name no longer runs under its member count** — on a community with no banner artwork, a long enough name at a narrow enough width wrapped underneath the counts floating in the corner. The counts now sit in their own row and the name starts below them.
 - **Every direct message tells you it arrived** — a conversation announced its first message and then went silent: replies never reached your phone and the bell kept counting up without clearing. Your phone now buzzes for every message, and reading one anywhere clears it everywhere. Notification settings and quiet hours still apply.
 - **Restoring something from the trash brings back what is archived inside it** — restoring an initiative was refused whenever anything inside it had been archived first. Comments, queue items, counters, pictures and calendar events cannot be archived on their own, and the database was refusing to let them out of the trash on that basis.
