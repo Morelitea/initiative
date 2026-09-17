@@ -238,7 +238,7 @@ async def test_changing_the_password_drops_a_part_way_sign_in(
         await challenge_service.claim_attempt(
             session,
             value=mine.value,
-            purpose=challenge_service.ChallengePurpose.sign_in,
+            purposes=[challenge_service.ChallengePurpose.sign_in],
         )
         is None
     )
@@ -246,7 +246,7 @@ async def test_changing_the_password_drops_a_part_way_sign_in(
         await challenge_service.claim_attempt(
             session,
             value=theirs.value,
-            purpose=challenge_service.ChallengePurpose.sign_in,
+            purposes=[challenge_service.ChallengePurpose.sign_in],
         )
         is not None
     )

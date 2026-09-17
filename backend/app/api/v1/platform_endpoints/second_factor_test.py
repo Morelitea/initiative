@@ -435,3 +435,66 @@ async def test_a_hash_no_scheme_verifies_is_not_a_password(
         "/api/v1/auth/totp/enroll", json={}, headers=get_auth_headers(user)
     )
     assert response.status_code == 200, response.text
+
+
+async def test_the_app_is_asked_for_the_code_too(
+    client: AsyncClient, session: AsyncSession
+):
+    """The native sign-in takes a password on a different route, and a proved
+    factor is part of signing in on every route that takes one."""
+    await _enrol(client, session, "native@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "native@example.com",
+            "password": PASSWORD,
+            "device_name": "Phone",
+        },
+    )
+    assert response.status_code == 401, response.text
+    body = response.json()
+    assert body["detail"] == "TOTP_REQUIRED"
+    assert body["challenge"]
+    assert "device_token" not in body
+
+
+async def test_the_app_keeps_the_refresh_token_it_is_given(
+    client: AsyncClient, session: AsyncSession
+):
+    """A browser reads its refresh token from a cookie it never sees; the app
+    is handed one. Which of the two asked is on the challenge."""
+    _user, secret, _codes = await _enrol(client, session, "native2@example.com")
+    challenge = (
+        await client.post(
+            "/api/v1/auth/device-token",
+            json={
+                "email": "native2@example.com",
+                "password": PASSWORD,
+                "device_name": "Phone",
+            },
+        )
+    ).json()["challenge"]
+
+    answered = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": challenge, "code": _next_code(secret)},
+    )
+    assert answered.status_code == 200, answered.text
+    assert answered.json()["access_token"]
+    assert answered.json()["refresh_token"]
+
+
+async def test_the_browser_is_not_handed_one_in_the_body(
+    client: AsyncClient, session: AsyncSession
+):
+    _user, secret, _codes = await _enrol(client, session, "web-only@example.com")
+    challenge = (await _sign_in(client, "web-only@example.com")).json()["challenge"]
+
+    answered = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": challenge, "code": _next_code(secret)},
+    )
+    assert answered.status_code == 200, answered.text
+    assert answered.json()["access_token"]
+    assert answered.json()["refresh_token"] is None

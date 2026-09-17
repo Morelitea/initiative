@@ -312,9 +312,9 @@ class TestSuspension:
 
 
 class TestNothingElse:
-    """The admin surface writes exactly five things about an account, and each
-    one is gated deliberately. A sixth appearing here is a decision, not an
-    accident — this is what makes it one."""
+    """The admin surface writes a fixed set of things about an account, and
+    each one is gated deliberately. One more appearing here is a decision, not
+    an accident — this is what makes it one."""
 
     def test_the_admin_router_writes_only_what_it_should(self):
         writes = {
@@ -337,6 +337,10 @@ class TestNothingElse:
             ("/api/v1/admin/users/{user_id}/reactivate", "POST"),
             # Sends the holder a link; it never sets a password.
             ("/api/v1/admin/users/{user_id}/reset-password", "POST"),
+            # Clears a second factor the holder can no longer present — the
+            # lost-phone path. Like the reset above it is a removal, never a
+            # read: nothing here hands back the seed or the recovery codes.
+            ("/api/v1/admin/users/{user_id}/second-factor", "DELETE"),
             # Operator and above, deliberately out of a moderator's reach.
             ("/api/v1/admin/users/{user_id}/platform-role", "PATCH"),
             ("/api/v1/admin/users/{user_id}", "DELETE"),

@@ -55,6 +55,13 @@ interface LoginPayload {
   deviceName?: string; // For mobile device token login
 }
 
+/** Answering a challenge: one of the two codes, never both. */
+interface SecondFactorPayload {
+  challenge: string;
+  code?: string;
+  recoveryCode?: string;
+}
+
 interface RegisterPayload {
   email: string;
   password: string;
@@ -86,6 +93,7 @@ interface AuthContextValue {
    */
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -93,6 +101,35 @@ interface AuthContextValue {
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+/**
+ * The password was right and the account holds a second factor, so the sign-in
+ * is not finished.
+ *
+ * Thrown rather than returned so `login` keeps one contract — it resolves when
+ * you are signed in and throws when you are not — while still handing the page
+ * the one thing it needs to carry on with.
+ */
+export class SecondFactorRequiredError extends Error {
+  readonly challenge: string;
+
+  constructor(challenge: string) {
+    super("TOTP_REQUIRED");
+    this.name = "SecondFactorRequiredError";
+    this.challenge = challenge;
+  }
+}
+
+/** The shape of the 401 that carries a challenge, from either sign-in route. */
+const secondFactorChallenge = (error: unknown): string | null => {
+  const response = (
+    error as { response?: { status?: number; data?: { detail?: unknown; challenge?: unknown } } }
+  )?.response;
+  if (response?.status !== 401 || response.data?.detail !== "TOTP_REQUIRED") {
+    return null;
+  }
+  return typeof response.data.challenge === "string" ? response.data.challenge : null;
+};
 
 const TOKEN_STORAGE_KEY = "initiative-token";
 const DEVICE_TOKEN_KEY = "initiative-is-device-token";
@@ -425,6 +462,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       markJustSignedIn();
     } catch (error) {
+      const challenge = secondFactorChallenge(error);
+      if (challenge) {
+        throw new SecondFactorRequiredError(challenge);
+      }
+      throw new Error(getErrorMessage(error, "auth:login.defaultError"));
+    }
+  };
+
+  /**
+   * Finish a sign-in that was waiting on the account's second factor.
+   *
+   * The session it returns is the same one `login` would have produced, so
+   * everything after it — storing the credential, loading the user, marking the
+   * sign-in — is what that path already does. Native is handed its refresh
+   * token in the body and keeps it; the browser reads one from a cookie.
+   */
+  const completeSecondFactor = async ({ challenge, code, recoveryCode }: SecondFactorPayload) => {
+    try {
+      const response = await apiClient.post<{
+        access_token: string;
+        refresh_token?: string | null;
+      }>("/auth/token/totp", {
+        challenge,
+        code: code ?? null,
+        recovery_code: recoveryCode ?? null,
+      });
+      const accessToken = response.data.access_token;
+      if (isNative) {
+        // No device token is minted for an account holding a factor — the
+        // rotating credential is what it gets.
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
+        if (response.data.refresh_token) {
+          storeRefreshToken(response.data.refresh_token);
+        }
+      } else {
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
+        clearRefreshToken();
+      }
+      setAuthToken(accessToken, false);
+      setTokenState(accessToken);
+      setIsDeviceToken(false);
+      await refreshUser();
+      markJustSignedIn();
+    } catch (error) {
       throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
   };
@@ -555,6 +638,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isDeviceToken,
     sessionUnverified,
     login,
+    completeSecondFactor,
     register,
     completeOidcLogin,
     logout,
