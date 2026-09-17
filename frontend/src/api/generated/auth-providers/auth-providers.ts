@@ -23,6 +23,8 @@ import type {
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderDiscoverRequest,
+  AuthProviderProbeResult,
   AuthProviderUpdate,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
@@ -468,6 +470,190 @@ export const useDeleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete = <
 > => {
   return useMutation(
     getDeleteAuthProviderApiV1SettingsAuthProvidersProviderIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Look up an address and report what it offers, before anything is saved.
+ *
+ * Reaches only as far as signing in does — https, under the shared size cap
+ * and timeout — so this never refuses an issuer a login would accept. What
+ * comes back is parsed and named; a failure is one of the discovery codes.
+ * @summary Discover Auth Provider
+ */
+export const discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost = (
+  authProviderDiscoverRequest: BodyType<AuthProviderDiscoverRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AuthProviderProbeResult>(
+    {
+      url: `/api/v1/settings/auth/providers/discover`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: authProviderDiscoverRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>,
+    TError,
+    { data: BodyType<AuthProviderDiscoverRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>,
+  TError,
+  { data: BodyType<AuthProviderDiscoverRequest> },
+  TContext
+> => {
+  const mutationKey = ["discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>,
+    { data: BodyType<AuthProviderDiscoverRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>
+>;
+export type DiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPostMutationBody =
+  BodyType<AuthProviderDiscoverRequest>;
+export type DiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Discover Auth Provider
+ */
+export const useDiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>,
+      TError,
+      { data: BodyType<AuthProviderDiscoverRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost>>,
+  TError,
+  { data: BodyType<AuthProviderDiscoverRequest> },
+  TContext
+> => {
+  return useMutation(
+    getDiscoverAuthProviderApiV1SettingsAuthProvidersDiscoverPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Look up a saved provider's own issuer. The address comes off the row.
+ * @summary Test Auth Provider
+ */
+export const testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost = (
+  providerId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AuthProviderProbeResult>(
+    { url: `/api/v1/settings/auth/providers/${providerId}/test`, method: "POST", signal },
+    options
+  );
+};
+
+export const getTestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>,
+    TError,
+    { providerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>,
+  TError,
+  { providerId: number },
+  TContext
+> => {
+  const mutationKey = ["testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>,
+    { providerId: number }
+  > = (props) => {
+    const { providerId } = props ?? {};
+
+    return testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost(providerId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>
+  >;
+
+export type TestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Test Auth Provider
+ */
+export const useTestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>,
+      TError,
+      { providerId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost>>,
+  TError,
+  { providerId: number },
+  TContext
+> => {
+  return useMutation(
+    getTestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPostMutationOptions(options),
     queryClient
   );
 };

@@ -12,21 +12,29 @@ semantics — lives in ``app.services.auth.provider_registry``, shared with the
 guild CRUD; this router only gates and delegates. All reads and writes run on
 the system engine — ``auth_providers`` and its secret companion carry no
 request-path grants.
+
+Two routes here read rather than write: ``discover`` looks up an address
+somebody is still typing, and ``{id}/test`` looks up a saved row's own issuer.
+Both go through ``app.services.auth.provider_probe`` and are rate limited,
+because both spend the deployment's egress.
 """
 
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.schemas.platform.settings import (
     AuthProviderAdminRead,
     AuthProviderCreate,
+    AuthProviderDiscoverRequest,
+    AuthProviderProbeResult,
     AuthProviderUpdate,
 )
-from app.services.auth import provider_registry
+from app.services.auth import provider_probe, provider_registry
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -74,3 +82,33 @@ async def delete_auth_provider(
     accounts and any other sign-in methods. A provider some guild's auth
     policy requires is refused (409): drop or repoint the policy first."""
     await provider_registry.delete_provider(session, provider_id, guild_id=None)
+
+
+@router.post("/discover", response_model=AuthProviderProbeResult)
+@limiter.limit("10/minute")
+async def discover_auth_provider(
+    request: Request,
+    payload: AuthProviderDiscoverRequest,
+    _admin: ConfigManageDep,
+) -> AuthProviderProbeResult:
+    """Look up an address and report what it offers, before anything is saved.
+
+    Reaches only as far as signing in does — https, under the shared size cap
+    and timeout — so this never refuses an issuer a login would accept. What
+    comes back is parsed and named; a failure is one of the discovery codes.
+    """
+    result = await provider_probe.probe_issuer(payload.issuer)
+    return AuthProviderProbeResult.model_validate(result, from_attributes=True)
+
+
+@router.post("/{provider_id}/test", response_model=AuthProviderProbeResult)
+@limiter.limit("10/minute")
+async def test_auth_provider(
+    request: Request,
+    provider_id: int,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> AuthProviderProbeResult:
+    """Look up a saved provider's own issuer. The address comes off the row."""
+    result = await provider_probe.probe_provider(session, provider_id, guild_id=None)
+    return AuthProviderProbeResult.model_validate(result, from_attributes=True)

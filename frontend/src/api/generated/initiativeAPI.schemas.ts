@@ -1087,6 +1087,33 @@ export interface AuthProviderCreate {
 }
 
 /**
+ * An address to look up before anything is saved.
+ */
+export interface AuthProviderDiscoverRequest {
+  issuer: string;
+}
+
+/**
+ * What one look at a provider found.
+ *
+ * Named fields only. The document itself and the status that carried it stay
+ * server-side; ``error_code`` is what a failure says, and the detail behind
+ * it is in the log.
+ */
+export interface AuthProviderProbeResult {
+  ok: boolean;
+  error_code: string | null;
+  issuer: string | null;
+  authorization_endpoint: string | null;
+  token_endpoint: string | null;
+  jwks_uri: string | null;
+  userinfo_endpoint: string | null;
+  signing_algs: string[];
+  scopes_supported: string[];
+  claims_supported: string[];
+}
+
+/**
  * Partial update. ``client_secret``: absent = keep, empty = clear,
  * value = replace. The slug is immutable — it is the identity the login
  * URLs, flow states, and linked identities hang off.

@@ -101,6 +101,43 @@ class AuthProviderUpdate(SanitizedBaseModel):
         return _validate_https_issuer(value) if value is not None else value
 
 
+class AuthProviderDiscoverRequest(SanitizedBaseModel):
+    """An address to look up before anything is saved."""
+
+    issuer: str
+
+    @field_validator("issuer")
+    @classmethod
+    def _issuer_https(cls, value: str) -> str:
+        return _validate_https_issuer(value)
+
+
+class AuthProviderProbeResult(SanitizedBaseModel):
+    """What one look at a provider found.
+
+    Named fields only. The document itself and the status that carried it stay
+    server-side; ``error_code`` is what a failure says, and the detail behind
+    it is in the log.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    ok: bool
+    error_code: Optional[str] = None
+    #: Trimmed of a pasted ``.well-known`` suffix, so the form can correct
+    #: what somebody copied.
+    issuer: Optional[str] = None
+    authorization_endpoint: Optional[str] = None
+    token_endpoint: Optional[str] = None
+    jwks_uri: Optional[str] = None
+    userinfo_endpoint: Optional[str] = None
+    signing_algs: List[str] = Field(default_factory=list)
+    #: What the provider says it offers. Advisory — these fill in the scopes
+    #: and groups-claim fields, and no login decision reads them.
+    scopes_supported: List[str] = Field(default_factory=list)
+    claims_supported: List[str] = Field(default_factory=list)
+
+
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

@@ -5,7 +5,11 @@ guild configures for itself. Exists only where the operator has granted the
 guild that option (404 otherwise, like the rest of the guild auth surface).
 
 Reading is a guild admin's; changing is the security admin's, the seat that
-holds a guild's sign-in configuration.
+holds a guild's sign-in configuration. Looking a provider up — ``discover``
+for an address still being typed, ``{id}/test`` for a saved row's own issuer —
+goes with changing rather than reading: the answer exists to fill in a form
+only that seat may save, and the lookup spends the deployment's egress. Both
+are rate limited.
 
 The CRUD logic — namespace scoping, slug rules, write-only secrets, delete
 semantics — lives in ``app.services.auth.provider_registry``, shared with the
@@ -17,7 +21,7 @@ request-path grants).
 
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep, get_current_active_user
@@ -27,14 +31,17 @@ from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_security_admin,
     _require_guild_auth_option,
 )
+from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
     AuthProviderAdminRead,
     AuthProviderCreate,
+    AuthProviderDiscoverRequest,
+    AuthProviderProbeResult,
     AuthProviderUpdate,
 )
-from app.services.auth import provider_registry
+from app.services.auth import provider_probe, provider_registry
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -144,3 +151,46 @@ async def delete_guild_auth_provider(
     await provider_registry.delete_provider(
         admin_session, provider_id, guild_id=guild_id
     )
+
+
+@router.post(
+    "/{guild_id}/auth/providers/discover", response_model=AuthProviderProbeResult
+)
+@limiter.limit("10/minute")
+async def discover_guild_auth_provider(
+    request: Request,
+    guild_id: int,
+    payload: AuthProviderDiscoverRequest,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> AuthProviderProbeResult:
+    """Look up an address and report what it offers, before anything is saved."""
+    await _require_guild_provider_admin(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    result = await provider_probe.probe_issuer(payload.issuer)
+    return AuthProviderProbeResult.model_validate(result, from_attributes=True)
+
+
+@router.post(
+    "/{guild_id}/auth/providers/{provider_id}/test",
+    response_model=AuthProviderProbeResult,
+)
+@limiter.limit("10/minute")
+async def test_guild_auth_provider(
+    request: Request,
+    guild_id: int,
+    provider_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> AuthProviderProbeResult:
+    """Look up a saved provider's own issuer. The address comes off the row."""
+    await _require_guild_provider_admin(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    result = await provider_probe.probe_provider(
+        admin_session, provider_id, guild_id=guild_id
+    )
+    return AuthProviderProbeResult.model_validate(result, from_attributes=True)
