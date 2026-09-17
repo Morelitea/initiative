@@ -177,9 +177,8 @@ def _clean_claim(
 ) -> tuple[str | None, list[str] | None]:
     """A narrowing is both halves or neither.
 
-    A claim with no values would admit nobody and a value with no claim names
-    nothing to read it from; either alone is a half-written rule that would
-    look configured.
+    A claim says which value to read and the values say which ones count, so
+    one without the other is a half-written rule. Either alone is cleared.
     """
     named = (claim or "").strip()
     values = [v.strip() for v in (claim_values or []) if v.strip()]

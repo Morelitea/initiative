@@ -140,7 +140,7 @@ async def test_a_narrowing_is_both_halves_or_neither(
     )
     headers = get_auth_headers(admin)
 
-    # A claim with nothing to match would admit nobody while looking set.
+    # A narrowing is both halves or neither; half of one narrows nothing.
     half = await client.post(
         _base(guild.id),
         headers=headers,

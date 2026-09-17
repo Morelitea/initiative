@@ -96,8 +96,8 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
     connect.mutate(
       {
         provider_id: Number(providerId),
-        // Both halves or neither: the server refuses a claim with nothing to
-        // match, because it would look configured and admit nobody.
+        // Both halves or neither — the server clears a half-written one, so
+        // send it the way it will store it.
         claim: claim && values.length > 0 ? claim : null,
         claim_values: claim && values.length > 0 ? values : null,
       },
