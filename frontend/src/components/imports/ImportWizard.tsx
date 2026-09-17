@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronLeft, FileUp, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileUp, Loader2, XCircle } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,15 +10,10 @@ import {
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ImportReport } from "@/components/imports/ImportReport";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useImportJob } from "@/hooks/useImportJob";
+import { useWizard } from "@/hooks/useWizard";
 import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/backupPeek";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -45,7 +40,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const guildId = useActiveGuildId();
   const importJob = useImportJob();
 
-  const [step, setStep] = useState<Step>("pick");
+  const { step, go, commit, back, reset } = useWizard<Step>("pick");
   const [file, setFile] = useState<File | null>(null);
   const [peeked, setPeeked] = useState<PeekedManifest | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
@@ -58,7 +53,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment
   useEffect(() => {
     if (!open) {
-      setStep("pick");
+      reset();
       setFile(null);
       setPeeked(null);
       setPickError(null);
@@ -67,16 +62,16 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     } else if (importJob.busy) {
       // A job from a previous wizard session is still applying — resume its
       // progress view instead of offering a new flow.
-      setStep("progress");
+      commit("progress");
     }
   }, [open]);
 
   // The poll ending flips progress → report.
   useEffect(() => {
     if (step === "progress" && importJob.terminal != null) {
-      setStep("report");
+      commit("report");
     }
-  }, [step, importJob.terminal]);
+  }, [step, importJob.terminal, commit]);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     setPickError(null);
@@ -93,7 +88,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       const manifest = await peekBackupManifest(picked);
       setFile(picked);
       setPeeked(manifest);
-      setStep("peek");
+      go("peek");
     } catch (err) {
       // "not_backup" → wrong/corrupt file; "unreadable" (and any non-peek
       // throw: a DecompressionStream/TextDecoder failure, OOM) → we couldn't
@@ -110,14 +105,14 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     if (!file) {
       return;
     }
-    setStep("uploading");
+    go("uploading");
     try {
       const job = await uploadMutation.mutateAsync({ guildId, data: { file } });
       setStagedJob(job);
-      setStep("plan");
+      commit("plan");
     } catch (err) {
       toast.error(getErrorMessage(err, "imports:envelope.error"));
-      setStep("peek");
+      back();
     }
   };
 
@@ -132,7 +127,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
         data: {},
       });
       importJob.watch(job.id);
-      setStep("progress");
+      commit("progress");
     } catch (err) {
       toast.error(getErrorMessage(err, "imports:envelope.error"));
     }
@@ -185,163 +180,169 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     };
   }, [peeked]);
 
+  const stepDescription =
+    step === "pick" ? t("wizard.pick.hint") : step === "plan" ? t("wizard.plan.prompt") : null;
+
+  // Three questions to answer; the upload, the run and the report are what
+  // happens afterwards.
+  const position: Record<Step, number | null> = {
+    pick: 1,
+    peek: 2,
+    uploading: null,
+    plan: 3,
+    progress: null,
+    report: null,
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("wizard.title")}</DialogTitle>
-          {step === "pick" && <DialogDescription>{t("wizard.pick.hint")}</DialogDescription>}
-          {step === "plan" && <DialogDescription>{t("wizard.plan.prompt")}</DialogDescription>}
-        </DialogHeader>
+    <WizardDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      title={t("wizard.title")}
+      description={stepDescription}
+      progress={position[step] === null ? undefined : { current: position[step]!, total: 3 }}
+      // Only here. The next step uploads the file, and once that has staged a
+      // job the way out is Cancel, which deletes it.
+      onBack={step === "peek" ? back : undefined}
+      backLabel={t("wizard.back")}
+    >
+      {step === "pick" && (
+        <div className="space-y-3">
+          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors hover:bg-accent">
+            <FileUp className="h-8 w-8 text-muted-foreground" />
+            <span className="font-medium text-sm">{t("wizard.pick.prompt")}</span>
+            <input
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </label>
+          {pickError && <p className="text-destructive text-sm">{pickError}</p>}
+        </div>
+      )}
 
-        {step === "peek" && (
-          <Button variant="ghost" size="sm" className="w-fit" onClick={() => setStep("pick")}>
-            <ChevronLeft className="h-4 w-4" />
-            {t("wizard.back")}
+      {step === "peek" && peekSummary && (
+        <div className="space-y-4">
+          <div className="space-y-1 rounded-lg border p-3 text-sm">
+            <p className="font-medium">
+              {t("wizard.peek.source", { name: peekSummary.guildName })}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {t("wizard.peek.exportedAt", {
+                date: peekSummary.exportedAt,
+                version: peekSummary.appVersion,
+              })}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {t("wizard.peek.initiative", { count: peekSummary.initiativeCount })} ·{" "}
+              {t("wizard.peek.entries", { count: peekSummary.entryCount })}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {peekSummary.assetCount > 0
+                ? t("wizard.peek.assets", {
+                    count: peekSummary.assetCount,
+                    size: formatBytes(peekSummary.assetBytes),
+                  })
+                : t("wizard.peek.noAssets")}
+            </p>
+          </div>
+          <p className="text-muted-foreground text-xs">{t("wizard.peek.note")}</p>
+          <Button className="w-full" onClick={() => void handleUpload()}>
+            {t("wizard.upload")}
           </Button>
-        )}
+        </div>
+      )}
 
-        {step === "pick" && (
-          <div className="space-y-3">
-            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors hover:bg-accent">
-              <FileUp className="h-8 w-8 text-muted-foreground" />
-              <span className="font-medium text-sm">{t("wizard.pick.prompt")}</span>
-              <input
-                type="file"
-                accept=".zip,application/zip"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-            {pickError && <p className="text-destructive text-sm">{pickError}</p>}
+      {step === "uploading" && (
+        <div className="flex flex-col items-center gap-3 py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground text-sm">{t("wizard.uploading")}</p>
+        </div>
+      )}
+
+      {step === "plan" && plan && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {(plan.initiatives ?? []).map((initiative) => (
+              <div key={initiative.source_id} className="space-y-1 rounded-lg border p-3">
+                <p className="font-medium text-sm">
+                  {t("wizard.plan.willCreate", {
+                    name: initiative.name,
+                    proposed: initiative.proposed_name,
+                  })}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {Object.entries(initiative.entry_counts)
+                    .map(([tool, count]) => `${tool}: ${count}`)
+                    .join(" · ")}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
-
-        {step === "peek" && peekSummary && (
-          <div className="space-y-4">
-            <div className="space-y-1 rounded-lg border p-3 text-sm">
-              <p className="font-medium">
-                {t("wizard.peek.source", { name: peekSummary.guildName })}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t("wizard.peek.exportedAt", {
-                  date: peekSummary.exportedAt,
-                  version: peekSummary.appVersion,
-                })}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t("wizard.peek.initiative", { count: peekSummary.initiativeCount })} ·{" "}
-                {t("wizard.peek.entries", { count: peekSummary.entryCount })}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {peekSummary.assetCount > 0
-                  ? t("wizard.peek.assets", {
-                      count: peekSummary.assetCount,
-                      size: formatBytes(peekSummary.assetBytes),
-                    })
-                  : t("wizard.peek.noAssets")}
-              </p>
-            </div>
-            <p className="text-muted-foreground text-xs">{t("wizard.peek.note")}</p>
-            <Button className="w-full" onClick={() => void handleUpload()}>
-              {t("wizard.upload")}
+          {(plan.skipped?.length ?? 0) > 0 && (
+            <p className="flex items-start gap-2 text-muted-foreground text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {t("wizard.plan.skipped", { count: plan.skipped?.length ?? 0 })}
+            </p>
+          )}
+          {(plan.unknown_types?.length ?? 0) > 0 && (
+            <p className="flex items-start gap-2 text-muted-foreground text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {t("wizard.plan.unknownTypes", {
+                types: (plan.unknown_types ?? []).join(", "),
+              })}
+            </p>
+          )}
+          <p className="text-muted-foreground text-xs">{t("wizard.plan.note")}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>
+              {t("wizard.cancelUpload")}
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={confirmMutation.isPending}
+              onClick={() => void handleConfirm()}
+            >
+              {t("wizard.start")}
             </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {step === "uploading" && (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground text-sm">{t("wizard.uploading")}</p>
-          </div>
-        )}
+      {step === "progress" && (
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="font-medium text-sm">{t("wizard.progress.title")}</p>
+          <p className="text-muted-foreground text-xs">{t("wizard.progress.note")}</p>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            {t("wizard.close")}
+          </Button>
+        </div>
+      )}
 
-        {step === "plan" && plan && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              {(plan.initiatives ?? []).map((initiative) => (
-                <div key={initiative.source_id} className="space-y-1 rounded-lg border p-3">
-                  <p className="font-medium text-sm">
-                    {t("wizard.plan.willCreate", {
-                      name: initiative.name,
-                      proposed: initiative.proposed_name,
-                    })}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {Object.entries(initiative.entry_counts)
-                      .map(([tool, count]) => `${tool}: ${count}`)
-                      .join(" · ")}
-                  </p>
-                </div>
-              ))}
-            </div>
-            {(plan.skipped?.length ?? 0) > 0 && (
-              <p className="flex items-start gap-2 text-muted-foreground text-xs">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {t("wizard.plan.skipped", { count: plan.skipped?.length ?? 0 })}
-              </p>
+      {step === "report" && importJob.terminal && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            {importJob.terminal.status === "done" ? (
+              <>
+                <CheckCircle2 className="h-6 w-6 text-primary" />
+                <p className="font-medium">{t("wizard.report.title")}</p>
+              </>
+            ) : (
+              <>
+                <XCircle className="h-6 w-6 text-destructive" />
+                <p className="font-medium">{t("wizard.report.failedTitle")}</p>
+              </>
             )}
-            {(plan.unknown_types?.length ?? 0) > 0 && (
-              <p className="flex items-start gap-2 text-muted-foreground text-xs">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {t("wizard.plan.unknownTypes", {
-                  types: (plan.unknown_types ?? []).join(", "),
-                })}
-              </p>
-            )}
-            <p className="text-muted-foreground text-xs">{t("wizard.plan.note")}</p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => void handleCancelStaged()}
-              >
-                {t("wizard.cancelUpload")}
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={confirmMutation.isPending}
-                onClick={() => void handleConfirm()}
-              >
-                {t("wizard.start")}
-              </Button>
-            </div>
           </div>
-        )}
-
-        {step === "progress" && (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="font-medium text-sm">{t("wizard.progress.title")}</p>
-            <p className="text-muted-foreground text-xs">{t("wizard.progress.note")}</p>
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              {t("wizard.close")}
-            </Button>
-          </div>
-        )}
-
-        {step === "report" && importJob.terminal && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              {importJob.terminal.status === "done" ? (
-                <>
-                  <CheckCircle2 className="h-6 w-6 text-primary" />
-                  <p className="font-medium">{t("wizard.report.title")}</p>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-6 w-6 text-destructive" />
-                  <p className="font-medium">{t("wizard.report.failedTitle")}</p>
-                </>
-              )}
-            </div>
-            <ImportReport job={importJob.terminal} />
-            <Button className="w-full" onClick={() => onOpenChange(false)}>
-              {t("wizard.close")}
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          <ImportReport job={importJob.terminal} />
+          <Button className="w-full" onClick={() => onOpenChange(false)}>
+            {t("wizard.close")}
+          </Button>
+        </div>
+      )}
+    </WizardDialog>
   );
 }
