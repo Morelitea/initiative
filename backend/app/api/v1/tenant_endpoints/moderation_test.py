@@ -12,6 +12,7 @@ from app.models.platform.guild import GuildRole
 from app.core.intake import IntakeStream
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding
+from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -199,6 +200,104 @@ async def test_a_moderator_reads_it(client, scene):
     # Who reported it is deliberately absent from the payload.
     assert "reporter_id" not in items[0]
     assert "reporters" not in items[0]
+
+
+async def test_a_report_carries_what_was_reported(client, scene):
+    """A moderator reads the comment on the card, not only that one exists."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="harassment",
+        guild_id=scene["guild"].id,
+    )
+    listed = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports",
+        headers=scene["mod"].headers,
+    )
+    item = listed.json()["items"][0]
+    assert item["target_excerpt"] == scene["comment"].content
+    # A comment is read on the thing it was said on, so the link opens that —
+    # the task itself, not the project the task is shared as part of.
+    assert item["target_link"] == {
+        "entity_type": "task",
+        "entity_id": scene["task"].id,
+        "tool": Tool.project.value,
+        "tool_id": scene["task"].project_id,
+    }
+
+
+async def test_a_reported_task_is_addressed_by_its_project(client, session, scene):
+    """Every kind gets the pair, not just a comment."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="task",
+        target_id=scene["task"].id,
+        reason="spam",
+        guild_id=scene["guild"].id,
+    )
+    listed = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports",
+        headers=scene["mod"].headers,
+    )
+    item = listed.json()["items"][0]
+    assert item["target_excerpt"] == scene["task"].title
+    assert item["target_link"] == {
+        "entity_type": "task",
+        "entity_id": scene["task"].id,
+        "tool": Tool.project.value,
+        "tool_id": scene["task"].project_id,
+    }
+
+
+async def test_a_deleted_target_leaves_the_report_without_one(client, session, scene):
+    """The report stands; there is just nothing left to show or link to."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="harassment",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    comment = await session.get(Comment, scene["comment"].id)
+    await session.delete(comment)
+    await session.commit()
+    await set_rls_context(session)
+
+    listed = await client.get(
+        f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports",
+        headers=scene["mod"].headers,
+    )
+    item = listed.json()["items"][0]
+    assert item["target_excerpt"] is None
+    assert item["target_link"] is None
+
+
+async def test_settling_answers_with_the_target_too(client, session, scene):
+    """The page replaces the card with this reply, so it carries the same."""
+    await _report(
+        client,
+        scene["member"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="spam",
+        guild_id=scene["guild"].id,
+    )
+    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    report_id = (await session.exec(select(ModerationReport))).one().id
+    await set_rls_context(session)
+
+    settled = await client.post(
+        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        json={"outcome": ReportOutcome.dismissed.value},
+        headers=scene["mod"].headers,
+    )
+    assert settled.status_code == 200, settled.text
+    assert settled.json()["target_excerpt"] == scene["comment"].content
 
 
 async def test_a_second_reporter_joins_the_open_report(client, session, scene):

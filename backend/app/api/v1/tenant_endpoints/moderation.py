@@ -35,6 +35,7 @@ from app.schemas.tenant.moderation import (
     ReportAccepted,
     ReportCreate,
     ReportSettle,
+    ReportTargetLink,
     SharedResourceRead,
 )
 from app.services.tenant import moderation as moderation_service
@@ -46,7 +47,12 @@ me_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-def _read(report, reporter_count: int, details: list[str]) -> ModerationReportRead:
+def _read(
+    report,
+    reporter_count: int,
+    details: list[str],
+    preview: moderation_service.TargetPreview | None = None,
+) -> ModerationReportRead:
     return ModerationReportRead(
         id=report.id,
         initiative_id=report.initiative_id,
@@ -60,6 +66,20 @@ def _read(report, reporter_count: int, details: list[str]) -> ModerationReportRe
         note=report.note,
         decided_by=report.decided_by,
         decided_at=report.decided_at,
+        # Absent where the target is gone or out of this reader's reach; the
+        # report still stands, and the client says so rather than drawing a
+        # link to nothing.
+        target_excerpt=preview.excerpt if preview else None,
+        target_link=(
+            ReportTargetLink(
+                entity_type=preview.location.entity_type,
+                entity_id=preview.location.entity_id,
+                tool=preview.location.tool,
+                tool_id=preview.location.tool_id,
+            )
+            if preview and preview.location
+            else None
+        ),
     )
 
 
@@ -106,6 +126,7 @@ async def list_reports(
     initiative_id: int,
     session: RLSSessionDep,
     guild_context: GuildContextDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     settled: Annotated[bool, Query()] = False,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -124,8 +145,19 @@ async def list_reports(
         limit=limit,
         offset=offset,
     )
+    # One lookup for the page rather than one per card: a moderator deciding
+    # from a list should not have to open each item to find out what it says.
+    previews = await moderation_service.target_previews(
+        session,
+        [report for report, _, _ in rows],
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
     return ModerationReportList(
-        items=[_read(report, count, details) for report, count, details in rows],
+        items=[
+            _read(report, count, details, previews.get(report.id))
+            for report, count, details in rows
+        ],
         total=len(rows),
     )
 
@@ -154,7 +186,18 @@ async def settle_report(
     # shape as an open one, and answering zero would have the page replace what
     # it already had with nothing.
     counts, details = await moderation_service.reporters_for(session, [report.id])
-    return _read(report, counts.get(report.id, 0), details.get(report.id, []))
+    previews = await moderation_service.target_previews(
+        session,
+        [report],
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
+    return _read(
+        report,
+        counts.get(report.id, 0),
+        details.get(report.id, []),
+        previews.get(report.id),
+    )
 
 
 @router.get(

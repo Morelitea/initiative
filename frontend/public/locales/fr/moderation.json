@@ -13,6 +13,7 @@
   },
   "reportedCount_one": "Signalé par {{count}} personne",
   "reportedCount_other": "Signalé par {{count}} personnes",
+  "targetUnavailable": "Ce contenu n'est plus là, ou ne vous est pas accessible.",
   "whatTheySaid": "Ce qu'ils ont dit",
   "reviewElsewhere": "Ouvrez l'élément signalé pour le voir en contexte, puis décidez ici.",
   "notePlaceholder": "Ce que vous avez constaté et pourquoi vous avez décidé ainsi (facultatif)",
@@ -38,7 +39,7 @@
   },
   "targets": {
     "comment": "Un commentaire",
-    "post": "Une annonce",
+    "post": "Une publication",
     "task": "Une tâche",
     "document": "Un document",
     "project": "Un projet",

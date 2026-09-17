@@ -84,6 +84,18 @@ describe("PostCard", () => {
     expect(await screen.findByRole("button", { name: /pin to top/i })).toBeInTheDocument();
   });
 
+  // Both controls end the headline row together. Spacing them apart instead
+  // put the pin wherever the report button left it — the middle of the card.
+  it("keeps the pin and the report control together at the end of the row", async () => {
+    const post = buildPost({ created_by: 999 });
+    renderPage(cardPage({ post, canPin: true }));
+
+    const pin = await screen.findByRole("button", { name: /pin to top/i });
+    const flag = screen.getByRole("button", { name: /report/i });
+    expect(pin.parentElement).toBe(flag.closest("button")?.parentElement);
+    expect(pin.parentElement).not.toContainElement(screen.getByText(post.name));
+  });
+
   // Reacting is a read-level gesture, so it is offered on the board itself
   // rather than only after opening the post.
   it("offers reactions on the board", async () => {

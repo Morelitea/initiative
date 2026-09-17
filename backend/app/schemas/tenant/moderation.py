@@ -8,6 +8,8 @@ from typing import List, Optional
 from pydantic import Field as PydanticField
 
 from app.core.moderation import ReportOutcome, ReportReason, ReportVenue
+from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -36,6 +38,22 @@ class ReportAccepted(SanitizedBaseModel):
     venue: ReportVenue
 
 
+class ReportTargetLink(SanitizedBaseModel):
+    """Where a reported thing is read.
+
+    A comment has no page of its own — it is read on whatever it was said on —
+    so this names that thing rather than the comment. Everything else names
+    itself. The trio is the one a search hit carries, and means the same here:
+    what to open, and the tool it is addressed inside, since a task needs its
+    project's id to be addressed at all.
+    """
+
+    entity_type: SearchEntityType
+    entity_id: int
+    tool: Tool
+    tool_id: int
+
+
 class ModerationReportRead(SanitizedBaseModel):
     """One report, as its community's moderators see it."""
 
@@ -56,6 +74,13 @@ class ModerationReportRead(SanitizedBaseModel):
     note: Optional[str] = None
     decided_by: Optional[int] = None
     decided_at: Optional[datetime] = None
+    #: What the reported thing says — a comment's opening, anything else's
+    #: name — read from the index that already holds exactly that line. None
+    #: when the row is no longer there, which is the honest answer for content
+    #: that has since been deleted or taken down.
+    target_excerpt: Optional[str] = None
+    #: Where to go and read it. None for the same reasons the excerpt is.
+    target_link: Optional["ReportTargetLink"] = None
 
 
 class ModerationReportList(SanitizedBaseModel):
