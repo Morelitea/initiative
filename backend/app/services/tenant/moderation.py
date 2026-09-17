@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import Table, select as sa_select, text
+from sqlalchemy import Table, select as sa_select, text, tuple_
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,11 +37,14 @@ from app.core.moderation import (
     venue_for,
 )
 from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
 from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
+from app.models.tenant.search_entry import SearchEntry
 from app.services.platform.intake import CaseRefs, open_case
+from app.services.tenant.search import search_scope_clause
 
 logger = logging.getLogger(__name__)
 
@@ -455,6 +458,175 @@ async def reporters_for(
         if detail:
             details.setdefault(report_id, []).append(detail)
     return counts, details
+
+
+#: The entity type a comment's parent column names. Every declared parent is a
+#: kind in its own right, so the column's own name is the answer and there is no
+#: second list to keep in step.
+def _parent_entity(column: str) -> SearchEntityType:
+    return SearchEntityType(column.removesuffix("_id"))
+
+
+class TargetLocation:
+    """What to open to go and read a reported thing.
+
+    The target itself for everything with a page of its own, and the thing a
+    comment was said on for a comment — a comment is read where it was written,
+    and its own id addresses nothing. ``tool`` is what it is addressed inside,
+    since a task needs its project's id to be addressed at all.
+    """
+
+    __slots__ = ("entity_type", "entity_id", "tool", "tool_id")
+
+    def __init__(
+        self, entity_type: str, entity_id: int, tool: Tool, tool_id: int
+    ) -> None:
+        self.entity_type = entity_type
+        self.entity_id = entity_id
+        self.tool = tool
+        self.tool_id = tool_id
+
+
+class TargetPreview:
+    """A line of a reported thing, and where to go and read it.
+
+    Either half can be absent on its own: a comment whose parent this reader
+    cannot reach still shows what it said, and a thing whose own index entry has
+    gone can still be opened.
+    """
+
+    __slots__ = ("excerpt", "location")
+
+    def __init__(
+        self, excerpt: Optional[str], location: Optional[TargetLocation]
+    ) -> None:
+        self.excerpt = excerpt
+        self.location = location
+
+
+async def _comment_parents(
+    session: AsyncSession, comment_ids: list[int]
+) -> dict[int, tuple[str, int]]:
+    """What each of these comments was said on — the kind, and which one.
+
+    Read from the comment's own parent columns, declared once in
+    ``COMMENT_PARENT_COLUMNS``, rather than from the index's sharing pair: the
+    two differ for the one parent whose sharing is not its own — a comment on a
+    task is shared as part of the task's *project*, and read on the task.
+    """
+    from app.db.initiative_rls import COMMENT_PARENT_COLUMNS
+
+    if not comment_ids:
+        return {}
+
+    comments = SQLModel.metadata.tables["comments"]
+    columns = [comments.c[name] for name in COMMENT_PARENT_COLUMNS]
+    rows = (
+        await session.exec(
+            sa_select(comments.c["id"], *columns).where(
+                comments.c["id"].in_(comment_ids)
+            )
+        )
+    ).all()
+
+    parents: dict[int, tuple[str, int]] = {}
+    for row in rows:
+        for name, value in zip(COMMENT_PARENT_COLUMNS, row[1:]):
+            if value is not None:
+                # Exactly one is set — the table's own check constraint says so.
+                parents[row[0]] = (_parent_entity(name).value, int(value))
+                break
+    return parents
+
+
+async def target_previews(
+    session: AsyncSession,
+    reports: list[ModerationReport],
+    *,
+    user_id: int,
+    guild_id: int,
+) -> dict[int, TargetPreview]:
+    """A line of each report's target, and what to open to reach it.
+
+    Read from ``search_entries`` rather than from each kind's own table: the
+    index already holds, per row, the one line that stands for it — a comment's
+    opening, everything else's name — and the tool it is addressed inside,
+    which is what a link to a thing with no page of its own is built from. So
+    every reportable kind is covered here without a switch over kinds, and a
+    kind added later arrives with one.
+
+    Narrowed by ``search_scope_clause``, the same ``public.resource_access``
+    call the table's own policies make. A moderator's standing already clears
+    it for their initiative; a target they cannot reach comes back absent, and
+    so does one that has since been deleted — the index drops with the row.
+    """
+    if not reports:
+        return {}
+
+    # A comment is read on the thing it was said on, so that is what a link to
+    # it opens. Everything else answers for itself.
+    parents = await _comment_parents(
+        session,
+        [r.target_id for r in reports if r.target_type == SearchEntityType.comment],
+    )
+    destination = {
+        (r.target_type, r.target_id): (
+            parents.get(r.target_id)
+            if r.target_type == SearchEntityType.comment
+            else (r.target_type, r.target_id)
+        )
+        for r in reports
+    }
+
+    pairs = set(destination) | {d for d in destination.values() if d is not None}
+    rows = (
+        await session.exec(
+            select(
+                SearchEntry.entity_type,
+                SearchEntry.entity_id,
+                SearchEntry.title,
+                SearchEntry.dac_tool,
+                SearchEntry.dac_id,
+            )
+            .where(
+                tuple_(SearchEntry.entity_type, SearchEntry.entity_id).in_(
+                    sorted(pairs)
+                )
+            )
+            # The first chunk. Long text is split across rows, and the title is
+            # the same on each of them.
+            .where(SearchEntry.chunk_ix == 0)
+            .where(search_scope_clause(user_id, guild_id=guild_id))
+        )
+    ).all()
+    found = {(row[0], row[1]): row for row in rows}
+
+    previews: dict[int, TargetPreview] = {}
+    for report in reports:
+        report_id = report.id
+        if report_id is None:  # read back from a SELECT; the guard narrows it
+            continue
+        target = found.get((report.target_type, report.target_id))
+        reached = destination[(report.target_type, report.target_id)]
+        # Reachable is the index's answer for BOTH: a moderator who cannot see
+        # what a comment was said on is not sent to it, whatever they can see
+        # of the comment itself.
+        where = found.get(reached) if reached is not None else None
+        location = (
+            TargetLocation(where[0], where[1], Tool(where[3]), where[4])
+            # A kind carrying no tool at all — the guild's own vocabulary — is
+            # not something a community report can name, and is not addressed
+            # from here if one ever does.
+            if where is not None and where[3] and where[4] is not None
+            else None
+        )
+        if target is None and location is None:
+            continue
+        previews[report_id] = TargetPreview(
+            excerpt=target[2] if target is not None else None,
+            location=location,
+        )
+    return previews
 
 
 async def list_reports(

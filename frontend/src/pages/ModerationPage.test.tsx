@@ -34,6 +34,9 @@ const report = (overrides: Record<string, unknown> = {}) => ({
   note: null,
   decided_by: null,
   decided_at: null,
+  target_excerpt: "Say that again and see.",
+  // A comment is read on the thing it was said on, so the link opens that.
+  target_link: { entity_type: "task", entity_id: 88, tool: "project", tool_id: 12 },
   ...overrides,
 });
 
@@ -151,21 +154,55 @@ describe("ModerationPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("links the reported item through the resolver", async () => {
+  it("shows what was reported, not only that something was", async () => {
+    state.items = [report({ target_excerpt: "Say that again and see." })];
+    render();
+
+    const card = await screen.findByRole("region", { name: "A comment" });
+    expect(within(card).getByText("Say that again and see.")).toBeInTheDocument();
+  });
+
+  it("links a comment to the task it was said on, not to its project", async () => {
+    // A comment has no page of its own; it is read where it was written. The
+    // project is only what the task is *shared* as part of, and landing there
+    // leaves a moderator hunting for the comment they were sent to read.
+    state.items = [report()];
+    render();
+
+    const link = await screen.findByRole("link", { name: "A comment" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/projects/12/tasks/88"));
+  });
+
+  it("links a comment on a document to that document", async () => {
+    state.items = [
+      report({
+        target_link: { entity_type: "document", entity_id: 5, tool: "document", tool_id: 5 },
+      }),
+    ];
+    render();
+
+    const link = await screen.findByRole("link", { name: "A comment" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/documents/5"));
+  });
+
+  it("links a reported task to the task itself", async () => {
     state.items = [report({ target_type: "task", target_id: 88 })];
     render();
 
     const link = await screen.findByRole("link", { name: "A task" });
-    expect(link).toHaveAttribute("href", expect.stringContaining("/go/task/88"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("/projects/12/tasks/88"));
   });
 
-  it("leaves a kind with no page of its own as plain text", async () => {
-    // A queue item is reached through its queue, so there is nowhere to link.
-    state.items = [report({ target_type: "queue_item", target_id: 5 })];
+  it("says so, and links nowhere, once the reported thing is gone", async () => {
+    // Deleted since — or never this reader's to see. One answer for both, and
+    // a link would go nowhere either way.
+    state.items = [report({ target_excerpt: null, target_link: null })];
     render();
 
-    expect(await screen.findByText("A queue item")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "A queue item" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("This isn't here any more, or isn't yours to see.")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "A comment" })).not.toBeInTheDocument();
   });
 
   it("offers a further page once one is full", async () => {

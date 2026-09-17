@@ -4791,6 +4791,35 @@ export const ReportOutcome = {
   escalated: "escalated",
 } as const;
 
+export type Tool = (typeof Tool)[keyof typeof Tool];
+
+export const Tool = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+} as const;
+
+/**
+ * Where a reported thing is read.
+ *
+ * A comment has no page of its own — it is read on whatever it was said on —
+ * so this names that thing rather than the comment. Everything else names
+ * itself. The trio is the one a search hit carries, and means the same here:
+ * what to open, and the tool it is addressed inside, since a task needs its
+ * project's id to be addressed at all.
+ */
+export interface ReportTargetLink {
+  entity_type: SearchEntityType;
+  entity_id: number;
+  tool: Tool;
+  tool_id: number;
+}
+
 /**
  * One report, as its community's moderators see it.
  */
@@ -4807,6 +4836,8 @@ export interface ModerationReportRead {
   note?: string | null;
   decided_by?: number | null;
   decided_at?: string | null;
+  target_excerpt?: string | null;
+  target_link?: ReportTargetLink | null;
 }
 
 export interface ModerationReportList {
@@ -5120,19 +5151,6 @@ export interface OperatorCatalogScanResult {
   skipped: number;
   problems: OperatorCatalogProblem[];
 }
-
-export type Tool = (typeof Tool)[keyof typeof Tool];
-
-export const Tool = {
-  project: "project",
-  document: "document",
-  queue: "queue",
-  counter_group: "counter_group",
-  calendar: "calendar",
-  dashboard: "dashboard",
-  post: "post",
-  gallery: "gallery",
-} as const;
 
 /**
  * One thing someone owns, or that nobody does.

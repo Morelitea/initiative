@@ -13,6 +13,7 @@
   },
   "reportedCount_one": "Von {{count}} Person gemeldet",
   "reportedCount_other": "Von {{count}} Personen gemeldet",
+  "targetUnavailable": "Das ist nicht mehr da – oder nicht für Sie einsehbar.",
   "whatTheySaid": "Was gesagt wurde",
   "reviewElsewhere": "Öffne das gemeldete Element, sieh es dir im Zusammenhang an und entscheide dann hier.",
   "notePlaceholder": "Was du festgestellt hast und warum du so entschieden hast (optional)",
@@ -38,7 +39,7 @@
   },
   "targets": {
     "comment": "Ein Kommentar",
-    "post": "Eine Mitteilung",
+    "post": "Ein Beitrag",
     "task": "Eine Aufgabe",
     "document": "Ein Dokument",
     "project": "Ein Projekt",

@@ -13,6 +13,7 @@
   },
   "reportedCount_one": "Denunciado por {{count}} persona",
   "reportedCount_other": "Denunciado por {{count}} personas",
+  "targetUnavailable": "Esto ya no está aquí, o no es tuyo para verlo.",
   "whatTheySaid": "Lo que dijeron",
   "reviewElsewhere": "Abre el elemento denunciado para verlo en contexto y luego decide aquí.",
   "notePlaceholder": "Qué encontraste y por qué decidiste esto (opcional)",
@@ -38,7 +39,7 @@
   },
   "targets": {
     "comment": "Un comentario",
-    "post": "Un aviso",
+    "post": "Una publicación",
     "task": "Una tarea",
     "document": "Un documento",
     "project": "Un proyecto",

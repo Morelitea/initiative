@@ -13,6 +13,7 @@
   },
   "reportedCount_one": "Reported by {{count}} person",
   "reportedCount_other": "Reported by {{count}} people",
+  "targetUnavailable": "This isn't here any more, or isn't yours to see.",
   "whatTheySaid": "What they said",
   "reviewElsewhere": "Open the reported item to look at it in context, then decide here.",
   "notePlaceholder": "What you found, and why you decided this (optional)",
@@ -38,7 +39,7 @@
   },
   "targets": {
     "comment": "A comment",
-    "post": "A notice",
+    "post": "A post",
     "task": "A task",
     "document": "A document",
     "project": "A project",

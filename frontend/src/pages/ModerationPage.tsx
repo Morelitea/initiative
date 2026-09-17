@@ -36,6 +36,7 @@ import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
 import { guildPath } from "@/lib/guildUrl";
+import { searchHitPath } from "@/lib/searchResults";
 
 /** The outcomes, in the order a moderator usually reaches for them. */
 const OUTCOMES: ReportOutcome[] = [
@@ -187,10 +188,12 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
   const label = t(`targets.${report.target_type}`, {
     defaultValue: report.target_type,
   });
-  // `null` for a kind with no page of its own — a counter, a queue item. Those
-  // stay plain text rather than linking somewhere that does not exist.
-  const refType = isSearchEntityType(report.target_type)
-    ? entityRefTypeFor(report.target_type)
+  // Built the way a search result's is, from what the server says the report
+  // opens — which for a comment is the thing it was said on, since a comment
+  // has no page of its own. `null` once the target is gone or out of this
+  // reader's reach, and then there is nothing to link.
+  const targetPath = report.target_link
+    ? searchHitPath({ ...report.target_link, initiative_id: report.initiative_id })
     : null;
   const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
 
@@ -200,14 +203,8 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle id={`report-${report.id}`}>
-              {refType ? (
-                // Through the resolver every reference already uses, so a
-                // moderator reaches the thing the way any link to it does —
-                // and only for kinds that have a page of their own.
-                <Link
-                  to={gp(`/go/${refType}/${report.target_id}`)}
-                  className="underline-offset-4 hover:underline"
-                >
+              {targetPath ? (
+                <Link to={gp(targetPath)} className="underline-offset-4 hover:underline">
                   {label}
                 </Link>
               ) : (
@@ -227,6 +224,19 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* What was actually reported, before what anyone said about it — a
+            decision starts with reading the thing, and a card that names only
+            its kind makes a moderator open every one of them to find out. */}
+        {report.target_excerpt ? (
+          <blockquote className="whitespace-pre-wrap break-words border-l-2 py-1 pl-3 text-sm">
+            {report.target_excerpt}
+          </blockquote>
+        ) : (
+          // Deleted since, or beyond this reader's reach — the two are one
+          // answer here, and the report still stands either way.
+          <p className="text-muted-foreground text-sm italic">{t("targetUnavailable")}</p>
+        )}
+
         {report.details.length > 0 && (
           <div className="space-y-2">
             {/* Unattributed on purpose: the count is what a decision rests on,
