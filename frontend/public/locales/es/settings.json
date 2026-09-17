@@ -810,6 +810,7 @@
     "guildIdPlaceholder": "p. ej. 42",
     "levelLabel": "Nivel de acceso",
     "levelNone": "Ninguno",
+    "nothingAsked": "Elige acceso al contenido, a los ajustes, o ambos.",
     "levelRead": "Solo lectura",
     "levelReadWrite": "Lectura y escritura",
     "purposeContent": "Acceso al contenido",

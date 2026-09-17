@@ -101,18 +101,13 @@ async def create_access_request(
     grant so an approver decides about them separately and the log keeps them
     apart. The content one is returned, being the one a caller routes in under.
     """
-    asked: list = []
     try:
-        for purpose, level in payload.wanted:
-            asked.append(
-                await service.request_grant(
-                    session,
-                    requester=current_user,
-                    payload=payload,
-                    purpose=purpose,
-                    level=level,
-                )
-            )
+        asked = await service.request_grants(
+            session,
+            requester=current_user,
+            payload=payload,
+            asks=payload.wanted,
+        )
     except service.AccessGrantError as exc:
         _raise(exc)
     grant = asked[0]

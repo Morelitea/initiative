@@ -206,19 +206,22 @@ async def _push_and_email(
         logger.error("PAM email notification failed: %s", exc, exc_info=True)
 
 
-async def request_grant(
+async def request_grants(
     session: AsyncSession,
     *,
     requester: User,
     payload: AccessGrantCreate,
-    purpose: str,
-    level: str,
-) -> AccessGrant:
-    """Create a pending access request for ``requester`` to ``payload.guild_id``.
+    asks: list[tuple[str, str]],
+) -> list[AccessGrant]:
+    """Create the pending grants ``payload`` asks for, as one act.
 
-    One grant, for one purpose. A body asking for both content and settings is
-    two calls — the caller decides what it asked for and this records each ask
-    on its own, so what was exercised is separable afterwards.
+    A body may name content, settings, or both. Each becomes its own row, so
+    an approver decides about them separately and what was exercised stays
+    separable — but they are asked for together, so this checks every one
+    before creating any and tells the approvers only once everything has
+    passed. A conflict on the second ask leaves no trace of the first, which
+    a per-ask loop could not promise: the row rolls back with the transaction
+    and the email does not.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -233,53 +236,62 @@ async def request_grant(
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
-    # Reject a second open request for the same guild while one is still
-    # pending or live. Scoped to the purpose this flow issues, so an unrelated
-    # authority for the same guild neither blocks a request nor satisfies one.
-    existing = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == requester.id,
-            AccessGrant.guild_id == payload.guild_id,
-            # Per purpose: holding content access is no reason to refuse a
-            # settings request, and the reverse.
-            AccessGrant.purpose == purpose,
-            AccessGrant.status.in_(
-                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
-            ),
+    # Every ask is checked before any row is created. Rejecting a second open
+    # request for the same guild is per purpose, so an unrelated authority for
+    # the same guild neither blocks a request nor satisfies one.
+    for purpose, _level in asks:
+        existing = await session.exec(
+            select(AccessGrant).where(
+                AccessGrant.user_id == requester.id,
+                AccessGrant.guild_id == payload.guild_id,
+                AccessGrant.purpose == purpose,
+                AccessGrant.status.in_(
+                    [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+                ),
+            )
         )
-    )
-    for grant in existing.all():
-        if grant.status == AccessGrantStatus.pending.value or grant.is_live(now=_now()):
-            raise AccessGrantError("OVERLAPPING_GRANT")
+        for grant in existing.all():
+            if grant.status == AccessGrantStatus.pending.value or grant.is_live(
+                now=_now()
+            ):
+                raise AccessGrantError("OVERLAPPING_GRANT")
 
-    grant = AccessGrant(
-        user_id=requester.id,
-        guild_id=payload.guild_id,
-        access_level=level,
-        purpose=purpose,
-        status=AccessGrantStatus.pending.value,
-        reason=payload.reason,
-        requested_duration_minutes=duration,
-        requested_by_id=requester.id,
-    )
-    session.add(grant)
+    created: list[AccessGrant] = []
+    for purpose, level in asks:
+        grant = AccessGrant(
+            user_id=requester.id,
+            guild_id=payload.guild_id,
+            access_level=level,
+            purpose=purpose,
+            status=AccessGrantStatus.pending.value,
+            reason=payload.reason,
+            requested_duration_minutes=duration,
+            requested_by_id=requester.id,
+        )
+        session.add(grant)
+        created.append(grant)
     await session.flush()
 
+    # Last, and only once everything above has held.
     requester_name = display_name(requester)
     for approver in await _approvers(session):
-        await user_notifications.create_notification(
-            session,
-            user_id=approver.id,
-            notification_type=NotificationType.access_grant_requested,
-            data={
-                "grant_id": str(grant.id),
-                "guild_id": str(grant.guild_id),
-                "guild_name": guild.name,
-                "requester_id": str(requester.id),
-                "requester_name": requester_name,
-                "access_level": grant.access_level,
-            },
-        )
+        for grant in created:
+            await user_notifications.create_notification(
+                session,
+                user_id=approver.id,
+                notification_type=NotificationType.access_grant_requested,
+                data={
+                    "grant_id": str(grant.id),
+                    "guild_id": str(grant.guild_id),
+                    "guild_name": guild.name,
+                    "requester_id": str(requester.id),
+                    "requester_name": requester_name,
+                    "access_level": grant.access_level,
+                },
+            )
+        # One message per approver, whatever was asked for: two arriving for
+        # one errand is noise, and the in-app notifications above are what
+        # link to each row.
         await _push_and_email(
             session,
             recipient=approver,
@@ -287,10 +299,10 @@ async def request_grant(
             push_key="requested",
             email_event="requested",
             guild_name=guild.name,
-            access_level=grant.access_level,
+            access_level=created[0].access_level,
             requester=requester_name,
         )
-    return grant
+    return created
 
 
 async def demands_second_factor(session: AsyncSession) -> bool:
@@ -714,7 +726,7 @@ DEFAULT_DURATION_MINUTES = settings.PAM_DEFAULT_DURATION_MINUTES
 MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
-    "request_grant",
+    "request_grants",
     "break_glass",
     "get_grant",
     "approve",

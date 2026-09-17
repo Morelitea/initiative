@@ -324,10 +324,15 @@ const RequestSection = () => {
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.cancelError")),
   });
 
+  // Neither axis is not a request. An empty body would reach the server as a
+  // plain content read — asking for something nobody chose — so the form does
+  // not let it be sent.
+  const asksForSomething = level !== "none" || settingsLevel !== "none";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
-    if (!gid || !reason.trim()) return;
+    if (!gid || !reason.trim() || !asksForSomething) return;
     createRequest.mutate({
       guild_id: gid,
       ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
@@ -412,9 +417,12 @@ const RequestSection = () => {
             />
           </div>
           <div className="sm:col-span-2">
-            <Button type="submit" disabled={createRequest.isPending}>
+            <Button type="submit" disabled={createRequest.isPending || !asksForSomething}>
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>
+            {!asksForSomething && (
+              <p className="mt-2 text-muted-foreground text-xs">{t("accessGrants.nothingAsked")}</p>
+            )}
           </div>
         </form>
 
