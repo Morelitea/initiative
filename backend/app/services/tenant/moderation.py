@@ -603,6 +603,9 @@ async def target_previews(
 
     previews: dict[int, TargetPreview] = {}
     for report in reports:
+        report_id = report.id
+        if report_id is None:  # read back from a SELECT; the guard narrows it
+            continue
         target = found.get((report.target_type, report.target_id))
         reached = destination[(report.target_type, report.target_id)]
         # Reachable is the index's answer for BOTH: a moderator who cannot see
@@ -619,7 +622,7 @@ async def target_previews(
         )
         if target is None and location is None:
             continue
-        previews[report.id] = TargetPreview(
+        previews[report_id] = TargetPreview(
             excerpt=target[2] if target is not None else None,
             location=location,
         )
