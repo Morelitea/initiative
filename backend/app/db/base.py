@@ -91,6 +91,10 @@ from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
+from app.models.platform.user_totp import UserTotp
+from app.models.platform.user_totp_secret import UserTotpSecret
+from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -222,4 +226,8 @@ __all__ = [
     "GuildApp",
     "GuildAppUserConnection",
     "GuildAppUserDelegation",
+    "UserTotp",
+    "UserTotpSecret",
+    "MfaRecoveryCode",
+    "AuthChallenge",
 ]

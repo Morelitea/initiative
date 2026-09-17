@@ -55,6 +55,7 @@ from app.core.encryption import (
     SALT_OIDC_REFRESH_TOKEN,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
+    SALT_TOTP_SECRET,
     decrypt_field,
     encrypt_field,
     hash_email,
@@ -78,6 +79,9 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The OIDC client secret lives on the provider registry's companion (the
     # legacy app_settings.oidc_client_secret_encrypted column is dropped).
     ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
+    # The seed behind an account's authenticator factor, Fernet at rest like
+    # the secrets above it and re-keyed with them.
+    ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     # Pre-existing gap, found by the catalog-driven completeness test below: a
     # rotation left the object-storage credential under the old key.

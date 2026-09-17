@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
 
@@ -352,5 +353,8 @@ async def revoke_user_sessions(
     await revoke_active_device_tokens(session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
     await session_service.revoke_all_for_user(admin_session, user_id=user.id)
+    # A sign-in part-way through rests on the password it proved, so it goes
+    # with the rest rather than standing until it expires.
+    await challenge_service.revoke_for_user(admin_session, user_id=user.id)
     if commit:
         await admin_session.commit()
