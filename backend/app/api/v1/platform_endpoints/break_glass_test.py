@@ -11,9 +11,13 @@ self-issue a scoped, time-bound, audited PAM grant. These tests prove:
   default, short-lived, and non-stacking.
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.services.auth import totp as totp_service
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -285,3 +289,224 @@ async def test_break_glass_overlapping_live_rejected(
     )
     assert resp.status_code == 409, resp.text
     assert resp.json()["detail"] == "ACCESS_GRANT_ALREADY_LIVE"
+
+
+# ---------------------------------------------------------------------------
+# The second factor (D9)
+#
+# Breaking glass carries the account's own factor as soon as any data.bypass
+# holder has one. Nobody configures it: the condition is read at the moment of
+# the request, and it is only ever on because somebody can satisfy it.
+# ---------------------------------------------------------------------------
+
+
+def _next_code(secret: str) -> str:
+    """The code for the interval after this one.
+
+    Confirming an enrolment takes the interval its code came from, so breaking
+    glass in the same thirty seconds cannot present that code again — which is
+    the rule working, and the reason the code proves presence at all. One
+    interval ahead is inside the drift a clock is allowed.
+    """
+    import pyotp
+
+    at = datetime.now(timezone.utc) + timedelta(seconds=totp_service.TOTP_PERIOD)
+    return pyotp.TOTP(secret).at(at)
+
+
+async def _enrol_factor(
+    client: AsyncClient, session: AsyncSession, user, password: str = "testpassword123"
+) -> tuple[str, list[str]]:
+    """Give ``user`` a confirmed factor, returning (secret, recovery codes)."""
+    import pyotp
+
+    headers = get_auth_headers(user)
+    started = await client.post(
+        "/api/v1/auth/totp/enroll", json={"current_password": password}, headers=headers
+    )
+    assert started.status_code == 200, started.text
+    secret = started.json()["secret"]
+    confirmed = await client.post(
+        "/api/v1/auth/totp/confirm",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers=headers,
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await session.refresh(user)
+    return secret, confirmed.json()["codes"]
+
+
+@pytest.mark.integration
+async def test_break_glass_asks_for_nothing_while_no_holder_has_a_factor(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment where nobody has enrolled is untouched by this."""
+    owner = await create_user(
+        session, email="d9-none-o@example.com", role=UserRole.owner
+    )
+    admin = await create_user(
+        session, email="d9-none-a@example.com", role=UserRole.operator
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "nothing to prove yet"},
+        headers=get_auth_headers(admin),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
+async def test_break_glass_takes_the_code_once_a_holder_has_one(
+    client: AsyncClient, session: AsyncSession
+):
+    """One enrolled data.bypass holder turns it on for the whole platform."""
+    owner = await create_user(
+        session, email="d9-code-o@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    admin = await create_user(
+        session, email="d9-code-a@example.com", role=UserRole.operator
+    )
+    secret, _codes = await _enrol_factor(client, session, admin)
+
+    # No code supplied.
+    refused = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident"},
+        headers=get_auth_headers(admin),
+    )
+    assert refused.status_code == 401
+    assert refused.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
+
+    # With the code.
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={
+            "guild_id": guild.id,
+            "reason": "incident",
+            "code": _next_code(secret),
+        },
+        headers=get_auth_headers(admin),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["status"] == "approved"
+
+
+@pytest.mark.integration
+async def test_break_glass_refuses_a_wrong_code(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(
+        session, email="d9-bad-o@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    admin = await create_user(
+        session, email="d9-bad-a@example.com", role=UserRole.operator
+    )
+    await _enrol_factor(client, session, admin)
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident", "code": "000000"},
+        headers=get_auth_headers(admin),
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "TOTP_INVALID"
+
+
+@pytest.mark.integration
+async def test_a_recovery_code_breaks_glass_too(
+    client: AsyncClient, session: AsyncSession
+):
+    """The phone is the thing most likely to be missing in the hour somebody
+    needs this, so the set kept for that answers it as well."""
+    owner = await create_user(
+        session, email="d9-rec-o@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    admin = await create_user(
+        session, email="d9-rec-a@example.com", role=UserRole.operator
+    )
+    _secret, codes = await _enrol_factor(client, session, admin)
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident", "recovery_code": codes[0]},
+        headers=get_auth_headers(admin),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
+async def test_a_holder_with_no_factor_is_told_to_set_one_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """The cost of the derived rule, stated as a test: a colleague enrolling
+    is what turns it on, and the refusal names the way back."""
+    owner = await create_user(session, email="d9-un-o@example.com", role=UserRole.owner)
+    guild = await create_guild(session, creator=owner)
+    enrolled = await create_user(
+        session, email="d9-un-e@example.com", role=UserRole.operator
+    )
+    await _enrol_factor(client, session, enrolled)
+    bare = await create_user(
+        session, email="d9-un-b@example.com", role=UserRole.operator
+    )
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident"},
+        headers=get_auth_headers(bare),
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_the_form_is_told_what_it_will_be_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    admin = await create_user(
+        session, email="d9-req-a@example.com", role=UserRole.operator
+    )
+
+    before = await client.get(
+        "/api/v1/access-grants/break-glass", headers=get_auth_headers(admin)
+    )
+    assert before.status_code == 200, before.text
+    assert before.json() == {"second_factor_required": False, "enrolled": False}
+
+    await _enrol_factor(client, session, admin)
+
+    after = await client.get(
+        "/api/v1/access-grants/break-glass", headers=get_auth_headers(admin)
+    )
+    assert after.json() == {"second_factor_required": True, "enrolled": True}
+
+
+@pytest.mark.integration
+async def test_a_support_users_factor_does_not_turn_it_on(
+    client: AsyncClient, session: AsyncSession
+):
+    """The rule reads data.bypass holders, not everybody: a support account
+    enrolling says nothing about who can break glass."""
+    owner = await create_user(
+        session, email="d9-sup-o@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    support = await create_user(
+        session, email="d9-sup-s@example.com", role=UserRole.support
+    )
+    await _enrol_factor(client, session, support)
+    admin = await create_user(
+        session, email="d9-sup-a@example.com", role=UserRole.operator
+    )
+
+    resp = await client.post(
+        "/api/v1/access-grants/break-glass",
+        json={"guild_id": guild.id, "reason": "incident"},
+        headers=get_auth_headers(admin),
+    )
+    assert resp.status_code == 201, resp.text

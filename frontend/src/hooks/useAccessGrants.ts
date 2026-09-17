@@ -1,11 +1,13 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   approveAccessGrantApiV1AccessGrantsGrantIdApprovePost,
   breakGlassAccessApiV1AccessGrantsBreakGlassPost,
+  breakGlassRequirementsApiV1AccessGrantsBreakGlassGet,
   cancelAccessRequestApiV1AccessGrantsGrantIdDelete,
   createAccessRequestApiV1AccessGrantsPost,
   denyAccessGrantApiV1AccessGrantsGrantIdDenyPost,
+  getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey,
   listAccessGrantsApiV1AccessGrantsGet,
   revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost,
 } from "@/api/generated/access-grants/access-grants";
@@ -14,6 +16,7 @@ import type {
   AccessGrantCreate,
   AccessGrantRead,
   BreakGlassCreate,
+  BreakGlassRequirements,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -126,6 +129,18 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
     options
   );
 };
+
+/**
+ * What a break-glass request will be asked for, read before the form is filled
+ * in. Breaking glass carries the account's own second factor once any
+ * data.bypass holder has one, which is a property of the platform rather than
+ * of the caller — so the form asks rather than inferring it.
+ */
+export const useBreakGlassRequirements = () =>
+  useQuery<BreakGlassRequirements>({
+    queryKey: getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey(),
+    queryFn: () => breakGlassRequirementsApiV1AccessGrantsBreakGlassGet(),
+  });
 
 /**
  * Self-issue a break-glass grant (requires data.bypass). Unlike a request, this

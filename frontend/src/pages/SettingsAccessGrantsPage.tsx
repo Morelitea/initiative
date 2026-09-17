@@ -24,6 +24,7 @@ import {
   useAccessGrantQueue,
   useApproveAccessGrant,
   useBreakGlass,
+  useBreakGlassRequirements,
   useCancelAccessRequest,
   useCreateAccessRequest,
   useDenyAccessGrant,
@@ -35,6 +36,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
 const STATUS_VARIANT: Record<
   AccessGrantStatus,
@@ -152,12 +154,21 @@ const BreakGlassSection = () => {
   const [level, setLevel] = useState("read");
   const [duration, setDuration] = useState("60");
   const [reason, setReason] = useState("");
+  const [code, setCode] = useState("");
+
+  // What this request will be asked for. Breaking glass carries the account's
+  // own second factor once any data.bypass holder has one, so the form asks
+  // here rather than guessing from the caller's own enrolment.
+  const requirements = useBreakGlassRequirements();
+  const needsCode = requirements.data?.second_factor_required ?? false;
+  const canAnswer = requirements.data?.enrolled ?? false;
 
   const breakGlass = useBreakGlass({
     onSuccess: () => {
       toast.success(t("accessGrants.breakGlass.activated"));
       setGuildId("");
       setReason("");
+      setCode("");
       setLevel("read");
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
@@ -173,11 +184,13 @@ const BreakGlassSection = () => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim()) return;
+    const entered = code.trim();
     breakGlass.mutate({
       guild_id: gid,
       access_level: level as "read" | "read_write",
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
+      ...(needsCode && entered ? classifySecondFactorAnswer(entered) : {}),
     });
   };
 
@@ -237,6 +250,27 @@ const BreakGlassSection = () => {
               required
             />
           </div>
+          {needsCode && (
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="bg-code">{t("accessGrants.breakGlass.codeLabel")}</Label>
+              <Input
+                id="bg-code"
+                autoComplete="one-time-code"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder={t("accessGrants.breakGlass.codePlaceholder")}
+                required
+              />
+              <p className="text-muted-foreground text-xs">
+                {canAnswer
+                  ? t("accessGrants.breakGlass.codeHelp")
+                  : t("accessGrants.breakGlass.codeNotEnrolled")}
+              </p>
+            </div>
+          )}
           <div className="sm:col-span-2">
             <Button type="submit" variant="destructive" disabled={breakGlass.isPending}>
               {breakGlass.isPending ? t("common:submitting") : t("accessGrants.breakGlass.submit")}

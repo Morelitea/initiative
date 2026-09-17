@@ -31,6 +31,7 @@ from app.models.platform.access_grant import (
 from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_totp import UserTotp
 from app.schemas.platform.access_grant import (
     AccessGrantCreate,
     AccessGrantRead,
@@ -276,6 +277,33 @@ async def request_grant(
             requester=requester_name,
         )
     return grant
+
+
+async def demands_second_factor(session: AsyncSession) -> bool:
+    """Whether breaking glass has to carry the account's own second factor.
+
+    Derived rather than configured: it is on as soon as any active
+    ``data.bypass`` holder has confirmed one. The condition is also the
+    guarantee — it can only be on because somebody can satisfy it, so the
+    platform never reaches a state where nobody can break glass.
+
+    The consequence is deliberate: a holder who has not enrolled is refused
+    until they do, and their Security page is the whole of the way back.
+    """
+    roles = list(roles_with_capability(Capability.DATA_BYPASS))
+    found = (
+        await session.exec(
+            select(UserTotp.user_id)
+            .join(User, User.id == UserTotp.user_id)
+            .where(
+                User.role.in_(roles),
+                User.status == UserStatus.active,
+                UserTotp.confirmed_at.is_not(None),
+            )
+            .limit(1)
+        )
+    ).first()
+    return found is not None
 
 
 async def break_glass(

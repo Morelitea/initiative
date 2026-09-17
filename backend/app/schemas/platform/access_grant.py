@@ -35,6 +35,10 @@ class BreakGlassCreate(SanitizedBaseModel):
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
+    # The account's own second factor, asked for once any ``data.bypass``
+    # holder has one. Either answer is accepted, as everywhere else.
+    code: Optional[str] = Field(default=None, max_length=64)
+    recovery_code: Optional[str] = Field(default=None, max_length=64)
 
 
 class AccessGrantApprove(SanitizedBaseModel):
@@ -99,3 +103,14 @@ class AccessGrantRead(SanitizedBaseModel):
             and self.expires_at is not None
             and self.expires_at > datetime.now(timezone.utc)
         )
+
+
+class BreakGlassRequirements(SanitizedBaseModel):
+    """What a break-glass request will be asked for, before it is made.
+
+    The form reads this to know whether to offer a code field, and whether the
+    caller has a factor to answer with.
+    """
+
+    second_factor_required: bool
+    enrolled: bool

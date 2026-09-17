@@ -25,6 +25,7 @@ import type {
   AccessGrantCreate,
   AccessGrantRead,
   BreakGlassCreate,
+  BreakGlassRequirements,
   HTTPValidationError,
   ListAccessGrantsApiV1AccessGrantsGetParams,
 } from "../initiativeAPI.schemas";
@@ -292,6 +293,155 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListAccessGrantsApiV1AccessGrantsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What a break-glass request will be asked for.
+ *
+ * The form reads this to know whether to offer a code field, and whether the
+ * caller has a factor to answer with.
+ * @summary Break Glass Requirements
+ */
+export const breakGlassRequirementsApiV1AccessGrantsBreakGlassGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BreakGlassRequirements>(
+    { url: `/api/v1/access-grants/break-glass`, method: "GET", signal },
+    options
+  );
+};
+
+export const getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey = () => {
+  return [`/api/v1/access-grants/break-glass`] as const;
+};
+
+export const getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+  > = ({ signal }) => breakGlassRequirementsApiV1AccessGrantsBreakGlassGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type BreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+>;
+export type BreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
+  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+          TError,
+          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
+  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+          TError,
+          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
+  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Break Glass Requirements
+ */
+
+export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
+  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
