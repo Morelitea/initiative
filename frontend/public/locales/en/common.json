@@ -54,6 +54,7 @@
   "previous": "Previous",
   "rowsPerPage": "Rows per page:",
   "pageOf": "Page {{current}} of {{total}}",
+  "stepOf": "Step {{current}} of {{total}}",
   "select": "Select",
   "exitSelection": "Exit Selection",
   "enableSelectionMode": "Enable Selection Mode",
