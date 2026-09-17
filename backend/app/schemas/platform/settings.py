@@ -150,6 +150,22 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
     guilds_requiring_sign_in: int
+    #: How long somebody may stay signed in before signing in again, in hours.
+    #: ``None`` asks for no limit, which is the default. A community held to
+    #: the compliance standard overrides it downwards for its own members.
+    session_max_hours: Optional[int] = None
+
+
+class SessionLifetimeUpdate(SanitizedBaseModel):
+    """The absolute limit on staying signed in, in hours.
+
+    ``None`` asks for no limit. It has to be longer than the idle window to
+    mean anything: set shorter, it is the only thing ending a session and the
+    idle window stops mattering — which is a fair thing to ask for, and the
+    reason the field is free rather than a list of blessed figures.
+    """
+
+    session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
 
 
 class LoginMethodsUpdate(SanitizedBaseModel):
