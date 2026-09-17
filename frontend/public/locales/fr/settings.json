@@ -1113,8 +1113,7 @@
       "blockedHelp": "Aucune clé ne peut être créée pour cette communauté, et une clé déjà créée ne l'atteint plus. Les membres conservent leurs clés pour les autres communautés.",
       "saved": "Accès par API enregistré",
       "error": "Impossible d'enregistrer l'accès par API"
-    },
-    "readOnlyNotice": "Seul un administrateur de sécurité peut modifier ceci. Vous voyez ce qui est réglé, pour savoir à qui vous adresser."
+    }
   },
   "authProviders": {
     "title": "Fournisseurs d'identité",
