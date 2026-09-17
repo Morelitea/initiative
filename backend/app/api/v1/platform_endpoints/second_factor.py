@@ -9,6 +9,7 @@ are app_admin-only, because a factor is presented while signing in, before
 there is anybody to scope a policy to.
 """
 
+import uuid
 from datetime import datetime
 from typing import Annotated, Optional
 
@@ -32,6 +33,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_admin_session
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
@@ -286,6 +288,7 @@ async def step_up_with_factor(
     current_user: CurrentUser,
     admin_session: AdminSessionDep,
     payload: SecondFactorChallengeAnswer,
+    _first_party: str = FirstPartyOnly,
 ) -> Token:
     """Add the account's second factor to the session already signed in.
 
@@ -330,18 +333,33 @@ async def step_up_with_factor(
         await admin_session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    prior = None
-    prior_raw = request.cookies.get(REFRESH_COOKIE_NAME)
-    if prior_raw:
-        prior = await session_service.get_live_session_by_refresh_token(
-            admin_session, prior_raw
+    # The session this request is *on*, named by its own access token, rather
+    # than whatever a refresh cookie happens to carry. A browser sends both and
+    # they agree; the app sends only the token, and reading the cookie alone
+    # would have replaced its session with one holding nothing but the factor —
+    # which is how stepping up for one community could un-satisfy another.
+    prior_id = getattr(request.state, "session_id", None)
+    prior = (
+        await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
+        if prior_id
+        else None
+    )
+    if prior is not None and (
+        prior.user_id != current_user.id or prior.revoked_at is not None
+    ):
+        prior = None
+    if prior is None:
+        # Nothing to add the factor to. A credential that is not a session has
+        # no assurance to carry forward, and minting one here would hand it
+        # more than it came with.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
         )
-        if prior is not None and prior.user_id != current_user.id:
-            prior = None
 
-    amr = sorted(set(prior.amr if prior else []) | set(factor_amr))
-    satisfied = sorted(set(prior.satisfied_providers if prior else []))
-    provider_auth = prior.provider_auth if prior else None
+    amr = sorted(set(prior.amr) | set(factor_amr))
+    satisfied = sorted(set(prior.satisfied_providers))
+    provider_auth = prior.provider_auth
 
     try:
         issued = await session_service.create_session(
@@ -378,7 +396,13 @@ async def step_up_with_factor(
     set_refresh_cookie(response, issued.refresh_token)
     return Token(
         access_token=access_token,
-        refresh_token=issued.refresh_token if prior_raw is None else None,
+        # The app keeps its own refresh token; a browser reads one from the
+        # cookie set above and is handed nothing here.
+        refresh_token=(
+            issued.refresh_token
+            if request.cookies.get(REFRESH_COOKIE_NAME) is None
+            else None
+        ),
     )
 
 

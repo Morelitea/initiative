@@ -1076,3 +1076,68 @@ async def test_the_database_refuses_it_even_where_the_gate_is_skipped(
         sso_guilds=[],
         session_mfa=True,
     )
+
+
+async def _seat_headers(session: AsyncSession, guild, *, with_factor: bool):
+    """The security admin's own session, carrying a factor or not."""
+    seat = await create_user(session)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.security_admin
+    )
+    await session.commit()
+    token = get_auth_token(seat, amr=["pwd", "otp", "mfa"] if with_factor else ["pwd"])
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def test_asking_for_a_factor_needs_one_of_your_own(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule the provider check makes: prove it before it binds
+    anybody. Otherwise a rule could shut the community, its author included,
+    behind something they have not set up."""
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, with_factor=False)
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["totp"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+
+
+async def test_a_factor_requirement_saves_once_you_hold_one(
+    client: AsyncClient, session: AsyncSession
+):
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, with_factor=True)
+
+    saved = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["totp"]},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["require_methods"] == ["totp"]
+
+
+async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
+    client: AsyncClient, session: AsyncSession
+):
+    from app.services.platform import app_settings as app_settings_service
+
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, with_factor=True)
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso"]
+    session.add(row)
+    await session.commit()
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["totp"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
