@@ -18,9 +18,18 @@ Behaviour is unchanged on every deployment — the two forms agree on every valu
 ``require_methods`` can currently hold. The app-side mirror of this rule in
 ``app/api/deps.py`` moves with it.
 
-Replaced in place with ``CREATE OR REPLACE``: the signature is unchanged, so
-every policy and every ``public.initiative_access`` call that already defers to
-it picks the new body up without being rewritten.
+**Executed from the module, not copied.** ``app/db/authorization.py`` is the
+source for these five functions and ``apply_authorization_functions`` runs on
+every boot, so a definition that exists only inside a migration is replaced at
+the next start; that module's contract is that a migration ``op.execute`` its
+constant rather than hold a copy. This revision is the first to do so. The
+constant is also where the method leg introduced by ``0286``/``0287`` now
+lives — those revisions were written on a branch running beside the one that
+gave these functions a home, so each was correct about the half it could see.
+
+``CREATE OR REPLACE`` keeps the function's OID, so every policy and every
+``public.initiative_access`` call that already defers to it picks the new body
+up without being rewritten.
 
 Revision ID: 20260916_0289
 Revises: 20260916_0288
@@ -29,71 +38,17 @@ Create Date: 2026-09-16
 
 from alembic import op
 
+from app.db.authorization import GUILD_AUTH_SATISFIED
+
 revision = "20260916_0289"
 down_revision = "20260916_0288"
 branch_labels = None
 depends_on = None
 
 
-# NULLIF-guarded casts per the session-variable constants standard: an unset
-# GUC is empty-string, and a bare cast would fault every policy on the table.
-GUILD_AUTH_SATISFIED_FN = """
-CREATE OR REPLACE FUNCTION public.guild_auth_satisfied() RETURNS boolean
-    LANGUAGE sql STABLE
-    AS $$
-    SELECT
-        -- Pure system routing (no user context) and the explicit sentinel a
-        -- user-attributed job sets are not sessions to gate.
-        NULLIF(current_setting('app.current_user_id', true), '') IS NULL
-        OR current_setting('app.satisfied_providers', true) = 'system'
-        OR NOT EXISTS (
-            SELECT 1 FROM public.guild_auth_policies p
-            WHERE p.guild_id = NULLIF(
-                    current_setting('app.current_guild_id', true), ''
-                  )::int
-              AND p.policy <> 'open'
-              AND (
-                  -- The provider this guild names, if it names one.
-                  (
-                      p.provider_id IS NOT NULL
-                      AND NOT COALESCE(
-                            p.provider_id = ANY(
-                                string_to_array(
-                                    NULLIF(
-                                        current_setting(
-                                            'app.satisfied_providers', true
-                                        ), ''
-                                    ),
-                                    ','
-                                )::int[]
-                            ),
-                            false
-                          )
-                  )
-                  -- Or its own single sign-on, whichever of its providers
-                  -- served it. The session records each community whose sign-in
-                  -- it completed, so this is answered without reading the
-                  -- provider registry. Named rather than counted, so a list
-                  -- holding some other method is not read as this one.
-                  OR (
-                      'sso' = ANY(p.require_methods)
-                      AND NOT COALESCE(
-                            p.guild_id = ANY(
-                                string_to_array(
-                                    NULLIF(
-                                        current_setting('app.sso_guilds', true), ''
-                                    ),
-                                    ','
-                                )::int[]
-                            ),
-                            false
-                          )
-                  )
-              )
-        )
-$$;
-"""
-
+# The body as ``0287`` left it, for the downgrade. A copy is right here and
+# nowhere else: the module carries what the rule *is*, and only this revision
+# knows what preceded it.
 PRIOR_FN = """
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied() RETURNS boolean
     LANGUAGE sql STABLE
@@ -145,7 +100,7 @@ $$;
 
 
 def upgrade() -> None:
-    op.execute(GUILD_AUTH_SATISFIED_FN)
+    op.execute(GUILD_AUTH_SATISFIED)
 
 
 def downgrade() -> None:
