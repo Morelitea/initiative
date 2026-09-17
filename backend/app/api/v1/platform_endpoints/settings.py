@@ -44,6 +44,7 @@ from app.schemas.platform.settings import (
     InterfaceSettingsUpdate,
     LoginMethodStatus,
     LoginMethodsUpdate,
+    SessionLifetimeUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
@@ -79,6 +80,7 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import LoginMethod
+from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
@@ -183,6 +185,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        session_max_hours=row.session_max_hours,
     )
 
 
@@ -215,6 +218,32 @@ async def update_login_methods(
         acknowledge_stranded=payload.acknowledge_stranded,
         actor_user_id=admin.id,
     )
+    return await _platform_auth_payload(session)
+
+
+@router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
+async def update_session_lifetime(
+    payload: SessionLifetimeUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set how long somebody may stay signed in before signing in again.
+
+    Separate from how long a session may be left alone, which the deployment's
+    own configuration holds. A session already open keeps the terms it was
+    opened under and takes the new figure at the next sign-in; a device token
+    is brought under the new figure now, measured from when it was issued, so
+    shortening the limit can end one on the spot.
+    """
+    row = await app_settings_service.get_app_settings(session)
+    row.session_max_hours = payload.session_max_hours
+    session.add(row)
+    await session.flush()
+    # A device token carries its deadline in its own expiry, so the new figure
+    # is written into the ones already issued rather than read back on every
+    # native request.
+    await session_lifetime.apply_to_device_tokens(session)
+    await session.commit()
     return await _platform_auth_payload(session)
 
 
@@ -585,6 +614,9 @@ async def list_platform_guild_storage(
             support_enabled=(
                 administration.support_enabled if administration else False
             ),
+            enforce_compliance_session=(
+                administration.enforce_compliance_session if administration else False
+            ),
         )
         for g, administration in rows
     ]
@@ -622,6 +654,7 @@ async def update_platform_guild_storage(
             auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,
+            enforce_compliance_session=payload.enforce_compliance_session,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(

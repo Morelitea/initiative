@@ -5304,6 +5304,7 @@ export interface PlatformAdminCountResponse {
 export interface PlatformAuthSettingsResponse {
   methods: LoginMethodStatus[];
   guilds_requiring_sign_in: number;
+  session_max_hours: number | null;
 }
 
 /**
@@ -5325,6 +5326,7 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
+  enforce_compliance_session: boolean;
 }
 
 /**
@@ -5343,6 +5345,7 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
+  enforce_compliance_session?: boolean | null;
 }
 
 /**
@@ -6601,6 +6604,18 @@ export interface SecondFactorStatus {
 export interface SecondFactorStepUpAnswer {
   code?: string | null;
   recovery_code?: string | null;
+}
+
+/**
+ * The absolute limit on staying signed in, in hours.
+ *
+ * ``None`` asks for no limit. It has to be longer than the idle window to
+ * mean anything: set shorter, it is the only thing ending a session and the
+ * idle window stops mattering — which is a fair thing to ask for, and the
+ * reason the field is free rather than a list of blessed figures.
+ */
+export interface SessionLifetimeUpdate {
+  session_max_hours?: number | null;
 }
 
 /**

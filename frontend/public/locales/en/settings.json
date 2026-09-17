@@ -644,6 +644,15 @@
         "label": "Authenticator app",
         "help": "A code from an app, asked for after a password. People turn it on for themselves."
       }
+    },
+    "sessionLifetime": {
+      "title": "How long people stay signed in",
+      "description": "The longest anybody may go before signing in again, however much they use the app. Separate from being signed out for not using it.",
+      "label": "Hours",
+      "placeholder": "No limit",
+      "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
+      "saved": "Session limit saved.",
+      "error": "We couldn't save the session limit."
     }
   },
   "platformUsers": {
@@ -1009,7 +1018,9 @@
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit"
+      "storageLabel": "Storage limit",
+      "complianceSessionLabel": "Twelve-hour session limit",
+      "complianceSessionHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard."
     },
     "unlimited": "No limit"
   },

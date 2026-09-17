@@ -42,6 +42,7 @@ import type {
   PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
   StorageSettingsUpdate,
@@ -453,6 +454,103 @@ export const useUpdateLoginMethodsApiV1SettingsAuthMethodsPut = <
 > => {
   return useMutation(
     getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set how long somebody may stay signed in before signing in again.
+ *
+ * Separate from how long a session may be left alone, which the deployment's
+ * own configuration holds. Sessions already open keep the terms they were
+ * opened under and take the new figure at the next sign-in.
+ * @summary Update Session Lifetime
+ */
+export const updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = (
+  sessionLifetimeUpdate: BodyType<SessionLifetimeUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformAuthSettingsResponse>(
+    {
+      url: `/api/v1/settings/auth/session-lifetime`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: sessionLifetimeUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
+    TError,
+    { data: BodyType<SessionLifetimeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
+  TError,
+  { data: BodyType<SessionLifetimeUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
+    { data: BodyType<SessionLifetimeUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>
+>;
+export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationBody =
+  BodyType<SessionLifetimeUpdate>;
+export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Session Lifetime
+ */
+export const useUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
+      TError,
+      { data: BodyType<SessionLifetimeUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
+  TError,
+  { data: BodyType<SessionLifetimeUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationOptions(options),
     queryClient
   );
 };

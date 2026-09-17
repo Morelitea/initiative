@@ -644,6 +644,15 @@
         "label": "Aplicación de autenticación",
         "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
       }
+    },
+    "sessionLifetime": {
+      "title": "Cuánto tiempo permanece la gente con la sesión iniciada",
+      "description": "El máximo que alguien puede pasar sin volver a iniciar sesión, por mucho que use la aplicación. Distinto de cerrar la sesión por no usarla.",
+      "label": "Horas",
+      "placeholder": "Sin límite",
+      "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones web ya abiertas mantienen sus condiciones originales; los teléfonos pasan a un límite más corto de inmediato.",
+      "saved": "Límite de sesión guardado.",
+      "error": "No hemos podido guardar el límite de sesión."
     }
   },
   "platformUsers": {
@@ -1020,7 +1029,9 @@
         }
       },
       "usersLabel": "Miembros",
-      "storageLabel": "Límite de almacenamiento"
+      "storageLabel": "Límite de almacenamiento",
+      "complianceSessionLabel": "Límite de sesión de doce horas",
+      "complianceSessionHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento."
     },
     "unlimited": "Sin límite"
   },

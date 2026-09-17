@@ -281,6 +281,10 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Off by default: the deployment that receives them is the one that decides
     # it is staffing them.
     support_enabled: bool = False
+    # Whether this guild's members are held to the compliance session standard
+    # — signing in again every twelve hours whatever the deployment's own limit
+    # says. Off by default.
+    enforce_compliance_session: bool = False
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -303,6 +307,8 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     banner_image_enabled: Optional[bool] = None
     # Help-request entitlement. Omit-to-skip, same as the one above.
     support_enabled: Optional[bool] = None
+    # The compliance session standard. Omit-to-skip, same as the one above.
+    enforce_compliance_session: Optional[bool] = None
 
 
 #: What a community may require, beyond naming one provider. ``sso`` means its
