@@ -673,5 +673,6 @@
   "TOTP_NOT_ENROLLED": "La double authentification n'est pas configurée sur ce compte.",
   "RECOVERY_CODE_INVALID": "Ce code de secours n'est pas le bon, ou il a déjà été utilisé.",
   "TOTP_NOT_PERMITTED": "Ce site ne propose pas l'application d'authentification.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un code d'authentification s'ajoute au mot de passe ou à l'authentification unique, il ne les remplace pas."
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un code d'authentification s'ajoute au mot de passe ou à l'authentification unique, il ne les remplace pas.",
+  "GUILD_AUTH_FACTOR_REQUIRED": "Cette communauté demande un code de votre application d'authentification. Saisissez-en un pour continuer."
 }
