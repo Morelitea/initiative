@@ -55,15 +55,21 @@ async def _belongs_to_a_compliance_guild(
 async def resolve_max_hours(session: AsyncSession, *, user_id: int) -> int | None:
     """The absolute limit that applies to this person, in hours.
 
-    A community holding its members to the compliance standard settles it: one
-    standard rather than a number per community, so somebody in two of them has
-    an answer rather than a comparison. Otherwise the deployment's own figure
-    stands, and ``None`` means it asked for no limit.
+    One standard rather than a number per community, so somebody in two of them
+    has an answer rather than a comparison. ``None`` means no limit was asked
+    for anywhere.
+
+    A community's standard only ever tightens. The deployment's own figure is
+    free-form and may already be shorter than twelve hours, and a community
+    asking for a stricter session is not a place to lengthen one.
     """
-    if await _belongs_to_a_compliance_guild(session, user_id=user_id):
-        return COMPLIANCE_SESSION_HOURS
     row = await app_settings_service.get_app_settings(session)
-    return row.session_max_hours
+    platform_hours = row.session_max_hours
+    if not await _belongs_to_a_compliance_guild(session, user_id=user_id):
+        return platform_hours
+    if platform_hours is None:
+        return COMPLIANCE_SESSION_HOURS
+    return min(COMPLIANCE_SESSION_HOURS, platform_hours)
 
 
 async def chain_deadline(

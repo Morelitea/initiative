@@ -97,6 +97,22 @@ async def test_somebody_in_two_such_communities_has_one_answer(session):
 
 
 @pytest.mark.integration
+async def test_a_communitys_standard_only_ever_tightens(session):
+    """The deployment's own figure is free-form and may already be shorter.
+    A community asking for a stricter session is not a place to lengthen one."""
+    user = await create_user(session, email="sl-tighten@example.com")
+    guild = await create_guild(session, name="sl-tighten-g")
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    await _hold_to_the_standard(session, guild)
+    await _set_platform_hours(session, 4)
+
+    hours = await session_lifetime.resolve_max_hours(session, user_id=user.id)
+    assert hours == 4
+
+
+@pytest.mark.integration
 async def test_renewing_does_not_move_the_chains_end(session):
     """The idle window slides; the chain's end is the thing that does not."""
     user = await create_user(session, email="sl-rotate@example.com")
@@ -132,3 +148,54 @@ async def test_a_chain_past_its_end_is_not_renewed(session):
     )
     assert rotated.outcome == session_service.RefreshOutcome.EXPIRED
     assert rotated.issued is None
+
+
+@pytest.mark.integration
+async def test_a_device_tokens_window_stops_at_the_limit(session):
+    """The device token is the one credential whose window slides without ever
+    being renewed against the account, so the limit binds it too."""
+    from app.models.platform.user_token import UserToken, UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="sl-device@example.com")
+    await _set_platform_hours(session, 6)
+
+    raw = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Pixel", commit=False
+    )
+    await session.flush()
+    row = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).one()
+    # Six hours, not ninety days.
+    assert row.expires_at <= row.created_at + timedelta(hours=6)
+    assert raw
+
+
+@pytest.mark.integration
+async def test_a_device_token_keeps_its_window_when_nothing_is_asked(session):
+    """The default changes nothing about the app on somebody's phone."""
+    from app.models.platform.user_token import UserToken, UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="sl-device-free@example.com")
+    await _set_platform_hours(session, None)
+
+    await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Pixel", commit=False
+    )
+    await session.flush()
+    row = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).one()
+    assert row.expires_at > row.created_at + timedelta(days=89)
