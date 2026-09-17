@@ -53,6 +53,7 @@
   "previous": "Précédent",
   "rowsPerPage": "Lignes par page :",
   "pageOf": "Page {{current}} sur {{total}}",
+  "stepOf": "Étape {{current}} sur {{total}}",
   "select": "Sélectionner",
   "exitSelection": "Quitter la sélection",
   "enableSelectionMode": "Activer le mode de sélection",

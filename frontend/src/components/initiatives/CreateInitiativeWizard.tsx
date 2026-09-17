@@ -29,7 +29,7 @@
  * regardless.
  */
 
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -41,20 +41,15 @@ import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { WizardBackButton, WizardDialog } from "@/components/ui/wizard-dialog";
 import { useGrantToolsToMembers } from "@/hooks/useInitiativeRoles";
 import { useCreateInitiative } from "@/hooks/useInitiatives";
+import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { docsUrl } from "@/lib/links";
 import { DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
@@ -66,6 +61,9 @@ const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 const INITIATIVES_DOC_URL = docsUrl("guides/initiatives/");
 
 type Step = "details" | "tools" | "joining" | "members";
+
+/** Four questions, each asked once and in this order — so the dots can count. */
+const STEP_ORDER: Step[] = ["details", "tools", "joining", "members"];
 
 /** What the ordinary roles may do with the tools this initiative starts with.
  *  "view" is the default because it is what the built-in member role already
@@ -106,7 +104,7 @@ export const CreateInitiativeWizard = ({
 }: CreateInitiativeWizardProps) => {
   const { t } = useTranslation("initiatives");
 
-  const [step, setStep] = useState<Step>("details");
+  const { step, go, back, canGoBack, reset } = useWizard<Step>("details");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(DEFAULT_INITIATIVE_COLOR);
@@ -126,14 +124,14 @@ export const CreateInitiativeWizard = ({
   // rather than resuming somebody else's half-answered form.
   useEffect(() => {
     if (open) return;
-    setStep("details");
+    reset();
     setName("");
     setDescription("");
     setColor(DEFAULT_INITIATIVE_COLOR);
     setJoinPolicy(InitiativeJoinPolicy.private);
     setSelected(defaultSelection());
     setAudience("view");
-  }, [open]);
+  }, [open, reset]);
 
   const chosenTools = useMemo(() => TOGGLEABLE_TOOLS.filter((tool) => selected[tool]), [selected]);
   const trimmedName = name.trim();
@@ -151,16 +149,10 @@ export const CreateInitiativeWizard = ({
     }
   }, [step, t]);
 
-  const handleBack = useCallback(() => {
-    setStep((current) =>
-      current === "members" ? "joining" : current === "joining" ? "tools" : "details"
-    );
-  }, []);
-
   const handleSubmit = useCallback(async () => {
     if (!trimmedName) {
       toast.error(t("createDialog.nameRequired"));
-      setStep("details");
+      reset();
       return;
     }
     let created: InitiativeRead;
@@ -210,6 +202,7 @@ export const CreateInitiativeWizard = ({
     grantToMembers,
     onOpenChange,
     onCreated,
+    reset,
     t,
   ]);
 
@@ -218,11 +211,8 @@ export const CreateInitiativeWizard = ({
   // much is left, and a first-timer is exactly the person who wants to know.
   const footer = (next: NextAction) => (
     <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-      {step !== "details" ? (
-        <Button type="button" variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
-          <ChevronLeft className="h-4 w-4" />
-          {t("createWizard.back")}
-        </Button>
+      {canGoBack ? (
+        <WizardBackButton onClick={back} disabled={busy} label={t("createWizard.back")} />
       ) : (
         <span />
       )}
@@ -237,160 +227,158 @@ export const CreateInitiativeWizard = ({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen overflow-y-auto bg-card sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t("createWizard.title")}</DialogTitle>
-          <DialogDescription>{stepTitle}</DialogDescription>
-        </DialogHeader>
-
-        {step === "details" ? (
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (trimmedName) setStep("tools");
-            }}
-          >
-            {isFirst ? (
-              // The community's first one: say what an initiative is before
-              // asking what to call it. Nothing else has had the chance — and
-              // Chester is the one who does the explaining everywhere else, so
-              // he does it here too.
-              <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-                <img
-                  src={chesterTalking}
-                  alt=""
-                  aria-hidden="true"
-                  className="-mt-1 h-14 w-14 shrink-0"
+    <WizardDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-h-screen overflow-y-auto bg-card sm:max-w-2xl"
+      title={t("createWizard.title")}
+      description={stepTitle}
+      progress={{ current: STEP_ORDER.indexOf(step) + 1, total: STEP_ORDER.length }}
+    >
+      {step === "details" ? (
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (trimmedName) go("tools");
+          }}
+        >
+          {isFirst ? (
+            // The community's first one: say what an initiative is before
+            // asking what to call it. Nothing else has had the chance — and
+            // Chester is the one who does the explaining everywhere else, so
+            // he does it here too.
+            <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+              <img
+                src={chesterTalking}
+                alt=""
+                aria-hidden="true"
+                className="-mt-1 h-14 w-14 shrink-0"
+              />
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium">{t("createWizard.firstIntroTitle")}</p>
+                <Markdown
+                  content={t("createWizard.firstIntro")}
+                  className="text-muted-foreground text-sm"
                 />
-                <div className="min-w-0 space-y-1">
-                  <p className="font-medium">{t("createWizard.firstIntroTitle")}</p>
-                  <Markdown
-                    content={t("createWizard.firstIntro")}
-                    className="text-muted-foreground text-sm"
-                  />
-                  <a
-                    href={INITIATIVES_DOC_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block font-medium text-primary text-xs underline underline-offset-2"
-                  >
-                    {t("createWizard.firstIntroLink")}
-                  </a>
-                </div>
+                <a
+                  href={INITIATIVES_DOC_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block font-medium text-primary text-xs underline underline-offset-2"
+                >
+                  {t("createWizard.firstIntroLink")}
+                </a>
               </div>
-            ) : null}
-            <div className="space-y-2">
-              <Label htmlFor="new-initiative-name">{t("createDialog.nameLabel")}</Label>
-              <Input
-                id="new-initiative-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("createDialog.namePlaceholder")}
-                required
-              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-initiative-description">
-                {t("createDialog.descriptionLabel")}
-              </Label>
-              <Textarea
-                id="new-initiative-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder={t("createDialog.descriptionPlaceholder")}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-initiative-color">{t("createDialog.colorLabel")}</Label>
-              <ColorPickerPopover
-                id="new-initiative-color"
-                value={color}
-                onChange={setColor}
-                triggerLabel="Adjust"
-              />
-              <p className="text-muted-foreground text-xs">{t("createDialog.colorHint")}</p>
-            </div>
-            {footer({ label: t("createWizard.nextTools"), disabled: !trimmedName, submit: true })}
-          </form>
-        ) : null}
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="new-initiative-name">{t("createDialog.nameLabel")}</Label>
+            <Input
+              id="new-initiative-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("createDialog.namePlaceholder")}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-initiative-description">{t("createDialog.descriptionLabel")}</Label>
+            <Textarea
+              id="new-initiative-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder={t("createDialog.descriptionPlaceholder")}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-initiative-color">{t("createDialog.colorLabel")}</Label>
+            <ColorPickerPopover
+              id="new-initiative-color"
+              value={color}
+              onChange={setColor}
+              triggerLabel="Adjust"
+            />
+            <p className="text-muted-foreground text-xs">{t("createDialog.colorHint")}</p>
+          </div>
+          {footer({ label: t("createWizard.nextTools"), disabled: !trimmedName, submit: true })}
+        </form>
+      ) : null}
 
-        {step === "tools" ? (
-          <div className="space-y-4">
-            <p className="text-muted-foreground text-sm">{t("createWizard.toolsHelp")}</p>
-            {/* The same grid the settings screen shows, so the picture
+      {step === "tools" ? (
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">{t("createWizard.toolsHelp")}</p>
+          {/* The same grid the settings screen shows, so the picture
                 somebody learned a tool from is the one they meet again later.
                 No `roles` here: the initiative does not exist yet, so there is
                 no audience to report. */}
-            <ToolsSection
-              layout="plain"
-              idPrefix="create"
-              canManage
-              isSaving={false}
-              values={selected as Partial<Record<Tool, boolean>>}
-              onToggle={(tool, value) => setSelected((prev) => ({ ...prev, [tool]: value }))}
-            />
-            {/* Said out loud rather than left to a greyed-out button: an
+          <ToolsSection
+            layout="plain"
+            idPrefix="create"
+            canManage
+            isSaving={false}
+            values={selected as Partial<Record<Tool, boolean>>}
+            onToggle={(tool, value) => setSelected((prev) => ({ ...prev, [tool]: value }))}
+          />
+          {/* Said out loud rather than left to a greyed-out button: an
                 initiative with no tools has nowhere to put anything. */}
-            {chosenTools.length === 0 ? (
-              <p className="text-destructive text-xs">{t("createWizard.pickOneTool")}</p>
-            ) : null}
-            {footer({
-              label: t("createWizard.nextJoining"),
-              onClick: () => setStep("joining"),
-              disabled: chosenTools.length === 0,
-            })}
-          </div>
-        ) : null}
+          {chosenTools.length === 0 ? (
+            <p className="text-destructive text-xs">{t("createWizard.pickOneTool")}</p>
+          ) : null}
+          {footer({
+            label: t("createWizard.nextJoining"),
+            onClick: () => go("joining"),
+            disabled: chosenTools.length === 0,
+          })}
+        </div>
+      ) : null}
 
-        {step === "joining" ? (
-          <div className="space-y-4">
-            <p className="text-muted-foreground text-sm">{t("createWizard.joiningHelp")}</p>
-            <JoinPolicySection
-              layout="plain"
-              idPrefix="create"
-              value={joinPolicy}
-              onChange={setJoinPolicy}
-              canManage
-              isSaving={false}
-            />
-            {footer({ label: t("createWizard.nextMembers"), onClick: () => setStep("members") })}
-          </div>
-        ) : null}
+      {step === "joining" ? (
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">{t("createWizard.joiningHelp")}</p>
+          <JoinPolicySection
+            layout="plain"
+            idPrefix="create"
+            value={joinPolicy}
+            onChange={setJoinPolicy}
+            canManage
+            isSaving={false}
+          />
+          {footer({ label: t("createWizard.nextMembers"), onClick: () => go("members") })}
+        </div>
+      ) : null}
 
-        {step === "members" ? (
-          <div className="space-y-4">
-            <p className="text-muted-foreground text-sm">{t("createWizard.membersHelp")}</p>
-            <RadioGroup
-              value={audience}
-              onValueChange={(value) => setAudience(value as MemberAudience)}
-              className="space-y-2"
-            >
-              {MEMBER_AUDIENCES.map((value) => (
-                <div key={value} className="flex items-start gap-3 rounded-lg border p-3">
-                  <RadioGroupItem value={value} id={`create-members-${value}`} className="mt-1" />
-                  <div className="space-y-0.5">
-                    <Label htmlFor={`create-members-${value}`} className="font-medium">
-                      {t(`createWizard.members.${value}` as never)}
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      {t(`createWizard.members.${value}Help` as never)}
-                    </p>
-                  </div>
+      {step === "members" ? (
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">{t("createWizard.membersHelp")}</p>
+          <RadioGroup
+            value={audience}
+            onValueChange={(value) => setAudience(value as MemberAudience)}
+            className="space-y-2"
+          >
+            {MEMBER_AUDIENCES.map((value) => (
+              <div key={value} className="flex items-start gap-3 rounded-lg border p-3">
+                <RadioGroupItem value={value} id={`create-members-${value}`} className="mt-1" />
+                <div className="space-y-0.5">
+                  <Label htmlFor={`create-members-${value}`} className="font-medium">
+                    {t(`createWizard.members.${value}` as never)}
+                  </Label>
+                  <p className="text-muted-foreground text-xs">
+                    {t(`createWizard.members.${value}Help` as never)}
+                  </p>
                 </div>
-              ))}
-            </RadioGroup>
-            {footer({
-              label: busy ? t("createDialog.creating") : t("createWizard.create"),
-              onClick: handleSubmit,
-              disabled: busy,
-            })}
-            {busy ? <Loader2 className="sr-only h-4 w-4 animate-spin" /> : null}
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+              </div>
+            ))}
+          </RadioGroup>
+          {footer({
+            label: busy ? t("createDialog.creating") : t("createWizard.create"),
+            onClick: handleSubmit,
+            disabled: busy,
+          })}
+          {busy ? <Loader2 className="sr-only h-4 w-4 animate-spin" /> : null}
+        </div>
+      ) : null}
+    </WizardDialog>
   );
 };

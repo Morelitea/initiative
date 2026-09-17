@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
@@ -49,7 +51,7 @@ export const TwoFactorSection = () => {
   const refreshStatus = () => queryClient.invalidateQueries({ queryKey: ["/api/v1/auth/totp"] });
 
   const [enrolOpen, setEnrolOpen] = useState(false);
-  const [step, setStep] = useState<EnrolStep>("password");
+  const { step, commit, reset } = useWizard<EnrolStep>("password");
   const [errand, setErrand] = useState<Errand>("enrol");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -66,7 +68,7 @@ export const TwoFactorSection = () => {
     setEnrolOpen(false);
     // The seed and the codes exist here and nowhere else the page can reach;
     // dropping them on close is the point.
-    setStep("password");
+    reset();
     setErrand("enrol");
     setPassword("");
     setCode("");
@@ -81,7 +83,7 @@ export const TwoFactorSection = () => {
       onSuccess: (data) => {
         setSecret(data.secret);
         setUri(data.otpauth_uri);
-        setStep("scan");
+        commit("scan");
         setError(null);
       },
       onError: (err) => setError(getErrorMessage(err, "settings:twoFactor.enrolError")),
@@ -92,7 +94,7 @@ export const TwoFactorSection = () => {
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
-        setStep("codes");
+        commit("codes");
         setError(null);
         void refreshStatus();
       },
@@ -107,7 +109,7 @@ export const TwoFactorSection = () => {
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
-        setStep("codes");
+        commit("codes");
         setError(null);
         void refreshStatus();
       },
@@ -177,6 +179,9 @@ export const TwoFactorSection = () => {
   const offered = status.data?.offered ?? true;
   const remaining = status.data?.recovery_codes_remaining ?? 0;
 
+  const walked: EnrolStep[] =
+    errand === "regenerate" ? ["password", "codes"] : ["password", "scan", "codes"];
+
   return (
     <div className="space-y-4">
       {status.isLoading ? (
@@ -212,7 +217,7 @@ export const TwoFactorSection = () => {
                 setErrand("regenerate");
                 setPassword("");
                 setError(null);
-                setStep("password");
+                reset();
                 setCodes(null);
                 setEnrolOpen(true);
               }}
@@ -249,103 +254,104 @@ export const TwoFactorSection = () => {
         </div>
       )}
 
-      <Dialog open={enrolOpen} onOpenChange={(open) => (open ? setEnrolOpen(true) : closeEnrol())}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {step === "codes"
-                ? t("twoFactor.codesTitle")
-                : errand === "regenerate"
-                  ? t("twoFactor.regenerateTitle")
-                  : t("twoFactor.setUpTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {step === "password"
-                ? errand === "regenerate"
-                  ? t("twoFactor.regeneratePrompt")
-                  : t("twoFactor.passwordPrompt")
-                : step === "scan"
-                  ? t("twoFactor.scanPrompt")
-                  : t("twoFactor.codesPrompt")}
-            </DialogDescription>
-          </DialogHeader>
-
-          {step === "password" ? (
-            <form className="space-y-4" onSubmit={submitPassword}>
-              <div className="space-y-2">
-                <Label htmlFor="two-factor-password">{t("twoFactor.passwordLabel")}</Label>
-                <Input
-                  id="two-factor-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required={passwordRequired}
-                />
-              </div>
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
-              <DialogFooter>
-                <Button type="submit" disabled={begin.isPending || regenerate.isPending}>
-                  {t("twoFactor.continue")}
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : null}
-
-          {step === "scan" && uri && secret ? (
-            <form className="space-y-4" onSubmit={submitCode}>
-              {/* Always dark on white: a scanner wants contrast, not the page's
-                  palette. */}
-              <div className="flex justify-center rounded-md bg-white p-4">
-                <QRCodeSVG value={uri} size={176} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-sm">{t("twoFactor.cannotScan")}</p>
-                <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-sm">
-                  {secret}
-                </code>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="two-factor-code">{t("twoFactor.codeLabel")}</Label>
-                <Input
-                  id="two-factor-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder={t("twoFactor.codePlaceholder")}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  required
-                />
-              </div>
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
-              <DialogFooter>
-                <Button type="submit" disabled={confirm.isPending || !code.trim()}>
-                  {t("twoFactor.turnOn")}
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : null}
-
-          {step === "codes" && codes ? (
-            <div className="space-y-4">
-              <ul className="grid grid-cols-2 gap-1 rounded bg-muted p-3 font-mono text-sm">
-                {codes.map((recoveryCode) => (
-                  <li key={recoveryCode}>{recoveryCode}</li>
-                ))}
-              </ul>
-              <p className="text-muted-foreground text-sm">{t("twoFactor.codesWarning")}</p>
-              <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={copyCodes} type="button">
-                  {t("twoFactor.copyCodes")}
-                </Button>
-                <Button onClick={closeEnrol} type="button">
-                  {t("twoFactor.done")}
-                </Button>
-              </DialogFooter>
+      <WizardDialog
+        open={enrolOpen}
+        onOpenChange={(open) => (open ? setEnrolOpen(true) : closeEnrol())}
+        title={
+          step === "codes"
+            ? t("twoFactor.codesTitle")
+            : errand === "regenerate"
+              ? t("twoFactor.regenerateTitle")
+              : t("twoFactor.setUpTitle")
+        }
+        description={
+          step === "password"
+            ? errand === "regenerate"
+              ? t("twoFactor.regeneratePrompt")
+              : t("twoFactor.passwordPrompt")
+            : step === "scan"
+              ? t("twoFactor.scanPrompt")
+              : t("twoFactor.codesPrompt")
+        }
+        // Re-issuing codes skips the authenticator app: there is nothing new
+        // to scan, so it is two screens rather than three.
+        progress={{ current: walked.indexOf(step) + 1, total: walked.length }}
+      >
+        {step === "password" ? (
+          <form className="space-y-4" onSubmit={submitPassword}>
+            <div className="space-y-2">
+              <Label htmlFor="two-factor-password">{t("twoFactor.passwordLabel")}</Label>
+              <Input
+                id="two-factor-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required={passwordRequired}
+              />
             </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+            {error ? <p className="text-destructive text-sm">{error}</p> : null}
+            <DialogFooter>
+              <Button type="submit" disabled={begin.isPending || regenerate.isPending}>
+                {t("twoFactor.continue")}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
+
+        {step === "scan" && uri && secret ? (
+          <form className="space-y-4" onSubmit={submitCode}>
+            {/* Always dark on white: a scanner wants contrast, not the page's
+                  palette. */}
+            <div className="flex justify-center rounded-md bg-white p-4">
+              <QRCodeSVG value={uri} size={176} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground text-sm">{t("twoFactor.cannotScan")}</p>
+              <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-sm">
+                {secret}
+              </code>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="two-factor-code">{t("twoFactor.codeLabel")}</Label>
+              <Input
+                id="two-factor-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder={t("twoFactor.codePlaceholder")}
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                required
+              />
+            </div>
+            {error ? <p className="text-destructive text-sm">{error}</p> : null}
+            <DialogFooter>
+              <Button type="submit" disabled={confirm.isPending || !code.trim()}>
+                {t("twoFactor.turnOn")}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
+
+        {step === "codes" && codes ? (
+          <div className="space-y-4">
+            <ul className="grid grid-cols-2 gap-1 rounded bg-muted p-3 font-mono text-sm">
+              {codes.map((recoveryCode) => (
+                <li key={recoveryCode}>{recoveryCode}</li>
+              ))}
+            </ul>
+            <p className="text-muted-foreground text-sm">{t("twoFactor.codesWarning")}</p>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={copyCodes} type="button">
+                {t("twoFactor.copyCodes")}
+              </Button>
+              <Button onClick={closeEnrol} type="button">
+                {t("twoFactor.done")}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : null}
+      </WizardDialog>
 
       <Dialog open={offOpen} onOpenChange={setOffOpen}>
         <DialogContent>

@@ -53,6 +53,7 @@
   "previous": "Anterior",
   "rowsPerPage": "Filas por página:",
   "pageOf": "Página {{current}} de {{total}}",
+  "stepOf": "Paso {{current}} de {{total}}",
   "select": "Seleccionar",
   "exitSelection": "Salir de selección",
   "enableSelectionMode": "Activar modo de selección",
