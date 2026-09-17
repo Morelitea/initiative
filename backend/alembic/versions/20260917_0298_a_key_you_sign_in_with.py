@@ -12,8 +12,8 @@ Nothing reads this yet. The routes arrive with enrolment, and the
 ``login_method`` value arrives with the checkbox that offers it — the ordering
 the second factor used, so a box never appears for something nothing can do.
 
-Revision ID: 20260917_0296
-Revises: 20260917_0295
+Revision ID: 20260917_0298
+Revises: 20260917_0297
 Create Date: 2026-09-17
 """
 
@@ -25,8 +25,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.config import settings
 
-revision = "20260917_0296"
-down_revision = "20260917_0295"
+revision = "20260917_0298"
+down_revision = "20260917_0297"
 branch_labels = None
 depends_on = None
 
