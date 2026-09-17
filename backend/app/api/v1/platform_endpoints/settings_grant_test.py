@@ -159,3 +159,36 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
     listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
     asked = {(g["purpose"], g["access_level"]) for g in listed.json()}
     assert asked == {("content", "read_write"), ("settings", "admin")}
+
+
+@pytest.mark.unit
+def test_every_level_has_its_own_label():
+    """A level with no label of its own reads as somebody else's.
+
+    The two vocabularies share one column, so a lookup that fell through to a
+    default would announce a ``superadmin`` settings grant as "read-only" to
+    the person being asked to approve it. Checked against the catalogues
+    themselves, in every locale, rather than against the map that produced
+    them.
+    """
+    from app.core.email_i18n import translate
+    from app.models.platform.access_grant import (
+        LEVEL_LABEL_KEYS,
+        LEVELS_BY_PURPOSE,
+    )
+
+    every_level = {level for levels in LEVELS_BY_PURPOSE.values() for level in levels}
+    assert every_level <= set(LEVEL_LABEL_KEYS), (
+        f"no label for {sorted(every_level - set(LEVEL_LABEL_KEYS))}"
+    )
+
+    for locale in ("en", "de", "es", "fr"):
+        rendered = {
+            level: translate(key, locale, namespace="notifications")
+            for level, key in LEVEL_LABEL_KEYS.items()
+        }
+        # Distinct, so no two levels are announced the same way, and none of
+        # them came back as the key itself.
+        assert len(set(rendered.values())) == len(rendered), f"{locale}: {rendered}"
+        for level, text in rendered.items():
+            assert not text.startswith("accessGrant."), f"{locale}/{level} unresolved"

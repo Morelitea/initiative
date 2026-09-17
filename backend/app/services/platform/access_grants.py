@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -24,6 +24,7 @@ from app.core.login_methods import LoginMethod
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
+    LEVEL_LABEL_KEYS,
     AccessGrant,
     AccessGrantPurpose,
     AccessGrantStatus,
@@ -142,7 +143,7 @@ async def _push_and_email(
     push_key: str,
     email_event: str,
     guild_name: Optional[str],
-    access_level: Optional[str] = None,
+    levels: Optional[Sequence[str]] = None,
     requester: Optional[str] = None,
 ) -> None:
     """Best-effort push + email fan-out for a PAM event.
@@ -153,21 +154,25 @@ async def _push_and_email(
     ``accessGrant.<key>`` entry in the ``notifications`` namespace, localized to
     the recipient.
 
-    ``access_level`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
+    ``levels`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
     placeholders that only some body templates contain — ``requester`` is used by
     the ``requested`` event only and is intentionally ``None`` for approve/deny/
     revoke. Each is passed to the interpolator only when present, so it maps to
     exactly the placeholders its template declares.
+
+    ``levels`` is a sequence because one ask can be for two things at once. It
+    is what the recipient is being asked to decide about, so every one of them
+    is named: a message that described only the first would be asking for a
+    decision about something it had not mentioned.
     """
     locale = getattr(recipient, "locale", None) or "en"
     body_vars: dict[str, str] = {"guild": guild_name or "a guild"}
-    if access_level is not None:
-        level_key = (
-            "accessGrant.levelReadWrite"
-            if access_level == "read_write"
-            else "accessGrant.levelRead"
+    if levels:
+        body_vars["level"] = ", ".join(
+            translate(LEVEL_LABEL_KEYS[level], locale, namespace="notifications")
+            for level in levels
+            if level in LEVEL_LABEL_KEYS
         )
-        body_vars["level"] = translate(level_key, locale, namespace="notifications")
     if requester is not None:
         body_vars["requester"] = requester
     try:
@@ -197,7 +202,7 @@ async def _push_and_email(
             recipient,
             event=email_event,
             guild_name=guild_name or "a guild",
-            access_level=access_level,
+            levels=levels,
             requester=requester,
         )
     except email_service.EmailNotConfiguredError:
@@ -299,7 +304,7 @@ async def request_grants(
             push_key="requested",
             email_event="requested",
             guild_name=guild.name,
-            access_level=created[0].access_level,
+            levels=[grant.access_level for grant in created],
             requester=requester_name,
         )
     return created
@@ -452,7 +457,7 @@ async def break_glass(
         push_key="approved",
         email_event="approved",
         guild_name=data["guild_name"],
-        access_level=grant.access_level,
+        levels=[grant.access_level],
     )
     return grant
 
@@ -504,7 +509,7 @@ async def approve(
             push_key="approved",
             email_event="approved",
             guild_name=data["guild_name"],
-            access_level=grant.access_level,
+            levels=[grant.access_level],
         )
     return grant
 

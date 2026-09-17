@@ -64,9 +64,7 @@ def downgrade() -> None:
 
     # Settings grants have no meaning at the revision below this one, and their
     # levels are not in its vocabulary, so they go rather than fail the CHECK.
-    # ``access_grants`` carries FORCE ROW LEVEL SECURITY and is owned by the
-    # role migrations run as, so the delete runs with FORCE lifted and the
-    # count afterwards is what says it happened.
+    # The count afterwards is what says the delete landed.
     op.execute("ALTER TABLE public.access_grants NO FORCE ROW LEVEL SECURITY")
     try:
         conn = op.get_bind()

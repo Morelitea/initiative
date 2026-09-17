@@ -66,6 +66,18 @@ class AccessGrantStatus(str, Enum):
 ACCESS_LEVELS: tuple[str, ...] = tuple(level.value for level in AccessLevel)
 SETTINGS_LEVELS: tuple[str, ...] = tuple(level.value for level in SettingsLevel)
 
+#: The translation key naming each level, in the ``accessGrant`` block of both
+#: the notifications and email catalogues. One entry per value the column can
+#: carry: two vocabularies share it, so anything that fell back to a default
+#: would describe a settings grant as a content one to the person being asked
+#: to approve it.
+LEVEL_LABEL_KEYS: dict[str, str] = {
+    "read": "accessGrant.levelRead",
+    "read_write": "accessGrant.levelReadWrite",
+    "admin": "accessGrant.levelAdmin",
+    "superadmin": "accessGrant.levelSuperadmin",
+}
+
 #: What ``access_level`` may say, per purpose. The CHECK in migration 0298
 #: mirrors this.
 LEVELS_BY_PURPOSE: dict[str, tuple[str, ...]] = {

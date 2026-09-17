@@ -149,6 +149,8 @@
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "levelRead": "Lesezugriff",
     "levelReadWrite": "Lese- und Schreibzugriff",
+    "levelAdmin": "auf Community-Einstellungen (Admin)",
+    "levelSuperadmin": "auf Community-Einstellungen (Superadmin)",
     "requested": {
       "subject": "Zugriffsanfrage für {{guildName}}",
       "title": "Neue Zugriffsanfrage",

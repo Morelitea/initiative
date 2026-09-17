@@ -103,6 +103,8 @@
   "accessGrant": {
     "levelRead": "Lesezugriff",
     "levelReadWrite": "Lese- und Schreibzugriff",
+    "levelAdmin": "auf Community-Einstellungen (Admin)",
+    "levelSuperadmin": "auf Community-Einstellungen (Superadmin)",
     "requested": {
       "title": "Neue Zugriffsanfrage",
       "body": "{{requester}} hat {{level}} auf {{guild}} angefragt"
