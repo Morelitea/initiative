@@ -114,7 +114,7 @@ Open **Community settings** from the sidebar or the rail:
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **AI** | Optional AI settings — see [AI features](../account/ai-features.md). |
 | **Users** | Members, roles, invite links. |
-| **Authentication** | Single sign-on for this community, whether personal API keys reach it, and whether members sign in again every twelve hours. |
+| **Authentication** | Single sign-on for this community, whether personal API keys reach it, and whether members sign in again every twelve hours. Only where your server has granted the community its own sign-in to configure — most never see this tab. |
 | **Initiatives** | Create and manage the community's initiatives. |
 | **Apps** | Installed apps — see [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |

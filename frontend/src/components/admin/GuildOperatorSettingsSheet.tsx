@@ -66,19 +66,21 @@ const SettingRow = ({
   help,
   htmlFor,
   control,
-  nested = false,
+  indent = 0,
 }: {
   label: string;
   help: string;
   htmlFor?: string;
   control: React.ReactNode;
-  /** Renders indented under the row above, for a setting that reads as part of it. */
-  nested?: boolean;
+  /** How far under the row above this reads as sitting: 0 stands on its own,
+   * 1 is part of the row above it, 2 is part of that. */
+  indent?: 0 | 1 | 2;
 }) => (
   <div
     className={cn(
       "flex items-start justify-between gap-6 py-3",
-      nested && "ml-3 border-border border-l pl-4"
+      indent === 1 && "ml-3 border-border border-l pl-4",
+      indent === 2 && "ml-7 border-border border-l pl-4"
     )}
   >
     <div className="space-y-1">
@@ -240,10 +242,16 @@ export const GuildOperatorSettingsSheet = ({
           </Section>
 
           <Section title={t("guilds.sheet.signIn")}>
-            {(["providers", "require_sign_in"] as const).map((option) => (
+            {(
+              [
+                ["restrictions", 0],
+                ["providers", 1],
+                ["require_sign_in", 2],
+              ] as const
+            ).map(([option, indent]) => (
               <SettingRow
                 key={option}
-                nested={option === "require_sign_in"}
+                indent={indent}
                 label={t(`guilds.sheet.authOption.${option}.label`)}
                 help={t(`guilds.sheet.authOption.${option}.help`)}
                 htmlFor={`guild-auth-${option}`}
@@ -252,7 +260,9 @@ export const GuildOperatorSettingsSheet = ({
                     id={`guild-auth-${option}`}
                     checked={options.includes(option)}
                     onCheckedChange={(checked) => toggleOption(option, Boolean(checked))}
-                    disabled={update.isPending}
+                    // The two beneath the master mean nothing without it, so
+                    // they are not on offer until it is ticked.
+                    disabled={update.isPending || (indent > 0 && !options.includes("restrictions"))}
                   />
                 }
               />

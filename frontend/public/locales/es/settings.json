@@ -1027,6 +1027,10 @@
       "supportLabel": "Solicitudes de ayuda",
       "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
       "authOption": {
+        "restrictions": {
+          "label": "Configurar su propio inicio de sesión",
+          "help": "Da a esta comunidad la pestaña Autenticación: claves de API personales, un límite de sesión de doce horas y lo que se marque debajo. Desactivado para la mayoría de comunidades: sin esto nunca ven la pestaña."
+        },
         "providers": {
           "label": "Sus propios proveedores de inicio de sesión",
           "help": "Permite que sus administradores conecten un proveedor de identidad y den de alta cuentas nuevas por ahí."

@@ -88,6 +88,9 @@ export const SettingsGuildAuthPage = () => {
   });
   const authSettings = hasGrantedSeat ? authSettingsQuery.data : undefined;
   const grantedOptions = authSettings?.auth_options ?? activeGuild?.auth_options ?? [];
+  // The master: without it the community configures no part of its own
+  // sign-in, and this whole page is somebody else's business.
+  const mayConfigureAuth = grantedOptions.includes("restrictions");
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
   // The seat above admin holds a community's sign-in configuration, and this
@@ -300,7 +303,10 @@ export const SettingsGuildAuthPage = () => {
     }
   };
 
-  if (!isSuperadmin || (hasGrantedSeat && authSettings == null)) {
+  // A grantee's options arrive with the settings query rather than the guild
+  // list, so the page waits for it rather than reading "granted nothing" off
+  // an answer that has not come back yet.
+  if (!isSuperadmin || (hasGrantedSeat && authSettings == null) || !mayConfigureAuth) {
     return null;
   }
 

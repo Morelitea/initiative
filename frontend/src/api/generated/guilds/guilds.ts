@@ -2290,9 +2290,9 @@ export const useSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = <
  *
  * The same seat as the sign-in requirement, and for the same reason: it says
  * what may be used to reach the community, which is not the job of running
- * one. It carries no operator entitlement, though — turning it off only ever
- * narrows what reaches the guild, so there is nothing for an operator to
- * grant.
+ * one. Like everything else on that surface it needs the master entitlement,
+ * which most guilds never hold — a community that configures no part of its
+ * own sign-in is not asked about API keys either.
  *
  * Existing keys are left alone. What they may reach is decided when they are
  * used, so switching this back on restores them rather than leaving somebody
@@ -2396,8 +2396,7 @@ export const useSetGuildApiAccessApiV1GuildsGuildIdApiAccessPut = <
  * signs in again is part of what the community asks of a session, not part of
  * running it. One standard rather than a figure of the guild's own, so
  * somebody in two communities that ask for it has an answer and not a
- * comparison — and it only ever tightens, so it needs no operator
- * entitlement any more than refusing API keys does.
+ * comparison. It needs the master entitlement, like the rest of the surface.
  *
  * It reaches members' sessions at their next sign-in. Phones are the
  * exception: a device token carries its deadline in its own expiry, so the

@@ -1027,6 +1027,10 @@
       "supportLabel": "Hilfeanfragen",
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
       "authOption": {
+        "restrictions": {
+          "label": "Eigene Anmeldung konfigurieren",
+          "help": "Gibt dieser Community den Tab „Authentifizierung“: persönliche API-Schlüssel, ein Zwölf-Stunden-Sitzungslimit und alles darunter Angehakte. Für die meisten Communities aus — ohne diese Option sehen sie den Tab nie."
+        },
         "providers": {
           "label": "Eigene Anmeldeanbieter",
           "help": "Erlaubt ihren Admins, einen Identitätsanbieter einzurichten und neue Konten darüber aufzunehmen."

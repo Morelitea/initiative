@@ -77,6 +77,25 @@ async def test_only_the_seat_switches_the_standard(
     assert response.status_code == 403
 
 
+async def test_the_standard_waits_on_the_master_entitlement(
+    client: AsyncClient, session: AsyncSession
+):
+    """A community that configures no part of its own sign-in has no session
+    standard to set, and no tab to set it on."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin, auth_options=[])
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.superadmin
+    )
+
+    response = await client.put(
+        f"/api/v1/guilds/{guild.id}/session-limit",
+        headers=get_auth_headers(admin),
+        json={"enforce_compliance_session": True},
+    )
+    assert response.status_code == 404, response.text
+
+
 async def test_a_member_is_not_told_the_standard(
     client: AsyncClient, session: AsyncSession
 ):

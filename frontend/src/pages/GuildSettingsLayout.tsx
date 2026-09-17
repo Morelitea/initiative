@@ -14,8 +14,15 @@ export const GuildSettingsLayout = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.is_admin ?? false;
   // The seat above admin, which holds this community's sign-in configuration.
-  const isSuperadmin =
-    activeGuild?.role === "superadmin" || activeGuild?.grantSettingsLevel === "superadmin";
+  const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
+  const isSuperadmin = activeGuild?.role === "superadmin" || onTheGrantedSeat;
+  // Where the community has a sign-in of its own to configure, that is. Most
+  // never do: the operator grants the surface, and without it there is nothing
+  // on the tab to show anybody. A grantee's entry carries no options — the
+  // page reads the real ones and shows nothing where there are none.
+  const configuresItsOwnSignIn =
+    isSuperadmin &&
+    (onTheGrantedSeat || (activeGuild?.auth_options ?? []).includes("restrictions"));
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
@@ -40,7 +47,7 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      ...(isSuperadmin
+      ...(configuresItsOwnSignIn
         ? [
             {
               // Everything on this tab is the superadmin's to set, so the
@@ -80,7 +87,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, isSuperadmin]);
+  }, [urlGuildId, t, configuresItsOwnSignIn]);
 
   const canViewSettings = isGuildAdmin || isSuperadmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by

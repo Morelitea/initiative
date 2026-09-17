@@ -87,7 +87,7 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth import session_lifetime
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import GuildAuthOption, effective_options
 from app.models.platform.access_grant import AccessGrantPurpose
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import auth_posture
@@ -166,7 +166,11 @@ def _serialize_guild(
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
-        auth_options=sorted(admin_row.auth_options) if admin_row else None,
+        # Derived, not stored — an option ticked under a master nobody granted
+        # is not one this guild holds.
+        auth_options=sorted(effective_options(admin_row.auth_options))
+        if admin_row
+        else None,
         # Admins only: the state of the API-access control on that tab.
         allow_api_keys=guild.allow_api_keys if is_admin else None,
         # Admins only: and of the session-limit control beside it.
@@ -1242,15 +1246,18 @@ async def set_guild_api_access(
 
     The same seat as the sign-in requirement, and for the same reason: it says
     what may be used to reach the community, which is not the job of running
-    one. It carries no operator entitlement, though — turning it off only ever
-    narrows what reaches the guild, so there is nothing for an operator to
-    grant.
+    one. Like everything else on that surface it needs the master entitlement,
+    which most guilds never hold — a community that configures no part of its
+    own sign-in is not asked about API keys either.
 
     Existing keys are left alone. What they may reach is decided when they are
     used, so switching this back on restores them rather than leaving somebody
     to mint replacements.
     """
     await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
     guild = await admin_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
@@ -1276,8 +1283,7 @@ async def set_guild_session_limit(
     signs in again is part of what the community asks of a session, not part of
     running it. One standard rather than a figure of the guild's own, so
     somebody in two communities that ask for it has an answer and not a
-    comparison — and it only ever tightens, so it needs no operator
-    entitlement any more than refusing API keys does.
+    comparison. It needs the master entitlement, like the rest of the surface.
 
     It reaches members' sessions at their next sign-in. Phones are the
     exception: a device token carries its deadline in its own expiry, so the
@@ -1285,6 +1291,9 @@ async def set_guild_session_limit(
     phone out at once, where it signed in longer ago than the standard allows.
     """
     await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
     guild = await admin_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(

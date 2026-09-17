@@ -1027,6 +1027,10 @@
       "supportLabel": "Demandes d'aide",
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
       "authOption": {
+        "restrictions": {
+          "label": "Configurer sa propre connexion",
+          "help": "Donne à cette communauté l'onglet Authentification : clés d'API personnelles, limite de session de douze heures et tout ce qui est coché en dessous. Désactivé pour la plupart des communautés — sans cela, elles ne voient jamais l'onglet."
+        },
         "providers": {
           "label": "Ses propres fournisseurs de connexion",
           "help": "Permet à leurs administrateurs de connecter un fournisseur d'identité et d'y créer de nouveaux comptes."

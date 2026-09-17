@@ -9,11 +9,11 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 let guildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
-let authOptions: string[] | null = ["providers", "require_sign_in"];
+let authOptions: string[] | null = ["restrictions", "providers", "require_sign_in"];
 let allowApiKeys: boolean | null = true;
 let sessionLimit: boolean | null = false;
 let grantedAuthSettings = {
-  auth_options: ["providers", "require_sign_in"],
+  auth_options: ["restrictions", "providers", "require_sign_in"],
   allow_api_keys: true,
   enforce_compliance_session: false,
 };
@@ -102,11 +102,11 @@ describe("SettingsGuildAuthPage", () => {
     guildRole = "superadmin";
     grantSettingsLevel = null;
     guildId = 4;
-    authOptions = ["providers", "require_sign_in"];
+    authOptions = ["restrictions", "providers", "require_sign_in"];
     allowApiKeys = true;
     sessionLimit = false;
     grantedAuthSettings = {
-      auth_options: ["providers", "require_sign_in"],
+      auth_options: ["restrictions", "providers", "require_sign_in"],
       allow_api_keys: true,
       enforce_compliance_session: false,
     };
@@ -286,15 +286,24 @@ describe("SettingsGuildAuthPage", () => {
       expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
     });
 
-    it("is reachable by a community an operator has granted nothing", () => {
-      // It only ever narrows what reaches the community, so it does not wait
-      // on the entitlement the sections around it need.
+    it("goes with the rest of the page where the master option is not held", () => {
+      // A community that configures no part of its own sign-in is not asked
+      // about API keys either.
       authOptions = [];
+      render();
+
+      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
+    });
+
+    it("stays on offer to a community granted the master and nothing else", () => {
+      // The two beneath it are separate grants; this one is not.
+      authOptions = ["restrictions"];
       render();
 
       expect(apiSwitch()).toBeInTheDocument();
       expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
     });
   });
 
