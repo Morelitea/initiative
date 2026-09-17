@@ -15,7 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.deps import get_current_active_user, require_capability
 from app.core.capabilities import Capability, user_has_capability
-from app.core.messages import AccessGrantMessages
+from app.core.audit_events import AuditEventType
+from app.core.messages import AccessGrantMessages, AuthMessages
 from app.db.session import get_admin_session
 from app.models.platform.user import User
 from app.schemas.platform.access_grant import (
@@ -23,7 +24,10 @@ from app.schemas.platform.access_grant import (
     AccessGrantCreate,
     AccessGrantRead,
     BreakGlassCreate,
+    BreakGlassRequirements,
 )
+from app.services import audit as audit_service
+from app.services.auth import totp as totp_service
 from app.services.platform import access_grants as service
 from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -98,6 +102,69 @@ async def create_access_request(
     return read
 
 
+async def _check_second_factor(
+    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+) -> None:
+    """Take the account's own factor before the glass breaks.
+
+    Asked for the way turning the factor off asks: against the request rather
+    than against what the session remembers, so the code is presented at the
+    moment the grant is issued. A recovery code answers it too — an operator
+    whose phone is gone is exactly who needs to reach a community.
+    """
+    if not await service.demands_second_factor(session):
+        return
+
+    if not await totp_service.is_enrolled(session, user_id=actor.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AccessGrantMessages.SECOND_FACTOR_ENROLMENT_REQUIRED,
+        )
+
+    if payload.recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            session, user_id=actor.id, code=payload.recovery_code
+        )
+        method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
+    elif payload.code:
+        accepted = await totp_service.verify_code(
+            session, user_id=actor.id, code=payload.code
+        )
+        method, refusal = "totp", AuthMessages.TOTP_INVALID
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AccessGrantMessages.SECOND_FACTOR_REQUIRED,
+        )
+
+    if not accepted:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=actor.id,
+            detail={"method": method, "during": "break_glass"},
+        )
+        await session.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+
+
+@router.get("/break-glass", response_model=BreakGlassRequirements)
+async def break_glass_requirements(
+    session: AdminSessionDep,
+    current_user: BreakGlassDep,
+) -> BreakGlassRequirements:
+    """What a break-glass request will be asked for.
+
+    The form reads this to know whether to offer a code field, and whether the
+    caller has a factor to answer with.
+    """
+    required = await service.demands_second_factor(session)
+    return BreakGlassRequirements(
+        second_factor_required=required,
+        enrolled=await totp_service.is_enrolled(session, user_id=current_user.id),
+    )
+
+
 @router.post(
     "/break-glass", response_model=AccessGrantRead, status_code=status.HTTP_201_CREATED
 )
@@ -114,6 +181,7 @@ async def break_glass_access(
     step (created + self-approved). The grant is the audit trail; the holder then
     routes into the guild via the normal PAM path until it expires.
     """
+    await _check_second_factor(session, actor=current_user, payload=payload)
     try:
         grant = await service.break_glass(session, actor=current_user, payload=payload)
     except service.AccessGrantError as exc:

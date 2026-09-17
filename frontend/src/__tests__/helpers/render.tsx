@@ -87,6 +87,7 @@ function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["
     login: vi.fn(),
     register: vi.fn(),
     completeOidcLogin: vi.fn(),
+    stepUpWithFactor: vi.fn(),
     logout: vi.fn(),
     refreshUser: vi.fn(),
   };

@@ -544,6 +544,11 @@ class AccessGrantMessages:
     # Break-glass (self-approved, data.bypass holders): a live grant for this
     # guild already exists, so there's nothing to self-issue.
     ALREADY_LIVE = "ACCESS_GRANT_ALREADY_LIVE"
+    # Break-glass carries the account's own second factor once any data.bypass
+    # holder has one. ENROLMENT_REQUIRED is the refusal for a holder who has
+    # not set one up, whose way on is their own Security page.
+    SECOND_FACTOR_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
+    SECOND_FACTOR_ENROLMENT_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
 
 
 class PasswordMessages:

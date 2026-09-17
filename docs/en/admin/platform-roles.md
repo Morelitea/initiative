@@ -60,6 +60,11 @@ Two paths:
 - **Request and approve** (Support and Moderator). Someone **requests** scoped access to a community — read-only by default, or read-and-write — for a chosen number of hours, with a reason. An approver (Operator/Owner) grants or denies it, and it **auto-expires**. A read-write grant can edit existing content, but not author new material or manage members.
 - **Break glass** (Operator and Owner). For urgent situations, an operator can **self-issue** an emergency grant to a community — approved instantly, scoped to that community, expiring automatically. A read-write break-glass grant acts as a **full community admin** for its window. Every break-glass grant is recorded, so the access is auditable.
 
+!!! info "Breaking glass asks for your authenticator code"
+    As soon as **anybody** who can break glass has set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks everybody for a code — theirs, at the moment they do it. One of your recovery codes works too, which matters, because the phone is the thing most likely to be missing in the hour you need this.
+
+    Nobody switches this on. It follows from who has enrolled, which means it can only ever be on while at least one person can satisfy it — there is no way to end up with a server nobody can break glass into. The flip side is worth knowing before it surprises you: if a colleague enrols and you haven't, your next break-glass is refused until you do. Setting one up takes about a minute, under **Security** in your own settings.
+
 !!! info "Why it's built this way"
     Privileged access has to be deliberately taken, is scoped to one community, expires on its own, and leaves a record naming who took it and why. That's a stronger position than a permanent bypass nobody has to justify. More in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 

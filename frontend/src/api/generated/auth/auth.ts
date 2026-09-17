@@ -46,6 +46,7 @@ import type {
   SecondFactorEnrolStart,
   SecondFactorEnrolment,
   SecondFactorStatus,
+  SecondFactorStepUpAnswer,
   Token,
   UploadTokenResponse,
   UserCreate,
@@ -3214,13 +3215,10 @@ export const useDisableSecondFactorApiV1AuthTotpDisablePost = <
  * its satisfied providers carry forward and the old row is revoked, the same
  * shape the provider step-up uses — satisfying one community's requirement
  * never un-satisfies another's.
- *
- * ``challenge`` is not read here. What stands in for it is the session
- * itself, which this request is already authenticated by.
  * @summary Step Up With Factor
  */
 export const stepUpWithFactorApiV1AuthStepUpTotpPost = (
-  secondFactorChallengeAnswer: BodyType<SecondFactorChallengeAnswer>,
+  secondFactorStepUpAnswer: BodyType<SecondFactorStepUpAnswer>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -3229,7 +3227,7 @@ export const stepUpWithFactorApiV1AuthStepUpTotpPost = (
       url: `/api/v1/auth/step-up/totp`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: secondFactorChallengeAnswer,
+      data: secondFactorStepUpAnswer,
       signal,
     },
     options
@@ -3243,14 +3241,14 @@ export const getStepUpWithFactorApiV1AuthStepUpTotpPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
     TError,
-    { data: BodyType<SecondFactorChallengeAnswer> },
+    { data: BodyType<SecondFactorStepUpAnswer> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
   TError,
-  { data: BodyType<SecondFactorChallengeAnswer> },
+  { data: BodyType<SecondFactorStepUpAnswer> },
   TContext
 > => {
   const mutationKey = ["stepUpWithFactorApiV1AuthStepUpTotpPost"];
@@ -3262,7 +3260,7 @@ export const getStepUpWithFactorApiV1AuthStepUpTotpPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
-    { data: BodyType<SecondFactorChallengeAnswer> }
+    { data: BodyType<SecondFactorStepUpAnswer> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -3276,7 +3274,7 @@ export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>
 >;
 export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationBody =
-  BodyType<SecondFactorChallengeAnswer>;
+  BodyType<SecondFactorStepUpAnswer>;
 export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
@@ -3290,7 +3288,7 @@ export const useStepUpWithFactorApiV1AuthStepUpTotpPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
       TError,
-      { data: BodyType<SecondFactorChallengeAnswer> },
+      { data: BodyType<SecondFactorStepUpAnswer> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3299,7 +3297,7 @@ export const useStepUpWithFactorApiV1AuthStepUpTotpPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
   TError,
-  { data: BodyType<SecondFactorChallengeAnswer> },
+  { data: BodyType<SecondFactorStepUpAnswer> },
   TContext
 > => {
   return useMutation(

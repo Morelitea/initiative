@@ -37,7 +37,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
-    SecondFactorChallengeAnswer,
+    SecondFactorStepUpAnswer,
     RecoveryCodes,
     RecoveryCodesRegenerate,
     SecondFactorConfirm,
@@ -287,7 +287,7 @@ async def step_up_with_factor(
     response: Response,
     current_user: CurrentUser,
     admin_session: AdminSessionDep,
-    payload: SecondFactorChallengeAnswer,
+    payload: SecondFactorStepUpAnswer,
     _first_party: str = FirstPartyOnly,
 ) -> Token:
     """Add the account's second factor to the session already signed in.
@@ -300,9 +300,6 @@ async def step_up_with_factor(
     its satisfied providers carry forward and the old row is revoked, the same
     shape the provider step-up uses — satisfying one community's requirement
     never un-satisfies another's.
-
-    ``challenge`` is not read here. What stands in for it is the session
-    itself, which this request is already authenticated by.
     """
     if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
         raise HTTPException(

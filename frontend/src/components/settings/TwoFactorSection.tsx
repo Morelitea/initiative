@@ -25,6 +25,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
 import { queryClient } from "@/lib/queryClient";
+import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
 /** Below this, the set is worth replacing before it runs out. */
 const LOW_ON_CODES = 3;
@@ -144,15 +145,10 @@ export const TwoFactorSection = () => {
 
   const submitDisable = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const entered = offCode.trim();
-    // Authenticator apps show a code as "123 456", and that is how people copy
-    // it. Six digits once the spacing is out is a live code; anything else is
-    // one of the written ones, which carries its own dashes and keeps them.
-    const compact = entered.replace(/[\s-]/g, "");
     disable.mutate({
       data: {
         current_password: offPassword || null,
-        ...(/^\d{6}$/.test(compact) ? { code: compact } : { recovery_code: entered }),
+        ...classifySecondFactorAnswer(offCode),
       },
     });
   };

@@ -789,7 +789,11 @@
       "reasonPlaceholder": "Warum du Notfallzugriff brauchst (z. B. Vorfall #123)",
       "submit": "Notfallzugriff",
       "activated": "Notfallzugriff aktiviert",
-      "error": "Notfallzugriff nicht möglich"
+      "error": "Notfallzugriff nicht möglich",
+      "codeLabel": "Dein Authenticator-Code",
+      "codePlaceholder": "123456 oder ein Wiederherstellungscode",
+      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher wird beim Notzugriff ein Code verlangt. Ein Wiederherstellungscode funktioniert ebenfalls.",
+      "codeNotEnrolled": "Für dieses Konto ist kein Authenticator eingerichtet. Richte unter Sicherheit einen ein und nutze dann den Notzugriff."
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",

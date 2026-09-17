@@ -789,7 +789,11 @@
       "reasonPlaceholder": "Pourquoi vous avez besoin d'un accès d'urgence (p. ex. incident n° 123)",
       "submit": "Accès d'urgence",
       "activated": "Accès d'urgence activé",
-      "error": "Impossible d'activer l'accès d'urgence"
+      "error": "Impossible d'activer l'accès d'urgence",
+      "codeLabel": "Votre code d'authentification",
+      "codePlaceholder": "123456, ou un code de récupération",
+      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence demande donc un code. Un code de récupération convient aussi.",
+      "codeNotEnrolled": "Aucune application d'authentification n'est configurée sur ce compte. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence."
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",
