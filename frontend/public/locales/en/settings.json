@@ -644,6 +644,15 @@
         "label": "Authenticator app",
         "help": "A code from an app, asked for after a password. People turn it on for themselves."
       }
+    },
+    "sessionLifetime": {
+      "title": "How long people stay signed in",
+      "description": "The longest anybody may go before signing in again, however much they use the app. Separate from being signed out for not using it.",
+      "label": "Hours",
+      "placeholder": "No limit",
+      "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
+      "saved": "Session limit saved.",
+      "error": "We couldn't save the session limit."
     }
   },
   "platformUsers": {
@@ -1009,7 +1018,9 @@
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit"
+      "storageLabel": "Storage limit",
+      "complianceSessionLabel": "Twelve-hour session limit",
+      "complianceSessionHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard."
     },
     "unlimited": "No limit"
   },
@@ -1122,18 +1133,14 @@
     "loading": "Loading providers…",
     "empty": "No providers configured yet.",
     "disabledBadge": "Disabled",
-    "createTitle": "Add sign-in provider",
     "editTitle": "Edit sign-in provider",
     "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/{slug}/callback on this server.",
-    "presetLabel": "Preset",
-    "presetCustom": "Custom (any OIDC provider)",
     "slugLabel": "Slug",
     "slugHelp": "Lowercase letters, numbers, and dashes. Fixed after creation — it forms the sign-in URLs.",
     "slugInvalid": "Use lowercase letters, numbers, and dashes; no leading or trailing dash.",
     "displayNameLabel": "Display name",
     "issuerLabel": "Issuer URL",
     "issuerPlaceholder": "https://idp.example.com",
-    "tenantHelp": "Replace {tenant} with your Entra tenant ID.",
     "clientIdLabel": "Client ID",
     "clientSecretLabel": "Client secret",
     "secretPlaceholder": "Leave blank for a public (PKCE-only) client",
@@ -1158,7 +1165,52 @@
     "callbackLabel": "Callback URL",
     "claimPathLabel": "Groups claim",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Rules below read it."
+    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Rules below read it.",
+    "test": "Test",
+    "testing": "Testing…",
+    "verify": "Verify",
+    "verifying": "Checking…",
+    "verifyError": "Could not check that address",
+    "callbackCopied": "Callback URL copied",
+    "scopesFromProvider": "Filled in from what this provider says it offers.",
+    "claimPathSearch": "Search or type a claim…",
+    "claimPathEmpty": "Nothing suggested — type the claim",
+    "claimPathUseTyped": "Use “{{value}}”",
+    "probe": {
+      "reachable": "Reachable",
+      "failed": "Nothing usable at that address",
+      "authorize": "Sign-in",
+      "token": "Token",
+      "keys": "Keys",
+      "signing": "Signing"
+    },
+    "wizard": {
+      "title": "Connect a sign-in provider",
+      "choosePrompt": "Who are people signing in with?",
+      "addressPrompt": "Where does your {{name}} live?",
+      "credentialsPrompt": "Register Initiative with {{name}}, then paste what it gives you.",
+      "optionsPrompt": "How it behaves once somebody signs in.",
+      "nextCredentials": "Next: credentials",
+      "nextOptions": "Next: how it behaves",
+      "registerCallback": "Register this callback URL",
+      "callbackHelp": "Your provider will refuse the sign-in until this exact address is registered with it.",
+      "connect": "Connect provider"
+    },
+    "blanks": {
+      "tenant": "Tenant ID",
+      "oktaHost": "Okta domain",
+      "auth0Host": "Auth0 domain",
+      "host": "Address",
+      "realm": "Realm",
+      "application": "Application slug"
+    },
+    "presetHints": {
+      "keycloak": "From your realm's OpenID Connect client, with client authentication on.",
+      "authentik": "The application slug, not the provider name — the issuer follows the application.",
+      "authelia": "Paste the plaintext client secret, not the hash you put in the YAML.",
+      "pocketId": "Passkey-only, so your sign-ins inherit passkeys with nothing further to do.",
+      "custom": "Any provider that speaks OpenID Connect. Paste its issuer address — a .well-known URL works too."
+    }
   },
   "aiConnections": {
     "title": "Connections",
@@ -1190,6 +1242,10 @@
     "apiKeyHelpExisting": "Leave blank to keep the existing key.",
     "apiKeyHelpNew": "The shared key all members use for this connection.",
     "modelPlaceholder": "Select or type a model",
+    "modelSearchPlaceholder": "Search or type a model name…",
+    "modelsLoading": "Looking up models…",
+    "modelsEmpty": "No models to suggest — type the name",
+    "modelUseTyped": "Use “{{value}}”",
     "enabledLabel": "Enabled",
     "enabledDescription": "Allow members to use this connection.",
     "defaultLabel": "Default connection",

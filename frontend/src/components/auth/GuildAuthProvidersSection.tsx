@@ -4,7 +4,9 @@ import { ProviderRegistrySection } from "@/components/admin/ProviderRegistrySect
 import {
   useCreateGuildAuthProvider,
   useDeleteGuildAuthProvider,
+  useDiscoverGuildAuthProvider,
   useGuildAuthProviders,
+  useTestGuildAuthProvider,
   useUpdateGuildAuthProvider,
 } from "@/hooks/useGuildAuthPolicy";
 
@@ -15,6 +17,8 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
   const createProvider = useCreateGuildAuthProvider(guildId);
   const updateProvider = useUpdateGuildAuthProvider(guildId);
   const deleteProvider = useDeleteGuildAuthProvider(guildId);
+  const testProvider = useTestGuildAuthProvider(guildId);
+  const discoverIssuer = useDiscoverGuildAuthProvider(guildId);
 
   return (
     <ProviderRegistrySection
@@ -26,6 +30,8 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
       createProvider={createProvider}
       updateProvider={updateProvider}
       deleteProvider={deleteProvider}
+      testProvider={testProvider}
+      discoverIssuer={discoverIssuer}
     />
   );
 };

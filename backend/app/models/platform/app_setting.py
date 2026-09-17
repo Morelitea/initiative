@@ -48,6 +48,19 @@ class AppSetting(SQLModel, table=True):
     # database validates the elements rather than a hand-kept CHECK list. The
     # non-empty constraint is the "at least one" rule — see
     # ``app.core.login_methods``.
+    # How long somebody may stay signed in before signing in again, in hours.
+    # This is the *absolute* limit; ``AUTH_REFRESH_TTL_DAYS`` is the separate
+    # question of how long they may leave the app alone.
+    #
+    # NULL, the default, asks for no limit — a self-hosted deployment is not
+    # answering to anybody, and the idle window already ends a session nobody
+    # uses. It also has to be longer than that window to mean anything: set
+    # equal to it, the absolute limit always binds first and the idle window
+    # stops sliding, so a daily user is signed out on a timer regardless.
+    session_max_hours: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
     login_methods: list[str] = Field(
         default_factory=lambda: [m.value for m in LoginMethod],
         sa_column=Column(

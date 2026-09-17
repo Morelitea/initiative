@@ -305,6 +305,15 @@ class AuthProviderMessages:
     NOT_FOUND = "AUTH_PROVIDER_NOT_FOUND"
     SLUG_TAKEN = "AUTH_PROVIDER_SLUG_TAKEN"
     IN_USE = "AUTH_PROVIDER_IN_USE"
+    #: Nothing answered at the address, or what answered was not reachable.
+    DISCOVERY_UNREACHABLE = "AUTH_PROVIDER_DISCOVERY_UNREACHABLE"
+    #: Something answered, but it names a different issuer than the one asked
+    #: for — usually a copied URL that is one path segment out.
+    DISCOVERY_ISSUER_MISMATCH = "AUTH_PROVIDER_DISCOVERY_ISSUER_MISMATCH"
+    #: Something answered and is not an OpenID Connect discovery document.
+    DISCOVERY_INVALID = "AUTH_PROVIDER_DISCOVERY_INVALID"
+    #: The stored row has no issuer to check.
+    DISCOVERY_NO_ISSUER = "AUTH_PROVIDER_DISCOVERY_NO_ISSUER"
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"

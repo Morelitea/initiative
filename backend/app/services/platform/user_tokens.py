@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services.auth import session_lifetime
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
@@ -156,6 +157,23 @@ async def process_expired_token_purge() -> None:
 # Device token functions
 
 
+def _slide_to(
+    window_ends: datetime,
+    max_hours: int | None,
+    *,
+    created_at: datetime,
+) -> datetime:
+    """Where a device token's window may reach, given the absolute limit.
+
+    ``window_ends`` is where the sliding window would put it; the limit is
+    measured from when the token was created, which is when its owner last
+    actually signed in.
+    """
+    if max_hours is None:
+        return window_ends
+    return min(window_ends, created_at + timedelta(hours=max_hours))
+
+
 async def create_device_token(
     session: AsyncSession,
     *,
@@ -169,9 +187,19 @@ async def create_device_token(
     the same transaction: a token that outlived the response it was minted for
     would be a live credential nobody was handed, sitting in the account's
     device list for its whole window.
+
+    The deployment's absolute session limit binds this too. A device token is
+    the one credential whose window slides without ever being renewed against
+    the account, so the limit is applied here and again wherever it slides,
+    from the date this row was created.
     """
     token_value = secrets.token_urlsafe(48)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
+    now = datetime.now(timezone.utc)
+    expires_at = _slide_to(
+        now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
+        await session_lifetime.resolve_max_hours(session, user_id=user_id),
+        created_at=now,
+    )
     token = UserToken(
         user_id=user_id,
         token=_hash_token(token_value),
@@ -209,6 +237,17 @@ async def get_device_token(
         return None
     now = datetime.now(timezone.utc)
     if record.expires_at - now < DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD:
+        # The slide is throttled to about once a day, so reading the limit here
+        # costs a query at that rate rather than one per request.
+        slid = _slide_to(
+            now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
+            await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
+            created_at=record.created_at,
+        )
+        if slid <= record.expires_at:
+            # The limit has been reached: the window stops moving and the token
+            # expires where it stands.
+            return record
         previous = record.expires_at
         # Conditional on the expiry just read: two requests arriving together
         # both see the old one, and this is what settles which moved it — so
@@ -216,7 +255,7 @@ async def get_device_token(
         result = await session.exec(
             sql_update(UserToken)
             .where(UserToken.id == record.id, UserToken.expires_at == previous)
-            .values(expires_at=now + timedelta(days=DEVICE_TOKEN_TTL_DAYS))
+            .values(expires_at=slid)
         )
         await session.commit()
         await session.refresh(record)

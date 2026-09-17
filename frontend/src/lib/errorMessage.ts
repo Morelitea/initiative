@@ -97,6 +97,21 @@ export function getErrorCode(error: unknown): string | null {
 }
 
 /**
+ * The localized message for a backend code that did not arrive as an error.
+ *
+ * Some endpoints answer 200 and report the outcome in the body — a reachability
+ * check says whether it reached rather than failing. The code means the same
+ * thing either way, so it is looked up the same way.
+ */
+export function messageForCode(code: string | null | undefined, fallbackKey: string): string {
+  if (code) {
+    const translated = translate(`errors:${code}`);
+    if (translated !== `errors:${code}`) return translated;
+  }
+  return translate(fallbackKey);
+}
+
+/**
  * Extract the HTTP status code from an error, if available.
  */
 export function getHttpStatus(error: unknown): number | null {

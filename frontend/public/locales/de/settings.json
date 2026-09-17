@@ -644,6 +644,15 @@
         "label": "Authenticator-App",
         "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
       }
+    },
+    "sessionLifetime": {
+      "title": "Wie lange Personen angemeldet bleiben",
+      "description": "Die längste Zeit, die jemand ohne erneute Anmeldung auskommt, unabhängig von der Nutzung. Unabhängig davon, bei Nichtnutzung abgemeldet zu werden.",
+      "label": "Stunden",
+      "placeholder": "Kein Limit",
+      "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
+      "saved": "Sitzungslimit gespeichert.",
+      "error": "Das Sitzungslimit konnte nicht gespeichert werden."
     }
   },
   "platformUsers": {
@@ -1020,7 +1029,9 @@
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit"
+      "storageLabel": "Speicherlimit",
+      "complianceSessionLabel": "Zwölf-Stunden-Sitzungslimit",
+      "complianceSessionHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen."
     },
     "unlimited": "Unbegrenzt"
   },
@@ -1122,18 +1133,14 @@
     "loading": "Anbieter werden geladen…",
     "empty": "Noch keine Anbieter konfiguriert.",
     "disabledBadge": "Deaktiviert",
-    "createTitle": "Anmeldeanbieter hinzufügen",
     "editTitle": "Anmeldeanbieter bearbeiten",
     "dialogDescription": "OpenID-Connect-Anbieterdetails. Die Callback-URL für Ihren IdP lautet /api/v1/auth/{slug}/callback auf diesem Server.",
-    "presetLabel": "Vorlage",
-    "presetCustom": "Benutzerdefiniert (beliebiger OIDC-Anbieter)",
     "slugLabel": "Kürzel",
     "slugHelp": "Kleinbuchstaben, Zahlen und Bindestriche. Nach dem Erstellen unveränderlich — es bildet die Anmelde-URLs.",
     "slugInvalid": "Nur Kleinbuchstaben, Zahlen und Bindestriche; kein Bindestrich am Anfang oder Ende.",
     "displayNameLabel": "Anzeigename",
     "issuerLabel": "Issuer-URL",
     "issuerPlaceholder": "https://idp.example.com",
-    "tenantHelp": "Ersetzen Sie {tenant} durch Ihre Entra-Mandanten-ID.",
     "clientIdLabel": "Client-ID",
     "clientSecretLabel": "Client-Secret",
     "secretPlaceholder": "Leer lassen für einen öffentlichen Client (nur PKCE)",
@@ -1158,7 +1165,52 @@
     "callbackLabel": "Callback-URL",
     "claimPathLabel": "Gruppen-Claim",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn."
+    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn.",
+    "test": "Testen",
+    "testing": "Test läuft…",
+    "verify": "Prüfen",
+    "verifying": "Wird geprüft…",
+    "verifyError": "Diese Adresse konnte nicht geprüft werden",
+    "callbackCopied": "Callback-URL kopiert",
+    "scopesFromProvider": "Übernommen aus den Angaben dieses Anbieters.",
+    "claimPathSearch": "Claim suchen oder eingeben…",
+    "claimPathEmpty": "Keine Vorschläge — Claim eingeben",
+    "claimPathUseTyped": "„{{value}}“ verwenden",
+    "probe": {
+      "reachable": "Erreichbar",
+      "failed": "Unter dieser Adresse ist nichts Verwendbares",
+      "authorize": "Anmeldung",
+      "token": "Token",
+      "keys": "Schlüssel",
+      "signing": "Signatur"
+    },
+    "wizard": {
+      "title": "Anmeldeanbieter verbinden",
+      "choosePrompt": "Womit melden sich die Leute an?",
+      "addressPrompt": "Wo liegt euer {{name}}?",
+      "credentialsPrompt": "Registriere Initiative bei {{name}} und füge hier ein, was du zurückbekommst.",
+      "optionsPrompt": "Wie es sich nach einer Anmeldung verhält.",
+      "nextCredentials": "Weiter: Zugangsdaten",
+      "nextOptions": "Weiter: Verhalten",
+      "registerCallback": "Diese Callback-URL registrieren",
+      "callbackHelp": "Euer Anbieter lehnt die Anmeldung ab, solange genau diese Adresse dort nicht registriert ist.",
+      "connect": "Anbieter verbinden"
+    },
+    "blanks": {
+      "tenant": "Tenant-ID",
+      "oktaHost": "Okta-Domain",
+      "auth0Host": "Auth0-Domain",
+      "host": "Adresse",
+      "realm": "Realm",
+      "application": "Application-Slug"
+    },
+    "presetHints": {
+      "keycloak": "Aus dem OpenID-Connect-Client eures Realms, mit aktivierter Client-Authentifizierung.",
+      "authentik": "Der Application-Slug, nicht der Provider-Name — der Issuer folgt der Application.",
+      "authelia": "Füge das Client-Secret im Klartext ein, nicht den Hash aus der YAML-Datei.",
+      "pocketId": "Nur Passkeys, damit eure Anmeldungen Passkeys ohne weiteres Zutun übernehmen.",
+      "custom": "Jeder Anbieter, der OpenID Connect spricht. Füge dessen Issuer-Adresse ein — eine .well-known-URL funktioniert auch."
+    }
   },
   "aiConnections": {
     "title": "Verbindungen",
@@ -1190,6 +1242,10 @@
     "apiKeyHelpExisting": "Leer lassen, um den vorhandenen Schlüssel beizubehalten.",
     "apiKeyHelpNew": "Der gemeinsame Schlüssel, den alle Mitglieder für diese Verbindung verwenden.",
     "modelPlaceholder": "Modell auswählen oder eingeben",
+    "modelSearchPlaceholder": "Modellnamen suchen oder eingeben…",
+    "modelsLoading": "Modelle werden abgefragt…",
+    "modelsEmpty": "Keine Modellvorschläge — Name eingeben",
+    "modelUseTyped": "„{{value}}“ verwenden",
     "enabledLabel": "Aktiviert",
     "enabledDescription": "Mitgliedern erlauben, diese Verbindung zu verwenden.",
     "defaultLabel": "Standardverbindung",

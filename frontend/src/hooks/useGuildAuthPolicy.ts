@@ -9,8 +9,10 @@ import {
 import {
   createGuildAuthProviderApiV1GuildsGuildIdAuthProvidersPost,
   deleteGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdDelete,
+  discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost,
   getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey,
   listGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGet,
+  testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost,
   updateGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdPatch,
 } from "@/api/generated/guild-auth-providers/guild-auth-providers";
 import {
@@ -154,3 +156,18 @@ export const useDeleteGuildAuthProvider = (guildId: number) => {
     onSuccess: invalidate,
   });
 };
+
+/** Look up an address somebody is still typing. Saves nothing, so there is
+ *  nothing to invalidate. */
+export const useDiscoverGuildAuthProvider = (guildId: number) =>
+  useMutation({
+    mutationFn: ({ issuer }: { issuer: string }) =>
+      discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost(guildId, { issuer }),
+  });
+
+/** Look up a saved provider, against the address on its row. */
+export const useTestGuildAuthProvider = (guildId: number) =>
+  useMutation({
+    mutationFn: (providerId: number) =>
+      testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost(guildId, providerId),
+  });

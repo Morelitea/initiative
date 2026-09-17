@@ -1087,6 +1087,34 @@ export interface AuthProviderCreate {
 }
 
 /**
+ * An address to look up before anything is saved.
+ */
+export interface AuthProviderDiscoverRequest {
+  issuer: string;
+}
+
+/**
+ * What one look at a provider found.
+ *
+ * Named fields only. The document itself and the status that carried it stay
+ * server-side; ``error_code`` is what a failure says, and the detail behind
+ * it is in the log.
+ */
+export interface AuthProviderProbeResult {
+  ok: boolean;
+  error_code: string | null;
+  issuer: string | null;
+  authorization_endpoint: string | null;
+  token_endpoint: string | null;
+  jwks_uri: string | null;
+  userinfo_endpoint: string | null;
+  signing_algs: string[];
+  scopes_supported: string[];
+  claims_supported: string[];
+  callback_url_template: string;
+}
+
+/**
  * Partial update. ``client_secret``: absent = keep, empty = clear,
  * value = replace. The slug is immutable — it is the identity the login
  * URLs, flow states, and linked identities hang off.
@@ -5275,6 +5303,7 @@ export interface PlatformAdminCountResponse {
 export interface PlatformAuthSettingsResponse {
   methods: LoginMethodStatus[];
   guilds_requiring_sign_in: number;
+  session_max_hours: number | null;
 }
 
 /**
@@ -5296,6 +5325,7 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
+  enforce_compliance_session: boolean;
 }
 
 /**
@@ -5314,6 +5344,7 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
+  enforce_compliance_session?: boolean | null;
 }
 
 /**
@@ -6572,6 +6603,18 @@ export interface SecondFactorStatus {
 export interface SecondFactorStepUpAnswer {
   code?: string | null;
   recovery_code?: string | null;
+}
+
+/**
+ * The absolute limit on staying signed in, in hours.
+ *
+ * ``None`` asks for no limit. It has to be longer than the idle window to
+ * mean anything: set shorter, it is the only thing ending a session and the
+ * idle window stops mattering — which is a fair thing to ask for, and the
+ * reason the field is free rather than a list of blessed figures.
+ */
+export interface SessionLifetimeUpdate {
+  session_max_hours?: number | null;
 }
 
 /**

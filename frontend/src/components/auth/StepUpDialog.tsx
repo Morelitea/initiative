@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { useTranslation } from "react-i18next";
 
 import { AUTH_STEP_UP_EVENT, type StepUpEventDetail } from "@/api/client";
+import { ProviderMark } from "@/components/auth/ProviderMark";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -69,7 +70,10 @@ export const StepUpDialog = () => {
           <Button variant="outline" onClick={clear}>
             {t("stepUp.dismiss")}
           </Button>
-          <Button onClick={beginStepUp}>{t("stepUp.continue", { providerName })}</Button>
+          <Button onClick={beginStepUp}>
+            <ProviderMark icon={provider?.icon} className="h-4 w-4" />
+            {t("stepUp.continue", { providerName })}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

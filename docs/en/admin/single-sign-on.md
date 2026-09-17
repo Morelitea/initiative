@@ -13,27 +13,35 @@ You can add as many providers as you want. Each becomes a button on the sign-in 
 
 ## Adding a provider
 
-**Add provider** opens a short form. The **Preset** picker fills in the unchanging parts for Google and Microsoft. Everything else is **Custom**, which is a blank OIDC form — Keycloak, Authentik, Authelia, Zitadel and Pocket ID all take one.
+**Add provider** walks you through it, because this is a conversation between two screens: a couple of values come from your provider, and one has to go back the other way.
+
+**1. Which one.** Pick it from the grid. Ten of them are here by name; **OpenID Connect** at the end is for anything else that speaks it.
+
+**2. Where it lives.** This is the field people get wrong, so it's the field the wizard is strictest about. Pick Keycloak and it asks for your address and your realm, separately, and builds the issuer out of them — nobody should be editing the middle of a URL to insert the word `main`. Then hit **Verify**.
+
+Verify actually goes and asks. If something answers and agrees it's the issuer you named, you get a tick and a short list of what it found. If nothing answers, or the thing that answers is for a different issuer, you find out here rather than three days later when somebody tries to sign in. You can't move on until it's happy — which is the point.
+
+**3. Credentials.** The **Callback URL** is at the top, with a copy button, because it's the one value that travels from here to there. Register it at your provider first; it will refuse the sign-in until that exact address is on its list. Then paste back the **Client ID** and **Client secret** it gives you. Leave the secret blank for a public, PKCE-only client.
+
+**4. How it behaves.**
 
 | Field | What to enter |
 |---|---|
 | **Slug** | Lowercase letters, numbers and dashes. It forms the sign-in URLs, so it's fixed once you save. |
 | **Display name** | What the button says. "Work account" helps more than "OIDC". |
-| **Issuer URL** | Your provider's base address, like `https://id.example.com`. |
-| **Client ID** and **Client secret** | From the app you register at your provider. Leave the secret blank for a public, PKCE-only client. |
-| **Scopes** | `openid email profile` covers it. Add `offline_access` if you want group changes picked up between sign-ins. |
-| **Groups claim** | Where this provider keeps a person's groups. Only needed if you're sorting people into communities — see below. |
+| **Scopes** | Filled in from what your provider said it offers. Add `offline_access` if you want group changes picked up between sign-ins. |
+| **Groups claim** | Suggested from the claims your provider listed, and you can type one it didn't. Only needed if you're sorting people into communities — see below. |
 | **Create accounts on first sign-in** | On, a stranger who signs in gets an account. Off, the button only works for people who already have one. |
 | **Enabled** | Off takes the button away without losing anything you typed. |
 
-Save, and the row shows its **Callback URL**. That's the one value your identity provider wants back from you. Two more addresses sit at the top of the page — a post-login redirect and a mobile app callback — shared by every provider, and most IdPs never ask for them.
+Two more addresses sit at the top of the page — a post-login redirect and a mobile app callback — shared by every provider. Most providers never ask for them.
 
-Editing is the same form. The secret is write-only: leave it blank to keep the one you have, or tick **Remove the stored secret**.
+**Afterwards.** Each row has **Test**, which re-asks the same question of a provider you've already saved — useful when somebody has been reorganising things at the other end. **Edit** is a single form rather than four steps, with the same **Verify** button and the same callback to copy. The secret is write-only: leave it blank to keep the one you have, or tick **Remove the stored secret**.
 
 Deleting is careful on your behalf. A provider that a community's sign-in requirement points at waits until you change that requirement. So does one that is somebody's only way in — those people need a password or a second provider first. Everyone else keeps their account and every other way they had of reaching it.
 
 !!! screenshot "Settings → Platform → Authentication"
-    Capture the page with two or three providers in the list, one row expanded to show its callback URL. Save as `docs/en/images/admin/oidc-settings.png`.
+    Capture the page with two or three providers in the list, and the wizard's address step showing a green Verify result. Save as `docs/en/images/admin/oidc-settings.png`.
 
 ## Ways in
 
@@ -65,48 +73,59 @@ Withdrawing an option closes the page it governs and nothing else. Their provide
 
 ## Provider quickstarts
 
-Any standards-compliant OIDC provider works. In every case you end up with the same three values — an **Issuer URL**, a **Client ID** and a **Client secret** — plus the callback URL registered at the other end.
+Any standards-compliant OIDC provider works, and the wizard already knows each of these spells its issuer differently — it asks for the parts and assembles the address. What's left is the bit you do at the other end.
 
 === "Pocket ID"
 
     Passkey-only and light on its feet, which makes it a common pairing.
 
     1. **OIDC Clients → Add client**, name it "Initiative".
-    2. Set its **Callback URL** to the one on Initiative's provider row.
-    3. Copy the generated **Client ID** and **Client secret**.
-    4. In Initiative, set the **Issuer URL** to your Pocket ID address and paste both in.
+    2. Set its **Callback URL** to the one the wizard is showing you.
+    3. Copy the generated **Client ID** and **Client secret** back in.
 
-    Nobody has a password in Pocket ID, so your Initiative sign-ins inherit passkeys without you doing anything. For group sorting, turn groups on there and set the **Groups claim** to `groups`.
+    The wizard asks for your Pocket ID **Address**. Nobody has a password in Pocket ID, so your Initiative sign-ins inherit passkeys without you doing anything. For group sorting, turn groups on there and pick `groups` as the **Groups claim**.
 
 === "Authentik"
 
-    1. Create a **Provider → OAuth2/OpenID**, set its **Redirect URI** to Initiative's callback URL, and note the **Client ID** and **Client secret**.
+    1. Create a **Provider → OAuth2/OpenID**, set its **Redirect URI** to the callback URL the wizard is showing you, and note the **Client ID** and **Client secret**.
     2. Create an **Application** and bind the provider to it.
-    3. In Initiative, the **Issuer URL** is `https://authentik.example.com/application/o/<application-slug>/`.
-    4. For group sorting, add the `groups` scope there and set the **Groups claim** to `groups`.
+
+    The wizard asks for your **Address** and the **Application slug** — the application's, not the provider's, which is the one people mix up. For group sorting, add the `groups` scope there and pick `groups` as the **Groups claim**.
 
 === "Authelia"
 
     Configured in YAML rather than a screen.
 
-    1. Under `identity_providers.oidc.clients`, add a client with a `client_id`, a **hashed** `client_secret`, `redirect_uris` set to Initiative's callback URL, and `scopes: [openid, profile, email, groups]`.
+    1. Under `identity_providers.oidc.clients`, add a client with a `client_id`, a **hashed** `client_secret`, `redirect_uris` set to the callback URL the wizard is showing you, and `scopes: [openid, profile, email, groups]`.
     2. Restart Authelia.
-    3. In Initiative, the **Issuer URL** is your Authelia address, and the secret you paste is the **plaintext** one, not the hash.
+
+    The wizard asks for your Authelia **Address**. The secret you paste back is the **plaintext** one, not the hash you put in the YAML.
 
 === "Keycloak"
 
-    1. In your realm, create an OpenID Connect **Client** with **Client authentication** on and a **Valid redirect URI** of Initiative's callback URL.
+    1. In your realm, create an OpenID Connect **Client** with **Client authentication** on and a **Valid redirect URI** of the callback URL the wizard is showing you.
     2. The **Client secret** is on the client's **Credentials** tab; the **Client ID** is the client name.
-    3. In Initiative, the **Issuer URL** is `https://keycloak.example.com/realms/<realm>`.
-    4. For group sorting, add a groups or roles mapper and set the **Groups claim** to `groups` or `realm_access.roles`.
 
-=== "Entra, Google, Okta"
+    The wizard asks for your **Address** and your **Realm** and builds the issuer from both. For group sorting, add a groups or roles mapper and pick `groups` or `realm_access.roles` as the **Groups claim**.
 
-    Same shape: register an app, add Initiative's callback URL, copy the three values. Google and Microsoft have presets, so you only supply the credentials.
+=== "Google, Entra, Okta, Auth0"
 
-    - **Microsoft Entra ID**: `https://login.microsoftonline.com/<tenant-id>/v2.0`
-    - **Google**: `https://accounts.google.com`
-    - **Okta**: `https://<your-org>.okta.com`
+    Same shape: register an app, add the callback URL the wizard is showing you, copy the credentials back.
+
+    All four are presets, so the address is one field or none:
+
+    - **Google** asks for nothing — its issuer never varies.
+    - **Microsoft Entra ID** asks for your **Tenant ID**.
+    - **Okta** asks for your **Okta domain**, like `dev-12345.okta.com`.
+    - **Auth0** asks for your **Auth0 domain**, like `your-tenant.eu.auth0.com`.
+
+=== "Zitadel"
+
+    1. Create a project, then an **Application** of type **Web** using **Code** with PKCE.
+    2. Set its redirect URI to the callback URL the wizard is showing you.
+    3. Copy the **Client ID** and **Client secret** back in.
+
+    The wizard asks for your **Address** — your own domain, or `your-instance.zitadel.cloud`.
 
 ## Sorting people into communities
 

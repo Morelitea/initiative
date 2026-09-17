@@ -644,6 +644,15 @@
         "label": "Application d'authentification",
         "help": "Un code d'une application, demandé après le mot de passe. Chacun l'active pour soi."
       }
+    },
+    "sessionLifetime": {
+      "title": "Durée pendant laquelle les gens restent connectés",
+      "description": "Le temps maximal avant de devoir se reconnecter, quelle que soit l'utilisation de l'application. À distinguer de la déconnexion pour inactivité.",
+      "label": "Heures",
+      "placeholder": "Aucune limite",
+      "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions web déjà ouvertes conservent leurs conditions d'origine ; les téléphones passent immédiatement sous une limite raccourcie.",
+      "saved": "Limite de session enregistrée.",
+      "error": "Nous n'avons pas pu enregistrer la limite de session."
     }
   },
   "platformUsers": {
@@ -1020,7 +1029,9 @@
         }
       },
       "usersLabel": "Membres",
-      "storageLabel": "Limite de stockage"
+      "storageLabel": "Limite de stockage",
+      "complianceSessionLabel": "Limite de session de douze heures",
+      "complianceSessionHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité."
     },
     "unlimited": "Sans limite"
   },
@@ -1122,18 +1133,14 @@
     "loading": "Chargement des fournisseurs…",
     "empty": "Aucun fournisseur configuré pour l'instant.",
     "disabledBadge": "Désactivé",
-    "createTitle": "Ajouter un fournisseur de connexion",
     "editTitle": "Modifier le fournisseur de connexion",
     "dialogDescription": "Détails du fournisseur OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/{slug}/callback sur ce serveur.",
-    "presetLabel": "Modèle",
-    "presetCustom": "Personnalisé (tout fournisseur OIDC)",
     "slugLabel": "Identifiant",
     "slugHelp": "Minuscules, chiffres et tirets. Fixe après la création — il forme les URL de connexion.",
     "slugInvalid": "Utilisez des minuscules, des chiffres et des tirets ; pas de tiret au début ni à la fin.",
     "displayNameLabel": "Nom affiché",
     "issuerLabel": "URL de l'émetteur",
     "issuerPlaceholder": "https://idp.example.com",
-    "tenantHelp": "Remplacez {tenant} par l'ID de votre locataire Entra.",
     "clientIdLabel": "ID client",
     "clientSecretLabel": "Secret client",
     "secretPlaceholder": "Laissez vide pour un client public (PKCE uniquement)",
@@ -1158,7 +1165,52 @@
     "callbackLabel": "URL de rappel",
     "claimPathLabel": "Claim des groupes",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Où ce fournisseur place les groupes d'une personne dans le jeton. Keycloak les imbrique sous realm_access.roles ; la plupart utilisent groups ou roles. Les règles ci-dessous le lisent."
+    "claimPathHelp": "Où ce fournisseur place les groupes d'une personne dans le jeton. Keycloak les imbrique sous realm_access.roles ; la plupart utilisent groups ou roles. Les règles ci-dessous le lisent.",
+    "test": "Tester",
+    "testing": "Test en cours…",
+    "verify": "Vérifier",
+    "verifying": "Vérification…",
+    "verifyError": "Impossible de vérifier cette adresse",
+    "callbackCopied": "URL de retour copiée",
+    "scopesFromProvider": "Rempli à partir de ce que ce fournisseur déclare proposer.",
+    "claimPathSearch": "Rechercher ou saisir un claim…",
+    "claimPathEmpty": "Aucune suggestion — saisissez le claim",
+    "claimPathUseTyped": "Utiliser « {{value}} »",
+    "probe": {
+      "reachable": "Joignable",
+      "failed": "Rien d’exploitable à cette adresse",
+      "authorize": "Connexion",
+      "token": "Jeton",
+      "keys": "Clés",
+      "signing": "Signature"
+    },
+    "wizard": {
+      "title": "Connecter un fournisseur de connexion",
+      "choosePrompt": "Avec quoi les gens se connectent-ils ?",
+      "addressPrompt": "Où se trouve votre {{name}} ?",
+      "credentialsPrompt": "Enregistrez Initiative auprès de {{name}}, puis collez ici ce qu’il vous donne.",
+      "optionsPrompt": "Son comportement une fois la connexion faite.",
+      "nextCredentials": "Suite : identifiants",
+      "nextOptions": "Suite : comportement",
+      "registerCallback": "Enregistrez cette URL de retour",
+      "callbackHelp": "Votre fournisseur refusera la connexion tant que cette adresse exacte n’y est pas enregistrée.",
+      "connect": "Connecter le fournisseur"
+    },
+    "blanks": {
+      "tenant": "ID de tenant",
+      "oktaHost": "Domaine Okta",
+      "auth0Host": "Domaine Auth0",
+      "host": "Adresse",
+      "realm": "Realm",
+      "application": "Slug de l’application"
+    },
+    "presetHints": {
+      "keycloak": "Depuis le client OpenID Connect de votre realm, avec l’authentification client activée.",
+      "authentik": "Le slug de l’application, pas le nom du fournisseur — l’issuer suit l’application.",
+      "authelia": "Collez le secret client en clair, pas le hash que vous avez mis dans le YAML.",
+      "pocketId": "Uniquement des passkeys, vos connexions en héritent sans rien faire de plus.",
+      "custom": "Tout fournisseur qui parle OpenID Connect. Collez son adresse d’issuer — une URL .well-known fonctionne aussi."
+    }
   },
   "aiConnections": {
     "title": "Connexions",
@@ -1190,6 +1242,10 @@
     "apiKeyHelpExisting": "Laissez vide pour conserver la clé existante.",
     "apiKeyHelpNew": "La clé partagée utilisée par tous les membres pour cette connexion.",
     "modelPlaceholder": "Sélectionnez ou saisissez un modèle",
+    "modelSearchPlaceholder": "Rechercher ou saisir un nom de modèle…",
+    "modelsLoading": "Recherche des modèles…",
+    "modelsEmpty": "Aucun modèle à proposer — saisissez le nom",
+    "modelUseTyped": "Utiliser « {{value}} »",
     "enabledLabel": "Activée",
     "enabledDescription": "Autoriser les membres à utiliser cette connexion.",
     "defaultLabel": "Connexion par défaut",

@@ -9,6 +9,7 @@ import type {
   LoginProviderEntry,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ProviderMark } from "@/components/auth/ProviderMark";
 import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -337,6 +338,7 @@ export const LoginPage = () => {
                     className="w-full"
                     onClick={() => void handleProviderLogin(provider)}
                   >
+                    <ProviderMark icon={provider.icon} className="h-4 w-4" />
                     {t("login.continueWith", { provider: provider.display_name })}
                   </Button>
                 ))}

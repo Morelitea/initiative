@@ -675,5 +675,9 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Diese Community verlangt einen Code aus deiner Authenticator-App. Gib einen ein, um fortzufahren.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Gib deinen Authenticator-Code ein, um den Notzugriff zu nutzen.",
-  "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Der Notzugriff erfordert einen Authenticator, und dieses Konto hat keinen. Richte zuerst unter Sicherheit einen ein."
+  "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Der Notzugriff erfordert einen Authenticator, und dieses Konto hat keinen. Richte zuerst unter Sicherheit einen ein.",
+  "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Unter dieser Adresse hat nichts geantwortet",
+  "AUTH_PROVIDER_DISCOVERY_ISSUER_MISMATCH": "Diese Adresse antwortet für einen anderen Issuer — vergleiche sie mit der Dokumentation eures Anbieters",
+  "AUTH_PROVIDER_DISCOVERY_INVALID": "Diese Adresse hat geantwortet, aber nicht mit OpenID-Connect-Angaben",
+  "AUTH_PROVIDER_DISCOVERY_NO_ISSUER": "Für diesen Anbieter ist keine Adresse hinterlegt"
 }

@@ -1,3 +1,20 @@
+/**
+ * A field that suggests but does not insist.
+ *
+ * For a value where something else knows most of the likely answers and the
+ * list is not the whole truth: the models a connection offers, the claims a
+ * provider says it carries. Typing something that is not on the list is a
+ * first-class answer, not an escape hatch, so whatever is typed is offered
+ * back as itself.
+ *
+ * Suggestions can arrive late — `onOpen` fires when the list is first shown,
+ * which is when a caller that has to go and ask should go and ask.
+ *
+ * Every string is the caller's. What is being suggested differs enough between
+ * call sites that generic wording would read as nothing in particular, and the
+ * words belong in a translated namespace either way.
+ */
+
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -14,67 +31,67 @@ import {
 } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-export interface ModelComboboxProps {
-  models: string[];
+export interface SuggestComboboxProps {
+  /** What is known. May be empty, and may arrive after `onOpen`. */
+  suggestions: string[];
   value?: string;
   onValueChange?: (value: string) => void;
+  /** The closed field, with nothing chosen. */
   placeholder?: string;
+  /** The search box. */
+  searchPlaceholder: string;
+  /** Shown while `isLoading`. */
+  loadingLabel: string;
+  /** Shown when there is nothing to suggest. */
+  emptyLabel: string;
+  /** Offers what was typed, e.g. `Use "{{value}}"`. Not named for `use`:
+   *  that prefix reads as a hook to the linter, and it is a label. */
+  typedLabel: (typed: string) => string;
   disabled?: boolean;
   className?: string;
+  /** Called when the list is first opened — fetch the suggestions here. */
   onOpen?: () => void;
   isLoading?: boolean;
+  "aria-label"?: string;
 }
 
-export const ModelCombobox = ({
-  models,
+export const SuggestCombobox = ({
+  suggestions,
   value = "",
   onValueChange,
-  placeholder = "Select or type a model",
+  placeholder,
+  searchPlaceholder,
+  loadingLabel,
+  emptyLabel,
+  typedLabel,
   disabled = false,
   className,
   onOpen,
   isLoading = false,
-}: ModelComboboxProps) => {
+  "aria-label": ariaLabel,
+}: SuggestComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filter models based on search
-  const filteredModels = models.filter((model) =>
-    model.toLowerCase().includes(search.toLowerCase())
-  );
+  const matching = suggestions.filter((item) => item.toLowerCase().includes(search.toLowerCase()));
+  const typedIsOnTheList = suggestions.some((item) => item.toLowerCase() === search.toLowerCase());
+  const offerTyped = search.length > 0 && !typedIsOnTheList;
 
-  // Check if search matches an existing model exactly
-  const exactMatch = models.some((model) => model.toLowerCase() === search.toLowerCase());
-
-  // Show "Use custom" option if search doesn't match any model exactly
-  const showCustomOption = search.length > 0 && !exactMatch;
-
-  const handleSelect = (selectedValue: string) => {
-    onValueChange?.(selectedValue);
+  const choose = (chosen: string) => {
+    onValueChange?.(chosen);
     setSearch("");
     setOpen(false);
   };
 
-  const handleCustomSelect = () => {
-    onValueChange?.(search);
-    setSearch("");
-    setOpen(false);
-  };
-
-  // Reset search when popover closes
   useEffect(() => {
-    if (!open) {
-      setSearch("");
-    }
+    if (!open) setSearch("");
   }, [open]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (disabled) return;
     setOpen(nextOpen);
-    if (nextOpen && onOpen) {
-      onOpen();
-    }
+    if (nextOpen) onOpen?.();
   };
 
   return (
@@ -85,6 +102,7 @@ export const ModelCombobox = ({
             variant="outline"
             role="combobox"
             aria-expanded={!disabled && open}
+            aria-label={ariaLabel}
             className={cn("w-full justify-between font-normal", !value && "text-muted-foreground")}
             disabled={disabled}
           >
@@ -96,7 +114,7 @@ export const ModelCombobox = ({
           <Command shouldFilter={false}>
             <CommandInput
               ref={inputRef}
-              placeholder="Search or type model name..."
+              placeholder={searchPlaceholder}
               value={search}
               onValueChange={setSearch}
               disabled={disabled}
@@ -106,29 +124,31 @@ export const ModelCombobox = ({
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading models...
+                    {loadingLabel}
                   </div>
                 ) : (
-                  "No models available"
+                  emptyLabel
                 )}
               </CommandEmpty>
               <CommandGroup className="max-h-64 overflow-y-auto">
-                {showCustomOption && filteredModels.length === 0 && (
+                {/* Offered whenever what was typed is not itself a suggestion —
+                    `role` has to be choosable while `roles` is on the list. */}
+                {offerTyped && (
                   <CommandItem
-                    value={`__custom__${search}`}
-                    onSelect={handleCustomSelect}
+                    value={`__typed__${search}`}
+                    onSelect={() => choose(search)}
                     className="text-muted-foreground"
                   >
                     <Check className="mr-2 h-4 w-4 opacity-0" />
-                    Use &ldquo;{search}&rdquo;
+                    {typedLabel(search)}
                   </CommandItem>
                 )}
-                {filteredModels.map((model) => (
-                  <CommandItem key={model} value={model} onSelect={() => handleSelect(model)}>
+                {matching.map((item) => (
+                  <CommandItem key={item} value={item} onSelect={() => choose(item)}>
                     <Check
-                      className={cn("mr-2 h-4 w-4", value === model ? "opacity-100" : "opacity-0")}
+                      className={cn("mr-2 h-4 w-4", value === item ? "opacity-100" : "opacity-0")}
                     />
-                    {model}
+                    {item}
                   </CommandItem>
                 ))}
               </CommandGroup>

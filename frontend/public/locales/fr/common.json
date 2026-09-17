@@ -44,6 +44,8 @@
   "viewAll": "Tout afficher",
   "copyToClipboard": "Copier dans le presse-papier",
   "copied": "Copié !",
+  "copy": "Copier",
+  "copyUnavailable": "Copie impossible — copiez-le à la main",
   "untitled": "Sans titre",
   "appName": "initiative",
   "send": "Envoyer",

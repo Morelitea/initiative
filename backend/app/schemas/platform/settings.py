@@ -101,6 +101,50 @@ class AuthProviderUpdate(SanitizedBaseModel):
         return _validate_https_issuer(value) if value is not None else value
 
 
+class AuthProviderDiscoverRequest(SanitizedBaseModel):
+    """An address to look up before anything is saved."""
+
+    issuer: str
+
+    @field_validator("issuer")
+    @classmethod
+    def _issuer_https(cls, value: str) -> str:
+        return _validate_https_issuer(value)
+
+
+class AuthProviderProbeResult(SanitizedBaseModel):
+    """What one look at a provider found.
+
+    Named fields only. The document itself and the status that carried it stay
+    server-side; ``error_code`` is what a failure says, and the detail behind
+    it is in the log.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    ok: bool
+    error_code: Optional[str] = None
+    #: Trimmed of a pasted ``.well-known`` suffix, so the form can correct
+    #: what somebody copied.
+    issuer: Optional[str] = None
+    authorization_endpoint: Optional[str] = None
+    token_endpoint: Optional[str] = None
+    jwks_uri: Optional[str] = None
+    userinfo_endpoint: Optional[str] = None
+    signing_algs: List[str] = Field(default_factory=list)
+    #: What the provider says it offers. Advisory — these fill in the scopes
+    #: and groups-claim fields, and no login decision reads them.
+    scopes_supported: List[str] = Field(default_factory=list)
+    claims_supported: List[str] = Field(default_factory=list)
+    #: Where a provider in this namespace sends the browser back, with
+    #: ``{slug}`` still to fill in. Computed here rather than guessed by the
+    #: caller: it is built from the deployment's own ``APP_URL``, which is what
+    #: the finished provider's callback is built from too, and the address has
+    #: to match exactly at the far end. Returned by the look-up because that is
+    #: when somebody is about to need it.
+    callback_url_template: str = ""
+
+
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -150,6 +194,22 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
     guilds_requiring_sign_in: int
+    #: How long somebody may stay signed in before signing in again, in hours.
+    #: ``None`` asks for no limit, which is the default. A community held to
+    #: the compliance standard overrides it downwards for its own members.
+    session_max_hours: Optional[int] = None
+
+
+class SessionLifetimeUpdate(SanitizedBaseModel):
+    """The absolute limit on staying signed in, in hours.
+
+    ``None`` asks for no limit. It has to be longer than the idle window to
+    mean anything: set shorter, it is the only thing ending a session and the
+    idle window stops mattering — which is a fair thing to ask for, and the
+    reason the field is free rather than a list of blessed figures.
+    """
+
+    session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
 
 
 class LoginMethodsUpdate(SanitizedBaseModel):
