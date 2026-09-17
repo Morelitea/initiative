@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, text, update
+from sqlalchemy import Interval, cast, func, literal, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,6 +30,16 @@ from app.services.platform import app_settings as app_settings_service
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _window(hours: int):
+    """``hours`` as an interval the statement carries as a value.
+
+    Cast rather than left to inference: the only place this is added to a
+    timestamp is inside ``least()``, whose arguments are polymorphic, so the
+    type is stated rather than worked out.
+    """
+    return cast(literal(timedelta(hours=int(hours))), Interval)
 
 
 #: What a community held to the compliance standard asks of its members.
@@ -109,8 +119,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
             .values(
                 expires_at=func.least(
                     UserToken.expires_at,
-                    UserToken.created_at
-                    + text(f"interval '{int(platform_hours)} hours'"),
+                    UserToken.created_at + _window(platform_hours),
                 )
             )
         )
@@ -135,8 +144,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
         .values(
             expires_at=func.least(
                 UserToken.expires_at,
-                UserToken.created_at
-                + text(f"interval '{int(compliance_hours)} hours'"),
+                UserToken.created_at + _window(compliance_hours),
             )
         )
     )

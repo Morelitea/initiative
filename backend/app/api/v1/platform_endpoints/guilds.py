@@ -1083,7 +1083,9 @@ async def get_guild_auth_settings(
         admin_session, guild_id=guild_id
     )
     return GuildAuthSettingsRead(
-        auth_options=sorted(administration.auth_options) if administration else [],
+        auth_options=sorted(effective_options(administration.auth_options))
+        if administration
+        else [],
         allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
     )

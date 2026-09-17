@@ -34,11 +34,17 @@ _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 #: of the database. ``app.core.encryption`` is the live encryption primitive: a
 #: migration that writes a secret must produce something the *current* app can
 #: read back, so pinning an old implementation is the broken version of this.
+#: ``app.db.authorization`` is the same case in a different shape: every
+#: database converges on that module's bodies, re-applied on each boot and
+#: diffed by ``authorization_test``, so a literal copied into a revision is
+#: replaced the next time the app starts. Copying one would only add a second
+#: place for the same SQL to drift.
 _ALLOWED = frozenset(
     {
         "app.db.guild_migrations",
         "app.core.config",
         "app.core.encryption",
+        "app.db.authorization",
     }
 )
 

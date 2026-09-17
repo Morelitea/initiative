@@ -209,7 +209,7 @@ describe("SettingsGuildAuthPage", () => {
       allowApiKeys = null;
       sessionLimit = null;
       grantedAuthSettings = {
-        auth_options: ["providers", "require_sign_in"],
+        auth_options: ["restrictions", "providers", "require_sign_in"],
         allow_api_keys: false,
         enforce_compliance_session: true,
       };
