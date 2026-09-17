@@ -321,7 +321,7 @@ def create_upload_token(
     *,
     user_id: int,
     satisfied_providers: Sequence[int] = (),
-    sso_guilds: Sequence[int] = (),
+    satisfied_claims: dict | None = None,
     session_mfa: bool = False,
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
@@ -333,9 +333,9 @@ def create_upload_token(
     ``ver`` — the general auth path will not accept it.
 
     ``satisfied_providers`` copies the minting session's ``sat`` claim, and
-    ``sso_guilds`` the communities whose own sign-in it completed, so a
-    download/keepalive in a guild with a requirement carries the same standing
-    as the session that requested it (bounded by this token's short lifetime).
+    ``satisfied_claims`` what those providers asserted, so a download or
+    keepalive in a guild with a requirement carries the same standing as the
+    session that requested it (bounded by this token's short lifetime).
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -343,7 +343,7 @@ def create_upload_token(
         "aud": UPLOAD_TOKEN_AUDIENCE,
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
-        "sg": [int(gid) for gid in sso_guilds],
+        "satc": dict(satisfied_claims or {}),
         # Copied from the minting session like the two above: an upload in a
         # community that asks for a second factor is made by somebody who
         # presented one.
@@ -357,10 +357,10 @@ def create_upload_token(
 
 def verify_upload_token(
     token: str,
-) -> tuple[int, frozenset[int], frozenset[int], bool]:
-    """Verify a scoped upload token; return the user id, its satisfied set and
-    the communities whose own sign-in the minting session completed, and
-    whether that session recorded the account's second factor.
+) -> tuple[int, frozenset[int], dict, bool]:
+    """Verify a scoped upload token; return the user id, its satisfied set,
+    what those providers asserted, and whether the minting session recorded
+    the account's second factor.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -390,11 +390,10 @@ def verify_upload_token(
         satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sat must be a list of provider ids") from exc
-    try:
-        guilds = frozenset(int(gid) for gid in payload.get("sg") or ())
-    except (TypeError, ValueError) as exc:
-        raise UploadTokenError("sg must be a list of guild ids") from exc
-    return user_id, satisfied, guilds, bool(payload.get("mfa"))
+    claims = payload.get("satc")
+    if claims is not None and not isinstance(claims, dict):
+        raise UploadTokenError("satc must be an object")
+    return user_id, satisfied, dict(claims or {}), bool(payload.get("mfa"))
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):

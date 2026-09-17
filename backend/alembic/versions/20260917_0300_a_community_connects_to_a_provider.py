@@ -25,21 +25,22 @@ operator with nothing to say so; a raised exception stops the upgrade with the
 reason. If it ever fires, the fix is a backfill written against the rows that
 actually turned up.
 
-A second thing falls out of one registry, and it is not optional: a list of
-providers a community could connect to would name every other customer's
-identity provider. So ``connectable_by_guilds`` says which are on offer, off by
-default.
+A connection says two things about the people it describes, because a
+community says both in one breath: which arrivals count as ours (``claim`` and
+``claim_values``), and whether they join on arrival (``auto_join``).
 
-Access shape (system engine only):
+Access shape:
 
-* login reads a connection to resolve which provider serves a community and
-  whether the person arriving belongs to it; the connection CRUD writes.
-* every other role holds nothing. The schema default-grants the base/login
-  roles full DML on each new ``public`` table, so those are revoked — the
-  guild-access gate answers from the session's own markers and never reads
-  here.
-* RLS enabled and FORCEd with no policies, matching ``auth_providers`` itself:
-  the grant layer and the policy layer both say no.
+* the connection CRUD writes on the system engine, as the provider registry
+  does.
+* the request path holds **SELECT and nothing else**, scoped by policy to the
+  reader's own community. The guild-access gate reads the narrowing here on
+  every request, so the rule it applies is the one in force now rather than
+  the one that held when somebody signed in.
+* a connection carries a provider id, a claim name and a list of values. There
+  is no secret and no issuer on it, which is what ``auth_providers`` is kept
+  off the request path for.
+* writes stay revoked from every request-path role; RLS is FORCEd.
 
 Order matters: the table is created and filled **before** RLS goes on. A
 policy-bound owner cannot insert rows whose policies key on request GUCs a
@@ -57,6 +58,9 @@ branch_labels = None
 depends_on = None
 
 TABLE = "guild_provider_connections"
+
+
+_OWN_GUILD = "guild_id = NULLIF(current_setting('app.current_guild_id', true), '')::int"
 
 
 def _platform(role: str) -> str:
@@ -78,6 +82,9 @@ def upgrade() -> None:
         sa.Column("claim_values", sa.ARRAY(sa.String(length=256)), nullable=True),
         sa.Column(
             "enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
+        sa.Column(
+            "auto_join", sa.Boolean(), nullable=False, server_default=sa.text("false")
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -117,28 +124,16 @@ def upgrade() -> None:
         """
     )
 
-    # Which providers a community may connect to is the operator's to say, and
-    # it has to be said: with every provider in one registry, a list of
-    # "providers you could connect to" would otherwise name every customer's
-    # own identity provider to every other customer. Off by default, so
-    # registering one for a customer offers it to nobody until the operator
-    # says so — and that customer still sees it, because it connects to it.
-    op.add_column(
-        "auth_providers",
-        sa.Column(
-            "connectable_by_guilds",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("false"),
-        ),
-    )
-
     op.drop_index("uq_auth_providers_global_slug", table_name="auth_providers")
     op.drop_constraint("uq_auth_providers_guild_slug", "auth_providers", type_="unique")
     op.drop_column("auth_providers", "guild_id")
     op.create_unique_constraint("uq_auth_providers_slug", "auth_providers", ["slug"])
 
     # ── Now lock it down ──────────────────────────────────────────────────
+    #
+    # SELECT for the request path, scoped to the reader's own community, so
+    # ``guild_auth_satisfied()`` reads the narrowing in force at the moment it
+    # is asked. Writes belong to the CRUD on the system engine.
     base = _platform("base")
     _run(
         [
@@ -149,12 +144,14 @@ def upgrade() -> None:
             f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.{TABLE} "
             f"TO app_admin",
             f"GRANT USAGE, SELECT ON SEQUENCE public.{TABLE}_id_seq TO app_admin",
+            f"GRANT SELECT ON TABLE public.{TABLE} TO app_guild_base",
+            f"CREATE POLICY {TABLE}_own_guild ON public.{TABLE} "
+            f"FOR SELECT TO public USING ({_OWN_GUILD})",
         ]
     )
 
 
 def downgrade() -> None:
-    op.drop_column("auth_providers", "connectable_by_guilds")
     op.drop_constraint("uq_auth_providers_slug", "auth_providers", type_="unique")
     op.add_column("auth_providers", sa.Column("guild_id", sa.Integer(), nullable=True))
     op.create_foreign_key(

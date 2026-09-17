@@ -29,9 +29,14 @@ class GuildProviderConnection(SQLModel, table=True):
     operator registers it when they onboard them, and the community connects
     to it. Every row in ``auth_providers`` is the operator's.
 
-    Lives in ``public`` beside the registry it points into. Read at login on
-    the system engine; no request-path role reads it (the guild-access gate
-    answers from the session's own markers, not from here).
+    A connection says two things at once, because a community says both in
+    one breath: which arrivals count as its own (``claim``/``claim_values``),
+    and whether they join on arrival (``auto_join``).
+
+    Lives in ``public`` beside the registry it points into. Written on the
+    system engine; the request path reads it, scoped by policy to the reader's
+    own community, because the guild-access gate consults the narrowing on
+    every request rather than trusting an answer worked out at sign-in.
     """
 
     __tablename__ = "guild_provider_connections"
@@ -82,6 +87,14 @@ class GuildProviderConnection(SQLModel, table=True):
     #: the community's sign-in page.
     enabled: bool = Field(
         sa_column=Column(Boolean, nullable=False, server_default=text("true"))
+    )
+
+    #: Whether arriving through this connection joins somebody to the
+    #: community. A community that admits its own people and still wants to
+    #: choose who joins leaves it off.
+    auto_join: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
 
     created_at: datetime = Field(

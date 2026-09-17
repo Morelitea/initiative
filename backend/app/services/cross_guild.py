@@ -186,7 +186,7 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
-                sso_guilds=sorted(auth_context.sso_guilds()),
+                satisfied_claims=auth_context.satisfied_claims(),
                 session_mfa=auth_context.session_mfa(),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and

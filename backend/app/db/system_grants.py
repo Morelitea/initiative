@@ -348,9 +348,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "federated_identity_secrets": None,
     # the guild-access gate reads the policy on the bare login role, pre-routing
     "guild_auth_policies": frozenset({"SELECT"}),
-    # the gate answers from the session's own markers rather than from here, so
-    # the bare login role never reads a connection
-    "guild_provider_connections": None,
+    # the gate reads the narrowing here on every request, so the rule it
+    # applies is the one in force now; a policy scopes a row to its own guild
+    "guild_provider_connections": frozenset({"SELECT"}),
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "user_emails": None,

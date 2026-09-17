@@ -7,18 +7,25 @@ own workspace. A community supplies no issuer, no client id and no secret — so
 it names no address the deployment will fetch, and there is no provider
 configuration for it to get wrong on behalf of its members.
 
-Two readers and one writer live here. Login asks which provider serves a
-community and whether the person who just arrived belongs to it; the CRUD
-answers to the security-admin seat. Everything runs on the system engine —
-``guild_provider_connections`` carries no request-path grants.
+Two readers and one writer live here. Login asks which providers a
+community connects to and applies what it said about them; the CRUD answers to
+the superadmin seat, on the system engine. The gate asks a third question —
+does this credential satisfy one of them — and that one defers to
+``public.guild_connection_admits`` so the rule has one statement rather than
+two.
 """
 
+import json
 import logging
 
 from fastapi import HTTPException, status
+from sqlalchemy import Integer, cast, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core import auth_context
 
 from app.core.messages import AuthProviderMessages
 from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
@@ -309,3 +316,111 @@ async def connection_for(
             )
         )
     ).one_or_none()
+
+
+async def admits_this_session(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    provider_id: int | None = None,
+) -> bool:
+    """Does the credential on this request satisfy one of the community's
+    connections? Pass a provider id to ask about one of them.
+
+    Defers to ``public.guild_connection_admits`` rather than restating it, the
+    way ``initiative_scope_clause`` defers to ``initiative_access``. The facts
+    are passed in because this runs before the session context exists, which
+    is where the policy legs read them from.
+    """
+    providers = sorted(auth_context.satisfied_provider_ids())
+    if not providers:
+        return False
+    claims = auth_context.satisfied_claims()
+    return bool(
+        await session.scalar(
+            select(
+                func.guild_connection_admits(
+                    guild_id,
+                    cast(providers, ARRAY(Integer)),
+                    cast(json.dumps(claims), JSONB),
+                    provider_id,
+                )
+            )
+        )
+    )
+
+
+async def narrowed_by(session: AsyncSession, *, provider_id: int) -> set[str]:
+    """The claim names some community narrows this provider by.
+
+    What a sign-in through it has to record, so the gate can compare it later.
+    A provider nobody narrows records nothing.
+    """
+    rows = (
+        await session.exec(
+            select(GuildProviderConnection.claim).where(
+                GuildProviderConnection.provider_id == provider_id,
+                GuildProviderConnection.enabled.is_(True),
+                GuildProviderConnection.claim.is_not(None),
+            )
+        )
+    ).all()
+    return {claim for claim in rows if claim}
+
+
+async def admitting_connections(
+    session: AsyncSession,
+    *,
+    provider_id: int,
+    claims: dict,
+) -> list[GuildProviderConnection]:
+    """Every enabled connection to this provider that counts this arrival as
+    one of its community's own."""
+    rows = (
+        await session.exec(
+            select(GuildProviderConnection).where(
+                GuildProviderConnection.provider_id == provider_id,
+                GuildProviderConnection.enabled.is_(True),
+            )
+        )
+    ).all()
+    return [row for row in rows if row.admits(claims)]
+
+
+async def join_on_arrival(
+    session: AsyncSession,
+    *,
+    provider_id: int,
+    user_id: int,
+    claims: dict,
+) -> list[int]:
+    """Place somebody in the communities whose connection says to, and return
+    which.
+
+    A community at capacity is skipped rather than failing the sign-in: the
+    person signed in to the deployment, and one community being full is that
+    community's business rather than a reason to refuse them their account.
+    """
+    from app.services.platform import guilds as guilds_service
+
+    joined: list[int] = []
+    for connection in await admitting_connections(
+        session, provider_id=provider_id, claims=claims
+    ):
+        if not connection.auto_join:
+            continue
+        try:
+            await guilds_service.ensure_membership(
+                session, guild_id=connection.guild_id, user_id=user_id
+            )
+            await session.commit()
+        except guilds_service.GuildCapacityError:
+            await session.rollback()
+            logger.info(
+                "guild %s is at capacity; %s did not join on arrival",
+                connection.guild_id,
+                provider_id,
+            )
+            continue
+        joined.append(connection.guild_id)
+    return joined

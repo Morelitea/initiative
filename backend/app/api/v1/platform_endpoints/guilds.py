@@ -1171,7 +1171,9 @@ async def set_guild_auth_policy(
     # community has a provider that works, so there is nothing else to ask.
     # One check per method the list may hold; ``sso`` is the only one it can
     # hold today, and a method added to the vocabulary brings its own.
-    if LoginMethod.sso in require_methods and guild_id not in auth_context.sso_guilds():
+    if LoginMethod.sso in require_methods and not (
+        await guild_connections.admits_this_session(admin_session, guild_id=guild_id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
