@@ -14,6 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
 
 export const HomeSidebarContent = () => {
@@ -36,7 +37,11 @@ export const HomeSidebarContent = () => {
   // above the rail draws it too.
   const messagesWaiting = useMessagesWaiting();
 
-  if (onMessages && !climbedOut) {
+  // Whether this deployment offers messaging at all. Off, there is no item and
+  // no route worth drilling into, so the whole branch below goes with it.
+  const dmEnabled = useDirectMessagesEnabled();
+
+  if (dmEnabled && onMessages && !climbedOut) {
     return <MessagesSidebarContent onBack={() => setClimbedOut(true)} />;
   }
 
@@ -44,20 +49,25 @@ export const HomeSidebarContent = () => {
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
     { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-tools", label: t("myTools"), icon: LayoutGrid },
-    {
-      to: "/messages",
-      label: t("myMessages"),
-      icon: MessageSquare,
-      // Encrypted messaging is new and moving: the badge is the one place
-      // somebody is told before they rely on it.
-      badge: t("alphaBadge"),
-      waiting: messagesWaiting,
-      // Climbing out of the conversations leaves this list showing while the
-      // thread is still open behind it, so picking My Messages again is not a
-      // navigation -- the address is already there and nothing would re-run.
-      // It is a request to drill back in, and only this says so.
-      onSelect: () => setClimbedOut(false),
-    },
+    ...(dmEnabled
+      ? [
+          {
+            to: "/messages",
+            label: t("myMessages"),
+            icon: MessageSquare,
+            // Encrypted messaging is new and moving: the badge is the one
+            // place somebody is told before they rely on it.
+            badge: t("alphaBadge"),
+            waiting: messagesWaiting,
+            // Climbing out of the conversations leaves this list showing
+            // while the thread is still open behind it, so picking My Messages
+            // again is not a navigation -- the address is already there and
+            // nothing would re-run. It is a request to drill back in, and only
+            // this says so.
+            onSelect: () => setClimbedOut(false),
+          },
+        ]
+      : []),
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },
   ];
 

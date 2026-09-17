@@ -29,6 +29,7 @@ import {
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DirectMessagePermissionsResponse } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -61,9 +62,23 @@ const reportAndRefresh = {
  */
 const refreshOnly = { mutation: { onSettled: refreshContactLists } };
 
+/**
+ * Whether this deployment offers direct messages at all.
+ *
+ * Every read below is gated on it, so a deployment with messaging switched off
+ * asks none of these questions rather than asking and being refused. True until
+ * the boot config arrives, and true if it never does: messaging is what most
+ * deployments have, and a config that failed to load is not an instruction to
+ * take it away.
+ */
+export const useDirectMessagesEnabled = (): boolean => useAppConfig().directMessagesEnabled;
+
 // ── Reads ───────────────────────────────────────────────────────────────────
 
-export const useDmSettings = () => useReadDmSettingsApiV1MeDmSettingsGet();
+export const useDmSettings = () =>
+  useReadDmSettingsApiV1MeDmSettingsGet({
+    query: { enabled: useDirectMessagesEnabled() },
+  });
 
 /**
  * What the reader may do about one account: ``open``, ``may_request`` or
@@ -73,10 +88,12 @@ export const useDmSettings = () => useReadDmSettingsApiV1MeDmSettingsGet();
  * ``denied`` on purpose, so a menu built from this cannot tell the reasons
  * apart either.
  */
-export const useDmPermission = (userId: number | undefined) =>
-  useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
-    query: { enabled: typeof userId === "number" },
+export const useDmPermission = (userId: number | undefined) => {
+  const dmEnabled = useDirectMessagesEnabled();
+  return useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
+    query: { enabled: dmEnabled && typeof userId === "number" },
   });
+};
 /** The most accounts one question may name, which the server enforces. */
 const PERMISSION_LIMIT = 100;
 
@@ -121,6 +138,7 @@ const mergePermissions = (
  * consent on another -- so nobody handed to this goes unanswered.
  */
 export const useDmPermissions = (userIds: number[]) => {
+  const dmEnabled = useDirectMessagesEnabled();
   const batches = useMemo(() => {
     const ids = [...new Set(userIds)].sort((a, b) => a - b);
     const out: number[][] = [];
@@ -135,14 +153,25 @@ export const useDmPermissions = (userIds: number[]) => {
       queryKey: ["dm", "permissions", ids],
       queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
       staleTime: 30_000,
+      enabled: dmEnabled,
     })),
     combine: mergePermissions,
   });
 };
 
-export const useConnections = () => useListConnectionsApiV1MeConnectionsGet();
-export const useMessageRequests = () => useListMessageRequestsApiV1MeMessageRequestsGet();
-export const useIgnoredAccounts = () => useListIgnoredAccountsApiV1MeIgnoredGet();
+export const useConnections = () =>
+  useListConnectionsApiV1MeConnectionsGet({
+    query: { enabled: useDirectMessagesEnabled() },
+  });
+export const useMessageRequests = () =>
+  useListMessageRequestsApiV1MeMessageRequestsGet({
+    query: { enabled: useDirectMessagesEnabled() },
+  });
+export const useIgnoredAccounts = () =>
+  // Paged, so the options are the second argument: the whole list, gated.
+  useListIgnoredAccountsApiV1MeIgnoredGet(undefined, {
+    query: { enabled: useDirectMessagesEnabled() },
+  });
 
 // ── Writes ──────────────────────────────────────────────────────────────────
 
@@ -194,10 +223,18 @@ export const usePendingContactRequests = (): number => {
   return (messages.data?.incoming?.length ?? 0) + (connections.data?.incoming?.length ?? 0);
 };
 
-/** Whether this account has answered the age question, which gates everything. */
+/**
+ * Whether this account can message anybody at all.
+ *
+ * Two gates, one answer, because every surface that asks wants the same thing:
+ * the deployment has to offer messaging, and the account has to have answered
+ * the age question. Which of the two is missing decides what the page says, so
+ * callers that draw an explanation read `useDirectMessagesEnabled` as well.
+ */
 export const useCanUseDirectMessages = (): boolean => {
+  const dmEnabled = useDirectMessagesEnabled();
   const { data } = useDmSettings();
-  return Boolean(data?.age_confirmed_at);
+  return dmEnabled && Boolean(data?.age_confirmed_at);
 };
 
 /** One place for "these lists moved", for callers outside a mutation. */

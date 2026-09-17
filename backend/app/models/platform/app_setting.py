@@ -104,6 +104,17 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
+    # Whether this deployment offers direct messages at all -- My Messages,
+    # and every connection and message request that feeds it. On by default, so
+    # a deployment that upgrades into it keeps the messaging its people are
+    # already using; a platform owner turns it off for somewhere messaging does
+    # not belong. Switching it off keeps every channel and policy exactly as it
+    # was, so switching it back on restores them rather than rebuilding them.
+    direct_messages_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
     # The direct-message policy a newly created account starts on. Read once,
     # when the account is created, and copied into its ``user_dm_settings`` row;
     # changing it later moves nobody, so raising it opens no existing account

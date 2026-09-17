@@ -193,5 +193,7 @@
     "who": "Quiénes están:",
     "join": "Unirme",
     "decline": "No, gracias"
-  }
+  },
+  "platformDisabled": "Aquí los mensajes directos están desactivados",
+  "platformDisabledBody": "Esta instalación no ofrece mensajes directos. No se ha borrado nada: si se vuelven a activar, tus conversaciones estarán donde las dejaste."
 }

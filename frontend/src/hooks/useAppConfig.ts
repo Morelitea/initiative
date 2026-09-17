@@ -63,6 +63,11 @@ export const useAppConfig = () => {
      *  true is also the default — the question is the safe thing to ask when
      *  we do not yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,
+    /** Whether this deployment offers direct messages at all. True until the
+     *  config loads, and true is also the default — messaging is what most
+     *  deployments have, and hiding My Messages for a moment on every boot
+     *  would read as it having been taken away. */
+    directMessagesEnabled: query.data?.direct_messages_enabled ?? true,
     /** Whether this deployment permits signing in with a password. True until
      *  the config loads: the form is the thing most deployments have, and the
      *  server refuses either way, so showing it briefly costs nothing while

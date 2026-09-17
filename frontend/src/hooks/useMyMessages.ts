@@ -45,7 +45,11 @@ import {
   unreadIn,
   wantThreadHistory,
 } from "@/crypto/messaging";
-import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
+import {
+  useDirectMessagesEnabled,
+  useDmSettings,
+  usePendingContactRequests,
+} from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -75,6 +79,7 @@ export const messageKeys = {
 
 /** Register this browser's device, once, before anything else can work. */
 export function useDmDevice() {
+  const dmEnabled = useDirectMessagesEnabled();
   return useQuery({
     queryKey: messageKeys.device,
     queryFn: async () => {
@@ -87,6 +92,10 @@ export function useDmDevice() {
         throw error;
       }
     },
+    // A deployment with messaging switched off has nothing to register a
+    // device with, and registering one would be this browser publishing keys
+    // for a channel that does not exist.
+    enabled: dmEnabled,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
@@ -96,6 +105,7 @@ export function useConversations() {
   return useQuery({
     queryKey: messageKeys.conversations,
     queryFn: () => listConversations(),
+    enabled: useDirectMessagesEnabled(),
     staleTime: 30_000,
   });
 }
@@ -185,6 +195,7 @@ export function useStartConversation() {
  */
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
+  const dmEnabled = useDirectMessagesEnabled();
   const receipts = useSendsReceipts();
 
   return useQuery({
@@ -214,7 +225,7 @@ export function useCollectMessages(enabled: boolean) {
       }
       return touched;
     },
-    enabled,
+    enabled: enabled && dmEnabled,
     // A collection that fails leaves the queue intact; the next frame or the
     // next visit tries again.
     retry: false,

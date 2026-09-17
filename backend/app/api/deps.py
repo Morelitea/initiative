@@ -21,6 +21,7 @@ from app.core.role_context import (
 )
 from app.core.messages import (
     AuthMessages,
+    DirectMessageMessages,
     GuildMessages,
     UserMessages,
 )
@@ -1274,3 +1275,28 @@ async def get_upload_user(
 
 
 UploadUserDep = Annotated[User, Depends(get_upload_user)]
+
+
+async def require_direct_messages_enabled(session: UserSessionDep) -> None:
+    """Refuse every direct-message route when the deployment does not offer them.
+
+    Applied once, to the routers rather than to the endpoints, so the whole
+    surface answers the same way and a route added later is covered by having
+    been added to the router. It shares the caller's session: every endpoint
+    behind it takes ``UserSessionDep``, so FastAPI resolves that dependency once
+    and this costs a single indexed read rather than a second connection.
+
+    Nothing is deleted while it is off -- devices, keys, policies and accepted
+    channels all stay -- so the only thing switching it back on has to do is
+    stop refusing.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.direct_messages_enabled(session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DirectMessageMessages.DISABLED_FOR_PLATFORM,
+        )
+
+
+DirectMessagesEnabledDep = Depends(require_direct_messages_enabled)

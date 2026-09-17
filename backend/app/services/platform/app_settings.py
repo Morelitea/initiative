@@ -211,12 +211,24 @@ async def community_age_gate_enabled(session: AsyncSession) -> bool:
     return bool(settings_row.community_age_gate_enabled)
 
 
+async def direct_messages_enabled(session: AsyncSession) -> bool:
+    """Whether this deployment offers direct messages at all.
+
+    The one read of the switch. Every direct-message endpoint is gated on it,
+    and so is the roster of people My Contacts says you could reach, so turning
+    it off closes the feature and everything that advertises it at once.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.direct_messages_enabled)
+
+
 async def update_community_settings(
     session: AsyncSession,
     *,
     community_directory_enabled: bool,
     community_age_gate_enabled: bool | None = None,
     default_dm_policy: "DmPolicy | None" = None,
+    direct_messages_enabled: bool | None = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
 
@@ -233,6 +245,11 @@ async def update_community_settings(
     ``community_age_gate_enabled`` is a second, independent decision and is
     left alone when omitted: an owner who has asserted that every account here
     belongs to an adult has not un-asserted it by toggling the directory.
+
+    ``direct_messages_enabled`` is a fourth, and independent of all three: a
+    deployment can run a directory without messaging and vice versa. Omitted,
+    it is left alone. Switching it off keeps every channel, policy and queued
+    message as it is, so switching it back on restores them.
     """
     settings_row = await _ensure_app_settings(session)
     settings_row.community_directory_enabled = bool(community_directory_enabled)
@@ -240,6 +257,8 @@ async def update_community_settings(
         settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
     if default_dm_policy is not None:
         settings_row.default_dm_policy = default_dm_policy
+    if direct_messages_enabled is not None:
+        settings_row.direct_messages_enabled = bool(direct_messages_enabled)
     session.add(settings_row)
     await session.commit()
     await session.refresh(settings_row)

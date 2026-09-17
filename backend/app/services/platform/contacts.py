@@ -236,7 +236,16 @@ async def listable_by_guild(
 
     Deliberately **not** narrowed by who has ignored the reader: an ignore
     governs what arrives, not who is listed, so both rosters stay as they were.
+
+    Nobody is listed where the deployment offers no direct messages: a contact
+    is somebody you could reach out to, and there is nothing to reach them
+    with. Asked here, alongside the routes that refuse, because this is the one
+    surface built on the messaging rule that is not itself a messaging route.
     """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.direct_messages_enabled(session):
+        return {}
     # The rule reads who is asking from the request context, so this runs on
     # the caller's own session rather than being told an id.
     await set_rls_context(session, user_id=user_id)

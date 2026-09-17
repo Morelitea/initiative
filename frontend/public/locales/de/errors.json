@@ -516,6 +516,7 @@
   "DM_AGE_CONFIRMATION_REQUIRED": "Bestätige dein Alter, bevor du änderst, wer dir schreiben darf.",
   "DM_CANNOT_IGNORE_SELF": "Du kannst dein eigenes Konto nicht ignorieren.",
   "DM_NOT_A_MEMBER": "Du bist kein Mitglied dieser Community.",
+  "DM_DISABLED_FOR_PLATFORM": "Direktnachrichten sind in dieser Installation deaktiviert.",
   "CONTACT_GRANT_CANNOT_REACH": "Du kannst dieses Konto derzeit nicht erreichen.",
   "DM_DEVICE_NOT_FOUND": "Dieses Gerät ist nicht für verschlüsselte Nachrichten eingerichtet.",
   "DM_MALFORMED_KEY": "Dieser Schlüssel konnte nicht gelesen werden. Versuche es auf diesem Gerät erneut.",

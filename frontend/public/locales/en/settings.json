@@ -1217,7 +1217,15 @@
     "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again, including people who join a listed community later.",
     "ageGateOffConfirm": "Everyone here is 18 or older",
     "defaultDmLabel": "Direct messages for new accounts",
-    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be."
+    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be.",
+    "directMessagesLabel": "Let people message each other",
+    "directMessagesHelpText": "My Messages, and the connections and requests behind it. Messages are end-to-end encrypted, so nobody running this deployment can read them — turn this off where private messaging does not belong rather than to oversee it.",
+    "directMessagesReversibleNote": "Turning this off hides My Messages and refuses new ones; it deletes nothing. Conversations, connections and settings are all still there if you turn it back on.",
+    "directMessagesOffTitle": "Turn off direct messages?",
+    "directMessagesOffBody": "My Messages will disappear for everyone here, and messages already on their way will not be delivered. Nothing is deleted, so turning it back on restores the conversations and connections people already had.",
+    "directMessagesOffConfirm": "Turn off direct messages",
+    "directMessagesEnabledToast": "Direct messages are on.",
+    "directMessagesDisabledToast": "Direct messages are off."
   },
   "audit": {
     "title": "Audit",
@@ -1262,7 +1270,8 @@
       "communitiesHint": "All count by default.",
       "ageLocked": "Messaging is available to people aged 13 and over. You have not told us whether you are.",
       "confirmAge": "Confirm my age",
-      "saved": "Saved."
+      "saved": "Saved.",
+      "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
     },
     "receipts": {
       "title": "Read receipts",

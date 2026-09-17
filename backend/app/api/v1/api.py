@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from app.api.deps import DirectMessagesEnabledDep
+
 # Endpoints are organized by the kind of data they touch (they must never mix —
 # this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
 #   platform_endpoints/  — public-schema tables (auth, users, guilds, settings,
@@ -104,9 +106,20 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
-api_router.include_router(dm.user_router, prefix="/users", tags=["direct-messages"])
+# Direct messages, both halves, gated on the platform switch in one place: a
+# deployment that does not offer messaging refuses the whole surface rather
+# than each route deciding for itself.
 api_router.include_router(
-    dm_transport.user_router, prefix="/users", tags=["direct-messages"]
+    dm.user_router,
+    prefix="/users",
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
+)
+api_router.include_router(
+    dm_transport.user_router,
+    prefix="/users",
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
 )
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
@@ -314,6 +327,12 @@ me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
-me_router.include_router(dm.me_router, tags=["direct-messages"])
-me_router.include_router(dm_transport.me_router, tags=["direct-messages"])
+me_router.include_router(
+    dm.me_router, tags=["direct-messages"], dependencies=[DirectMessagesEnabledDep]
+)
+me_router.include_router(
+    dm_transport.me_router,
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
+)
 api_router.include_router(me_router)
