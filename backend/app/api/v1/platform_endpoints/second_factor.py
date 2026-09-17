@@ -37,7 +37,6 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
-from app.services.auth.identity import has_federated_identity
 from app.services.auth import sessions as session_service
 
 router = APIRouter()
@@ -55,18 +54,15 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat() if value is not None else None
 
 
-async def _require_password(
-    admin_session,
-    user: User,
-    supplied: Optional[str],
-) -> None:
+def _require_password(user: User, supplied: Optional[str]) -> None:
     """Re-check the password, as a password change does.
 
-    An account with no usable password — one that only ever arrived through an
-    identity provider — is asked for nothing, the same exemption the password
-    change already makes.
+    The exemption is for an account that holds no password to re-check — one
+    provisioned through an identity provider, which carries no hash at all.
+    Holding a federated identity is not the same question: an account can have
+    both, and one that has a password is asked for it.
     """
-    if await has_federated_identity(admin_session, user_id=user.id):
+    if user.hashed_password is None:
         return
     if not supplied:
         raise HTTPException(
@@ -119,7 +115,7 @@ async def begin_second_factor(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.TOTP_ALREADY_ENROLLED,
         )
-    await _require_password(admin_session, current_user, payload.current_password)
+    _require_password(current_user, payload.current_password)
 
     # What the authenticator app shows under the issuer. The address the
     # person signs in with where there is one, so an account with two entries
@@ -206,14 +202,14 @@ async def disable_second_factor(
     """Remove the factor, its seed and its recovery codes.
 
     Asks for the password and for the factor itself — a live code, or one of
-    the recovery codes. Every other session goes with it.
+    the recovery codes. Every other session goes with it; this one stays.
     """
     if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    await _require_password(admin_session, current_user, payload.current_password)
+    _require_password(current_user, payload.current_password)
 
     if payload.recovery_code:
         proved = await totp_service.consume_recovery_code(
@@ -237,7 +233,13 @@ async def disable_second_factor(
 
     await totp_service.disable(admin_session, user_id=current_user.id)
     await challenge_service.revoke_for_user(admin_session, user_id=current_user.id)
-    await session_service.revoke_all_for_user(admin_session, user_id=current_user.id)
+    # Every other session, and not this one: the change was made from a page
+    # that should still be signed in when it finishes.
+    await session_service.revoke_all_for_user(
+        admin_session,
+        user_id=current_user.id,
+        except_session_id=getattr(request.state, "session_id", None),
+    )
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SECOND_FACTOR_DISABLED,
@@ -265,7 +267,7 @@ async def regenerate_recovery_codes(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    await _require_password(admin_session, current_user, payload.current_password)
+    _require_password(current_user, payload.current_password)
 
     codes = await totp_service.issue_recovery_codes(
         admin_session, user_id=current_user.id

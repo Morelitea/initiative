@@ -651,6 +651,15 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
+    # Before the factor is read, not after: a code presented to an account that
+    # cannot sign in anyway should not be spent on finding that out.
+    user = await admin_session.get(User, user_id)
+    if user is None or user.status != UserStatus.active:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+
     if payload.recovery_code:
         accepted = await totp_service.consume_recovery_code(
             admin_session, user_id=user_id, code=payload.recovery_code
@@ -698,13 +707,6 @@ async def answer_second_factor(
                     admin_session, user_id=user_id
                 )
             },
-        )
-
-    user = await admin_session.get(User, user_id)
-    if user is None or user.status != UserStatus.active:
-        await admin_session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
 
     return await _open_password_session(

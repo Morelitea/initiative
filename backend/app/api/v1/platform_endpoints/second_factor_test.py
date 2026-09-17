@@ -304,3 +304,111 @@ async def test_clearing_a_factor_is_not_for_everybody(
 
     # And the factor is still being asked for.
     assert (await _sign_in(client, "notyours@example.com")).status_code == 401
+
+
+async def test_removing_it_leaves_this_session_signed_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """The change is made from a settings page, which should still be signed in
+    when it finishes — every other session goes."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
+    from app.testing import get_auth_token
+
+    user, secret, _codes = await _enrol(client, session, "keepme@example.com")
+    mine = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    elsewhere = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
+
+    token = get_auth_token(user, session_id=mine_id)
+    removed = await client.post(
+        "/api/v1/auth/totp/disable",
+        json={"current_password": PASSWORD, "code": _next_code(secret)},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert removed.status_code == 204, removed.text
+
+    session.expire_all()
+    assert (await session.get(AuthSession, mine_id)).revoked_at is None
+    assert (await session.get(AuthSession, elsewhere_id)).revoked_at is not None
+
+
+async def test_an_inactive_account_does_not_spend_its_code(
+    client: AsyncClient, session: AsyncSession
+):
+    """Deactivated between the password and the code: the answer is refused,
+    and the recovery code it offered is still good."""
+    user, _secret, codes = await _enrol(client, session, "gone@example.com")
+    challenge = (await _sign_in(client, "gone@example.com")).json()["challenge"]
+
+    user.status = UserStatus.deactivated
+    session.add(user)
+    await session.commit()
+
+    refused = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": challenge, "recovery_code": codes[0]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "INACTIVE_USER"
+    assert (
+        await totp_service.remaining_recovery_codes(session, user_id=user.id)
+        == totp_service.RECOVERY_CODE_COUNT
+    )
+
+
+async def test_an_account_with_both_still_supplies_its_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """Holding a federated identity is not the same as holding no password.
+    An account with both is asked for the one it has."""
+    from app.models.platform.federated_identity import FederatedIdentity
+    from app.services.auth import identity as identity_service
+    from app.testing import create_auth_provider
+
+    user = await _account(session, "both@example.com")
+    provider = await create_auth_provider(session, slug="corp-both")
+    session.add(
+        FederatedIdentity(
+            user_id=user.id,
+            provider_id=provider.id,
+            subject="subject-both",
+            email_verified=True,
+        )
+    )
+    await session.commit()
+    # The account really does hold both — which is the case the exemption used
+    # to wave through.
+    assert await identity_service.has_federated_identity(session, user_id=user.id)
+    assert user.hashed_password is not None
+
+    response = await client.post(
+        "/api/v1/auth/totp/enroll",
+        json={},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_CURRENT_PASSWORD_REQUIRED"
+
+
+async def test_an_account_with_no_password_is_not_asked_for_one(
+    client: AsyncClient, session: AsyncSession
+):
+    """Provisioned through an identity provider: there is no hash to re-check."""
+    user = await create_user(
+        session,
+        email="sso-only@example.com",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    response = await client.post(
+        "/api/v1/auth/totp/enroll", json={}, headers=get_auth_headers(user)
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["secret"]

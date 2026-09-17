@@ -362,17 +362,25 @@ async def revoke_all_for_user(
     *,
     user_id: int,
     now: datetime | None = None,
+    except_session_id: str | None = None,
 ) -> int:
     """Revoke all of a user's live sessions — the refresh-side of "sign out
     everywhere" (paired with the ``users.token_version`` bump that invalidates
-    outstanding access tokens). Returns the number of rows revoked."""
-    result = await session.exec(
-        text(
-            "UPDATE auth_sessions SET revoked_at = :now "
-            "WHERE user_id = :uid AND revoked_at IS NULL"
-        ),
-        params={"now": now or _now(), "uid": user_id},
+    outstanding access tokens). Returns the number of rows revoked.
+
+    ``except_session_id`` spares one, for the caller who asked: a change made
+    from a settings page should not sign that page out. Left unset, nothing is
+    spared and this is "everywhere" in full.
+    """
+    sql = (
+        "UPDATE auth_sessions SET revoked_at = :now "
+        "WHERE user_id = :uid AND revoked_at IS NULL"
     )
+    params: dict[str, object] = {"now": now or _now(), "uid": user_id}
+    if except_session_id is not None:
+        sql += " AND id <> CAST(:keep AS uuid)"
+        params["keep"] = except_session_id
+    result = await session.exec(text(sql), params=params)
     return result.rowcount
 
 

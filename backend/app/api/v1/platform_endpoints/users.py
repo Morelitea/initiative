@@ -980,10 +980,12 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it.
-        # SSO-only accounts have no local password to confirm and are exempt
-        # (mirrors the delete-account flow's gate).
-        if not is_sso_account:
+        # Re-authenticate with the current password before changing it. The
+        # exemption is for an account that holds no password to confirm — one
+        # provisioned through an identity provider, which carries no hash at
+        # all. Holding a federated identity is a different question: an account
+        # can have both, and one that has a password is asked for it.
+        if current_user.hashed_password is not None:
             current_password = update_data.get("current_password")
             if not current_password:
                 raise HTTPException(
