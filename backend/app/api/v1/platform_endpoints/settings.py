@@ -80,6 +80,7 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import LoginMethod
+from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
@@ -235,6 +236,11 @@ async def update_session_lifetime(
     row = await app_settings_service.get_app_settings(session)
     row.session_max_hours = payload.session_max_hours
     session.add(row)
+    await session.flush()
+    # A device token carries its deadline in its own expiry, so the new figure
+    # is written into the ones already issued rather than read back on every
+    # native request.
+    await session_lifetime.apply_to_device_tokens(session)
     await session.commit()
     return await _platform_auth_payload(session)
 

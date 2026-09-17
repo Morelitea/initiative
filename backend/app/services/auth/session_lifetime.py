@@ -17,14 +17,21 @@ shortening the session they are in.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func, text, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildMembership
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import app_settings as app_settings_service
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
 
 #: What a community held to the compliance standard asks of its members.
 #: HIPAA's automatic-logoff expectation and NIST SP 800-63B's AAL2
@@ -78,3 +85,65 @@ async def chain_deadline(
     """When the chain this sign-in starts must end. ``None`` for no limit."""
     hours = await resolve_max_hours(session, user_id=user_id)
     return None if hours is None else issued + timedelta(hours=hours)
+
+
+async def apply_to_device_tokens(session: AsyncSession) -> None:
+    """Bring device tokens already issued under the limit now in force.
+
+    A session carries its deadline on the row and a device token carries its
+    in ``expires_at``, which is what every request already checks — so this
+    writes the limit in once, when it changes, rather than making every native
+    request read the policy to find out.
+
+    Run when either control moves. A token is only ever brought *in*: this
+    takes the earlier of where it stands and where the limit puts it, so it can
+    shorten a window and never extend one.
+    """
+    row = await app_settings_service.get_app_settings(session)
+    platform_hours = row.session_max_hours
+    now = _now()
+
+    if platform_hours is not None:
+        await session.exec(
+            update(UserToken)
+            .where(
+                UserToken.purpose == UserTokenPurpose.device_auth,
+                UserToken.expires_at > now,
+            )
+            .values(
+                expires_at=func.least(
+                    UserToken.expires_at,
+                    UserToken.created_at
+                    + text(f"interval '{int(platform_hours)} hours'"),
+                )
+            )
+        )
+
+    compliance_hours = (
+        COMPLIANCE_SESSION_HOURS
+        if platform_hours is None
+        else min(COMPLIANCE_SESSION_HOURS, platform_hours)
+    )
+    members = (
+        select(GuildMembership.user_id)
+        .join(
+            GuildAdministration,
+            GuildAdministration.guild_id == GuildMembership.guild_id,
+        )
+        .where(GuildAdministration.enforce_compliance_session.is_(True))
+    )
+    await session.exec(
+        update(UserToken)
+        .where(
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.expires_at > now,
+            UserToken.user_id.in_(members),
+        )
+        .values(
+            expires_at=func.least(
+                UserToken.expires_at,
+                UserToken.created_at
+                + text(f"interval '{int(compliance_hours)} hours'"),
+            )
+        )
+    )

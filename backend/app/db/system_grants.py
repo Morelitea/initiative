@@ -211,7 +211,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # them). UPDATE is the dedupe touch — the same bytes uploaded twice keep
     # one row, and the second upload restarts the orphan clock on it.
     "announcement_images": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # UPDATE is the sweep that brings device tokens already issued under a
+    # session limit that has just changed (migration 0295). The sliding window
+    # itself is written by the request path under its own role; what the system
+    # engine does here is the one thing that crosses every account at once.
+    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Append-only. The system engine writes the record and the board reads it;
     # UPDATE and DELETE are granted to nobody at all, here included, because a
     # record that could be rewritten afterwards would not be one.

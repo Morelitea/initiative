@@ -7,6 +7,9 @@ may be held to. Three columns and no data to move:
   default, asks for no limit, so an upgrade changes nobody's session.
 * ``guild_administration.enforce_compliance_session`` — operator-set, off by
   default.
+Plus one grant: the system engine gains ``UPDATE`` on ``user_tokens``, which it
+needs to bring tokens already issued under a limit that has just changed.
+
 * ``auth_sessions.chain_expires_at`` — where the answer is stamped for a
   session already open. NULL on every existing row, which is what "no limit was
   in force when you signed in" means: sessions open at upgrade keep the terms
@@ -44,6 +47,12 @@ def upgrade() -> None:
         "auth_sessions",
         sa.Column("chain_expires_at", sa.DateTime(timezone=True), nullable=True),
     )
+    # The system engine brings device tokens already issued under a limit that
+    # has just changed. It could add and remove them but never alter one — the
+    # sliding window is written by the request path under its own role — and a
+    # sweep across every account is not something the request path does.
+    op.execute("GRANT UPDATE ON TABLE public.user_tokens TO app_admin")
+
     # A limit is only meaningful above zero; the settings route refuses one too,
     # and this is the same rule where it cannot be skipped.
     op.create_check_constraint(
@@ -57,6 +66,7 @@ def downgrade() -> None:
     op.drop_constraint(
         "ck_app_settings_session_max_hours_positive", "app_settings", type_="check"
     )
+    op.execute("REVOKE UPDATE ON TABLE public.user_tokens FROM app_admin")
     op.drop_column("auth_sessions", "chain_expires_at")
     op.drop_column("guild_administration", "enforce_compliance_session")
     op.drop_column("app_settings", "session_max_hours")
