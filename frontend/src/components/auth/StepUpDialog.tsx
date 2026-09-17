@@ -1,5 +1,4 @@
 import { Capacitor } from "@capacitor/core";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AUTH_STEP_UP_EVENT, type StepUpEventDetail } from "@/api/client";
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuthChallenge } from "@/hooks/useAuthChallenge";
 import { useGuildLoginProviders, useLoginProviders } from "@/hooks/useGuildAuthPolicy";
 
 /** The path the sign-in should return to: where the challenge happened. */
@@ -30,24 +30,11 @@ const currentSpaPath = (): string => `${window.location.pathname}${window.locati
  */
 export const StepUpDialog = () => {
   const { t } = useTranslation("auth");
-  const [challenge, setChallenge] = useState<StepUpEventDetail | null>(null);
-  const open = challenge !== null;
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      return;
-    }
-    const onStepUp = (event: Event) => {
-      const detail = (event as CustomEvent<StepUpEventDetail>).detail;
-      if (detail?.providerSlug) {
-        // First challenge wins; concurrent 401s from one page all name the
-        // same provider.
-        setChallenge((current) => current ?? detail);
-      }
-    };
-    window.addEventListener(AUTH_STEP_UP_EVENT, onStepUp);
-    return () => window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
-  }, []);
+  const { challenge, clear, open } = useAuthChallenge<StepUpEventDetail>(
+    AUTH_STEP_UP_EVENT,
+    (detail) => !!detail?.providerSlug,
+    { listen: !Capacitor.isNativePlatform() }
+  );
 
   // A guild-scoped provider resolves its login URL through the guild's own
   // listing; the operator-global listing serves platform-posture servers.
@@ -72,14 +59,14 @@ export const StepUpDialog = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && setChallenge(null)}>
+    <Dialog open={open} onOpenChange={(next) => !next && clear()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("stepUp.title")}</DialogTitle>
           <DialogDescription>{t("stepUp.description", { providerName })}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setChallenge(null)}>
+          <Button variant="outline" onClick={clear}>
             {t("stepUp.dismiss")}
           </Button>
           <Button onClick={beginStepUp}>{t("stepUp.continue", { providerName })}</Button>
