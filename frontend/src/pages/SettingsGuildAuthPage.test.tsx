@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,9 +7,16 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 
 // What the server says about this community and this member. Flipped per test.
 let guildRole = "superadmin";
-let authOptions: string[] = ["providers", "require_sign_in"];
-let allowApiKeys = true;
-let sessionLimit = false;
+let grantSettingsLevel: "admin" | "superadmin" | null = null;
+let guildId = 4;
+let authOptions: string[] | null = ["providers", "require_sign_in"];
+let allowApiKeys: boolean | null = true;
+let sessionLimit: boolean | null = false;
+let grantedAuthSettings = {
+  auth_options: ["providers", "require_sign_in"],
+  allow_api_keys: true,
+  enforce_compliance_session: false,
+};
 let policy: {
   policy: "open" | "required";
   provider_id: number | null;
@@ -34,9 +41,10 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
   useGuilds: () => ({
     activeGuild: {
-      id: 4,
+      id: guildId,
       name: "Test Community",
       role: guildRole,
+      grantSettingsLevel,
       auth_options: authOptions,
       allow_api_keys: allowApiKeys,
       enforce_compliance_session: sessionLimit,
@@ -45,13 +53,14 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   }),
 }));
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 4 }));
+vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => guildId }));
 
 // ``useServer`` is left real: the render helper provides its context, and
 // mocking the module would take ``ServerContext`` with it.
 
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
+  useGuildAuthSettings: () => ({ data: grantedAuthSettings, refetch: vi.fn() }),
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
@@ -91,9 +100,16 @@ describe("SettingsGuildAuthPage", () => {
     saveSessionLimit.mockClear();
     refreshGuilds.mockClear();
     guildRole = "superadmin";
+    grantSettingsLevel = null;
+    guildId = 4;
     authOptions = ["providers", "require_sign_in"];
     allowApiKeys = true;
     sessionLimit = false;
+    grantedAuthSettings = {
+      auth_options: ["providers", "require_sign_in"],
+      allow_api_keys: true,
+      enforce_compliance_session: false,
+    };
     policy = {
       policy: "open",
       provider_id: null,
@@ -184,6 +200,25 @@ describe("SettingsGuildAuthPage", () => {
     it("leaves the superadmin's own controls alone", () => {
       render();
       expect(requirementRadio()).not.toBeDisabled();
+    });
+
+    it("gives a superadmin settings grantee the current controls", () => {
+      guildRole = "member";
+      grantSettingsLevel = "superadmin";
+      authOptions = null;
+      allowApiKeys = null;
+      sessionLimit = null;
+      grantedAuthSettings = {
+        auth_options: ["providers", "require_sign_in"],
+        allow_api_keys: false,
+        enforce_compliance_session: true,
+      };
+
+      render();
+
+      expect(requirementRadio()).toBeInTheDocument();
+      expect(screen.getByLabelText(/allow personal api keys/i)).not.toBeChecked();
+      expect(screen.getByLabelText(/twelve-hour session limit/i)).toBeChecked();
     });
   });
 
@@ -290,6 +325,25 @@ describe("SettingsGuildAuthPage", () => {
       render();
 
       expect(screen.queryByLabelText(/twelve-hour session limit/i)).not.toBeInTheDocument();
+    });
+
+    it("does not carry a pending choice or failure into another community", async () => {
+      const user = userEvent.setup();
+      const view = render();
+
+      await user.click(limitSwitch());
+      const pending = saveSessionLimit.mock.calls[0]?.[1] as {
+        onError: (error: unknown) => void;
+      };
+
+      guildId = 5;
+      sessionLimit = false;
+      view.rerender(<SettingsGuildAuthPage />);
+
+      expect(limitSwitch()).not.toBeChecked();
+
+      act(() => pending.onError(new Error("old community failed")));
+      expect(screen.queryByText("Could not save the session limit")).not.toBeInTheDocument();
     });
   });
 });

@@ -14,7 +14,8 @@ export const GuildSettingsLayout = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.is_admin ?? false;
   // The seat above admin, which holds this community's sign-in configuration.
-  const isSuperadmin = activeGuild?.role === "superadmin";
+  const isSuperadmin =
+    activeGuild?.role === "superadmin" || activeGuild?.grantSettingsLevel === "superadmin";
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
@@ -81,7 +82,7 @@ export const GuildSettingsLayout = () => {
     return tabs;
   }, [urlGuildId, t, isSuperadmin]);
 
-  const canViewSettings = isGuildAdmin;
+  const canViewSettings = isGuildAdmin || isSuperadmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
   // them (AI, users, initiatives, apps, trash, auth) would only render
   // errors. Keep the surfaces that stay functional: the general tab (identity,
@@ -90,7 +91,9 @@ export const GuildSettingsLayout = () => {
   const workingTabs = isSuspended
     ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
     : guildSettingsTabs;
-  const availableTabs = isGuildAdmin ? workingTabs : [];
+  const availableTabs = isGuildAdmin
+    ? workingTabs
+    : workingTabs.filter((tab) => tab.value === "auth");
 
   if (!canViewSettings) {
     return (

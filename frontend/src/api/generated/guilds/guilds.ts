@@ -29,6 +29,7 @@ import type {
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildAuthSettingsRead,
   GuildCreate,
   GuildDeletionRequest,
   GuildEntitlementsRead,
@@ -1841,6 +1842,172 @@ export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = 
     queryClient
   );
 };
+/**
+ * Read the controls held by this community's superadmin seat.
+ * @summary Get Guild Auth Settings
+ */
+export const getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAuthSettingsRead>(
+    { url: `/api/v1/guilds/${guildId}/auth-settings`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/guilds/${guildId}/auth-settings`] as const;
+};
+
+export const getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+  > = ({ signal }) =>
+    getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+>;
+export type GetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Guild Auth Settings
+ */
+
+export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * The guild's sign-in requirement. Guild admin only (the settings UI);
  * a blocked session learns the required provider from the step-up 401's

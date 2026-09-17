@@ -47,7 +47,9 @@ _DISAGREE = (
 
 def _carry(conn, *, into: str) -> None:
     """Copy the standard into ``into``, then check the two tables agree."""
-    op.execute(f"ALTER TABLE public.{into} NO FORCE ROW LEVEL SECURITY")
+    tables = ("guilds", "guild_administration")
+    for table in tables:
+        op.execute(f"ALTER TABLE public.{table} NO FORCE ROW LEVEL SECURITY")
     try:
         conn.execute(sa.text(_CARRY[into]))
         # Counted rather than asserting a rowcount: a deployment where nobody
@@ -55,7 +57,8 @@ def _carry(conn, *, into: str) -> None:
         missed = conn.execute(sa.text(_DISAGREE)).scalar_one()
         assert missed == 0, f"{missed} guilds did not carry the standard across"
     finally:
-        op.execute(f"ALTER TABLE public.{into} FORCE ROW LEVEL SECURITY")
+        for table in reversed(tables):
+            op.execute(f"ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY")
 
 
 def upgrade() -> None:

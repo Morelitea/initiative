@@ -343,6 +343,16 @@ class GuildAuthPolicyUpdate(SanitizedBaseModel):
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
+class GuildAuthSettingsRead(SanitizedBaseModel):
+    """The current controls on the superadmin's Authentication page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    auth_options: List[GuildAuthOption] = Field(default_factory=list)
+    allow_api_keys: bool
+    enforce_compliance_session: bool
+
+
 class GuildApiAccessRead(SanitizedBaseModel):
     """Whether this guild accepts personal API keys."""
 

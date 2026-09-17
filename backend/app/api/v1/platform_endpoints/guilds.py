@@ -65,6 +65,7 @@ from app.schemas.platform.guild import (
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
+    GuildAuthSettingsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
     GuildCreate,
@@ -1057,6 +1058,30 @@ def _auth_policy_read(
         provider_slug=policy_row.provider_slug,
         provider_display_name=provider_display_name,
         require_methods=list(policy_row.require_methods or ()),
+    )
+
+
+@router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
+async def get_guild_auth_settings(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthSettingsRead:
+    """Read the controls held by this community's superadmin seat."""
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    administration = await guilds_service.get_administration(
+        admin_session, guild_id=guild_id
+    )
+    return GuildAuthSettingsRead(
+        auth_options=sorted(administration.auth_options) if administration else [],
+        allow_api_keys=guild.allow_api_keys,
+        enforce_compliance_session=guild.enforce_compliance_session,
     )
 
 

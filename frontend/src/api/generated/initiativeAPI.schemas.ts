@@ -3999,6 +3999,15 @@ export interface GuildAuthPolicyUpdate {
 }
 
 /**
+ * The current controls on the superadmin's Authentication page.
+ */
+export interface GuildAuthSettingsRead {
+  auth_options: GuildAuthOption[];
+  allow_api_keys: boolean;
+  enforce_compliance_session: boolean;
+}
+
+/**
  * The banner a guild admin sets, whole.
  *
  * Every field is required: the banner is one value and this replaces it, so a

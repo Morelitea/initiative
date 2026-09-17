@@ -17,7 +17,9 @@ import {
 } from "@/api/generated/guild-auth-providers/guild-auth-providers";
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
+  getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
+  getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
   setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
@@ -29,6 +31,7 @@ import type {
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildAuthSettingsRead,
   GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -66,6 +69,19 @@ export const useGuildAuthPolicy = (guildId: number, options?: QueryOpts<GuildAut
   return useQuery<GuildAuthPolicyRead>({
     queryKey: getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId),
     queryFn: () => getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
+/** The complete Authentication settings available to a settings superadmin. */
+export const useGuildAuthSettings = (
+  guildId: number,
+  options?: QueryOpts<GuildAuthSettingsRead>
+) => {
+  return useQuery<GuildAuthSettingsRead>({
+    queryKey: getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey(guildId),
+    queryFn: () => getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet(guildId),
     enabled: guildId > 0,
     ...options,
   });

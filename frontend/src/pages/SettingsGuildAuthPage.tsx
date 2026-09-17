@@ -20,6 +20,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
   useGuildAuthProviders,
+  useGuildAuthSettings,
   useGuildLoginProviders,
   useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
@@ -46,20 +47,28 @@ const ANY_PROVIDER = "any";
  * for a button. The draft is what the switch shows until the refreshed guild
  * list carries the saved value; a failed save drops it and keeps a message.
  */
-const useFlipToSave = (saved: boolean) => {
-  const [draft, setDraft] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const useFlipToSave = (saved: boolean, guildId: number) => {
+  const [state, setState] = useState<{
+    guildId: number;
+    draft: boolean | null;
+    error: string | null;
+  }>({ guildId, draft: null, error: null });
+  const current = state.guildId === guildId ? state : { guildId, draft: null, error: null };
   return {
-    value: draft ?? saved,
-    error,
+    value: current.draft ?? saved,
+    error: current.error,
     begin: (next: boolean) => {
-      setDraft(next);
-      setError(null);
+      setState({ guildId, draft: next, error: null });
     },
-    settle: () => setDraft(null),
+    settle: () => {
+      setState((previous) =>
+        previous.guildId === guildId ? { guildId, draft: null, error: null } : previous
+      );
+    },
     fail: (message: string) => {
-      setDraft(null);
-      setError(message);
+      setState((previous) =>
+        previous.guildId === guildId ? { guildId, draft: null, error: message } : previous
+      );
     },
   };
 };
@@ -73,13 +82,18 @@ export const SettingsGuildAuthPage = () => {
   // requirement needs ``require_sign_in``. Outside both the tab is hidden and a
   // direct URL renders nothing (fail closed while still loading).
   const { activeGuild, refreshGuilds } = useGuilds();
-  const grantedOptions = activeGuild?.auth_options ?? [];
+  const hasGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
+  const authSettingsQuery = useGuildAuthSettings(guildId, {
+    enabled: guildId > 0 && hasGrantedSeat,
+  });
+  const authSettings = hasGrantedSeat ? authSettingsQuery.data : undefined;
+  const grantedOptions = authSettings?.auth_options ?? activeGuild?.auth_options ?? [];
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
   // The seat above admin holds a community's sign-in configuration, and this
   // page is all of it — so it is theirs to reach, not only theirs to write.
   // The tab is gated the same way; this is the direct-URL half.
-  const isSuperadmin = activeGuild?.role === "superadmin";
+  const isSuperadmin = activeGuild?.role === "superadmin" || hasGrantedSeat;
   const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
@@ -123,7 +137,10 @@ export const SettingsGuildAuthPage = () => {
 
   // Each of these is one boolean, so both save as they are switched.
   const updateApiAccess = useUpdateGuildApiAccess(guildId);
-  const apiAccess = useFlipToSave(activeGuild?.allow_api_keys ?? true);
+  const apiAccess = useFlipToSave(
+    authSettings?.allow_api_keys ?? activeGuild?.allow_api_keys ?? true,
+    guildId
+  );
 
   const changeApiAccess = (next: boolean) => {
     apiAccess.begin(next);
@@ -131,7 +148,11 @@ export const SettingsGuildAuthPage = () => {
       { allow_api_keys: next },
       {
         onSuccess: async () => {
-          await refreshGuilds();
+          if (hasGrantedSeat) {
+            await authSettingsQuery.refetch();
+          } else {
+            await refreshGuilds();
+          }
           apiAccess.settle();
           toast.success(t("guildAuth.apiAccess.saved"));
         },
@@ -143,7 +164,10 @@ export const SettingsGuildAuthPage = () => {
   };
 
   const updateSessionLimit = useUpdateGuildSessionLimit(guildId);
-  const sessionLimit = useFlipToSave(activeGuild?.enforce_compliance_session ?? false);
+  const sessionLimit = useFlipToSave(
+    authSettings?.enforce_compliance_session ?? activeGuild?.enforce_compliance_session ?? false,
+    guildId
+  );
 
   const changeSessionLimit = (next: boolean) => {
     sessionLimit.begin(next);
@@ -151,7 +175,11 @@ export const SettingsGuildAuthPage = () => {
       { enforce_compliance_session: next },
       {
         onSuccess: async () => {
-          await refreshGuilds();
+          if (hasGrantedSeat) {
+            await authSettingsQuery.refetch();
+          } else {
+            await refreshGuilds();
+          }
           sessionLimit.settle();
           toast.success(t("guildAuth.sessionLimit.saved"));
         },
@@ -272,7 +300,7 @@ export const SettingsGuildAuthPage = () => {
     }
   };
 
-  if (!isSuperadmin) {
+  if (!isSuperadmin || (hasGrantedSeat && authSettings == null)) {
     return null;
   }
 
