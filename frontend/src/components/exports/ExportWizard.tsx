@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,18 +10,13 @@ import {
   REPORT_TOOL_FORMATS,
 } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useExportJob } from "@/hooks/useExportJob";
+import { useWizard } from "@/hooks/useWizard";
 import { formatBytes } from "@/lib/fileUtils";
 import { toolNavLabelKey } from "@/lib/tools";
 
@@ -47,7 +42,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
   const guildId = useActiveGuildId();
   const exportJob = useExportJob();
 
-  const [step, setStep] = useState<Step>("mode");
+  const { step, go, commit, back, canGoBack, reset } = useWizard<Step>("mode");
   const [mode, setMode] = useState<Mode>("backup");
   const [include, setInclude] = useState<Record<string, boolean>>({});
   const [includeUploads, setIncludeUploads] = useState(true);
@@ -62,7 +57,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment, and reacting to every poll tick would re-fire the reset
   useEffect(() => {
     if (!open) {
-      setStep("mode");
+      reset();
       setMode("backup");
       setInclude({});
       setIncludeUploads(true);
@@ -70,7 +65,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
       setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
       exportJob.reset();
     } else if (exportJob.busy) {
-      setStep("progress");
+      commit("progress");
     }
   }, [open]);
 
@@ -128,20 +123,12 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
       }
       params.formats = JSON.stringify(formatParam);
     }
-    setStep("progress");
+    commit("progress");
     void exportJob.start({
       endpoint: scope === "guild" ? "/exports/guild" : "/exports/initiative",
       params,
       fallbackFilename: `${scope}-export.zip`,
     });
-  };
-
-  const back = () => {
-    if (step === "backup" || step === "report") {
-      setStep("mode");
-    } else if (step === "confirm") {
-      setStep(mode === "backup" ? "backup" : "report");
-    }
   };
 
   const stepDescription = useMemo(() => {
@@ -159,268 +146,262 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     }
   }, [step, t]);
 
+  // Three questions, whichever way round you answer them: the backup options
+  // and the report formats are the same position, one on each route.
+  const position: Record<Step, number | null> = {
+    mode: 1,
+    backup: 2,
+    report: 2,
+    confirm: 3,
+    progress: null,
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {scope === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
-          </DialogTitle>
-          {stepDescription && <DialogDescription>{stepDescription}</DialogDescription>}
-        </DialogHeader>
+    <WizardDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      title={scope === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
+      description={stepDescription}
+      progress={position[step] === null ? undefined : { current: position[step]!, total: 3 }}
+      onBack={canGoBack ? back : undefined}
+      backLabel={t("wizard.back")}
+    >
+      {step === "mode" && (
+        <div className="space-y-2">
+          {(["backup", "report"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent"
+              onClick={() => {
+                setMode(option);
+                go(option);
+              }}
+            >
+              <p className="font-medium text-sm">
+                {option === "backup" ? t("wizard.mode.backupTitle") : t("wizard.mode.reportTitle")}
+              </p>
+              <p className="mt-1 text-muted-foreground text-xs">
+                {option === "backup"
+                  ? t("wizard.mode.backupDescription")
+                  : t("wizard.mode.reportDescription")}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {step !== "mode" && step !== "progress" && (
-          <Button variant="ghost" size="sm" className="w-fit" onClick={back}>
-            <ChevronLeft className="h-4 w-4" />
-            {t("wizard.back")}
-          </Button>
-        )}
-
-        {step === "mode" && (
+      {step === "backup" && (
+        <div className="space-y-4">
           <div className="space-y-2">
-            {(["backup", "report"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent"
-                onClick={() => {
-                  setMode(option);
-                  setStep(option);
-                }}
-              >
-                <p className="font-medium text-sm">
-                  {option === "backup"
-                    ? t("wizard.mode.backupTitle")
-                    : t("wizard.mode.reportTitle")}
-                </p>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  {option === "backup"
-                    ? t("wizard.mode.backupDescription")
-                    : t("wizard.mode.reportDescription")}
-                </p>
-              </button>
-            ))}
+            {visibleTools.map((tool) => {
+              const disabled = toolDisabled(tool);
+              const count = estimate?.tools?.[tool]?.count;
+              return (
+                <div key={tool} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <Label htmlFor={`include-${tool}`} className="text-sm">
+                      {t(`nav:${toolNavLabelKey(tool)}` as never)}
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      {disabled
+                        ? t("wizard.backup.disabled")
+                        : count != null
+                          ? t("wizard.backup.toolCount", { count })
+                          : " "}
+                    </p>
+                  </div>
+                  <Switch
+                    id={`include-${tool}`}
+                    checked={!disabled && included(tool)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) => setIncluded(tool, checked)}
+                  />
+                </div>
+              );
+            })}
           </div>
-        )}
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="min-w-0">
+              <Label htmlFor="include-uploads" className="text-sm">
+                {t("wizard.backup.includeUploads")}
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {estimateQuery.isError
+                  ? t("wizard.backup.estimateFailed")
+                  : estimate
+                    ? t("wizard.backup.uploadsSize", {
+                        size: formatBytes(estimate.uploads_bytes ?? 0),
+                      })
+                    : " "}
+              </p>
+            </div>
+            <Switch
+              id="include-uploads"
+              checked={includeUploads}
+              onCheckedChange={setIncludeUploads}
+            />
+          </div>
+          {(overRowLimit || overUploadLimit) && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-destructive text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {overUploadLimit
+                  ? t("wizard.backup.overUploadLimit", {
+                      limit: formatBytes(estimate?.max_upload_bytes ?? 0),
+                    })
+                  : t("wizard.backup.overRowLimit")}
+              </span>
+            </div>
+          )}
+          <Button
+            className="w-full"
+            disabled={!anyIncluded || overRowLimit || overUploadLimit}
+            onClick={() => go("confirm")}
+          >
+            {t("wizard.next")}
+          </Button>
+        </div>
+      )}
 
-        {step === "backup" && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              {visibleTools.map((tool) => {
-                const disabled = toolDisabled(tool);
-                const count = estimate?.tools?.[tool]?.count;
-                return (
-                  <div
-                    key={tool}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="min-w-0">
-                      <Label htmlFor={`include-${tool}`} className="text-sm">
-                        {t(`nav:${toolNavLabelKey(tool)}` as never)}
-                      </Label>
-                      <p className="text-muted-foreground text-xs">
-                        {disabled
-                          ? t("wizard.backup.disabled")
-                          : count != null
-                            ? t("wizard.backup.toolCount", { count })
-                            : " "}
-                      </p>
-                    </div>
+      {step === "report" && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {visibleTools.map((tool) => {
+              const options = REPORT_TOOL_FORMATS[tool];
+              const isDocuments = options == null;
+              return (
+                <div key={tool} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor={`report-${tool}`} className="text-sm">
+                      {t(`nav:${toolNavLabelKey(tool)}` as never)}
+                    </Label>
                     <Switch
-                      id={`include-${tool}`}
-                      checked={!disabled && included(tool)}
-                      disabled={disabled}
+                      id={`report-${tool}`}
+                      checked={included(tool)}
                       onCheckedChange={(checked) => setIncluded(tool, checked)}
                     />
                   </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div className="min-w-0">
-                <Label htmlFor="include-uploads" className="text-sm">
-                  {t("wizard.backup.includeUploads")}
-                </Label>
-                <p className="text-muted-foreground text-xs">
-                  {estimateQuery.isError
-                    ? t("wizard.backup.estimateFailed")
-                    : estimate
-                      ? t("wizard.backup.uploadsSize", {
-                          size: formatBytes(estimate.uploads_bytes ?? 0),
-                        })
-                      : " "}
-                </p>
-              </div>
-              <Switch
-                id="include-uploads"
-                checked={includeUploads}
-                onCheckedChange={setIncludeUploads}
-              />
-            </div>
-            {(overRowLimit || overUploadLimit) && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-destructive text-sm">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  {overUploadLimit
-                    ? t("wizard.backup.overUploadLimit", {
-                        limit: formatBytes(estimate?.max_upload_bytes ?? 0),
-                      })
-                    : t("wizard.backup.overRowLimit")}
-                </span>
-              </div>
-            )}
-            <Button
-              className="w-full"
-              disabled={!anyIncluded || overRowLimit || overUploadLimit}
-              onClick={() => setStep("confirm")}
-            >
-              {t("wizard.next")}
-            </Button>
-          </div>
-        )}
-
-        {step === "report" && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              {visibleTools.map((tool) => {
-                const options = REPORT_TOOL_FORMATS[tool];
-                const isDocuments = options == null;
-                return (
-                  <div key={tool} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor={`report-${tool}`} className="text-sm">
-                        {t(`nav:${toolNavLabelKey(tool)}` as never)}
-                      </Label>
-                      <Switch
-                        id={`report-${tool}`}
-                        checked={included(tool)}
-                        onCheckedChange={(checked) => setIncluded(tool, checked)}
-                      />
+                  {included(tool) && !isDocuments && (
+                    <RadioGroup
+                      value={formats[tool] ?? options[0].format}
+                      onValueChange={(value) => setFormats((prev) => ({ ...prev, [tool]: value }))}
+                      className="flex flex-wrap gap-3"
+                    >
+                      {options.map((option) => (
+                        <div key={option.format} className="flex items-center gap-1.5">
+                          <RadioGroupItem value={option.format} id={`${tool}-${option.format}`} />
+                          <Label htmlFor={`${tool}-${option.format}`} className="text-xs">
+                            {t(`tasks:${option.labelKey}` as never)}
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
+                  {included(tool) && isDocuments && (
+                    <div className="space-y-2">
+                      {(["native", "spreadsheet"] as const).map((docType) => (
+                        <div key={docType} className="space-y-1">
+                          <p className="text-muted-foreground text-xs">
+                            {docType === "native"
+                              ? t("wizard.report.documentNative")
+                              : t("wizard.report.documentSpreadsheet")}
+                          </p>
+                          <RadioGroup
+                            value={documentFormats[docType]}
+                            onValueChange={(value) =>
+                              setDocumentFormats((prev) => ({ ...prev, [docType]: value }))
+                            }
+                            className="flex flex-wrap gap-3"
+                          >
+                            {REPORT_DOCUMENT_FORMATS[docType].map((option) => (
+                              <div key={option.format} className="flex items-center gap-1.5">
+                                <RadioGroupItem
+                                  value={option.format}
+                                  id={`doc-${docType}-${option.format}`}
+                                />
+                                <Label
+                                  htmlFor={`doc-${docType}-${option.format}`}
+                                  className="text-xs"
+                                >
+                                  {t(`tasks:${option.labelKey}` as never)}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      ))}
                     </div>
-                    {included(tool) && !isDocuments && (
-                      <RadioGroup
-                        value={formats[tool] ?? options[0].format}
-                        onValueChange={(value) =>
-                          setFormats((prev) => ({ ...prev, [tool]: value }))
-                        }
-                        className="flex flex-wrap gap-3"
-                      >
-                        {options.map((option) => (
-                          <div key={option.format} className="flex items-center gap-1.5">
-                            <RadioGroupItem value={option.format} id={`${tool}-${option.format}`} />
-                            <Label htmlFor={`${tool}-${option.format}`} className="text-xs">
-                              {t(`tasks:${option.labelKey}` as never)}
-                            </Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    )}
-                    {included(tool) && isDocuments && (
-                      <div className="space-y-2">
-                        {(["native", "spreadsheet"] as const).map((docType) => (
-                          <div key={docType} className="space-y-1">
-                            <p className="text-muted-foreground text-xs">
-                              {docType === "native"
-                                ? t("wizard.report.documentNative")
-                                : t("wizard.report.documentSpreadsheet")}
-                            </p>
-                            <RadioGroup
-                              value={documentFormats[docType]}
-                              onValueChange={(value) =>
-                                setDocumentFormats((prev) => ({ ...prev, [docType]: value }))
-                              }
-                              className="flex flex-wrap gap-3"
-                            >
-                              {REPORT_DOCUMENT_FORMATS[docType].map((option) => (
-                                <div key={option.format} className="flex items-center gap-1.5">
-                                  <RadioGroupItem
-                                    value={option.format}
-                                    id={`doc-${docType}-${option.format}`}
-                                  />
-                                  <Label
-                                    htmlFor={`doc-${docType}-${option.format}`}
-                                    className="text-xs"
-                                  >
-                                    {t(`tasks:${option.labelKey}` as never)}
-                                  </Label>
-                                </div>
-                              ))}
-                            </RadioGroup>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <Button className="w-full" disabled={!anyIncluded} onClick={() => setStep("confirm")}>
-              {t("wizard.next")}
-            </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
+          <Button className="w-full" disabled={!anyIncluded} onClick={() => go("confirm")}>
+            {t("wizard.next")}
+          </Button>
+        </div>
+      )}
 
-        {step === "confirm" && (
-          <div className="space-y-4">
-            <div className="space-y-1 rounded-lg border p-3 text-sm">
-              <p className="font-medium">
-                {mode === "backup"
-                  ? t("wizard.confirm.modeBackup")
-                  : t("wizard.confirm.modeReport")}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {/* Same predicate as the submitted payload — a disabled
+      {step === "confirm" && (
+        <div className="space-y-4">
+          <div className="space-y-1 rounded-lg border p-3 text-sm">
+            <p className="font-medium">
+              {mode === "backup" ? t("wizard.confirm.modeBackup") : t("wizard.confirm.modeReport")}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {/* Same predicate as the submitted payload — a disabled
                     tool's locked-off switch must not reappear here. */}
-                {visibleTools
-                  .filter(effectiveIncluded)
-                  .map((tool) => t(`nav:${toolNavLabelKey(tool)}` as never))
-                  .join(" · ")}
+              {visibleTools
+                .filter(effectiveIncluded)
+                .map((tool) => t(`nav:${toolNavLabelKey(tool)}` as never))
+                .join(" · ")}
+            </p>
+            {mode === "backup" && (
+              <p className="text-muted-foreground text-xs">
+                {includeUploads
+                  ? t("wizard.confirm.uploadsIncluded")
+                  : t("wizard.confirm.uploadsExcluded")}
               </p>
-              {mode === "backup" && (
-                <p className="text-muted-foreground text-xs">
-                  {includeUploads
-                    ? t("wizard.confirm.uploadsIncluded")
-                    : t("wizard.confirm.uploadsExcluded")}
-                </p>
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs">{t("wizard.confirm.note")}</p>
-            {/* busy guard: the hook can only track one job — starting while a
+            )}
+          </div>
+          <p className="text-muted-foreground text-xs">{t("wizard.confirm.note")}</p>
+          {/* busy guard: the hook can only track one job — starting while a
                 previous job still polls would show its progress as this
                 export's and deliver the wrong download. */}
-            <Button className="w-full" disabled={exportJob.busy} onClick={startExport}>
-              {t("wizard.start")}
-            </Button>
-          </div>
-        )}
+          <Button className="w-full" disabled={exportJob.busy} onClick={startExport}>
+            {t("wizard.start")}
+          </Button>
+        </div>
+      )}
 
-        {step === "progress" && (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            {exportJob.phase === "done" ? (
-              <>
-                <CheckCircle2 className="h-8 w-8 text-primary" />
-                <p className="font-medium text-sm">{t("wizard.done.title")}</p>
-                <p className="text-muted-foreground text-xs">{t("wizard.done.note")}</p>
-              </>
-            ) : exportJob.phase === "failed" ? (
-              <>
-                <XCircle className="h-8 w-8 text-destructive" />
-                <p className="font-medium text-sm">{t("wizard.failed.title")}</p>
-                <p className="text-muted-foreground text-xs">{t("wizard.failed.note")}</p>
-              </>
-            ) : (
-              <>
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="font-medium text-sm">{t("wizard.progress.title")}</p>
-                <p className="text-muted-foreground text-xs">{t("wizard.progress.note")}</p>
-              </>
-            )}
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              {t("wizard.close")}
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+      {step === "progress" && (
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          {exportJob.phase === "done" ? (
+            <>
+              <CheckCircle2 className="h-8 w-8 text-primary" />
+              <p className="font-medium text-sm">{t("wizard.done.title")}</p>
+              <p className="text-muted-foreground text-xs">{t("wizard.done.note")}</p>
+            </>
+          ) : exportJob.phase === "failed" ? (
+            <>
+              <XCircle className="h-8 w-8 text-destructive" />
+              <p className="font-medium text-sm">{t("wizard.failed.title")}</p>
+              <p className="text-muted-foreground text-xs">{t("wizard.failed.note")}</p>
+            </>
+          ) : (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="font-medium text-sm">{t("wizard.progress.title")}</p>
+              <p className="text-muted-foreground text-xs">{t("wizard.progress.note")}</p>
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            {t("wizard.close")}
+          </Button>
+        </div>
+      )}
+    </WizardDialog>
   );
 }
