@@ -3,11 +3,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from sqlmodel import delete, or_, select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
@@ -97,19 +96,10 @@ async def sync_oidc_assignments(
 
     # This provider's rules. Two providers spell their groups their own way, so
     # a claim value means nothing until you know who asserted it. A guild's own
-    # provider reads only the rules naming that guild; an operator-global one
-    # (``guild_id IS NULL``) reads all of its own.
-    stmt = (
-        select(OIDCClaimMapping)
-        .join(AuthProvider, AuthProvider.id == OIDCClaimMapping.provider_id)
-        .where(
-            OIDCClaimMapping.provider_id == provider_id,
-            or_(
-                AuthProvider.guild_id.is_(None),
-                AuthProvider.guild_id == OIDCClaimMapping.guild_id,
-            ),
-        )
-    )
+    # provider reads all of its own rules: every provider is the operator's, and
+    # the rules are platform-level configuration naming whichever guild each
+    # one grants.
+    stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
     mappings = (await session.exec(stmt)).all()
     # No early return on an empty set. A provider whose last rule was deleted
     # grants nothing, which is not the same as having nothing to take back —

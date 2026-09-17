@@ -82,6 +82,9 @@ from app.schemas.platform.guild import (
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
+from app.services.auth import (
+    guild_provider_connections as guild_connections,
+)
 from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption
 from app.services.platform import auth_posture
@@ -1088,11 +1091,17 @@ async def set_guild_auth_policy(
         provider = await admin_session.get(
             AuthProvider, payload.provider_id, with_for_update=True
         )
-        if (
-            provider is None
-            or provider.guild_id != guild_id
-            or not is_login_ready(provider)
-        ):
+        # Theirs because they connect to it. Every provider is the operator's,
+        # so a connection is the only thing that makes one this community's to
+        # require.
+        connection = (
+            None
+            if provider is None
+            else await guild_connections.connection_for(
+                admin_session, guild_id=guild_id, provider_id=provider.id
+            )
+        )
+        if provider is None or connection is None or not is_login_ready(provider):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,

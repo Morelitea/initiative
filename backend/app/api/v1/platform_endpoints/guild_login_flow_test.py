@@ -22,6 +22,7 @@ from app.models.platform.user import User
 from app.models.platform.user_email import UserEmail
 from app.services.auth import sessions as session_service
 from app.testing.factories import (
+    create_guild_provider_connection,
     guild_administration,
     create_auth_provider,
     create_federated_identity,
@@ -41,9 +42,8 @@ async def _guild_provider(
 
     kwargs = {} if auth_options is None else {"auth_options": auth_options}
     guild = await create_guild(session, **kwargs)
-    provider = await create_auth_provider(
-        session, slug="corp", guild_id=guild.id, **overrides
-    )
+    provider = await create_auth_provider(session, slug="corp", **overrides)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     return guild, provider
 
 
@@ -102,7 +102,8 @@ async def test_guild_listing_serves_guild_login_urls(
     client: AsyncClient, session: AsyncSession
 ):
     guild, provider = await _guild_provider(session)
-    await create_auth_provider(session, slug="off", enabled=False, guild_id=guild.id)
+    off = await create_auth_provider(session, slug="off", enabled=False)
+    await create_guild_provider_connection(session, guild=guild, provider=off)
 
     guild_name = guild.name
     response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
@@ -382,16 +383,18 @@ async def test_guild_callback_signs_in_existing_member_when_guild_auth_disabled(
     assert row.satisfied_providers == [provider_id]
 
 
-async def test_state_bound_to_one_guilds_provider(
+async def test_state_bound_to_the_community_it_began_on(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A flow begun with guild A's provider cannot complete against guild B's
-    same-slug provider — the state is namespaced to the guild."""
+    """One provider now serves several communities, so which community a flow
+    is entering is a fact about where it began. A flow started on community
+    A's page cannot complete on community B's, even though both connect to the
+    same provider."""
     guild_a, provider_a = await _guild_provider(session)
     from app.testing.factories import create_guild
 
     guild_b = await create_guild(session)
-    await create_auth_provider(session, slug="corp", guild_id=guild_b.id)
+    await create_guild_provider_connection(session, guild=guild_b, provider=provider_a)
     user = await create_user(session)
     await create_federated_identity(
         session, user, subject="idp-subject-1", provider=provider_a

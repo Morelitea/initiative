@@ -20,6 +20,7 @@ from app.models.tenant.initiative import InitiativeMember
 from app.services.oidc_sync import sync_oidc_assignments
 from app.services.tenant.initiatives import get_pm_role
 from app.testing.factories import (
+    create_guild_provider_connection,
     create_auth_provider,
     create_guild,
     create_initiative,
@@ -92,14 +93,19 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_a_guild_provider_grants_only_inside_its_own_guild(session: AsyncSession):
-    """A guild configures its own provider, so that provider's sign-in reads the
-    rules naming that guild. One of its rules naming a different guild is not
-    part of the sign-in, and grants nothing."""
+async def test_a_providers_rules_grant_wherever_they_name(session: AsyncSession):
+    """Group rules are the operator's, and so is every provider, so a sign-in
+    reads all of that provider's rules and grants each the community it names.
+
+    This changed with connections. A provider used to belong to one community
+    and its rules were filtered to that community; now the operator writes both
+    the provider and the rules, so a rule naming a second community is the
+    operator saying so rather than one community reaching into another."""
     owner = await create_user(session)
     home = await create_guild(session, creator=owner)
     elsewhere = await create_guild(session, creator=owner)
-    provider = await create_auth_provider(session, slug="tenant", guild_id=home.id)
+    provider = await create_auth_provider(session, slug="tenant")
+    await create_guild_provider_connection(session, guild=home, provider=provider)
 
     newcomer = await create_user(session)
     for guild_id in (home.id, elsewhere.id):
@@ -123,7 +129,7 @@ async def test_a_guild_provider_grants_only_inside_its_own_guild(session: AsyncS
     )
     await session.commit()
 
-    assert result.guilds_added == [home.id]
+    assert sorted(result.guilds_added) == sorted([home.id, elsewhere.id])
     joined = set(
         (
             await session.exec(
@@ -133,7 +139,7 @@ async def test_a_guild_provider_grants_only_inside_its_own_guild(session: AsyncS
             )
         ).all()
     )
-    assert joined == {home.id}
+    assert joined == {home.id, elsewhere.id}
 
 
 @pytest.mark.integration

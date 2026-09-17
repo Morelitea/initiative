@@ -41,7 +41,7 @@ async def test_create_race_translates_unique_violation(
     monkeypatch.setattr(session, "flush", _raise_unique)
 
     with pytest.raises(HTTPException) as excinfo:
-        await provider_registry.create_provider(session, PROVIDER_IN, guild_id=None)
+        await provider_registry.create_provider(session, PROVIDER_IN)
     assert excinfo.value.status_code == 409
     assert excinfo.value.detail == "AUTH_PROVIDER_SLUG_TAKEN"
 
@@ -55,4 +55,4 @@ async def test_create_reraises_other_integrity_errors(
     monkeypatch.setattr(session, "flush", _raise_fk)
 
     with pytest.raises(IntegrityError):
-        await provider_registry.create_provider(session, PROVIDER_IN, guild_id=None)
+        await provider_registry.create_provider(session, PROVIDER_IN)

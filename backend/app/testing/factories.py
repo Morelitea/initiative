@@ -82,6 +82,7 @@ from app.models.tenant.task import (
 )
 from app.models.tenant.upload import Upload
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
@@ -2114,7 +2115,8 @@ async def create_auth_provider(
     commit: bool = True,
     **overrides: Any,
 ) -> AuthProvider:
-    """Create an operator-global auth provider registry row.
+    """Create an auth provider registry row. Every provider is the operator's;
+    a community reaches one through ``create_guild_provider_connection``.
 
     Defaults to a login-ready OIDC row pointing at the test IdP constants
     (``app.testing.oidc``), so a fake-IdP flow verifies against it as-is.
@@ -2126,7 +2128,6 @@ async def create_auth_provider(
         "display_name": "Corp SSO",
         "kind": AuthProviderKind.oidc.value,
         "enabled": True,
-        "guild_id": None,
         "issuer": _TEST_ISSUER,
         "client_id": _TEST_CLIENT_ID,
         "scopes": "openid email",
@@ -2140,6 +2141,35 @@ async def create_auth_provider(
         await session.refresh(provider)
 
     return provider
+
+
+async def create_guild_provider_connection(
+    session: AsyncSession,
+    *,
+    guild,
+    provider: AuthProvider,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildProviderConnection:
+    """Connect a community to one of the operator's providers.
+
+    Unnarrowed by default, which is the shape a community bringing its own
+    identity provider has: it admits whoever that provider vouched for. Pass
+    ``claim`` and ``claim_values`` for the Google-Workspace shape.
+    """
+    defaults = {
+        "guild_id": guild.id,
+        "provider_id": provider.id,
+        "claim": None,
+        "claim_values": None,
+        "enabled": True,
+    }
+    connection = GuildProviderConnection(**{**defaults, **overrides})
+    session.add(connection)
+    if commit:
+        await session.commit()
+        await session.refresh(connection)
+    return connection
 
 
 async def create_guild_auth_policy(
@@ -2187,10 +2217,7 @@ async def create_federated_identity(
     if provider is None:
         provider = (
             await session.exec(
-                select(AuthProvider).where(
-                    AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                    AuthProvider.guild_id.is_(None),
-                )
+                select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
             )
         ).one_or_none()
         if provider is None:

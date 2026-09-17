@@ -107,22 +107,21 @@ def _error_code_for(exc: DiscoveryError) -> str:
 
 
 async def probe_issuer(
-    issuer: str,
-    *,
-    guild_id: int | None,
-    discovery: OidcDiscovery | None = None,
+    issuer: str, *, discovery: OidcDiscovery | None = None
 ) -> ProbeResult:
     """Look up ``issuer`` and report what it offers.
 
     A pasted ``.well-known`` URL is accepted — discovery trims it — so the
     address somebody copied out of their provider's docs works as typed.
 
-    ``guild_id`` names the namespace, which is what the callback address hangs
-    off. It is attached whether the look-up succeeded or not: somebody whose
-    address did not answer is still mid-setup and still needs it.
+    Only the operator reaches here: a community connects to a provider rather
+    than describing one, so it names no address to look up. The callback
+    template rides along whether the look-up succeeded or not, because
+    somebody whose address did not answer is still mid-setup and still needs
+    it.
     """
     client = discovery or fresh_discovery()
-    template = provider_registry.provider_callback_url("{slug}", guild_id)
+    template = provider_registry.provider_callback_url("{slug}")
     try:
         metadata = await client.fetch(issuer)
     except DiscoveryError as exc:
@@ -136,18 +135,14 @@ async def probe_provider(
     session: AsyncSession,
     provider_id: int,
     *,
-    guild_id: int | None,
     discovery: OidcDiscovery | None = None,
 ) -> ProbeResult:
     """Look up a saved provider's own issuer.
 
     The address comes off the row, never off the request, so this reports on
-    the provider as configured. An id from another namespace is a 404, the same
-    as it is everywhere else in the registry.
+    the provider as configured.
     """
-    row = await provider_registry.editable_provider(
-        session, provider_id, guild_id=guild_id
-    )
+    row = await provider_registry.editable_provider(session, provider_id)
     if not row.issuer:
         return ProbeResult.failed(AuthProviderMessages.DISCOVERY_NO_ISSUER)
-    return await probe_issuer(row.issuer, guild_id=guild_id, discovery=discovery)
+    return await probe_issuer(row.issuer, discovery=discovery)

@@ -22,6 +22,7 @@ from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.factories import (
+    create_guild_provider_connection,
     guild_administration,
     create_auth_provider,
     create_document,
@@ -64,7 +65,8 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     headers = _sat_headers(admin, [provider.id])
 
     put = await client.put(
@@ -121,9 +123,8 @@ async def test_policy_rejects_unusable_provider(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
-    disabled = await create_auth_provider(
-        session, slug="off", enabled=False, guild_id=guild.id
-    )
+    disabled = await create_auth_provider(session, slug="off", enabled=False)
+    await create_guild_provider_connection(session, guild=guild, provider=disabled)
     headers = _sat_headers(admin, [disabled.id])
 
     response = await client.put(
@@ -142,23 +143,25 @@ async def test_policy_rejects_unusable_provider(
     assert missing.status_code == 400
 
 
-async def test_policy_rejects_other_namespace_providers(
+async def test_policy_rejects_a_provider_the_community_does_not_connect_to(
     client: AsyncClient, session: AsyncSession
 ):
-    """A requirement can only name one of the guild's own providers — never an
-    operator-global row (dormant under per-guild auth) or another guild's."""
+    """A requirement can only name a provider this community signs in through.
+    One it has no connection to is refused whether nobody connects to it or
+    another community does — a connection is what makes a provider theirs."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
     other_guild = await create_guild(session)
-    global_row = await create_auth_provider(session, slug="corp")
-    foreign_row = await create_auth_provider(
-        session, slug="corp", guild_id=other_guild.id
+    unconnected = await create_auth_provider(session, slug="corp")
+    foreign_row = await create_auth_provider(session, slug="other-corp")
+    await create_guild_provider_connection(
+        session, guild=other_guild, provider=foreign_row
     )
 
-    for provider in (global_row, foreign_row):
+    for provider in (unconnected, foreign_row):
         response = await client.put(
             f"/api/v1/guilds/{guild.id}/auth-policy",
             headers=_sat_headers(admin, [provider.id]),
@@ -178,7 +181,8 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     response = await client.put(
         f"/api/v1/guilds/{guild.id}/auth-policy",
@@ -204,7 +208,8 @@ async def test_a_requirement_can_be_cleared_without_the_entitlement(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     await _require_provider(session, guild.id, provider)
     headers = _sat_headers(admin, [provider.id])
     guild_id = guild.id
@@ -238,7 +243,8 @@ async def test_policy_surface_404_when_guild_auth_disabled(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.security_admin
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     headers = _sat_headers(admin, [provider.id])
     guild_id = guild.id
 
@@ -449,7 +455,8 @@ async def _guild_with_a_seat_and_a_requirement(session: AsyncSession):
     await create_guild_membership(
         session, user=keyholder, guild=guild, role=GuildRole.security_admin
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     await _require_provider(session, guild.id, provider)
     operator = await create_user(session, role=UserRole.operator)
     return keyholder, guild, operator
@@ -485,33 +492,29 @@ async def test_an_ordinary_admin_reads_the_policy_but_does_not_write_it(
     assert still_required is not None and still_required.policy == "required"
 
 
-async def test_an_ordinary_admin_lists_providers_but_does_not_change_them(
+async def test_an_ordinary_admin_sees_the_connections_but_does_not_change_them(
     client: AsyncClient, session: AsyncSession
 ):
+    """An admin who cannot see what is set cannot ask for it to be changed, so
+    reading is theirs. Connecting is the seat's."""
     keyholder, guild, _operator = await _guild_with_a_seat_and_a_requirement(session)
     admin = await create_user(session)
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
     headers = get_auth_headers(admin)
-    base = f"/api/v1/guilds/{guild.id}/auth/providers"
+    base = f"/api/v1/guilds/{guild.id}/auth/connections"
 
     listed = await client.get(base, headers=headers)
     assert listed.status_code == 200
-    assert [row["slug"] for row in listed.json()] == ["corp"]
+    assert [row["provider_slug"] for row in listed.json()] == ["corp"]
 
-    created = await client.post(
-        base,
-        headers=headers,
-        json={
-            "slug": "other",
-            "display_name": "Other",
-            "issuer": "https://idp.example.com",
-            "client_id": "c",
-        },
-    )
-    assert created.status_code == 403
-    assert created.json()["detail"] == "GUILD_SECURITY_ADMIN_REQUIRED"
+    offered = await client.get(f"{base}/available", headers=headers)
+    assert offered.status_code == 200
+
+    connected = await client.post(base, headers=headers, json={"provider_id": 1})
+    assert connected.status_code == 403
+    assert connected.json()["detail"] == "GUILD_SECURITY_ADMIN_REQUIRED"
 
 
 async def test_the_last_seat_cannot_be_demoted_while_a_requirement_stands(
@@ -745,7 +748,8 @@ async def _guild_requiring_its_own_sso(session: AsyncSession):
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     row = GuildAuthPolicy(guild_id=guild.id, policy="required", require_methods=["sso"])
     session.add(row)
     await session.commit()
@@ -905,7 +909,8 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
     await create_guild_membership(
         session, user=user, guild=guild, role=GuildRole.member
     )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     guild_id, user_id, provider_id = int(guild.id), int(user.id), int(provider.id)
     other_provider_id, other_guild_id = provider_id + 1000, guild_id + 1000
 

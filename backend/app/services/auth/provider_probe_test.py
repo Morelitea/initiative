@@ -24,9 +24,7 @@ def _discovery_from(handler) -> OidcDiscovery:
 async def test_reports_the_endpoints_it_found():
     idp = FakeIdp()
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.ok is True
     assert result.error_code is None
@@ -42,9 +40,7 @@ async def test_reports_what_the_provider_says_it_offers():
     idp.discovery_doc["scopes_supported"] = ["openid", "email", "profile", "groups"]
     idp.discovery_doc["claims_supported"] = ["sub", "email", "groups"]
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.scopes_supported == ["openid", "email", "profile", "groups"]
     assert result.claims_supported == ["sub", "email", "groups"]
@@ -53,9 +49,7 @@ async def test_reports_what_the_provider_says_it_offers():
 async def test_a_provider_listing_nothing_costs_only_the_suggestions():
     idp = FakeIdp()
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.ok is True
     assert result.scopes_supported == []
@@ -69,9 +63,7 @@ async def test_a_malformed_offer_is_dropped_not_refused():
     idp.discovery_doc["scopes_supported"] = "openid email"
     idp.discovery_doc["claims_supported"] = [1, None, "groups"]
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.ok is True
     assert result.scopes_supported == []
@@ -83,7 +75,6 @@ async def test_a_pasted_well_known_url_is_trimmed():
 
     result = await provider_probe.probe_issuer(
         f"{ISSUER}/.well-known/openid-configuration",
-        guild_id=None,
         discovery=_discovery(idp),
     )
 
@@ -96,7 +87,7 @@ async def test_nothing_answering_says_unreachable():
         raise httpx.ConnectError("no route", request=request)
 
     result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery_from(handler)
+        ISSUER, discovery=_discovery_from(handler)
     )
 
     assert result.ok is False
@@ -107,9 +98,7 @@ async def test_a_document_for_another_issuer_says_mismatch():
     idp = FakeIdp()
     idp.discovery_doc["issuer"] = "https://somewhere-else.example.com"
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.ok is False
     assert result.error_code == AuthProviderMessages.DISCOVERY_ISSUER_MISMATCH
@@ -119,9 +108,7 @@ async def test_a_document_missing_an_endpoint_says_invalid():
     idp = FakeIdp()
     del idp.discovery_doc["token_endpoint"]
 
-    result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     assert result.ok is False
     assert result.error_code == AuthProviderMessages.DISCOVERY_INVALID
@@ -134,7 +121,7 @@ async def test_an_upstream_error_body_is_not_reported_back():
         )
 
     result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery_from(handler)
+        ISSUER, discovery=_discovery_from(handler)
     )
 
     # A code and nothing else: no status, no body, nothing named in the result.
@@ -149,8 +136,8 @@ async def test_each_probe_looks_again():
     idp = FakeIdp()
     discovery = _discovery(idp)
 
-    await provider_probe.probe_issuer(ISSUER, guild_id=None, discovery=discovery)
-    await provider_probe.probe_issuer(ISSUER, guild_id=None, discovery=discovery)
+    await provider_probe.probe_issuer(ISSUER, discovery=discovery)
+    await provider_probe.probe_issuer(ISSUER, discovery=discovery)
 
     # Testing a saved provider has to report what answers now, so a second
     # look is a second request rather than the first one's answer again.
@@ -160,17 +147,11 @@ async def test_each_probe_looks_again():
 async def test_reports_where_the_callback_will_be():
     idp = FakeIdp()
 
-    operator = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery(idp)
-    )
-    community = await provider_probe.probe_issuer(
-        ISSUER, guild_id=7, discovery=_discovery(idp)
-    )
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
 
     # Computed from the deployment's own APP_URL, because it has to match the
     # finished provider's callback exactly at the far end.
-    assert operator.callback_url_template.endswith("/auth/{slug}/callback")
-    assert community.callback_url_template.endswith("/auth/g/7/{slug}/callback")
+    assert result.callback_url_template.endswith("/auth/{slug}/callback")
 
 
 async def test_reports_the_callback_even_when_nothing_answered():
@@ -178,7 +159,7 @@ async def test_reports_the_callback_even_when_nothing_answered():
         raise httpx.ConnectError("no route", request=request)
 
     result = await provider_probe.probe_issuer(
-        ISSUER, guild_id=None, discovery=_discovery_from(handler)
+        ISSUER, discovery=_discovery_from(handler)
     )
 
     # Somebody whose address did not answer is still mid-setup.

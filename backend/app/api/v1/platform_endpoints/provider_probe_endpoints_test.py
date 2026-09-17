@@ -1,7 +1,9 @@
 """Who may look a provider up, and what the answer carries.
 
 The looking-up itself is covered in ``app/services/auth/provider_probe_test.py``;
-these are the gates, the shape of the response, and the namespace boundary.
+these are the gate and the shape of the response. Only the operator reaches
+this surface — a community connects to a provider rather than describing one,
+so it names no address to look up.
 """
 
 import pytest
@@ -151,94 +153,3 @@ async def test_test_404s_for_a_provider_that_is_not_there(
 
     assert response.status_code == 404, response.text
     assert response.json()["detail"] == AuthProviderMessages.NOT_FOUND
-
-
-async def test_the_operator_registry_cannot_test_a_guild_row(
-    client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
-):
-    admin, guild = await _security_admin(session)
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
-    headers = await _owner_headers(session)
-
-    response = await client.post(f"{OPERATOR_BASE}/{provider.id}/test", headers=headers)
-
-    # A row from the other namespace is indistinguishable from a missing one.
-    assert response.status_code == 404, response.text
-
-
-# ── A community's own registry ─────────────────────────────────────────────
-
-
-async def test_the_seat_may_discover_and_test(
-    client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
-):
-    admin, guild = await _security_admin(session)
-    headers = get_auth_headers(admin)
-    base = f"/api/v1/guilds/{guild.id}/auth/providers"
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
-
-    discovered = await client.post(
-        f"{base}/discover", headers=headers, json={"issuer": ISSUER}
-    )
-    assert discovered.status_code == 200, discovered.text
-    assert discovered.json()["ok"] is True
-
-    tested = await client.post(f"{base}/{provider.id}/test", headers=headers)
-    assert tested.status_code == 200, tested.text
-    assert tested.json()["ok"] is True
-
-
-async def test_an_ordinary_admin_may_not_look_a_provider_up(
-    client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
-):
-    """Reading the registry is an admin's; looking one up goes with changing
-    it — the answer fills in a form only the seat may save."""
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    headers = get_auth_headers(admin)
-    base = f"/api/v1/guilds/{guild.id}/auth/providers"
-
-    response = await client.post(
-        f"{base}/discover", headers=headers, json={"issuer": ISSUER}
-    )
-
-    assert response.status_code == 403, response.text
-
-
-async def test_looking_up_404s_when_the_option_is_not_granted(
-    client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
-):
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin, auth_options=[])
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
-    )
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
-    headers = get_auth_headers(admin)
-    base = f"/api/v1/guilds/{guild.id}/auth/providers"
-
-    discovered = await client.post(
-        f"{base}/discover", headers=headers, json={"issuer": ISSUER}
-    )
-    tested = await client.post(f"{base}/{provider.id}/test", headers=headers)
-
-    assert discovered.status_code == 404, discovered.text
-    assert tested.status_code == 404, tested.text
-
-
-async def test_a_guild_cannot_test_another_guilds_provider(
-    client: AsyncClient, session: AsyncSession, fake_idp: FakeIdp
-):
-    admin, guild = await _security_admin(session)
-    _, other_guild = await _security_admin(session)
-    theirs = await create_auth_provider(session, slug="corp", guild_id=other_guild.id)
-
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/auth/providers/{theirs.id}/test",
-        headers=get_auth_headers(admin),
-    )
-
-    assert response.status_code == 404, response.text

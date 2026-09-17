@@ -1087,11 +1087,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identitätsanbieter",
-      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Community anmelden. Werden von den Admins dieser Community konfiguriert und gelten nur hier.",
-      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
-    },
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1124,6 +1119,31 @@
       "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
       "saved": "API-Zugriff gespeichert",
       "error": "API-Zugriff konnte nicht gespeichert werden"
+    },
+    "connections": {
+      "title": "Wie sich eure Mitglieder anmelden",
+      "description": "Die Anmeldeanbieter, die diese Installation anbietet, und über welche eure Mitglieder hereinkommen. Die Anbieter selbst richtet ein, wer die Installation betreibt.",
+      "connect": "Anbieter verbinden",
+      "connected": "Anbieter verbunden",
+      "connectError": "Diese Verbindung konnte nicht geändert werden",
+      "disconnect": "Trennen",
+      "disconnected": "Anbieter getrennt",
+      "disconnectTitle": "{{name}} trennen?",
+      "disconnectDescription": "Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
+      "empty": "Noch keine Anbieter verbunden — eure Mitglieder melden sich wie gewohnt an.",
+      "noneOffered": "Wer diese Installation betreibt, hat noch keine Anbieter zum Verbinden angeboten.",
+      "notReady": "Nicht verfügbar",
+      "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+      "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+      "dialogTitle": "Anmeldeanbieter verbinden",
+      "dialogDescription": "Wähle den Anbieter, den eure Mitglieder nutzen, und sage dann, welche Konten darauf euch gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "claimLabel": "Wessen Konten als eure gelten",
+      "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
+      "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
+      "claimValuesLabel": "Gültige Werte",
+      "claimValuesPlaceholder": "example.com, example.org"
     }
   },
   "authProviders": {

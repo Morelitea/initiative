@@ -23,6 +23,9 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     scopes: Optional[str] = None
     role_claim_path: Optional[str] = None
     allow_jit: bool
+    #: Whether communities may connect to this provider. Off keeps one
+    #: registered for a single customer out of everybody else's picker.
+    connectable_by_guilds: bool = False
     icon: Optional[str] = None
     button_style: Optional[str] = None
     # Whether a client secret is stored (write-only; its value is never read
@@ -56,6 +59,7 @@ class AuthProviderCreate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default="openid email profile", max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: bool = True
+    connectable_by_guilds: bool = False
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
@@ -83,6 +87,7 @@ class AuthProviderUpdate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default=None, max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: Optional[bool] = None
+    connectable_by_guilds: Optional[bool] = None
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
@@ -143,6 +148,64 @@ class AuthProviderProbeResult(SanitizedBaseModel):
     #: to match exactly at the far end. Returned by the look-up because that is
     #: when somebody is about to need it.
     callback_url_template: str = ""
+
+
+class ConnectableProviderRead(SanitizedBaseModel):
+    """One provider a community may connect to, as the community sees it.
+
+    Deliberately less than the operator's view: a community picks a provider by
+    name. It holds no issuer and no client id, so it is shown neither — which
+    also keeps one customer's identity provider out of another's list.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    display_name: str
+    icon: Optional[str] = None
+    #: False where the operator has switched it off or left it half
+    #: configured — said here so a community is not offered a button that
+    #: cannot work.
+    login_ready: bool = True
+
+
+class GuildProviderConnectionRead(SanitizedBaseModel):
+    """One community signing its members in through one provider."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    provider_id: int
+    provider_slug: str
+    provider_display_name: str
+    provider_icon: Optional[str] = None
+    #: Which verified claim decides whether somebody belongs here — ``hd`` for
+    #: a Google Workspace domain, ``tid`` for an Entra tenant. Null with an
+    #: empty ``claim_values`` is unnarrowed, which is right where the provider
+    #: is already the community's own.
+    claim: Optional[str] = None
+    claim_values: List[str] = Field(default_factory=list)
+    enabled: bool
+    login_ready: bool = True
+
+
+class GuildProviderConnectionCreate(SanitizedBaseModel):
+    """Connect to one of the providers on offer."""
+
+    provider_id: int
+    claim: Optional[str] = Field(default=None, max_length=64)
+    claim_values: Optional[List[str]] = None
+    enabled: bool = True
+
+
+class GuildProviderConnectionUpdate(SanitizedBaseModel):
+    """Change the narrowing, or take the button away. The provider a
+    connection is to is not editable: pointing it elsewhere would change who
+    gets in without saying so. Disconnect and connect instead."""
+
+    claim: Optional[str] = Field(default=None, max_length=64)
+    claim_values: Optional[List[str]] = None
+    enabled: Optional[bool] = None
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

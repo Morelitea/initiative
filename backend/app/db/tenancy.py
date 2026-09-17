@@ -135,6 +135,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "mfa_recovery_codes",
         "auth_challenges",  # a sign-in between its password and its code
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
+        # Which of the platform's providers a community signs in through, and
+        # the tenant it narrows one to. Read at login on the system engine.
+        "guild_provider_connections",
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         # Deployment-wide notices and what each person has done with them. One

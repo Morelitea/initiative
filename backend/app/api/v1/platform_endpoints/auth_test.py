@@ -882,15 +882,17 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    async def _builder(admin_session, row):
+    async def _builder(admin_session, row, guild_id=None):
         return OidcProvider(
             OidcClientConfig(
                 issuer=row.issuer,
                 client_id=row.client_id,
-                redirect_uri=auth_module.provider_callback_url(row.slug, row.guild_id),
+                # The community a sign-in is for comes from the route, as it
+                # does in the real builder.
+                redirect_uri=auth_module.provider_callback_url(row.slug, guild_id),
                 client_secret="s3cret",
                 scopes=row.scopes or "openid",
-                provider_slug=auth_module._provider_state_key(row),
+                provider_slug=auth_module._provider_state_key(row, guild_id),
             ),
             client_factory=idp.client_factory(),
         )
@@ -1208,9 +1210,9 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
 async def test_the_platform_provider_asserts_a_platform_identity(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """Under platform posture the one provider is operator-global, so the
-    address it asserts belongs to no guild — ``auth_providers.guild_id`` is
-    NULL and the per-guild derivation has nothing to match."""
+    """A sign-in on the platform's own page asserts an address that belongs to
+    no community: the route names none, so the per-community derivation has
+    nothing to match."""
     from app.models.platform.user_email import UserEmail
     from app.models.platform.user_email_assertion import UserEmailAssertion
 
@@ -1251,9 +1253,11 @@ async def test_the_platform_provider_asserts_a_platform_identity(
             )
         )
     ).one()
+    # The assertion names the provider that made it and nothing else: an
+    # address is claimed by a provider, not by a community. Which community a
+    # sign-in entered is a fact about the route, and the platform's own route
+    # names none.
     assert claim.provider_id == provider_id
-    # The provider it came from serves the platform, not a guild.
-    assert (await session.get(AuthProvider, provider_id)).guild_id is None
 
 
 @pytest.mark.integration

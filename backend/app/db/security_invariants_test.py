@@ -64,6 +64,7 @@ _RLS_SHARED_TABLES = {
     "guild_images",
     "guild_invites",
     "guild_memberships",
+    "guild_provider_connections",
     "guilds",
     "identity_refs",
     "marketplace_listing_versions",

@@ -316,6 +316,16 @@ class AuthProviderMessages:
     DISCOVERY_INVALID = "AUTH_PROVIDER_DISCOVERY_INVALID"
     #: The stored row has no issuer to check.
     DISCOVERY_NO_ISSUER = "AUTH_PROVIDER_DISCOVERY_NO_ISSUER"
+    #: A community's connection, by an id that is not one of its own.
+    CONNECTION_NOT_FOUND = "AUTH_PROVIDER_CONNECTION_NOT_FOUND"
+    #: A community connects to a given provider once.
+    CONNECTION_EXISTS = "AUTH_PROVIDER_CONNECTION_EXISTS"
+    #: A narrowing is a claim and the values that admit somebody; either half
+    #: alone would look configured and let nobody in, or nobody out.
+    CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
+    #: Somebody arrived through a provider a community connects to, but the
+    #: claim it narrows on did not name them.
+    CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"

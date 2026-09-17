@@ -7,14 +7,14 @@ import {
   listLoginProvidersApiV1AuthProvidersGet,
 } from "@/api/generated/auth/auth";
 import {
-  createGuildAuthProviderApiV1GuildsGuildIdAuthProvidersPost,
-  deleteGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdDelete,
-  discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost,
-  getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey,
-  listGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGet,
-  testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost,
-  updateGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdPatch,
-} from "@/api/generated/guild-auth-providers/guild-auth-providers";
+  createGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsPost,
+  deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete,
+  getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey,
+  getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey,
+  listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet,
+  listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet,
+  updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch,
+} from "@/api/generated/guild-provider-connections/guild-provider-connections";
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
@@ -22,12 +22,13 @@ import {
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
 } from "@/api/generated/guilds/guilds";
 import type {
-  AuthProviderAdminRead,
-  AuthProviderCreate,
-  AuthProviderUpdate,
+  ConnectableProviderRead,
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildProviderConnectionCreate,
+  GuildProviderConnectionRead,
+  GuildProviderConnectionUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -97,28 +98,48 @@ export const useUpdateGuildApiAccess = (guildId: number) => {
   });
 };
 
-/** The guild's own login provider registry (guild admins, per-guild auth). */
-export const useGuildAuthProviders = (
+/** Which of the platform's providers this community signs in through. */
+export const useGuildProviderConnections = (
   guildId: number,
-  options?: QueryOpts<AuthProviderAdminRead[]>
+  options?: QueryOpts<GuildProviderConnectionRead[]>
 ) => {
-  return useQuery<AuthProviderAdminRead[]>({
-    queryKey: getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey(guildId),
-    queryFn: () => listGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGet(guildId),
+  return useQuery<GuildProviderConnectionRead[]>({
+    queryKey: getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),
+    queryFn: () => listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
 };
 
-const useInvalidateGuildAuthProviders = (guildId: number) => {
+/** The providers this community may choose from — on offer, or already in use. */
+export const useConnectableProviders = (
+  guildId: number,
+  options?: QueryOpts<ConnectableProviderRead[]>
+) => {
+  return useQuery<ConnectableProviderRead[]>({
+    queryKey:
+      getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey(guildId),
+    queryFn: () => listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
+const useInvalidateConnections = (guildId: number) => {
   const queryClient = useQueryClient();
-  // Registry mutations refresh both consumers of provider data: the admin
-  // CRUD list and the public login listing (which feeds the policy page's
-  // "sign in with it first" prompt and the step-up dialog) — otherwise a
-  // freshly created provider can't be required until the cache expires.
+  // Three consumers read this: the list, the picker (a provider already
+  // connected is still offered, so it has to know), and the public login
+  // listing — which feeds the policy page's "sign in with it first" prompt
+  // and the step-up dialog. Without the last one a freshly connected provider
+  // cannot be required until the cache expires.
   return () => {
     void queryClient.invalidateQueries({
-      queryKey: getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey(guildId),
+      queryKey:
+        getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey:
+        getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey(guildId),
     });
     void queryClient.invalidateQueries({
       queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
@@ -126,48 +147,42 @@ const useInvalidateGuildAuthProviders = (guildId: number) => {
   };
 };
 
-export const useCreateGuildAuthProvider = (guildId: number) => {
-  const invalidate = useInvalidateGuildAuthProviders(guildId);
+export const useConnectProvider = (guildId: number) => {
+  const invalidate = useInvalidateConnections(guildId);
   return useMutation({
-    mutationFn: (data: AuthProviderCreate) =>
-      createGuildAuthProviderApiV1GuildsGuildIdAuthProvidersPost(guildId, data),
+    mutationFn: (data: GuildProviderConnectionCreate) =>
+      createGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsPost(guildId, data),
     onSuccess: invalidate,
   });
 };
 
-export const useUpdateGuildAuthProvider = (guildId: number) => {
-  const invalidate = useInvalidateGuildAuthProviders(guildId);
+export const useUpdateProviderConnection = (guildId: number) => {
+  const invalidate = useInvalidateConnections(guildId);
   return useMutation({
-    mutationFn: ({ providerId, data }: { providerId: number; data: AuthProviderUpdate }) =>
-      updateGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdPatch(
+    mutationFn: ({
+      connectionId,
+      data,
+    }: {
+      connectionId: number;
+      data: GuildProviderConnectionUpdate;
+    }) =>
+      updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch(
         guildId,
-        providerId,
+        connectionId,
         data
       ),
     onSuccess: invalidate,
   });
 };
 
-export const useDeleteGuildAuthProvider = (guildId: number) => {
-  const invalidate = useInvalidateGuildAuthProviders(guildId);
+export const useDisconnectProvider = (guildId: number) => {
+  const invalidate = useInvalidateConnections(guildId);
   return useMutation({
-    mutationFn: (providerId: number) =>
-      deleteGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdDelete(guildId, providerId),
+    mutationFn: (connectionId: number) =>
+      deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete(
+        guildId,
+        connectionId
+      ),
     onSuccess: invalidate,
   });
 };
-
-/** Look up an address somebody is still typing. Saves nothing, so there is
- *  nothing to invalidate. */
-export const useDiscoverGuildAuthProvider = (guildId: number) =>
-  useMutation({
-    mutationFn: ({ issuer }: { issuer: string }) =>
-      discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost(guildId, { issuer }),
-  });
-
-/** Look up a saved provider, against the address on its row. */
-export const useTestGuildAuthProvider = (guildId: number) =>
-  useMutation({
-    mutationFn: (providerId: number) =>
-      testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost(guildId, providerId),
-  });

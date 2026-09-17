@@ -78,6 +78,7 @@ async def resolve_oidc_identity(
     email_verified: bool,
     full_name: str | None = None,
     avatar_url: str | None = None,
+    guild_id: int | None = None,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
 
@@ -140,19 +141,24 @@ async def resolve_oidc_identity(
                 outcome=ResolutionOutcome.EMAIL_MATCH, user=existing
             )
 
-    # Unknown user: JIT-provision if the provider allows it. Operator-global
-    # providers additionally require open registration; guild-scoped providers
-    # additionally require the guild to have sign-in enabled (the operator
-    # toggle) — off means no NEW accounts onboard here, though existing linked
-    # identities (LINKED, above) are untouched (see docstring).
+    # Unknown user: JIT-provision if the provider allows it. A sign-in on the
+    # platform's own page additionally requires open registration; one on a
+    # community's page requires that community to still hold the sign-in
+    # option (the operator toggle) — off means no NEW accounts onboard there,
+    # though existing linked identities (LINKED, above) are untouched (see
+    # docstring).
+    #
+    # ``guild_id`` is the community whose page this sign-in came in on, from
+    # the route: every provider is the operator's, so the provider itself no
+    # longer says which community is being entered.
     if not provider.allow_jit:
         return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
-    if provider.guild_id is None:
+    if guild_id is None:
         if not await _registration_open(session):
             return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
     else:
         if not await guild_entitlements.has_auth_option(
-            session, provider.guild_id, GuildAuthOption.providers
+            session, guild_id, GuildAuthOption.providers
         ):
             return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
     return await _provision(

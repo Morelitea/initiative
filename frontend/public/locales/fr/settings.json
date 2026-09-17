@@ -1087,11 +1087,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Fournisseurs d'identité",
-      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette communauté se connectent. Configurés par les admins de cette communauté et appliqués uniquement ici.",
-      "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
-    },
     "shareUrl": {
       "title": "Lien de connexion des membres",
       "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette communauté et les amène directement dans la communauté.",
@@ -1124,6 +1119,31 @@
       "blockedHelp": "Aucune clé ne peut être créée pour cette communauté, et une clé déjà créée ne l'atteint plus. Les membres conservent leurs clés pour les autres communautés.",
       "saved": "Accès par API enregistré",
       "error": "Impossible d'enregistrer l'accès par API"
+    },
+    "connections": {
+      "title": "Comment vos membres se connectent",
+      "description": "Les fournisseurs de connexion proposés par cette installation, et ceux par lesquels vos membres entrent. Les fournisseurs eux-mêmes sont configurés par qui gère l’installation.",
+      "connect": "Connecter un fournisseur",
+      "connected": "Fournisseur connecté",
+      "connectError": "Impossible de modifier cette connexion",
+      "disconnect": "Déconnecter",
+      "disconnected": "Fournisseur déconnecté",
+      "disconnectTitle": "Déconnecter {{name}} ?",
+      "disconnectDescription": "Le bouton disparaît de votre page de connexion et personne de nouveau n’entre par là. Personne n’est déconnecté et aucun compte ne change. Si vous exigez une connexion par ce biais, levez-la d’abord.",
+      "empty": "Aucun fournisseur connecté pour l’instant — vos membres se connectent comme d’habitude.",
+      "noneOffered": "Qui gère cette installation n’a encore proposé aucun fournisseur à connecter.",
+      "notReady": "Indisponible",
+      "narrowedTo": "Uniquement les comptes dont le {{claim}} est {{values}}",
+      "anyoneItVouchesFor": "Toute personne dont ce fournisseur se porte garant",
+      "dialogTitle": "Connecter un fournisseur de connexion",
+      "dialogDescription": "Choisissez le fournisseur que vos membres utilisent, puis dites quels comptes chez lui sont les vôtres.",
+      "providerLabel": "Fournisseur",
+      "providerPlaceholder": "Choisissez-en un",
+      "claimLabel": "Quels comptes comptent comme les vôtres",
+      "claimHelp": "Un fournisseur comme Google se porte garant de toute personne ayant un compte : dites donc lesquels de ses comptes sont les vôtres — un domaine Workspace, ou un tenant. Laissez vide si le fournisseur ne couvre déjà que vos gens.",
+      "claimPlaceholder": "Vide pour toute personne dont il se porte garant",
+      "claimValuesLabel": "Valeurs acceptées",
+      "claimValuesPlaceholder": "example.com, example.org"
     }
   },
   "authProviders": {

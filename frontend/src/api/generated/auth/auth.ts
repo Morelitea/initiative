@@ -1690,7 +1690,7 @@ export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
 }
 
 /**
- * Begin the relying-party flow for one of a guild's own providers.
+ * Begin the relying-party flow for a provider this community connects to.
  * Web only for now — native guild step-up arrives with native session
  * tokens, so there is no ``mobile`` variant of this route.
  * @summary Guild Provider Login

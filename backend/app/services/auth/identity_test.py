@@ -36,7 +36,6 @@ async def _create_provider(session, *, allow_jit: bool = True) -> AuthProvider:
         display_name="Test IdP",
         kind=AuthProviderKind.oidc.value,
         enabled=True,
-        guild_id=None,
         issuer="https://idp.example.com",
         client_id="client-123",
         allow_jit=allow_jit,
@@ -203,7 +202,13 @@ async def test_missing_email_claim_uses_synthetic_address(session):
 
 
 async def _create_guild_provider(session, *, auth_options: list[str]):
-    """A JIT-capable guild-scoped provider whose guild holds ``auth_options``."""
+    """A JIT-capable provider and a community that connects to it, where the
+    community holds ``auth_options``.
+
+    The provider is nobody's in particular — every one is the operator's. What
+    makes a sign-in a community's is the route it arrives on, which the
+    resolver takes as ``guild_id``.
+    """
     from app.testing.factories import create_guild
 
     guild = await create_guild(session, auth_options=auth_options)
@@ -212,7 +217,6 @@ async def _create_guild_provider(session, *, auth_options: list[str]):
         display_name="Guild IdP",
         kind=AuthProviderKind.oidc.value,
         enabled=True,
-        guild_id=guild.id,
         issuer="https://idp.example.com",
         client_id="client-123",
         allow_jit=True,
@@ -223,28 +227,37 @@ async def _create_guild_provider(session, *, auth_options: list[str]):
     return guild, provider
 
 
-async def test_guild_provider_jit_refused_when_guild_auth_disabled(session):
-    """A guild-scoped provider whose guild has sign-in disabled refuses an
-    unknown user — no new account — even though the provider allows JIT."""
-    _guild, provider = await _create_guild_provider(session, auth_options=[])
+async def test_guild_jit_refused_when_the_community_has_sign_in_disabled(session):
+    """A sign-in on the page of a community that no longer holds the option
+    refuses an unknown user — no new account — even though the provider allows
+    JIT."""
+    guild, provider = await _create_guild_provider(session, auth_options=[])
 
     result = await _resolve(
-        session, provider, subject="unknown-sub", email="stranger@example.com"
+        session,
+        provider,
+        subject="unknown-sub",
+        email="stranger@example.com",
+        guild_id=guild.id,
     )
     assert result.outcome is ResolutionOutcome.JIT_DISABLED
     assert result.user is None
     assert await _identities_for(session, provider) == []
 
 
-async def test_guild_provider_jit_allowed_when_providers_granted(session):
-    """The mirror: an enabled guild JIT-provisions a new user (allow_jit alone,
-    independent of instance registration)."""
-    _guild, provider = await _create_guild_provider(
+async def test_guild_jit_allowed_when_the_community_holds_the_option(session):
+    """The mirror: a community that holds it JIT-provisions a new user
+    (allow_jit alone, independent of instance registration)."""
+    guild, provider = await _create_guild_provider(
         session, auth_options=["providers", "require_sign_in"]
     )
 
     result = await _resolve(
-        session, provider, subject="new-sub", email="new@example.com"
+        session,
+        provider,
+        subject="new-sub",
+        email="new@example.com",
+        guild_id=guild.id,
     )
     assert result.outcome is ResolutionOutcome.PROVISIONED
     assert result.user is not None

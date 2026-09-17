@@ -76,7 +76,7 @@ from app.api.v1.platform_endpoints import (
     contacts,
     delegation_exchange,
     guild_reference,
-    guild_auth_providers,
+    guild_provider_connections,
     guilds,
     marketplace,
     native,
@@ -176,7 +176,9 @@ api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
 api_router.include_router(
-    guild_auth_providers.router, prefix="/guilds", tags=["guild-auth-providers"]
+    guild_provider_connections.router,
+    prefix="/guilds",
+    tags=["guild-provider-connections"],
 )
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
