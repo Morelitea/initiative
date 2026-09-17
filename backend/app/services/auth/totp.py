@@ -80,6 +80,21 @@ def generate_secret() -> str:
     return pyotp.random_base32()
 
 
+def issuer_name() -> str:
+    """What an authenticator app files this account under.
+
+    The deployment's own host, so two installs do not land on one entry in
+    somebody's authenticator. There is no deployment name to use instead, and a
+    host is what the person recognises.
+    """
+    from urllib.parse import urlsplit
+
+    from app.core.config import settings
+
+    host = urlsplit(settings.APP_URL.strip()).hostname
+    return host or "Initiative"
+
+
 def otpauth_uri(secret: str, *, account: str, issuer: str) -> str:
     """The ``otpauth://totp/`` URI an authenticator app reads.
 

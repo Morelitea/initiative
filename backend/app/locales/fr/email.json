@@ -232,5 +232,21 @@
       "jobs": "{{count}} exports et imports",
       "account": "{{count}} avis de compte"
     }
+  },
+  "secondFactor": {
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "fallbackText": "Si ce n'était pas vous, changez votre mot de passe immédiatement et prévenez les responsables du site.",
+    "enabled": {
+      "subject": "La double authentification est activée",
+      "title": "La double authentification est activée",
+      "body": "Désormais, la connexion avec votre mot de passe demandera aussi un code de votre application d'authentification. Conservez vos codes de secours en lieu sûr : ce sont eux qui vous permettront d'entrer si vous perdez l'application.",
+      "textBody": "La double authentification est désormais activée sur votre compte. La connexion demandera un code de votre application d'authentification."
+    },
+    "disabled": {
+      "subject": "La double authentification est désactivée",
+      "title": "La double authentification est désactivée",
+      "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs.",
+      "textBody": "La double authentification est désormais désactivée sur votre compte et vos codes de secours ont été supprimés."
+    }
   }
 }

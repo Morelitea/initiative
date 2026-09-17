@@ -232,5 +232,21 @@
       "jobs": "{{count}} Exporte und Importe",
       "account": "{{count}} Kontohinweise"
     }
+  },
+  "secondFactor": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",
+    "enabled": {
+      "subject": "Zwei-Faktor-Authentifizierung ist aktiv",
+      "title": "Zwei-Faktor-Authentifizierung ist aktiv",
+      "body": "Ab jetzt wird bei der Anmeldung mit deinem Passwort zusätzlich ein Code aus deiner Authenticator-App abgefragt. Bewahre deine Wiederherstellungscodes sicher auf – damit kommst du hinein, falls du die App verlierst.",
+      "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto aktiv. Bei der Anmeldung wird ein Code aus deiner Authenticator-App abgefragt."
+    },
+    "disabled": {
+      "subject": "Zwei-Faktor-Authentifizierung ist deaktiviert",
+      "title": "Zwei-Faktor-Authentifizierung ist deaktiviert",
+      "body": "Dein Konto fragt bei der Anmeldung keinen Code mehr ab, und deine bisherigen Wiederherstellungscodes wurden verworfen. Du wurdest überall sonst abgemeldet.",
+      "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto deaktiviert, und deine Wiederherstellungscodes wurden verworfen."
+    }
   }
 }

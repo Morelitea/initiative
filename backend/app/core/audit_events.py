@@ -43,6 +43,15 @@ class AuditEventType(str, Enum):
     AUTH_PASSWORD_CHANGED = "auth.password_changed"
     AUTH_IDENTITY_LINKED = "auth.identity_linked"
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
+    #: The account's own second factor. ``failed`` is a refused code against a
+    #: standing challenge, so it is the shape a run of guesses makes.
+    AUTH_SECOND_FACTOR_ENROLLED = "auth.second_factor_enrolled"
+    AUTH_SECOND_FACTOR_DISABLED = "auth.second_factor_disabled"
+    AUTH_SECOND_FACTOR_FAILED = "auth.second_factor_failed"
+    #: Cleared by somebody else — a support path, so actor and target differ.
+    AUTH_SECOND_FACTOR_RESET = "auth.second_factor_reset"
+    AUTH_RECOVERY_CODE_USED = "auth.recovery_code_used"
+    AUTH_RECOVERY_CODES_ISSUED = "auth.recovery_codes_issued"
     # The native credential, recorded so its use can be observed rather than
     # guessed at. ``used`` rides the sliding window's own throttle, so it is
     # about one event per device per day, not one per request.
@@ -114,6 +123,25 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_REFRESH_REUSE_DETECTED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SECOND_FACTOR_ENROLLED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SECOND_FACTOR_DISABLED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    # A refused code changed nothing, like a refused sign-in.
+    AuditEventType.AUTH_SECOND_FACTOR_FAILED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
+    ),
+    AuditEventType.AUTH_SECOND_FACTOR_RESET: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_RECOVERY_CODE_USED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_RECOVERY_CODES_ISSUED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(

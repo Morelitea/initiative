@@ -232,5 +232,21 @@
       "jobs": "{{count}} exportaciones e importaciones",
       "account": "{{count}} avisos de cuenta"
     }
+  },
+  "secondFactor": {
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "enabled": {
+      "subject": "La verificación en dos pasos está activada",
+      "title": "La verificación en dos pasos está activada",
+      "body": "A partir de ahora, al iniciar sesión con tu contraseña también se te pedirá un código de tu aplicación de autenticación. Guarda tus códigos de recuperación en un lugar seguro: son la forma de entrar si pierdes la aplicación.",
+      "textBody": "La verificación en dos pasos ya está activada en tu cuenta. Al iniciar sesión se te pedirá un código de tu aplicación de autenticación."
+    },
+    "disabled": {
+      "subject": "La verificación en dos pasos está desactivada",
+      "title": "La verificación en dos pasos está desactivada",
+      "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos.",
+      "textBody": "La verificación en dos pasos ya está desactivada en tu cuenta y tus códigos de recuperación se han descartado."
+    }
   }
 }

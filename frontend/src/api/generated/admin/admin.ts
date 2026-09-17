@@ -355,6 +355,100 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
 }
 
 /**
+ * Remove somebody's second factor for them.
+ *
+ * The lost-phone path: the person cannot present the factor and cannot reach
+ * the recovery codes either, so somebody with the run of platform accounts
+ * takes it off and they enrol again.
+ *
+ * A clear, never a read — nothing here hands back the seed or the codes, to
+ * this caller or any other. Their sessions and any part-way sign-in go with
+ * it, and the account is told.
+ * @summary Clear Second Factor
+ */
+export const clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/admin/users/${userId}/second-factor`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>
+>;
+
+export type ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Second Factor
+ */
+export const useClearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Trigger a password reset email for a user (admin only).
  * @summary Trigger Password Reset
  */

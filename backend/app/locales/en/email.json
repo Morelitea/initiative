@@ -232,5 +232,21 @@
       "jobs": "{{count}} exports and imports",
       "account": "{{count}} account notices"
     }
+  },
+  "secondFactor": {
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "fallbackText": "If this wasn't you, change your password straight away and get in touch with whoever runs this site.",
+    "enabled": {
+      "subject": "Two-factor authentication is on",
+      "title": "Two-factor authentication is on",
+      "body": "From now on, signing in with your password will also ask for a code from your authenticator app. Keep your recovery codes somewhere safe — they are how you get in if you lose the app.",
+      "textBody": "Two-factor authentication is now on for your account. Signing in will ask for a code from your authenticator app."
+    },
+    "disabled": {
+      "subject": "Two-factor authentication is off",
+      "title": "Two-factor authentication is off",
+      "body": "Your account no longer asks for a code when you sign in, and the recovery codes you had have been discarded. You were signed out everywhere else.",
+      "textBody": "Two-factor authentication is now off for your account, and your recovery codes have been discarded."
+    }
   }
 }
