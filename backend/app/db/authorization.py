@@ -65,20 +65,44 @@ AS $function$
                     current_setting('app.current_guild_id', true), ''
                   )::int
               AND p.policy <> 'open'
-              AND p.provider_id IS NOT NULL
-              -- COALESCE keeps this fail-closed: an unset/empty GUC must
-              -- read as "not satisfied", not SQL NULL.
-              AND NOT COALESCE(
-                    p.provider_id = ANY(
-                        string_to_array(
-                            NULLIF(
-                                current_setting('app.satisfied_providers', true), ''
+              AND (
+                  -- The provider this guild names, if it names one.
+                  (
+                      p.provider_id IS NOT NULL
+                      AND NOT COALESCE(
+                            p.provider_id = ANY(
+                                string_to_array(
+                                    NULLIF(
+                                        current_setting(
+                                            'app.satisfied_providers', true
+                                        ), ''
+                                    ),
+                                    ','
+                                )::int[]
                             ),
-                            ','
-                        )::int[]
-                    ),
-                    false
+                            false
+                          )
                   )
+                  -- Or its own single sign-on, whichever of its providers
+                  -- served it. The session records each community whose sign-in
+                  -- it completed, so this is answered without reading the
+                  -- provider registry. Named rather than counted, so a list
+                  -- holding some other method is not read as this one.
+                  OR (
+                      'sso' = ANY(p.require_methods)
+                      AND NOT COALESCE(
+                            p.guild_id = ANY(
+                                string_to_array(
+                                    NULLIF(
+                                        current_setting('app.sso_guilds', true), ''
+                                    ),
+                                    ','
+                                )::int[]
+                            ),
+                            false
+                          )
+                  )
+              )
         )
 $function$
 
