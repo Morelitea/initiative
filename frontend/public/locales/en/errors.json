@@ -81,6 +81,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "This community requires signing in with its identity provider",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Pick an enabled sign-in provider for this requirement",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Sign in with that provider yourself before requiring it for the community",
+  "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE": "This sign-in method is not available on this platform",
   "GUILD_AUTH_NOT_ENABLED": "Per-community authentication is not enabled on this platform",
   "GUILD_API_KEYS_REFUSED": "This community does not accept personal API keys",
   "AUTH_PROVIDER_IN_USE": "A community's sign-in requirement uses this provider; change that requirement first",

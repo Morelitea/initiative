@@ -84,6 +84,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "Cette communauté exige une connexion via son fournisseur d'identité",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Choisissez un fournisseur de connexion activé pour cette exigence",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Connectez-vous vous-même avec ce fournisseur avant de l'exiger pour la communauté",
+  "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE": "Cette méthode de connexion n'est pas disponible sur cette plateforme",
   "GUILD_AUTH_NOT_ENABLED": "L'authentification par communauté n'est pas activée sur cette plateforme",
   "GUILD_API_KEYS_REFUSED": "Cette communauté n'accepte pas les clés d'API personnelles",
   "AUTH_PROVIDER_IN_USE": "L'exigence de connexion d'une communauté utilise ce fournisseur ; modifiez d'abord cette exigence",
