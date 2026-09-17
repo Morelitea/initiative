@@ -92,6 +92,7 @@ nav = [
     "en/account/profile-and-preferences.md",
     "en/account/ai-features.md",
     "en/account/api-keys-and-integrations.md",
+    "en/account/two-factor-authentication.md",
   ] },
   { "For administrators" = [
     "en/admin/index.md",

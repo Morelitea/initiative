@@ -4,6 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata, DeviceTokenInfo } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,6 +154,12 @@ export const UserSettingsSecurityPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* First on the page: it is the one thing here that changes how the
+          account is signed into, rather than what a credential may reach. */}
+      <SettingsSection title={t("twoFactor.title")} description={t("twoFactor.description")}>
+        <TwoFactorSection />
+      </SettingsSection>
+
       <SettingsSection
         title={t("security.devicesTitle")}
         description={t("security.devicesDescription")}
