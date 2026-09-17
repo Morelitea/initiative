@@ -116,10 +116,11 @@ describe("AuthProvidersSection", () => {
   describe("connecting one", () => {
     const openWizard = () => fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
 
-    /** The preset card, scoped to the wizard — a provider's name can also be
-     *  a row's display name behind it. */
+    /** The preset card, by its accessible name — which is the label, since
+     *  the mark beside it is decorative. Scoped to the wizard, because a
+     *  provider's name can also be a row's display name behind it. */
     const pickPreset = async (name: string) =>
-      fireEvent.click(within(await screen.findByRole("dialog")).getByText(name));
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name }));
 
     it("builds the address from what the preset asks for", async () => {
       verifyWith({ ...reachable, issuer: "https://keycloak.example.com/realms/main" });

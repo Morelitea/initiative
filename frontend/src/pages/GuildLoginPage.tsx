@@ -2,6 +2,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
+import { ProviderMark } from "@/components/auth/ProviderMark";
 import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +68,7 @@ export const GuildLoginPage = () => {
                 className="w-full"
                 onClick={() => signIn(provider)}
               >
+                <ProviderMark icon={provider.icon} className="h-4 w-4" />
                 {t("login.continueWith", { provider: provider.display_name })}
               </Button>
             ))

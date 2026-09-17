@@ -172,7 +172,9 @@ export const ConnectProviderWizard = ({
         role_claim_path: groupsClaim.trim() || null,
         allow_jit: allowJit,
         enabled,
-        icon: preset.key === "custom" ? null : preset.key,
+        // The preset key doubles as the mark, `custom` included: a
+        // hand-configured provider gets the standard’s own mark.
+        icon: preset.key,
       },
       {
         onSuccess: () => {
@@ -211,7 +213,8 @@ export const ConnectProviderWizard = ({
               className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
               onClick={() => choosePreset(option)}
             >
-              <ProviderMark icon={option.key === "custom" ? null : option.key} />
+              {/* `custom` has a mark of its own — the standard's. */}
+              <ProviderMark icon={option.key} />
               <span className="min-w-0 truncate font-medium text-sm">{option.name}</span>
             </button>
           ))}

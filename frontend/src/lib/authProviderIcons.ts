@@ -1,34 +1,53 @@
 /**
- * The mark on a sign-in button, and on its row in the registry.
+ * The mark on a provider's row, and on its card in the wizard's grid.
  *
  * `AuthProvider.icon` holds a key, set from the preset a provider was made
  * from and carried on every save. This is the one place that turns a key into
- * something to draw, so the preset grid, the registry rows and the sign-in
- * buttons all show the same thing.
+ * something to draw, so the grid and the rows show the same thing.
  *
- * Marks are our own files under `src/assets/idp/`, the arrangement the import
- * page already uses for `todoist.svg` and the rest: a local file, imported as
- * a URL, drawn in an `<img>`. Nothing is fetched from anybody's CDN.
+ * The marks come from `@icons-pack/react-simple-icons`, which this app already
+ * uses for the smart-link providers. They are single-path silhouettes drawn in
+ * `currentColor`, which is why they need no light and dark pair and no file in
+ * `src/assets` — the same reason they are preferred here over copying the same
+ * paths into local SVGs, where they would drift and need maintaining.
  *
- * Adding one: drop `<key>.svg` in that folder, import it below, and add the
- * entry. A key with no file gets the fallback, so a provider is never broken
- * by a missing mark — it just reads as its name, which is most of the job.
+ * Three presets have no mark, because simple-icons carries none: Microsoft
+ * Entra ID, Zitadel and Pocket ID. They fall back to the generic key, which
+ * reads as the provider's name beside it. To give one a mark, add its SVG to
+ * `src/assets/idp/` and a `<key>: YourMark` entry here.
  */
 
+import {
+  SiAuth0,
+  SiAuthelia,
+  SiAuthentik,
+  SiGoogle,
+  SiKeycloak,
+  SiOkta,
+  SiOpenid,
+} from "@icons-pack/react-simple-icons";
 import type { LucideIcon } from "lucide-react";
 import { KeyRound } from "lucide-react";
 
-/**
- * Key → mark. Populated as the files land; see the note above.
- *
- * Deliberately empty rather than pointed at brand marks we have not drawn:
- * a wrong logo beside a provider's name is worse than none, and Vite fails
- * the build on an import that is not there.
- */
-export const PROVIDER_ICONS: Record<string, string> = {};
+/** What a mark is, either way it was drawn. Both take `className` and colour
+ *  themselves from `currentColor`. */
+export type ProviderMarkIcon = LucideIcon | typeof SiGoogle;
 
-/** Stands in until a provider has a mark of its own. */
-export const FALLBACK_PROVIDER_ICON: LucideIcon = KeyRound;
+/** Preset key → mark. Keys are `ProviderPreset.key`. */
+export const PROVIDER_ICONS: Record<string, ProviderMarkIcon> = {
+  google: SiGoogle,
+  okta: SiOkta,
+  auth0: SiAuth0,
+  keycloak: SiKeycloak,
+  authentik: SiAuthentik,
+  authelia: SiAuthelia,
+  // The generic mark for the standard itself, which is what "any OIDC
+  // provider" is choosing.
+  custom: SiOpenid,
+};
 
-export const providerIconUrl = (icon: string | null | undefined): string | null =>
-  (icon && PROVIDER_ICONS[icon]) || null;
+/** Stands in for a provider with no mark of its own. */
+export const FALLBACK_PROVIDER_ICON: ProviderMarkIcon = KeyRound;
+
+export const providerIcon = (icon: string | null | undefined): ProviderMarkIcon =>
+  (icon && PROVIDER_ICONS[icon]) || FALLBACK_PROVIDER_ICON;

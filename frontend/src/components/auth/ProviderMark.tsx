@@ -6,7 +6,7 @@
  * reading the page aloud.
  */
 
-import { FALLBACK_PROVIDER_ICON, providerIconUrl } from "@/lib/authProviderIcons";
+import { providerIcon } from "@/lib/authProviderIcons";
 import { cn } from "@/lib/utils";
 
 export interface ProviderMarkProps {
@@ -15,14 +15,15 @@ export interface ProviderMarkProps {
 }
 
 export const ProviderMark = ({ icon, className }: ProviderMarkProps) => {
-  const url = providerIconUrl(icon);
-  if (url) {
-    return <img src={url} alt="" aria-hidden="true" className={cn("h-5 w-5", className)} />;
-  }
-  const Fallback = FALLBACK_PROVIDER_ICON;
+  const Mark = providerIcon(icon);
   return (
-    <Fallback
+    <Mark
       aria-hidden="true"
+      // The brand marks name themselves in a <title> by default, which would
+      // put the provider's name in the page twice over.
+      title=""
+      // `currentColor` either way, so the mark takes the weight of the text
+      // beside it rather than sitting at full brand contrast in a list.
       className={cn("h-5 w-5 shrink-0 text-muted-foreground", className)}
     />
   );
