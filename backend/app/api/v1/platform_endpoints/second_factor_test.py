@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import get_password_hash
 from app.models.platform.user import User, UserStatus
 from app.services.auth import totp as totp_service
-from app.testing import create_user, get_auth_headers
+from app.testing import create_user, get_auth_headers, get_auth_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -588,3 +588,168 @@ async def test_the_status_says_whether_it_is_offered(
     assert (await client.get("/api/v1/auth/totp", headers=headers)).json()[
         "offered"
     ] is False
+
+
+async def _session_headers(session: AsyncSession, user):
+    """A token naming a real session row, which is what the step-up upgrades."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["pwd"])
+    }
+
+
+async def test_a_factor_can_be_added_to_the_session_already_open(
+    client: AsyncClient, session: AsyncSession
+):
+    """A community asking for a factor refuses a session that never presented
+    one, and signing out to sign back in would be a strange way to answer that.
+    The code goes against the live session instead."""
+    from app.core.security import decode_session_token
+
+    user, secret, _codes = await _enrol(client, session, "stepup@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers=await _session_headers(session, user),
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert "mfa" in claims["amr"]
+    assert "otp" in claims["amr"]
+
+
+async def test_stepping_up_keeps_what_the_session_already_proved(
+    client: AsyncClient, session: AsyncSession
+):
+    """Satisfying one community's requirement never un-satisfies another's."""
+    from app.core.security import decode_session_token
+    from app.services.auth import sessions as session_service
+
+    user, secret, _codes = await _enrol(client, session, "keepsat@example.com")
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd", "oidc:corp"], satisfied_providers=[9]
+    )
+    await session.commit()
+
+    # No refresh cookie: the app sends only its access token, and the session it
+    # names is what has to be carried forward.
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers={
+            "Authorization": "Bearer "
+            + get_auth_token(
+                user,
+                session_id=issued.session.id,
+                amr=["pwd", "oidc:corp"],
+                satisfied_providers=[9],
+            )
+        },
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert set(claims["amr"]) >= {"pwd", "oidc:corp", "otp", "mfa"}
+    assert claims["sat"] == [9]
+
+
+async def test_a_wrong_code_does_not_upgrade_the_session(
+    client: AsyncClient, session: AsyncSession
+):
+    user, _secret, _codes = await _enrol(client, session, "badstepup@example.com")
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": "000000"},
+        headers=await _session_headers(session, user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TOTP_INVALID"
+
+
+async def test_an_account_with_no_factor_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "nofactor@example.com")
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": "123456"},
+        headers=await _session_headers(session, user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TOTP_NOT_ENROLLED"
+
+
+async def test_a_standing_credential_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """The step-up hands back an interactive session, so it is made by the
+    person in one of their own — not by an API key acting for them."""
+    user, secret, _codes = await _enrol(client, session, "apikey@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code in (400, 403)
+    assert response.json()["detail"] in (
+        "SESSION_REQUIRED",
+        "TOTP_INVALID",
+    )
+
+
+async def test_stepping_up_leaves_no_other_session_live(
+    client: AsyncClient, session: AsyncSession
+):
+    """The chain goes, not just the one row — rotation can have left
+    descendants, and the session the step-up issues is what replaces all of
+    them.
+
+    Stated as the property rather than as an interleaving, which a test cannot
+    reach deterministically: after stepping up, the session it issued is the
+    only live one for that account.
+    """
+    from sqlmodel import select
+
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
+
+    user, secret, _codes = await _enrol(client, session, "chain@example.com")
+    first = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    rotated = await session_service.rotate_session(
+        session, raw_refresh_token=first.refresh_token
+    )
+    await session.commit()
+    child_id = rotated.issued.session.id
+    first_id = first.session.id
+    user_id = user.id
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers={
+            "Authorization": "Bearer "
+            + get_auth_token(user, session_id=child_id, amr=["pwd"])
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    session.expire_all()
+    live = (
+        await session.exec(
+            select(AuthSession).where(
+                AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None)
+            )
+        )
+    ).all()
+    assert len(live) == 1, f"expected one live session, found {len(live)}"
+    assert live[0].id not in {first_id, child_id}

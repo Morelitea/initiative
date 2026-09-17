@@ -5,6 +5,7 @@ import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersS
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -80,11 +81,14 @@ export const SettingsGuildAuthPage = () => {
       providerId: loaded?.provider_id ?? null,
       // A rule that names no provider and asks for the community's own
       // single sign-on is the "any of ours" choice below.
-      anyProvider: loaded?.provider_id == null && (loaded?.require_methods ?? []).length > 0,
+      anyProvider: loaded?.provider_id == null && (loaded?.require_methods ?? []).includes("sso"),
+      // Orthogonal to the provider choice: a community may ask for its own
+      // sign-in, for a second factor, or for both.
+      requireFactor: (loaded?.require_methods ?? []).includes("totp"),
     }),
     guildId
   );
-  const { policy, providerId, anyProvider } = form.values;
+  const { policy, providerId, anyProvider, requireFactor } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
   const [error, setError] = useState<string | null>(null);
   const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
@@ -95,14 +99,18 @@ export const SettingsGuildAuthPage = () => {
   const savedAnyProvider =
     policyQuery.data != null &&
     policyQuery.data.provider_id == null &&
-    (policyQuery.data.require_methods ?? []).length > 0;
+    (policyQuery.data.require_methods ?? []).includes("sso");
+  const savedRequireFactor =
+    policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("totp");
   const isDirty =
     policyQuery.data != null &&
     (policy !== policyQuery.data.policy ||
       (policy === "required" &&
         (anyProvider !== savedAnyProvider ||
+          requireFactor !== savedRequireFactor ||
           (!anyProvider && providerId !== (policyQuery.data.provider_id ?? null)))));
-  const canSave = policy === "open" || anyProvider || providerId != null;
+  // A rule has to ask for something. Any one of the three will do.
+  const canSave = policy === "open" || anyProvider || requireFactor || providerId != null;
 
   const save = () => {
     // What is being sent, so a choice changed while this is in flight is not
@@ -111,9 +119,14 @@ export const SettingsGuildAuthPage = () => {
     updatePolicy.mutate(
       policy === "open"
         ? { policy: "open" }
-        : anyProvider
-          ? { policy: "required", require_methods: ["sso"] }
-          : { policy: "required", provider_id: providerId as number },
+        : {
+            policy: "required",
+            ...(anyProvider ? {} : { provider_id: providerId as number }),
+            require_methods: [
+              ...(anyProvider ? (["sso"] as const) : []),
+              ...(requireFactor ? (["totp"] as const) : []),
+            ],
+          },
       {
         onSuccess: () => {
           setError(null);
@@ -284,6 +297,24 @@ export const SettingsGuildAuthPage = () => {
                 </div>
               </div>
             </RadioGroup>
+
+            {policy === "required" && (
+              <div className="flex items-start gap-3 border-t pt-4">
+                <Checkbox
+                  id="require-second-factor"
+                  checked={requireFactor}
+                  onCheckedChange={(checked) => form.set({ requireFactor: Boolean(checked) })}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="require-second-factor" className="font-medium">
+                    {t("guildAuth.policy.requireFactor")}
+                  </Label>
+                  <p className="text-muted-foreground text-sm">
+                    {t("guildAuth.policy.requireFactorHelp")}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {selfUnsatisfiedSlug && (
               <Alert>

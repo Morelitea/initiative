@@ -778,7 +778,7 @@ async def test_upload_token_copies_session_satisfied_providers(
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat, sso_guilds = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, sso_guilds, _mfa = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
     # And the communities whose own sign-in the session completed, so a rule
     # asking for one reads this token the way it reads that session.
@@ -789,7 +789,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat, sso_guilds = verify_upload_token(unsatisfied.json()["upload_token"])
+    _, sat, sso_guilds, _mfa = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
     assert sso_guilds == frozenset()
 
@@ -2390,3 +2390,29 @@ async def test_password_reset_records_when_the_password_was_set(
     session.expire_all()
     refreshed = await session.get(User, user_id)
     assert refreshed.password_set_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_upload_token_carries_the_second_factor(
+    client: AsyncClient, session: AsyncSession
+):
+    """An upload made in a community that asks for a second factor is made by
+    somebody who presented one, so the scoped token copies that marker the way
+    it copies the satisfied set beside it."""
+    user = await create_user(session)
+
+    with_factor = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={
+            "Authorization": "Bearer " + get_auth_token(user, amr=["pwd", "otp", "mfa"])
+        },
+    )
+    assert with_factor.status_code == 200, with_factor.text
+    assert verify_upload_token(with_factor.json()["upload_token"])[3] is True
+
+    without = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={"Authorization": "Bearer " + get_auth_token(user, amr=["pwd"])},
+    )
+    assert verify_upload_token(without.json()["upload_token"])[3] is False

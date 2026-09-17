@@ -1110,6 +1110,23 @@ async def set_guild_auth_policy(
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
         )
 
+    # And the one a second factor brings. Two things before a community may ask
+    # for it: the deployment offers it at all, and the person writing the rule
+    # has presented one. The second is the same "prove it before it binds
+    # anybody" the provider check makes, so a rule is only ever written by
+    # somebody it already applies to.
+    if LoginMethod.totp in require_methods:
+        if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+            )
+        if not auth_context.session_mfa():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            )
+
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     if policy_row is None:
         policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")

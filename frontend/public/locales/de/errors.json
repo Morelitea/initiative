@@ -673,5 +673,6 @@
   "TOTP_NOT_ENROLLED": "Für dieses Konto ist keine Zwei-Faktor-Authentifizierung eingerichtet.",
   "RECOVERY_CODE_INVALID": "Dieser Wiederherstellungscode stimmt nicht oder wurde bereits verwendet.",
   "TOTP_NOT_PERMITTED": "Diese Seite bietet die Authenticator-App nicht an.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle."
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle.",
+  "GUILD_AUTH_FACTOR_REQUIRED": "Diese Community verlangt einen Code aus deiner Authenticator-App. Gib einen ein, um fortzufahren."
 }

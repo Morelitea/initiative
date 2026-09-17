@@ -303,10 +303,11 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 
 #: What a community may require, beyond naming one provider. ``sso`` means its
 #: own single sign-on, whichever of its providers serves it — the deployment's
-#: providers are not its own. The platform's ``login_method`` vocabulary minus
-#: ``password``, which only the deployment decides about: the same asymmetry the
-#: database holds as a CHECK on ``require_methods``.
-GuildRequirableMethod = Literal["sso"]
+#: providers are not its own. ``totp`` means the session carried the account's
+#: second factor. The platform's ``login_method`` vocabulary minus ``password``,
+#: which only the deployment decides about: the same asymmetry the database
+#: holds as a CHECK on ``require_methods``.
+GuildRequirableMethod = Literal["sso", "totp"]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
@@ -327,9 +328,10 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
 class GuildAuthPolicyUpdate(SanitizedBaseModel):
     policy: Literal["open", "required"]
     provider_id: Optional[int] = None
-    #: ``["sso"]`` asks for the guild's own single sign-on. ``password`` is
-    #: absent from the type on purpose: whether passwords exist at all is the
-    #: deployment's question.
+    #: ``["sso"]`` asks for the community's own single sign-on and ``["totp"]``
+    #: for the account's second factor; both may be asked for at once.
+    #: ``password`` is absent from the type on purpose: whether passwords exist
+    #: at all is the deployment's question.
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 

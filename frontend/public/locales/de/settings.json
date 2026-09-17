@@ -1097,7 +1097,9 @@
       "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
       "signInWith": "Mit {{providerName}} anmelden",
       "anyProvider": "Einer unserer Anmeldeanbieter",
-      "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht."
+      "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht.",
+      "requireFactor": "Zusätzlich einen zweiten Faktor verlangen",
+      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
     },
     "readOnlyNotice": "Nur ein Sicherheitsadmin kann das ändern. Du siehst, was eingestellt ist, damit du weißt, wen du fragen musst."
   },

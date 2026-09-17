@@ -34,18 +34,11 @@ _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 #: of the database. ``app.core.encryption`` is the live encryption primitive: a
 #: migration that writes a secret must produce something the *current* app can
 #: read back, so pinning an old implementation is the broken version of this.
-#: ``app.db.authorization`` is the same argument in a second place: those five
-#: functions are re-applied from that module to every database on every boot,
-#: so a revision that executes the constant and a revision that copied it reach
-#: the same place — and the copy is what goes stale between them. The module
-#: says so itself, and asks a migration to execute the constant rather than
-#: hold a copy.
 _ALLOWED = frozenset(
     {
         "app.db.guild_migrations",
         "app.core.config",
         "app.core.encryption",
-        "app.db.authorization",
     }
 )
 

@@ -83,6 +83,15 @@ AS $function$
                             false
                           )
                   )
+                  -- Or the account's own second factor, where the community
+                  -- asks for one. The session records it when a code is
+                  -- presented and the request carries that here.
+                  OR (
+                      'totp' = ANY(p.require_methods)
+                      AND COALESCE(
+                            current_setting('app.session_mfa', true), 'false'
+                          ) <> 'true'
+                  )
                   -- Or its own single sign-on, whichever of its providers
                   -- served it. The session records each community whose sign-in
                   -- it completed, so this is answered without reading the

@@ -180,6 +180,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.sso_guilds', :ssog, true), "
+    "set_config('app.session_mfa', :mfa, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
@@ -317,11 +318,16 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # the credential records none.
     ssog = ",".join(str(int(gid)) for gid in sorted(params.get("sso_guilds") or ()))
 
+    # Whether the credential recorded the account's own second factor. A plain
+    # string, because the policy leg compares it as one.
+    mfa = "true" if params.get("session_mfa") else "false"
+
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
+        "mfa": mfa,
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
@@ -386,6 +392,7 @@ async def set_rls_context(
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     sso_guilds: Optional[Sequence[int]] = None,
+    session_mfa: bool = False,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
@@ -479,6 +486,7 @@ async def set_rls_context(
         query=query,
         satisfied_providers=satisfied_providers,
         sso_guilds=sso_guilds,
+        session_mfa=session_mfa,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
@@ -528,6 +536,7 @@ async def set_rls_context(
         "query": query,
         "satisfied_providers": satisfied_providers,
         "sso_guilds": sso_guilds,
+        "session_mfa": session_mfa,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,

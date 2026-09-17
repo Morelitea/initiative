@@ -71,6 +71,12 @@ export const setApiBaseUrl = (url: string) => {
 
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
+/** A community wants the account's second factor on this session. */
+export const AUTH_FACTOR_REQUIRED_EVENT = "initiative:auth:factor-required";
+
+export interface FactorChallengeDetail {
+  guildId: number | null;
+}
 
 export interface StepUpEventDetail {
   /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
@@ -329,11 +335,31 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
   error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
 
+// The other half of the same idea: this community wants the account's second
+// factor, which no provider's sign-in page supplies. The session itself is
+// fine, so like the step-up above it must neither renew nor read as signed
+// out — what answers it is a code presented against the session already open.
+const isFactorChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
+  error.response?.data?.detail === "GUILD_AUTH_FACTOR_REQUIRED";
+
 // Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
+  if (isFactorChallenge(error)) {
+    if (typeof window !== "undefined") {
+      const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
+      const guildId =
+        typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+      window.dispatchEvent(
+        new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
+          detail: { guildId },
+        })
+      );
+    }
+    return Promise.reject(error);
+  }
   if (isStepUpChallenge(error)) {
     // Announce the challenge so the global step-up dialog can offer the
     // required provider's sign-in; the request itself still rejects (pages

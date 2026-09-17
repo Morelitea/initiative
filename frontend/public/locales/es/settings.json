@@ -1097,7 +1097,9 @@
       "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
       "signInWith": "Iniciar sesión con {{providerName}}",
       "anyProvider": "Cualquiera de nuestros proveedores",
-      "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta."
+      "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta.",
+      "requireFactor": "Exigir también un segundo factor",
+      "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión."
     },
     "readOnlyNotice": "Solo un administrador de seguridad puede cambiar esto. Puedes ver lo que está configurado para saber a quién preguntar."
   },

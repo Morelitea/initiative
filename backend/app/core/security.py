@@ -322,6 +322,7 @@ def create_upload_token(
     user_id: int,
     satisfied_providers: Sequence[int] = (),
     sso_guilds: Sequence[int] = (),
+    session_mfa: bool = False,
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -343,6 +344,10 @@ def create_upload_token(
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
         "sg": [int(gid) for gid in sso_guilds],
+        # Copied from the minting session like the two above: an upload in a
+        # community that asks for a second factor is made by somebody who
+        # presented one.
+        "mfa": bool(session_mfa),
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -350,9 +355,12 @@ def create_upload_token(
     return token, int(expires_in.total_seconds())
 
 
-def verify_upload_token(token: str) -> tuple[int, frozenset[int], frozenset[int]]:
+def verify_upload_token(
+    token: str,
+) -> tuple[int, frozenset[int], frozenset[int], bool]:
     """Verify a scoped upload token; return the user id, its satisfied set and
-    the communities whose own sign-in the minting session completed.
+    the communities whose own sign-in the minting session completed, and
+    whether that session recorded the account's second factor.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -386,7 +394,7 @@ def verify_upload_token(token: str) -> tuple[int, frozenset[int], frozenset[int]
         guilds = frozenset(int(gid) for gid in payload.get("sg") or ())
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sg must be a list of guild ids") from exc
-    return user_id, satisfied, guilds
+    return user_id, satisfied, guilds, bool(payload.get("mfa"))
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):
