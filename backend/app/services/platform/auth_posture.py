@@ -79,6 +79,26 @@ async def guilds_requiring_sign_in(session: AsyncSession) -> int:
     ).one()
 
 
+async def guilds_requiring_method(session: AsyncSession, method: LoginMethod) -> int:
+    """How many communities ask for this particular method.
+
+    Narrower than :func:`guilds_requiring_sign_in`, which counts every rule
+    that is not open because withdrawing single sign-on can undo a rule that
+    names a provider as well as one that names the method. Asking for a second
+    factor is only ever named, so only the rules that name it are at stake.
+    """
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildAuthPolicy)
+            .where(
+                GuildAuthPolicy.policy != "open",
+                GuildAuthPolicy.require_methods.contains([method.value]),
+            )
+        )
+    ).one()
+
+
 async def stranded_by_withdrawing(session: AsyncSession, method: LoginMethod) -> int:
     """How many accounts could sign in today and could not without ``method``."""
     if method is LoginMethod.password:
@@ -142,6 +162,15 @@ async def set_login_methods(
 
     if LoginMethod.sso in withdrawn:
         requiring = await guilds_requiring_sign_in(session)
+        if requiring:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=SettingsMessages.LOGIN_METHODS_GUILD_POLICIES,
+                headers={"X-Affected-Count": str(requiring)},
+            )
+
+    if LoginMethod.totp in withdrawn:
+        requiring = await guilds_requiring_method(session, LoginMethod.totp)
         if requiring:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

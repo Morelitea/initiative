@@ -1097,7 +1097,9 @@
       "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
       "signInWith": "Se connecter avec {{providerName}}",
       "anyProvider": "L'un de nos fournisseurs de connexion",
-      "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas."
+      "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas.",
+      "requireFactor": "Exiger aussi un second facteur",
+      "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter."
     },
     "readOnlyNotice": "Seul un administrateur de sécurité peut modifier ceci. Vous voyez ce qui est réglé, pour savoir à qui vous adresser."
   },

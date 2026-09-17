@@ -12,19 +12,30 @@ there is anybody to scope a policy to.
 from datetime import datetime
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import get_current_active_user, require_first_party_session
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, UserMessages
-from app.core.rate_limit import limiter
-from app.core.security import has_usable_password, verify_password
+from app.core.rate_limit import get_inet_client_ip, limiter
+from app.core.security import (
+    REFRESH_COOKIE_NAME,
+    has_usable_password,
+    mint_access_token,
+    verify_password,
+)
+from app.api.v1.platform_endpoints.session_cookies import (
+    set_refresh_cookie,
+    set_session_cookie,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_admin_session
 from app.models.platform.user import User
+from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
+    SecondFactorChallengeAnswer,
     RecoveryCodes,
     RecoveryCodesRegenerate,
     SecondFactorConfirm,
@@ -40,6 +51,8 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
+from app.services.auth import subject as subject_service
+from app.services.auth.assurance import SECOND_FACTOR_AMR
 
 router = APIRouter()
 
@@ -262,6 +275,110 @@ async def disable_second_factor(
     await admin_session.commit()
     await email_service.announce_second_factor_change(
         admin_session, current_user, enabled=False
+    )
+
+
+@router.post("/step-up/totp", response_model=Token)
+@limiter.limit("10/15minutes")
+async def step_up_with_factor(
+    request: Request,
+    response: Response,
+    current_user: CurrentUser,
+    admin_session: AdminSessionDep,
+    payload: SecondFactorChallengeAnswer,
+) -> Token:
+    """Add the account's second factor to the session already signed in.
+
+    A community that asks for one refuses a session that never presented it,
+    and signing out to sign back in would be a strange way to answer that. This
+    takes the code against the live session instead.
+
+    The session is upgraded rather than replaced from nothing: its factors and
+    its satisfied providers carry forward and the old row is revoked, the same
+    shape the provider step-up uses — satisfying one community's requirement
+    never un-satisfies another's.
+
+    ``challenge`` is not read here. What stands in for it is the session
+    itself, which this request is already authenticated by.
+    """
+    if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_NOT_ENROLLED,
+        )
+
+    if payload.recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            admin_session, user_id=current_user.id, code=payload.recovery_code
+        )
+        method, factor_amr = "recovery_code", [SECOND_FACTOR_AMR]
+        refusal = AuthMessages.RECOVERY_CODE_INVALID
+    else:
+        accepted = await totp_service.verify_code(
+            admin_session, user_id=current_user.id, code=payload.code or ""
+        )
+        method, factor_amr = "totp", ["otp", SECOND_FACTOR_AMR]
+        refusal = AuthMessages.TOTP_INVALID
+
+    if not accepted:
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=current_user.id,
+            detail={"method": method, "during": "step_up"},
+        )
+        await admin_session.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+
+    prior = None
+    prior_raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    if prior_raw:
+        prior = await session_service.get_live_session_by_refresh_token(
+            admin_session, prior_raw
+        )
+        if prior is not None and prior.user_id != current_user.id:
+            prior = None
+
+    amr = sorted(set(prior.amr if prior else []) | set(factor_amr))
+    satisfied = sorted(set(prior.satisfied_providers if prior else []))
+    provider_auth = prior.provider_auth if prior else None
+
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=current_user.id,
+            amr=amr,
+            satisfied_providers=satisfied,
+            provider_auth=provider_auth,
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+        )
+        if prior is not None:
+            await session_service.revoke_session(admin_session, session_id=prior.id)
+        subject = await subject_service.subject_for_user(
+            admin_session, user_id=current_user.id
+        )
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=current_user.token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
+    return Token(
+        access_token=access_token,
+        refresh_token=issued.refresh_token if prior_raw is None else None,
     )
 
 

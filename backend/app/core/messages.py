@@ -90,6 +90,10 @@ class GuildMessages:
     # raises GUILD_ACCESS_DENIED.
     GUILD_ACCESS_DENIED = "GUILD_ACCESS_DENIED"
     GUILD_AUTH_STEP_UP_REQUIRED = "GUILD_AUTH_STEP_UP_REQUIRED"
+    #: The community asks that the session carried the account's second
+    #: factor, and this one did not. Answered apart from the provider step-up
+    #: because what satisfies it is a code rather than a sign-in page.
+    GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
     GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
     GUILD_AUTH_POLICY_SELF_UNSATISFIED = "GUILD_AUTH_POLICY_SELF_UNSATISFIED"

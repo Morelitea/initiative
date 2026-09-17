@@ -588,3 +588,77 @@ async def test_the_status_says_whether_it_is_offered(
     assert (await client.get("/api/v1/auth/totp", headers=headers)).json()[
         "offered"
     ] is False
+
+
+async def test_a_factor_can_be_added_to_the_session_already_open(
+    client: AsyncClient, session: AsyncSession
+):
+    """A community asking for a factor refuses a session that never presented
+    one, and signing out to sign back in would be a strange way to answer that.
+    The code goes against the live session instead."""
+    from app.core.security import decode_session_token
+
+    user, secret, _codes = await _enrol(client, session, "stepup@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert "mfa" in claims["amr"]
+    assert "otp" in claims["amr"]
+
+
+async def test_stepping_up_keeps_what_the_session_already_proved(
+    client: AsyncClient, session: AsyncSession
+):
+    """Satisfying one community's requirement never un-satisfies another's."""
+    from app.core.security import decode_session_token
+    from app.services.auth import sessions as session_service
+
+    user, secret, _codes = await _enrol(client, session, "keepsat@example.com")
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd", "oidc:corp"], satisfied_providers=[9]
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers={
+            **get_auth_headers(user),
+            "Cookie": f"refresh_token={issued.refresh_token}",
+        },
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert set(claims["amr"]) >= {"pwd", "oidc:corp", "otp", "mfa"}
+    assert claims["sat"] == [9]
+
+
+async def test_a_wrong_code_does_not_upgrade_the_session(
+    client: AsyncClient, session: AsyncSession
+):
+    user, _secret, _codes = await _enrol(client, session, "badstepup@example.com")
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": "000000"},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TOTP_INVALID"
+
+
+async def test_an_account_with_no_factor_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "nofactor@example.com")
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": "123456"},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TOTP_NOT_ENROLLED"

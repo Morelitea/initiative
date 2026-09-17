@@ -75,6 +75,23 @@ def sso_guilds() -> frozenset[int]:
 #: ``None`` for every other credential, including the web session: a browser
 #: has no device token and minting one to tidy the join would put a long-lived
 #: credential where it does not belong.
+#: Whether this request's credential recorded the account's second factor.
+#: Read from the session's own ``amr`` — the marker the sign-in wrote when a
+#: code was presented — and handed to the database so a community's rule is
+#: answered there as well as here.
+_session_mfa: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_session_mfa", default=False
+)
+
+
+def set_session_mfa(value: bool) -> None:
+    _session_mfa.set(bool(value))
+
+
+def session_mfa() -> bool:
+    return _session_mfa.get()
+
+
 _device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "auth_device_token_id", default=None
 )

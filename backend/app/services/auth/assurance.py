@@ -32,6 +32,12 @@ MAX_ACR_LENGTH = 256
 #: Names the provider a session came in through.
 PROVIDER_AMR_PREFIX = "oidc:"
 
+#: What a session records when the account's own second factor was presented.
+#: RFC 8176 registers it for exactly this: more than one factor was used. A
+#: TOTP code writes ``otp`` beside it; a recovery code does not, so a rule can
+#: tell a live authenticator from the set kept for losing it.
+SECOND_FACTOR_AMR = "mfa"
+
 #: Marks a session as having completed one community's own single sign-on.
 #: Written when the provider is that community's rather than the deployment's,
 #: so a rule reading "any of ours" can be answered from the session alone.

@@ -16,9 +16,10 @@ from app.core import auth_context
 from app.core.auth_context import (
     set_device_token_id,
     set_satisfied_providers,
+    set_session_mfa,
     set_sso_guilds,
 )
-from app.services.auth.assurance import sso_guilds_from_amr
+from app.services.auth.assurance import SECOND_FACTOR_AMR, sso_guilds_from_amr
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -299,6 +300,7 @@ async def get_current_user(
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
     set_sso_guilds(None)
+    set_session_mfa(False)
     set_device_token_id(None)
     # Which kind of credential this turns out to be, for the few endpoints that
     # care (see `require_first_party_session`). Set before any branch can
@@ -367,6 +369,10 @@ async def get_current_user(
     # branch) leave it empty — fail-closed for policy-gated guilds.
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_sso_guilds(sso_guilds_from_amr(token_data.amr))
+    # The marker the sign-in wrote when a code was presented. Absent on a
+    # legacy token and on every credential that is not a session, which is
+    # fail-closed for a community that asks for one.
+    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
 
     if not token_data.sub:
         raise HTTPException(
@@ -564,6 +570,7 @@ def _enforce_guild_auth_policy(
     guild_id: int,
     satisfied: frozenset[int] | str,
     sso_guilds: frozenset[int] = frozenset(),
+    session_mfa: bool = False,
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -609,6 +616,15 @@ def _enforce_guild_auth_policy(
     # row.
     if LoginMethod.sso in policy.require_methods and guild_id not in sso_guilds:
         _refuse()
+
+    # And the account's own second factor, where the community asks for one.
+    # The answer names no provider, so the step-up says a factor is what is
+    # wanted rather than pointing at a sign-in page.
+    if LoginMethod.totp in policy.require_methods and not session_mfa:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
 
 
 async def _read_membership_gate(
@@ -738,7 +754,11 @@ async def _load_guild_context(
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
         _enforce_guild_auth_policy(
-            policy, guild_id, satisfied, auth_context.sso_guilds()
+            policy,
+            guild_id,
+            satisfied,
+            auth_context.sso_guilds(),
+            auth_context.session_mfa(),
         )
         # Break-glass acts as a full guild admin; a scoped grantee gets the
         # ``support`` role — a first-class identity for PAM access rather than a
@@ -768,7 +788,13 @@ async def _load_guild_context(
     # the SELECT-only guild role (see _apply_guild_session_context).
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
-    _enforce_guild_auth_policy(policy, guild_id, satisfied, auth_context.sso_guilds())
+    _enforce_guild_auth_policy(
+        policy,
+        guild_id,
+        satisfied,
+        auth_context.sso_guilds(),
+        auth_context.session_mfa(),
+    )
     return GuildContext(
         guild=guild,
         membership=membership,
@@ -829,6 +855,24 @@ async def get_guild_membership(
             satisfied=auth_context.satisfied_providers(),
         )
     except GuildAccessError as exc:
+        if exc.detail == GuildMessages.GUILD_AUTH_FACTOR_REQUIRED:
+            # 401 for the same reason as the provider step-up below, and apart
+            # from it because what satisfies this is a code presented against
+            # the session already open rather than a sign-in page to visit.
+            # RFC 9470 all the same: the session authenticated, and what is
+            # missing is a factor.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=exc.detail,
+                headers={
+                    "WWW-Authenticate": STEP_UP_CHALLENGE,
+                    "X-Auth-Step-Up-Guild": (
+                        str(exc.step_up_guild_id)
+                        if exc.step_up_guild_id is not None
+                        else ""
+                    ),
+                },
+            ) from exc
         if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
             # 401, not 403: the session lacks an auth factor, not a permission.
             #
@@ -912,6 +956,7 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             sso_guilds=sorted(auth_context.sso_guilds()),
+            session_mfa=auth_context.session_mfa(),
         )
         return session
 
@@ -951,6 +996,7 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             sso_guilds=sorted(auth_context.sso_guilds()),
+            session_mfa=auth_context.session_mfa(),
         )
         return session
 
@@ -986,6 +1032,7 @@ async def _apply_guild_session_context(
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
         sso_guilds=sorted(auth_context.sso_guilds()),
+        session_mfa=auth_context.session_mfa(),
     )
     # The initiatives where this member holds "Full access", for the sync DAC
     # checks (gate 4, without an async query) and for the policies that read
@@ -1168,7 +1215,9 @@ async def _authenticate_upload_query_token(
     """
     # 1. Scoped upload token (preferred for native media).
     try:
-        user_id, token_satisfied, token_guilds = verify_upload_token(token_param)
+        user_id, token_satisfied, token_guilds, token_mfa = verify_upload_token(
+            token_param
+        )
     except UploadTokenError:
         pass
     else:
@@ -1176,6 +1225,7 @@ async def _authenticate_upload_query_token(
         # it so the guild auth-policy gate treats this request as that session.
         set_satisfied_providers(token_satisfied)
         set_sso_guilds(token_guilds)
+        set_session_mfa(token_mfa)
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).

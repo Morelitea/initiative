@@ -3204,6 +3204,110 @@ export const useDisableSecondFactorApiV1AuthTotpDisablePost = <
   );
 };
 /**
+ * Add the account's second factor to the session already signed in.
+ *
+ * A community that asks for one refuses a session that never presented it,
+ * and signing out to sign back in would be a strange way to answer that. This
+ * takes the code against the live session instead.
+ *
+ * The session is upgraded rather than replaced from nothing: its factors and
+ * its satisfied providers carry forward and the old row is revoked, the same
+ * shape the provider step-up uses — satisfying one community's requirement
+ * never un-satisfies another's.
+ *
+ * ``challenge`` is not read here. What stands in for it is the session
+ * itself, which this request is already authenticated by.
+ * @summary Step Up With Factor
+ */
+export const stepUpWithFactorApiV1AuthStepUpTotpPost = (
+  secondFactorChallengeAnswer: BodyType<SecondFactorChallengeAnswer>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/step-up/totp`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorChallengeAnswer,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStepUpWithFactorApiV1AuthStepUpTotpPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
+    TError,
+    { data: BodyType<SecondFactorChallengeAnswer> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
+  TError,
+  { data: BodyType<SecondFactorChallengeAnswer> },
+  TContext
+> => {
+  const mutationKey = ["stepUpWithFactorApiV1AuthStepUpTotpPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
+    { data: BodyType<SecondFactorChallengeAnswer> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return stepUpWithFactorApiV1AuthStepUpTotpPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>
+>;
+export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationBody =
+  BodyType<SecondFactorChallengeAnswer>;
+export type StepUpWithFactorApiV1AuthStepUpTotpPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Step Up With Factor
+ */
+export const useStepUpWithFactorApiV1AuthStepUpTotpPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
+      TError,
+      { data: BodyType<SecondFactorChallengeAnswer> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof stepUpWithFactorApiV1AuthStepUpTotpPost>>,
+  TError,
+  { data: BodyType<SecondFactorChallengeAnswer> },
+  TContext
+> => {
+  return useMutation(
+    getStepUpWithFactorApiV1AuthStepUpTotpPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Retire the account's codes and hand over a fresh set, once.
  * @summary Regenerate Recovery Codes
  */

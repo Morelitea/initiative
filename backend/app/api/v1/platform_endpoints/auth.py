@@ -937,6 +937,7 @@ async def issue_upload_token(
         if isinstance(satisfied, frozenset)
         else (),
         sso_guilds=sorted(auth_context.sso_guilds()),
+        session_mfa=auth_context.session_mfa(),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 

@@ -3861,6 +3861,14 @@ export const GuildAuthPolicyReadPolicy = {
   required: "required",
 } as const;
 
+export type GuildAuthPolicyReadRequireMethodsItem =
+  (typeof GuildAuthPolicyReadRequireMethodsItem)[keyof typeof GuildAuthPolicyReadRequireMethodsItem];
+
+export const GuildAuthPolicyReadRequireMethodsItem = {
+  sso: "sso",
+  totp: "totp",
+} as const;
+
 /**
  * The guild's sign-in requirement. ``open`` is the default (no stored
  * row). ``required`` names a provider a session must have satisfied, asks for
@@ -3872,7 +3880,7 @@ export interface GuildAuthPolicyRead {
   provider_id: number | null;
   provider_slug: string | null;
   provider_display_name: string | null;
-  require_methods: "sso"[];
+  require_methods: GuildAuthPolicyReadRequireMethodsItem[];
 }
 
 export type GuildAuthPolicyUpdatePolicy =
@@ -3883,10 +3891,18 @@ export const GuildAuthPolicyUpdatePolicy = {
   required: "required",
 } as const;
 
+export type GuildAuthPolicyUpdateRequireMethodsItem =
+  (typeof GuildAuthPolicyUpdateRequireMethodsItem)[keyof typeof GuildAuthPolicyUpdateRequireMethodsItem];
+
+export const GuildAuthPolicyUpdateRequireMethodsItem = {
+  sso: "sso",
+  totp: "totp",
+} as const;
+
 export interface GuildAuthPolicyUpdate {
   policy: GuildAuthPolicyUpdatePolicy;
   provider_id?: number | null;
-  require_methods?: "sso"[];
+  require_methods?: GuildAuthPolicyUpdateRequireMethodsItem[];
 }
 
 /**
