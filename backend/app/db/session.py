@@ -236,6 +236,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "ssog": "",
+            "mfa": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",

@@ -2466,11 +2466,10 @@ async def test_scoped_grantee_cannot_resolve(
 
 
 @pytest.mark.integration
-async def test_break_glass_can_approve(
+async def test_break_glass_cannot_approve(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Break-glass is routed as a full guild admin for its window, which is the
-    same authority a guild admin already exercises over its members."""
+    """A temporary grant cannot mint membership that outlives its window."""
     from app.models.platform.user import UserRole
 
     manager = await acting_user(guild_role=GuildRole.admin)
@@ -2499,13 +2498,13 @@ async def test_break_glass_can_approve(
         headers=bg_admin.headers,
     )
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "approved"
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
     assert (
         await initiatives_service.get_initiative_membership(
             session, initiative_id=initiative.id, user_id=requester.user.id
         )
-    ) is not None
+    ) is None
 
 
 @pytest.mark.integration

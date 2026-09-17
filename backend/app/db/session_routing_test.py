@@ -105,6 +105,11 @@ class TestSearchPathNamesEverySchema:
         out = _render_context_bind_params(_params(billing_guild_id=5))
         assert out["sp"] == "public, pg_temp"
 
+    def test_billing_route_clears_session_mfa(self):
+        """Every context shape supplies every bind consumed by _CONTEXT_SQL."""
+        out = _render_context_bind_params(_params(billing_guild_id=5))
+        assert out["mfa"] == "false"
+
     @pytest.mark.parametrize(
         "overrides",
         [

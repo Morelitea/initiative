@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, text, update
+from sqlalchemy import func, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -114,7 +114,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
                 expires_at=func.least(
                     UserToken.expires_at,
                     UserToken.created_at
-                    + text(f"interval '{int(platform_hours)} hours'"),
+                    + func.make_interval(0, 0, 0, 0, int(platform_hours)),
                 )
             )
         )
@@ -143,7 +143,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
             expires_at=func.least(
                 UserToken.expires_at,
                 UserToken.created_at
-                + text(f"interval '{int(compliance_hours)} hours'"),
+                + func.make_interval(0, 0, 0, 0, int(compliance_hours)),
             )
         )
     )
