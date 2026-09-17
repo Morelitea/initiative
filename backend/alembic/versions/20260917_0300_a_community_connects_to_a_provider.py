@@ -33,10 +33,11 @@ Access shape:
 
 * the connection CRUD writes on the system engine, as the provider registry
   does.
-* the request path holds **SELECT and nothing else**, scoped by policy to the
-  reader's own community. The guild-access gate reads the narrowing here on
-  every request, so the rule it applies is the one in force now rather than
-  the one that held when somebody signed in.
+* the request path holds **SELECT and nothing else**. The guild-access gate
+  reads the narrowing here on every request — before any guild context
+  exists, and again under the guild roles — so the rule it applies is the one
+  in force now rather than the one that held when somebody signed in. Same
+  read shape as ``guild_auth_policies`` beside it, for the same reason.
 * a connection carries a provider id, a claim name and a list of values. There
   is no secret and no issuer on it, which is what ``auth_providers`` is kept
   off the request path for.
@@ -60,7 +61,14 @@ depends_on = None
 TABLE = "guild_provider_connections"
 
 
-_OWN_GUILD = "guild_id = NULLIF(current_setting('app.current_guild_id', true), '')::int"
+# The gate the connections feed, as of this revision. ``app.db.authorization``
+# is the live source and every boot re-applies it; these copies are what a
+# database built from migrations alone gets.
+_GUILD_CONNECTION_ADMITS = "CREATE OR REPLACE FUNCTION public.guild_connection_admits(p_guild_id integer, p_providers integer[], p_claims jsonb, p_provider_id integer DEFAULT NULL)\n RETURNS boolean\n LANGUAGE sql\n STABLE\nAS $function$\n    SELECT EXISTS (\n        SELECT 1\n        FROM public.guild_provider_connections c\n        WHERE c.guild_id = p_guild_id\n          AND c.enabled\n          AND (p_provider_id IS NULL OR c.provider_id = p_provider_id)\n          AND c.provider_id = ANY(COALESCE(p_providers, ARRAY[]::integer[]))\n          -- A connection naming no claim counts everybody the provider does.\n          AND (\n              c.claim IS NULL\n              OR c.claim_values IS NULL\n              OR EXISTS (\n                  SELECT 1\n                  FROM jsonb_array_elements_text(\n                      CASE\n                          WHEN jsonb_typeof(\n                                   COALESCE(p_claims, '{}'::jsonb)\n                                       -> c.provider_id::text -> c.claim\n                               ) = 'array'\n                          THEN COALESCE(p_claims, '{}'::jsonb)\n                                   -> c.provider_id::text -> c.claim\n                          ELSE '[]'::jsonb\n                      END\n                  ) AS asserted(value)\n                  WHERE lower(asserted.value) = ANY (\n                      SELECT lower(counted) FROM unnest(c.claim_values) AS counted\n                  )\n              )\n          )\n    )\n$function$\n\n"
+
+_GUILD_CONNECTION_SATISFIED = "CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL)\n RETURNS boolean\n LANGUAGE sql\n STABLE\nAS $function$\n    SELECT public.guild_connection_admits(\n        p_guild_id,\n        -- NULLIF twice: an unset value and the system sentinel both leave\n        -- nothing to cast, and a bare ''::int[] would fault every policy on\n        -- the table.\n        COALESCE(\n            string_to_array(\n                NULLIF(\n                    NULLIF(current_setting('app.satisfied_providers', true), ''),\n                    'system'\n                ),\n                ','\n            )::integer[],\n            ARRAY[]::integer[]\n        ),\n        COALESCE(\n            NULLIF(current_setting('app.satisfied_claims', true), '')::jsonb,\n            '{}'::jsonb\n        ),\n        p_provider_id\n    )\n$function$\n\n"
+
+_GUILD_AUTH_SATISFIED = "CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()\n RETURNS boolean\n LANGUAGE sql\n STABLE\nAS $function$\n    SELECT\n        -- Pure system routing (no user context) and the explicit sentinel a\n        -- user-attributed job sets are not sessions to gate.\n        NULLIF(current_setting('app.current_user_id', true), '') IS NULL\n        OR current_setting('app.satisfied_providers', true) = 'system'\n        OR NOT EXISTS (\n            SELECT 1 FROM public.guild_auth_policies p\n            WHERE p.guild_id = NULLIF(\n                    current_setting('app.current_guild_id', true), ''\n                  )::int\n              AND p.policy <> 'open'\n              AND (\n                  -- The provider this guild names, if it names one: the\n                  -- session came through it, and this community counts the\n                  -- arrival as one of its own.\n                  (\n                      p.provider_id IS NOT NULL\n                      AND NOT public.guild_connection_satisfied(\n                            p.guild_id, p.provider_id\n                          )\n                  )\n                  -- Or the account's own second factor, where the community\n                  -- asks for one. The session records it when a code is\n                  -- presented and the request carries that here.\n                  OR (\n                      'totp' = ANY(p.require_methods)\n                      AND COALESCE(\n                            current_setting('app.session_mfa', true), 'false'\n                          ) <> 'true'\n                  )\n                  -- Or any of its own, whichever provider served it. Named\n                  -- rather than counted, so a list holding some other method\n                  -- is not read as this one.\n                  OR (\n                      'sso' = ANY(p.require_methods)\n                      AND NOT public.guild_connection_satisfied(p.guild_id)\n                  )\n              )\n        )\n$function$\n\n"
 
 
 def _platform(role: str) -> str:
@@ -144,9 +152,27 @@ def upgrade() -> None:
             f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.{TABLE} "
             f"TO app_admin",
             f"GRANT USAGE, SELECT ON SEQUENCE public.{TABLE}_id_seq TO app_admin",
-            f"GRANT SELECT ON TABLE public.{TABLE} TO app_guild_base",
-            f"CREATE POLICY {TABLE}_own_guild ON public.{TABLE} "
-            f"FOR SELECT TO public USING ({_OWN_GUILD})",
+            # Read by the access gate before any guild context exists and by
+            # the policy legs under the guild roles, exactly as
+            # ``guild_auth_policies`` beside it is.
+            f"GRANT SELECT ON TABLE public.{TABLE} "
+            f'TO app_guild_base, "{base}", app_user',
+            f"CREATE POLICY {TABLE}_read ON public.{TABLE} FOR SELECT USING (true)",
+        ]
+    )
+
+    # ── And the gate that reads it ────────────────────────────────────────
+    #
+    # A community's requirement is answered by its connections now: the
+    # session carries what the provider asserted, the connection carries which
+    # values count, and the two meet here rather than in a decision made at
+    # sign-in. ``app.sso_guilds`` is no longer read by anything.
+    op.execute("SET LOCAL check_function_bodies = false")
+    _run(
+        [
+            _GUILD_CONNECTION_ADMITS,
+            _GUILD_CONNECTION_SATISFIED,
+            _GUILD_AUTH_SATISFIED,
         ]
     )
 

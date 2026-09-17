@@ -70,7 +70,6 @@ def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
         icon=row.icon,
         button_style=row.button_style,
         secret_set=secret_set,
-        connectable_by_guilds=row.connectable_by_guilds,
         callback_url=provider_callback_url(row.slug),
     )
 

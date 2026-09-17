@@ -78,9 +78,13 @@ def claims_from_provider_auth(
     """
     found: dict[str, dict[str, list[str]]] = {}
     for provider_id, entry in (record or {}).items():
-        if not isinstance(entry, dict):
-            continue
-        claims = entry.get("claims")
+        # A decoded token hands these over as models; the session row's own
+        # column hands them over as plain JSON.
+        claims = (
+            entry.get("claims")
+            if isinstance(entry, dict)
+            else getattr(entry, "claims", None)
+        )
         if not isinstance(claims, dict):
             continue
         kept = {

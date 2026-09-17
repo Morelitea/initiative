@@ -15,11 +15,12 @@ from app.services.auth.assurance import (
     MAX_AUTH_TIME,
     MAX_TRACKED_PROVIDERS,
     ProviderAssurance,
+    MAX_CLAIM_VALUES,
     read_assurance,
+    read_narrowing,
     RESERVED_AMR_PREFIXES,
     record_for_provider,
     session_amr,
-    sso_guilds_from_amr,
 )
 
 pytestmark = [pytest.mark.unit, pytest.mark.auth]
@@ -167,44 +168,65 @@ def test_the_record_is_bounded_and_keeps_the_provider_just_used():
     assert str(MAX_TRACKED_PROVIDERS + 4) in merged
 
 
-# --- The marker that says which community's sign-in this was ----------------
+# --- What a provider asserted about belonging ------------------------------
 
 
-def test_a_deployment_wide_provider_marks_no_community():
-    """The operator's own providers belong to nobody in particular, so a
-    community asking for its own sign-in is not answered by them."""
+def test_a_provider_marks_itself_and_nothing_else():
+    """A sign-in names the provider it came through. Which communities count
+    it as theirs is read from their connections, so no marker says."""
     amr = session_amr("google", ProviderAssurance(amr=["pwd"]))
     assert amr == ["oidc:google", "pwd"]
-    assert sso_guilds_from_amr(amr) == frozenset()
-
-
-def test_a_communitys_provider_marks_that_community():
-    amr = session_amr("corp", ProviderAssurance(amr=["mfa"]), guild_id=7)
-    assert "guild:7" in amr
-    assert sso_guilds_from_amr(amr) == {7}
-
-
-def test_a_step_up_keeps_both_communities():
-    """Sessions merge on step-up by unioning ``amr``, so completing a second
-    community's sign-in never un-completes the first."""
-    first = session_amr("corp", ProviderAssurance(), guild_id=7)
-    second = session_amr("other", ProviderAssurance(), guild_id=9)
-    assert sso_guilds_from_amr(sorted(set(first) | set(second))) == {7, 9}
-
-
-@pytest.mark.parametrize(
-    "recorded", [None, [], ["pwd"], ["mfa", "oidc:corp"], ["guild:"], ["guild:x"]]
-)
-def test_nothing_readable_is_no_community(recorded):
-    """A credential that records no sign-in, and a value in a shape this does
-    not read, both come back empty — which satisfies no requirement."""
-    assert sso_guilds_from_amr(recorded) == frozenset()
 
 
 def test_an_identity_providers_own_values_are_left_alone():
-    """The IdP's vocabulary travels untouched beside our markers."""
-    amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk"]), guild_id=7)
-    assert set(amr) == {"oidc:corp", "guild:7", "mfa", "hwk"}
+    """The IdP's vocabulary travels untouched beside our marker."""
+    amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk"]))
+    assert set(amr) == {"oidc:corp", "mfa", "hwk"}
+
+
+def test_the_narrowing_claim_is_recorded_for_the_gate():
+    """What the provider said for a claim some community narrows by is kept
+    beside the assurance, because the gate compares it later."""
+    narrowing = read_narrowing({"hd": "acme.com"}, None, ["hd"])
+    assurance = ProviderAssurance(auth_time=1, claims=narrowing)
+
+    assert assurance.as_record() == {"auth_time": 1, "claims": {"hd": ["acme.com"]}}
+
+
+def test_only_the_claims_somebody_narrows_by_are_recorded():
+    """A provider says a great deal. What is kept is what a community asked
+    a question about."""
+    claims = {"hd": "acme.com", "groups": ["eng"], "email": "a@acme.com"}
+
+    assert read_narrowing(claims, None, ["hd"]) == (("hd", ("acme.com",)),)
+    assert read_narrowing(claims, None, []) == ()
+
+
+def test_a_claim_the_provider_did_not_send_records_nothing():
+    """An absent claim is an absent key rather than an empty one, so a
+    connection narrowing by it is answered by nothing rather than by a blank."""
+    assert read_narrowing({"sub": "x"}, None, ["hd"]) == ()
+    assert ProviderAssurance(claims=()).as_record() == {}
+
+
+def test_a_nested_path_is_read_like_the_rules_read_it():
+    """The same dot-path extractor the group rules use, so a claim buried in
+    an object is reachable here too."""
+    found = read_narrowing(
+        {"realm_access": {"roles": ["eng"]}}, None, ["realm_access.roles"]
+    )
+
+    assert found == (("realm_access.roles", ("eng",)),)
+
+
+def test_a_long_group_list_is_bounded():
+    """This rides in the access token, and a directory can put somebody in
+    hundreds of groups."""
+    claims = {"groups": [f"team-{n}" for n in range(200)]}
+
+    ((_, values),) = read_narrowing(claims, None, ["groups"])
+
+    assert len(values) == MAX_CLAIM_VALUES
 
 
 # --- What the provider may say, and what only we may say --------------------
@@ -216,16 +238,15 @@ def test_a_provider_does_not_write_our_markers():
     arriving under one of those prefixes is dropped."""
     claimed = read_assurance({"amr": ["guild:99", "oidc:elsewhere", "mfa"]})
     assert claimed.amr == ("mfa",)
-    assert sso_guilds_from_amr(claimed.amr) == frozenset()
 
 
 def test_the_drop_survives_being_merged_into_a_session():
     """End to end: the provider sends one, the session carries only the marker
     this application wrote, and the reading is unchanged."""
     assurance = read_assurance({"amr": ["guild:99", "pwd"]})
-    amr = session_amr("corp", assurance, guild_id=7)
-    assert sso_guilds_from_amr(amr) == {7}
+    amr = session_amr("corp", assurance)
     assert "guild:99" not in amr
+    assert set(amr) == {"oidc:corp", "pwd"}
 
 
 def test_whitespace_does_not_get_a_value_past_the_drop():

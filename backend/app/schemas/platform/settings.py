@@ -25,7 +25,6 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     allow_jit: bool
     #: Whether communities may connect to this provider. Off keeps one
     #: registered for a single customer out of everybody else's picker.
-    connectable_by_guilds: bool = False
     icon: Optional[str] = None
     button_style: Optional[str] = None
     # Whether a client secret is stored (write-only; its value is never read
@@ -59,7 +58,6 @@ class AuthProviderCreate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default="openid email profile", max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: bool = True
-    connectable_by_guilds: bool = False
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
@@ -87,7 +85,6 @@ class AuthProviderUpdate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default=None, max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: Optional[bool] = None
-    connectable_by_guilds: Optional[bool] = None
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 

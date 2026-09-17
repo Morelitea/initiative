@@ -389,6 +389,7 @@ def get_auth_token(
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    asserted_claims: dict[int, dict[str, list[str]]] | None = None,
     token_version: int | None = None,
     expires_in: timedelta | None = None,
 ) -> str:
@@ -402,6 +403,9 @@ def get_auth_token(
 
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
+    ``asserted_claims`` is what those providers said about the person, keyed by
+    provider id (``{7: {"hd": ["acme.com"]}}``), which is what a community
+    narrowing a connection compares against.
 
     ``token_version`` and ``expires_in`` are for the tests about a credential
     that is no longer good: one minted before a version bump, and one whose
@@ -427,6 +431,11 @@ def get_auth_token(
         satisfied_providers=satisfied_providers
         if satisfied_providers is not None
         else [],
+        provider_auth={
+            str(pid): {"claims": {k: list(v) for k, v in claims.items()}}
+            for pid, claims in (asserted_claims or {}).items()
+        }
+        or None,
         expires_in=expires_in,
     )
     return token

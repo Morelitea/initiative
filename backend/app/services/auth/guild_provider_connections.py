@@ -15,14 +15,13 @@ does this credential satisfy one of them — and that one defers to
 two.
 """
 
-import json
 import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy import Integer, cast, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import or_, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
@@ -96,20 +95,8 @@ async def list_connectable(
     Non-secret metadata only, and deliberately less than the operator sees: a
     community picks a provider by name, not by issuer.
     """
-    connected = select(GuildProviderConnection.provider_id).where(
-        GuildProviderConnection.guild_id == guild_id
-    )
     rows = (
-        await session.exec(
-            select(AuthProvider)
-            .where(
-                or_(
-                    AuthProvider.connectable_by_guilds.is_(True),
-                    AuthProvider.id.in_(connected),
-                )
-            )
-            .order_by(AuthProvider.display_name)
-        )
+        await session.exec(select(AuthProvider).order_by(AuthProvider.display_name))
     ).all()
     return [
         ConnectableProviderRead(
@@ -146,31 +133,13 @@ async def editable_connection(
 async def _connectable_provider(
     session: AsyncSession, provider_id: int, *, guild_id: int
 ) -> AuthProvider:
-    """The provider a community is allowed to connect to, or a 404.
+    """The provider a community is connecting to, or a 404.
 
-    Allowed means on offer, or already connected — the same rule the picker
-    lists by, applied again at the write so a guessed id gets no further than
-    a name the community was never shown.
+    Every provider the deployment offers is a way in that anybody may use, so
+    there is nothing to be allowed onto: what a community decides is whether
+    arrivals through it are its own.
     """
-    already = (
-        await session.exec(
-            select(GuildProviderConnection.id).where(
-                GuildProviderConnection.guild_id == guild_id,
-                GuildProviderConnection.provider_id == provider_id,
-            )
-        )
-    ).first()
-    row = (
-        await session.exec(
-            select(AuthProvider).where(
-                AuthProvider.id == provider_id,
-                or_(
-                    AuthProvider.connectable_by_guilds.is_(True),
-                    AuthProvider.id == (provider_id if already else None),
-                ),
-            )
-        )
-    ).one_or_none()
+    row = await session.get(AuthProvider, provider_id)
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -342,7 +311,10 @@ async def admits_this_session(
                 func.guild_connection_admits(
                     guild_id,
                     cast(providers, ARRAY(Integer)),
-                    cast(json.dumps(claims), JSONB),
+                    # The dict, not a dumped string: the JSONB type serialises
+                    # what it is handed, and a string would arrive as a JSON
+                    # scalar rather than the object the gate indexes into.
+                    cast(claims, JSONB),
                     provider_id,
                 )
             )

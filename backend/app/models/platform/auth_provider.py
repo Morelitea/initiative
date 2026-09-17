@@ -92,17 +92,6 @@ class AuthProvider(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default=text("true"))
     )
 
-    # Whether communities may connect to this provider (see
-    # ``GuildProviderConnection``). Off by default, and deliberately: a
-    # provider registered for one customer is listed to that customer, because
-    # they connect to it, and to nobody else. On is for the providers that are
-    # nobody's in particular — Google, Entra — which every community can
-    # sensibly narrow to its own tenant.
-    connectable_by_guilds: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
-    )
-
     # Login-button rendering.
     icon: Optional[str] = Field(
         default=None, sa_column=Column(String(64), nullable=True)

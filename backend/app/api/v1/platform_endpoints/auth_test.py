@@ -882,17 +882,15 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    async def _builder(admin_session, row, guild_id=None):
+    async def _builder(admin_session, row):
         return OidcProvider(
             OidcClientConfig(
                 issuer=row.issuer,
                 client_id=row.client_id,
-                # The community a sign-in is for comes from the route, as it
-                # does in the real builder.
-                redirect_uri=auth_module.provider_callback_url(row.slug, guild_id),
+                redirect_uri=auth_module.provider_callback_url(row.slug),
                 client_secret="s3cret",
                 scopes=row.scopes or "openid",
-                provider_slug=auth_module._provider_state_key(row, guild_id),
+                provider_slug=auth_module._provider_state_key(row),
             ),
             client_factory=idp.client_factory(),
         )
