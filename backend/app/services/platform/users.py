@@ -128,40 +128,39 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
 
 
 async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
-    """
-    Get detailed info about guilds where user is the last admin.
-    Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
+    """Communities this account's removal would leave without a superadmin.
+
+    What :func:`is_last_guild_superadmin` reports, with the roster the operator
+    needs to act on it: ``guild_id``, ``guild_name``, and the other members —
+    the people who could be made superadmin instead of the community being
+    deleted. An empty ``other_members`` is the case where deleting the
+    community is the only way through.
     """
     from app.models.platform.guild import Guild
+    from app.services.platform.guilds import would_strand_guild
 
-    stmt = select(GuildMembership).where(
-        GuildMembership.user_id == user_id,
-        GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-    )
-    result = await session.exec(stmt)
-    user_admin_memberships = result.all()
+    seats = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
 
     blockers = []
 
-    for membership in user_admin_memberships:
-        # Count other admins in this guild
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == membership.guild_id,
-            GuildMembership.role.in_(GUILD_ADMIN_ROLES),
-            GuildMembership.user_id != user_id,
-        )
-        count_result = await session.exec(count_stmt)
-        other_admin_count = count_result.one()
-
-        if other_admin_count == 0:
-            # User is the last admin - get guild info and other members
+    for membership in seats:
+        if await would_strand_guild(
+            session, guild_id=membership.guild_id, user_id=user_id
+        ):
             guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
             guild_result = await session.exec(guild_stmt)
             guild = guild_result.one_or_none()
             if not guild:
                 continue
 
-            # Get other members who could be promoted
+            # Who could take the seat instead.
             members_stmt = (
                 select(User)
                 .join(GuildMembership, GuildMembership.user_id == User.id)

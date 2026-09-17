@@ -139,3 +139,58 @@ async def test_billing_is_the_seats_too(
         f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(seat)
     )
     assert allowed.status_code != 403, allowed.text
+
+
+async def test_the_seat_deletes_the_community_and_then_itself(
+    client: AsyncClient, session: AsyncSession
+):
+    """The block is a fork in the road, not a dead end.
+
+    Holding a community's only seat stops an account closing, and the way
+    through is to delete the community — which the seat may do. Two deliberate
+    acts rather than one, which is the point of refusing the first.
+    """
+    seat = await create_user(session)
+    guild = await create_guild(session, name="Winding Down", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
+    await session.commit()
+    headers = get_auth_headers(seat)
+
+    eligibility = await client.get(
+        "/api/v1/users/me/deletion-eligibility", headers=headers
+    )
+    assert eligibility.status_code == 200, eligibility.text
+    assert eligibility.json()["can_delete"] is False
+    assert eligibility.json()["sole_superadmin_guilds"] == ["Winding Down"]
+
+    refused = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "deactivate",
+            "password": "testpassword123",
+            "confirmation_text": "DELETE",
+        },
+    )
+    assert refused.status_code == 400
+
+    # The seat's own way through: delete the community.
+    deleted = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=headers,
+        json={
+            "password": "testpassword123",
+            "confirmation_text": f"DELETE GUILD {guild.name.upper()}",
+        },
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    # And now nothing is in the way.
+    after = await client.get("/api/v1/users/me/deletion-eligibility", headers=headers)
+    assert after.json()["can_delete"] is True
