@@ -1448,14 +1448,15 @@ async def check_leave_eligibility(
 
     from app.services.platform.users import is_last_admin_of_guild
 
-    # Counting a guild's admins is a question about the guild, not about the
-    # caller, so it is asked on the system engine: a request-path session can
-    # see its own membership row and answers "last admin" for everyone.
+    # Both answers under one lock, so this reports a state that held all at
+    # once rather than two taken a moment apart. Counting a guild's admins is a
+    # question about the guild, not about the caller, so it is asked on the
+    # system engine: a request-path session reaches its own membership row and
+    # answers "last admin" for everyone.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
     is_last_admin = await is_last_admin_of_guild(
         admin_session, guild_id, current_user.id
     )
-
-    await guilds_service.lock_guild_seats(admin_session, guild_id)
     is_last_security_admin = await guilds_service.must_keep_security_admin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     )
@@ -1503,16 +1504,22 @@ async def leave_guild(
 
     from app.services.platform.users import is_last_admin_of_guild
 
+    # Ahead of both checks below, not between them: each asks how many people
+    # of some kind the guild has left, and the answer has to still be true when
+    # the departure is written. Counting a guild's admins is also a question
+    # about the guild rather than the caller, so it is asked on the system
+    # engine — a request-path session reaches the caller's own membership row
+    # and no other, and answers "last admin" for everyone.
+    await guilds_service.lock_guild_seats(admin_session, guild_id)
+
     if await is_last_admin_of_guild(admin_session, guild_id, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.CANNOT_LEAVE_LAST_ADMIN,
         )
 
-    await guilds_service.lock_guild_seats(admin_session, guild_id)
     # Nor while they are the only member who can lift a sign-in requirement:
-    # that is lifted from the surface the seat holds. Asked on the system
-    # engine, which is where the policy row is readable.
+    # that is lifted from the surface the seat holds.
     if await guilds_service.must_keep_security_admin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     ):

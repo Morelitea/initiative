@@ -1271,3 +1271,59 @@ async def test_a_security_admin_counts_as_an_admin_when_someone_leaves(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "CANNOT_LEAVE_LAST_ADMIN"
+
+
+@pytest.mark.integration
+async def test_leaving_takes_the_lock_before_it_counts_anyone(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Both of a departure's guards ask how many people of some kind a guild
+    has left, and each answer has to still be true when the departure is
+    written. So the lock comes first — not between them, and not after.
+
+    Pinned as an order because that is what the invariant is: a guard that runs
+    outside the lock is a guard two concurrent departures can both pass.
+    """
+    from app.services.platform import guilds as guilds_service
+    from app.services.platform import users as users_service
+
+    order: list[str] = []
+    real_lock = guilds_service.lock_guild_seats
+    real_last_admin = users_service.is_last_admin_of_guild
+    real_seat = guilds_service.must_keep_security_admin
+
+    async def record(name, fn, *args, **kwargs):
+        order.append(name)
+        return await fn(*args, **kwargs)
+
+    monkeypatch.setattr(
+        guilds_service,
+        "lock_guild_seats",
+        lambda *a, **k: record("lock", real_lock, *a, **k),
+    )
+    monkeypatch.setattr(
+        users_service,
+        "is_last_admin_of_guild",
+        lambda *a, **k: record("last admin", real_last_admin, *a, **k),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "must_keep_security_admin",
+        lambda *a, **k: record("last seat", real_seat, *a, **k),
+    )
+
+    staying = await create_user(session)
+    leaving = await create_user(session)
+    guild = await create_guild(session, creator=staying)
+    await create_guild_membership(
+        session, user=staying, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaving, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+    )
+    assert response.status_code == 204, response.text
+    assert order == ["lock", "last admin", "last seat"]
