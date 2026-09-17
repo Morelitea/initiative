@@ -1113,8 +1113,8 @@ async def set_guild_auth_policy(
     # And the one a second factor brings. Two things before a community may ask
     # for it: the deployment offers it at all, and the person writing the rule
     # has presented one. The second is the same "prove it before it binds
-    # anybody" the provider check makes — without it an admin could shut the
-    # community, themselves included, behind something they have not set up.
+    # anybody" the provider check makes, so a rule is only ever written by
+    # somebody it already applies to.
     if LoginMethod.totp in require_methods:
         if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
             raise HTTPException(

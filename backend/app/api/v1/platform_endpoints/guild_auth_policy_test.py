@@ -1093,8 +1093,8 @@ async def test_asking_for_a_factor_needs_one_of_your_own(
     client: AsyncClient, session: AsyncSession
 ):
     """The same rule the provider check makes: prove it before it binds
-    anybody. Otherwise a rule could shut the community, its author included,
-    behind something they have not set up."""
+    anybody, so a rule is only ever written by somebody it already applies
+    to."""
     guild = await create_guild(session)
     headers = await _seat_headers(session, guild, with_factor=False)
 

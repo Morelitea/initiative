@@ -707,13 +707,13 @@ async def test_a_standing_credential_cannot_step_up(
 async def test_stepping_up_leaves_no_other_session_live(
     client: AsyncClient, session: AsyncSession
 ):
-    """The chain goes, not just the one row. A refresh that rotated this
-    session between reading it and revoking it would otherwise leave its child
-    live beside the stepped-up one, carrying none of the factor just presented.
+    """The chain goes, not just the one row — rotation can have left
+    descendants, and the session the step-up issues is what replaces all of
+    them.
 
-    Stated as the property rather than as the race, which is not reachable
-    deterministically from a test: after stepping up, the session it issued is
-    the only live one.
+    Stated as the property rather than as an interleaving, which a test cannot
+    reach deterministically: after stepping up, the session it issued is the
+    only live one for that account.
     """
     from sqlmodel import select
 

@@ -333,11 +333,9 @@ async def step_up_with_factor(
         await admin_session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    # The session this request is *on*, named by its own access token, rather
-    # than whatever a refresh cookie happens to carry. A browser sends both and
-    # they agree; the app sends only the token, and reading the cookie alone
-    # would have replaced its session with one holding nothing but the factor —
-    # which is how stepping up for one community could un-satisfy another.
+    # The session this request is *on*, named by its own access token. Every
+    # client carries that; only a browser also carries a refresh cookie, so the
+    # token is what identifies the session to add the factor to.
     prior_id = getattr(request.state, "session_id", None)
     prior = (
         await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
@@ -349,9 +347,8 @@ async def step_up_with_factor(
     ):
         prior = None
     if prior is None:
-        # Nothing to add the factor to. A credential that is not a session has
-        # no assurance to carry forward, and minting one here would hand it
-        # more than it came with.
+        # Nothing to add the factor to: this endpoint upgrades a session, and a
+        # credential that is not one carries no assurance to carry forward.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -371,9 +368,8 @@ async def step_up_with_factor(
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
         )
-        # The chain, not the one row: a refresh that rotated this session
-        # between reading it and here would leave its child live beside the
-        # stepped-up one, carrying none of the factor just presented. The
+        # The chain, not the one row: rotation can have left descendants, and
+        # the session issued just above is what replaces all of them. The
         # provider step-up revokes the chain for the same reason. ``prior`` is
         # not optional here — the request is refused above where there is none.
         await session_service.revoke_chain(admin_session, session_id=prior.id)
