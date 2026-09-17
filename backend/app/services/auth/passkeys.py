@@ -27,6 +27,7 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
+from app.models.platform.user import User
 from app.models.platform.user_passkey import UserPasskey
 
 #: How long a ceremony's challenge stands. The browser prompt is a few seconds
@@ -39,6 +40,10 @@ CEREMONY_TIMEOUT_MS = 60_000
 MAX_PASSKEYS_PER_USER = 20
 
 MAX_NAME_LENGTH = 64
+
+
+class PasskeyLimitReached(Exception):
+    """The account already has the maximum number of credentials."""
 
 
 def _now() -> datetime:
@@ -69,8 +74,14 @@ def expected_origin() -> str:
     parts = urlsplit(settings.APP_URL.strip())
     if not parts.scheme or not parts.hostname:
         raise RuntimeError("APP_URL is not a whole URL, so no origin can be derived")
-    port = f":{parts.port}" if parts.port else ""
-    return f"{parts.scheme}://{parts.hostname}{port}"
+    scheme = parts.scheme.lower()
+    hostname = parts.hostname
+    host = f"[{hostname}]" if ":" in hostname else hostname
+    is_default_port = (scheme == "https" and parts.port == 443) or (
+        scheme == "http" and parts.port == 80
+    )
+    port = f":{parts.port}" if parts.port is not None and not is_default_port else ""
+    return f"{scheme}://{host}{port}"
 
 
 def relying_party_name() -> str:
@@ -122,6 +133,8 @@ async def begin_registration(
     than quietly making a second.
     """
     existing = await list_for_user(session, user_id=user_id)
+    if len(existing) >= MAX_PASSKEYS_PER_USER:
+        raise PasskeyLimitReached
     options = webauthn.generate_registration_options(
         rp_id=relying_party_id(),
         rp_name=relying_party_name(),
@@ -177,7 +190,19 @@ async def store(
     registered: RegisteredCredential,
     name: str,
 ) -> UserPasskey:
-    """Keep a verified credential. The caller commits."""
+    """Keep a verified credential. The caller commits.
+
+    Locking the account makes the limit authoritative even when two empty
+    slots are inspected concurrently. There is no passkey row to lock when an
+    account registers its first credential, so the stable parent is the
+    serialization point.
+    """
+    users = await session.exec(select(User).where(User.id == user_id).with_for_update())
+    if users.first() is None:
+        raise ValueError("cannot store a passkey for an unknown user")
+    if await count_for_user(session, user_id=user_id) >= MAX_PASSKEYS_PER_USER:
+        raise PasskeyLimitReached
+
     row = UserPasskey(
         user_id=user_id,
         credential_id=registered.credential_id,
@@ -222,11 +247,12 @@ async def begin_authentication(
 
 
 async def find_by_credential_id(
-    session: AsyncSession, *, credential_id: bytes
+    session: AsyncSession, *, credential_id: bytes, for_update: bool = False
 ) -> UserPasskey | None:
-    rows = await session.exec(
-        select(UserPasskey).where(UserPasskey.credential_id == credential_id)
-    )
+    statement = select(UserPasskey).where(UserPasskey.credential_id == credential_id)
+    if for_update:
+        statement = statement.with_for_update()
+    rows = await session.exec(statement)
     return rows.first()
 
 
@@ -255,7 +281,9 @@ async def finish_authentication(
     except Exception:
         return None
 
-    row = await find_by_credential_id(session, credential_id=credential_id)
+    row = await find_by_credential_id(
+        session, credential_id=credential_id, for_update=True
+    )
     if row is None:
         return None
 

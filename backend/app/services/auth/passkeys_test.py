@@ -5,7 +5,12 @@ cover is everything this module adds: which relying party the deployment is,
 what a row keeps, and the refusals.
 """
 
+import asyncio
+from types import SimpleNamespace
+
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user_passkey import UserPasskey
 from app.services.auth import passkeys
@@ -47,6 +52,20 @@ def test_the_origin_keeps_a_port(monkeypatch):
     monkeypatch.setattr(settings, "APP_URL", "http://localhost:8000")
     assert passkeys.relying_party_id() == "localhost"
     assert passkeys.expected_origin() == "http://localhost:8000"
+
+
+def test_the_origin_omits_a_default_port_like_the_browser_does(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://initiative.example.org:443")
+    assert passkeys.expected_origin() == "https://initiative.example.org"
+
+
+def test_the_origin_keeps_ipv6_brackets(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://[2001:db8::1]:8443")
+    assert passkeys.expected_origin() == "https://[2001:db8::1]:8443"
 
 
 def test_an_app_url_naming_no_host_is_refused(monkeypatch):
@@ -112,6 +131,48 @@ async def test_a_name_longer_than_the_column_is_cut_not_refused(session, monkeyp
         session, user_id=user.id, registered=_registered(), name="x" * 200
     )
     assert len(row.name) == passkeys.MAX_NAME_LENGTH
+
+
+@pytest.mark.integration
+async def test_two_registrations_racing_for_the_last_slot_cannot_both_win(
+    session, engine, monkeypatch
+):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://limit.example.org")
+    user = await create_user(session, email="pk-limit@example.com")
+    for index in range(passkeys.MAX_PASSKEYS_PER_USER - 1):
+        await passkeys.store(
+            session,
+            user_id=user.id,
+            registered=_registered(credential_id=f"existing-{index}".encode()),
+            name=f"Existing {index}",
+        )
+    await session.commit()
+
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def register(credential_id: bytes) -> bool:
+        async with maker() as racing:
+            try:
+                await passkeys.store(
+                    racing,
+                    user_id=user.id,
+                    registered=_registered(credential_id=credential_id),
+                    name="Racing key",
+                )
+                await racing.commit()
+                return True
+            except passkeys.PasskeyLimitReached:
+                await racing.rollback()
+                return False
+
+    outcomes = await asyncio.gather(register(b"racer-one"), register(b"racer-two"))
+
+    assert sum(outcomes) == 1
+    assert await passkeys.count_for_user(session, user_id=user.id) == (
+        passkeys.MAX_PASSKEYS_PER_USER
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +265,56 @@ async def test_a_credential_from_another_domain_does_not_answer(session, monkeyp
         session, credential={"rawId": raw_id}, expected_challenge=b"challenge"
     )
     assert result is None
+
+
+@pytest.mark.integration
+async def test_the_counter_row_stays_locked_until_the_update_commits(
+    session, engine, monkeypatch
+):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://counter.example.org")
+    user = await create_user(session, email="pk-counter@example.com")
+    await passkeys.store(
+        session,
+        user_id=user.id,
+        registered=_registered(sign_count=10),
+        name="Counter key",
+    )
+    await session.commit()
+
+    seen_counts: list[int] = []
+
+    def verify(**kwargs):
+        current = kwargs["credential_current_sign_count"]
+        seen_counts.append(current)
+        return SimpleNamespace(
+            new_sign_count=current + 1,
+            credential_backed_up=False,
+            user_verified=True,
+        )
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", verify)
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+    credential = {"rawId": "Y3JlZGVudGlhbC1vbmU"}
+
+    async with maker() as first, maker() as second:
+        assert await passkeys.finish_authentication(
+            first, credential=credential, expected_challenge=b"challenge"
+        )
+        waiting = asyncio.create_task(
+            passkeys.finish_authentication(
+                second, credential=credential, expected_challenge=b"challenge"
+            )
+        )
+        await asyncio.sleep(0.05)
+        assert not waiting.done()
+
+        await first.commit()
+        assert await asyncio.wait_for(waiting, timeout=1)
+        await second.commit()
+
+    assert seen_counts == [10, 11]
 
 
 @pytest.mark.integration
