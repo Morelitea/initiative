@@ -2,14 +2,11 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildGuild, buildInitiative, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 // Two of each, so no step auto-advances past somebody.
-const guilds = [
-  { id: 1, name: "Anvil Club" },
-  { id: 2, name: "Bellwether" },
-];
+const guilds = [buildGuild({ name: "Anvil Club" }), buildGuild({ name: "Bellwether" })];
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -25,10 +22,7 @@ vi.mock("@/hooks/useInitiativeAccess", () => ({
 // effects off the identity of what the query returns, so a fresh object each
 // render would have it chasing its own tail.
 const initiativesResult = {
-  data: [
-    { id: 10, name: "Spring Play" },
-    { id: 11, name: "Summer Play" },
-  ],
+  data: [buildInitiative({ name: "Spring Play" }), buildInitiative({ name: "Summer Play" })],
   isLoading: false,
 };
 const projectsResult = { data: { items: [], has_next: false } };

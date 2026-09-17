@@ -2,15 +2,17 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildGuild, buildInitiative, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 // Two communities, so the first step is one somebody actually walks — with a
 // single one the wizard walks past it on its own.
-const guilds = [
-  { id: 1, name: "Anvil Club" },
-  { id: 2, name: "Bellwether" },
-];
+const guilds = [buildGuild({ name: "Anvil Club" }), buildGuild({ name: "Bellwether" })];
+// Two initiatives, so the second step does not auto-advance either.
+const initiativesResult = {
+  initiatives: [buildInitiative({ name: "Spring Play" }), buildInitiative({ name: "Summer Play" })],
+  isLoading: false,
+};
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -20,14 +22,7 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
 
 vi.mock("@/hooks/useInitiativeAccess", () => ({
   guildMayAuthorTools: () => true,
-  useCreatableInitiatives: () => ({
-    // Two, so the second step does not auto-advance either.
-    initiatives: [
-      { id: 10, name: "Spring Play" },
-      { id: 11, name: "Summer Play" },
-    ],
-    isLoading: false,
-  }),
+  useCreatableInitiatives: () => initiativesResult,
 }));
 
 vi.mock("@tanstack/react-router", () => ({

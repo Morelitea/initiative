@@ -193,6 +193,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     progress: null,
     report: null,
   };
+  const current = position[step];
 
   return (
     <WizardDialog
@@ -201,7 +202,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       title={t("wizard.title")}
       description={stepDescription}
-      progress={position[step] === null ? undefined : { current: position[step]!, total: 3 }}
+      progress={current === null ? undefined : { current, total: 3 }}
       // Only here. The next step uploads the file, and once that has staged a
       // job the way out is Cancel, which deletes it.
       onBack={step === "peek" ? back : undefined}

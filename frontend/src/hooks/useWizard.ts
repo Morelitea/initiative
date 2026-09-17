@@ -45,8 +45,14 @@ export interface Wizard<S extends string> {
 export function useWizard<S extends string>(initial: S): Wizard<S> {
   const [state, setState] = useState<WizardState<S>>({ step: initial, trail: [] });
 
+  // Walking to the step already showing is not a step, so it records nothing.
+  // Two file pickers answering one after the other both arrive at the preview,
+  // and Back should still lead out of it rather than to itself.
   const go = useCallback(
-    (next: S) => setState((prev) => ({ step: next, trail: [...prev.trail, prev.step] })),
+    (next: S) =>
+      setState((prev) =>
+        prev.step === next ? prev : { step: next, trail: [...prev.trail, prev.step] }
+      ),
     []
   );
 

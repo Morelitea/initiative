@@ -155,6 +155,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     confirm: 3,
     progress: null,
   };
+  const current = position[step];
 
   return (
     <WizardDialog
@@ -163,7 +164,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       title={scope === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
       description={stepDescription}
-      progress={position[step] === null ? undefined : { current: position[step]!, total: 3 }}
+      progress={current === null ? undefined : { current, total: 3 }}
       onBack={canGoBack ? back : undefined}
       backLabel={t("wizard.back")}
     >

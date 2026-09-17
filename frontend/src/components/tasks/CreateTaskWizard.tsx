@@ -324,6 +324,9 @@ export const CreateTaskWizard = () => {
   const walked: Step[] = skipsGuildStep
     ? ["select-initiative", "select-project"]
     : ["select-guild", "select-initiative", "select-project"];
+  // The frame before that effect runs still shows the step it is about to walk
+  // past, and a step outside the count has no position to state.
+  const walkedIndex = walked.indexOf(step);
 
   return (
     <WizardDialog
@@ -332,7 +335,7 @@ export const CreateTaskWizard = () => {
       className="sm:max-w-md"
       title={t("createWizard.title")}
       description={stepTitle}
-      progress={{ current: walked.indexOf(step) + 1, total: walked.length }}
+      progress={walkedIndex < 0 ? undefined : { current: walkedIndex + 1, total: walked.length }}
       onBack={step === "select-guild" ? undefined : handleBack}
       backLabel={t("createWizard.back")}
     >

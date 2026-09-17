@@ -28,6 +28,17 @@ describe("useWizard", () => {
     expect(result.current.canGoBack).toBe(false);
   });
 
+  it("records nothing for a walk to the step already showing", () => {
+    const { result } = renderHook(() => useWizard<Step>("one"));
+
+    act(() => result.current.go("two"));
+    act(() => result.current.go("two"));
+
+    act(() => result.current.back());
+    expect(result.current.step).toBe("one");
+    expect(result.current.canGoBack).toBe(false);
+  });
+
   it("ignores back on an empty trail", () => {
     const { result } = renderHook(() => useWizard<Step>("one"));
 
