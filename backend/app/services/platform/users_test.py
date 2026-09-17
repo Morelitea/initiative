@@ -27,100 +27,69 @@ from app.testing.factories import (
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_true(session: AsyncSession):
-    """Test detection when user is the last admin of a guild."""
-    # Create a guild with one admin
-    admin_user = await create_user(session)
-    guild = await create_guild(session, creator=admin_user)
+async def test_the_sole_seat_is_reported(session: AsyncSession):
+    """A community whose only superadmin is this account."""
+    seat = await create_user(session)
+    guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session,
-        user=admin_user,
-        guild=guild,
-        role=GuildRole.admin,
+        session, user=seat, guild=guild, role=GuildRole.superadmin
     )
 
-    # Check if user is last admin
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin_user.id)
-
-    assert len(last_admin_guilds) == 1
-    assert last_admin_guilds[0] == guild.name
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_false_multiple_admins(session: AsyncSession):
-    """Test that user is not considered last admin when other admins exist."""
-    # Create a guild with two admins
-    admin1 = await create_user(session, email="admin1@example.com")
-    admin2 = await create_user(session, email="admin2@example.com")
-    guild = await create_guild(session, creator=admin1)
+async def test_another_seat_holder_clears_it(session: AsyncSession):
+    """Two superadmins, so neither is the last one."""
+    first = await create_user(session, email="first@example.com")
+    second = await create_user(session, email="second@example.com")
+    guild = await create_guild(session, creator=first)
+    for user in (first, second):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
 
-    await create_guild_membership(
-        session, user=admin1, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=admin2, guild=guild, role=GuildRole.admin
-    )
-
-    # Check if admin1 is last admin (should be False)
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin1.id)
-
-    assert len(last_admin_guilds) == 0
+    assert await user_service.is_last_guild_superadmin(session, first.id) == []
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_false_only_member(session: AsyncSession):
-    """Test that regular members are not considered as last admin."""
-    # Create a guild with an admin and a member
+async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
+    """An admin does not count, which is the whole point of the split: their
+    leaving never strands a community, because its seat is still there."""
+    seat = await create_user(session, email="seat@example.com")
     admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, creator=admin)
-
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
 
-    # Check if member is last admin (should be False)
-    last_admin_guilds = await user_service.is_last_guild_admin(session, member.id)
-
-    assert len(last_admin_guilds) == 0
+    assert await user_service.is_last_guild_superadmin(session, admin.id) == []
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_multiple_guilds(session: AsyncSession):
-    """Test detection across multiple guilds."""
-    admin = await create_user(session)
-
-    # Guild 1: admin is last admin
-    guild1 = await create_guild(session, name="Guild 1", creator=admin)
+async def test_seats_are_reported_per_community(session: AsyncSession):
+    """One community where they are the only seat, one where they are not."""
+    seat = await create_user(session)
+    alone = await create_guild(session, name="Alone", creator=seat)
     await create_guild_membership(
-        session, user=admin, guild=guild1, role=GuildRole.admin
+        session, user=seat, guild=alone, role=GuildRole.superadmin
     )
+    other = await create_user(session, email="other@example.com")
+    shared = await create_guild(session, name="Shared", creator=other)
+    for user in (seat, other):
+        await create_guild_membership(
+            session, user=user, guild=shared, role=GuildRole.superadmin
+        )
 
-    # Guild 2: admin is one of two admins
-    other_admin = await create_user(session, email="other@example.com")
-    guild2 = await create_guild(session, name="Guild 2", creator=other_admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild2, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=other_admin, guild=guild2, role=GuildRole.admin
-    )
-
-    # Check which guilds admin is last admin of
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin.id)
-
-    assert len(last_admin_guilds) == 1
-    assert "Guild 1" in last_admin_guilds
-    assert "Guild 2" not in last_admin_guilds
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
 
 
-@pytest.mark.unit
 @pytest.mark.service
 async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     """Test that user can be deleted when they have no blocking conditions."""
@@ -148,25 +117,45 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_check_deletion_eligibility_blocked_last_admin(session: AsyncSession):
-    """Test that user cannot be deleted when they are last admin of a guild."""
-    # Create a guild where user is the only admin
-    admin = await create_user(session)
-    guild = await create_guild(session, name="My Guild", creator=admin)
+async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
+    """Holding a community's only seat is what stops an account going."""
+    seat = await create_user(session)
+    guild = await create_guild(session, name="My Guild", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+
+    can_delete, blockers = await user_service.check_deletion_eligibility(
+        session,
+        seat.id,
+    )
+
+    assert can_delete is False
+    assert any("My Guild" in blocker for blocker in blockers)
+    assert any("superadmin" in blocker.lower() for blocker in blockers)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
+    """Being a community's last *admin* stops nobody: its seat is still there
+    and can promote somebody else."""
+    seat = await create_user(session, email="seat@example.com")
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, name="My Guild", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
 
-    # Check deletion eligibility
     can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        admin.id,
+        session, admin.id
     )
 
-    assert can_delete is False
-    assert len(blockers) >= 1
-    assert any("My Guild" in blocker for blocker in blockers)
-    assert any("last admin" in blocker.lower() for blocker in blockers)
+    assert can_delete is True
+    assert blockers == []
 
 
 @pytest.mark.unit

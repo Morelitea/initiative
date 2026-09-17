@@ -1269,14 +1269,12 @@ async def check_deletion_eligibility(
         session, current_user.id
     )
 
-    last_admin_guilds = await users_service.is_last_guild_admin(
-        session, current_user.id
-    )
-
     return DeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        last_admin_guilds=last_admin_guilds,
+        sole_superadmin_guilds=await users_service.is_last_guild_superadmin(
+            session, current_user.id
+        ),
     )
 
 

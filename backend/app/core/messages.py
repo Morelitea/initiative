@@ -156,12 +156,10 @@ class GuildMessages:
     # guild-membership role, so it cannot be assigned via the role endpoints.
     GUILD_ROLE_NOT_ASSIGNABLE = "GUILD_ROLE_NOT_ASSIGNABLE"
     USER_NOT_FOUND_IN_GUILD = "USER_NOT_FOUND_IN_GUILD"
-    CANNOT_DEMOTE_LAST_ADMIN = "CANNOT_DEMOTE_LAST_ADMIN"
     #: The guild requires a sign-in, and this is the last member who can
     #: change or lift that requirement.
     CANNOT_VACATE_LAST_SUPERADMIN = "CANNOT_VACATE_LAST_SUPERADMIN"
     NOT_GUILD_MEMBER = "NOT_GUILD_MEMBER"
-    CANNOT_LEAVE_LAST_ADMIN = "CANNOT_LEAVE_LAST_ADMIN"
     INVITE_NOT_FOUND = "INVITE_NOT_FOUND"
     INVITE_EXPIRED_OR_USED = "INVITE_EXPIRED_OR_USED"
     INVITE_EMAIL_MISMATCH = "INVITE_EMAIL_MISMATCH"

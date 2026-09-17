@@ -2579,7 +2579,7 @@ export interface DefaultFilter {
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  last_admin_guilds: string[];
+  sole_superadmin_guilds: string[];
 }
 
 /**
@@ -4633,7 +4633,6 @@ export interface InterfaceSettingsUpdate {
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
-  is_last_admin: boolean;
   is_last_superadmin: boolean;
 }
 

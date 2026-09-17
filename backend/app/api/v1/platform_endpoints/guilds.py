@@ -1440,21 +1440,9 @@ async def update_guild_membership(
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
-    # Check if demoting the last guild admin (FOR UPDATE already acquired above)
-    if (
-        target_membership.role in GUILD_ADMIN_ROLES
-        and payload.role not in GUILD_ADMIN_ROLES
-    ):
-        from app.services.platform.users import is_last_admin_of_guild
-
-        if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
-            )
-
-    # The seat cannot be emptied while the guild requires a sign-in: lifting the
-    # requirement happens on the surface the seat holds.
+    # What a guild must keep is its seat. An ordinary admin is not counted:
+    # every guild has a superadmin, and a superadmin is an admin, so "the last
+    # admin" could only ever have been the seat — which the rule below holds.
     if (
         target_membership.role == GuildRole.superadmin
         and payload.role != GuildRole.superadmin
@@ -1507,9 +1495,9 @@ async def check_leave_eligibility(
 ) -> LeaveGuildEligibilityResponse:
     """Check if the current user can leave a guild.
 
-    Being the guild's last admin is the only thing that stops them. Content they
-    own is released on the way out and left unowned for a guild admin to claim,
-    so there is nothing to hand over first.
+    Holding its only superadmin seat is the one thing that stops them. Content
+    they own is released on the way out and left unowned for a guild admin to
+    claim, so there is nothing to hand over first.
     """
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id
@@ -1519,24 +1507,16 @@ async def check_leave_eligibility(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
         )
 
-    from app.services.platform.users import is_last_admin_of_guild
-
-    # Both answers under one lock, so this reports a state that held all at
-    # once rather than two taken a moment apart. Counting a guild's admins is a
-    # question about the guild, not about the caller, so it is asked on the
-    # system engine: a request-path session reaches its own membership row and
-    # answers "last admin" for everyone.
+    # Under the lock, so the answer still holds when the caller acts on it.
+    # Counting a guild's seats is a question about the guild rather than about
+    # the caller, so it is asked on the system engine.
     await guilds_service.lock_guild_seats(admin_session, guild_id)
-    is_last_admin = await is_last_admin_of_guild(
-        admin_session, guild_id, current_user.id
-    )
     is_last_superadmin = await guilds_service.must_keep_superadmin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     )
 
     return LeaveGuildEligibilityResponse(
-        can_leave=not is_last_admin and not is_last_superadmin,
-        is_last_admin=is_last_admin,
+        can_leave=not is_last_superadmin,
         is_last_superadmin=is_last_superadmin,
     )
 
@@ -1575,24 +1555,13 @@ async def leave_guild(
         guild_role=content_role(membership.role),
     )
 
-    from app.services.platform.users import is_last_admin_of_guild
-
-    # Ahead of both checks below, not between them: each asks how many people
-    # of some kind the guild has left, and the answer has to still be true when
-    # the departure is written. Counting a guild's admins is also a question
-    # about the guild rather than the caller, so it is asked on the system
-    # engine — a request-path session reaches the caller's own membership row
-    # and no other, and answers "last admin" for everyone.
+    # Ahead of the check below, so its answer is still true when the departure
+    # is written. Counting a guild's seats is a question about the guild rather
+    # than about the caller, so it is asked on the system engine.
     await guilds_service.lock_guild_seats(admin_session, guild_id)
 
-    if await is_last_admin_of_guild(admin_session, guild_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_LEAVE_LAST_ADMIN,
-        )
-
-    # Nor while they are the only member who can lift a sign-in requirement:
-    # that is lifted from the surface the seat holds.
+    # The seat is what a guild has to keep. An ordinary admin may leave freely:
+    # every guild has a superadmin, so the community is never left without one.
     if await guilds_service.must_keep_superadmin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     ):

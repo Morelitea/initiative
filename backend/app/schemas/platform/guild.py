@@ -425,7 +425,6 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
-    is_last_admin: bool
     is_last_superadmin: bool = False
 
 

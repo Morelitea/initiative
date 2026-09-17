@@ -18,13 +18,10 @@ has ever been told it.
 The promotion runs first, under the old label, so the rename never has to be
 used in the transaction that performs it.
 
-``guild_memberships`` carries ``FORCE ROW LEVEL SECURITY`` and is owned by the
-role migrations run as, so an UPDATE here is policy-bound like any other and a
-migration has none of the request GUCs those policies read: left alone it
-matches nothing and reports success. FORCE is lifted for the write and restored
-in a ``finally``, and the count afterwards is what proves the write landed —
-asserting a non-zero rowcount would fail on a fresh install, which has nothing
-to promote.
+The promotion runs with ``guild_memberships`` set ``NO FORCE ROW LEVEL
+SECURITY``, restored in a ``finally``, and counts what is left at the old value
+afterwards. It counts rather than asserting a rowcount because a fresh install
+has nothing to promote.
 
 Revision ID: 20260917_0295
 Revises: 20260917_0294
@@ -41,12 +38,11 @@ depends_on = None
 
 
 def _repoint(conn, *, frm: str, to: str) -> None:
-    """Move every membership at ``frm`` to ``to``, and prove it happened."""
+    """Move every membership at ``frm`` to ``to``, and check none is left."""
     op.execute("ALTER TABLE public.guild_memberships NO FORCE ROW LEVEL SECURITY")
     try:
-        # The casts are load-bearing: ``role`` is the ``guild_role`` enum and a
-        # bound parameter arrives as text, which Postgres will not compare or
-        # assign without being told what it is.
+        # ``role`` is the ``guild_role`` enum and a bound parameter arrives as
+        # text, so each one says which type it is.
         conn.execute(
             sa.text(
                 "UPDATE public.guild_memberships SET role = CAST(:to AS guild_role) "

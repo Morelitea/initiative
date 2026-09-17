@@ -69,7 +69,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     void checkEligibility();
   }, [open, guild.id, t]);
 
-  const hasHardBlocker = !!eligibility && eligibility.is_last_admin;
+  const hasHardBlocker = !!eligibility && eligibility.is_last_superadmin;
 
   const handleLeave = async () => {
     setLeaving(true);

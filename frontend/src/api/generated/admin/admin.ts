@@ -1758,8 +1758,8 @@ export const useDeleteUserApiV1AdminUsersUserIdDelete = <
  * Delete a guild that blocks a user's deletion (platform operator).
  *
  * Scoped to blocker resolution — NOT a general "delete any guild" tool: the
- * guild must be one ``blocked_user_id`` is the SOLE admin of (so deleting that
- * user would orphan it). Any other guild is refused; an operator reaches a live
+ * guild must be one ``blocked_user_id`` holds the SOLE superadmin seat of (so
+ * deleting that user would leave it with nobody who can run it). Any other guild is refused; an operator reaches a live
  * guild's own deletion only by breaking glass into its danger zone. This
  * endpoint backs the "delete the blocking guild" option in the user-deletion
  * dialog, gated on ``guilds.manage``.
