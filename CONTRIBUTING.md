@@ -157,6 +157,10 @@ Commit the updated generated files alongside your schema changes. CI will fail i
 5. Open a pull request **targeting `dev`** describing what changed and why
 6. Include screenshots or GIFs for UI changes
 
+Greptile skips a pull request while its title or description contains the
+masked-review marker `Morelitea/security`. Once its content is safe for public
+disclosure, remove the marker and comment `@greptileai` to request a review.
+
 **Important:** Do not open PRs against `main`. The `main` branch is restricted to project maintainers (@jordandrako, @LeeJMorel) who promote changes from `dev` using the release tooling below. PRs targeting `main` from non-maintainers will be closed.
 
 ## Releases (Maintainers)
