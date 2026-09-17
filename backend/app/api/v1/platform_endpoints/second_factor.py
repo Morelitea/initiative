@@ -85,11 +85,13 @@ async def read_second_factor(
 ) -> SecondFactorStatus:
     """What the account holds. A started-but-unproved enrolment reads as not
     enrolled, because that is what the sign-in makes of it too."""
+    password_required = has_usable_password(current_user.hashed_password)
     factor = await totp_service.get_factor(admin_session, user_id=current_user.id)
     if factor is None or factor.confirmed_at is None:
-        return SecondFactorStatus()
+        return SecondFactorStatus(password_required=password_required)
     return SecondFactorStatus(
         enrolled=True,
+        password_required=password_required,
         confirmed_at=_iso(factor.confirmed_at),
         last_used_at=_iso(factor.last_used_at),
         recovery_codes_remaining=await totp_service.remaining_recovery_codes(
