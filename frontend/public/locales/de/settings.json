@@ -1113,8 +1113,7 @@
       "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
       "saved": "API-Zugriff gespeichert",
       "error": "API-Zugriff konnte nicht gespeichert werden"
-    },
-    "readOnlyNotice": "Nur ein Sicherheitsadmin kann das ändern. Du siehst, was eingestellt ist, damit du weißt, wen du fragen musst."
+    }
   },
   "authProviders": {
     "title": "Identitätsanbieter",

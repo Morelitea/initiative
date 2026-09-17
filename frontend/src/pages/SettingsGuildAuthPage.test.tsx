@@ -163,19 +163,18 @@ describe("SettingsGuildAuthPage", () => {
     });
   });
 
-  describe("who may change it", () => {
-    it("lets an ordinary admin read the page and change nothing", async () => {
-      guildRole = "admin";
-      render();
+  describe("who may reach it", () => {
+    it.each(["admin", "member"])("shows %s nothing at all", (role) => {
+      // The whole page is the seat's, so there is nothing here to render
+      // read-only. The tab is hidden the same way; this is the direct-URL half.
+      guildRole = role;
+      const { container } = render();
 
-      expect(await screen.findByText(/only a security admin can change this/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
-      expect(requirementRadio()).toBeDisabled();
+      expect(container).toBeEmptyDOMElement();
     });
 
     it("leaves the security admin's own controls alone", () => {
       render();
-      expect(screen.queryByText(/only a security admin can change this/i)).not.toBeInTheDocument();
       expect(requirementRadio()).not.toBeDisabled();
     });
   });
@@ -237,11 +236,11 @@ describe("SettingsGuildAuthPage", () => {
       expect(screen.getByText(/no key can be created for this community/i)).toBeInTheDocument();
     });
 
-    it("is the security admin's to change, like the rest of the page", () => {
+    it("is not on offer to an ordinary admin, like the rest of the page", () => {
       guildRole = "admin";
       render();
 
-      expect(apiSwitch()).toBeDisabled();
+      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
     });
 
     it("is reachable by a community an operator has granted nothing", () => {

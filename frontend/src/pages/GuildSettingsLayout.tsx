@@ -13,6 +13,8 @@ export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.is_admin ?? false;
+  // The seat above admin, which holds this community's sign-in configuration.
+  const isSecurityAdmin = activeGuild?.role === "security_admin";
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
@@ -37,14 +39,17 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      {
-        // Always here, like the tabs around it: the API-access control on it
-        // needs nothing from an operator. What an operator grants (providers,
-        // and requiring a sign-in) is gated on the page itself.
-        value: "auth",
-        label: t("guildLayout.tabs.auth"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
-      },
+      ...(isSecurityAdmin
+        ? [
+            {
+              // Everything on this tab is the security admin's to set, so the
+              // tab is theirs too — an ordinary admin has nothing to do on it.
+              value: "auth",
+              label: t("guildLayout.tabs.auth"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+            },
+          ]
+        : []),
       {
         value: "initiatives",
         label: t("guildLayout.tabs.initiatives"),
@@ -74,7 +79,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t]);
+  }, [urlGuildId, t, isSecurityAdmin]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by

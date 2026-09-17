@@ -1113,8 +1113,7 @@
       "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
       "saved": "Acceso por API guardado",
       "error": "No se pudo guardar el acceso por API"
-    },
-    "readOnlyNotice": "Solo un administrador de seguridad puede cambiar esto. Puedes ver lo que está configurado para saber a quién preguntar."
+    }
   },
   "authProviders": {
     "title": "Proveedores de identidad",
