@@ -33,6 +33,7 @@ Verify actually goes and asks. If something answers and agrees it's the issuer y
 | **Groups claim** | Suggested from the claims your provider listed, and you can type one it didn't. Only needed if you're sorting people into communities — see below. |
 | **Create accounts on first sign-in** | On, a stranger who signs in gets an account. Off, the button only works for people who already have one. |
 | **Enabled** | Off takes the button away without losing anything you typed. |
+| **Communities may connect to this** | Off (the default) keeps it out of every community's picker. On offers it to any community you've granted their own sign-in — see below. |
 
 Two more addresses sit at the top of the page — a post-login redirect and a mobile app callback — shared by every provider. Most providers never ask for them.
 
@@ -56,20 +57,30 @@ Untick something people are using and Initiative tells you how many accounts sig
 
 Turning off single sign-on waits if any community still requires one. Lift the requirement there first; the page names how many are in the way.
 
-## Letting a community run its own sign-in
+## Letting a community use a provider
 
-A community can have identity providers of its own — useful when it's a separate organisation with a separate staff directory. That's yours to grant, per community, in **Settings → Platform → Guilds**: find it in the list, hit **Manage**, and the **Sign-in** section has two ticks.
+**The providers are yours. A community connects to one.**
+
+You say this deployment can sign people in with Google. A community says *our* members come in through that — and only our Workspace. That second half is the point: Google will vouch for anybody with a Google account, so a community connecting to it names the domain that's theirs.
+
+A community never sees an issuer, a client ID or a secret, and never types an address. Which means there's nothing there for them to get wrong on behalf of every one of their members.
+
+**Offering a provider.** Tick **Communities may connect to this** on the provider itself. It's off to begin with, and deliberately: one you registered for a single customer stays visible to that customer — they connect to it — and to nobody else. Turn it on for the ones that are nobody's in particular, like Google or Entra.
+
+A community bringing its own identity provider is the same shape with you doing the registering: add their Okta on this page when you onboard them, leave it unoffered, and connect it to them. They get their sign-in, and nobody else learns they exist.
+
+**The two ticks** in **Settings → Platform → Guilds → Manage → Sign-in** are still yours to grant, per community:
 
 | Option | What it lets their admins do |
 |---|---|
-| **Its own sign-in providers** | Add providers on their own Authentication page, copy a member sign-in link that drops people straight into the community, and onboard new accounts through it. |
-| **Requiring a sign-in** | Insist members reach the community through one of those providers. |
+| **Its own sign-in providers** | Connect to the providers you've offered, narrow one to their own tenant, and copy a member sign-in link that drops people straight into the community. |
+| **Requiring a sign-in** | Insist members reach the community through one of those connections. |
 
-They're separate on purpose. A community can offer its provider as a convenience without forcing anyone through it — those are different arrangements, and one used to imply the other.
+They're separate on purpose. A community can offer a sign-in as a convenience without forcing anyone through it.
 
-A community's own provider only ever admits people to that community, and everybody still has exactly one account however they signed in.
+Withdrawing an option closes the page it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
-Withdrawing an option closes the page it governs and nothing else. Their providers stay, their members keep signing in through them, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+Everybody still has exactly one account however they signed in.
 
 ## Provider quickstarts
 
