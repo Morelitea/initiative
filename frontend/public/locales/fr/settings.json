@@ -620,7 +620,7 @@
     "mappingProviderHelp": "Une règle vaut pour un fournisseur. Se connecter par un autre ne la lit pas et ne défait pas ce qu'elle a fait.",
     "methods": {
       "title": "Moyens d'accès",
-      "description": "Comment on peut se connecter à ce déploiement. Au moins un reste actif.",
+      "description": "Comment on peut se connecter à cette installation. Au moins un moyen de commencer une session reste actif.",
       "password": {
         "label": "Mot de passe",
         "help": "Une adresse e-mail et un mot de passe conservé ici."
@@ -639,7 +639,11 @@
       "saved": "Moyens d'accès mis à jour.",
       "saveError": "Impossible de modifier les moyens d'accès.",
       "guildsRequire_one": "{{count}} communauté exige une connexion via un fournisseur qui lui est propre.",
-      "guildsRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre."
+      "guildsRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre.",
+      "totp": {
+        "label": "Application d'authentification",
+        "help": "Un code d'une application, demandé après le mot de passe. Chacun l'active pour soi."
+      }
     }
   },
   "platformUsers": {
@@ -1354,6 +1358,7 @@
     "disableError": "Impossible de désactiver.",
     "codePlaceholder": "123456",
     "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
-    "copyUnavailable": "Copie impossible — notez les codes à la main."
+    "copyUnavailable": "Copie impossible — notez les codes à la main.",
+    "notOffered": "Cette installation ne propose pas l'application d'authentification."
   }
 }

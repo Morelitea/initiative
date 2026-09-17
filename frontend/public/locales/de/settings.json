@@ -620,7 +620,7 @@
     "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat.",
     "methods": {
       "title": "Zugangswege",
-      "description": "Wie man sich bei diesem Deployment anmelden kann. Mindestens einer bleibt aktiv.",
+      "description": "Wie sich Personen bei dieser Installation anmelden können. Mindestens eine Möglichkeit, eine Sitzung zu beginnen, bleibt aktiv.",
       "password": {
         "label": "Passwort",
         "help": "Eine E-Mail-Adresse und ein hier hinterlegtes Passwort."
@@ -639,7 +639,11 @@
       "saved": "Zugangswege aktualisiert.",
       "saveError": "Die Zugangswege konnten nicht geändert werden.",
       "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
-      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter."
+      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
+      "totp": {
+        "label": "Authenticator-App",
+        "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
+      }
     }
   },
   "platformUsers": {
@@ -1354,6 +1358,7 @@
     "disableError": "Das konnte nicht deaktiviert werden.",
     "codePlaceholder": "123456",
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
-    "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf."
+    "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
+    "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
   }
 }

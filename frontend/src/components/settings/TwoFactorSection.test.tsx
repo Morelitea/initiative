@@ -70,7 +70,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
 import { TwoFactorSection } from "./TwoFactorSection";
 
 const notEnrolled = {
-  data: { enrolled: false, recovery_codes_remaining: 0, password_required: true },
+  data: { enrolled: false, recovery_codes_remaining: 0, password_required: true, offered: true },
   isLoading: false,
   isError: false,
 };
@@ -81,6 +81,7 @@ const enrolled = {
     last_used_at: null,
     recovery_codes_remaining: 8,
     password_required: true,
+    offered: true,
   },
   isLoading: false,
   isError: false,
@@ -212,5 +213,18 @@ describe("TwoFactorSection", () => {
 
     await user.click(screen.getByRole("button", { name: /set up/i }));
     expect(await screen.findByLabelText(/current password/i)).not.toBeRequired();
+  });
+
+  it("does not offer setup where the deployment does not offer it", () => {
+    // Withdrawn by the operator. An enrolment already made is left alone, so
+    // this says so rather than showing a button the server would refuse.
+    mocks.status.mockReturnValue({
+      ...notEnrolled,
+      data: { ...notEnrolled.data, offered: false },
+    });
+    renderWithProviders(<TwoFactorSection />);
+
+    expect(screen.queryByRole("button", { name: /set up/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/does not offer/i)).toBeInTheDocument();
   });
 });

@@ -620,7 +620,7 @@
     "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did.",
     "methods": {
       "title": "Ways in",
-      "description": "How people may sign in to this deployment. At least one stays on.",
+      "description": "How people may sign in to this deployment. At least one way of starting a session stays on.",
       "password": {
         "label": "Password",
         "help": "An email address and a password held here."
@@ -639,7 +639,11 @@
       "saved": "Ways in updated.",
       "saveError": "Could not change the ways in.",
       "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
-      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own."
+      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
+      "totp": {
+        "label": "Authenticator app",
+        "help": "A code from an app, asked for after a password. People turn it on for themselves."
+      }
     }
   },
   "platformUsers": {
@@ -1354,6 +1358,7 @@
     "disableError": "Could not turn that off.",
     "codePlaceholder": "123456",
     "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
-    "copyUnavailable": "Couldn't copy — write the codes down instead."
+    "copyUnavailable": "Couldn't copy — write the codes down instead.",
+    "notOffered": "This deployment does not offer the authenticator app."
   }
 }

@@ -535,3 +535,56 @@ async def test_a_hash_no_scheme_verifies_asks_for_no_password(
     )
     response = await client.get("/api/v1/auth/totp", headers=get_auth_headers(user))
     assert response.json()["password_required"] is False
+
+
+async def _withdraw_totp(session: AsyncSession) -> None:
+    """Leave the deployment permitting the two that can begin a session."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso"]
+    session.add(row)
+    await session.commit()
+
+
+async def test_a_deployment_that_does_not_offer_it_refuses_enrolment(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "notoffered@example.com")
+    await _withdraw_totp(session)
+
+    response = await client.post(
+        "/api/v1/auth/totp/enroll",
+        json={"current_password": PASSWORD},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "TOTP_NOT_PERMITTED"
+
+
+async def test_withdrawing_it_stops_the_factor_being_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """The enrolment is left alone — re-offering it asks for the code again —
+    but while the deployment does not offer it, the sign-in does not ask."""
+    await _enrol(client, session, "stillenrolled@example.com")
+    await _withdraw_totp(session)
+
+    signed_in = await _sign_in(client, "stillenrolled@example.com")
+    assert signed_in.status_code == 200
+    assert signed_in.json()["access_token"]
+
+
+async def test_the_status_says_whether_it_is_offered(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "offered@example.com")
+    headers = get_auth_headers(user)
+    assert (await client.get("/api/v1/auth/totp", headers=headers)).json()[
+        "offered"
+    ] is True
+
+    await _withdraw_totp(session)
+    assert (await client.get("/api/v1/auth/totp", headers=headers)).json()[
+        "offered"
+    ] is False

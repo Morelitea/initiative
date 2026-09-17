@@ -620,7 +620,7 @@
     "mappingProviderHelp": "Una regla se aplica a un proveedor. Entrar por otro ni la lee ni deshace lo que hizo.",
     "methods": {
       "title": "Formas de entrar",
-      "description": "Cómo se puede iniciar sesión en este despliegue. Al menos una permanece activa.",
+      "description": "Cómo puede iniciar sesión la gente en esta instalación. Al menos una forma de empezar una sesión permanece activa.",
       "password": {
         "label": "Contraseña",
         "help": "Una dirección de correo y una contraseña guardada aquí."
@@ -639,7 +639,11 @@
       "saved": "Formas de entrar actualizadas.",
       "saveError": "No se pudieron cambiar las formas de entrar.",
       "guildsRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
-      "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio."
+      "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio.",
+      "totp": {
+        "label": "Aplicación de autenticación",
+        "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
+      }
     }
   },
   "platformUsers": {
@@ -1354,6 +1358,7 @@
     "disableError": "No se ha podido desactivar.",
     "codePlaceholder": "123456",
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
-    "copyUnavailable": "No se ha podido copiar: anota los códigos a mano."
+    "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
+    "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
   }
 }

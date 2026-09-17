@@ -21,6 +21,10 @@ class SecondFactorStatus(SanitizedBaseModel):
     #: provisioned through an identity provider has no hash, and holding a
     #: federated identity is a different question — an account can have both.
     password_required: bool = True
+    #: Whether this deployment offers the authenticator app at all. Withdrawn,
+    #: an enrolment already made is left alone and simply stops being asked
+    #: for, so the surface stops offering it rather than pretending it is off.
+    offered: bool = True
 
 
 class SecondFactorEnrolStart(SanitizedBaseModel):

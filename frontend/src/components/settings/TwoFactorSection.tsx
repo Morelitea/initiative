@@ -175,6 +175,10 @@ export const TwoFactorSection = () => {
   // Asked for only where there is one to give. The server is what knows:
   // an account can hold a federated identity and a password both.
   const passwordRequired = status.data?.password_required ?? true;
+  // Withdrawn by whoever runs the deployment. An enrolment already made is
+  // left alone and simply stops being asked for, so this says that rather than
+  // offering a setup the server would refuse.
+  const offered = status.data?.offered ?? true;
   const remaining = status.data?.recovery_codes_remaining ?? 0;
 
   return (
@@ -232,16 +236,20 @@ export const TwoFactorSection = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-muted-foreground text-sm">{t("twoFactor.notSetUp")}</p>
-          <Button
-            onClick={() => {
-              setErrand("enrol");
-              setError(null);
-              setEnrolOpen(true);
-            }}
-          >
-            {t("twoFactor.setUp")}
-          </Button>
+          <p className="text-muted-foreground text-sm">
+            {offered ? t("twoFactor.notSetUp") : t("twoFactor.notOffered")}
+          </p>
+          {offered ? (
+            <Button
+              onClick={() => {
+                setErrand("enrol");
+                setError(null);
+                setEnrolOpen(true);
+              }}
+            >
+              {t("twoFactor.setUp")}
+            </Button>
+          ) : null}
         </div>
       )}
 

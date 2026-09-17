@@ -4620,6 +4620,7 @@ export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
 export const LoginMethod = {
   password: "password",
   sso: "sso",
+  totp: "totp",
 } as const;
 
 /**
@@ -6514,6 +6515,7 @@ export interface SecondFactorStatus {
   last_used_at?: string | null;
   recovery_codes_remaining?: number;
   password_required?: boolean;
+  offered?: boolean;
 }
 
 /**

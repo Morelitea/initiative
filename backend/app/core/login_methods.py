@@ -22,15 +22,31 @@ class LoginMethod(str, Enum):
     #: ``enabled`` does the finer-grained work; this says whether the
     #: deployment permits the route at all.
     sso = "sso"
+    #: An authenticator app's code, presented after a password. Unlike the two
+    #: above it cannot open a session by itself — it accompanies one that has
+    #: already been proved, which is why :data:`PRIMARY_LOGIN_METHODS` exists.
+    totp = "totp"
 
 
 #: Mirrors the Postgres enum type created in migration 0284. A value added to
 #: one has to be added to the other.
 LOGIN_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in LoginMethod)
 
+#: The methods that can start a session on their own.
+#:
+#: "At least one method must stay permitted" was the rule while every member
+#: could. A second factor accompanies a sign-in rather than beginning one, so
+#: the rule is now "at least one of these" — a deployment left with only
+#: ``totp`` would offer no way to begin.
+PRIMARY_LOGIN_METHODS: tuple[LoginMethod, ...] = (
+    LoginMethod.password,
+    LoginMethod.sso,
+)
+
 #: What a deployment that has never chosen permits: everything it could.
 #: Also the column's server default, so an upgrade changes nobody's behaviour.
 DEFAULT_LOGIN_METHODS: tuple[LoginMethod, ...] = (
     LoginMethod.password,
     LoginMethod.sso,
+    LoginMethod.totp,
 )

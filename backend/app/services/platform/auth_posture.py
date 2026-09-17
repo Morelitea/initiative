@@ -13,7 +13,11 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.core.login_methods import DEFAULT_LOGIN_METHODS, LoginMethod
+from app.core.login_methods import (
+    DEFAULT_LOGIN_METHODS,
+    PRIMARY_LOGIN_METHODS,
+    LoginMethod,
+)
 from app.core.messages import SettingsMessages
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
@@ -81,6 +85,10 @@ async def stranded_by_withdrawing(session: AsyncSession, method: LoginMethod) ->
         return await identity_service.password_only_user_count(session)
     if method is LoginMethod.sso:
         return await identity_service.federated_only_user_count(session)
+    # A second factor is nobody's only way in — it cannot open a session by
+    # itself, so withdrawing it leaves every account able to sign in exactly as
+    # it did. What it does do is stop the factor being asked for, which the
+    # surface says plainly rather than counting here.
     return 0
 
 
@@ -115,6 +123,13 @@ async def set_login_methods(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=SettingsMessages.LOGIN_METHODS_EMPTY,
+        )
+    # Not merely "something is ticked": something that can begin a session is.
+    # The column's CHECK holds the same rule at the database.
+    if not requested.intersection(PRIMARY_LOGIN_METHODS):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.LOGIN_METHODS_NO_PRIMARY,
         )
 
     # Take the settings row before counting anything. A guild admin setting a
