@@ -371,8 +371,12 @@ async def step_up_with_factor(
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
         )
-        if prior is not None:
-            await session_service.revoke_session(admin_session, session_id=prior.id)
+        # The chain, not the one row: a refresh that rotated this session
+        # between reading it and here would leave its child live beside the
+        # stepped-up one, carrying none of the factor just presented. The
+        # provider step-up revokes the chain for the same reason. ``prior`` is
+        # not optional here — the request is refused above where there is none.
+        await session_service.revoke_chain(admin_session, session_id=prior.id)
         subject = await subject_service.subject_for_user(
             admin_session, user_id=current_user.id
         )

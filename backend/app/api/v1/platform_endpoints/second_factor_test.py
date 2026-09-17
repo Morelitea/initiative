@@ -702,3 +702,54 @@ async def test_a_standing_credential_cannot_step_up(
         "SESSION_REQUIRED",
         "TOTP_INVALID",
     )
+
+
+async def test_stepping_up_leaves_no_other_session_live(
+    client: AsyncClient, session: AsyncSession
+):
+    """The chain goes, not just the one row. A refresh that rotated this
+    session between reading it and revoking it would otherwise leave its child
+    live beside the stepped-up one, carrying none of the factor just presented.
+
+    Stated as the property rather than as the race, which is not reachable
+    deterministically from a test: after stepping up, the session it issued is
+    the only live one.
+    """
+    from sqlmodel import select
+
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
+
+    user, secret, _codes = await _enrol(client, session, "chain@example.com")
+    first = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    rotated = await session_service.rotate_session(
+        session, raw_refresh_token=first.refresh_token
+    )
+    await session.commit()
+    child_id = rotated.issued.session.id
+    first_id = first.session.id
+    user_id = user.id
+
+    response = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"challenge": "unused", "code": _next_code(secret)},
+        headers={
+            "Authorization": "Bearer "
+            + get_auth_token(user, session_id=child_id, amr=["pwd"])
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    session.expire_all()
+    live = (
+        await session.exec(
+            select(AuthSession).where(
+                AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None)
+            )
+        )
+    ).all()
+    assert len(live) == 1, f"expected one live session, found {len(live)}"
+    assert live[0].id not in {first_id, child_id}
