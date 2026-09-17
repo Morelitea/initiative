@@ -9,6 +9,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 let guildRole = "superadmin";
 let authOptions: string[] = ["providers", "require_sign_in"];
 let allowApiKeys = true;
+let sessionLimit = false;
 let policy: {
   policy: "open" | "required";
   provider_id: number | null;
@@ -25,6 +26,7 @@ let policy: {
 
 const savePolicy = vi.fn();
 const saveApiAccess = vi.fn();
+const saveSessionLimit = vi.fn();
 const refreshGuilds = vi.fn(() => Promise.resolve());
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
@@ -37,6 +39,7 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
       role: guildRole,
       auth_options: authOptions,
       allow_api_keys: allowApiKeys,
+      enforce_compliance_session: sessionLimit,
     },
     refreshGuilds,
   }),
@@ -51,6 +54,7 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
+  useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
   useGuildAuthProviders: () => ({
     data: [
       { id: 11, slug: "corp", display_name: "Corp SSO", enabled: true },
@@ -84,10 +88,12 @@ describe("SettingsGuildAuthPage", () => {
   beforeEach(() => {
     savePolicy.mockClear();
     saveApiAccess.mockClear();
+    saveSessionLimit.mockClear();
     refreshGuilds.mockClear();
     guildRole = "superadmin";
     authOptions = ["providers", "require_sign_in"];
     allowApiKeys = true;
+    sessionLimit = false;
     policy = {
       policy: "open",
       provider_id: null,
@@ -254,6 +260,36 @@ describe("SettingsGuildAuthPage", () => {
       expect(apiSwitch()).toBeInTheDocument();
       expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("how often members sign in again", () => {
+    const limitSwitch = () => screen.getByLabelText(/twelve-hour session limit/i);
+
+    it("saves as it is switched, with no button to press", async () => {
+      const user = userEvent.setup();
+      render();
+
+      expect(limitSwitch()).not.toBeChecked();
+      await user.click(limitSwitch());
+
+      expect(saveSessionLimit).toHaveBeenCalledTimes(1);
+      expect(saveSessionLimit.mock.calls[0][0]).toEqual({ enforce_compliance_session: true });
+    });
+
+    it("shows what a community held to the standard has chosen", () => {
+      sessionLimit = true;
+      render();
+
+      expect(limitSwitch()).toBeChecked();
+      expect(screen.getByText(/sign in again every twelve hours/i)).toBeInTheDocument();
+    });
+
+    it("is the seat's, not an ordinary admin's", () => {
+      guildRole = "admin";
+      render();
+
+      expect(screen.queryByLabelText(/twelve-hour session limit/i)).not.toBeInTheDocument();
     });
   });
 });

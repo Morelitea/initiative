@@ -23,8 +23,7 @@ from sqlalchemy import func, text, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildMembership
-from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.guild import Guild, GuildMembership
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import app_settings as app_settings_service
 
@@ -45,13 +44,10 @@ async def _belongs_to_a_compliance_guild(
     found = (
         await session.exec(
             select(GuildMembership.guild_id)
-            .join(
-                GuildAdministration,
-                GuildAdministration.guild_id == GuildMembership.guild_id,
-            )
+            .join(Guild, Guild.id == GuildMembership.guild_id)
             .where(
                 GuildMembership.user_id == user_id,
-                GuildAdministration.enforce_compliance_session.is_(True),
+                Guild.enforce_compliance_session.is_(True),
             )
             .limit(1)
         )
@@ -126,11 +122,8 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
     )
     members = (
         select(GuildMembership.user_id)
-        .join(
-            GuildAdministration,
-            GuildAdministration.guild_id == GuildMembership.guild_id,
-        )
-        .where(GuildAdministration.enforce_compliance_session.is_(True))
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .where(Guild.enforce_compliance_session.is_(True))
     )
     await session.exec(
         update(UserToken)

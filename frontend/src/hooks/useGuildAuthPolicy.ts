@@ -20,6 +20,7 @@ import {
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
 import type {
   AuthProviderAdminRead,
@@ -28,6 +29,7 @@ import type {
   GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
+  GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -94,6 +96,17 @@ export const useUpdateGuildApiAccess = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildApiAccessUpdate) =>
       setGuildApiAccessApiV1GuildsGuildIdApiAccessPut(guildId, data),
+  });
+};
+
+/**
+ * Whether the community holds its members to the twelve-hour session standard.
+ * Rides on the guild list the same way API access does.
+ */
+export const useUpdateGuildSessionLimit = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildSessionLimitUpdate) =>
+      setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
   });
 };
 

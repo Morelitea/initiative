@@ -1037,9 +1037,7 @@
         }
       },
       "usersLabel": "Membres",
-      "storageLabel": "Limite de stockage",
-      "complianceSessionLabel": "Limite de session de douze heures",
-      "complianceSessionHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité."
+      "storageLabel": "Limite de stockage"
     },
     "unlimited": "Sans limite"
   },
@@ -1132,6 +1130,15 @@
       "blockedHelp": "Aucune clé ne peut être créée pour cette communauté, et une clé déjà créée ne l'atteint plus. Les membres conservent leurs clés pour les autres communautés.",
       "saved": "Accès par API enregistré",
       "error": "Impossible d'enregistrer l'accès par API"
+    },
+    "sessionLimit": {
+      "title": "Limite de session",
+      "description": "À quelle fréquence les membres de cette communauté se reconnectent.",
+      "allowLabel": "Limite de session de douze heures",
+      "onHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité.",
+      "offHelp": "Les membres restent connectés aussi longtemps que le déploiement l'autorise.",
+      "saved": "Limite de session enregistrée",
+      "error": "Impossible d'enregistrer la limite de session"
     }
   },
   "authProviders": {

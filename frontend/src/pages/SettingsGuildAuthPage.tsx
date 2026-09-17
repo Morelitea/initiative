@@ -23,6 +23,7 @@ import {
   useGuildLoginProviders,
   useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
+  useUpdateGuildSessionLimit,
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
@@ -39,6 +40,29 @@ import { getErrorMessage } from "@/lib/errorMessage";
 /** The select's value for "any of ours" — a requirement that names no single
  * provider. Not a number, so it can never collide with a provider id. */
 const ANY_PROVIDER = "any";
+
+/**
+ * The state behind a switch that saves as it is flipped rather than waiting
+ * for a button. The draft is what the switch shows until the refreshed guild
+ * list carries the saved value; a failed save drops it and keeps a message.
+ */
+const useFlipToSave = (saved: boolean) => {
+  const [draft, setDraft] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return {
+    value: draft ?? saved,
+    error,
+    begin: (next: boolean) => {
+      setDraft(next);
+      setError(null);
+    },
+    settle: () => setDraft(null),
+    fail: (message: string) => {
+      setDraft(null);
+      setError(message);
+    },
+  };
+};
 
 export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
@@ -97,28 +121,42 @@ export const SettingsGuildAuthPage = () => {
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
-  // API access is one boolean, so it saves as it is switched rather than
-  // waiting for a button. The draft is what the switch shows until the
-  // refreshed guild list carries the saved value.
+  // Each of these is one boolean, so both save as they are switched.
   const updateApiAccess = useUpdateGuildApiAccess(guildId);
-  const [apiAccessDraft, setApiAccessDraft] = useState<boolean | null>(null);
-  const allowApiKeys = apiAccessDraft ?? activeGuild?.allow_api_keys ?? true;
-  const [apiAccessError, setApiAccessError] = useState<string | null>(null);
+  const apiAccess = useFlipToSave(activeGuild?.allow_api_keys ?? true);
 
   const changeApiAccess = (next: boolean) => {
-    setApiAccessDraft(next);
-    setApiAccessError(null);
+    apiAccess.begin(next);
     updateApiAccess.mutate(
       { allow_api_keys: next },
       {
         onSuccess: async () => {
           await refreshGuilds();
-          setApiAccessDraft(null);
+          apiAccess.settle();
           toast.success(t("guildAuth.apiAccess.saved"));
         },
         onError: (err: unknown) => {
-          setApiAccessDraft(null);
-          setApiAccessError(getErrorMessage(err, "settings:guildAuth.apiAccess.error"));
+          apiAccess.fail(getErrorMessage(err, "settings:guildAuth.apiAccess.error"));
+        },
+      }
+    );
+  };
+
+  const updateSessionLimit = useUpdateGuildSessionLimit(guildId);
+  const sessionLimit = useFlipToSave(activeGuild?.enforce_compliance_session ?? false);
+
+  const changeSessionLimit = (next: boolean) => {
+    sessionLimit.begin(next);
+    updateSessionLimit.mutate(
+      { enforce_compliance_session: next },
+      {
+        onSuccess: async () => {
+          await refreshGuilds();
+          sessionLimit.settle();
+          toast.success(t("guildAuth.sessionLimit.saved"));
+        },
+        onError: (err: unknown) => {
+          sessionLimit.fail(getErrorMessage(err, "settings:guildAuth.sessionLimit.error"));
         },
       }
     );
@@ -379,21 +417,53 @@ export const SettingsGuildAuthPage = () => {
                 {t("guildAuth.apiAccess.allowLabel")}
               </Label>
               <p className="text-muted-foreground text-sm">
-                {allowApiKeys
+                {apiAccess.value
                   ? t("guildAuth.apiAccess.allowHelp")
                   : t("guildAuth.apiAccess.blockedHelp")}
               </p>
             </div>
             <Switch
               id="guild-allow-api-keys"
-              checked={allowApiKeys}
+              checked={apiAccess.value}
               onCheckedChange={changeApiAccess}
               disabled={updateApiAccess.isPending}
             />
           </div>
-          {apiAccessError && (
+          {apiAccess.error && (
             <Alert variant="destructive">
-              <AlertDescription>{apiAccessError}</AlertDescription>
+              <AlertDescription>{apiAccess.error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("guildAuth.sessionLimit.title")}</CardTitle>
+          <CardDescription>{t("guildAuth.sessionLimit.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="guild-session-limit" className="font-medium">
+                {t("guildAuth.sessionLimit.allowLabel")}
+              </Label>
+              <p className="text-muted-foreground text-sm">
+                {sessionLimit.value
+                  ? t("guildAuth.sessionLimit.onHelp")
+                  : t("guildAuth.sessionLimit.offHelp")}
+              </p>
+            </div>
+            <Switch
+              id="guild-session-limit"
+              checked={sessionLimit.value}
+              onCheckedChange={changeSessionLimit}
+              disabled={updateSessionLimit.isPending}
+            />
+          </div>
+          {sessionLimit.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{sessionLimit.error}</AlertDescription>
             </Alert>
           )}
         </CardContent>

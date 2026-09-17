@@ -1026,9 +1026,7 @@
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit",
-      "complianceSessionLabel": "Twelve-hour session limit",
-      "complianceSessionHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard."
+      "storageLabel": "Storage limit"
     },
     "unlimited": "No limit"
   },
@@ -1132,6 +1130,15 @@
       "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
       "saved": "API access saved",
       "error": "Could not save API access"
+    },
+    "sessionLimit": {
+      "title": "Session limit",
+      "description": "How often this community's members sign in again.",
+      "allowLabel": "Twelve-hour session limit",
+      "onHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard.",
+      "offHelp": "Members stay signed in for as long as the deployment allows.",
+      "saved": "Session limit saved",
+      "error": "Could not save the session limit"
     }
   },
   "authProviders": {

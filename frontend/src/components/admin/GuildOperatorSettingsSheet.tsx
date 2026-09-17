@@ -257,21 +257,6 @@ export const GuildOperatorSettingsSheet = ({
                 }
               />
             ))}
-            <SettingRow
-              label={t("guilds.sheet.complianceSessionLabel")}
-              help={t("guilds.sheet.complianceSessionHelp")}
-              htmlFor="guild-compliance-session"
-              control={
-                <Switch
-                  id="guild-compliance-session"
-                  checked={guild.enforce_compliance_session}
-                  onCheckedChange={(checked) =>
-                    patch({ enforce_compliance_session: Boolean(checked) })
-                  }
-                  disabled={update.isPending}
-                />
-              }
-            />
           </Section>
 
           <Section title={t("guilds.sheet.features")}>

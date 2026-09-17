@@ -39,6 +39,8 @@ import type {
   GuildMembershipUpdate,
   GuildOrderUpdate,
   GuildRead,
+  GuildSessionLimitRead,
+  GuildSessionLimitUpdate,
   GuildUpdate,
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
@@ -2217,6 +2219,112 @@ export const useSetGuildApiAccessApiV1GuildsGuildIdApiAccessPut = <
 > => {
   return useMutation(
     getSetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Hold this guild's members to the twelve-hour session standard, or stop.
+ *
+ * The same seat as the sign-in requirement beside it: how often somebody
+ * signs in again is part of what the community asks of a session, not part of
+ * running it. One standard rather than a figure of the guild's own, so
+ * somebody in two communities that ask for it has an answer and not a
+ * comparison — and it only ever tightens, so it needs no operator
+ * entitlement any more than refusing API keys does.
+ *
+ * It reaches members' sessions at their next sign-in. Phones are the
+ * exception: a device token carries its deadline in its own expiry, so the
+ * ones already issued are brought under the standard here — which can sign a
+ * phone out at once, where it signed in longer ago than the standard allows.
+ * @summary Set Guild Session Limit
+ */
+export const setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut = (
+  guildId: number,
+  guildSessionLimitUpdate: BodyType<GuildSessionLimitUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildSessionLimitRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/session-limit`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildSessionLimitUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+    TError,
+    { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+    { guildId: number; data: BodyType<GuildSessionLimitUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>
+>;
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationBody =
+  BodyType<GuildSessionLimitUpdate>;
+export type SetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Session Limit
+ */
+export const useSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+      TError,
+      { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSessionLimitUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildSessionLimitApiV1GuildsGuildIdSessionLimitPutMutationOptions(options),
     queryClient
   );
 };

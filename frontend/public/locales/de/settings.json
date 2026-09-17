@@ -1037,9 +1037,7 @@
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit",
-      "complianceSessionLabel": "Zwölf-Stunden-Sitzungslimit",
-      "complianceSessionHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen."
+      "storageLabel": "Speicherlimit"
     },
     "unlimited": "Unbegrenzt"
   },
@@ -1132,6 +1130,15 @@
       "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
       "saved": "API-Zugriff gespeichert",
       "error": "API-Zugriff konnte nicht gespeichert werden"
+    },
+    "sessionLimit": {
+      "title": "Sitzungslimit",
+      "description": "Wie oft sich die Mitglieder dieser Community neu anmelden.",
+      "allowLabel": "Zwölf-Stunden-Sitzungslimit",
+      "onHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen.",
+      "offHelp": "Mitglieder bleiben so lange angemeldet, wie es die Installation zulässt.",
+      "saved": "Sitzungslimit gespeichert",
+      "error": "Sitzungslimit konnte nicht gespeichert werden"
     }
   },
   "authProviders": {

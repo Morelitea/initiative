@@ -76,11 +76,14 @@ from app.schemas.platform.guild import (
     GuildInviteRead,
     GuildInviteStatus,
     GuildOrderUpdate,
+    GuildSessionLimitRead,
+    GuildSessionLimitUpdate,
     GuildUpdate,
     LeaveGuildEligibilityResponse,
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.services.auth import session_lifetime
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption
@@ -165,6 +168,10 @@ def _serialize_guild(
         auth_options=sorted(admin_row.auth_options) if admin_row else None,
         # Admins only: the state of the API-access control on that tab.
         allow_api_keys=guild.allow_api_keys if is_admin else None,
+        # Admins only: and of the session-limit control beside it.
+        enforce_compliance_session=(
+            guild.enforce_compliance_session if is_admin else None
+        ),
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -1228,6 +1235,48 @@ async def set_guild_api_access(
     admin_session.add(guild)
     await admin_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
+
+
+@router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)
+async def set_guild_session_limit(
+    guild_id: int,
+    payload: GuildSessionLimitUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildSessionLimitRead:
+    """Hold this guild's members to the twelve-hour session standard, or stop.
+
+    The same seat as the sign-in requirement beside it: how often somebody
+    signs in again is part of what the community asks of a session, not part of
+    running it. One standard rather than a figure of the guild's own, so
+    somebody in two communities that ask for it has an answer and not a
+    comparison — and it only ever tightens, so it needs no operator
+    entitlement any more than refusing API keys does.
+
+    It reaches members' sessions at their next sign-in. Phones are the
+    exception: a device token carries its deadline in its own expiry, so the
+    ones already issued are brought under the standard here — which can sign a
+    phone out at once, where it signed in longer ago than the standard allows.
+    """
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    changed = guild.enforce_compliance_session != payload.enforce_compliance_session
+    guild.enforce_compliance_session = payload.enforce_compliance_session
+    admin_session.add(guild)
+    if changed:
+        # Written before the sweep below, which reads the standard back off the
+        # guild row to find whose phones it applies to.
+        await admin_session.flush()
+        await session_lifetime.apply_to_device_tokens(admin_session)
+    await admin_session.commit()
+    return GuildSessionLimitRead(
+        enforce_compliance_session=guild.enforce_compliance_session
+    )
 
 
 @router.delete(

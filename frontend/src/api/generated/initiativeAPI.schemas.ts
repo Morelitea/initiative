@@ -4156,6 +4156,7 @@ export interface GuildRead {
   content_read_only: boolean;
   auth_options: GuildAuthOption[] | null;
   allow_api_keys: boolean | null;
+  enforce_compliance_session: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
@@ -4163,6 +4164,22 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+}
+
+/**
+ * Whether this guild holds its members to the twelve-hour session
+ * standard.
+ */
+export interface GuildSessionLimitRead {
+  enforce_compliance_session: boolean;
+}
+
+/**
+ * Set it. ``true`` means this guild's members sign in again every twelve
+ * hours, whatever the deployment's own limit says.
+ */
+export interface GuildSessionLimitUpdate {
+  enforce_compliance_session: boolean;
 }
 
 export interface GuildStorageUsageRead {
@@ -5362,7 +5379,6 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
-  enforce_compliance_session: boolean;
 }
 
 /**
@@ -5381,7 +5397,6 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
-  enforce_compliance_session?: boolean | null;
 }
 
 /**
