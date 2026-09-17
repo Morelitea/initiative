@@ -1124,8 +1124,7 @@
       "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
       "saved": "API access saved",
       "error": "Could not save API access"
-    },
-    "readOnlyNotice": "Only a security admin can change this. You can see what is set so you know who to ask."
+    }
   },
   "authProviders": {
     "title": "Identity providers",

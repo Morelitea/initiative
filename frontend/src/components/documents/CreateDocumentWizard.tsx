@@ -1,21 +1,15 @@
 import { useRouter } from "@tanstack/react-router";
-import { ChevronLeft, FileText, Loader2, Zap } from "lucide-react";
+import { FileText, Loader2, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiativeAccess";
+import { useWizard } from "@/hooks/useWizard";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -85,7 +79,7 @@ export const CreateDocumentWizard = () => {
   );
 
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("select-guild");
+  const { step, go, back, reset } = useWizard<Step>("select-guild");
   const [selectedGuildId, setSelectedGuildId] = useState<number | null>(null);
   const [selectedGuildName, setSelectedGuildName] = useState("");
   const [lastUsed, setLastUsed] = useState<LastUsedInitiative | null>(null);
@@ -104,14 +98,14 @@ export const CreateDocumentWizard = () => {
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setStep("select-guild");
+      reset();
       setSelectedGuildId(null);
       setSelectedGuildName("");
       autoAdvancedRef.current = null;
     } else {
       setLastUsed(loadLastUsed());
     }
-  }, [open]);
+  }, [open, reset]);
 
   // ── Data fetching ───────────────────────────────────────────────────────
 
@@ -124,11 +118,14 @@ export const CreateDocumentWizard = () => {
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
-  const handleGuildSelect = useCallback((guildId: number, guildName: string) => {
-    setSelectedGuildId(guildId);
-    setSelectedGuildName(guildName);
-    setStep("select-initiative");
-  }, []);
+  const handleGuildSelect = useCallback(
+    (guildId: number, guildName: string) => {
+      setSelectedGuildId(guildId);
+      setSelectedGuildName(guildName);
+      go("select-initiative");
+    },
+    [go]
+  );
 
   const handoffToDocuments = useCallback(
     (gId: number, gName: string, iId: number, iName: string) => {
@@ -203,9 +200,9 @@ export const CreateDocumentWizard = () => {
     if (step === "select-initiative") {
       setSelectedGuildId(null);
       setSelectedGuildName("");
-      setStep("select-guild");
+      back();
     }
-  }, [step]);
+  }, [step, back]);
 
   // ── Render helpers ──────────────────────────────────────────────────────
 
@@ -218,84 +215,83 @@ export const CreateDocumentWizard = () => {
     }
   }, [step, t]);
 
+  // Somebody with one community and no shortcut never sees the first step (the
+  // effect above walks past it), and counting a step nobody is shown would put
+  // them on step two of two before they had answered anything.
+  const skipsGuildStep = guilds.length === 1 && !lastUsed;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("createWizard.title")}</DialogTitle>
-          <DialogDescription>{stepTitle}</DialogDescription>
-        </DialogHeader>
+    <WizardDialog
+      open={open}
+      onOpenChange={setOpen}
+      className="sm:max-w-md"
+      title={t("createWizard.title")}
+      description={stepTitle}
+      progress={skipsGuildStep ? undefined : { current: step === "select-guild" ? 1 : 2, total: 2 }}
+      onBack={step === "select-guild" ? undefined : handleBack}
+      backLabel={t("createWizard.back")}
+    >
+      {/* Step 1: Select Guild */}
+      {step === "select-guild" && (
+        <div className="space-y-2">
+          {/* Last used shortcut */}
+          {lastUsed && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
+              onClick={handleLastUsedClick}
+            >
+              <Zap className="h-5 w-5 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-sm">{lastUsed.initiativeName}</p>
+                <p className="truncate text-muted-foreground text-xs">{lastUsed.guildName}</p>
+              </div>
+              <span className="text-muted-foreground text-xs">{t("createWizard.lastUsed")}</span>
+            </button>
+          )}
 
-        {/* Back button */}
-        {step !== "select-guild" && (
-          <Button variant="ghost" size="sm" className="w-fit" onClick={handleBack}>
-            <ChevronLeft className="h-4 w-4" />
-            {t("createWizard.back")}
-          </Button>
-        )}
+          {/* Guild list */}
+          {guilds.map((guild) => (
+            <button
+              key={guild.id}
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+              onClick={() => handleGuildSelect(guild.id, guild.name)}
+            >
+              <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} size="sm" />
+              <span className="font-medium text-sm">{guild.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {/* Step 1: Select Guild */}
-        {step === "select-guild" && (
-          <div className="space-y-2">
-            {/* Last used shortcut */}
-            {lastUsed && (
+      {/* Step 2: Select Initiative */}
+      {step === "select-initiative" && (
+        <div className="space-y-2">
+          {initiativesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : initiatives.length === 0 ? (
+            <p className="py-4 text-center text-muted-foreground text-sm">
+              {t("createWizard.noInitiatives")}
+            </p>
+          ) : (
+            initiatives.map((initiative) => (
               <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
-                onClick={handleLastUsedClick}
-              >
-                <Zap className="h-5 w-5 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm">{lastUsed.initiativeName}</p>
-                  <p className="truncate text-muted-foreground text-xs">{lastUsed.guildName}</p>
-                </div>
-                <span className="text-muted-foreground text-xs">{t("createWizard.lastUsed")}</span>
-              </button>
-            )}
-
-            {/* Guild list */}
-            {guilds.map((guild) => (
-              <button
-                key={guild.id}
+                key={initiative.id}
                 type="button"
                 className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                onClick={() => handleGuildSelect(guild.id, guild.name)}
+                onClick={() => handleInitiativeSelect(initiative.id, initiative.name)}
               >
-                <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} size="sm" />
-                <span className="font-medium text-sm">{guild.name}</span>
+                <InitiativeColorDot color={initiative.color} />
+                <span className="font-medium text-sm">{initiative.name}</span>
+                <FileText className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
-            ))}
-          </div>
-        )}
-
-        {/* Step 2: Select Initiative */}
-        {step === "select-initiative" && (
-          <div className="space-y-2">
-            {initiativesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : initiatives.length === 0 ? (
-              <p className="py-4 text-center text-muted-foreground text-sm">
-                {t("createWizard.noInitiatives")}
-              </p>
-            ) : (
-              initiatives.map((initiative) => (
-                <button
-                  key={initiative.id}
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                  onClick={() => handleInitiativeSelect(initiative.id, initiative.name)}
-                >
-                  <InitiativeColorDot color={initiative.color} />
-                  <span className="font-medium text-sm">{initiative.name}</span>
-                  <FileText className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+            ))
+          )}
+        </div>
+      )}
+    </WizardDialog>
   );
 };

@@ -54,6 +54,7 @@
   "previous": "Zurück",
   "rowsPerPage": "Zeilen pro Seite:",
   "pageOf": "Seite {{current}} von {{total}}",
+  "stepOf": "Schritt {{current}} von {{total}}",
   "select": "Auswählen",
   "exitSelection": "Auswahl beenden",
   "enableSelectionMode": "Auswahlmodus aktivieren",
