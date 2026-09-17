@@ -25,8 +25,8 @@ while the write commits, without the request path ever reading the registry.
 The SELECT policy is untouched. ``guild_auth_satisfied()`` reads this table on
 the guild-access path for every request, and that read is not the seat's.
 
-Revision ID: 20260917_0296
-Revises: 20260917_0295
+Revision ID: 20260917_0297
+Revises: 20260917_0296
 Create Date: 2026-09-17
 """
 
@@ -34,8 +34,8 @@ from alembic import op
 
 from app.db.authorization import GUILD_SUPERADMIN
 
-revision = "20260917_0296"
-down_revision = "20260917_0295"
+revision = "20260917_0297"
+down_revision = "20260917_0296"
 branch_labels = None
 depends_on = None
 

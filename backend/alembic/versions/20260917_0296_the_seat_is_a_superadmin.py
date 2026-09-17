@@ -23,16 +23,16 @@ SECURITY``, restored in a ``finally``, and counts what is left at the old value
 afterwards. It counts rather than asserting a rowcount because a fresh install
 has nothing to promote.
 
-Revision ID: 20260917_0295
-Revises: 20260917_0294
+Revision ID: 20260917_0296
+Revises: 20260917_0295
 Create Date: 2026-09-17
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260917_0295"
-down_revision = "20260917_0294"
+revision = "20260917_0296"
+down_revision = "20260917_0295"
 branch_labels = None
 depends_on = None
 
