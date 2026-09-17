@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    UniqueConstraint,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -23,6 +30,13 @@ class MfaRecoveryCode(SQLModel, table=True):
     """
 
     __tablename__ = "mfa_recovery_codes"
+    # One code is one row. Its index leads with user_id, which is also how an
+    # account's codes are read, so there is no separate index on that column.
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "code_hash", name="uq_mfa_recovery_codes_user_code"
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
