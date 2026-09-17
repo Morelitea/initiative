@@ -45,6 +45,8 @@
   "viewAll": "View all",
   "copyToClipboard": "Copy to clipboard",
   "copied": "Copied!",
+  "copy": "Copy",
+  "copyUnavailable": "Could not copy — copy it by hand",
   "untitled": "Untitled",
   "appName": "initiative",
   "send": "Send",

@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ModelCombobox } from "@/components/ui/model-combobox";
 import {
   Select,
   SelectContent,
@@ -24,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SuggestCombobox } from "@/components/ui/suggest-combobox";
 import { Switch } from "@/components/ui/switch";
 import { PROVIDER_CONFIGS } from "@/lib/ai-providers";
 
@@ -168,13 +168,17 @@ export const AIConnectionDialog = ({
           {form.provider && (
             <div className="space-y-2">
               <Label>{t("ai.modelLabel")}</Label>
-              <ModelCombobox
-                models={modelOptions}
+              <SuggestCombobox
+                suggestions={modelOptions}
                 value={form.model}
                 onValueChange={(value) => setField("model", value)}
                 placeholder={
                   providerConfig?.modelPlaceholder ?? t("aiConnections.modelPlaceholder")
                 }
+                searchPlaceholder={t("aiConnections.modelSearchPlaceholder")}
+                loadingLabel={t("aiConnections.modelsLoading")}
+                emptyLabel={t("aiConnections.modelsEmpty")}
+                typedLabel={(value) => t("aiConnections.modelUseTyped", { value })}
                 onOpen={fetchModels}
                 isLoading={isFetchingModels}
               />
