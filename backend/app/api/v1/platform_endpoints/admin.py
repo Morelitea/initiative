@@ -1080,26 +1080,26 @@ async def admin_update_guild_member_role(
     # The seat cannot be emptied while the guild requires a sign-in: lifting the
     # requirement happens on the surface the seat holds.
     if (
-        target_membership.role == GuildRole.security_admin
-        and payload.role != GuildRole.security_admin
-        and await guilds_service.must_keep_security_admin(
+        target_membership.role == GuildRole.superadmin
+        and payload.role != GuildRole.superadmin
+        and await guilds_service.must_keep_superadmin(
             session, guild_id=guild_id, user_id=user_id
         )
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
-    if GuildRole.security_admin in (previous_role, payload.role):
-        # An operator seats a guild's first security admin here; the guild's own
+    if GuildRole.superadmin in (previous_role, payload.role):
+        # An operator seats a guild's first superadmin here; the guild's own
         # role endpoint records the same event when the seat is passed on.
         await audit_service.record(
             session,
-            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
+            event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=_current_user.id,
             target_user_id=user_id,
             target_type="guild",

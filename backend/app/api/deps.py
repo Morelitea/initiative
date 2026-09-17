@@ -525,7 +525,7 @@ class GuildContext:
     def is_admin(self) -> bool:
         """Whether this request carries a guild admin's authority.
 
-        ``security_admin`` sits above ``admin``, so it answers yes — every
+        ``superadmin`` sits above ``admin``, so it answers yes — every
         surface an admin reaches, the seat above it reaches too.
         """
         return self.role in GUILD_ADMIN_ROLES
@@ -940,7 +940,7 @@ async def get_guild_membership(
 def require_guild_roles(*roles: GuildRole) -> Callable:
     """Guard an endpoint on the caller's role in the guild named by the path.
 
-    Asking for ``admin`` asks for admin *or above*, so a security admin
+    Asking for ``admin`` asks for admin *or above*, so a superadmin
     satisfies every guard an ordinary admin satisfies — the seat sits above
     ``admin``, and this is the one place that has to know it for all of them.
     """
@@ -1057,7 +1057,7 @@ async def _apply_guild_session_context(
         session,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        # The effective content role, which is where a security admin reads
+        # The effective content role, which is where a superadmin reads
         # as an admin — see ``models.platform.guild.content_role``.
         guild_role=content_role(guild_context.role),
         # Recorded, not routed with: the guild role governs inside the schema.

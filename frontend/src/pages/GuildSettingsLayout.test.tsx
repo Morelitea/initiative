@@ -5,7 +5,7 @@ import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 // What this member is in this community. Flipped per test.
-let guildRole = "security_admin";
+let guildRole = "superadmin";
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -28,7 +28,7 @@ const render = () => renderPage(GuildSettingsLayout, { auth: { user: buildUser()
 
 describe("GuildSettingsLayout", () => {
   beforeEach(() => {
-    guildRole = "security_admin";
+    guildRole = "superadmin";
   });
 
   it("offers the Authentication tab to the seat that owns it", async () => {
@@ -38,7 +38,7 @@ describe("GuildSettingsLayout", () => {
   });
 
   it.each(["admin", "member"])("does not offer it to %s", async (role) => {
-    // Everything on that tab is the security admin's to set, so an ordinary
+    // Everything on that tab is the superadmin's to set, so an ordinary
     // admin is not shown a page they could only look at.
     guildRole = role;
     render();

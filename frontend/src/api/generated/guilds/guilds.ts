@@ -1750,7 +1750,10 @@ export const useClearGuildBannerApiV1GuildsGuildIdBannerDelete = <
   );
 };
 /**
- * Mint a billing-portal handoff for a guild admin. Guild admin only.
+ * Mint a billing-portal handoff. The guild's superadmin only.
+ *
+ * What a community pays for is the top seat's, like its sign-in: an ordinary
+ * admin runs the place without holding its card.
  * @summary Create Guild Billing Handoff
  */
 export const createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = (

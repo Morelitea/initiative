@@ -223,7 +223,8 @@ async def test_create_guild(client: AsyncClient, session: AsyncSession):
     data = response.json()
     assert data["name"] == "New Guild"
     assert data["description"] == "A test guild"
-    assert data["role"] == "admin"
+    # Whoever makes a community holds its seat.
+    assert data["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -289,14 +290,14 @@ async def test_staff_can_create_a_guild_owned_by_someone_else(
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
 
-    # The named account is its admin...
+    # The named account holds its seat...
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.guild_id == guild_id)
         )
     ).all()
     assert [(m.user_id, m.role) for m in memberships] == [
-        (customer.id, GuildRole.admin)
+        (customer.id, GuildRole.superadmin)
     ]
     # ...and the creator holds nothing in it.
     assert staff.id not in {m.user_id for m in memberships}
@@ -408,7 +409,7 @@ async def test_naming_yourself_needs_no_capability(
     )
 
     assert response.status_code == 201, response.text
-    assert response.json()["role"] == "admin"
+    assert response.json()["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -1056,7 +1057,7 @@ async def test_guild_billing_handoff_returns_404_when_billing_url_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1124,7 +1125,7 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1172,7 +1173,7 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1243,7 +1244,7 @@ async def test_the_last_admin_still_cannot_leave(
 
 
 @pytest.mark.integration
-async def test_a_security_admin_counts_as_an_admin_when_someone_leaves(
+async def test_a_superadmin_counts_as_an_admin_when_someone_leaves(
     client: AsyncClient, session: AsyncSession
 ):
     """The seat sits above admin, so it answers the question on both sides:
@@ -1253,7 +1254,7 @@ async def test_a_security_admin_counts_as_an_admin_when_someone_leaves(
     admin = await create_user(session)
     guild = await create_guild(session, creator=keyholder)
     await create_guild_membership(
-        session, user=keyholder, guild=guild, role=GuildRole.security_admin
+        session, user=keyholder, guild=guild, role=GuildRole.superadmin
     )
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
@@ -1290,7 +1291,7 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
     order: list[str] = []
     real_lock = guilds_service.lock_guild_seats
     real_last_admin = users_service.is_last_admin_of_guild
-    real_seat = guilds_service.must_keep_security_admin
+    real_seat = guilds_service.must_keep_superadmin
 
     async def record(name, fn, *args, **kwargs):
         order.append(name)
@@ -1308,7 +1309,7 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
     )
     monkeypatch.setattr(
         guilds_service,
-        "must_keep_security_admin",
+        "must_keep_superadmin",
         lambda *a, **k: record("last seat", real_seat, *a, **k),
     )
 

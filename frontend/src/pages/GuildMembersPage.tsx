@@ -130,8 +130,8 @@ export const GuildMembersPage = () => {
                 need. */}
             {row.original.is_guild_admin ? (
               <Badge variant="secondary" className="shrink-0">
-                {row.original.guild_role === GuildRole.security_admin
-                  ? t("members.securityAdmin")
+                {row.original.guild_role === GuildRole.superadmin
+                  ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>
             ) : null}

@@ -1690,8 +1690,8 @@ async def delete_user(
     # Removing the seat-holder ends the seat exactly as demoting them does, so
     # it answers to the same authority: only the seat passes the seat on.
     if (
-        membership.role == GuildRole.security_admin
-        and guild_context.role != GuildRole.security_admin
+        membership.role == GuildRole.superadmin
+        and guild_context.role != GuildRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1700,12 +1700,12 @@ async def delete_user(
     await guilds_service.lock_guild_seats(admin_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:
     # the requirement is lifted from the surface the seat holds.
-    if await guilds_service.must_keep_security_admin(
+    if await guilds_service.must_keep_superadmin(
         admin_session, guild_id=guild_context.guild_id, user_id=user_id
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     await initiatives_service.remove_user_from_guild_initiatives(

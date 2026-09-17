@@ -6,7 +6,7 @@ import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 // What the server says about this community and this member. Flipped per test.
-let guildRole = "security_admin";
+let guildRole = "superadmin";
 let authOptions: string[] = ["providers", "require_sign_in"];
 let allowApiKeys = true;
 let policy: {
@@ -83,7 +83,7 @@ describe("SettingsGuildAuthPage", () => {
     savePolicy.mockClear();
     saveApiAccess.mockClear();
     refreshGuilds.mockClear();
-    guildRole = "security_admin";
+    guildRole = "superadmin";
     authOptions = ["providers", "require_sign_in"];
     allowApiKeys = true;
     policy = {
@@ -173,7 +173,7 @@ describe("SettingsGuildAuthPage", () => {
       expect(container).toBeEmptyDOMElement();
     });
 
-    it("leaves the security admin's own controls alone", () => {
+    it("leaves the superadmin's own controls alone", () => {
       render();
       expect(requirementRadio()).not.toBeDisabled();
     });

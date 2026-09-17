@@ -4,7 +4,7 @@ Managed here: guild-scoped ``auth_providers`` rows — the identity providers a
 guild configures for itself. Exists only where the operator has granted the
 guild that option (404 otherwise, like the rest of the guild auth surface).
 
-Reading is a guild admin's; changing is the security admin's, the seat that
+Reading is a guild admin's; changing is the superadmin's, the seat that
 holds a guild's sign-in configuration.
 
 The CRUD logic — namespace scoping, slug rules, write-only secrets, delete
@@ -24,7 +24,7 @@ from app.api.deps import SessionDep, get_current_active_user
 from app.core.guild_auth_options import GuildAuthOption
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
-    _ensure_guild_security_admin,
+    _ensure_guild_superadmin,
     _require_guild_auth_option,
 )
 from app.db.session import get_admin_session
@@ -66,10 +66,10 @@ async def _require_guild_provider_admin(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Changing the registry: the same operator grant, then the security admin
+    """Changing the registry: the same operator grant, then the superadmin
     seat — the guild's identity providers are its sign-in configuration."""
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
-    await _ensure_guild_security_admin(session, guild_id=guild_id, user_id=user_id)
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=user_id)
 
 
 @router.get("/{guild_id}/auth/providers", response_model=List[AuthProviderAdminRead])

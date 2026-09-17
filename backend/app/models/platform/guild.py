@@ -280,10 +280,10 @@ class GuildRole(str, Enum):
     # it. Separated because running a community and holding the keys to who may
     # enter it are different jobs, and most guilds have nobody in this seat.
     #
-    # An operator seats the first one; from then on a security admin may seat
+    # An operator seats the first one; from then on a superadmin may seat
     # another. An ordinary guild admin can do neither — the hand that
     # administers a community is not the hand that decides who may enter it.
-    security_admin = "security_admin"
+    superadmin = "superadmin"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
     # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
@@ -295,14 +295,14 @@ class GuildRole(str, Enum):
     support = "support"
 
 
-#: Roles that carry a guild admin's authority. ``security_admin`` sits above
+#: Roles that carry a guild admin's authority. ``superadmin`` sits above
 #: ``admin``, so anything asking "is this an admin" means "admin or above".
 GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
-    {GuildRole.admin, GuildRole.security_admin}
+    {GuildRole.admin, GuildRole.superadmin}
 )
 
 #: What an ordinary guild admin may hand out. ``support`` is never persisted at
-#: all, and ``security_admin`` is passed on only by somebody already holding it.
+#: all, and ``superadmin`` is passed on only by somebody already holding it.
 GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
     {GuildRole.admin, GuildRole.member}
 )
@@ -318,13 +318,13 @@ GUILD_STORED_ROLES: frozenset[GuildRole] = frozenset(GuildRole) - {GuildRole.sup
 def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
-    A security admin passes the seat on; an ordinary admin cannot, and cannot
+    A superadmin passes the seat on; an ordinary admin cannot, and cannot
     take it away either. The *first* one in a guild is seated by an operator
     from platform settings — that is the only part of this a guild cannot do
     for itself.
     """
-    if by == GuildRole.security_admin:
-        return GUILD_ASSIGNABLE_ROLES | {GuildRole.security_admin}
+    if by == GuildRole.superadmin:
+        return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}
     return GUILD_ASSIGNABLE_ROLES
 
 
@@ -332,7 +332,7 @@ def content_role(role: GuildRole) -> str:
     """What ``app.current_guild_role`` should carry for this membership.
 
     The GUC answers one question — what content access does this request have —
-    and a security admin's answer is an admin's. Keeping it to two values is why
+    and a superadmin's answer is an admin's. Keeping it to two values is why
     adding a third stored role changes no RLS policy: every
     ``current_guild_role = 'admin'`` leg, on ``public`` and inside each guild
     schema, keeps meaning exactly what it meant.

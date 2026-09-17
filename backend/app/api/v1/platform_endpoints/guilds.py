@@ -218,19 +218,25 @@ async def _ensure_guild_admin(
     return membership
 
 
-async def _ensure_guild_security_admin(
+async def _ensure_guild_superadmin(
     session: SessionDep,
     *,
     guild_id: int,
     user_id: int,
 ) -> GuildMembership:
-    """The gate for the guild's sign-in configuration.
+    """The gate for the guild's sign-in configuration and its billing.
 
     The seat exactly, not admin-or-above: an ordinary guild admin runs the
-    community, and this decides who may enter it.
+    community, and this decides who may enter it and what it is billed for.
+
+    Answered by ``public.guild_superadmin`` — the function the policies on
+    ``guild_auth_policies`` defer to — so an endpoint and the database reach
+    the same verdict by asking the same question. ``_guild_membership_of``
+    still runs first: it establishes the request context the function is read
+    under, and a non-member is a membership refusal rather than a seat one.
     """
     membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
-    rls_service.require_guild_security_admin(membership.role)
+    await rls_service.require_guild_seat(session, guild_id=guild_id, user_id=user_id)
     return membership
 
 
@@ -938,14 +944,18 @@ async def create_guild_billing_handoff(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
-    """Mint a billing-portal handoff for a guild admin. Guild admin only."""
+    """Mint a billing-portal handoff. The guild's superadmin only.
+
+    What a community pays for is the top seat's, like its sign-in: an ordinary
+    admin runs the place without holding its card.
+    """
     if not settings.BILLING_URL:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    await _ensure_guild_admin(
+    await _ensure_guild_superadmin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
@@ -956,6 +966,9 @@ async def create_guild_billing_handoff(
             user_id=current_user.id, guild_id=guild_id
         )
         token, expires_in_seconds = create_billing_portal_handoff_token(
+            # The portal's own vocabulary, which is not this enum: it knows
+            # "the person who may act for this guild", and only the seat
+            # reaches here to say so.
             guild_role=GuildRole.admin.value,
             user_ref=user_ref,
             guild_ref=guild_ref,
@@ -1048,15 +1061,16 @@ async def set_guild_auth_policy(
     requirement outlives the entitlement and the way to lift one outlives it
     too. Lifting only ever admits more, so it carries none of the conditions
     imposing it does."""
-    await _ensure_guild_security_admin(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    # The row is written through the guild's own role, so the policies on
+    # ``guild_auth_policies`` are what admit the write.
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
     if payload.policy == "open":
-        policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+        policy_row = await session.get(GuildAuthPolicy, guild_id)
         if policy_row is not None:
-            await admin_session.delete(policy_row)
-            await admin_session.commit()
+            await session.delete(policy_row)
+            await session.commit()
         return GuildAuthPolicyRead(policy="open")
 
     await _require_guild_auth_option(
@@ -1069,8 +1083,10 @@ async def set_guild_auth_policy(
     # longer login-ready.
     await auth_posture.hold_settings_for_read(admin_session)
     # And order against the seat: a requirement must not commit while the only
-    # member who could lift it is being demoted, removed, or leaving.
-    await guilds_service.lock_guild_seats(admin_session, guild_id)
+    # member who could lift it is being demoted, removed, or leaving. Taken on
+    # the session that performs the write, which is what the lock has to
+    # outlive.
+    await guilds_service.lock_guild_seats(session, guild_id)
 
     require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
     if payload.provider_id is None and not require_methods:
@@ -1082,12 +1098,13 @@ async def set_guild_auth_policy(
 
     provider = None
     if payload.provider_id is not None:
-        # Held for the rest of this transaction: the row this requirement is
-        # about to point at must still be there when it commits, and deleting
-        # a required provider is refused rather than allowed to race.
-        provider = await admin_session.get(
-            AuthProvider, payload.provider_id, with_for_update=True
-        )
+        # Read, not held. The write below carries a foreign key to this row,
+        # and that is what keeps it still: the insert takes its own lock on the
+        # provider through the key, so a delete racing it waits rather than
+        # winning. An explicit lock here could not do that job any more — it
+        # would be taken on the system engine while the write happens on the
+        # request path, which is two connections contending for one row.
+        provider = await admin_session.get(AuthProvider, payload.provider_id)
         if (
             provider is None
             or provider.guild_id != guild_id
@@ -1131,15 +1148,15 @@ async def set_guild_auth_policy(
                 detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
             )
 
-    policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+    policy_row = await session.get(GuildAuthPolicy, guild_id)
     if policy_row is None:
         policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
     policy_row.policy = "required"
     policy_row.provider_id = provider.id if provider else None
     policy_row.provider_slug = provider.slug if provider else None
     policy_row.require_methods = require_methods
-    admin_session.add(policy_row)
-    await admin_session.commit()
+    session.add(policy_row)
+    await session.commit()
     return _auth_policy_read(policy_row, provider.display_name if provider else None)
 
 
@@ -1163,9 +1180,7 @@ async def set_guild_api_access(
     used, so switching this back on restores them rather than leaving somebody
     to mint replacements.
     """
-    await _ensure_guild_security_admin(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
     guild = await admin_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
@@ -1396,7 +1411,7 @@ async def update_guild_membership(
 
     # The seat is passed on by whoever holds it, and by nobody below it. An
     # operator seats the first one — that is the only part a guild cannot do
-    # for itself — and from then on a security admin may seat another. An
+    # for itself — and from then on a superadmin may seat another. An
     # ordinary admin may do neither, which is the separation.
     if payload.role not in assignable_roles(caller.role):
         raise HTTPException(
@@ -1417,8 +1432,8 @@ async def update_guild_membership(
     # And taking the seat away is the same authority as giving it. Asked of the
     # *locked* row, so the role this decides on is the role as it stands now.
     if (
-        target_membership.role == GuildRole.security_admin
-        and caller.role != GuildRole.security_admin
+        target_membership.role == GuildRole.superadmin
+        and caller.role != GuildRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1441,27 +1456,27 @@ async def update_guild_membership(
     # The seat cannot be emptied while the guild requires a sign-in: lifting the
     # requirement happens on the surface the seat holds.
     if (
-        target_membership.role == GuildRole.security_admin
-        and payload.role != GuildRole.security_admin
-        and await guilds_service.must_keep_security_admin(
+        target_membership.role == GuildRole.superadmin
+        and payload.role != GuildRole.superadmin
+        and await guilds_service.must_keep_superadmin(
             session, guild_id=guild_id, user_id=user_id
         )
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
-    if GuildRole.security_admin in (previous_role, payload.role):
+    if GuildRole.superadmin in (previous_role, payload.role):
         # The seat moving is recorded wherever it moves. An operator seats the
         # first one from platform settings and that is recorded there; this is
         # the same event when a guild passes it on itself.
         await audit_service.record(
             session,
-            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
+            event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=current_user.id,
             target_user_id=user_id,
             target_type="guild",
@@ -1515,14 +1530,14 @@ async def check_leave_eligibility(
     is_last_admin = await is_last_admin_of_guild(
         admin_session, guild_id, current_user.id
     )
-    is_last_security_admin = await guilds_service.must_keep_security_admin(
+    is_last_superadmin = await guilds_service.must_keep_superadmin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     )
 
     return LeaveGuildEligibilityResponse(
-        can_leave=not is_last_admin and not is_last_security_admin,
+        can_leave=not is_last_admin and not is_last_superadmin,
         is_last_admin=is_last_admin,
-        is_last_security_admin=is_last_security_admin,
+        is_last_superadmin=is_last_superadmin,
     )
 
 
@@ -1578,12 +1593,12 @@ async def leave_guild(
 
     # Nor while they are the only member who can lift a sign-in requirement:
     # that is lifted from the surface the seat holds.
-    if await guilds_service.must_keep_security_admin(
+    if await guilds_service.must_keep_superadmin(
         admin_session, guild_id=guild_id, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     # Ownership release happens inside remove_user_from_guild, while the

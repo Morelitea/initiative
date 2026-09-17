@@ -30,6 +30,7 @@ SIGNATURES = {
     "initiative_full_access": "(int,bool)",
     "initiative_role_permits": "(int,int,text,bool)",
     "resource_access": "(text,int,int,int,bool)",
+    "guild_superadmin": "(int,int)",
 }
 
 

@@ -81,7 +81,7 @@ async def is_last_admin_of_guild(
     result = await session.exec(membership_stmt)
     membership = result.one_or_none()
 
-    # Admin or above: a security admin is one of the people who can administer
+    # Admin or above: a superadmin is one of the people who can administer
     # this guild, so it counts on both sides of the question.
     if not membership or membership.role not in GUILD_ADMIN_ROLES:
         return False
