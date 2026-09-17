@@ -36,7 +36,7 @@
     "title": "Quitter {{name}} ?",
     "description": "Vous perdrez l'accès à toutes les initiatives et projets dans <bold>{{name}}</bold>. Cette action est irréversible.",
     "cannotLeaveTitle": "Impossible de quitter la communauté",
-    "lastAdminWarning": "Vous êtes le dernier administrateur de cette communauté. Promouvez d'abord un autre membre en administrateur.",
+    "lastSuperadminWarning": "Vous êtes le seul superadmin de cette communauté. Nommez d'abord un autre membre superadmin.",
     "leaving": "Départ en cours...",
     "leaveButton": "Quitter la communauté",
     "leftGuild": "{{name}} quitté",

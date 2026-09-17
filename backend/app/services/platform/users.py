@@ -39,6 +39,59 @@ from app.models.platform.user_token import UserToken
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 
+class SeatWouldBeEmptied(Exception):
+    """Removing this account would leave a community with no superadmin.
+
+    Raised from the membership drop rather than from an eligibility check,
+    because that is where it can be true at the moment it matters: the check
+    an endpoint runs first is a report, and two accounts can each pass it by
+    seeing the other.
+    """
+
+    def __init__(self, guild_names: List[str]) -> None:
+        self.guild_names = guild_names
+        super().__init__(", ".join(guild_names))
+
+
+async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
+    """Take every seat lock this removal touches, then check under it.
+
+    Ordered by guild id so two accounts leaving the same pair of communities
+    queue behind each other instead of each holding what the other wants. The
+    locks last to the end of the caller's transaction, which is the one that
+    removes the memberships — so the answer is still true when it does.
+    """
+    from app.services.platform.guilds import lock_guild_seats
+
+    guild_ids = sorted(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id,
+                    GuildMembership.role == GuildRole.superadmin,
+                )
+            )
+        ).all()
+    )
+    if not guild_ids:
+        return
+
+    stranded: List[str] = []
+    for guild_id in guild_ids:
+        await lock_guild_seats(session, guild_id)
+        if not await is_sole_superadmin_of_guild(session, guild_id, user_id):
+            continue
+        from app.models.platform.guild import Guild
+
+        guild = (
+            await session.exec(select(Guild).where(Guild.id == guild_id))
+        ).one_or_none()
+        stranded.append(guild.name if guild else str(guild_id))
+
+    if stranded:
+        raise SeatWouldBeEmptied(stranded)
+
+
 async def is_sole_superadmin_of_guild(
     session: AsyncSession, guild_id: int, user_id: int, *, for_update: bool = False
 ) -> bool:
@@ -245,6 +298,11 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             )
         ).all()
     )
+
+    # Every community this account holds the seat of keeps it. Asked here, under
+    # the same locks the leave and demotion paths take, because this is the
+    # transaction that removes the rows.
+    await _hold_seats_or_refuse(session, user_id)
 
     # Initiative membership + owned-document handoff is guild-scoped — its rows
     # live in each guild's schema. Route into every guild as superadmin (system

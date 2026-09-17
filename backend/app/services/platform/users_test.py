@@ -160,6 +160,49 @@ async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSess
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_removing_the_only_seat_is_refused_where_the_rows_go(
+    session: AsyncSession,
+):
+    """The refusal lives in the drop, not only in the check an endpoint runs
+    first: that check is a report, and two accounts can each pass it by seeing
+    the other still there."""
+    seat = await create_user(session)
+    guild = await create_guild(session, name="Stranded", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+
+    with pytest.raises(user_service.SeatWouldBeEmptied) as refusal:
+        await user_service.deactivate_user(session, seat.id)
+    assert refusal.value.guild_names == ["Stranded"]
+
+    # The account is untouched by the refusal.
+    await session.refresh(seat)
+    assert seat.status == UserStatus.active
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
+    """Somebody else holds it, so nothing is stranded."""
+    leaving = await create_user(session, email="leaving@example.com")
+    staying = await create_user(session, email="staying@example.com")
+    guild = await create_guild(session, creator=leaving)
+    for user in (leaving, staying):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
+
+    leaving_id = leaving.id
+    await user_service.deactivate_user(session, leaving_id)
+
+    # Re-read rather than refresh: the drop expunges as it walks the guilds.
+    reloaded = (await session.exec(select(User).where(User.id == leaving_id))).one()
+    assert reloaded.status == UserStatus.deactivated
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_deactivate_user(session: AsyncSession):
     """Deactivation flips status, drops memberships, bumps token_version,
     and leaves PII intact so an admin can later reactivate."""

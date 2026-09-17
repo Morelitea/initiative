@@ -30,9 +30,10 @@ interface LeaveGuildDialogProps extends DialogProps {
 }
 
 /**
- * Being the guild's last admin is the only thing that stops someone leaving.
- * Content they own is released on the way out — left unowned for a guild admin
- * to claim from guild settings — so there is nothing to hand over first.
+ * Holding the community's only superadmin seat is the one thing that stops
+ * someone leaving. Content they own is released on the way out — left unowned
+ * for a guild admin to claim from guild settings — so there is nothing to hand
+ * over first.
  */
 export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
@@ -125,7 +126,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
           <AlertTitle>{t("leave.cannotLeaveTitle")}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 list-inside list-disc space-y-1">
-              <li>{t("leave.lastAdminWarning")}</li>
+              <li>{t("leave.lastSuperadminWarning")}</li>
             </ul>
           </AlertDescription>
         </Alert>

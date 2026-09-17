@@ -36,7 +36,7 @@
     "title": "¿Salir de {{name}}?",
     "description": "Perderás acceso a todas las iniciativas y proyectos en <bold>{{name}}</bold>. Esta acción no se puede deshacer.",
     "cannotLeaveTitle": "No se puede salir de la comunidad",
-    "lastAdminWarning": "Eres el último administrador de esta comunidad. Primero promueve a otro miembro a administrador.",
+    "lastSuperadminWarning": "Eres el único superadministrador de esta comunidad. Primero haz superadministrador a otro miembro.",
     "leaving": "Saliendo...",
     "leaveButton": "Salir de la comunidad",
     "leftGuild": "Saliste de {{name}}",

@@ -36,7 +36,7 @@
     "title": "Leave {{name}}?",
     "description": "You will lose access to all initiatives and projects in <bold>{{name}}</bold>. This action cannot be undone.",
     "cannotLeaveTitle": "Cannot leave community",
-    "lastAdminWarning": "You are the last admin of this community. Promote another member to admin first.",
+    "lastSuperadminWarning": "You are this community's only superadmin. Make another member a superadmin first.",
     "leaving": "Leaving...",
     "leaveButton": "Leave Community",
     "leftGuild": "Left {{name}}",
