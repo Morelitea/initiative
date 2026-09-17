@@ -26,6 +26,7 @@ from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
+from app.core.login_methods import LoginMethod
 from app.core.messages import BillingMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
@@ -1101,7 +1102,9 @@ async def set_guild_auth_policy(
     # The same rule the provider check makes, for "any of ours": the caller's
     # own session must have come in that way. Meeting it is also proof the
     # community has a provider that works, so there is nothing else to ask.
-    if require_methods and guild_id not in auth_context.sso_guilds():
+    # One check per method the list may hold; ``sso`` is the only one it can
+    # hold today, and a method added to the vocabulary brings its own.
+    if LoginMethod.sso in require_methods and guild_id not in auth_context.sso_guilds():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,

@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
+from app.core.login_methods import LoginMethod
 from app.core import auth_context
 from app.core.auth_context import (
     set_device_token_id,
@@ -599,7 +600,11 @@ def _enforce_guild_auth_policy(
 
     # "Any of ours": the session has to have completed this community's own
     # single sign-on, which its ``amr`` markers record at the moment it does.
-    if policy.require_methods and guild_id not in sso_guilds:
+    # Named rather than counted: ``require_methods`` may hold more than one
+    # method, and each is read as itself. Mirrors the matching leg in
+    # ``public.guild_auth_satisfied()``, which the database applies to the same
+    # row.
+    if LoginMethod.sso in policy.require_methods and guild_id not in sso_guilds:
         _refuse()
 
 
