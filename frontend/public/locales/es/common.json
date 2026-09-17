@@ -44,6 +44,8 @@
   "viewAll": "Ver todo",
   "copyToClipboard": "Copiar al portapapeles",
   "copied": "¡Copiado!",
+  "copy": "Copiar",
+  "copyUnavailable": "No se pudo copiar: cópialo a mano",
   "untitled": "Sin título",
   "appName": "initiative",
   "send": "Enviar",

@@ -23,6 +23,8 @@ import type {
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderDiscoverRequest,
+  AuthProviderProbeResult,
   AuthProviderUpdate,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
@@ -520,6 +522,215 @@ export const useDeleteGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderId
 > => {
   return useMutation(
     getDeleteGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdDeleteMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Look up an address and report what it offers, before anything is saved.
+ * @summary Discover Guild Auth Provider
+ */
+export const discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost = (
+  guildId: number,
+  authProviderDiscoverRequest: BodyType<AuthProviderDiscoverRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AuthProviderProbeResult>(
+    {
+      url: `/api/v1/guilds/${guildId}/auth/providers/discover`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: authProviderDiscoverRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>
+      >,
+      TError,
+      { guildId: number; data: BodyType<AuthProviderDiscoverRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>
+    >,
+    TError,
+    { guildId: number; data: BodyType<AuthProviderDiscoverRequest> },
+    TContext
+  > => {
+    const mutationKey = ["discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>
+      >,
+      { guildId: number; data: BodyType<AuthProviderDiscoverRequest> }
+    > = (props) => {
+      const { guildId, data } = props ?? {};
+
+      return discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost(
+        guildId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>>
+  >;
+export type DiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPostMutationBody =
+  BodyType<AuthProviderDiscoverRequest>;
+export type DiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Discover Guild Auth Provider
+ */
+export const useDiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>
+      >,
+      TError,
+      { guildId: number; data: BodyType<AuthProviderDiscoverRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof discoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPost>>,
+  TError,
+  { guildId: number; data: BodyType<AuthProviderDiscoverRequest> },
+  TContext
+> => {
+  return useMutation(
+    getDiscoverGuildAuthProviderApiV1GuildsGuildIdAuthProvidersDiscoverPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Look up a saved provider's own issuer. The address comes off the row.
+ * @summary Test Guild Auth Provider
+ */
+export const testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost = (
+  guildId: number,
+  providerId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AuthProviderProbeResult>(
+    { url: `/api/v1/guilds/${guildId}/auth/providers/${providerId}/test`, method: "POST", signal },
+    options
+  );
+};
+
+export const getTestGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+      >,
+      TError,
+      { guildId: number; providerId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+    >,
+    TError,
+    { guildId: number; providerId: number },
+    TContext
+  > => {
+    const mutationKey = ["testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+      >,
+      { guildId: number; providerId: number }
+    > = (props) => {
+      const { guildId, providerId } = props ?? {};
+
+      return testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost(
+        guildId,
+        providerId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type TestGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+    >
+  >;
+
+export type TestGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Test Guild Auth Provider
+ */
+export const useTestGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+      >,
+      TError,
+      { guildId: number; providerId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof testGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPost>
+  >,
+  TError,
+  { guildId: number; providerId: number },
+  TContext
+> => {
+  return useMutation(
+    getTestGuildAuthProviderApiV1GuildsGuildIdAuthProvidersProviderIdTestPostMutationOptions(
       options
     ),
     queryClient

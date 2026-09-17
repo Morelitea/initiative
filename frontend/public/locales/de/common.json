@@ -45,6 +45,8 @@
   "viewAll": "Alle anzeigen",
   "copyToClipboard": "In die Zwischenablage kopieren",
   "copied": "Kopiert!",
+  "copy": "Kopieren",
+  "copyUnavailable": "Kopieren nicht möglich — bitte manuell kopieren",
   "untitled": "Ohne Titel",
   "appName": "initiative",
   "send": "Senden",
