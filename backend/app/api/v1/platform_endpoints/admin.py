@@ -16,7 +16,7 @@ from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.audit_event import AuditEvent
-from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildRole
+from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
@@ -913,16 +913,17 @@ async def admin_delete_guild(
     """Delete a guild that blocks a user's deletion (platform operator).
 
     Scoped to blocker resolution — NOT a general "delete any guild" tool: the
-    guild must be one ``blocked_user_id`` is the SOLE admin of (so deleting that
-    user would orphan it). Any other guild is refused; an operator reaches a live
+    guild must be one ``blocked_user_id`` holds the SOLE superadmin seat of (so
+    deleting that user would leave it with nobody who can run it). Any other guild is refused; an operator reaches a live
     guild's own deletion only by breaking glass into its danger zone. This
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
     """
-    if not await users_service.is_last_admin_of_guild(
-        session, guild_id, blocked_user_id, for_update=True
+    await guilds_service.lock_guild_seats(session, guild_id)
+    if not await guilds_service.would_strand_guild(
+        session, guild_id=guild_id, user_id=blocked_user_id
     ):
-        # Either the user isn't the guild's sole admin (not a real blocker), or
+        # Either the user isn't the guild's sole seat (not a real blocker), or
         # the guild doesn't exist / they aren't in it — all refused identically.
         # ``for_update`` narrows the race against a concurrent demotion of an
         # existing admin; it can't lock a not-yet-existing row, so a brand-new
@@ -1064,42 +1065,29 @@ async def admin_update_guild_member_role(
             detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
         )
 
-    # Check if demoting the last guild admin
-    if (
-        target_membership.role in GUILD_ADMIN_ROLES
-        and payload.role not in GUILD_ADMIN_ROLES
-    ):
-        if await users_service.is_last_admin_of_guild(
-            session, guild_id, user_id, for_update=True
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
-            )
-
     # The seat cannot be emptied while the guild requires a sign-in: lifting the
     # requirement happens on the surface the seat holds.
     if (
-        target_membership.role == GuildRole.security_admin
-        and payload.role != GuildRole.security_admin
-        and await guilds_service.must_keep_security_admin(
+        target_membership.role == GuildRole.superadmin
+        and payload.role != GuildRole.superadmin
+        and await guilds_service.must_keep_superadmin(
             session, guild_id=guild_id, user_id=user_id
         )
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SECURITY_ADMIN,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
-    if GuildRole.security_admin in (previous_role, payload.role):
-        # An operator seats a guild's first security admin here; the guild's own
+    if GuildRole.superadmin in (previous_role, payload.role):
+        # An operator seats a guild's first superadmin here; the guild's own
         # role endpoint records the same event when the seat is passed on.
         await audit_service.record(
             session,
-            event_type=AuditEventType.GUILD_SECURITY_ADMIN_CHANGED,
+            event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=_current_user.id,
             target_user_id=user_id,
             target_type="guild",

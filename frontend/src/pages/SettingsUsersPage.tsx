@@ -49,6 +49,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { holdsGuildSeat } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -432,7 +433,7 @@ export const SettingsUsersPage = () => {
               </Button>
             </div>
           </form>
-          {atUserLimit && billing && activeGuildId ? (
+          {atUserLimit && billing && activeGuildId && holdsGuildSeat(activeGuild) ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-muted-foreground text-sm">
                 {planName

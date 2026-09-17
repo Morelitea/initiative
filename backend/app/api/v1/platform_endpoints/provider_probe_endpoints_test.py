@@ -51,11 +51,11 @@ async def _owner_headers(session: AsyncSession) -> dict[str, str]:
     return get_auth_headers(owner)
 
 
-async def _security_admin(session: AsyncSession):
+async def _superadmin(session: AsyncSession):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     return admin, guild
 

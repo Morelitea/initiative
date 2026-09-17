@@ -30,7 +30,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
     kwargs = {} if auth_options is None else {"auth_options": auth_options}
     guild = await create_guild(session, creator=admin, **kwargs)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     return admin, guild
 

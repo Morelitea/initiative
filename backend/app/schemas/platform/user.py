@@ -681,7 +681,9 @@ class DeletionEligibilityResponse(SanitizedBaseModel):
 
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
-    last_admin_guilds: List[str] = Field(default_factory=list)
+    #: Communities this account holds the only superadmin seat of — the one
+    #: thing that blocks deletion, and what the dialog offers to delete.
+    sole_superadmin_guilds: List[str] = Field(default_factory=list)
 
 
 class AccountDeletionResponse(SanitizedBaseModel):

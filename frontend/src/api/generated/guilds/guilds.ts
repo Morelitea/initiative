@@ -1750,7 +1750,10 @@ export const useClearGuildBannerApiV1GuildsGuildIdBannerDelete = <
   );
 };
 /**
- * Mint a billing-portal handoff for a guild admin. Guild admin only.
+ * Mint a billing-portal handoff. The guild's superadmin only.
+ *
+ * What a community pays for is the top seat's, like its sign-in: an ordinary
+ * admin runs the place without holding its card.
  * @summary Create Guild Billing Handoff
  */
 export const createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = (
@@ -2507,9 +2510,9 @@ export const useUpdateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch = <
 /**
  * Check if the current user can leave a guild.
  *
- * Being the guild's last admin is the only thing that stops them. Content they
- * own is released on the way out and left unowned for a guild admin to claim,
- * so there is nothing to hand over first.
+ * Holding its only superadmin seat is the one thing that stops them. Content
+ * they own is released on the way out and left unowned for a guild admin to
+ * claim, so there is nothing to hand over first.
  * @summary Check Leave Eligibility
  */
 export const checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet = (

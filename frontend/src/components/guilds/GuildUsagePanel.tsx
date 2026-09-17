@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
+import { holdsGuildSeat } from "@/lib/permissions";
 
 /** Percentage 0–100 of `used` against a cap, or null when the cap is
  * unlimited (null) — a null ratio renders no progress bar. */
@@ -75,7 +76,7 @@ export const GuildUsagePanel = () => {
           {memberPct != null && <Progress value={memberPct} />}
         </div>
 
-        {billing && (
+        {billing && holdsGuildSeat(activeGuild) && (
           <>
             <Separator />
             <div className="flex flex-wrap items-center justify-between gap-3">

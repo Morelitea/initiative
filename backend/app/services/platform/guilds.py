@@ -12,7 +12,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
-from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -616,8 +615,13 @@ async def create_guild(
     caller commits this, then calls :func:`seed_guild_content`.
 
     ``creator`` is who performed the creation and is recorded as such;
-    ``owner`` is who gets the admin membership, defaulting to the creator. The
-    row therefore says both who made the guild and who it is for.
+    ``owner`` is who gets the membership, defaulting to the creator. The row
+    therefore says both who made the guild and who it is for.
+
+    That membership is ``superadmin``, the top of the guild ladder: whoever
+    starts a community holds all of it, sign-in and billing included, and has
+    somebody to pass the seat to only because they hold it first. Every guild
+    keeps at least one from here on (:func:`must_keep_superadmin`).
     """
     now = datetime.now(timezone.utc)
     guild = Guild(
@@ -630,13 +634,13 @@ async def create_guild(
         updated_at=now,
     )
     await _persist_new_guild(session, guild)
-    admin = owner or creator
-    if admin:
+    first = owner or creator
+    if first:
         await ensure_membership(
             session,
             guild_id=guild.id,
-            user_id=admin.id,
-            role=GuildRole.admin,
+            user_id=first.id,
+            role=GuildRole.superadmin,
         )
     return guild
 
@@ -1522,7 +1526,7 @@ async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     )
 
 
-async def must_keep_security_admin(
+async def must_keep_superadmin(
     session: AsyncSession,
     *,
     guild_id: int,
@@ -1530,25 +1534,22 @@ async def must_keep_security_admin(
 ) -> bool:
     """Whether this member's seat has to stay where it is.
 
-    True only when all three hold: they hold ``security_admin``, they are the
-    only one who does, and the guild requires a sign-in. The requirement is
-    lifted from the guild's own sign-in surface and that surface is the seat's,
-    so the last holder stays for as long as the requirement does.
+    True when they hold ``superadmin`` and are the only one who does. Every
+    guild keeps one: the seat holds the sign-in configuration and the billing
+    portal, and only an operator can seat a guild that has emptied it — so
+    emptying it is not something a guild can be allowed to do to itself.
 
-    A guild with no requirement empties the seat freely — the common case, and
-    deliberately untouched.
+    Narrower once: the last holder stayed only while a sign-in requirement
+    stood, which was right while the seat was about sign-in alone and rare
+    enough that most guilds never held one. It is now every guild's, and it
+    reaches further than sign-in.
 
-    Ask this on the system engine: ``guild_auth_policies`` is not part of the
-    request path's reach. Call :func:`lock_guild_seats` first — this reads
-    three things that have to agree with each other, and the lock is what makes
-    the answer still true when the caller acts on it.
+    Call :func:`lock_guild_seats` first — this reads two things that have to
+    agree with each other, and the lock is what makes the answer still true
+    when the caller acts on it.
     """
     membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
-    if membership is None or membership.role != GuildRole.security_admin:
-        return False
-
-    policy = await session.get(GuildAuthPolicy, guild_id)
-    if policy is None or policy.policy == "open":
+    if membership is None or membership.role != GuildRole.superadmin:
         return False
 
     others = (
@@ -1558,11 +1559,47 @@ async def must_keep_security_admin(
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id != user_id,
-                GuildMembership.role == GuildRole.security_admin,
+                GuildMembership.role == GuildRole.superadmin,
             )
         )
     ).one()
     return others == 0
+
+
+async def would_strand_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether this account *going* would leave the community without a seat.
+
+    :func:`must_keep_superadmin` with the exception that makes it liveable: a
+    community whose only member is the person leaving has nobody to strand, and
+    no remedy to offer either — appointing another superadmin takes somebody to
+    appoint. They go, and what is left is a community with no members.
+
+    Departure only. Demotion does not get the exception and asks
+    :func:`must_keep_superadmin` directly: somebody who demotes themselves
+    while alone is still there afterwards, in a community they can no longer
+    configure and cannot re-seat.
+
+    Call :func:`lock_guild_seats` first, as for the rule it builds on.
+    """
+    if not await must_keep_superadmin(session, guild_id=guild_id, user_id=user_id):
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+            )
+        )
+    ).one()
+    return others > 0
 
 
 async def remove_user_from_guild(

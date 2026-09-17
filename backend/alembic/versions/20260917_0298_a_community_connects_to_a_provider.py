@@ -51,8 +51,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20260917_0296"
-down_revision = "20260917_0295"
+revision = "20260917_0298"
+down_revision = "20260917_0297"
 branch_labels = None
 depends_on = None
 

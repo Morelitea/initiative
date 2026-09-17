@@ -9,7 +9,7 @@ tenant.
 Exists only where the operator has granted the community that option (404
 otherwise, like the rest of the guild auth surface).
 
-Reading is a guild admin's; changing is the security admin's, the seat that
+Reading is a guild admin's; changing is the superadmin's, the seat that
 holds a community's sign-in configuration.
 
 The posture and role checks run on the request-path session; the connections
@@ -26,7 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import SessionDep, get_current_active_user
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
-    _ensure_guild_security_admin,
+    _ensure_guild_superadmin,
     _require_guild_auth_option,
 )
 from app.core.guild_auth_options import GuildAuthOption
@@ -67,10 +67,10 @@ async def _require_connection_admin(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Changing it: the same grant, then the security admin seat — who may
+    """Changing it: the same grant, then the superadmin seat — who may
     enter a community is that seat's to decide."""
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
-    await _ensure_guild_security_admin(session, guild_id=guild_id, user_id=user_id)
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=user_id)
 
 
 @router.get(

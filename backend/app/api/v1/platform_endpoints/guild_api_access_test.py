@@ -40,7 +40,7 @@ async def test_the_seat_switches_api_access_and_the_guild_list_reads_it(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     headers = get_auth_headers(admin)
 
@@ -93,7 +93,7 @@ async def test_api_access_needs_no_operator_entitlement(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.put(
@@ -135,7 +135,7 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     headers = get_auth_headers(admin)
     key_headers = await _key_headers(client, headers, guild_id=guild.id)
@@ -200,7 +200,7 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     get_guild_storage(guild.id).write("note.txt", b"hello")
     session.add(

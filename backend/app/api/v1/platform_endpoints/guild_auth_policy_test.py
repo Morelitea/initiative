@@ -63,7 +63,7 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
@@ -121,7 +121,7 @@ async def test_policy_rejects_unusable_provider(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     disabled = await create_auth_provider(session, slug="off", enabled=False)
     await create_guild_provider_connection(session, guild=guild, provider=disabled)
@@ -152,7 +152,7 @@ async def test_policy_rejects_a_provider_the_community_does_not_connect_to(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     other_guild = await create_guild(session)
     unconnected = await create_auth_provider(session, slug="corp")
@@ -179,7 +179,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
@@ -206,7 +206,7 @@ async def test_a_requirement_can_be_cleared_without_the_entitlement(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
@@ -241,7 +241,7 @@ async def test_policy_surface_404_when_guild_auth_disabled(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.security_admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
@@ -443,7 +443,7 @@ async def test_an_api_key_does_not_satisfy_a_requirement(
 
 
 async def _guild_with_a_seat_and_a_requirement(session: AsyncSession):
-    """One security admin, one member, and a standing requirement."""
+    """One superadmin, one member, and a standing requirement."""
     from app.models.platform.user import UserRole
 
     founder = await create_user(session)
@@ -453,7 +453,7 @@ async def _guild_with_a_seat_and_a_requirement(session: AsyncSession):
     )
     keyholder = await create_user(session)
     await create_guild_membership(
-        session, user=keyholder, guild=guild, role=GuildRole.security_admin
+        session, user=keyholder, guild=guild, role=GuildRole.superadmin
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
@@ -483,7 +483,7 @@ async def test_an_ordinary_admin_reads_the_policy_but_does_not_write_it(
             f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers, json=body
         )
         assert refused.status_code == 403, refused.text
-        assert refused.json()["detail"] == "GUILD_SECURITY_ADMIN_REQUIRED"
+        assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 
     # And the row is untouched.
     guild_id = guild.id
@@ -514,7 +514,7 @@ async def test_an_ordinary_admin_sees_the_connections_but_does_not_change_them(
 
     connected = await client.post(base, headers=headers, json={"provider_id": 1})
     assert connected.status_code == 403
-    assert connected.json()["detail"] == "GUILD_SECURITY_ADMIN_REQUIRED"
+    assert connected.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 
 
 async def test_the_last_seat_cannot_be_demoted_while_a_requirement_stands(
@@ -531,7 +531,7 @@ async def test_the_last_seat_cannot_be_demoted_while_a_requirement_stands(
         json={"role": "member"},
     )
     assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SECURITY_ADMIN"
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
 
 async def test_the_last_seat_cannot_leave_while_a_requirement_stands(
@@ -543,19 +543,36 @@ async def test_the_last_seat_cannot_leave_while_a_requirement_stands(
         f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(keyholder)
     )
     assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SECURITY_ADMIN"
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
 
-async def test_the_seat_empties_freely_once_the_requirement_is_lifted(
+async def test_the_last_seat_stays_even_with_no_requirement(
     client: AsyncClient, session: AsyncSession
 ):
-    """The condition is narrow on purpose: a guild that requires nothing is a
-    guild whose seat is like any other role."""
+    """Lifting the sign-in requirement does not free the seat.
+
+    It did once, while the seat was about sign-in alone. It now holds billing
+    too, and only an operator can seat a guild that has emptied it — so a guild
+    keeps one whatever its sign-in rule says.
+    """
     keyholder, guild, operator = await _guild_with_a_seat_and_a_requirement(session)
     policy_row = await session.get(GuildAuthPolicy, guild.id)
     await session.delete(policy_row)
     await session.commit()
 
+    refused = await client.patch(
+        f"/api/v1/admin/guilds/{guild.id}/members/{keyholder.id}/role",
+        headers=get_auth_headers(operator),
+        json={"role": "member"},
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+
+    # A second holder is what frees the first.
+    understudy = await create_user(session)
+    await create_guild_membership(
+        session, user=understudy, guild=guild, role=GuildRole.superadmin
+    )
     allowed = await client.patch(
         f"/api/v1/admin/guilds/{guild.id}/members/{keyholder.id}/role",
         headers=get_auth_headers(operator),
@@ -1084,10 +1101,10 @@ async def test_the_database_refuses_it_even_where_the_gate_is_skipped(
 
 
 async def _seat_headers(session: AsyncSession, guild, *, with_factor: bool):
-    """The security admin's own session, carrying a factor or not."""
+    """The superadmin's own session, carrying a factor or not."""
     seat = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.security_admin
+        session, user=seat, guild=guild, role=GuildRole.superadmin
     )
     await session.commit()
     token = get_auth_token(seat, amr=["pwd", "otp", "mfa"] if with_factor else ["pwd"])

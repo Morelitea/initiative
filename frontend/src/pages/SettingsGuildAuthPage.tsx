@@ -55,7 +55,7 @@ export const SettingsGuildAuthPage = () => {
   // The seat above admin holds a community's sign-in configuration, and this
   // page is all of it — so it is theirs to reach, not only theirs to write.
   // The tab is gated the same way; this is the direct-URL half.
-  const isSecurityAdmin = activeGuild?.role === "security_admin";
+  const isSuperadmin = activeGuild?.role === "superadmin";
   const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
@@ -244,7 +244,7 @@ export const SettingsGuildAuthPage = () => {
     }
   };
 
-  if (!isSecurityAdmin) {
+  if (!isSuperadmin) {
     return null;
   }
 

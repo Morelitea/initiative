@@ -95,11 +95,11 @@ def test_a_grant_still_does_not_say_how_a_guild_is_routed():
 
 
 def test_a_stored_role_does_not_reach_the_guc():
-    """``security_admin`` is a membership row, not a content role. It arrives
+    """``superadmin`` is a membership row, not a content role. It arrives
     as ``admin`` through ``content_role``; anything else is a caller that
     skipped that step."""
     with pytest.raises(ContextShapeError):
-        classify(guild_id=3, guild_role=GuildRole.security_admin.value)
+        classify(guild_id=3, guild_role=GuildRole.superadmin.value)
     with pytest.raises(ContextShapeError):
         classify(guild_id=3, guild_role=GuildRole.support.value)
 

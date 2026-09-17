@@ -353,7 +353,7 @@ async def test_admin_delete_guild_requires_sole_admin_blocker(
 async def test_admin_delete_guild_deletes_genuine_blocker(
     client: AsyncClient, session: AsyncSession
 ):
-    """When the user is the guild's sole admin, the operator can delete it to
+    """When the user holds the guild's sole seat, the operator can delete it to
     resolve the user-deletion blocker."""
     from sqlmodel import select
 
@@ -366,7 +366,14 @@ async def test_admin_delete_guild_deletes_genuine_blocker(
     target = await create_user(session, email="sole-admin2@example.com")
     guild = await create_guild(session, creator=target)
     await create_guild_membership(
-        session, user=target, guild=guild, role=GuildRole.admin
+        session, user=target, guild=guild, role=GuildRole.superadmin
+    )
+    # A community of one strands nobody, so it is not a blocker at all.
+    await create_guild_membership(
+        session,
+        user=await create_user(session, email="bystander@example.com"),
+        guild=guild,
+        role=GuildRole.member,
     )
 
     resp = await client.delete(

@@ -223,7 +223,8 @@ async def test_create_guild(client: AsyncClient, session: AsyncSession):
     data = response.json()
     assert data["name"] == "New Guild"
     assert data["description"] == "A test guild"
-    assert data["role"] == "admin"
+    # Whoever makes a community holds its seat.
+    assert data["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -289,14 +290,14 @@ async def test_staff_can_create_a_guild_owned_by_someone_else(
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
 
-    # The named account is its admin...
+    # The named account holds its seat...
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.guild_id == guild_id)
         )
     ).all()
     assert [(m.user_id, m.role) for m in memberships] == [
-        (customer.id, GuildRole.admin)
+        (customer.id, GuildRole.superadmin)
     ]
     # ...and the creator holds nothing in it.
     assert staff.id not in {m.user_id for m in memberships}
@@ -408,7 +409,7 @@ async def test_naming_yourself_needs_no_capability(
     )
 
     assert response.status_code == 201, response.text
-    assert response.json()["role"] == "admin"
+    assert response.json()["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -1056,7 +1057,7 @@ async def test_guild_billing_handoff_returns_404_when_billing_url_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1124,7 +1125,7 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1172,7 +1173,7 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1186,18 +1187,16 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
 
 
 @pytest.mark.integration
-async def test_an_admin_can_leave_when_another_admin_remains(
+async def test_an_ordinary_admin_leaves_freely(
     client: AsyncClient, session: AsyncSession
 ):
-    """How many admins a guild has is a question about the guild, so it is
-    asked where the whole roster is visible. Asked through the guild role the
-    request has assumed, the count reaches the caller's own membership row and
-    every admin is told they are the last one."""
-    staying = await create_user(session)
+    """Being a community's last *admin* stops nobody. Its superadmin is still
+    there, and can appoint another admin whenever it wants one."""
+    seat = await create_user(session)
     leaving = await create_user(session)
-    guild = await create_guild(session, creator=staying)
+    guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=staying, guild=guild, role=GuildRole.admin
+        session, user=seat, guild=guild, role=GuildRole.superadmin
     )
     await create_guild_membership(
         session, user=leaving, guild=guild, role=GuildRole.admin
@@ -1209,7 +1208,7 @@ async def test_an_admin_can_leave_when_another_admin_remains(
     )
     assert eligibility.status_code == 200, eligibility.text
     assert eligibility.json()["can_leave"] is True
-    assert eligibility.json()["is_last_admin"] is False
+    assert eligibility.json()["is_last_superadmin"] is False
 
     response = await client.delete(
         f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
@@ -1218,79 +1217,100 @@ async def test_an_admin_can_leave_when_another_admin_remains(
 
 
 @pytest.mark.integration
-async def test_the_last_admin_still_cannot_leave(
-    client: AsyncClient, session: AsyncSession
-):
-    """The rule the count exists for, unchanged."""
-    only_admin = await create_user(session)
-    guild = await create_guild(session, creator=only_admin)
+async def test_the_only_seat_cannot_leave(client: AsyncClient, session: AsyncSession):
+    """The rule a departure is counted for: a community keeps its seat."""
+    only_seat = await create_user(session)
+    guild = await create_guild(session, creator=only_seat)
     await create_guild_membership(
-        session, user=only_admin, guild=guild, role=GuildRole.admin
+        session, user=only_seat, guild=guild, role=GuildRole.superadmin
+    )
+    # Somebody to strand. A community of one is the exception below.
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
     )
 
     eligibility = await client.get(
         f"/api/v1/guilds/{guild.id}/leave/eligibility",
-        headers=get_auth_headers(only_admin),
+        headers=get_auth_headers(only_seat),
     )
     assert eligibility.json()["can_leave"] is False
-    assert eligibility.json()["is_last_admin"] is True
+    assert eligibility.json()["is_last_superadmin"] is True
 
     response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(only_admin)
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(only_seat)
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "CANNOT_LEAVE_LAST_ADMIN"
+    assert response.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
 
 @pytest.mark.integration
-async def test_a_security_admin_counts_as_an_admin_when_someone_leaves(
+async def test_a_second_seat_frees_the_first(
     client: AsyncClient, session: AsyncSession
 ):
-    """The seat sits above admin, so it answers the question on both sides:
-    it keeps an ordinary admin from being the last one, and leaving it behind
-    is refused like any other last admin's departure."""
-    keyholder = await create_user(session)
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=keyholder)
+    """Two seats, so either may go; the one left behind then stays."""
+    first = await create_user(session)
+    second = await create_user(session)
+    guild = await create_guild(session, creator=first)
+    for user in (first, second):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
     await create_guild_membership(
-        session, user=keyholder, guild=guild, role=GuildRole.security_admin
-    )
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
     )
 
-    # The seat is an admin for this purpose, so the ordinary admin is free.
     left = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(admin)
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(second)
     )
     assert left.status_code == 204, left.text
 
-    # And now the seat is the last one, so it stays.
     refused = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(keyholder)
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(first)
     )
     assert refused.status_code == 400
-    assert refused.json()["detail"] == "CANNOT_LEAVE_LAST_ADMIN"
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+
+
+@pytest.mark.integration
+async def test_the_only_member_leaves_whatever_they_hold(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nobody to strand, and nobody to appoint either. What is left behind is a
+    community with no members."""
+    alone = await create_user(session)
+    guild = await create_guild(session, creator=alone)
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(alone),
+    )
+    assert eligibility.json()["can_leave"] is True
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(alone)
+    )
+    assert response.status_code == 204, response.text
 
 
 @pytest.mark.integration
 async def test_leaving_takes_the_lock_before_it_counts_anyone(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """Both of a departure's guards ask how many people of some kind a guild
-    has left, and each answer has to still be true when the departure is
-    written. So the lock comes first — not between them, and not after.
+    """A departure's guard asks how many seats a community has left, and that
+    answer has to still be true when the departure is written. So the lock
+    comes first.
 
     Pinned as an order because that is what the invariant is: a guard that runs
     outside the lock is a guard two concurrent departures can both pass.
     """
     from app.services.platform import guilds as guilds_service
-    from app.services.platform import users as users_service
 
     order: list[str] = []
     real_lock = guilds_service.lock_guild_seats
-    real_last_admin = users_service.is_last_admin_of_guild
-    real_seat = guilds_service.must_keep_security_admin
+    real_seat = guilds_service.must_keep_superadmin
 
     async def record(name, fn, *args, **kwargs):
         order.append(name)
@@ -1302,21 +1322,16 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
         lambda *a, **k: record("lock", real_lock, *a, **k),
     )
     monkeypatch.setattr(
-        users_service,
-        "is_last_admin_of_guild",
-        lambda *a, **k: record("last admin", real_last_admin, *a, **k),
-    )
-    monkeypatch.setattr(
         guilds_service,
-        "must_keep_security_admin",
+        "must_keep_superadmin",
         lambda *a, **k: record("last seat", real_seat, *a, **k),
     )
 
-    staying = await create_user(session)
+    seat = await create_user(session)
     leaving = await create_user(session)
-    guild = await create_guild(session, creator=staying)
+    guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=staying, guild=guild, role=GuildRole.admin
+        session, user=seat, guild=guild, role=GuildRole.superadmin
     )
     await create_guild_membership(
         session, user=leaving, guild=guild, role=GuildRole.admin
@@ -1326,4 +1341,4 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
         f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
     )
     assert response.status_code == 204, response.text
-    assert order == ["lock", "last admin", "last seat"]
+    assert order == ["lock", "last seat"]
