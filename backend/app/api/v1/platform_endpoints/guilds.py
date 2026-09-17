@@ -63,6 +63,8 @@ from app.schemas.platform.guild import (
     CommunityGuildRead,
     GuildBannerRead,
     GuildEntitlementsRead,
+    GuildApiAccessRead,
+    GuildApiAccessUpdate,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
     GuildCreate,
@@ -159,6 +161,8 @@ def _serialize_guild(
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
         auth_options=sorted(admin_row.auth_options) if admin_row else None,
+        # Admins only: the state of the API-access control on that tab.
+        allow_api_keys=guild.allow_api_keys if is_admin else None,
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -1137,6 +1141,40 @@ async def set_guild_auth_policy(
     admin_session.add(policy_row)
     await admin_session.commit()
     return _auth_policy_read(policy_row, provider.display_name if provider else None)
+
+
+@router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)
+async def set_guild_api_access(
+    guild_id: int,
+    payload: GuildApiAccessUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildApiAccessRead:
+    """Decide whether this guild accepts personal API keys.
+
+    The same seat as the sign-in requirement, and for the same reason: it says
+    what may be used to reach the community, which is not the job of running
+    one. It carries no operator entitlement, though — turning it off only ever
+    narrows what reaches the guild, so there is nothing for an operator to
+    grant.
+
+    Existing keys are left alone. What they may reach is decided when they are
+    used, so switching this back on restores them rather than leaving somebody
+    to mint replacements.
+    """
+    await _ensure_guild_security_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    guild.allow_api_keys = payload.allow_api_keys
+    admin_session.add(guild)
+    await admin_session.commit()
+    return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
 
 
 @router.delete(

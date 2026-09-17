@@ -16,12 +16,14 @@ import {
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
+  setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
 } from "@/api/generated/guilds/guilds";
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
   AuthProviderUpdate,
+  GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   LoginProvidersResponse,
@@ -76,6 +78,20 @@ export const useUpdateGuildAuthPolicy = (guildId: number) => {
         queryKey: getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId),
       });
     },
+  });
+};
+
+/**
+ * Whether the guild accepts personal API keys.
+ *
+ * The value itself rides on the guild list (`GuildRead.allow_api_keys`), so
+ * there is no query of its own to invalidate — the caller refreshes the guilds
+ * it already has.
+ */
+export const useUpdateGuildApiAccess = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildApiAccessUpdate) =>
+      setGuildApiAccessApiV1GuildsGuildIdApiAccessPut(guildId, data),
   });
 };
 

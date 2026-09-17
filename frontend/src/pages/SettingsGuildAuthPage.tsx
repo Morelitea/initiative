@@ -15,11 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
   useGuildAuthProviders,
   useGuildLoginProviders,
+  useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -46,7 +48,7 @@ export const SettingsGuildAuthPage = () => {
   // grant: editing the provider list needs ``providers``, the sign-in
   // requirement needs ``require_sign_in``. Outside both the tab is hidden and a
   // direct URL renders nothing (fail closed while still loading).
-  const { activeGuild } = useGuilds();
+  const { activeGuild, refreshGuilds } = useGuilds();
   const grantedOptions = activeGuild?.auth_options ?? [];
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
@@ -94,6 +96,33 @@ export const SettingsGuildAuthPage = () => {
   const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
+
+  // API access is one boolean, so it saves as it is switched rather than
+  // waiting for a button. The draft is what the switch shows until the
+  // refreshed guild list carries the saved value.
+  const updateApiAccess = useUpdateGuildApiAccess(guildId);
+  const [apiAccessDraft, setApiAccessDraft] = useState<boolean | null>(null);
+  const allowApiKeys = apiAccessDraft ?? activeGuild?.allow_api_keys ?? true;
+  const [apiAccessError, setApiAccessError] = useState<string | null>(null);
+
+  const changeApiAccess = (next: boolean) => {
+    setApiAccessDraft(next);
+    setApiAccessError(null);
+    updateApiAccess.mutate(
+      { allow_api_keys: next },
+      {
+        onSuccess: async () => {
+          await refreshGuilds();
+          setApiAccessDraft(null);
+          toast.success(t("guildAuth.apiAccess.saved"));
+        },
+        onError: (err: unknown) => {
+          setApiAccessDraft(null);
+          setApiAccessError(getErrorMessage(err, "settings:guildAuth.apiAccess.error"));
+        },
+      }
+    );
+  };
 
   const selectedProvider = eligibleProviders.find((entry) => entry.id === providerId);
   const savedAnyProvider =
@@ -351,6 +380,38 @@ export const SettingsGuildAuthPage = () => {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("guildAuth.apiAccess.title")}</CardTitle>
+          <CardDescription>{t("guildAuth.apiAccess.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="guild-allow-api-keys" className="font-medium">
+                {t("guildAuth.apiAccess.allowLabel")}
+              </Label>
+              <p className="text-muted-foreground text-sm">
+                {allowApiKeys
+                  ? t("guildAuth.apiAccess.allowHelp")
+                  : t("guildAuth.apiAccess.blockedHelp")}
+              </p>
+            </div>
+            <Switch
+              id="guild-allow-api-keys"
+              checked={allowApiKeys}
+              onCheckedChange={changeApiAccess}
+              disabled={!maySetSignIn || updateApiAccess.isPending}
+            />
+          </div>
+          {apiAccessError && (
+            <Alert variant="destructive">
+              <AlertDescription>{apiAccessError}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {mayConfigureProviders ? (
         <GuildAuthProvidersSection guildId={guildId} readOnly={!maySetSignIn} />

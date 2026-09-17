@@ -130,6 +130,10 @@ class GuildRead(GuildBase):
     # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).
     auth_options: Optional[List[GuildAuthOption]] = None
+    # ADMIN-ONLY. Whether a personal API key may be used against this guild.
+    # ``None`` for non-admin members: it is read by the settings surface that
+    # sets it, and nothing a member does depends on the answer.
+    allow_api_keys: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
@@ -333,6 +337,21 @@ class GuildAuthPolicyUpdate(SanitizedBaseModel):
     #: ``password`` is absent from the type on purpose: whether passwords exist
     #: at all is the deployment's question.
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
+
+
+class GuildApiAccessRead(SanitizedBaseModel):
+    """Whether this guild accepts personal API keys."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    allow_api_keys: bool
+
+
+class GuildApiAccessUpdate(SanitizedBaseModel):
+    """Set it. ``false`` means no key can be minted into this guild and no
+    request carrying one reaches it; keys already minted stop working here."""
+
+    allow_api_keys: bool
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

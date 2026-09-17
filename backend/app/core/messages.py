@@ -95,6 +95,10 @@ class GuildMessages:
     #: because what satisfies it is a code rather than a sign-in page.
     GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
+    #: The community declines personal API keys. Raised both when one is being
+    #: minted into the guild and when a request carrying one addresses it, so
+    #: the answer reads the same wherever it is met.
+    GUILD_API_KEYS_REFUSED = "GUILD_API_KEYS_REFUSED"
     GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
     GUILD_AUTH_POLICY_SELF_UNSATISFIED = "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
     #: The community asked for a way in the deployment does not offer.

@@ -48,7 +48,12 @@ from app.core.user_input_validators import (
 )
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole, GuildMembership
+from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
+    Guild,
+    GuildMembership,
+    GuildRole,
+)
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
@@ -1436,6 +1441,14 @@ async def create_my_api_key(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
+            )
+        # And the guild has to accept the credential at all. Asked here as well
+        # as at the gate so a key that could never be used is never handed over.
+        guild = await session.get(Guild, payload.guild_id)
+        if guild is not None and not guild.allow_api_keys:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_API_KEYS_REFUSED,
             )
     secret, api_key = await api_keys_service.create_api_key(
         session,

@@ -25,6 +25,8 @@ import type {
   BodySetGuildBannerApiV1GuildsGuildIdBannerPut,
   BodySetGuildIconApiV1GuildsGuildIdIconPut,
   CommunityGuildPage,
+  GuildApiAccessRead,
+  GuildApiAccessUpdate,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   GuildCreate,
@@ -2108,6 +2110,110 @@ export const useSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = <
 > => {
   return useMutation(
     getSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Decide whether this guild accepts personal API keys.
+ *
+ * The same seat as the sign-in requirement, and for the same reason: it says
+ * what may be used to reach the community, which is not the job of running
+ * one. It carries no operator entitlement, though — turning it off only ever
+ * narrows what reaches the guild, so there is nothing for an operator to
+ * grant.
+ *
+ * Existing keys are left alone. What they may reach is decided when they are
+ * used, so switching this back on restores them rather than leaving somebody
+ * to mint replacements.
+ * @summary Set Guild Api Access
+ */
+export const setGuildApiAccessApiV1GuildsGuildIdApiAccessPut = (
+  guildId: number,
+  guildApiAccessUpdate: BodyType<GuildApiAccessUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildApiAccessRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/api-access`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildApiAccessUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>,
+    TError,
+    { guildId: number; data: BodyType<GuildApiAccessUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildApiAccessUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setGuildApiAccessApiV1GuildsGuildIdApiAccessPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>,
+    { guildId: number; data: BodyType<GuildApiAccessUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildApiAccessApiV1GuildsGuildIdApiAccessPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>
+>;
+export type SetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationBody =
+  BodyType<GuildApiAccessUpdate>;
+export type SetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Api Access
+ */
+export const useSetGuildApiAccessApiV1GuildsGuildIdApiAccessPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>,
+      TError,
+      { guildId: number; data: BodyType<GuildApiAccessUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildApiAccessApiV1GuildsGuildIdApiAccessPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildApiAccessUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationOptions(options),
     queryClient
   );
 };
